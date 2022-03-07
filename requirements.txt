@@ -1,0 +1,11 @@
+arviz==0.11.4
+graphviz==0.19.1
+ipykernel==6.9.1
+ipython==8.1.1
+matplotlib==3.5.1
+numpy==1.21.5
+pandas==1.4.1
+pymc3==3.11.4
+scipy==1.8.0
+seaborn==0.11.2
+Theano-PyMC==1.1.2
