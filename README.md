@@ -31,7 +31,13 @@ make init
 make test
 ```
 
-5. Set [pre-commit hooks](https://pre-commit.com/) (Optional):
+5. To check code style:
+
+```shell
+make check_lint
+```
+
+6. Set [pre-commit hooks](https://pre-commit.com/) (Optional):
 
 ```shell
 pre-commit install
