@@ -1,7 +1,7 @@
 .PHONY: init check_lint test
 
 init:
-	pip install -r requirements.txt
+	python -m pip install -e .
 
 check_lint:
 	pip install -r requirements.txt

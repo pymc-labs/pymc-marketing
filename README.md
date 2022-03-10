@@ -19,7 +19,7 @@ conda create -n pymmmc_env python=3.8
 conda activate pymmmc_env
 ```
 
-3. Install requirements:
+1. Install `pymmmc` package:
 
 ```shell
 make init
