@@ -11,7 +11,7 @@ def geometric_adstock(x, alpha: float = 0.0, l_max: int = 12):
     alpha : float, by default 0.0
          Retention rate of ad effect
     l_max : int, by default 12
-        Maximum duration of carryover effect.
+        Maximum duration of carryover effect
 
     Returns
     -------
@@ -37,11 +37,11 @@ def logistic_saturation(x, lam: float = 0.5):
     x : tensor
         Input tensor
     lam : float, optional, by default 0.5
-        Saturation parameter.
+        Saturation parameter
 
     Returns
     -------
     tensor
-        Transformed tensor.
+        Transformed tensor
     """
     return (1 - at.exp(-lam * x)) / (1 + at.exp(-lam * x))
