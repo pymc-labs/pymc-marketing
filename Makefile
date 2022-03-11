@@ -1,7 +1,7 @@
 .PHONY: init check_lint test
 
 init:
-	pip install -r requirements.txt
+	python -m pip install -e .
 
 check_lint:
 	pip install -r requirements.txt
@@ -12,4 +12,4 @@ check_lint:
 
 test:
 	pip install -r test-requirements.txt
-	pytest tests
+	pytest pymmmc/tests
