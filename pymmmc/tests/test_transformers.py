@@ -2,8 +2,7 @@ import numpy as np
 import pytest
 from aesara.tensor.var import TensorVariable
 
-from pymmmc.transformers import (delayed_adstock, geometric_adstock,
-                                 logistic_saturation)
+from pymmmc.transformers import delayed_adstock, geometric_adstock, logistic_saturation
 
 
 def test_geometric_adsstock_output_type():
