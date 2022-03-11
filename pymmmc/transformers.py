@@ -15,7 +15,7 @@ def geometric_adstock(x, alpha: float = 0.0, l_max: int = 12, normalize: bool = 
     x : tensor
         Input tensor.
     alpha : float, by default 0.0
-            Retention rate of ad effect. Must be between 0 and 1.
+        Retention rate of ad effect. Must be between 0 and 1.
     l_max : int, by default 12
         Maximum duration of carryover effect.
     normalize : bool, by default False
@@ -24,7 +24,7 @@ def geometric_adstock(x, alpha: float = 0.0, l_max: int = 12, normalize: bool = 
     Returns
     -------
     tensor
-        Transformed tensor
+        Transformed tensor.
 
     References
     ----------
@@ -52,7 +52,7 @@ def delayed_adstock(
     Parameters
     ----------
     x : tensor
-        Input tensor
+        Input tensor.
     alpha : float, by default 0.0
          Retention rate of ad effect. Must be between 0 and 1.
     theta : float, by default 0
@@ -65,7 +65,7 @@ def delayed_adstock(
     Returns
     -------
     tensor
-        Transformed tensor
+        Transformed tensor.
 
     References
     ----------
@@ -92,14 +92,14 @@ def logistic_saturation(x, lam: float = 0.5):
     Parameters
     ----------
     x : tensor
-        Input tensor
+        Input tensor.
     lam : float, optional, by default 0.5
-        Saturation parameter
+        Saturation parameter.
 
     Returns
     -------
     tensor
-        Transformed tensor
+        Transformed tensor.
     """
     if lam < 0:
         raise ValueError(f"lam must be non-negative. Got {lam}")
