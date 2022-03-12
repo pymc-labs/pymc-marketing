@@ -45,3 +45,23 @@ def logistic_saturation(x, lam: float = 0.5):
         Transformed tensor
     """
     return (1 - at.exp(-lam * x)) / (1 + at.exp(-lam * x))
+
+
+def tanh_saturation(x, b: float = 0.5, c: float = 0.5):
+    """Tanh saturation transformation.
+
+    Parameters
+    ----------
+    x : tensor
+        Input tensor.
+    b : float, by default 0.5
+        Number of users at saturation.
+    c : float, by default 0.5
+        Initial cost per user.
+
+    Returns
+    -------
+    tensor
+        Transformed tensor.
+    """
+    return b * at.tanh(x / (b * c))
