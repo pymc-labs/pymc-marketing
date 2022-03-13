@@ -68,3 +68,11 @@ def test_fourier_modes_pythagoras(periods, n_order):
             + fourier_modes_df[f"cos_order_{i}"] ** 2
         )
         assert abs(norm - 1).all() < 1e-10
+
+
+@pytest.mark.parametrize("n_order", [0, -1, -100])
+def test_bad_order(n_order):
+    with pytest.raises(ValueError, match="n_order must be greater than or equal to 1"):
+        generate_fourier_modes(
+            periods=np.linspace(start=0.0, stop=1.0, num=50), n_order=n_order
+        )
