@@ -43,11 +43,6 @@ def logistic_saturation(x, lam: float = 0.5):
     -------
     tensor
         Transformed tensor.
-
-    References
-    ----------
-    See reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget
-    in https://www.pymc-labs.io/blog-posts/
     """
     return (1 - at.exp(-lam * x)) / (1 + at.exp(-lam * x))
 
@@ -68,5 +63,9 @@ def tanh_saturation(x, b: float = 0.5, c: float = 0.5):
     -------
     tensor
         Transformed tensor.
+
+    References
+    ----------
+    See https://www.pymc-labs.io/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/ # noqa: E501
     """
     return b * at.tanh(x / (b * c))
