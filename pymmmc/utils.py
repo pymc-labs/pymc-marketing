@@ -1,13 +1,16 @@
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 
-def generate_fourier_modes(periods: np.array, n_order: int) -> pd.DataFrame:
+def generate_fourier_modes(
+    periods: npt.NDArray[np.float_], n_order: int
+) -> pd.DataFrame:
     """Generate Fourier modes.
 
     Parameters
     ----------
-    periods : np.array
+    periods : npt.NDArray[np.float_]
         Input array denoting the period range.
     n_order : int
         Maximum order of Fourier modes.
