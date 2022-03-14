@@ -1,8 +1,11 @@
+import aesara.tensor as at
 import numpy as np
 import pytest
 from aesara.tensor.var import TensorVariable
 
-from pymmmc.transformers import delayed_adstock, geometric_adstock, logistic_saturation
+
+from pymmmc.transformers import delayed_adstock, geometric_adstock, logistic_saturation, tanh_saturation
+
 
 
 def test_geometric_adsstock_output_type():
@@ -162,7 +165,6 @@ def test_logistic_saturation_min_max_value(x, lam):
     assert y.eval().max() <= 1
     assert y.eval().min() >= 0
 
-
 @pytest.mark.parametrize(
     "x, alpha, lam",
     [
@@ -207,3 +209,63 @@ def test_logistic_saturation_delayed_adstock_composition(x, alpha, lam, theta, l
     assert isinstance(z2.eval(), np.ndarray)
     assert z2.eval().max() <= 1
     assert z2.eval().min() >= 0
+
+@pytest.mark.parametrize(
+    "x, b, c",
+    [
+        (np.ones(shape=(100)), 0.5, 1.0),
+        (np.zeros(shape=(100)), 0.6, 5.0),
+        (np.linspace(start=0.0, stop=100.0, num=50), 0.001, 0.01),
+        (np.linspace(start=-2.0, stop=1.0, num=50), 0.1, 0.01),
+        (np.linspace(start=-80.0, stop=1.0, num=50), 1, 1),
+    ],
+)
+def test_tanh_saturation_range(x, b, c):
+    assert tanh_saturation(x=x, b=b, c=c).eval().max() <= b
+    assert tanh_saturation(x=x, b=b, c=c).eval().min() >= -b
+
+
+@pytest.mark.parametrize(
+    "x, b, c",
+    [
+        (np.ones(shape=(100)), 0.5, 1.0),
+        (np.zeros(shape=(100)), 0.6, 5.0),
+        (np.linspace(start=0.0, stop=1.0, num=50), 1, 1),
+        (np.linspace(start=-2.0, stop=1.0, num=50), 1, 2),
+        (np.linspace(start=-1.0, stop=1.0, num=50), 1, 2),
+    ],
+)
+def test_tanh_saturation_inverse(x, b, c):
+    y = tanh_saturation(x=x, b=b, c=c)
+    y_inv = (b * c) * at.arctanh(y / b)
+    np.testing.assert_array_almost_equal(x=x, y=y_inv.eval(), decimal=6)
+
+
+@pytest.mark.parametrize(
+    "x, b, c",
+    [
+        (np.ones(shape=(100)), -0.5, 1.0),
+        (np.zeros(shape=(100)), -0.6, 5.0),
+        (np.linspace(start=0.0, stop=100.0, num=50), -0.001, 0.01),
+        (np.linspace(start=-2.0, stop=1.0, num=50), -0.1, 0.01),
+        (np.linspace(start=-80.0, stop=1.0, num=50), -1, 1),
+    ],
+)
+def test_tanh_saturation_bad_b(x, b, c):
+    with pytest.raises(ValueError, match=f"b must be non-negative. Got {b}"):
+        tanh_saturation(x=x, b=b, c=c)
+
+
+@pytest.mark.parametrize(
+    "x, b, c",
+    [
+        (np.ones(shape=(100)), 0.5, 0),
+        (np.zeros(shape=(100)), 0.6, 0.0),
+        (np.linspace(start=0.0, stop=100.0, num=50), 0.001, 0.00),
+        (np.linspace(start=-2.0, stop=1.0, num=50), 0.1, 0.0),
+        (np.linspace(start=-80.0, stop=1.0, num=50), 1, 0),
+    ],
+)
+def test_tanh_saturation_bad_c(x, b, c):
+    with pytest.raises(ValueError, match="c must be non-zero."):
+        tanh_saturation(x=x, b=b, c=c)

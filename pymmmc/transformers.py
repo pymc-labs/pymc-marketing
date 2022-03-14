@@ -104,3 +104,31 @@ def logistic_saturation(x, lam: float = 0.5):
     if lam < 0:
         raise ValueError(f"lam must be non-negative. Got {lam}")
     return (1 - at.exp(-lam * x)) / (1 + at.exp(-lam * x))
+
+
+def tanh_saturation(x, b: float = 0.5, c: float = 0.5):
+    """Tanh saturation transformation.
+
+    Parameters
+    ----------
+    x : tensor
+        Input tensor.
+    b : float, by default 0.5
+        Number of users at saturation. Must be non-negative.
+    c : float, by default 0.5
+        Initial cost per user. Must be non-zero.
+
+    Returns
+    -------
+    tensor
+        Transformed tensor.
+
+    References
+    ----------
+    See https://www.pymc-labs.io/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/ # noqa: E501
+    """
+    if b < 0:
+        raise ValueError(f"b must be non-negative. Got {b}")
+    if c == 0:
+        raise ValueError("c must be non-zero.")
+    return b * at.tanh(x / (b * c))
