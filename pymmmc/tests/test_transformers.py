@@ -3,9 +3,12 @@ import numpy as np
 import pytest
 from aesara.tensor.var import TensorVariable
 
-
-from pymmmc.transformers import delayed_adstock, geometric_adstock, logistic_saturation, tanh_saturation
-
+from pymmmc.transformers import (
+    delayed_adstock,
+    geometric_adstock,
+    logistic_saturation,
+    tanh_saturation,
+)
 
 
 def test_geometric_adsstock_output_type():
@@ -53,7 +56,7 @@ def test_geometric_adsstock_good_alpha(x, alpha, l_max):
     y_np = y.eval()
     assert y_np[0] == x[0]
     assert y_np[1] == x[1] + alpha * x[0]
-    assert y_np[2] == x[2] + alpha * x[1] + (alpha**2) * x[0]
+    assert y_np[2] == x[2] + alpha * x[1] + (alpha ** 2) * x[0]
 
 
 def test_delayed_adsstock_output_type():
@@ -165,6 +168,7 @@ def test_logistic_saturation_min_max_value(x, lam):
     assert y.eval().max() <= 1
     assert y.eval().min() >= 0
 
+
 @pytest.mark.parametrize(
     "x, alpha, lam",
     [
@@ -209,6 +213,7 @@ def test_logistic_saturation_delayed_adstock_composition(x, alpha, lam, theta, l
     assert isinstance(z2.eval(), np.ndarray)
     assert z2.eval().max() <= 1
     assert z2.eval().min() >= 0
+
 
 @pytest.mark.parametrize(
     "x, b, c",
