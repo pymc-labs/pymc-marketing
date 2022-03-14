@@ -56,7 +56,7 @@ def test_geometric_adsstock_good_alpha(x, alpha, l_max):
     y_np = y.eval()
     assert y_np[0] == x[0]
     assert y_np[1] == x[1] + alpha * x[0]
-    assert y_np[2] == x[2] + alpha * x[1] + (alpha ** 2) * x[0]
+    assert y_np[2] == x[2] + alpha * x[1] + (alpha**2) * x[0]
 
 
 def test_delayed_adsstock_output_type():
