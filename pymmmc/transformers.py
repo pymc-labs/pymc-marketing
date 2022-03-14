@@ -55,9 +55,9 @@ def tanh_saturation(x, b: float = 0.5, c: float = 0.5):
     x : tensor
         Input tensor.
     b : float, by default 0.5
-        Number of users at saturation.
+        Number of users at saturation. Must be non-negative.
     c : float, by default 0.5
-        Initial cost per user.
+        Initial cost per user. Must be non-zero.
 
     Returns
     -------
@@ -68,4 +68,8 @@ def tanh_saturation(x, b: float = 0.5, c: float = 0.5):
     ----------
     See https://www.pymc-labs.io/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/ # noqa: E501
     """
+    if b < 0:
+        raise ValueError(f"b must be non-negative. Got {b}")
+    if c == 0:
+        raise ValueError("c must be non-zero.")
     return b * at.tanh(x / (b * c))
