@@ -19,7 +19,7 @@ def generate_fourier_modes(periods: np.array, n_order: int) -> pd.DataFrame:
 
     References
     ----------
-    See pymc-examples/examples/time_series/Air_passengers-Prophet_with_Bayesian_workflow.html
+    See https://docs.pymc.io/en/stable/pymc-examples/examples/time_series/Air_passengers-Prophet_with_Bayesian_workflow.html # noqa: E501
     """
     if n_order < 1:
         raise ValueError("n_order must be greater than or equal to 1")
