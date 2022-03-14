@@ -42,7 +42,12 @@ def logistic_saturation(x, lam: float = 0.5):
     Returns
     -------
     tensor
-        Transformed tensor
+        Transformed tensor.
+
+    References
+    ----------
+    See reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget
+    in https://www.pymc-labs.io/blog-posts/
     """
     return (1 - at.exp(-lam * x)) / (1 + at.exp(-lam * x))
 
