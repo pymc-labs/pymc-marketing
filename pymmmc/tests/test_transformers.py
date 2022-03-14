@@ -59,7 +59,7 @@ def test_geometric_adsstock_good_alpha(x, alpha, l_max):
     assert y_np[2] == x[2] + alpha * x[1] + (alpha**2) * x[0]
 
 
-def test_delayed_adsstock_output_type():
+def test_delayed_adstock_output_type():
     x = np.ones(shape=(100))
     y = delayed_adstock(x=x, alpha=0.5, theta=6, l_max=7)
     assert isinstance(y, TensorVariable)
