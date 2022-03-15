@@ -11,7 +11,7 @@ from pymmmc.transformers import (
 )
 
 
-def test_geometric_adsstock_output_type():
+def test_geometric_adstock_output_type():
     x = np.ones(shape=(100))
     y = geometric_adstock(x=x, alpha=0.5)
     assert isinstance(y, TensorVariable)
@@ -29,12 +29,12 @@ def test_geometric_adsstock_output_type():
         (np.linspace(start=0.0, stop=1.0, num=50), -10),
     ],
 )
-def test_geometric_adsstock_bad_alpha(x, alpha):
+def test_geometric_adstock_bad_alpha(x, alpha):
     with pytest.raises(ValueError, match=f"alpha must be between 0 and 1. Got {alpha}"):
         geometric_adstock(x=x, alpha=alpha)
 
 
-def test_geometric_adsstock_x_zero():
+def test_geometric_adstock_x_zero():
     x = np.zeros(shape=(100))
     y = geometric_adstock(x=x, alpha=0.2)
     np.testing.assert_array_equal(x=x, y=y.eval())
@@ -51,15 +51,15 @@ def test_geometric_adsstock_x_zero():
         (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 50),
     ],
 )
-def test_geometric_adsstock_good_alpha(x, alpha, l_max):
+def test_geometric_adstock_good_alpha(x, alpha, l_max):
     y = geometric_adstock(x=x, alpha=alpha, l_max=l_max)
     y_np = y.eval()
     assert y_np[0] == x[0]
     assert y_np[1] == x[1] + alpha * x[0]
-    assert y_np[2] == x[2] + alpha * x[1] + (alpha**2) * x[0]
+    assert y_np[2] == x[2] + alpha * x[1] + (alpha ** 2) * x[0]
 
 
-def test_delayed_adsstock_output_type():
+def test_delayed_adstock_output_type():
     x = np.ones(shape=(100))
     y = delayed_adstock(x=x, alpha=0.5, theta=6, l_max=7)
     assert isinstance(y, TensorVariable)
