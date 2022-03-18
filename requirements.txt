@@ -2,5 +2,5 @@ graphviz==0.19.1
 ipykernel==6.9.1
 ipython==8.1.1
 matplotlib==3.5.1
-pymc==4.0.0b3
+pymc==4.0.0b4
 seaborn==0.11.2
