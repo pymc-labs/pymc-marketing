@@ -7,7 +7,7 @@ check_lint:
 	pip install -r requirements.txt
 	pip install -r lint-requirements.txt
 	flake8 .
-	isort --profile black --check-only .
+	isort --check-only .
 	black --diff --check --fast .
 
 test:
