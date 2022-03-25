@@ -1,4 +1,7 @@
 # pymmmc
+
+![Build](https://github.com/pymc-labs/pymmmc/workflows/ci/badge.svg)
+
 ## Bayesian MMMs in PyMC
 
 ...
@@ -19,7 +22,7 @@ conda create -n pymmmc_env python=3.8
 conda activate pymmmc_env
 ```
 
-1. Install `pymmmc` package:
+3. Install `pymmmc` package:
 
 ```shell
 make init
@@ -27,7 +30,7 @@ make init
 
 4. To run tests:
 
-```pyhton
+```shell
 make test
 ```
 
