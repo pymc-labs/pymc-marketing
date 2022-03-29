@@ -18,22 +18,6 @@ def test_geometric_adstock_output_type():
     assert isinstance(y.eval(), np.ndarray)
 
 
-@pytest.mark.parametrize(
-    "x, alpha",
-    [
-        (np.ones(shape=(100)), 1.0),
-        (np.ones(shape=(100)), 0.0),
-        (np.zeros(shape=(100)), -0.2),
-        (np.ones(shape=(100)), -0.5),
-        (np.linspace(start=0.0, stop=1.0, num=50), 10),
-        (np.linspace(start=0.0, stop=1.0, num=50), -10),
-    ],
-)
-def test_geometric_adstock_bad_alpha(x, alpha):
-    with pytest.raises(ValueError, match=f"alpha must be between 0 and 1. Got {alpha}"):
-        geometric_adstock(x=x, alpha=alpha)
-
-
 def test_geometric_adstock_x_zero():
     x = np.zeros(shape=(100))
     y = geometric_adstock(x=x, alpha=0.2)
@@ -66,39 +50,6 @@ def test_delayed_adstock_output_type():
     assert isinstance(y.eval(), np.ndarray)
 
 
-@pytest.mark.parametrize(
-    "x, alpha",
-    [
-        (np.ones(shape=(100)), 1.0),
-        (np.ones(shape=(100)), 0.0),
-        (np.zeros(shape=(100)), -0.2),
-        (np.ones(shape=(100)), -0.5),
-        (np.linspace(start=0.0, stop=1.0, num=50), 10),
-        (np.linspace(start=0.0, stop=1.0, num=50), -10),
-    ],
-)
-def test_delayed_adstock_bad_alpha(x, alpha):
-    with pytest.raises(ValueError, match=f"alpha must be between 0 and 1. Got {alpha}"):
-        delayed_adstock(x=x, alpha=alpha)
-
-
-@pytest.mark.parametrize(
-    "x, alpha, theta, l_max",
-    [
-        (np.ones(shape=(100)), 0.5, -10, 10),
-        (np.ones(shape=(100)), 0.5, 10, 10),
-        (np.zeros(shape=(100)), 0.2, 8, 5),
-        (np.ones(shape=(100)), 0.5, -7, -5),
-        (np.linspace(start=0.0, stop=1.0, num=50), 0.3, 3, 1),
-    ],
-)
-def test_delayed_adstock_bad_theta(x, alpha, theta, l_max):
-    with pytest.raises(
-        ValueError, match=f"theta must be between 0 and l_max - 1. Got {theta}"
-    ):
-        delayed_adstock(x=x, alpha=alpha, theta=theta, l_max=l_max)
-
-
 def test_delayed_adstock_x_zero():
     x = np.zeros(shape=(100))
     y = delayed_adstock(x=x, alpha=0.2, theta=2, l_max=4)
@@ -124,21 +75,6 @@ def test_logistic_saturation_lam_one():
     np.testing.assert_array_equal(
         x=((1 - np.e ** (-1)) / (1 + np.e ** (-1))) * x, y=y.eval()
     )
-
-
-@pytest.mark.parametrize(
-    "x, lam",
-    [
-        (np.ones(shape=(100)), -1.0),
-        (np.ones(shape=(100)), -19.0),
-        (np.zeros(shape=(100)), -5.0),
-        (np.ones(shape=(100)), -10.0),
-        (np.linspace(start=0.0, stop=1.0, num=50), -0.01),
-    ],
-)
-def test_logistic_saturation_bad_lam(x, lam):
-    with pytest.raises(ValueError, match=f"lam must be non-negative. Got {lam}"):
-        logistic_saturation(x=x, lam=lam)
 
 
 @pytest.mark.parametrize(
@@ -244,33 +180,3 @@ def test_tanh_saturation_inverse(x, b, c):
     y = tanh_saturation(x=x, b=b, c=c)
     y_inv = (b * c) * at.arctanh(y / b)
     np.testing.assert_array_almost_equal(x=x, y=y_inv.eval(), decimal=6)
-
-
-@pytest.mark.parametrize(
-    "x, b, c",
-    [
-        (np.ones(shape=(100)), -0.5, 1.0),
-        (np.zeros(shape=(100)), -0.6, 5.0),
-        (np.linspace(start=0.0, stop=100.0, num=50), -0.001, 0.01),
-        (np.linspace(start=-2.0, stop=1.0, num=50), -0.1, 0.01),
-        (np.linspace(start=-80.0, stop=1.0, num=50), -1, 1),
-    ],
-)
-def test_tanh_saturation_bad_b(x, b, c):
-    with pytest.raises(ValueError, match=f"b must be non-negative. Got {b}"):
-        tanh_saturation(x=x, b=b, c=c)
-
-
-@pytest.mark.parametrize(
-    "x, b, c",
-    [
-        (np.ones(shape=(100)), 0.5, 0),
-        (np.zeros(shape=(100)), 0.6, 0.0),
-        (np.linspace(start=0.0, stop=100.0, num=50), 0.001, 0.00),
-        (np.linspace(start=-2.0, stop=1.0, num=50), 0.1, 0.0),
-        (np.linspace(start=-80.0, stop=1.0, num=50), 1, 0),
-    ],
-)
-def test_tanh_saturation_bad_c(x, b, c):
-    with pytest.raises(ValueError, match="c must be non-zero."):
-        tanh_saturation(x=x, b=b, c=c)
