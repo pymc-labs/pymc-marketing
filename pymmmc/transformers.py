@@ -38,6 +38,20 @@ def geometric_adstock(x, alpha: float = 0.0, l_max: int = 12, normalize: bool = 
     return at.dot(w, x_cycle)
 
 
+def geometric_adstock_vectorized(x, alpha, l_max: int = 12, normalize: bool = False):
+    """Vectorized geometric adstock transformation."""
+    cycles = [
+        at.concatenate(tensor_list=[at.zeros(shape=x.shape)[:i], x[: x.shape[0] - i]])
+        for i in range(l_max)
+    ]
+    x_cycle = at.stack(cycles)
+    x_cycle = at.transpose(x=x_cycle, axes=[1, 2, 0])
+    w = at.as_tensor_variable([at.power(alpha, i) for i in range(l_max)])
+    w = at.transpose(w)[None, ...]
+    w = w / at.sum(w, axis=2, keepdims=True) if normalize else w
+    return at.sum(at.mul(x_cycle, w), axis=2)
+
+
 def delayed_adstock(
     x, alpha: float = 0.0, theta: int = 0, l_max: int = 12, normalize: bool = False
 ):
@@ -76,6 +90,24 @@ def delayed_adstock(
     )
     w = w / at.sum(w) if normalize else w
     return at.dot(w, x_cycle)
+
+
+def delayed_adstock_vectorized(
+    x, alpha, theta, l_max: int = 12, normalize: bool = False
+):
+    """Delayed adstock transformation."""
+    cycles = [
+        at.concatenate(tensor_list=[at.zeros(shape=x.shape)[:i], x[: x.shape[0] - i]])
+        for i in range(l_max)
+    ]
+    x_cycle = at.stack(cycles)
+    x_cycle = at.transpose(x=x_cycle, axes=[1, 2, 0])
+    w = at.as_tensor_variable(
+        [at.power(alpha, ((i - theta) ** 2)) for i in range(l_max)]
+    )
+    w = at.transpose(w)[None, ...]
+    w = w / at.sum(w, axis=2, keepdims=True) if normalize else w
+    return at.sum(at.mul(x_cycle, w), axis=2)
 
 
 def logistic_saturation(x, lam: float = 0.5):

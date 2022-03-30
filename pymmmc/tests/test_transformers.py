@@ -5,10 +5,26 @@ from aesara.tensor.var import TensorVariable
 
 from pymmmc.transformers import (
     delayed_adstock,
+    delayed_adstock_vectorized,
     geometric_adstock,
+    geometric_adstock_vectorized,
     logistic_saturation,
     tanh_saturation,
 )
+
+
+@pytest.fixture
+def dummy_design_matrix():
+    return np.concatenate(
+        (
+            np.ones(shape=(100, 1)),
+            0.5 * np.ones(shape=(100, 1)),
+            np.zeros(shape=(100, 1)),
+            np.linspace(start=0.0, stop=1.0, num=(100))[..., None],
+            np.linspace(start=0.0, stop=3.0, num=(100))[..., None],
+        ),
+        axis=1,
+    )
 
 
 def test_geometric_adstock_output_type():
@@ -180,3 +196,91 @@ def test_tanh_saturation_inverse(x, b, c):
     y = tanh_saturation(x=x, b=b, c=c)
     y_inv = (b * c) * at.arctanh(y / b)
     np.testing.assert_array_almost_equal(x=x, y=y_inv.eval(), decimal=6)
+
+
+def test_geometric_adstock_vactorized(dummy_design_matrix):
+    x = dummy_design_matrix.copy()
+    x_tensor = at.as_tensor_variable(x)
+    alpha = [0.9, 0.33, 0.5, 0.1, 0.0]
+    alpha_tensor = at.as_tensor_variable(alpha)
+    y_tensor = geometric_adstock_vectorized(x=x_tensor, alpha=alpha_tensor, l_max=12)
+    y = y_tensor.eval()
+
+    y_tensors = [
+        geometric_adstock(x=x[:, i], alpha=alpha[i], l_max=12)
+        for i in range(x.shape[1])
+    ]
+    ys = np.concatenate([y_t.eval()[..., None] for y_t in y_tensors], axis=1)
+    assert y.shape == x.shape
+    np.testing.assert_almost_equal(actual=y, desired=ys, decimal=12)
+
+
+def test_delayed_adstock_vactorized(dummy_design_matrix):
+    x = dummy_design_matrix
+    x_tensor = at.as_tensor_variable(x)
+    alpha = [0.9, 0.33, 0.5, 0.1, 0.0]
+    alpha_tensor = at.as_tensor_variable(alpha)
+    theta = [0, 1, 2, 3, 4]
+    theta_tensor = at.as_tensor_variable(theta)
+    y_tensor = delayed_adstock_vectorized(
+        x=x_tensor, alpha=alpha_tensor, theta=theta_tensor, l_max=12
+    )
+    y = y_tensor.eval()
+
+    y_tensors = [
+        delayed_adstock(x=x[:, i], alpha=alpha[i], theta=theta[i], l_max=12)
+        for i in range(x.shape[1])
+    ]
+    ys = np.concatenate([y_t.eval()[..., None] for y_t in y_tensors], axis=1)
+    assert y.shape == x.shape
+    np.testing.assert_almost_equal(actual=y, desired=ys, decimal=12)
+
+
+def test_geometric_adstock_vactorized_logistic_saturation(dummy_design_matrix):
+    x = dummy_design_matrix.copy()
+    x_tensor = at.as_tensor_variable(x)
+    alpha = [0.9, 0.33, 0.5, 0.1, 0.0]
+    alpha_tensor = at.as_tensor_variable(alpha)
+    lam = [0.5, 1.0, 2.0, 3.0, 4.0]
+    lam_tensor = at.as_tensor_variable(lam)
+    y_tensor = geometric_adstock_vectorized(x=x_tensor, alpha=alpha_tensor, l_max=12)
+    z_tensor = logistic_saturation(x=y_tensor, lam=lam_tensor)
+    z = z_tensor.eval()
+
+    y_tensors = [
+        geometric_adstock(x=x[:, i], alpha=alpha[i], l_max=12)
+        for i in range(x.shape[1])
+    ]
+    z_tensors = [
+        logistic_saturation(x=y_t, lam=lam[i]) for i, y_t in enumerate(y_tensors)
+    ]
+    zs = np.concatenate([z_t.eval()[..., None] for z_t in z_tensors], axis=1)
+    assert zs.shape == x.shape
+    np.testing.assert_almost_equal(actual=z, desired=zs, decimal=12)
+
+
+def test_delayed_adstock_vactorized_logistic_saturation(dummy_design_matrix):
+    x = dummy_design_matrix.copy()
+    x_tensor = at.as_tensor_variable(x)
+    alpha = [0.9, 0.33, 0.5, 0.1, 0.0]
+    alpha_tensor = at.as_tensor_variable(alpha)
+    theta = [0, 1, 2, 3, 4]
+    theta_tensor = at.as_tensor_variable(theta)
+    lam = [0.5, 1.0, 2.0, 3.0, 4.0]
+    lam_tensor = at.as_tensor_variable(lam)
+    y_tensor = delayed_adstock_vectorized(
+        x=x_tensor, alpha=alpha_tensor, theta=theta_tensor, l_max=12
+    )
+    z_tensor = logistic_saturation(x=y_tensor, lam=lam_tensor)
+    z = z_tensor.eval()
+
+    y_tensors = [
+        delayed_adstock(x=x[:, i], alpha=alpha[i], theta=theta[i], l_max=12)
+        for i in range(x.shape[1])
+    ]
+    z_tensors = [
+        logistic_saturation(x=y_t, lam=lam[i]) for i, y_t in enumerate(y_tensors)
+    ]
+    zs = np.concatenate([z_t.eval()[..., None] for z_t in z_tensors], axis=1)
+    assert zs.shape == x.shape
+    np.testing.assert_almost_equal(actual=z, desired=zs, decimal=12)
