@@ -7,6 +7,7 @@ from pymmmc.transformers import (
     delayed_adstock,
     delayed_adstock_vectorized,
     geometric_adstock,
+    geometric_adstock_scan,
     geometric_adstock_vectorized,
     logistic_saturation,
     tanh_saturation,
@@ -56,7 +57,7 @@ def test_geometric_adstock_good_alpha(x, alpha, l_max):
     y_np = y.eval()
     assert y_np[0] == x[0]
     assert y_np[1] == x[1] + alpha * x[0]
-    assert y_np[2] == x[2] + alpha * x[1] + (alpha**2) * x[0]
+    assert y_np[2] == x[2] + alpha * x[1] + (alpha ** 2) * x[0]
 
 
 def test_delayed_adstock_output_type():
@@ -284,3 +285,50 @@ def test_delayed_adstock_vactorized_logistic_saturation(dummy_design_matrix):
     zs = np.concatenate([z_t.eval()[..., None] for z_t in z_tensors], axis=1)
     assert zs.shape == x.shape
     np.testing.assert_almost_equal(actual=z, desired=zs, decimal=12)
+
+
+# TODO: Fix case when l_max == x.shape[0]
+@pytest.mark.parametrize(
+    "x, alpha, l_max",
+    [
+        (at.as_tensor_variable(np.ones(shape=(100))), at.as_tensor_variable(0.3), 10),
+        # (at.as_tensor_variable(np.ones(shape=(100))), tt.as_tensor_variable(0.7), 100), # noqa: E501
+        (at.as_tensor_variable(np.zeros(shape=(100))), at.as_tensor_variable(0.2), 5),
+        (at.as_tensor_variable(np.ones(shape=(100))), at.as_tensor_variable(0.5), 7),
+        (
+            at.as_tensor_variable(np.linspace(start=0.0, stop=1.0, num=50)),
+            at.as_tensor_variable(0.8),
+            3,
+        ),
+        # (
+        #     at.as_tensor_variable(np.linspace(start=0.0, stop=1.0, num=50)),
+        #     at.as_tensor_variable(0.8),
+        #     50,
+        # ),
+    ],
+)
+def test_geometric_adstock_scan_scalar(x, alpha, l_max):
+    y_tensor = geometric_adstock(x=x, alpha=alpha, l_max=l_max)
+    y_tensor_scan = geometric_adstock_scan(x=x, alpha=alpha, l_max=l_max)
+    y = y_tensor.eval()
+    y_scan = y_tensor_scan.eval()
+    assert y_scan.shape == x.eval().shape
+    assert y_scan.shape == y.shape
+    np.testing.assert_almost_equal(actual=y, desired=y_scan, decimal=12)
+
+
+def test_geometric_adstock_scan_vector(dummy_design_matrix):
+    x = dummy_design_matrix.copy()
+    x_tensor = at.as_tensor_variable(x)
+    alpha = [0.9, 0.33, 0.5, 0.1, 0.0]
+    alpha_tensor = at.as_tensor_variable(alpha)
+    y_tensor = geometric_adstock_scan(x=x_tensor, alpha=alpha_tensor, l_max=12)
+    y = y_tensor.eval()
+
+    y_tensors = [
+        geometric_adstock(x=x[:, i], alpha=alpha[i], l_max=12)
+        for i in range(x.shape[1])
+    ]
+    ys = np.concatenate([y_t.eval()[..., None] for y_t in y_tensors], axis=1)
+    assert y.shape == x.shape
+    np.testing.assert_almost_equal(actual=y, desired=ys, decimal=12)
