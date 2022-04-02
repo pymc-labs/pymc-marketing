@@ -39,34 +39,49 @@ def geometric_adstock(x, alpha: float = 0.0, l_max: int = 12, normalize: bool = 
     return at.dot(w, x_cycle)
 
 
-def compute_convolution(x, alpha):
+def compute_geometric_convolution(x, alpha):
     r = at.zeros_like(x)
     r = at.set_subtensor(r[0], x[0])
     return scan(
-        fn=lambda t, r, x: at.set_subtensor(r[t], x[t] + alpha * r[t - 1]),
+        fn=lambda t, r, x, alpha: at.set_subtensor(r[t], x[t] + alpha * r[t - 1]),
         sequences=at.arange(1, x.shape[0]),
         outputs_info=r,
-        non_sequences=x,
+        non_sequences=[x, alpha],
     )
 
 
-def compute_tail_correction(x, alpha, l_max):
+def compute_geometric_tail_correction(x, alpha, l_max):
     r = at.zeros_like(x)
     return scan(
-        fn=lambda t, r, x: at.set_subtensor(
+        fn=lambda t, r, x, alpha: at.set_subtensor(
             r[t], (alpha ** (l_max)) * x[t - l_max] + alpha * r[t - 1]
         ),
         sequences=at.arange(l_max, x.shape[0]),
         outputs_info=r,
-        non_sequences=x,
+        non_sequences=[x, alpha],
     )
 
 
+def compute_geometric_normalization(alpha, l_max):
+    d = alpha.size if alpha.ndim > 0 else 1
+    result, _ = scan(
+        fn=lambda t, r, alpha: at.set_subtensor(r[t], alpha * r[t - 1]),
+        sequences=at.arange(1, l_max),
+        outputs_info=at.ones(shape=(l_max, d)),
+        non_sequences=alpha,
+    )
+    return result[-1].sum(axis=0)
+
+
 # TODO: For the moment this works if l_max < x.shape[0]
-def geometric_adstock_scan(x, alpha, l_max: int = 12):
-    outputs_total, _ = compute_convolution(x=x, alpha=alpha)
-    outputs_tail, _ = compute_tail_correction(x=x, alpha=alpha, l_max=l_max)
-    return outputs_total[-1] - outputs_tail[-1]
+def geometric_adstock_scan(x, alpha, l_max: int = 12, normalize: bool = False):
+    outputs_total, _ = compute_geometric_convolution(x=x, alpha=alpha)
+    outputs_tail, _ = compute_geometric_tail_correction(x=x, alpha=alpha, l_max=l_max)
+    result = outputs_total[-1] - outputs_tail[-1]
+    if normalize:
+        const = compute_geometric_normalization(alpha=alpha, l_max=l_max)
+        result = result / const
+    return result
 
 
 def geometric_adstock_vectorized(x, alpha, l_max: int = 12, normalize: bool = False):
