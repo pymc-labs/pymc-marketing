@@ -28,12 +28,6 @@ def dummy_design_matrix():
 
 
 class TestsAdstockTransformers:
-    def test_geometric_adstock_output_type(self):
-        x = np.ones(shape=(100))
-        y = geometric_adstock(x=x, alpha=0.5)
-        assert isinstance(y, TensorVariable)
-        assert isinstance(y.eval(), np.ndarray)
-
     def test_geometric_adstock_x_zero(self):
         x = np.zeros(shape=(100))
         y = geometric_adstock(x=x, alpha=0.2)
@@ -108,12 +102,6 @@ class TestsAdstockTransformers:
 
 
 class TestSaturationTransformers:
-    def test_logistic_saturation_output_type(self):
-        x = np.ones(shape=(100))
-        y = logistic_saturation(x=x, lam=1.0)
-        assert isinstance(y, TensorVariable)
-        assert isinstance(y.eval(), np.ndarray)
-
     def test_logistic_saturation_lam_zero(self):
         x = np.ones(shape=(100))
         y = logistic_saturation(x=x, lam=0.0)
@@ -149,8 +137,9 @@ class TestSaturationTransformers:
     )
     def test_logistic_saturation_min_max_value(self, x, lam):
         y = logistic_saturation(x=x, lam=lam)
-        assert y.eval().max() <= 1
-        assert y.eval().min() >= 0
+        y_eval = y.eval()
+        assert y_eval.max() <= 1
+        assert y_eval.min() >= 0
 
     @pytest.mark.parametrize(
         "x, b, c",
@@ -198,12 +187,13 @@ class TestTransformersComposition:
         z1 = geometric_adstock(x=y1, alpha=alpha, l_max=1)
         y2 = geometric_adstock(x=x, alpha=alpha, l_max=1)
         z2 = logistic_saturation(x=y2, lam=lam)
+        z2_eval = z2.eval()
         assert isinstance(z1, TensorVariable)
         assert isinstance(z1.eval(), np.ndarray)
         assert isinstance(z2, TensorVariable)
         assert isinstance(z2.eval(), np.ndarray)
-        assert z2.eval().max() <= 1
-        assert z2.eval().min() >= 0
+        assert z2_eval.max() <= 1
+        assert z2_eval.min() >= 0
 
     @pytest.mark.parametrize(
         "x, alpha, lam, theta, l_max",
@@ -222,12 +212,13 @@ class TestTransformersComposition:
         z1 = delayed_adstock(x=y1, alpha=alpha, theta=theta, l_max=l_max)
         y2 = delayed_adstock(x=x, alpha=alpha, theta=theta, l_max=l_max)
         z2 = logistic_saturation(x=y2, lam=lam)
+        z2_eval = z2.eval()
         assert isinstance(z1, TensorVariable)
         assert isinstance(z1.eval(), np.ndarray)
         assert isinstance(z2, TensorVariable)
         assert isinstance(z2.eval(), np.ndarray)
-        assert z2.eval().max() <= 1
-        assert z2.eval().min() >= 0
+        assert z2_eval.max() <= 1
+        assert z2_eval.min() >= 0
 
     def test_geometric_adstock_vactorized_logistic_saturation(
         self, dummy_design_matrix
