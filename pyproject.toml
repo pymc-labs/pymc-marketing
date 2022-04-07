@@ -2,6 +2,11 @@
 profile = "black"
 
 [tool.pytest.ini_options]
-testpaths = [
-    "pymmmc/tests",
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=mmm",
+    "--cov=pymmmc",
 ]
+testpaths = "pymmmc/tests"

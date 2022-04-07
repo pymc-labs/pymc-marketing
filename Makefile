@@ -16,4 +16,4 @@ check_lint:
 
 test:
 	pip install -r test-requirements.txt
-	pytest pymmmc/tests
+	pytest
