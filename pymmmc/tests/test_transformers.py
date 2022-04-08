@@ -49,7 +49,7 @@ class TestsAdstockTransformers:
         y_np = y.eval()
         assert y_np[0] == x[0]
         assert y_np[1] == x[1] + alpha * x[0]
-        assert y_np[2] == x[2] + alpha * x[1] + (alpha**2) * x[0]
+        assert y_np[2] == x[2] + alpha * x[1] + (alpha ** 2) * x[0]
 
     def test_delayed_adstock_output_type(self):
         x = np.ones(shape=(100))
@@ -191,7 +191,7 @@ class TestTransformersComposition:
         assert isinstance(z1, TensorVariable)
         assert isinstance(z1.eval(), np.ndarray)
         assert isinstance(z2, TensorVariable)
-        assert isinstance(z2.eval(), np.ndarray)
+        assert isinstance(z2_eval(), np.ndarray)
         assert z2_eval.max() <= 1
         assert z2_eval.min() >= 0
 
@@ -216,7 +216,7 @@ class TestTransformersComposition:
         assert isinstance(z1, TensorVariable)
         assert isinstance(z1.eval(), np.ndarray)
         assert isinstance(z2, TensorVariable)
-        assert isinstance(z2.eval(), np.ndarray)
+        assert isinstance(z2_eval, np.ndarray)
         assert z2_eval.max() <= 1
         assert z2_eval.min() >= 0
 
