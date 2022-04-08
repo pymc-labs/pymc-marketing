@@ -191,7 +191,7 @@ class TestTransformersComposition:
         assert isinstance(z1, TensorVariable)
         assert isinstance(z1.eval(), np.ndarray)
         assert isinstance(z2, TensorVariable)
-        assert isinstance(z2.eval(), np.ndarray)
+        assert isinstance(z2_eval, np.ndarray)
         assert z2_eval.max() <= 1
         assert z2_eval.min() >= 0
 
@@ -216,7 +216,7 @@ class TestTransformersComposition:
         assert isinstance(z1, TensorVariable)
         assert isinstance(z1.eval(), np.ndarray)
         assert isinstance(z2, TensorVariable)
-        assert isinstance(z2.eval(), np.ndarray)
+        assert isinstance(z2_eval, np.ndarray)
         assert z2_eval.max() <= 1
         assert z2_eval.min() >= 0
 
