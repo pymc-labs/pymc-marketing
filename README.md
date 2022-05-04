@@ -19,7 +19,7 @@
 To explain further:
 - **Contractual:** In contractual settings a customer has a contract which continues to be active until it is explicitly cancelled. Therefore in contractual settings, customer churn events are observed.
 
-- **Non-contractial:** In non-contractual settings, there is no ongoing contract that a customer has with a company. Instead, purchases can be ad hoc and churn events are unobserved.
+- **Non-contractual:** In non-contractual settings, there is no ongoing contract that a customer has with a company. Instead, purchases can be ad hoc and churn events are unobserved.
 
 - **Discrete:** Here, purchases are made at discrete points in time. This obviously depends upon the timescale that we are working on, but typically a relevant time period would be a month or year. However it could be more granualar than this - think of taking the 2nd of 4 inter-city train journeys offered per day.
 
