@@ -7,7 +7,7 @@
 ...
 
 ## Bayesian CLVs in PyMC
-[Customer Lifetime Value](https://en.wikipedia.org/wiki/Customer_lifetime_value) models is another important class of models. There are many different types of CLV models and it can be helpful to conceptualise them as fitting in a 2-dimensional grid as below.
+[Customer Lifetime Value](https://en.wikipedia.org/wiki/Customer_lifetime_value) models is another important class of models. There are many different types of CLV models and it can be helpful to conceptualise them as fitting in a 2-dimensional grid as below. An excellent set of introduction slides to CLV's is provided in [Probability Models for Customer-Base Analysis](https://www.brucehardie.com/talks/ho_cba_tut_art_09.pdf) by Fader & Hardie (2009).
 
 ### Examples
 
