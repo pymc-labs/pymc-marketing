@@ -23,13 +23,13 @@ def plot_hdi_func(x, Y, ax=None):
         x,
         hdi_data=quantiles.sel(quantile=[0.025, 0.975]),
         ax=ax,
-        fill_kwargs={"label": "95% ETI"},
+        fill_kwargs={"label": "95% ETI", "alpha": 0.25},
     )
     az.plot_hdi(
         x,
         hdi_data=quantiles.sel(quantile=[0.25, 0.75]),
         ax=ax,
-        fill_kwargs={"label": "50% ETI"},
+        fill_kwargs={"label": "50% ETI", "alpha": 0.5},
     )
     ax.plot(x, quantiles.sel(quantile=0.5), label="Median")
     ax.legend()
