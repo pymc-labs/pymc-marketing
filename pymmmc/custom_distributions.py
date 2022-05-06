@@ -5,21 +5,19 @@ import aesara.tensor as at
 
 # TODO: Turn this into a proper PyMC custom distribution
 def truncated_geometric(name, data, θ):
-    """
-    niave implementation...
-    pm.Potential(
-        name + "observed",
-        churned_in_period_t * pm.math.log(θ * (1 - θ) ** (time_periods - 1)),
-    )
-    pm.Potential(name + "final", data[T - 1] * pm.math.log((1 - θ) ** T))
-    But we will remove the exponents from inside the logs:
-    a * ln(x*b^C) = a * (ln(x) + c * In(b))
-    In(x^b) = b In(x)
-    """
+    """Truncated geometric distribution"""
     pm.Potential(name, truncated_geometric_logp(θ, data))
 
 
 def truncated_geometric_logp(theta, customers):
+    """Calculate log probability of the truncated geometric distribution
+    Parameters
+    ----------
+    theta : float
+        `theta` is the churn rate
+    customers : array of ints
+        Vector of number of customers. Should be non-increasing.
+    """
     churned_in_period_t = customers[:-1] - customers[1:]
     T = len(customers)
     time_periods = np.arange(start=1, stop=T)
