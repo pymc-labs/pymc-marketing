@@ -3,10 +3,15 @@ import matplotlib.pyplot as plt
 
 
 def plot_hdi_func(x, Y, ax=None):
-    """Plot the posterior mean and 95% and 50% CI's from a given set of x and Y values.
-    x: is a vector
-    Y: is an xarrray of size (chain, draw, dim)
+    """Plot the posterior mean and 95% and 50% CI's of a univariate function
+    Parameters
+    ----------
+    x : vector
+        Xarray object of x values. Size (dim)
+    Y : array of ints
+        Xarray object of y values. Size (chain, draw, dim)
     """
+
     if ax is None:
         _, ax = plt.subplots()
 
