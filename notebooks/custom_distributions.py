@@ -1,7 +1,8 @@
 import pymc as pm
 import numpy as np
+import aesara.tensor as at
 
-# TODO: Is this even a vaguely correct name for this distribution?
+
 # TODO: Turn this into a proper PyMC custom distribution
 def truncated_geometric(name, data, θ):
     """
@@ -15,13 +16,16 @@ def truncated_geometric(name, data, θ):
     a * ln(x*b^C) = a * (ln(x) + c * In(b))
     In(x^b) = b In(x)
     """
-    churned_in_period_t = data[:-1] - data[1:]
-    T = len(data)
+    pm.Potential(name, truncated_geometric_logp(θ, data))
+
+
+def truncated_geometric_logp(theta, customers):
+    churned_in_period_t = customers[:-1] - customers[1:]
+    T = len(customers)
     time_periods = np.arange(start=1, stop=T)
-    pm.Potential(
-        name + "observed",
-        churned_in_period_t
-        * (pm.math.log(θ) + ((time_periods - 1) * pm.math.log(1 - θ))),
+    logp = 0
+    logp += at.math.sum(
+        churned_in_period_t * (at.log(theta) + ((time_periods - 1) * at.log(1 - theta)))
     )
-    pm.Potential(name + "final", data[T - 1] * (T * pm.math.log(1 - θ)))
-    return
+    logp += customers[T - 1] * (T * at.log(1 - theta))
+    return logp
