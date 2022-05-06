@@ -2,7 +2,7 @@ import arviz as az
 import matplotlib.pyplot as plt
 
 
-def plot_xY(x, Y, ax=None):
+def plot_hdi_func(x, Y, ax=None):
     """Plot the posterior mean and 95% and 50% CI's from a given set of x and Y values.
     x: is a vector
     Y: is an xarrray of size (chain, draw, dim)
@@ -28,5 +28,4 @@ def plot_xY(x, Y, ax=None):
     )
     ax.plot(x, quantiles.sel(quantile=0.5), label="Median")
     ax.legend()
-
     return ax
