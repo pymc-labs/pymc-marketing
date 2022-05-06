@@ -8,7 +8,7 @@ def plot_xY(x, Y, ax=None):
     Y: is an xarrray of size (chain, draw, dim)
     """
     if ax is None:
-        fig, ax = plt.subplots()
+        _, ax = plt.subplots()
 
     quantiles = Y.quantile(
         (0.025, 0.25, 0.5, 0.75, 0.975), dim=("chain", "draw")
@@ -29,4 +29,4 @@ def plot_xY(x, Y, ax=None):
     ax.plot(x, quantiles.sel(quantile=0.5), label="Median")
     ax.legend()
 
-    return fig, ax
+    return ax
