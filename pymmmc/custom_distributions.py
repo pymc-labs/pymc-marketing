@@ -20,16 +20,13 @@ def truncated_geometric_logp(theta, customers):
     customers : array of ints
         Vector of number of customers. Should be non-increasing.
     """
+    # We can't learn anything about theta if we only have one observation (equal to the initial cohort size)
+    assert len(customers) > 1
+
     churned_in_period_t = customers[:-1] - customers[1:]
 
-    # NOTE: T is appropriate for indexing into the last element of `customers`
-    # But when we include T in the likelihood, we need to +1 because of zero based indexing
     nT = customers[-1]
-    T = len(customers) + 1
-
-    # We can't learn anything about theta if we only have one observation (equal to the initial cohort size)
-    assert T > 1
-
+    T = len(customers)
     t_vec = np.arange(start=1, stop=len(customers))
 
     logp = 0
@@ -39,7 +36,7 @@ def truncated_geometric_logp(theta, customers):
         churned_in_period_t * (at.log(theta) + ((t_vec - 1) * at.log(1 - theta)))
     )
 
-    # likelihood for final time step T
+    # likelihood for final time step
     logp += nT * T * at.log(1 - theta)
 
     # # likelihood for all non-truncated time steps [1,... T-1]
