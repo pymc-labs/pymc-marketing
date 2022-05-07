@@ -1,6 +1,6 @@
-import pymc as pm
-import numpy as np
 import aesara.tensor as at
+import numpy as np
+import pymc as pm
 
 
 # TODO: Turn this into a proper PyMC custom distribution
