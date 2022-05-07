@@ -35,6 +35,8 @@ def truncated_geometric_logp(theta, customers):
     logp += at.math.sum(
         churned_in_period_t * (at.log(theta) + ((t_vec - 1) * at.log(1 - theta)))
     )
+    # well this doesn't work either
+    # logp += at.sum(pm.logp(pm.Geometric.dist(p=theta), churned_in_period_t).eval())
 
     # likelihood for final time step
     logp += nT * T * at.log(1 - theta)
