@@ -4,6 +4,13 @@ from aesara.tensor.random.op import RandomVariable
 from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.dist_math import betaln, check_parameters
 
+import pymc as pm
+
+
+__all__ = [
+    "IndividualLevelCLV",
+    "BetaGeoFitter"
+]
 
 class IndividualLevelCLVRV(RandomVariable):
     name = "individual_level"
@@ -16,17 +23,6 @@ class IndividualLevelCLVRV(RandomVariable):
 
         T = at.as_tensor_variable(T)
         T0 = at.as_tensor_variable(T0)
-
-        # T0 and T cannot be random variables
-        if T.owner is not None:
-            raise ValueError(
-                "T must be a scalar, i.e. observed, and not random quantities."
-            )
-
-        if T0.owner is not None:
-            raise ValueError(
-                "T0 must be a scalar, i.e. observed, and not random quantities."
-            )
 
         return super().make_node(rng, size, dtype, lam, p, T, T0)
 
@@ -41,18 +37,13 @@ class IndividualLevelCLVRV(RandomVariable):
     @classmethod
     def rng_fn(cls, rng, lam, p, T, T0, size) -> np.array:
 
-        if size is None:
-            size = ()
-        elif isinstance(size, int):
-            size = (size,)
-        else:
-            size = tuple(size)
+        size = pm.distributions.shape_utils.to_tuple(size)
 
         # To do: broadcast sizes
-        lam = np.array(lam)
-        p = np.array(p)
-        T = np.array(T)
-        T0 = np.array(T0)
+        lam = np.asarray(lam)
+        p = np.asarray(p)
+        T = np.asarray(T)
+        T0 = np.asarray(T0)
 
         param_shape = np.broadcast_shapes(lam.shape, p.shape, T.shape, T0.shape)
         size = param_shape + size
@@ -62,7 +53,7 @@ class IndividualLevelCLVRV(RandomVariable):
         T = np.broadcast_to(T, size)
         T0 = np.broadcast_to(T0, size)
 
-        output = np.empty(shape=size + (2,))
+        output = np.zeros(shape=size + (2,))
 
         def sim_data(lam, p, T, T0):
             t = 0
@@ -92,6 +83,9 @@ class IndividualLevelCLVRV(RandomVariable):
             output[index] = sim_data(lam[index], p[index], T[index], T0[index])
 
         return output
+
+    def _supp_shape_from_params():
+        return (2,)
 
 
 individual_level_clv = IndividualLevelCLVRV()
@@ -147,6 +141,14 @@ class IndividualLevelCLV(PositiveContinuous):
             at.logaddexp(A, B),
         )
 
+        logp = at.switch(
+            at.any(
+                at.and_(at.le(t_x, 0), at.lt(x, 0))
+            ),
+            -np.inf,
+            logp,
+        )
+
         return check_parameters(
             logp,
             lam > 0,
@@ -157,27 +159,16 @@ class IndividualLevelCLV(PositiveContinuous):
         )
 
 
-class RandomIndividualCLVRV(RandomVariable):
-    name = "random_individual_clv"
+class BetaGeoFitterRV(RandomVariable):
+    name = "beta_geo_fitter"
     ndim_supp = 1
     ndims_params = [0, 0, 0, 0, 0, 0]  # a, b, alpha, r, T, T0
     dtype = "floatX"
-    _print_name = ("RandomIndividualCLV", "\\operatorname{RandomIndividualCLV}")
+    _print_name = ("BetaGeoFitter", "\\operatorname{BetaGeoFitter}")
 
     def make_node(self, rng, size, dtype, a, b, r, alpha, T, T0):
         T = at.as_tensor_variable(T)
         T0 = at.as_tensor_variable(T0)
-
-        # T0 and T cannot be random variables
-        if T.owner is not None:
-            raise ValueError(
-                "T must be a scalar, i.e. observed, and not random quantities."
-            )
-
-        if T0.owner is not None:
-            raise ValueError(
-                "T0 must be a scalar, i.e. observed, and not random quantities."
-            )
 
         return super().make_node(rng, size, dtype, a, b, r, alpha, T, T0)
 
@@ -197,13 +188,14 @@ class RandomIndividualCLVRV(RandomVariable):
         return individual_level_clv.rng_fn(rng, lam, p, T, T0, size=None)
 
 
-random_individual_clv = RandomIndividualCLVRV()
+beta_geo_fitter = BetaGeoFitterRV()
 
 
-class RandomIndividualCLV(PositiveContinuous):
+class BetaGeoFitter():
     r"""
     Randomly-chosen individual model for the customer lifetime value. See equation (6)
-    from Fader et al. (2005) [1].
+    from Fader et al. (2005) [1]. This distribution class is the PyMC equivalent to
+    `BetaGeoFitter` from `lifetimes`.
 
     .. math:
 
@@ -219,7 +211,7 @@ class RandomIndividualCLV(PositiveContinuous):
     ----------
     .. [1] Fader, Peter S., Bruce GS Hardie, and Ka Lok Lee. "“Counting your customers” the easy way: An alternative to the Pareto/NBD model." Marketing science 24.2 (2005): 275-284.
     """
-    rv_op = random_individual_clv
+    rv_op = beta_geo_fitter
 
     @classmethod
     def dist(cls, a, b, r, alpha, T, T0, **kwargs):
@@ -255,3 +247,8 @@ class RandomIndividualCLV(PositiveContinuous):
             at.all(T0 < T),
             msg="a, b, alpha, r > 0",
         )
+
+
+class GammaGammaRV:
+    def __init__(self) -> None:
+        _
