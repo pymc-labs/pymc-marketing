@@ -1,5 +1,6 @@
 import arviz as az
 import matplotlib.pyplot as plt
+import xarray as xr
 
 
 def plot_hdi_func(x, Y, ax=None):
@@ -33,4 +34,30 @@ def plot_hdi_func(x, Y, ax=None):
     )
     ax.plot(x, quantiles.sel(quantile=0.5), label="Median")
     ax.legend()
+    return ax
+
+
+def plot_survival_function_fixed_theta(
+    theta_samples, max_time=50, θtrue=None, ax=None, legend=True, data_horizon=None
+):
+    """Plot the survival function for a fixed churn rate `theta`"""
+    if ax is None:
+        _, ax = plt.subplots()
+    time = xr.DataArray(range(0, max_time), dims="time")
+    r = 1 - theta_samples
+    S = r ** time
+    plot_hdi_func(time, S, ax=ax)
+    if θtrue is not None:
+        ax.plot(time, (1 - θtrue) ** time, "k--", label="true")
+    if data_horizon is not None:
+        ax.axvline(
+            x=data_horizon, color="k", ls=":", label="data horizon",
+        )
+    if legend:
+        ax.legend()
+    ax.set(
+        title=r"Survival function - constant churn rate $\theta$",
+        xlabel="customer lifetime, $t$",
+        ylabel="S(t)",
+    )
     return ax

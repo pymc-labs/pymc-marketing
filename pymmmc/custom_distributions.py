@@ -4,11 +4,14 @@ import pymc as pm
 
 
 # TODO: Turn this into a proper PyMC custom distribution
+
+
 def truncated_geometric(name, data, θ):
     """Truncated geometric distribution"""
     pm.Potential(name, truncated_geometric_logp(θ, data))
 
 
+# TODO: Make this robust to data where there is a single observation. Ie the most recent cohort
 def truncated_geometric_logp(theta, customers):
     """Calculate log probability of the truncated geometric distribution
     Parameters
