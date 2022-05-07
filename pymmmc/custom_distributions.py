@@ -2,7 +2,6 @@ import aesara.tensor as at
 import numpy as np
 import pymc as pm
 
-
 # TODO: Turn this into a proper PyMC custom distribution
 
 
@@ -16,7 +15,7 @@ def truncated_geometric_logp(theta, customers):
     """Calculate log probability of the truncated geometric distribution
     Parameters
     ----------
-    theta : float
+    theta : float or arrray
         `theta` is the churn rate
     customers : array of ints
         Vector of number of customers. Should be non-increasing.
