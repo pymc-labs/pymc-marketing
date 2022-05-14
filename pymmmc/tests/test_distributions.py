@@ -1,6 +1,6 @@
 import pytest
 
-from pymmmc.clv import IndividualLevelCLV, BetaGeoFitter
+from pymmmc.distributions import IndividualLevelCLV, BetaGeoFitter
 from pymc import Model
 
 import pymc as pm
@@ -11,7 +11,7 @@ from numpy.testing import assert_almost_equal
 from pymc.tests.helpers import select_by_precision
 
 
-# class TestIndividualLevelCLV:
+class TestIndividualLevelCLV:
     # @pytest.parametrize(
     #     "value, lam, p, T, T0, logp",
     #     [
@@ -31,8 +31,8 @@ from pymc.tests.helpers import select_by_precision
     #         err_msg=str(pt),
     #     )
 
-    # def test_individual_level_clv_invalid(self): # not working...
-    #     il_clv = IndividualLevelCLV.dist(lam=0.8, p=0.15, T=10, T0=2)
-    #     assert pm.logp(il_clv, np.array([-1, 3])).eval() == -np.inf
-    #     assert pm.logp(il_clv, np.array([1.5, -1])).eval() == -np.inf
-    #     assert pm.logp(il_clv, np.array([1.5, 0])).eval() == -np.inf
+    def test_individual_level_clv_invalid(self): # not working...
+        il_clv = IndividualLevelCLV.dist(lam=0.8, p=0.15, T=10, T0=2)
+        assert pm.logp(il_clv, np.array([-1, 3])).eval() == -np.inf
+        assert pm.logp(il_clv, np.array([1.5, -1])).eval() == -np.inf
+        assert pm.logp(il_clv, np.array([1.5, 0])).eval() == -np.inf
