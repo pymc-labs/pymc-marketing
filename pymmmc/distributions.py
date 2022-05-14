@@ -1,3 +1,4 @@
+from pkg_resources import Distribution
 import aesara.tensor as at
 import numpy as np
 from aesara.tensor.random.op import RandomVariable
@@ -140,10 +141,16 @@ class IndividualLevelCLV(PositiveContinuous):
             A,
             at.logaddexp(A, B),
         )
-
         logp = at.switch(
             at.any(
-                at.and_(at.le(t_x, 0), at.lt(x, 0))
+                at.or_(at.lt(t_x, 0), at.lt(x, 0))
+            ),
+            -np.inf,
+            logp,
+        )
+        logp = at.switch(
+            at.any(
+                at.and_(at.gt(t_x, 0), at.eq(x, 0)),
             ),
             -np.inf,
             logp,
@@ -191,7 +198,7 @@ class BetaGeoFitterRV(RandomVariable):
 beta_geo_fitter = BetaGeoFitterRV()
 
 
-class BetaGeoFitter():
+class BetaGeoFitter(PositiveContinuous):
     r"""
     Randomly-chosen individual model for the customer lifetime value. See equation (6)
     from Fader et al. (2005) [1]. This distribution class is the PyMC equivalent to
@@ -247,8 +254,3 @@ class BetaGeoFitter():
             at.all(T0 < T),
             msg="a, b, alpha, r > 0",
         )
-
-
-class GammaGammaRV:
-    def __init__(self) -> None:
-        _
