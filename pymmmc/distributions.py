@@ -212,7 +212,7 @@ class ContContractRV(RandomVariable):
             output[index] = sim_data(lam[index], p[index], T[index], T0[index])
 
         return output
-
+        
     def _supp_shape_from_params(*args, **kwargs):
         return (3,)
 
