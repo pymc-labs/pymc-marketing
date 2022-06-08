@@ -1,3 +1,3 @@
 __version__ = "0.0.1"
 
-from pymmmc.distributions import *
+from pymmmc.distributions import ContNonContract, BetaGeoFitter
