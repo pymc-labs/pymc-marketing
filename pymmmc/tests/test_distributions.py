@@ -15,10 +15,10 @@ class TestContNonContract:
     @pytest.mark.parametrize(
         "value, lam, p, T, T0, logp",
         [
-            (np.array([6.3, 5]), 0.4, 0.15, 12, 2, -19.842697669107405),
-            (np.array([6.3, 5]), np.array([0.3, 0.2]), 0.15, 12, 2, np.array([[-20.88951839, -23.11416947]])),
-            (np.array([[6.3, 5], [5.3, 4]]), np.array([0.3, 0.2]), 0.15, 12, 2, np.array([[-20.88951839 -19.37025579]])),
-            (np.array([6.3, 5]), 0.3, np.full((5, 3), 0.15), 12, 2, np.full(shape=(5, 3), fill_value=-20.88951839)),
+            (np.array([6.3, 5]), 0.4, 0.15, 12, 2, -8.39147106159807),
+            (np.array([6.3, 5]), np.array([0.3, 0.2]), 0.15, 12, 2, np.array([-9.15153637, -10.42037984])),
+            (np.array([[6.3, 5], [5.3, 4]]), np.array([0.3, 0.2]), 0.15, 12, 2, np.array([-9.15153637, -8.57264195])),
+            (np.array([6.3, 5]), 0.3, np.full((5, 3), 0.15), 12, 2, np.full(shape=(5, 3), fill_value=-9.15153637)),
         ]
     )
     def test_continuous_non_contractual(self, value, lam, p, T, T0, logp):

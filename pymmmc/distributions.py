@@ -135,9 +135,11 @@ class ContNonContract(PositiveContinuous):
         )
         logp = at.switch(
             at.any(
-                at.lt(t_x, T0), 
-                at.lt(x, 0),
-                at.gt(t_x, T),
+                (
+                    at.lt(t_x, T0), 
+                    at.lt(x, 0),
+                    at.gt(t_x, T),
+                )
             ),
             -np.inf,
             logp,
