@@ -41,8 +41,8 @@ class ContNonContractRV(RandomVariable):
         T = np.asarray(T)
         T0 = np.asarray(T0)
 
-        param_shape = np.broadcast_shapes(lam.shape, p.shape, T.shape, T0.shape)
-        size = param_shape + size
+        if size is None:
+            size = np.broadcast_shapes(lam.shape, p.shape, T.shape, T0.shape)
 
         lam = np.broadcast_to(lam, size)
         p = np.broadcast_to(p, size)
@@ -53,7 +53,7 @@ class ContNonContractRV(RandomVariable):
 
         # TODO: Optimize to work in a vectorized manner!
         def sim_data(lam, p, T, T0):
-            t = 0
+            t = T0
             n = 0
 
             while True:
