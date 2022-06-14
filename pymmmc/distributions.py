@@ -112,15 +112,15 @@ class ContNonContract(PositiveContinuous):
         t_x = value[..., 0]
         x = value[..., 1]
 
-        zero_observations = at.l(x, 0)
+        zero_observations = at.eq(x, 0)
 
         A = x * at.log(1 - p) + x * at.log(lam) - lam * (T - T0)
         B = at.log(p) + (x - 1) * at.log(1 - p) + x * at.log(lam) - lam * (t_x - T0)
 
+        logp = at.switch(zero_observations, A, at.logaddexp(A, B),)
+
         logp = at.switch(
-            zero_observations,
-            A,
-            at.logaddexp(A, B),
+            at.any((at.lt(t_x, T0), at.lt(x, 0), at.gt(t_x, T),)), -np.inf, logp,
         )
 
         return check_parameters(
@@ -128,14 +128,6 @@ class ContNonContract(PositiveContinuous):
             lam > 0,
             0 <= p,
             p <= 1,
-            at.any(
-                (
-                    at.lt(t_x, T0),
-                    at.lt(x, 0),
-                    at.gt(t_x, T),
-                )
-            ),
-            -np.inf,
             at.all(T0 < T),
             msg="lam > 0, 0 <= p <= 1, T0 < T",
         )
