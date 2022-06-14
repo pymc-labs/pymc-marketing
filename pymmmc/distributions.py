@@ -130,7 +130,9 @@ class ContNonContract(PositiveContinuous):
                     at.lt(x, 0),
                     at.gt(t_x, T),
                 ),
-            ), -np.inf, logp,
+            ),
+            -np.inf,
+            logp,
         )
 
         return check_parameters(
