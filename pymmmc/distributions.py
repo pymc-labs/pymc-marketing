@@ -105,7 +105,7 @@ class ContNonContract(PositiveContinuous):
     rv_op = continuous_non_contractual
 
     @classmethod
-    def dist(cls, lam, p, T, T0=0, **kwargs):
+    def dist(cls, lam, p, T, T0, **kwargs):
         return super().dist([lam, p, T, T0], **kwargs)
 
     def logp(value, lam, p, T, T0):
