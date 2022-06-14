@@ -1,15 +1,12 @@
 import aesara.tensor as at
 import numpy as np
+import pymc as pm
 from aesara.tensor.random.op import RandomVariable
 from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.dist_math import check_parameters
 
-import pymc as pm
-
-
 __all__ = [
     "ContNonContract",
-    "BetaGeoFitter"
 ]
 
 
@@ -35,7 +32,7 @@ class ContNonContractRV(RandomVariable):
 
         size = pm.distributions.shape_utils.to_tuple(size)
 
-        # To do: broadcast sizes
+        # TODO: broadcast sizes
         lam = np.asarray(lam)
         p = np.asarray(p)
         T = np.asarray(T)
@@ -69,12 +66,7 @@ class ContNonContractRV(RandomVariable):
                     if dropout == 1:
                         break
 
-            return np.array(
-                [
-                    t,
-                    n,
-                ],
-            )
+            return np.array([t, n])
 
         for index in np.ndindex(*size):
             output[index] = sim_data(lam[index], p[index], T[index], T0[index])
@@ -113,11 +105,8 @@ class ContNonContract(PositiveContinuous):
     rv_op = continuous_non_contractual
 
     @classmethod
-    def dist(cls, lam, p, T, T0, **kwargs):
+    def dist(cls, lam, p, T, T0=0, **kwargs):
         return super().dist([lam, p, T, T0], **kwargs)
-
-    def get_moment(rv, size, lam, p, T, T0):
-        return at.full(size, at.as_tensor_variable([lam * (T - T0), 1 /  p]))
 
     def logp(value, lam, p, T, T0):
         t_x = value[..., 0]
@@ -128,21 +117,9 @@ class ContNonContract(PositiveContinuous):
         A = x * at.log(1 - p) + x * at.log(lam) - lam * (T - T0)
         B = at.log(p) + (x - 1) * at.log(1 - p) + x * at.log(lam) - lam * (t_x - T0)
 
+        logp = at.switch(zero_observations, A, at.logaddexp(A, B),)
         logp = at.switch(
-            zero_observations,
-            A,
-            at.logaddexp(A, B),
-        )
-        logp = at.switch(
-            at.any(
-                (
-                    at.lt(t_x, T0), 
-                    at.lt(x, 0),
-                    at.gt(t_x, T),
-                )
-            ),
-            -np.inf,
-            logp,
+            at.any((at.lt(t_x, T0), at.lt(x, 0), at.gt(t_x, T),)), -np.inf, logp,
         )
 
         return check_parameters(
@@ -153,9 +130,3 @@ class ContNonContract(PositiveContinuous):
             at.all(T0 < T),
             msg="lam > 0, 0 <= p <= 1, T0 < T",
         )
-
-
-def BetaGeoFitter(name, a, b, r, alpha, T, T0, size=None, shape=None, **kwargs):
-    p = pm.Beta(f"{name}_beta", a, b, size=size, shape=shape)
-    lam = pm.Gamma(f"{name}_gamma", r, 1/alpha, size=size, shape=shape)
-    return ContNonContract(name, lam, p, T, T0, size=size, shape=shape, **kwargs)
