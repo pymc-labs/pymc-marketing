@@ -108,11 +108,11 @@ class ContNonContract(PositiveContinuous):
     def dist(cls, lam, p, T, T0, **kwargs):
         return super().dist([lam, p, T, T0], **kwargs)
 
-    def logp(value, lam, p, T, T0):
+    def logp(value, lam, p, T, T0=0):
         t_x = value[..., 0]
         x = value[..., 1]
 
-        zero_observations = at.eq(x, 0)
+        zero_observations = at.l(x, 0)
 
         A = x * at.log(1 - p) + x * at.log(lam) - lam * (T - T0)
         B = at.log(p) + (x - 1) * at.log(1 - p) + x * at.log(lam) - lam * (t_x - T0)
@@ -121,11 +121,6 @@ class ContNonContract(PositiveContinuous):
             zero_observations,
             A,
             at.logaddexp(A, B),
-        )
-        logp = at.switch(
-            at.eq(x, 0),
-            B,
-            logp,
         )
 
         return check_parameters(
