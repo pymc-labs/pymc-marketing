@@ -37,15 +37,17 @@ class Model:
         target: str,
         date_col: str,
         media_columns: List[str],
-        control_columns: Optional[List[str]],
-        model_type: str = "adstock_caryover",
+        control_columns_continuous: Optional[List[str]],
+        control_columns_categorical: Optional[List[str]],
+        model_type: str = "adstock_saturation",  # or "saturation" or "adstock" or ...
         fourier_modes: int = 3,
     ) -> None:
         self.data = data
         self.target = target
         self.date_col = date_col
         self.media_columns = media_columns
-        self.control_columns = control_columns
+        self.control_continuous_columns = control_columns_continuous
+        self.control_categorical_columns = control_columns_categorical
         self.model_type = model_type
         self.fourier_modes = fourier_modes
 
@@ -57,23 +59,36 @@ class Model:
         DataContainer,
         Optional[DataContainer],
         Optional[DataContainer],
+        Optional[DataContainer],
     ]:
         """Data processing step. We probably want to modularize this method."""
         # extract data
         y: npt.NDArray = self.data[self.target].to_numpy()
         date: npt.NDArray = self.data[self.date_col].to_numpy()
         media_df: pd.DataFrame = self.data[self.media_columns]
-        control_df: pd.DataFrame = (
-            self.data[self.control_columns] if self.control_columns else None
+        control_continuous_df: pd.DataFrame = (
+            self.data[self.control_continuous_columns]
+            if self.control_continuous_columns
+            else None
+        )
+        control_categorical_df: pd.DataFrame = (
+            self.data[self.control_categorical_columns]
+            if self.control_categorical_columns
+            else None
         )
         # parse as data containers
         y_data: DataContainer = DataContainer(raw_data=y, transformer=StandardScaler())
         media_data: DataContainer = DataContainer(
             raw_data=media_df, transformer=MinMaxScaler()
         )
-        control_data: Optional[DataContainer] = (
-            DataContainer(raw_data=control_df, transformer=StandardScaler())
-            if control_df
+        control_continuous_data: Optional[DataContainer] = (
+            DataContainer(raw_data=control_continuous_df, transformer=StandardScaler())
+            if control_continuous_df
+            else None
+        )
+        control_categorical_data: Optional[DataContainer] = (
+            DataContainer(raw_data=control_categorical_df, transformer=None)
+            if control_categorical_df
             else None
         )
         fourier_features: Optional[pd.DataFrame] = (
@@ -88,14 +103,22 @@ class Model:
             DataContainer(raw_data=fourier_features) if fourier_features else None
         )
 
-        return date, y_data, media_data, control_data, fourier_features_data
+        return (
+            date,
+            y_data,
+            media_data,
+            control_continuous_data,
+            control_categorical_data,
+            fourier_features_data,
+        )
 
     def _build_model(self) -> pm.Model:
         (
             date,
             y_data,
             media_data,
-            control_data,
+            control_continuous_data,
+            control_categorical_data,
             fourier_features_data,
         ) = self._prepare_data()
 
@@ -103,12 +126,15 @@ class Model:
             "date_week": date,
             "channel": media_data.data,
         }
-        if self.control_columns:
-            coords["control"] = control_data.data
+        if self.control_continuous_columns:
+            coords["control"] = control_continuous_data.data
+        if self.control_categorical_columns:
+            coords["control_categorical"] = control_categorical_data.data
         if self.fourier_modes:
             coords["fourier_mode"] = fourier_features_data.data
 
         with pm.Model(coords=coords) as model:
+
             # --- Priors ---
             intercept = pm.Normal(name="intercept", mu=0, sigma=2)
             # coefficients marketing channels
@@ -117,13 +143,21 @@ class Model:
             alpha = pm.Beta(name="alpha", alpha=1, beta=3, dims="channel")
             # saturation parameter
             lam = pm.Gamma(name="lam", alpha=3, beta=1, dims="channel")
-            # TODO: Add control and fourier priors depending on whether they are None or not # noqa E501
+
             # coefficients control variables
-            gamma_control = pm.Laplace(name="gamma_control", mu=0, b=1, dims="control")
+            if self.control_continuous_columns:
+                gamma_control_continuous = pm.Laplace(
+                    name="gamma_control_continuous", mu=0, b=1, dims="control"
+                )
+            if self.control_categorical_columns:
+                gamma_control_categorical = pm.Laplace(
+                    name="gamma_control_categorical", mu=0, b=1, dims="control"
+                )
             # coefficients fourier modes
-            gamma_fourier = pm.Laplace(
-                name="gamma_fourier", mu=0, b=1, dims="fourier_mode"
-            )
+            if self.fourier_modes:
+                gamma_fourier = pm.Laplace(
+                    name="gamma_fourier", mu=0, b=1, dims="fourier_mode"
+                )
             # likelihood standard deviation
             sigma = pm.HalfNormal(name="sigma", sigma=2)
             # degrees of freedom
@@ -153,23 +187,41 @@ class Model:
                 var=pm.math.dot(channels_saturated_adstock, beta),
                 dims=("date_week"),
             )
-            # TODO: Add control and fourier priors depending on whether they are None or not # noqa E501
+            additive_effects = [intercept, channels_effects]
+
             # control variables effect
-            control_effects = pm.Deterministic(
-                name="control_effects",
-                var=pm.math.dot(control_data.data, gamma_control),
-                dims="date_week",
-            )
+            if self.control_continuous_columns:
+                control_continuous_effects = pm.Deterministic(
+                    name="control_effects",
+                    var=pm.math.dot(
+                        control_continuous_data.data, gamma_control_continuous
+                    ),
+                    dims="date_week",
+                )
+                additive_effects.append(control_continuous_effects)
+
+            if self.control_categorical_columns:
+                control_categorical_effects = pm.Deterministic(
+                    name="control_effects",
+                    var=pm.math.dot(
+                        control_categorical_data.data, gamma_control_categorical
+                    ),
+                    dims="date_week",
+                )
+                additive_effects.append(control_categorical_effects)
+
             # fourier modes effect
-            fourier_effects = pm.Deterministic(
-                name="fourier_effects",
-                var=pm.math.dot(fourier_features_data, gamma_fourier),
-                dims="date_week",
-            )
+            if self.fourier_modes:
+                fourier_effects = pm.Deterministic(
+                    name="fourier_effects",
+                    var=pm.math.dot(fourier_features_data, gamma_fourier),
+                    dims="date_week",
+                )
+                additive_effects.append(fourier_effects)
 
             mu = pm.Deterministic(
                 name="mu",
-                var=intercept + channels_effects + control_effects + fourier_effects,
+                var=sum(additive_effects),
                 dims="date_week",
             )
 
