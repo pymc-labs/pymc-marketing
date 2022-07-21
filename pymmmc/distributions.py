@@ -212,7 +212,7 @@ class ContContractRV(RandomVariable):
             output[index] = sim_data(lam[index], p[index], T[index], T0[index])
 
         return output
-        
+
     def _supp_shape_from_params(*args, **kwargs):
         return (3,)
 
@@ -221,6 +221,21 @@ continuous_contractual = ContContractRV()
 
 
 class ContContract(PositiveContinuous):
+    r"""
+    Distribution class of a continuous contractual data-generating process,
+    that is where purchases can occur at any time point (continuous) and
+    churning/dropping out is explicit (contractual).
+    .. math:
+
+        f(\lambda, p | d, x, t_1, \dots, t_x, T)
+        = f(\lambda, p | t_x, T) = (1 - p)^{x-1} \lambda^x \exp(-\lambda t_x)
+        p^d \left\{(1-p)\exp(-\lambda*(T - t_x))\right\}^{1 - d}
+
+    ========  ===============================================
+    Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
+    Mean      :math:`\mathbb{E}[X(t) | \lambda, p, d] = \frac{1}{p}`
+                    `- \frac{1}{p}\exp\left(-\lambda p \min(t, T)\right)`
+    """
     rv_op = continuous_contractual
 
     @classmethod
@@ -235,15 +250,15 @@ class ContContract(PositiveContinuous):
         zero_observations = at.eq(x, 0)
 
         logp = (x - 1) * at.log(1 - p) + x * at.log(lam) - lam * t_x
-        logp += churn * at.log(p) + (1 - churn) * (at.log(1 - p) - lam * (T - t_x))
+        logp += churn * at.log(p) + (1 - churn) * (
+            at.log(1 - p) - lam * ((T - T0) - t_x)
+        )
 
         logp = at.switch(
             zero_observations,
             -lam * (T - T0),
             logp,
         )
-
-        logp = at.sum(logp, axis=-1)
 
         logp = at.switch(
             at.any(at.or_(at.lt(t_x, 0), at.lt(x, 0))),
@@ -253,6 +268,17 @@ class ContContract(PositiveContinuous):
         logp = at.switch(
             at.all(
                 at.or_(at.eq(churn, 0), at.eq(churn, 1)),
+            ),
+            logp,
+            -np.inf,
+        )
+        logp = at.switch(
+            at.any(
+                (
+                    at.lt(t_x, T0),
+                    at.lt(x, 0),
+                    at.gt(t_x, T),
+                ),
             ),
             -np.inf,
             logp,
