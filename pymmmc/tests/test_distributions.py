@@ -134,21 +134,21 @@ class TestContContract:
 
     # TODO: test broadcasting of parameters, including T and T0
     @pytest.mark.parametrize(
-        "lam_size, p_size, cnc_size, expected_size",
+        "lam_size, p_size, cc_size, expected_size",
         [
             (None, None, None, (3,)),
-            ((5,), None, (5,), (5, 3)),
-            ((5, 1), (1, 3), (5, 3), (5, 3, 3)),
-            (None, None, (5, 3), (5, 3, 3)),
+            ((7,), None, (7,), (7, 3)),
+            ((7, 1), (1, 5), (7, 5), (7, 5, 3)),
+            (None, None, (7, 5), (7, 5, 3)),
         ],
     )
     def test_continuous_contractual_sample_prior(
-        self, lam_size, p_size, cnc_size, expected_size
+        self, lam_size, p_size, cc_size, expected_size
     ):
         with Model():
             lam = pm.Gamma(name="lam", alpha=1, beta=1, size=lam_size)
             p = pm.Beta(name="p", alpha=1.0, beta=1.0, size=p_size)
-            ContContract(name="cnc", lam=lam, p=p, T=10, T0=2, size=cnc_size)
+            ContContract(name="cc", lam=lam, p=p, T=10, T0=2, size=cc_size)
             prior = pm.sample_prior_predictive(samples=100)
 
-        assert prior["prior"]["cnc"][0].shape == (100,) + expected_size
+        assert prior["prior"]["cc"][0].shape == (100,) + expected_size
