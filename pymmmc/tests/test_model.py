@@ -11,6 +11,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from pymmmc.model import (
     AdstockGeometricLogistiSaturation,
     BaseMMModel,
+    CategoryDataContainer,
     ContinuousDataContainer,
     DataContainer,
     MediaDataContainer,
@@ -29,7 +30,14 @@ class MyDummyMMM(BaseMMModel):
 
 @pytest.fixture
 def synthetic_data() -> pd.DataFrame:
-    return pd.read_csv("pymmmc/tests/fixtures/synthetic_data.csv", parse_dates=["date"])
+    df: pd.DataFrame = pd.read_csv(
+        "pymmmc/tests/fixtures/synthetic_data.csv",
+        parse_dates=["date"],
+        index_col="index",
+    )
+    df["cat1"] = pd.Categorical(df["cat1"])
+    df["cat2"] = pd.Categorical(df["cat2"])
+    return df
 
 
 @pytest.fixture
@@ -120,7 +128,38 @@ class TestMediaDataContainer:
 
 
 class TestCategoryDataContainer:
-    pass
+    @pytest.mark.parametrize(
+        argnames="col_name",
+        argvalues=["cat1", "cat2"],
+        ids=["cat1", "cat2"],
+    )
+    def test_good_data(self, synthetic_data: pd.DataFrame, col_name: str) -> None:
+        dc = CategoryDataContainer(raw_data=synthetic_data[col_name])
+        assert dc.get_preprocessed_data()
+
+    @pytest.mark.parametrize(
+        argnames="col_name",
+        argvalues=["cat1", "cat2"],
+        ids=["cat1", "cat2"],
+    )
+    def test_bad_data_type_dataframe(
+        self, synthetic_data: pd.DataFrame, col_name: str
+    ) -> None:
+        with pytest.raises(
+            expected_exception=TypeError,
+        ):
+            CategoryDataContainer(raw_data=synthetic_data[[col_name]])
+
+    @pytest.mark.parametrize(
+        argnames="col_name",
+        argvalues=["date", "z", "trend"],
+        ids=["date_col", "z", "trend"],
+    )
+    def test_bad_data_type(self, synthetic_data: pd.DataFrame, col_name: str) -> None:
+        with pytest.raises(
+            expected_exception=TypeError,
+        ):
+            CategoryDataContainer(raw_data=synthetic_data[col_name])
 
 
 class TestBaseMMModel:

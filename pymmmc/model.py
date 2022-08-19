@@ -72,11 +72,17 @@ class CategoryDataContainer(DataContainer):
                 f"raw_data must be a pandas.Series for categorical variables, "
                 f"but got {type(self.raw_data)}"
             )
+        if not pd.api.types.is_categorical_dtype(self.raw_data):
+            raise TypeError(
+                f"raw_data must be a pandas.Series of categorical variables, "
+                f"but got {self.raw_data.dtype}"
+            )
         if self.raw_data.nunique() < 2:
             raise ValueError("category must have at least two unique values")
 
     def get_preprocessed_data(self) -> Tuple[npt.ArrayLike, npt.ArrayLike]:
-        return self.raw_data_df.factorize(sort=True)
+        # ? Is this the output we want to return?
+        return self.raw_data.cat.categories, self.raw_data.cat.codes
 
 
 class BaseMMModel(ABC):
