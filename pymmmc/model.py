@@ -94,7 +94,33 @@ class BaseMMModel(ABC):
         self._validate_input_data()
 
     def _validate_input_data(self) -> None:
-        raise NotImplementedError("validation method must be implemented.")
+        if self.train_df.empty:
+            raise ValueError("train_df must not be empty!")
+        self._validate_target()
+        self._validate_date_col()
+        self._validate_media_columns()
+
+    def _validate_target(self) -> None:
+        if self.target is None:
+            raise ValueError("target must not be None")
+        if self.target not in self.train_df.columns:
+            raise ValueError(f"target {self.target} not in train_df")
+
+    def _validate_date_col(self) -> None:
+        if self.date_col is None:
+            raise ValueError("date_col must not be None")
+        if self.date_col not in self.train_df.columns:
+            raise ValueError(f"date_col {self.date_col} not in train_df")
+        if not self.train_df[self.date_col].is_unique:
+            raise ValueError(f"date_col {self.date_col} not unique")
+
+    def _validate_media_columns(self) -> None:
+        if self.media_columns is None:
+            raise ValueError("media_columns must not be None")
+        if self.media_columns == []:
+            raise ValueError("media_columns must not be empty")
+        if not set(self.media_columns).issubset(self.train_df.columns):
+            raise ValueError(f"media_columns {self.media_columns} not in train_df")
 
     @abstractmethod
     def _build_model(self) -> pm.Model:

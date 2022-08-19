@@ -1,17 +1,30 @@
+import re
 from dataclasses import FrozenInstanceError
 
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 from sklearn.base import BaseEstimator
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
-from pymmmc.model import ContinuousDataContainer, DataContainer, MediaDataContainer
+from pymmmc.model import (
+    AdstockGeometricLogistiSaturation,
+    BaseMMModel,
+    ContinuousDataContainer,
+    DataContainer,
+    MediaDataContainer,
+)
 
 
 class MyDummyDataContainer(DataContainer):
     def get_preprocessed_data(self) -> pd.DataFrame:
         return self.raw_data.copy()
+
+
+class MyDummyMMM(BaseMMModel):
+    def _build_model(self) -> pm.Model:
+        return pm.Model()
 
 
 @pytest.fixture
@@ -106,6 +119,113 @@ class TestMediaDataContainer:
             MediaDataContainer(raw_data=raw_data)
 
 
-class TestModels:
-    def test_dummy(self) -> None:
-        pass
+class TestCategoryDataContainer:
+    pass
+
+
+class TestBaseMMModel:
+    def test_good_input_data(self, synthetic_data: pd.DataFrame) -> None:
+        model = MyDummyMMM(
+            train_df=synthetic_data, target="y", date_col="date", media_columns=["z"]
+        )
+        assert model
+
+    def test_bad_input_empty_data(self) -> None:
+        with pytest.raises(
+            expected_exception=ValueError,
+            match="train_df must not be empty",
+        ):
+            MyDummyMMM(
+                train_df=pd.DataFrame(),
+                target="y",
+                date_col="date",
+                media_columns=["z"],
+            )
+
+    def test_bad_input_no_target(self, synthetic_data: pd.DataFrame) -> None:
+        with pytest.raises(
+            expected_exception=ValueError,
+            match="target bad_target not in train_df",
+        ):
+            MyDummyMMM(
+                train_df=synthetic_data,
+                target="bad_target",
+                date_col="date",
+                media_columns=["z"],
+            )
+
+        with pytest.raises(
+            expected_exception=ValueError,
+            match="target must not be None",
+        ):
+            MyDummyMMM(
+                train_df=synthetic_data,
+                target=None,
+                date_col="date",
+                media_columns=["z"],
+            )
+
+    def test_bad_input_no_date_col(self, synthetic_data: pd.DataFrame) -> None:
+        with pytest.raises(
+            expected_exception=ValueError,
+            match="date_col bad_date_col not in train_df",
+        ):
+            MyDummyMMM(
+                train_df=synthetic_data,
+                target="y",
+                date_col="bad_date_col",
+                media_columns=["z"],
+            )
+
+        with pytest.raises(
+            expected_exception=ValueError,
+            match="date_col must not be None",
+        ):
+            MyDummyMMM(
+                train_df=synthetic_data,
+                target="y",
+                date_col=None,
+                media_columns=["z"],
+            )
+
+    def test_bad_input_no_media_col(self, synthetic_data: pd.DataFrame) -> None:
+        with pytest.raises(
+            expected_exception=ValueError,
+            match=re.escape("media_columns ['bad_media_col'] not in train_df"),
+        ):
+            MyDummyMMM(
+                train_df=synthetic_data,
+                target="y",
+                date_col="date",
+                media_columns=["bad_media_col"],
+            )
+
+        with pytest.raises(
+            expected_exception=ValueError,
+            match="media_columns must not be None",
+        ):
+            MyDummyMMM(
+                train_df=synthetic_data,
+                target="y",
+                date_col="date",
+                media_columns=None,
+            )
+
+        with pytest.raises(
+            expected_exception=ValueError,
+            match="media_columns must not be empty",
+        ):
+            MyDummyMMM(
+                train_df=synthetic_data,
+                target="y",
+                date_col="date",
+                media_columns=[],
+            )
+
+
+class TestAdstockGeometricLogistiSaturation:
+    def test_good_input_data(self, synthetic_data: pd.DataFrame) -> None:
+        model = AdstockGeometricLogistiSaturation(
+            train_df=synthetic_data, target="y", date_col="date", media_columns=["z"]
+        )
+        assert model
