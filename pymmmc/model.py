@@ -55,7 +55,7 @@ class ContinuousDataContainer(DataContainer):
 
 @dataclass(frozen=True)
 class MediaDataContainer(ContinuousDataContainer):
-    transformer: MinMaxScaler()
+    transformer: Optional[MinMaxScaler] = None
 
     def __post_init__(self) -> None:
         super().__post_init__()

@@ -6,7 +6,7 @@ import pytest
 from sklearn.base import BaseEstimator
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
-from pymmmc.model import ContinuousDataContainer, DataContainer
+from pymmmc.model import ContinuousDataContainer, DataContainer, MediaDataContainer
 
 
 class MyDummyDataContainer(DataContainer):
@@ -63,7 +63,11 @@ class TestContinuousDataContainer:
         dc = ContinuousDataContainer(raw_data=raw_data)
         pd.testing.assert_frame_equal(left=raw_data, right=dc.get_preprocessed_data())
 
-    @pytest.mark.parametrize("scaler", [MinMaxScaler(), StandardScaler()])
+    @pytest.mark.parametrize(
+        argnames="scaler",
+        argvalues=[MinMaxScaler(), StandardScaler()],
+        ids=["MinMaxScaler", "StandardScaler"],
+    )
     def test__scaler(self, synthetic_data: pd.DataFrame, scaler: BaseEstimator) -> None:
         raw_data = synthetic_data.filter(["z", "trend"])
         dc = ContinuousDataContainer(raw_data=raw_data, transformer=scaler)
@@ -78,6 +82,28 @@ class TestContinuousDataContainer:
         if scaler.__class__() == MinMaxScaler():
             np.testing.assert_allclose(processed_data.max(axis=0), 1.0, atol=1e-3)
             np.testing.assert_allclose(processed_data.min(axis=0), 0.0, atol=1e-3)
+
+
+class TestMediaDataContainer:
+    def test_no_transformation(self, synthetic_data: pd.DataFrame) -> None:
+        raw_data = synthetic_data.filter(["z", "trend"])
+        dc = ContinuousDataContainer(raw_data=raw_data)
+        pd.testing.assert_frame_equal(left=raw_data, right=dc.get_preprocessed_data())
+
+    def test_minmax_scaler(self, synthetic_data: pd.DataFrame) -> None:
+        raw_data = synthetic_data.filter(["z", "trend"])
+        dc = MediaDataContainer(raw_data=raw_data, transformer=MinMaxScaler())
+        processed_data: pd.DataFrame = dc.get_preprocessed_data()
+        np.testing.assert_allclose(processed_data.max(axis=0), 1.0, atol=1e-3)
+        np.testing.assert_allclose(processed_data.min(axis=0), 0.0, atol=1e-3)
+
+    def test_bad_negative_data(self) -> None:
+        raw_data = pd.DataFrame({"z": [-1, -2, -3]})
+        with pytest.raises(
+            expected_exception=ValueError,
+            match="media must not contain negative values",
+        ):
+            MediaDataContainer(raw_data=raw_data)
 
 
 class TestModels:
