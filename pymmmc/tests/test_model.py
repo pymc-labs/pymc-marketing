@@ -9,7 +9,7 @@ from sklearn.base import BaseEstimator
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from pymmmc.model import (
-    AdstockGeometricLogistiSaturation,
+    AdstockGeometricLogisticSaturation,
     BaseMMModel,
     CategoryDataContainer,
     ContinuousDataContainer,
@@ -45,6 +45,15 @@ def synthetic_data_with_missing_values(synthetic_data: pd.DataFrame) -> pd.DataF
     df = synthetic_data.copy()
     df.loc[0, "z"] = np.nan
     return df
+
+
+@pytest.fixture
+def adstock_logistic_saturation_model(
+    synthetic_data: pd.DataFrame,
+) -> AdstockGeometricLogisticSaturation:
+    return AdstockGeometricLogisticSaturation(
+        train_df=synthetic_data, target="y", date_col="date", media_columns=["z"]
+    )
 
 
 class TestBaseDataContainer:
@@ -263,8 +272,32 @@ class TestBaseMMModel:
 
 
 class TestAdstockGeometricLogistiSaturation:
-    def test_good_input_data(self, synthetic_data: pd.DataFrame) -> None:
-        model = AdstockGeometricLogistiSaturation(
-            train_df=synthetic_data, target="y", date_col="date", media_columns=["z"]
+    def test_prepare_good_input_data(
+        self,
+        adstock_logistic_saturation_model: AdstockGeometricLogisticSaturation,
+        synthetic_data: pd.DataFrame,
+    ) -> None:
+        target_data, media_data = adstock_logistic_saturation_model._prepare_data(
+            train_df=synthetic_data
+        )
+        assert (
+            target_data.shape[0] == media_data.shape[0]
+        ), "target and media data must have the same number of rows"
+        assert target_data.isna().any().item() == 0, "target data must not contain NaNs"
+        assert (
+            media_data.isna().any().any().item() == 0
+        ), "media data must not contain NaNs"
+
+    def test_model_build(
+        self,
+        adstock_logistic_saturation_model: AdstockGeometricLogisticSaturation,
+        synthetic_data: pd.DataFrame,
+    ) -> pm.Model:
+        dates = synthetic_data[adstock_logistic_saturation_model.date_col].to_numpy()
+        target_data, media_data = adstock_logistic_saturation_model._prepare_data(
+            train_df=synthetic_data
+        )
+        model = adstock_logistic_saturation_model._build_model(
+            dates=dates, target_data=target_data, media_data=media_data
         )
         assert model

@@ -135,7 +135,7 @@ class BaseMMModel(ABC):
         )
 
 
-class AdstockGeometricLogistiSaturation(BaseMMModel):
+class AdstockGeometricLogisticSaturation(BaseMMModel):
     def __init__(
         self,
         train_df: pd.DataFrame,
@@ -145,17 +145,15 @@ class AdstockGeometricLogistiSaturation(BaseMMModel):
     ) -> None:
         super().__init__(train_df, target, date_col, media_columns)
 
-    def _prepare_data(
-        self, train_df: pd.DataFrame
-    ) -> Tuple[npt.ArrayLike, pd.Series, pd.DataFrame]:
-        dates = train_df[self.date_col].to_numpy()
+    def _prepare_data(self, train_df: pd.DataFrame) -> Tuple[pd.Series, pd.DataFrame]:
+        # TODO: Split this into `_prepare_target` and `_prepare_media` ...
         target_dc = ContinuousDataContainer(
-            raw_data=train_df[self.target], transformer=StandardScaler()
+            raw_data=train_df.filter([self.target]), transformer=StandardScaler()
         )
         target_data = target_dc.get_preprocessed_data()
         media_dc = MediaDataContainer(raw_data=train_df[self.media_columns])
         media_data = media_dc.get_preprocessed_data()
-        return dates, target_data, media_data
+        return target_data, media_data
 
     def _build_model(
         self, dates: npt.ArrayLike, target_data: pd.Series, media_data: pd.DataFrame
@@ -185,8 +183,8 @@ class AdstockGeometricLogistiSaturation(BaseMMModel):
             # marketing channel effects
             channels_saturated = pm.Deterministic(
                 name="channels_saturated",
-                var=logistic_saturation(x=media_data.data, lam=lam),
-                dims=("date_week", "channel"),
+                var=logistic_saturation(x=media_data, lam=lam),
+                dims=("date", "channel"),
             )
             channels_saturated_adstock = pm.Deterministic(
                 name="channels_saturated_adstock",
@@ -196,27 +194,28 @@ class AdstockGeometricLogistiSaturation(BaseMMModel):
                     l_max=12,
                     normalize=True,
                 ),
-                dims=("date_week", "channel"),
+                dims=("date", "channel"),
             )
             channels_effects = pm.Deterministic(
                 name="channels_effects",
                 var=pm.math.dot(channels_saturated_adstock, beta),
-                dims=("date_week"),
+                dims="date",
             )
 
             mu = pm.Deterministic(
                 name="mu",
                 var=intercept + channels_effects,
-                dims="date_week",
+                dims="date",
             )
 
             # --- Likelihood ---
-            likelihood = pm.StudentT(  # noqa F841
-                "likelihood",
+            # ! This is a bit of a hack, should the target be a series or a numpy array?
+            pm.StudentT(
+                name="likelihood",
                 mu=mu,
                 nu=nu,
                 sigma=sigma,
-                observed=target_data,
+                observed=target_data.to_numpy().flatten(),
                 dims="date",
             )
 
