@@ -187,18 +187,16 @@ class ContContractRV(RandomVariable):
             t = 0
             n = 0
 
-            while True:
+            dropout = 0
+            while not dropout:
                 wait = rng.exponential(scale=1 / lam)
-                dropout = rng.binomial(n=1, p=p)
-
-                if t + wait > T:
-                    break
-                else:
-                    t += wait
+                # If we didn't go into the future
+                if (t + wait) < T:
                     n += 1
-
-                    if dropout == 1:
-                        break
+                    t = t + wait
+                    dropout = rng.binomial(n=1, p=p)
+                else:
+                    break
 
             return np.array(
                 [
