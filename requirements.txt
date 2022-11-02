@@ -5,6 +5,6 @@ ipywidgets==7.7.0
 jax>=0.3.13
 matplotlib==3.5.1
 numpyro==0.9.2
-pymc>=4.0.0
+pymc>=4.3.0
 scikit-learn==1.1.1
 seaborn==0.11.2
