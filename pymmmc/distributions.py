@@ -7,6 +7,8 @@ from pymc.distributions.dist_math import check_parameters
 
 __all__ = [
     "ContNonContract",
+    "ContContract",
+    "GammaGamma",
 ]
 
 
@@ -289,4 +291,81 @@ class ContContract(PositiveContinuous):
             p <= 1,
             at.all(T0 < T),
             msg="lam > 0, 0 <= p <= 1, T0 < T",
+        )
+
+
+class GammaGammaRV(RandomVariable):
+    name = "gamma_gamma"
+    ndim_supp = 1
+    ndims_params = [0, 0, 0]
+    dtype = "floatX"
+    _print_name = ("GammaGamma", "\\operatorname{GammaGamma}")
+
+    def make_node(self, rng, size, dtype, p, q, v, x):
+        return super().make_node(rng, size, dtype, p, q, v, x)
+
+    def __call__(self, p, q, v, x, size=None, **kwargs):
+        return super().__call__(p, q, v, x, size=size, **kwargs)
+
+    @classmethod
+    def rng_fn(cls, rng, p, q, v, x, size) -> np.array:
+        size = pm.distributions.shape_utils.to_tuple(size)
+
+        p = np.asarray(p)
+        q = np.asarray(q)
+        v = np.asarray(v)
+        x = np.asarray(x)
+
+        if size == ():
+            size = np.broadcast_shapes(p.shape, q.shape, v.shape, x.shape)
+
+        p = np.broadcast_to(p, size)
+        q = np.broadcast_to(q, size)
+        v = np.broadcast_to(v, size)
+        x = np.broadcast_to(x, size)
+
+        ν = rng.gamma(q, 1 / v)
+
+        output = rng.gamma(p * x, 1 / (ν * x), size=size)
+
+        return output
+
+    def _supp_shape_from_params(*args, **kwargs):
+        return (1,)
+
+
+gamma_gamma = GammaGammaRV()
+
+
+class GammaGamma(PositiveContinuous):
+    r"""
+    Distribution class for the gamma-gamma model for modelling customer purchases.
+    .. math:
+
+        f(z_1, \dots, z_x)
+        = f(\overline{z} | x)
+        = \frac{\Gamma(px + q)}{\Gamma(px)\Gamma(q)}
+        \frac{v^q \overline{z}^{px - 1}x^{px}}{(x \overline{z} + v)^{px + q}}
+
+    ========  ===============================================
+    Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
+    Mean      :math:`\mathbb{E}[X(t) | \lambda, p, d] = \frac{1}{p}`
+                    `- \frac{1}{p}\exp\left(-\lambda p \min(t, T)\right)`
+    """
+    rv_op = gamma_gamma
+
+    @classmethod
+    def dist(cls, p, q, v, x, **kwargs):
+        return super().dist([p, q, v, x], **kwargs)
+
+    def logp(value, p, q, v, x):
+
+        return (
+            at.gammaln(p * x + q)
+            - at.gammaln(p * x)
+            - at.gammaln(q)
+            + q * at.log(v)
+            + (p * x - 1) * at.log(value)
+            + (p * x) * at.log(x)
+            - (p * x + q) * at.log(x * value + v)
         )
