@@ -1,9 +1,14 @@
+import aesara
 import aesara.tensor as at
 import numpy as np
 import pymc as pm
+from aeppl.joint_logprob import _logprob
 from aesara.tensor.random.op import RandomVariable
+from aesara.tensor.random.utils import normalize_size_param
 from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.dist_math import check_parameters
+from pymc.distributions.distribution import SymbolicRandomVariable
+from pymc.distributions.shape_utils import _change_dist_size
 
 __all__ = [
     "ContNonContract",
@@ -294,47 +299,22 @@ class ContContract(PositiveContinuous):
         )
 
 
-class GammaGammaRV(RandomVariable):
-    name = "gamma_gamma"
-    ndim_supp = 1
-    ndims_params = [0, 0, 0]
-    dtype = "floatX"
+class GammaGammaRV(SymbolicRandomVariable):
+    """Gamma-Gamma compound random variable"""
+
     _print_name = ("GammaGamma", "\\operatorname{GammaGamma}")
+    default_output = 2
 
-    def make_node(self, rng, size, dtype, p, q, v, x):
-        return super().make_node(rng, size, dtype, p, q, v, x)
+    def update(self, node):
+        """Symbolic update expression for input random state variables
 
-    def __call__(self, p, q, v, x, size=None, **kwargs):
-        return super().__call__(p, q, v, x, size=size, **kwargs)
-
-    @classmethod
-    def rng_fn(cls, rng, p, q, v, x, size) -> np.array:
-        size = pm.distributions.shape_utils.to_tuple(size)
-
-        p = np.asarray(p)
-        q = np.asarray(q)
-        v = np.asarray(v)
-        x = np.asarray(x)
-
-        if size == ():
-            size = np.broadcast_shapes(p.shape, q.shape, v.shape, x.shape)
-
-        p = np.broadcast_to(p, size)
-        q = np.broadcast_to(q, size)
-        v = np.broadcast_to(v, size)
-        x = np.broadcast_to(x, size)
-
-        ν = rng.gamma(q, 1 / v)
-
-        output = rng.gamma(p * x, 1 / (ν * x), size=size)
-
-        return output
-
-    def _supp_shape_from_params(*args, **kwargs):
-        return (1,)
-
-
-gamma_gamma = GammaGammaRV()
+        Returns a dictionary with the symbolic expressions required for correct updating
+        of random state input variables repeated function evaluations. This is used by
+        `aesaraf.compile_pymc`.
+        """
+        nu_rng, out_rng, *_ = node.inputs
+        next_nu_rng, next_out_rng, _ = node.outputs
+        return {nu_rng: next_nu_rng, out_rng: next_out_rng}
 
 
 class GammaGamma(PositiveContinuous):
@@ -351,21 +331,70 @@ class GammaGamma(PositiveContinuous):
     Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
     Mean      :math:`\mathbb{E}[X(t) | \lambda, p, d] = \frac{1}{p}`
                     `- \frac{1}{p}\exp\left(-\lambda p \min(t, T)\right)`
+
+    References
+    ----------
+    .. [1] Fader, P. S., & Hardie, B. G. (2013). The Gamma-Gamma model of monetary
+           value. February, 2, 1-9. http://www.brucehardie.com/notes/025/gamma_gamma.pdf
     """
-    rv_op = gamma_gamma
+    rv_type = GammaGammaRV
 
     @classmethod
-    def dist(cls, p, q, v, x, **kwargs):
+    def dist(cls, *, p, q, v, x, **kwargs):
+        p = pm.floatX(at.as_tensor_variable(p))
+        q = pm.floatX(at.as_tensor_variable(q))
+        v = pm.floatX(at.as_tensor_variable(v))
+        x = pm.intX(at.as_tensor_variable(x))
         return super().dist([p, q, v, x], **kwargs)
 
-    def logp(value, p, q, v, x):
+    @classmethod
+    def rv_op(cls, p, q, v, x, size=None):
+        assert p.ndim == 0
+        assert q.ndim == 0
+        assert v.ndim == 0
 
-        return (
-            at.gammaln(p * x + q)
-            - at.gammaln(p * x)
-            - at.gammaln(q)
-            + q * at.log(v)
-            + (p * x - 1) * at.log(value)
-            + (p * x) * at.log(x)
-            - (p * x + q) * at.log(x * value + v)
-        )
+        nu_rng = aesara.shared(np.random.default_rng())
+        out_rng = aesara.shared(np.random.default_rng())
+        if size is None:
+            size = x.shape
+        size = normalize_size_param(size)
+
+        # Create symbolic RV graph with dummy variables
+        nu_rng_, out_rng_, size_ = nu_rng.type(), out_rng.type(), size.type()
+        p_, q_, v_, x_ = p.type(), q.type(), v.type(), x.type()
+        next_nu_rng_, nu_ = pm.Gamma.dist(q_, v_, size=size_, rng=nu_rng_).owner.outputs
+        next_out_rng_, out_ = pm.Gamma.dist(
+            p_ * x_, nu_ * x_, size=size_, rng=out_rng_
+        ).owner.outputs
+
+        return GammaGammaRV(
+            inputs=[nu_rng_, out_rng_, size_, p_, q_, v_, x_],
+            outputs=[next_nu_rng_, next_out_rng_, out_],
+            ndim_supp=0,
+            inplace=True,
+        )(nu_rng, out_rng, size, p, q, v, x)
+
+
+@_change_dist_size.register(GammaGammaRV)
+def change_gamma_gamma_size(op, dist, new_size, expand=False):
+    *_, old_size, p, q, v, x = dist.owner.inputs
+
+    if expand:
+        new_size = tuple(new_size) + tuple(old_size)
+
+    return GammaGamma.rv_op(p, q, v, x, size=new_size)
+
+
+@_logprob.register(GammaGammaRV)
+def gamma_gamma_logp(op, value, nu_rng, out_rng, size, p, q, v, x, **kwargs):
+    # Likelihood for mean_spend, marginalizing over nu
+    # Eq 1a from [1], p.2
+    return (
+        at.gammaln(p * x + q)
+        - at.gammaln(p * x)
+        - at.gammaln(q)
+        + q * at.log(v)
+        + (p * x - 1) * at.log(value)
+        + (p * x) * at.log(x)
+        - (p * x + q) * at.log(x * value + v)
+    )
