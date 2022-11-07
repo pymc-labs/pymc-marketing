@@ -8,6 +8,7 @@ import pymc as pm
 from aesara.tensor import TensorVariable
 from pymc import str_for_dist
 
+from pymmmc import GammaGamma
 from pymmmc.clv.models.basic import CLVModel
 
 
@@ -185,20 +186,8 @@ class GammaGammaModel(BaseGammaGammaModel):
             p = self.model.register_rv(p_prior, name="p")
             q = self.model.register_rv(q_prior, name="q")
             v = self.model.register_rv(v_prior, name="v")
-
-            # Likelihood for mean_spend, marginalizing over nu
-            # Eq 1a from [1], p.2
-            pm.Potential(
-                "likelihood",
-                (
-                    at.gammaln(p * x + q)
-                    - at.gammaln(p * x)
-                    - at.gammaln(q)
-                    + q * at.log(v)
-                    + (p * x - 1) * at.log(z_mean)
-                    + (p * x) * at.log(x)
-                    - (p * x + q) * at.log(x * z_mean + v)
-                ),
+            GammaGamma(
+                "mean_spend", p=p, q=q, v=v, x=x, observed=z_mean, dims=("customer_id",)
             )
 
 

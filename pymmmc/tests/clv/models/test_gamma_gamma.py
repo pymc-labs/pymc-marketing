@@ -79,7 +79,6 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             "v": (),
             "v_log__": (),
         }
-        assert len(model.model.potentials) == 1
         assert model.model.coords == {
             "customer_id": tuple(range(self.N)),
         }
@@ -206,7 +205,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             "\np~N**+(0,10)"
             "\nq~HalfFlat()"
             "\nv~HalfFlat()"
-            "\nlikelihood~Potential(f(q,p,v))"
+            "\nmean_spend~GammaGamma(f(),p,q,v,f())"
         )
 
 
