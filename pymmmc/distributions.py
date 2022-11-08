@@ -6,6 +6,7 @@ from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.dist_math import check_parameters
 
 __all__ = [
+    "ContContract",
     "ContNonContract",
 ]
 
@@ -38,7 +39,7 @@ class ContNonContractRV(RandomVariable):
         T = np.asarray(T)
         T0 = np.asarray(T0)
 
-        if size is None:
+        if size == ():
             size = np.broadcast_shapes(lam.shape, p.shape, T.shape, T0.shape)
 
         lam = np.broadcast_to(lam, size)
@@ -173,7 +174,7 @@ class ContContractRV(RandomVariable):
         T = np.asarray(T)
         T0 = np.asarray(T0)
 
-        if size is None:
+        if size == ():
             size = np.broadcast_shapes(lam.shape, p.shape, T.shape, T0.shape)
 
         lam = np.broadcast_to(lam, size)
