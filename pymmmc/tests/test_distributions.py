@@ -63,6 +63,7 @@ class TestContNonContract:
         "lam_size, p_size, cnc_size, expected_size",
         [
             (None, None, None, (2,)),
+            ((5,), None, None, (5, 2)),
             ((5,), None, (5,), (5, 2)),
             ((5, 1), (1, 3), (5, 3), (5, 3, 2)),
             (None, None, (5, 3), (5, 3, 2)),
@@ -137,6 +138,7 @@ class TestContContract:
         "lam_size, p_size, cc_size, expected_size",
         [
             (None, None, None, (3,)),
+            ((7,), None, None, (7, 3)),
             ((7,), None, (7,), (7, 3)),
             ((7, 1), (1, 5), (7, 5), (7, 5, 3)),
             (None, None, (7, 5), (7, 5, 3)),
