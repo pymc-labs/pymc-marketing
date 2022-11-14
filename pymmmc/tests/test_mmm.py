@@ -13,7 +13,7 @@ seed: int = sum(map(ord, "pymmmc"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
 
 
-@pytest.fixture
+@pytest.fixture(scope="class")
 def toy_df() -> pd.DataFrame:
     date_data: pd.DatetimeIndex = pd.date_range(
         start="2019-06-01", end="2021-12-31", freq="W-MON"
@@ -35,7 +35,7 @@ def toy_df() -> pd.DataFrame:
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="class")
 def mmm(toy_df: pd.DataFrame) -> MMM:
     return MMM(
         data_df=toy_df,
@@ -46,7 +46,7 @@ def mmm(toy_df: pd.DataFrame) -> MMM:
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="class")
 def mmm_fitted(mmm: MMM) -> MMM:
     mmm.fit(target_accept=0.8, draws=3, chains=2)
     return mmm
