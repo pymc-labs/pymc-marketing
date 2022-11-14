@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -7,7 +7,6 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
-import pymc.sampling_jax
 import seaborn as sns
 from aesara.compile.sharedvalue import SharedVariable
 from sklearn.pipeline import Pipeline
@@ -15,6 +14,9 @@ from sklearn.preprocessing import MaxAbsScaler, MinMaxScaler
 from xarray import DataArray, Dataset
 
 from pymmmc.transformers import geometric_adstock_vectorized, logistic_saturation
+
+RandomSeed = Optional[Union[int, Sequence[int], np.ndarray]]
+RandomState = Union[RandomSeed, np.random.RandomState, np.random.Generator]
 
 
 class MMM:
@@ -54,7 +56,6 @@ class MMM:
         self._validate_target()
         self._validate_date_col()
         self._validate_channel_columns()
-        self._validate_channel_cost_columns()
 
     def _validate_target(self) -> None:
         if self.y_column not in self.data_df.columns:
@@ -83,14 +84,6 @@ class MMM:
             raise ValueError(
                 f"channel_columns {self.channel_columns} contains negative values"
             )
-
-    def get_prior_predictive_data(self, samples: int = 1_000) -> az.InferenceData:
-        with self.model:
-            prior_predictive: az.InferenceData = pm.sample_prior_predictive(
-                samples=samples
-            )
-
-        return prior_predictive
 
     def _validate_control_columns(self) -> None:
         if self.control_columns is not None and not set(self.control_columns).issubset(
@@ -229,13 +222,26 @@ class MMM:
                 dims="date",
             )
 
-    def fit(self, *args: Any, **kwargs: Any) -> None:
+    def get_prior_predictive_data(self, *args, **kwargs) -> az.InferenceData:
         with self.model:
-            # ? Shall we use `pm.sample` or `pm.sample_jax`?
-            self._fit_result = pm.sampling_jax.sample_numpyro_nuts(*args, **kwargs)
+            prior_predictive: az.InferenceData = pm.sample_prior_predictive(
+                *args, **kwargs
+            )
+        return prior_predictive
 
+    def fit(
+        self,
+        progressbar: bool = True,
+        random_seed: RandomState = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        with self.model:
+            self._fit_result = pm.sample(
+                progressbar=progressbar, random_seed=random_seed, *args, **kwargs
+            )
             self._posterior_predictive = pm.sample_posterior_predictive(
-                trace=self._fit_result
+                trace=self._fit_result, progressbar=progressbar, random_seed=random_seed
             )
 
     @property
