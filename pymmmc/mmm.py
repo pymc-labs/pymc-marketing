@@ -300,7 +300,7 @@ class MMM:
         return fig
 
     def plot_posterior_predictive(
-        self, plot_original_scale: bool = False, **plt_kwargs: Any
+        self, original_scale: bool = False, **plt_kwargs: Any
     ) -> plt.Figure:
         posterior_predictive_data: az.InferenceData = self.posterior_predictive
 
@@ -311,7 +311,7 @@ class MMM:
             ary=posterior_predictive_data["posterior_predictive"], hdi_prob=0.50
         )["likelihood"]
 
-        if plot_original_scale:
+        if original_scale:
             likelihood_hdi_94 = self.target_transformer.inverse_transform(
                 Xt=likelihood_hdi_94
             )
@@ -341,7 +341,7 @@ class MMM:
 
         target_to_plot: pd.Series = (
             self.data_df[self.y_column]
-            if plot_original_scale
+            if original_scale
             else self.target_data_transformed
         )
         sns.lineplot(
@@ -491,10 +491,14 @@ class MMM:
         return fig
 
     def _get_channel_contributions_share_samples(self) -> DataArray:
-        channel_contributions_sum: DataArray = az.extract(
-            data=self.fit_result, var_names=["channel_adstock_saturated"]
-        ).sum(axis=0)
-        return channel_contributions_sum / channel_contributions_sum.sum(axis=0)
+        channel_contribution_original_scale_samples: DataArray = (
+            self.compute_channel_contribution_original_scale().stack(
+                samples=("chain", "draw")
+            )
+        )
+        numerator: DataArray = channel_contribution_original_scale_samples.sum(["date"])
+        denominator: DataArray = numerator.sum("channel")
+        return numerator / denominator
 
     def plot_channel_contribution_share_hdi(
         self, hdi_prob: float = 0.94, **plot_kwargs: Any
