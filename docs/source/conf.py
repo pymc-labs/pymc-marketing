@@ -1,11 +1,6 @@
-""" Sphinx configuration file.
-
-   isort:skip_file
-"""
 #!/usr/bin/env python3
 
 import os
-from pathlib import Path
 
 import pymmmc  # isort:skip
 
@@ -107,8 +102,8 @@ html_favicon = "_static/favicon.ico"
 # documentation.
 html_theme_options = {
     "logo": {
-      "image_light": "logo-light.png",
-      "image_dark": "logo-dark.png",
+        "image_light": "logo-light.png",
+        "image_dark": "logo-dark.png",
     },
     "navbar_align": "right",
     "navbar_start": ["navbar-logo", "navbar-name"],
@@ -138,8 +133,8 @@ html_theme_options = {
     ],
     "use_edit_page_button": True,
     "external_links": [
-      {"name": "About PyMC Labs", "url": "https://pymc-labs.io"},
-  ]
+        {"name": "About PyMC Labs", "url": "https://pymc-labs.io"},
+    ],
 }
 html_context = {
     "github_user": "pymc-labs",
