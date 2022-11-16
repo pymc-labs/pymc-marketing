@@ -17,3 +17,9 @@ check_lint:
 test:
 	pip install -r test-requirements.txt
 	pytest
+
+html:
+	sphinx-build docs/source docs/build -b html
+
+cleandocs:
+	rm -r "docs/build" "docs/jupyter_execute" "docs/source/api/generated"

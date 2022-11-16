@@ -1,0 +1,30 @@
+/* Make each footer item in-line so they stack horizontally instead of vertically */
+.footer-item {
+  display: inline-block;
+}
+
+/* Add a separating border line for all but the last item */
+.footer-item:not(:last-child) {
+  border-right: 1px solid var(--pst-color-text-base);
+  margin-right: .5em;
+  padding-right: .5em;
+}
+
+.footer-item ul {
+  list-style: none;
+  display: flex;
+}
+
+.footer-item li a.nav-link {
+  color: var(--pst-color-text-muted);
+}
+
+.footer-item li a.nav-link:hover {
+  color:var(--pst-color-primary);
+}
+
+footer.bd-footer {
+  position: sticky;
+  bottom: 0;
+  background: white;
+}
