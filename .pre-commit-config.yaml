@@ -20,7 +20,6 @@ repos:
     rev: v3.2.0
     hooks:
       - id: debug-statements
-        language_version: python3.8
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
