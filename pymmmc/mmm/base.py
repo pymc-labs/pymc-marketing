@@ -19,6 +19,9 @@ RandomSeed = Optional[Union[int, Sequence[int], np.ndarray]]
 RandomState = Union[RandomSeed, np.random.RandomState, np.random.Generator]
 
 
+__all__ = ("MMM",)
+
+
 class MMM:
     def __init__(
         self,
