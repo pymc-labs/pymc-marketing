@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -9,15 +9,12 @@ import pandas as pd
 import pymc as pm
 import seaborn as sns
 from aesara.compile.sharedvalue import SharedVariable
+from pymc.util import RandomState
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler, MinMaxScaler
 from xarray import DataArray, Dataset
 
 from pymmmc.transformers import geometric_adstock_vectorized, logistic_saturation
-
-RandomSeed = Optional[Union[int, Sequence[int], np.ndarray]]
-RandomState = Union[RandomSeed, np.random.RandomState, np.random.Generator]
-
 
 __all__ = ("MMM",)
 
