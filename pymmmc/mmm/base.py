@@ -1,4 +1,12 @@
-from typing import Any, Dict, List, Optional
+from abc import abstractmethod
+from inspect import (
+    getattr_static,
+    isdatadescriptor,
+    isgetsetdescriptor,
+    ismemberdescriptor,
+    ismethoddescriptor,
+)
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -8,219 +16,129 @@ import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import seaborn as sns
-from aesara.compile.sharedvalue import SharedVariable
 from pymc.util import RandomState
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler, MinMaxScaler
 from xarray import DataArray, Dataset
 
-from pymmmc.transformers import geometric_adstock_vectorized, logistic_saturation
-
-__all__ = ("MMM",)
+__all__ = ("BaseMMM", "RescaledMMM", "validation_method", "preprocessing_method")
 
 
-class MMM:
+def validation_method(method):
+    if not hasattr(method, "_tags"):
+        method._tags = {}
+    method._tags["validation"] = True
+    return method
+
+
+def preprocessing_method(method):
+    if not hasattr(method, "_tags"):
+        method._tags = {}
+    method._tags["preprocessing"] = True
+    return method
+
+
+class BaseMMM:
     def __init__(
         self,
         data_df: pd.DataFrame,
-        y_column: str,
+        target_column: str,
         date_column: str,
-        channel_columns: List[str],
-        control_columns: Optional[List[str]] = None,
-        adstock_max_lag: int = 4,
+        channel_columns: Union[List[str], Tuple[str]],
+        validate_data: bool = True,
+        **kwargs,
     ) -> None:
-        self.data_df: pd.DataFrame = data_df.copy()
-        self.y_column: str = y_column
+        self.data_df: pd.DataFrame = data_df
+        self.target_column: str = target_column
         self.date_column: str = date_column
-        self.channel_columns: List[str] = channel_columns
+        self.channel_columns: Union[List[str], Tuple[str]] = channel_columns
         self.n_obs: int = data_df.shape[0]
         self.n_channel: int = len(channel_columns)
-        self.model: pm.Model = pm.Model()
         self._fit_result: Optional[az.InferenceData] = None
         self._posterior_predictive: Optional[az.InferenceData] = None
-        self.control_columns: Optional[List[str]] = control_columns
-        self.adstock_max_lag: int = adstock_max_lag
 
-        self._validate_control_columns()
-        self._preprocess_data()
+        if validate_data:
+            self.validate(self.data_df)
+        self.preprocessed_data = self.preprocess(self.data_df.copy())
 
-        self._build_model(
-            date_data=self.data_df[self.date_column],
-            target_data=self.target_data_transformed,
-            channel_data=self.channel_data_transformed,
-            control_data=self.control_data_transformed,
-            adstock_max_lag=self.adstock_max_lag,
+        self.model: pm.Model = pm.Model()
+        self.build_model(
+            data_df=self.preprocessed_data,
+            **kwargs,
         )
 
-    def _validate_input_data(self) -> None:
-        self._validate_target()
-        self._validate_date_col()
-        self._validate_channel_columns()
+    @property
+    def methods(self) -> List[Any]:
+        maybe_methods = [getattr_static(self, attr) for attr in dir(self)]
+        return [
+            method
+            for method in maybe_methods
+            if callable(method)
+            and not (
+                ismethoddescriptor(method)
+                or isdatadescriptor(method)
+                or isgetsetdescriptor(method)
+                or ismemberdescriptor(method)
+            )
+        ]
 
-    def _validate_target(self) -> None:
-        if self.y_column not in self.data_df.columns:
-            raise ValueError(f"target {self.y_column} not in data_df")
+    @property
+    def validation_methods(self) -> List[Callable[[pd.DataFrame], None]]:
+        return [
+            method
+            for method in self.methods
+            if getattr(method, "_tags", {}).get("validation", False)
+        ]
 
-    def _validate_date_col(self) -> None:
-        if self.date_column not in self.data_df.columns:
+    @property
+    def preprocessing_methods(self) -> List[Callable[[pd.DataFrame], pd.DataFrame]]:
+        return [
+            method
+            for method in self.methods
+            if getattr(method, "_tags", {}).get("preprocessing", False)
+        ]
+
+    def validate(self, data_df: pd.DataFrame):
+        for method in self.validation_methods:
+            method(self, data_df)
+
+    def preprocess(self, data_df: pd.DataFrame) -> pd.DataFrame:
+        for method in self.preprocessing_methods:
+            data_df = method(self, data_df)
+        return data_df
+
+    @validation_method
+    def validate_target(self, data_df: pd.DataFrame) -> None:
+        if self.target_column not in data_df.columns:
+            raise ValueError(f"target {self.target_column} not in data_df")
+
+    @validation_method
+    def validate_date_col(self, data_df: pd.DataFrame) -> None:
+        if self.date_column not in data_df.columns:
             raise ValueError(f"date_col {self.date_column} not in data_df")
-        if not self.data_df[self.date_column].is_unique:
+        if not data_df[self.date_column].is_unique:
             raise ValueError(f"date_col {self.date_column} has repeated values")
 
-    def _validate_channel_columns(self) -> None:
-        if self.channel_columns is None:
-            raise ValueError("channel_columns must not be None")
-        if not isinstance(self.channel_columns, list):
+    @validation_method
+    def validate_channel_columns(self, data_df: pd.DataFrame) -> None:
+        if not isinstance(self.channel_columns, (list, tuple)):
             raise ValueError("channel_columns must be a list or tuple")
         if len(self.channel_columns) == 0:
             raise ValueError("channel_columns must not be empty")
-        if not set(self.channel_columns).issubset(self.data_df.columns):
+        if not set(self.channel_columns).issubset(data_df.columns):
             raise ValueError(f"channel_columns {self.channel_columns} not in data_df")
         if len(set(self.channel_columns)) != len(self.channel_columns):
             raise ValueError(
                 f"channel_columns {self.channel_columns} contains duplicates"
             )
-        if (self.data_df[self.channel_columns] < 0).any().any():
+        if (data_df[self.channel_columns] < 0).any().any():
             raise ValueError(
                 f"channel_columns {self.channel_columns} contains negative values"
             )
 
-    def _validate_control_columns(self) -> None:
-        if self.control_columns is not None and not set(self.control_columns).issubset(
-            self.data_df.columns
-        ):
-            raise ValueError(f"control_columns {self.control_columns} not in data_df")
-
-    def _preprocess_data(self) -> None:
-        self._preprocess_target_data()
-        self._preprocess_channel_data()
-        self._preprocess_control_data()
-
-    def _preprocess_target_data(self) -> None:
-        target_vector: npt.NDArray[np.float_] = (
-            self.data_df[self.y_column].to_numpy().reshape(-1, 1)
-        )
-
-        transformers = [("scaler", MinMaxScaler())]
-        pipeline: Pipeline = Pipeline(steps=transformers)
-        self.target_transformer: Pipeline = pipeline.fit(X=target_vector)
-        self.target_data_transformed: pd.Series = pd.Series(
-            data=self.target_transformer.transform(X=target_vector).flatten(),
-        )
-
-    def _preprocess_channel_data(self) -> None:
-        channel_data: pd.DataFrame = self.data_df[self.channel_columns]
-        # potentially add more transformations (e.g. log)
-        transformers = [("scaler", MaxAbsScaler())]
-        pipeline: Pipeline = Pipeline(steps=transformers)
-        self.channel_transformer: Pipeline = pipeline.fit(X=channel_data.to_numpy())
-        self.channel_data_transformed: pd.DataFrame = pd.DataFrame(
-            data=self.channel_transformer.transform(channel_data.to_numpy()),
-            columns=self.channel_columns,
-        )
-
-    def _preprocess_control_data(self) -> None:
-        self.control_data_transformed: Optional[pd.DataFrame] = None
-        self.control_transformer: Optional[Pipeline] = None
-        if self.control_columns:
-            control_data: pd.DataFrame = self.data_df[self.control_columns]
-            # potentially add more transformations (e.g. log)
-            transformers = [("scaler", MinMaxScaler())]
-            pipeline: Pipeline = Pipeline(steps=transformers)
-            self.control_transformer = pipeline.fit(X=control_data.to_numpy())
-            self.control_data_transformed = pd.DataFrame(
-                data=self.control_transformer.transform(control_data.to_numpy()),
-                columns=self.control_columns,
-            )
-
-    def _build_model(
-        self,
-        date_data: pd.Series,
-        target_data: pd.Series,
-        channel_data: pd.DataFrame,
-        control_data: Optional[pd.DataFrame] = None,
-        adstock_max_lag: int = 4,
-    ) -> None:
-        coords: Dict[str, Any] = {
-            "date": date_data,
-            "channel": channel_data.columns,
-        }
-
-        if control_data is not None:
-            coords["control_names"] = control_data.columns
-
-        with pm.Model(coords=coords) as self.model:
-            channel_data_: SharedVariable = pm.MutableData(
-                name="channel_data",
-                value=channel_data,
-                dims=("date", "channel"),
-            )
-
-            target_: SharedVariable = pm.MutableData(
-                name="target", value=target_data, dims="date"
-            )
-
-            intercept = pm.Normal(name="intercept", mu=0, sigma=2)
-
-            beta_channel = pm.HalfNormal(
-                name="beta_channel", sigma=2, dims="channel"
-            )  # ? Allow prior depend on channel costs?
-
-            alpha = pm.Beta(name="alpha", alpha=1, beta=3, dims="channel")
-
-            lam = pm.Gamma(name="lam", alpha=3, beta=1, dims="channel")
-
-            sigma = pm.HalfNormal(name="sigma", sigma=2)
-
-            channel_adstock = pm.Deterministic(
-                name="channel_adstock",
-                var=geometric_adstock_vectorized(
-                    x=channel_data_,
-                    alpha=alpha,
-                    l_max=adstock_max_lag,
-                    normalize=True,
-                ),
-                dims=("date", "channel"),
-            )
-            channel_adstock_saturated = pm.Deterministic(
-                name="channel_adstock_saturated",
-                var=logistic_saturation(x=channel_adstock, lam=lam),
-                dims=("date", "channel"),
-            )
-            channel_contribution = pm.Deterministic(
-                name="channel_contribution",
-                var=pm.math.dot(channel_adstock_saturated, beta_channel),
-                dims="date",
-            )
-
-            mu_var = intercept + channel_contribution
-
-            if control_data is not None:
-                control_data_: SharedVariable = pm.MutableData(
-                    name="control_data", value=control_data, dims=("date", "control")
-                )
-
-                gamma_control = pm.Normal(
-                    name="gamma_control", mu=0, sigma=2, dims="control"
-                )
-
-                control_contribution = pm.Deterministic(
-                    name="control_contribution",
-                    var=pm.math.dot(control_data_, gamma_control),
-                    dims="date",
-                )
-
-                mu_var += control_contribution
-
-            mu = pm.Deterministic(name="mu", var=mu_var, dims="date")
-
-            pm.Normal(
-                name="likelihood",
-                mu=mu,
-                sigma=sigma,
-                observed=target_,
-                dims="date",
-            )
+    @abstractmethod
+    def build_model(*args, **kwargs):
+        raise NotImplementedError()
 
     def get_prior_predictive_data(self, *args, **kwargs) -> az.InferenceData:
         with self.model:
@@ -290,13 +208,12 @@ class MMM:
             label="50% HDI",
         )
 
-        sns.lineplot(
-            x=self.data_df[self.date_column],
-            y=self.target_data_transformed,
+        ax.plot(
+            self.data_df[self.date_column],
+            self.preprocessed_data[self.target_column],
             color="black",
-            ax=ax,
         )
-        ax.set(title="Prior Predictive Check", xlabel="date", ylabel=self.y_column)
+        ax.set(title="Prior Predictive Check", xlabel="date", ylabel=self.target_column)
         return fig
 
     def plot_posterior_predictive(
@@ -340,17 +257,15 @@ class MMM:
         )
 
         target_to_plot: pd.Series = (
-            self.data_df[self.y_column]
+            self.data_df[self.target_column]
             if original_scale
-            else self.target_data_transformed
+            else self.preprocessed_data[self.target_column]
         )
-        sns.lineplot(
-            x=self.data_df[self.date_column], y=target_to_plot, color="black", ax=ax
-        )
+        ax.plot(self.data_df[self.date_column], target_to_plot, color="black")
         ax.set(
             title="Posterior Predictive Check",
             xlabel="date",
-            ylabel=self.y_column,
+            ylabel=self.target_column,
         )
         return fig
 
@@ -379,6 +294,7 @@ class MMM:
                     axis=1
                 ),
                 color=f"C{i}",
+                ax=ax,
             )
 
         intercept_hdi: npt.NDArray[np.float_] = np.repeat(
@@ -390,6 +306,7 @@ class MMM:
             x=self.data_df[self.date_column],
             y=az.extract(self.fit_result, var_names=["intercept"]).mean().item(),
             color=f"C{i + 1}",
+            ax=ax,
         )
         ax.fill_between(
             x=self.data_df[self.date_column],
@@ -399,17 +316,16 @@ class MMM:
             alpha=0.25,
             label="$94 %$ HDI (intercept)",
         )
-        sns.lineplot(
-            x=self.data_df[self.date_column],
-            y=self.target_data_transformed,
+        ax.plot(
+            self.data_df[self.date_column],
+            self.preprocessed_data[self.target_column],
             color="black",
-            ax=ax,
         )
         ax.legend(title="components", loc="center left", bbox_to_anchor=(1, 0.5))
         ax.set(
             title="Posterior Predictive Model Components",
             xlabel="date",
-            ylabel=self.y_column,
+            ylabel=self.target_column,
         )
         return fig
 
@@ -517,3 +433,29 @@ class MMM:
         fig: plt.Figure = plt.gcf()
         fig.suptitle("channel Contribution Share", fontsize=16, y=1.05)
         return fig
+
+
+class RescaledMMM(BaseMMM):
+    @preprocessing_method
+    def min_max_scale_target_data(self, data_df: pd.DataFrame) -> pd.DataFrame:
+        target_vector = data_df[self.target_column].to_numpy().reshape(-1, 1)
+
+        transformers = [("scaler", MinMaxScaler())]
+        pipeline = Pipeline(steps=transformers)
+        self.target_transformer: Pipeline = pipeline.fit(X=target_vector)
+        data_df[self.target_column] = self.target_transformer.transform(
+            X=target_vector
+        ).flatten()
+        return data_df
+
+    @preprocessing_method
+    def max_abs_scale_channel_data(self, data_df: pd.DataFrame) -> pd.DataFrame:
+        channel_data: pd.DataFrame = data_df[self.channel_columns]
+        # potentially add more transformations (e.g. log)
+        transformers = [("scaler", MaxAbsScaler())]
+        pipeline: Pipeline = Pipeline(steps=transformers)
+        self.channel_transformer: Pipeline = pipeline.fit(X=channel_data.to_numpy())
+        data_df[self.channel_columns] = self.channel_transformer.transform(
+            channel_data.to_numpy()
+        )
+        return data_df

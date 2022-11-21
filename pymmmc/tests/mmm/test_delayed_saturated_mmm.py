@@ -7,7 +7,7 @@ import pandas as pd
 import pymc as pm
 import pytest
 
-from pymmmc.mmm import MMM
+from pymmmc.mmm.delayed_saturated_mmm import DelayedSaturatedMMM
 
 seed: int = sum(map(ord, "pymmmc"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
@@ -36,10 +36,10 @@ def toy_df() -> pd.DataFrame:
 
 
 @pytest.fixture(scope="class")
-def mmm(toy_df: pd.DataFrame) -> MMM:
-    return MMM(
+def mmm(toy_df: pd.DataFrame) -> DelayedSaturatedMMM:
+    return DelayedSaturatedMMM(
         data_df=toy_df,
-        y_column="y",
+        target_column="y",
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
         control_columns=["control_1", "control_2"],
@@ -47,7 +47,7 @@ def mmm(toy_df: pd.DataFrame) -> MMM:
 
 
 @pytest.fixture(scope="class")
-def mmm_fitted(mmm: MMM) -> MMM:
+def mmm_fitted(mmm: DelayedSaturatedMMM) -> DelayedSaturatedMMM:
     mmm.fit(target_accept=0.8, draws=3, chains=2)
     return mmm
 
@@ -81,9 +81,9 @@ class TestMMM:
         control_columns: List[str],
         adstock_max_lag: int,
     ) -> None:
-        mmm = MMM(
+        mmm = DelayedSaturatedMMM(
             data_df=toy_df,
-            y_column="y",
+            target_column="y",
             date_column="date",
             channel_columns=channel_columns,
             control_columns=control_columns,
@@ -129,9 +129,9 @@ class TestMMM:
         draws: int = 100
         chains: int = 2
 
-        mmm = MMM(
+        mmm = DelayedSaturatedMMM(
             data_df=toy_df,
-            y_column="y",
+            target_column="y",
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
             control_columns=["control_1", "control_2"],
@@ -175,7 +175,7 @@ class TestMMM:
     )
     def test_plots(
         self,
-        mmm_fitted: MMM,
+        mmm_fitted: DelayedSaturatedMMM,
         func_plot_name: str,
         kwargs_plot: Dict[str, Any],
     ) -> None:
