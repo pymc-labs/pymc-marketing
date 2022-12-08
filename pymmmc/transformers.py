@@ -29,7 +29,7 @@ def geometric_adstock(x, alpha: float = 0.0, l_max: int = 12, normalize: bool = 
     References
     ----------
     .. [1] Jin, Yuxue, et al. "Bayesian methods for media mix modeling
-    with carryover and shape effects." (2017).
+       with carryover and shape effects." (2017).
     """
     cycles = [at.concatenate([at.zeros(i), x[: x.shape[0] - i]]) for i in range(l_max)]
     x_cycle = at.stack(cycles)
@@ -65,7 +65,7 @@ def delayed_adstock(
     x : tensor
         Input tensor.
     alpha : float, by default 0.0
-         Retention rate of ad effect. Must be between 0 and 1.
+        Retention rate of ad effect. Must be between 0 and 1.
     theta : float, by default 0
         Delay of the peak effect. Must be between 0 and `l_max` - 1.
     l_max : int, by default 12
@@ -81,7 +81,7 @@ def delayed_adstock(
     References
     ----------
     .. [1] Jin, Yuxue, et al. "Bayesian methods for media mix modeling
-    with carryover and shape effects." (2017).
+       with carryover and shape effects." (2017).
     """
     cycles = [at.concatenate([at.zeros(i), x[: x.shape[0] - i]]) for i in range(l_max)]
     x_cycle = at.stack(cycles)

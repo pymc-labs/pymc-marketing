@@ -10,7 +10,7 @@ def generate_fourier_modes(
 
     Parameters
     ----------
-    periods : npt.NDArray[np.float_]
+    periods : array-like of float
         Input array denoting the period range.
     n_order : int
         Maximum order of Fourier modes.
