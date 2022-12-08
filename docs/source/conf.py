@@ -29,6 +29,7 @@ extensions = [
     "myst_nb",
     "notfound.extension",
     "sphinx_copybutton",
+    "sphinx_design",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -87,6 +88,7 @@ intersphinx_mapping = {
     "aeppl": ("https://aeppl.readthedocs.io/en/latest/", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "pymc": ("https://www.pymc.io/projects/docs/en/stable/", None),
+    "examples": ("https://www.pymc.io/projects/examples/en/latest/", None),
 }
 
 # -- Options for HTML output ----------------------------------------------

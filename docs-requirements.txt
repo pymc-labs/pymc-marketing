@@ -7,3 +7,4 @@ sphinx-copybutton
 sphinx-autodoc-typehints
 sphinxext-opengraph
 sphinx-notfound-page
+sphinx-design
