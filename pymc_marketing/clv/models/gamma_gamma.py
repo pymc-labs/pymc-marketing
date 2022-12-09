@@ -5,10 +5,12 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
+import xarray
 from pymc import str_for_dist
 from pytensor.tensor import TensorVariable
 
 from pymc_marketing.clv.models.basic import CLVModel
+from pymc_marketing.clv.utils import to_xarray
 
 
 class BaseGammaGammaModel(CLVModel):
@@ -37,15 +39,14 @@ class BaseGammaGammaModel(CLVModel):
 
         return p_prior, q_prior, v_prior
 
-    def expected_customer_spend(
+    def distribution_customer_spend(
         self,
         customer_id: Union[np.ndarray, pd.Series],
         mean_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
         frequency: Union[np.ndarray, pd.Series, TensorVariable],
         random_seed=None,
-    ):
-        """Return distribution of expected transaction value per customer, based on
-        observed individual or mean transaction values"""
+    ) -> xarray.DataArray:
+        """Posterior distribution of transaction value per customer"""
 
         x = frequency
         z_mean = mean_transaction_value
@@ -67,8 +68,37 @@ class BaseGammaGammaModel(CLVModel):
                 random_seed=random_seed,
             ).posterior_predictive["mean_spend"]
 
-    def expected_new_customer_spend(self, n=1, random_seed=None):
-        """Predict expected transaction value of new unobserved customers"""
+    def expected_customer_spend(
+        self,
+        customer_id: Union[np.ndarray, pd.Series],
+        mean_transaction_value: Union[np.ndarray, pd.Series],
+        number_transactions: Union[np.ndarray, pd.Series],
+    ) -> xarray.DataArray:
+        """Expected transaction value per customer
+
+        Eq 5 from [1], p.3
+
+        Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117  # noqa: E501
+        """
+
+        mean_transaction_value, number_transactions = to_xarray(
+            customer_id, mean_transaction_value, number_transactions
+        )
+
+        p = self.fit_result.posterior["p"]
+        q = self.fit_result.posterior["q"]
+        v = self.fit_result.posterior["v"]
+
+        individual_weight = p * number_transactions / (p * number_transactions + q - 1)
+        population_mean = v * p / (q - 1)
+        return (
+            1 - individual_weight
+        ) * population_mean + individual_weight * mean_transaction_value
+
+    def distribution_new_customer_spend(
+        self, n=1, random_seed=None
+    ) -> xarray.DataArray:
+        """Posterior distribution of transaction value for new customers"""
         coords = {"new_customer_id": range(n)}
         with pm.Model(coords=coords):
             p = pm.HalfFlat("p")
@@ -83,6 +113,21 @@ class BaseGammaGammaModel(CLVModel):
                 var_names=["nu", "mean_spend"],
                 random_seed=random_seed,
             ).posterior_predictive["mean_spend"]
+
+    def expected_new_customer_spend(self) -> xarray.DataArray:
+        """Expected transaction value for a new customer"""
+
+        p_mean = self.fit_result.posterior["p"]
+        q_mean = self.fit_result.posterior["q"]
+        v_mean = self.fit_result.posterior["v"]
+
+        # Closed form solution to the posterior of nu
+        # Eq 3 from [1], p.3
+        mean_spend = p_mean * v_mean / (q_mean - 1)
+        # We could also provide the variance
+        # var_spend = (p_mean ** 2 * v_mean ** 2) / ((q_mean - 1) ** 2 * (q_mean - 2))
+
+        return mean_spend
 
 
 class GammaGammaModel(BaseGammaGammaModel):
@@ -299,15 +344,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             nu = pm.Gamma("nu", q, v, dims=("customer_id",))
             pm.Gamma("spend", p, nu[customer_id], observed=z, dims=("obs",))
 
-    def expected_customer_spend(
-        self,
-        customer_id: Union[np.ndarray, pd.Series],
-        individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
-        random_seed=None,
-    ):
-        """Return distribution of expected transaction value per customer, based on
-        observed individual or mean transaction values"""
-
+    def _summarize_mean_data(self, customer_id, individual_transaction_value):
         df = pd.DataFrame(
             {
                 "customer_id": customer_id,
@@ -320,6 +357,39 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         customer_id = gdf.index
         x = gdf["count"]
         z_mean = gdf["mean"]
+
+        return customer_id, z_mean, x
+
+    def distribution_customer_spend(
+        self,
+        customer_id: Union[np.ndarray, pd.Series],
+        individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
+        random_seed=None,
+    ) -> xarray.DataArray:
+        """Return distribution of transaction value per customer"""
+
+        customer_id, z_mean, x = self._summarize_mean_data(
+            customer_id, individual_transaction_value
+        )
+
+        return super().distribution_customer_spend(
+            customer_id=customer_id,
+            mean_transaction_value=z_mean,
+            number_transactions=x,
+            random_seed=random_seed,
+        )
+
+    def expected_customer_spend(
+        self,
+        customer_id: Union[np.ndarray, pd.Series],
+        individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
+        random_seed=None,
+    ) -> xarray.DataArray:
+        """Return expected transaction value per customer"""
+
+        customer_id, z_mean, x = self._summarize_mean_data(
+            customer_id, individual_transaction_value
+        )
 
         return super().expected_customer_spend(
             customer_id=customer_id,
