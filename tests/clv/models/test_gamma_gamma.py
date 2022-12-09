@@ -14,7 +14,7 @@ from pymc_marketing.clv.models.gamma_gamma import (
 class BaseTestGammaGammaModel:
     @classmethod
     def setup_class(cls):
-        rng = np.random.default_rng(42)
+        rng = np.random.default_rng(14)
 
         # Hyperparameters
         p_true = 6.0
@@ -102,7 +102,8 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             rtol=0.3,
         )
 
-    def test_expected_spend(self):
+    @pytest.mark.parametrize("distribution", (True, False))
+    def test_spend(self, distribution):
         p_mean = self.p_true
         q_mean = self.q_true
         v_mean = self.v_true
@@ -124,42 +125,61 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         model._fit_result = fake_fit
 
         # Force posterior close to empirical mean with many observations
-        preds = model.expected_customer_spend(
-            customer_id=self.z_mean_idx,
-            mean_transaction_value=self.z_mean,
-            frequency=1000,
-            random_seed=self.rng,
-        )
+        if distribution:
+            preds = model.distribution_customer_spend(
+                customer_id=self.z_mean_idx,
+                mean_transaction_value=self.z_mean,
+                frequency=1000,
+                random_seed=self.rng,
+            )
+        else:
+            preds = model.expected_customer_spend(
+                customer_id=self.z_mean_idx,
+                mean_transaction_value=self.z_mean,
+                number_transactions=1000,
+            )
         assert preds.shape == (1, 1000, len(self.z_mean_idx))
-
         np.testing.assert_allclose(
             preds.mean(("draw", "chain")), self.z_mean, rtol=0.05
         )
 
+        # Closed formula solution for the mean and var of the population spend (eqs 3, 4 from [1])  # noqa: E501
+        expected_preds_mean = p_mean * v_mean / (q_mean - 1)
+        expected_preds_std = np.sqrt(
+            (p_mean**2 * v_mean**2) / ((q_mean - 1) ** 2 * (q_mean - 2))
+        )
+
         # Force posterior close to group mean with zero observations
-        preds = model.expected_customer_spend(
-            customer_id=self.z_mean_idx[:10],
-            mean_transaction_value=self.z_mean[:10],
-            # Force the posterior to be centered around the empirical mean
-            frequency=0,
-            random_seed=self.rng,
-        )
-        assert preds.shape == (1, 1000, 10)
+        if distribution:
+            preds = model.distribution_customer_spend(
+                customer_id=self.z_mean_idx[:10],
+                mean_transaction_value=self.z_mean[:10],
+                frequency=0,
+                random_seed=self.rng,
+            )
+            assert preds.shape == (1, 1000, 10)
+            np.testing.assert_allclose(
+                preds.mean(("draw", "chain")), expected_preds_mean, rtol=0.1
+            )
+            np.testing.assert_allclose(
+                preds.std(("draw", "chain")), expected_preds_std, rtol=0.25
+            )
 
-        # Recover nu distribution from mean spend
-        nu = fake_fit.posterior["p"] / preds
+        else:
+            # Force posterior close to group mean with zero observations
+            preds = model.expected_customer_spend(
+                customer_id=self.z_mean_idx[:10],
+                mean_transaction_value=self.z_mean[:10],
+                # Force the posterior to be centered around the empirical mean
+                number_transactions=0,
+            )
+            assert preds.shape == (1, 1000, 10)
+            np.testing.assert_allclose(
+                preds.mean(("draw", "chain")), expected_preds_mean, rtol=0.025
+            )
 
-        # nu_mean = q / v
-        expected_nu_mean = q_mean / v_mean
-        # nu_std = sqrt(q) / v
-        expected_nu_std = np.sqrt(q_mean) / v_mean
-
-        np.testing.assert_allclose(
-            nu.mean(("draw", "chain")), expected_nu_mean, rtol=0.05
-        )
-        np.testing.assert_allclose(nu.std(("draw", "chain")), expected_nu_std, rtol=0.1)
-
-    def test_predict_new_customer_spend(self):
+    @pytest.mark.parametrize("distribution", (True, False))
+    def test_new_customer_spend(self, distribution):
         p_mean = 35
         q_mean = 15
         v_mean = 3
@@ -180,21 +200,27 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         fake_fit.add_groups(dict(posterior=fake_fit.prior))
         model._fit_result = fake_fit
 
-        preds = model.expected_new_customer_spend(n=5, random_seed=self.rng)
-        assert preds.shape == (1, 1000, 5)
-
-        # Recover nu distribution from mean spend
-        nu = fake_fit.posterior["p"] / preds
-
-        # nu_mean = q / v
-        expected_nu_mean = q_mean / v_mean
-        # nu_std = sqrt(q) / v
-        expected_nu_std = np.sqrt(q_mean) / v_mean
-
-        np.testing.assert_allclose(
-            nu.mean(("draw", "chain")), expected_nu_mean, rtol=0.05
+        # Closed formula solution for the mean and var of the population spend (eqs 3, 4 from [1])  # noqa: E501
+        expected_preds_mean = p_mean * v_mean / (q_mean - 1)
+        expected_preds_std = np.sqrt(
+            (p_mean**2 * v_mean**2) / ((q_mean - 1) ** 2 * (q_mean - 2))
         )
-        np.testing.assert_allclose(nu.std(("draw", "chain")), expected_nu_std, rtol=0.1)
+
+        if distribution:
+            preds = model.distribution_new_customer_spend(n=5, random_seed=self.rng)
+            assert preds.shape == (1, 1000, 5)
+            np.testing.assert_allclose(
+                preds.mean(("draw", "chain")), expected_preds_mean, rtol=0.1
+            )
+            np.testing.assert_allclose(
+                preds.std(("draw", "chain")), expected_preds_std, rtol=0.25
+            )
+        else:
+            preds = model.expected_new_customer_spend()
+            assert preds.shape == (1, 1000)
+            np.testing.assert_allclose(
+                preds.mean(("draw", "chain")), expected_preds_mean, rtol=0.05
+            )
 
     def test_model_repr(self):
         model = GammaGammaModel(
@@ -267,6 +293,31 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             [self.p_true, self.q_true, self.v_true],
             rtol=0.3,
         )
+
+    @patch(
+        "pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_customer_spend"
+    )
+    def test_distribution_spend(self, dummy_method):
+        model = GammaGammaModelIndividual(
+            customer_id=self.z_idx,
+            individual_transaction_value=self.z,
+        )
+
+        model.distribution_customer_spend(
+            customer_id=self.z_idx, individual_transaction_value=self.z, random_seed=123
+        )
+
+        dummy_method.assert_called_once()
+
+        kwargs = dummy_method.call_args[1]
+        np.testing.assert_array_equal(kwargs["customer_id"].values, self.z_mean_idx)
+        np.testing.assert_array_equal(
+            kwargs["mean_transaction_value"].values, self.z_mean
+        )
+        np.testing.assert_array_equal(
+            kwargs["number_transactions"].values, self.z_mean_nobs
+        )
+        assert kwargs["random_seed"] == 123
 
     @patch(
         "pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend"
