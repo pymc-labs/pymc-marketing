@@ -1,4 +1,4 @@
-frequency,recency,periods,weights
+frequency,recency,periods,count
 0,0,6,3464
 1,1,6,1091
 1,2,6,277

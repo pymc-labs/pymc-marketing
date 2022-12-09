@@ -1,4 +1,4 @@
-ID,x,t_x,T,zbar
+ID,frequency,recency,T,avg_spend
 1,2,30.43,38.86,22.35
 2,1,1.71,38.86,11.77
 3,0,0.00,38.86,0.00
