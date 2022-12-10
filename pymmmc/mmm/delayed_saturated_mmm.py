@@ -3,11 +3,15 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 import pymc as pm
 
-from pymmmc.mmm.base import RescaledMMM, validation_method
+from pymmmc.mmm.base import MMM
+from pymmmc.mmm.preprocessing import MaxAbsScaleChannels, MixMaxScaleTarget
+from pymmmc.mmm.validating import ValidateControlColumns
 from pymmmc.transformers import geometric_adstock_vectorized, logistic_saturation
 
 
-class DelayedSaturatedMMM(RescaledMMM):
+class DelayedSaturatedMMM(
+    MMM, MixMaxScaleTarget, MaxAbsScaleChannels, ValidateControlColumns
+):
     def __init__(
         self,
         data_df: pd.DataFrame,
@@ -120,10 +124,3 @@ class DelayedSaturatedMMM(RescaledMMM):
                 observed=target_,
                 dims="date",
             )
-
-    @validation_method
-    def _validate_control_columns(self, data_df) -> None:
-        if self.control_columns is not None and not set(self.control_columns).issubset(
-            data_df.columns
-        ):
-            raise ValueError(f"control_columns {self.control_columns} not in data_df")
