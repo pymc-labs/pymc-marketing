@@ -17,25 +17,15 @@ import pandas as pd
 import pymc as pm
 import seaborn as sns
 from pymc.util import RandomState
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import MaxAbsScaler, MinMaxScaler
 from xarray import DataArray, Dataset
 
-__all__ = ("BaseMMM", "RescaledMMM", "validation_method", "preprocessing_method")
+from pymmmc.mmm.validating import (
+    ValidateChannelColumns,
+    ValidateDateColumn,
+    ValidateTargetColumn,
+)
 
-
-def validation_method(method):
-    if not hasattr(method, "_tags"):
-        method._tags = {}
-    method._tags["validation"] = True
-    return method
-
-
-def preprocessing_method(method):
-    if not hasattr(method, "_tags"):
-        method._tags = {}
-    method._tags["preprocessing"] = True
-    return method
+__all__ = ("BaseMMM", "MMM")
 
 
 class BaseMMM:
@@ -106,35 +96,6 @@ class BaseMMM:
         for method in self.preprocessing_methods:
             data_df = method(self, data_df)
         return data_df
-
-    @validation_method
-    def validate_target(self, data_df: pd.DataFrame) -> None:
-        if self.target_column not in data_df.columns:
-            raise ValueError(f"target {self.target_column} not in data_df")
-
-    @validation_method
-    def validate_date_col(self, data_df: pd.DataFrame) -> None:
-        if self.date_column not in data_df.columns:
-            raise ValueError(f"date_col {self.date_column} not in data_df")
-        if not data_df[self.date_column].is_unique:
-            raise ValueError(f"date_col {self.date_column} has repeated values")
-
-    @validation_method
-    def validate_channel_columns(self, data_df: pd.DataFrame) -> None:
-        if not isinstance(self.channel_columns, (list, tuple)):
-            raise ValueError("channel_columns must be a list or tuple")
-        if len(self.channel_columns) == 0:
-            raise ValueError("channel_columns must not be empty")
-        if not set(self.channel_columns).issubset(data_df.columns):
-            raise ValueError(f"channel_columns {self.channel_columns} not in data_df")
-        if len(set(self.channel_columns)) != len(self.channel_columns):
-            raise ValueError(
-                f"channel_columns {self.channel_columns} contains duplicates"
-            )
-        if (data_df[self.channel_columns] < 0).any().any():
-            raise ValueError(
-                f"channel_columns {self.channel_columns} contains negative values"
-            )
 
     @abstractmethod
     def build_model(*args, **kwargs):
@@ -435,27 +396,5 @@ class BaseMMM:
         return fig
 
 
-class RescaledMMM(BaseMMM):
-    @preprocessing_method
-    def min_max_scale_target_data(self, data_df: pd.DataFrame) -> pd.DataFrame:
-        target_vector = data_df[self.target_column].to_numpy().reshape(-1, 1)
-
-        transformers = [("scaler", MinMaxScaler())]
-        pipeline = Pipeline(steps=transformers)
-        self.target_transformer: Pipeline = pipeline.fit(X=target_vector)
-        data_df[self.target_column] = self.target_transformer.transform(
-            X=target_vector
-        ).flatten()
-        return data_df
-
-    @preprocessing_method
-    def max_abs_scale_channel_data(self, data_df: pd.DataFrame) -> pd.DataFrame:
-        channel_data: pd.DataFrame = data_df[self.channel_columns]
-        # potentially add more transformations (e.g. log)
-        transformers = [("scaler", MaxAbsScaler())]
-        pipeline: Pipeline = Pipeline(steps=transformers)
-        self.channel_transformer: Pipeline = pipeline.fit(X=channel_data.to_numpy())
-        data_df[self.channel_columns] = self.channel_transformer.transform(
-            channel_data.to_numpy()
-        )
-        return data_df
+class MMM(BaseMMM, ValidateTargetColumn, ValidateDateColumn, ValidateChannelColumns):
+    pass
