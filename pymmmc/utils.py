@@ -10,7 +10,7 @@ def generate_fourier_modes(
 
     Parameters
     ----------
-    periods : npt.NDArray[np.float_]
+    periods : array-like of float
         Input array denoting the period range.
     n_order : int
         Maximum order of Fourier modes.
@@ -22,7 +22,7 @@ def generate_fourier_modes(
 
     References
     ----------
-    See https://docs.pymc.io/en/stable/pymc-examples/examples/time_series/Air_passengers-Prophet_with_Bayesian_workflow.html # noqa: E501
+    See :ref:`examples:Air_passengers-Prophet_with_Bayesian_workflow` in PyMC examples collection.
     """
     if n_order < 1:
         raise ValueError("n_order must be greater than or equal to 1")

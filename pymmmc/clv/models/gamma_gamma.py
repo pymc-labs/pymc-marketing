@@ -91,7 +91,7 @@ class GammaGammaModel(BaseGammaGammaModel):
     Estimate the average monetary value of customer transactions.
 
     The model is conditioned on the mean transaction value of each user, and is based
-    on [1, 2].
+    on [1]_, [2]_.
 
     TODO: Explain assumptions of model
 
@@ -124,6 +124,7 @@ class GammaGammaModel(BaseGammaGammaModel):
         Gamma-Gamma model condioned on mean transaction value
 
         .. code-block:: python
+
             import pymc as pm
             from pymmmc.clv import GammaGammaModel
 
@@ -208,7 +209,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     Estimate the average monetary value of customer transactions.
 
     The model is conditioned on the individual transaction values per user, and is based
-    on [1, 2].
+    on [1]_, [2]_.
 
     TODO: Explain assumptions of model
 
@@ -241,6 +242,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         Gamma-Gamma model conditioned on individual customer spend
 
         .. code-block:: python
+
             import pymc as pm
             from pymmmc.clv import GammaGammaModel
 

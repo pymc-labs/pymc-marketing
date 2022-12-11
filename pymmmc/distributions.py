@@ -84,9 +84,9 @@ continuous_non_contractual = ContNonContractRV()
 class ContNonContract(PositiveContinuous):
     r"""
     Individual-level model for the customer lifetime value. See equation (3)
-    from Fader et al. (2005) [1].
+    from Fader et al. (2005) [1]_.
 
-    .. math:
+    .. math::
 
         f(\lambda, p | x, t_1, \dots, t_x, T)
         = f(\lambda, p | t_x, T) = (1 - p)^x \lambda^x \exp(-\lambda T)
@@ -94,8 +94,8 @@ class ContNonContract(PositiveContinuous):
 
     ========  ===============================================
     Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
-    Mean      :math:`\mathbb{E}[X(t) | \lambda, p] = \frac{1}{p}`
-                    `- \frac{1}{p}\exp\left(-\lambda p \min(t, T)\right)`
+    Mean      :math:`\mathbb{E}[X(t) | \lambda, p] = \frac{1}{p} - \frac{1}{p}\exp\left(-\lambda p \min(t, T)\right)`
+    ========  ===============================================
 
     References
     ----------
@@ -224,7 +224,8 @@ class ContContract(PositiveContinuous):
     Distribution class of a continuous contractual data-generating process,
     that is where purchases can occur at any time point (continuous) and
     churning/dropping out is explicit (contractual).
-    .. math:
+
+    .. math::
 
         f(\lambda, p | d, x, t_1, \dots, t_x, T)
         = f(\lambda, p | t_x, T) = (1 - p)^{x-1} \lambda^x \exp(-\lambda t_x)
@@ -232,8 +233,9 @@ class ContContract(PositiveContinuous):
 
     ========  ===============================================
     Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
-    Mean      :math:`\mathbb{E}[X(t) | \lambda, p, d] = \frac{1}{p}`
-                    `- \frac{1}{p}\exp\left(-\lambda p \min(t, T)\right)`
+    Mean      :math:`\mathbb{E}[X(t) | \lambda, p, d] = \frac{1}{p} - \frac{1}{p}\exp\left(-\lambda p \min(t, T)\right)`
+    ========  ===============================================
+
     """
     rv_op = continuous_contractual
 

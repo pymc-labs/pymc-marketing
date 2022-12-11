@@ -1,4 +1,5 @@
 sphinx
+ipython!=8.7.0
 myst-parser
 myst-nb
 pydata-sphinx-theme>=0.12.0.dev0
@@ -6,3 +7,4 @@ sphinx-copybutton
 sphinx-autodoc-typehints
 sphinxext-opengraph
 sphinx-notfound-page
+sphinx-design

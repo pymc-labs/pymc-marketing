@@ -1,6 +1,6 @@
 # API
 
-## Top level functions
+## Top level objects
 ```{eval-rst}
 .. currentmodule:: pymmmc
 .. autosummary::
@@ -19,7 +19,6 @@
   :toctree: generated/
 
   clv
-  distributions
   mmm
   transformers
   utils
