@@ -94,7 +94,7 @@ class ContNonContract(PositiveContinuous):
 
     ========  ===============================================
     Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
-    Mean      :math:`\mathbb{E}[X(t) | \lambda, p] = \frac{1}{p} - \frac{1}{p}\exp\left(-\lambda p \min(t, T)\right)` # noqa: E501
+    Mean      :math:`\mathbb{E}[X(t) | \lambda, p] = \frac{1}{p} - \frac{1}{p}\exp\left(-\lambda p \min(t, T)\right)`
     ========  ===============================================
 
     References
@@ -233,7 +233,7 @@ class ContContract(PositiveContinuous):
 
     ========  ===============================================
     Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
-    Mean      :math:`\mathbb{E}[X(t) | \lambda, p, d] = \frac{1}{p} - \frac{1}{p}\exp\left(-\lambda p \min(t, T)\right)` # noqa: E501
+    Mean      :math:`\mathbb{E}[X(t) | \lambda, p, d] = \frac{1}{p} - \frac{1}{p}\exp\left(-\lambda p \min(t, T)\right)`
     ========  ===============================================
 
     """

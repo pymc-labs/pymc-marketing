@@ -18,7 +18,7 @@ def generate_fourier_modes(
     Returns
     -------
     pd.DataFrame
-        Fourier modes (sin and cos with different frequencies) as columns in a dataframe. # noqa: E501
+        Fourier modes (sin and cos with different frequencies) as columns in a dataframe.
 
     References
     ----------
