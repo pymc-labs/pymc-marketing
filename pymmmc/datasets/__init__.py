@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from pkg_resources import resource_filename
 
 __all__ = [
     "cdnow_summary",
@@ -24,7 +25,9 @@ def cdnow_summary(**kwargs) -> pd.DataFrame:
     DataFrame
     """
 
-    return pd.read_csv("cdnow_summary.csv", **kwargs)
+    return pd.read_csv(
+        resource_filename("pymmmc", "datasets/cdnow_summary.csv"), **kwargs
+    )
 
 
 def cdnow_transactions(**kwargs) -> pd.DataFrame:
@@ -44,7 +47,7 @@ def cdnow_transactions(**kwargs) -> pd.DataFrame:
     """
 
     return pd.read_csv(
-        "CDNOW_sample.txt",
+        resource_filename("pymmmc", "datasets/CDNOW_sample.txt"),
         sep=r"\s+",
         header=None,
         names=["master_id", "sample_id", "date", "cds_bought", "spent"],
@@ -68,7 +71,9 @@ def donations(**kwargs) -> pd.DataFrame:
     DataFrame
     """
 
-    donations = pd.read_csv("donations.csv", **kwargs)
+    donations = pd.read_csv(
+        resource_filename("pymmmc", "datasets/donations.csv"), **kwargs
+    )
 
     donations_df = donations.drop("count", axis=1)
 
