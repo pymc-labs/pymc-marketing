@@ -1,12 +1,12 @@
 import types
 from typing import Optional, Union
 
-import aesara.tensor as at
 import numpy as np
 import pandas as pd
 import pymc as pm
-from aesara.tensor import TensorVariable
+import pytensor.tensor as pt
 from pymc import str_for_dist
+from pytensor.tensor import TensorVariable
 
 from pymmmc.clv.models.basic import CLVModel
 
@@ -178,8 +178,8 @@ class GammaGammaModel(BaseGammaGammaModel):
 
         p_prior, q_prior, v_prior = self._process_priors(p_prior, q_prior, v_prior)
 
-        z_mean = at.as_tensor_variable(mean_transaction_value)
-        x = at.as_tensor_variable(number_transactions)
+        z_mean = pt.as_tensor_variable(mean_transaction_value)
+        x = pt.as_tensor_variable(number_transactions)
 
         coords = {"customer_id": np.unique(customer_id)}
         with pm.Model(coords=coords) as self.model:
@@ -192,13 +192,13 @@ class GammaGammaModel(BaseGammaGammaModel):
             pm.Potential(
                 "likelihood",
                 (
-                    at.gammaln(p * x + q)
-                    - at.gammaln(p * x)
-                    - at.gammaln(q)
-                    + q * at.log(v)
-                    + (p * x - 1) * at.log(z_mean)
-                    + (p * x) * at.log(x)
-                    - (p * x + q) * at.log(x * z_mean + v)
+                    pt.gammaln(p * x + q)
+                    - pt.gammaln(p * x)
+                    - pt.gammaln(q)
+                    + q * pt.log(v)
+                    + (p * x - 1) * pt.log(z_mean)
+                    + (p * x) * pt.log(x)
+                    - (p * x + q) * pt.log(x * z_mean + v)
                 ),
             )
 
