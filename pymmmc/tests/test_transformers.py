@@ -1,7 +1,7 @@
-import aesara.tensor as at
 import numpy as np
+import pytensor.tensor as pt
 import pytest
-from aesara.tensor.var import TensorVariable
+from pytensor.tensor.var import TensorVariable
 
 from pymmmc.transformers import (
     delayed_adstock,
@@ -64,9 +64,9 @@ class TestsAdstockTransformers:
 
     def test_geometric_adstock_vactorized(self, dummy_design_matrix):
         x = dummy_design_matrix.copy()
-        x_tensor = at.as_tensor_variable(x)
+        x_tensor = pt.as_tensor_variable(x)
         alpha = [0.9, 0.33, 0.5, 0.1, 0.0]
-        alpha_tensor = at.as_tensor_variable(alpha)
+        alpha_tensor = pt.as_tensor_variable(alpha)
         y_tensor = geometric_adstock_vectorized(
             x=x_tensor, alpha=alpha_tensor, l_max=12
         )
@@ -82,11 +82,11 @@ class TestsAdstockTransformers:
 
     def test_delayed_adstock_vactorized(self, dummy_design_matrix):
         x = dummy_design_matrix
-        x_tensor = at.as_tensor_variable(x)
+        x_tensor = pt.as_tensor_variable(x)
         alpha = [0.9, 0.33, 0.5, 0.1, 0.0]
-        alpha_tensor = at.as_tensor_variable(alpha)
+        alpha_tensor = pt.as_tensor_variable(alpha)
         theta = [0, 1, 2, 3, 4]
-        theta_tensor = at.as_tensor_variable(theta)
+        theta_tensor = pt.as_tensor_variable(theta)
         y_tensor = delayed_adstock_vectorized(
             x=x_tensor, alpha=alpha_tensor, theta=theta_tensor, l_max=12
         )
@@ -167,7 +167,7 @@ class TestSaturationTransformers:
     )
     def test_tanh_saturation_inverse(self, x, b, c):
         y = tanh_saturation(x=x, b=b, c=c)
-        y_inv = (b * c) * at.arctanh(y / b)
+        y_inv = (b * c) * pt.arctanh(y / b)
         np.testing.assert_array_almost_equal(x=x, y=y_inv.eval(), decimal=6)
 
 
@@ -224,11 +224,11 @@ class TestTransformersComposition:
         self, dummy_design_matrix
     ):
         x = dummy_design_matrix.copy()
-        x_tensor = at.as_tensor_variable(x)
+        x_tensor = pt.as_tensor_variable(x)
         alpha = [0.9, 0.33, 0.5, 0.1, 0.0]
-        alpha_tensor = at.as_tensor_variable(alpha)
+        alpha_tensor = pt.as_tensor_variable(alpha)
         lam = [0.5, 1.0, 2.0, 3.0, 4.0]
-        lam_tensor = at.as_tensor_variable(lam)
+        lam_tensor = pt.as_tensor_variable(lam)
         y_tensor = geometric_adstock_vectorized(
             x=x_tensor, alpha=alpha_tensor, l_max=12
         )
@@ -248,13 +248,13 @@ class TestTransformersComposition:
 
     def test_delayed_adstock_vactorized_logistic_saturation(self, dummy_design_matrix):
         x = dummy_design_matrix.copy()
-        x_tensor = at.as_tensor_variable(x)
+        x_tensor = pt.as_tensor_variable(x)
         alpha = [0.9, 0.33, 0.5, 0.1, 0.0]
-        alpha_tensor = at.as_tensor_variable(alpha)
+        alpha_tensor = pt.as_tensor_variable(alpha)
         theta = [0, 1, 2, 3, 4]
-        theta_tensor = at.as_tensor_variable(theta)
+        theta_tensor = pt.as_tensor_variable(theta)
         lam = [0.5, 1.0, 2.0, 3.0, 4.0]
-        lam_tensor = at.as_tensor_variable(lam)
+        lam_tensor = pt.as_tensor_variable(lam)
         y_tensor = delayed_adstock_vectorized(
             x=x_tensor, alpha=alpha_tensor, theta=theta_tensor, l_max=12
         )

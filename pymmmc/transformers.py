@@ -1,4 +1,4 @@
-import aesara.tensor as at
+import pytensor.tensor as pt
 
 
 def geometric_adstock(x, alpha: float = 0.0, l_max: int = 12, normalize: bool = False):
@@ -31,25 +31,25 @@ def geometric_adstock(x, alpha: float = 0.0, l_max: int = 12, normalize: bool = 
     .. [1] Jin, Yuxue, et al. "Bayesian methods for media mix modeling
        with carryover and shape effects." (2017).
     """
-    cycles = [at.concatenate([at.zeros(i), x[: x.shape[0] - i]]) for i in range(l_max)]
-    x_cycle = at.stack(cycles)
-    w = at.as_tensor_variable([at.power(alpha, i) for i in range(l_max)])
-    w = w / at.sum(w) if normalize else w
-    return at.dot(w, x_cycle)
+    cycles = [pt.concatenate([pt.zeros(i), x[: x.shape[0] - i]]) for i in range(l_max)]
+    x_cycle = pt.stack(cycles)
+    w = pt.as_tensor_variable([pt.power(alpha, i) for i in range(l_max)])
+    w = w / pt.sum(w) if normalize else w
+    return pt.dot(w, x_cycle)
 
 
 def geometric_adstock_vectorized(x, alpha, l_max: int = 12, normalize: bool = False):
     """Vectorized geometric adstock transformation."""
     cycles = [
-        at.concatenate(tensor_list=[at.zeros(shape=x.shape)[:i], x[: x.shape[0] - i]])
+        pt.concatenate(tensor_list=[pt.zeros(shape=x.shape)[:i], x[: x.shape[0] - i]])
         for i in range(l_max)
     ]
-    x_cycle = at.stack(cycles)
-    x_cycle = at.transpose(x=x_cycle, axes=[1, 2, 0])
-    w = at.as_tensor_variable([at.power(alpha, i) for i in range(l_max)])
-    w = at.transpose(w)[None, ...]
-    w = w / at.sum(w, axis=2, keepdims=True) if normalize else w
-    return at.sum(at.mul(x_cycle, w), axis=2)
+    x_cycle = pt.stack(cycles)
+    x_cycle = pt.transpose(x=x_cycle, axes=[1, 2, 0])
+    w = pt.as_tensor_variable([pt.power(alpha, i) for i in range(l_max)])
+    w = pt.transpose(w)[None, ...]
+    w = w / pt.sum(w, axis=2, keepdims=True) if normalize else w
+    return pt.sum(pt.mul(x_cycle, w), axis=2)
 
 
 def delayed_adstock(
@@ -83,13 +83,13 @@ def delayed_adstock(
     .. [1] Jin, Yuxue, et al. "Bayesian methods for media mix modeling
        with carryover and shape effects." (2017).
     """
-    cycles = [at.concatenate([at.zeros(i), x[: x.shape[0] - i]]) for i in range(l_max)]
-    x_cycle = at.stack(cycles)
-    w = at.as_tensor_variable(
-        [at.power(alpha, ((i - theta) ** 2)) for i in range(l_max)]
+    cycles = [pt.concatenate([pt.zeros(i), x[: x.shape[0] - i]]) for i in range(l_max)]
+    x_cycle = pt.stack(cycles)
+    w = pt.as_tensor_variable(
+        [pt.power(alpha, ((i - theta) ** 2)) for i in range(l_max)]
     )
-    w = w / at.sum(w) if normalize else w
-    return at.dot(w, x_cycle)
+    w = w / pt.sum(w) if normalize else w
+    return pt.dot(w, x_cycle)
 
 
 def delayed_adstock_vectorized(
@@ -97,17 +97,17 @@ def delayed_adstock_vectorized(
 ):
     """Delayed adstock transformation."""
     cycles = [
-        at.concatenate(tensor_list=[at.zeros(shape=x.shape)[:i], x[: x.shape[0] - i]])
+        pt.concatenate(tensor_list=[pt.zeros(shape=x.shape)[:i], x[: x.shape[0] - i]])
         for i in range(l_max)
     ]
-    x_cycle = at.stack(cycles)
-    x_cycle = at.transpose(x=x_cycle, axes=[1, 2, 0])
-    w = at.as_tensor_variable(
-        [at.power(alpha, ((i - theta) ** 2)) for i in range(l_max)]
+    x_cycle = pt.stack(cycles)
+    x_cycle = pt.transpose(x=x_cycle, axes=[1, 2, 0])
+    w = pt.as_tensor_variable(
+        [pt.power(alpha, ((i - theta) ** 2)) for i in range(l_max)]
     )
-    w = at.transpose(w)[None, ...]
-    w = w / at.sum(w, axis=2, keepdims=True) if normalize else w
-    return at.sum(at.mul(x_cycle, w), axis=2)
+    w = pt.transpose(w)[None, ...]
+    w = w / pt.sum(w, axis=2, keepdims=True) if normalize else w
+    return pt.sum(pt.mul(x_cycle, w), axis=2)
 
 
 def logistic_saturation(x, lam: float = 0.5):
@@ -125,7 +125,7 @@ def logistic_saturation(x, lam: float = 0.5):
     tensor
         Transformed tensor.
     """
-    return (1 - at.exp(-lam * x)) / (1 + at.exp(-lam * x))
+    return (1 - pt.exp(-lam * x)) / (1 + pt.exp(-lam * x))
 
 
 def tanh_saturation(x, b: float = 0.5, c: float = 0.5):
@@ -149,4 +149,4 @@ def tanh_saturation(x, b: float = 0.5, c: float = 0.5):
     ----------
     See https://www.pymc-labs.io/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/ # noqa: E501
     """
-    return b * at.tanh(x / (b * c))
+    return b * pt.tanh(x / (b * c))

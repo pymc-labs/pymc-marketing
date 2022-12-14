@@ -1,9 +1,9 @@
-import aesara.tensor as at
 import numpy as np
 import pymc as pm
-from aesara.tensor.random.op import RandomVariable
+import pytensor.tensor as pt
 from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.dist_math import check_parameters
+from pytensor.tensor.random.op import RandomVariable
 
 __all__ = [
     "ContContract",
@@ -20,8 +20,8 @@ class ContNonContractRV(RandomVariable):
 
     def make_node(self, rng, size, dtype, lam, p, T, T0):
 
-        T = at.as_tensor_variable(T)
-        T0 = at.as_tensor_variable(T0)
+        T = pt.as_tensor_variable(T)
+        T0 = pt.as_tensor_variable(T0)
 
         return super().make_node(rng, size, dtype, lam, p, T, T0)
 
@@ -113,23 +113,23 @@ class ContNonContract(PositiveContinuous):
         t_x = value[..., 0]
         x = value[..., 1]
 
-        zero_observations = at.eq(x, 0)
+        zero_observations = pt.eq(x, 0)
 
-        A = x * at.log(1 - p) + x * at.log(lam) - lam * (T - T0)
-        B = at.log(p) + (x - 1) * at.log(1 - p) + x * at.log(lam) - lam * (t_x - T0)
+        A = x * pt.log(1 - p) + x * pt.log(lam) - lam * (T - T0)
+        B = pt.log(p) + (x - 1) * pt.log(1 - p) + x * pt.log(lam) - lam * (t_x - T0)
 
-        logp = at.switch(
+        logp = pt.switch(
             zero_observations,
             A,
-            at.logaddexp(A, B),
+            pt.logaddexp(A, B),
         )
 
-        logp = at.switch(
-            at.any(
+        logp = pt.switch(
+            pt.any(
                 (
-                    at.lt(t_x, T0),
-                    at.lt(x, 0),
-                    at.gt(t_x, T),
+                    pt.lt(t_x, T0),
+                    pt.lt(x, 0),
+                    pt.gt(t_x, T),
                 ),
             ),
             -np.inf,
@@ -141,7 +141,7 @@ class ContNonContract(PositiveContinuous):
             lam > 0,
             0 <= p,
             p <= 1,
-            at.all(T0 < T),
+            pt.all(T0 < T),
             msg="lam > 0, 0 <= p <= 1, T0 < T",
         )
 
@@ -155,8 +155,8 @@ class ContContractRV(RandomVariable):
 
     def make_node(self, rng, size, dtype, lam, p, T, T0):
 
-        T = at.as_tensor_variable(T)
-        T0 = at.as_tensor_variable(T0)
+        T = pt.as_tensor_variable(T)
+        T0 = pt.as_tensor_variable(T0)
 
         return super().make_node(rng, size, dtype, lam, p, T, T0)
 
@@ -248,37 +248,37 @@ class ContContract(PositiveContinuous):
         x = value[..., 1]
         churn = value[..., 2]
 
-        zero_observations = at.eq(x, 0)
+        zero_observations = pt.eq(x, 0)
 
-        logp = (x - 1) * at.log(1 - p) + x * at.log(lam) - lam * t_x
-        logp += churn * at.log(p) + (1 - churn) * (
-            at.log(1 - p) - lam * ((T - T0) - t_x)
+        logp = (x - 1) * pt.log(1 - p) + x * pt.log(lam) - lam * t_x
+        logp += churn * pt.log(p) + (1 - churn) * (
+            pt.log(1 - p) - lam * ((T - T0) - t_x)
         )
 
-        logp = at.switch(
+        logp = pt.switch(
             zero_observations,
             -lam * (T - T0),
             logp,
         )
 
-        logp = at.switch(
-            at.any(at.or_(at.lt(t_x, 0), at.lt(x, 0))),
+        logp = pt.switch(
+            pt.any(pt.or_(pt.lt(t_x, 0), pt.lt(x, 0))),
             -np.inf,
             logp,
         )
-        logp = at.switch(
-            at.all(
-                at.or_(at.eq(churn, 0), at.eq(churn, 1)),
+        logp = pt.switch(
+            pt.all(
+                pt.or_(pt.eq(churn, 0), pt.eq(churn, 1)),
             ),
             logp,
             -np.inf,
         )
-        logp = at.switch(
-            at.any(
+        logp = pt.switch(
+            pt.any(
                 (
-                    at.lt(t_x, T0),
-                    at.lt(x, 0),
-                    at.gt(t_x, T),
+                    pt.lt(t_x, T0),
+                    pt.lt(x, 0),
+                    pt.gt(t_x, T),
                 ),
             ),
             -np.inf,
@@ -290,6 +290,6 @@ class ContContract(PositiveContinuous):
             lam > 0,
             0 <= p,
             p <= 1,
-            at.all(T0 < T),
+            pt.all(T0 < T),
             msg="lam > 0, 0 <= p <= 1, T0 < T",
         )

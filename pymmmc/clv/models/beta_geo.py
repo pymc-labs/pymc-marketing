@@ -1,14 +1,14 @@
 import types
 from typing import Optional, Union
 
-import aesara.tensor as at
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pytensor.tensor as pt
 import xarray as xr
-from aesara.tensor import TensorVariable
 from pymc import str_for_dist
 from pymc.distributions.dist_math import betaln, check_parameters
+from pytensor.tensor import TensorVariable
 from scipy.special import expit, hyp2f1
 
 from pymmmc.clv.models.basic import CLVModel
@@ -139,23 +139,23 @@ class BetaGeoModel(CLVModel):
                 The log-likelihood expression here aligns with expression (4) from [3]
                 due to the possible numerical instability of expression (3).
                 """
-                zero_observations = at.eq(x, 0)
+                zero_observations = pt.eq(x, 0)
 
-                A = betaln(a, b + x) - betaln(a, b) + at.gammaln(r + x) - at.gammaln(r)
-                A += r * at.log(alpha) - (r + x) * at.log(alpha + T)
+                A = betaln(a, b + x) - betaln(a, b) + pt.gammaln(r + x) - pt.gammaln(r)
+                A += r * pt.log(alpha) - (r + x) * pt.log(alpha + T)
 
                 B = (
                     betaln(a + 1, b + x - 1)
                     - betaln(a, b)
-                    + at.gammaln(r + x)
-                    - at.gammaln(r)
+                    + pt.gammaln(r + x)
+                    - pt.gammaln(r)
                 )
-                B += r * at.log(alpha) - (r + x) * at.log(alpha + t_x)
+                B += r * pt.log(alpha) - (r + x) * pt.log(alpha + t_x)
 
-                logp = at.switch(
+                logp = pt.switch(
                     zero_observations,
                     A,
-                    at.logaddexp(A, B),
+                    pt.logaddexp(A, B),
                 )
 
                 return check_parameters(
