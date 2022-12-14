@@ -1,13 +1,13 @@
 import numpy as np
+import pytensor
 import pytensor.tensor as pt
 import pytest
 from pytensor.tensor.var import TensorVariable
 
 from pymc_marketing.mmm.transformers import (
+    batched_convolution,
     delayed_adstock,
-    delayed_adstock_vectorized,
     geometric_adstock,
-    geometric_adstock_vectorized,
     logistic_saturation,
     tanh_saturation,
 )
@@ -25,6 +25,58 @@ def dummy_design_matrix():
         ),
         axis=1,
     )
+
+
+@pytest.fixture(
+    scope="module", params=["ndarray", "TensorConstant", "TensorVariable"], ids=str
+)
+def convolution_inputs(request):
+    x_val = np.ones((3, 4, 5))
+    w_val = np.ones((2))
+    if request.param == "ndarray":
+        return x_val, w_val, None, None
+    elif request.param == "TensorConstant":
+        return pt.as_tensor_variable(x_val), pt.as_tensor_variable(w_val), None, None
+    elif request.param == "TensorVariable":
+        return (
+            pt.dtensor3("x"),
+            pt.specify_shape(pt.dvector("w"), w_val.shape),
+            x_val,
+            w_val,
+        )
+
+
+@pytest.fixture(scope="module", params=[0, 1, -1])
+def convolution_axis(request):
+    return request.param
+
+
+def test_batched_convolution(convolution_inputs, convolution_axis):
+    x, w, x_val, w_val = convolution_inputs
+    y = batched_convolution(x, w, convolution_axis)
+    if x_val is None:
+        y_val = y.eval()
+        expected_shape = getattr(x, "value", x).shape
+    else:
+        y_val = pytensor.function([x, w], y)(x_val, w_val)
+        expected_shape = x_val.shape
+    assert y_val.shape == expected_shape
+    y_val = np.moveaxis(y_val, convolution_axis, 0)
+    x_val = np.moveaxis(
+        x_val if x_val is not None else getattr(x, "value", x), convolution_axis, 0
+    )
+    assert np.allclose(y_val[0], x_val[0])
+    assert np.allclose(y_val[1:], x_val[1:] + x_val[:-1])
+
+
+def test_batched_convolution_broadcasting():
+    x_val = np.random.default_rng(42).normal(size=(3, 1, 5))
+    x = pt.as_tensor_variable(x_val)
+    w = pt.as_tensor_variable(np.ones((1, 1, 4, 2)))
+    y = batched_convolution(x, w, axis=-1).eval()
+    assert y.shape == (1, 3, 4, 5)
+    assert np.allclose(y[..., 0], x_val[..., 0])
+    assert np.allclose(y[..., 1:], x_val[..., 1:] + x_val[..., :-1])
 
 
 class TestsAdstockTransformers:
@@ -62,14 +114,12 @@ class TestsAdstockTransformers:
         y = delayed_adstock(x=x, alpha=0.2, theta=2, l_max=4)
         np.testing.assert_array_equal(x=x, y=y.eval())
 
-    def test_geometric_adstock_vactorized(self, dummy_design_matrix):
+    def test_geometric_adstock_vectorized(self, dummy_design_matrix):
         x = dummy_design_matrix.copy()
         x_tensor = pt.as_tensor_variable(x)
         alpha = [0.9, 0.33, 0.5, 0.1, 0.0]
         alpha_tensor = pt.as_tensor_variable(alpha)
-        y_tensor = geometric_adstock_vectorized(
-            x=x_tensor, alpha=alpha_tensor, l_max=12
-        )
+        y_tensor = geometric_adstock(x=x_tensor, alpha=alpha_tensor, l_max=12, axis=0)
         y = y_tensor.eval()
 
         y_tensors = [
@@ -80,15 +130,15 @@ class TestsAdstockTransformers:
         assert y.shape == x.shape
         np.testing.assert_almost_equal(actual=y, desired=ys, decimal=12)
 
-    def test_delayed_adstock_vactorized(self, dummy_design_matrix):
+    def test_delayed_adstock_vectorized(self, dummy_design_matrix):
         x = dummy_design_matrix
         x_tensor = pt.as_tensor_variable(x)
         alpha = [0.9, 0.33, 0.5, 0.1, 0.0]
         alpha_tensor = pt.as_tensor_variable(alpha)
         theta = [0, 1, 2, 3, 4]
         theta_tensor = pt.as_tensor_variable(theta)
-        y_tensor = delayed_adstock_vectorized(
-            x=x_tensor, alpha=alpha_tensor, theta=theta_tensor, l_max=12
+        y_tensor = delayed_adstock(
+            x=x_tensor, alpha=alpha_tensor, theta=theta_tensor, l_max=12, axis=0
         )
         y = y_tensor.eval()
 
@@ -220,7 +270,7 @@ class TestTransformersComposition:
         assert z2_eval.max() <= 1
         assert z2_eval.min() >= 0
 
-    def test_geometric_adstock_vactorized_logistic_saturation(
+    def test_geometric_adstock_vectorized_logistic_saturation(
         self, dummy_design_matrix
     ):
         x = dummy_design_matrix.copy()
@@ -229,9 +279,7 @@ class TestTransformersComposition:
         alpha_tensor = pt.as_tensor_variable(alpha)
         lam = [0.5, 1.0, 2.0, 3.0, 4.0]
         lam_tensor = pt.as_tensor_variable(lam)
-        y_tensor = geometric_adstock_vectorized(
-            x=x_tensor, alpha=alpha_tensor, l_max=12
-        )
+        y_tensor = geometric_adstock(x=x_tensor, alpha=alpha_tensor, l_max=12, axis=0)
         z_tensor = logistic_saturation(x=y_tensor, lam=lam_tensor)
         z = z_tensor.eval()
 
@@ -246,7 +294,7 @@ class TestTransformersComposition:
         assert zs.shape == x.shape
         np.testing.assert_almost_equal(actual=z, desired=zs, decimal=12)
 
-    def test_delayed_adstock_vactorized_logistic_saturation(self, dummy_design_matrix):
+    def test_delayed_adstock_vectorized_logistic_saturation(self, dummy_design_matrix):
         x = dummy_design_matrix.copy()
         x_tensor = pt.as_tensor_variable(x)
         alpha = [0.9, 0.33, 0.5, 0.1, 0.0]
@@ -255,8 +303,8 @@ class TestTransformersComposition:
         theta_tensor = pt.as_tensor_variable(theta)
         lam = [0.5, 1.0, 2.0, 3.0, 4.0]
         lam_tensor = pt.as_tensor_variable(lam)
-        y_tensor = delayed_adstock_vectorized(
-            x=x_tensor, alpha=alpha_tensor, theta=theta_tensor, l_max=12
+        y_tensor = delayed_adstock(
+            x=x_tensor, alpha=alpha_tensor, theta=theta_tensor, l_max=12, axis=0
         )
         z_tensor = logistic_saturation(x=y_tensor, lam=lam_tensor)
         z = z_tensor.eval()
