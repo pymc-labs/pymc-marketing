@@ -1,7 +1,60 @@
 import pytensor.tensor as pt
 
+from pymc_marketing.mmm.utils import params_broadcast_shapes
 
-def geometric_adstock(x, alpha: float = 0.0, l_max: int = 12, normalize: bool = False):
+
+def batched_convolution(x, w, axis: int = 0):
+    """Apply a 1D convolution in a vectorized way across multiple batch dimensions.
+
+    Parameters
+    ----------
+    x :
+        The array to convolve.
+    w :
+        The weight of the convolution. The last axis of ``w`` determines the number of steps
+        to use in the convolution.
+    axis : int
+        The axis of ``x`` along witch to apply the convolution
+
+    Returns
+    -------
+    y :
+        The result of convolving ``x`` with ``w`` along the desired axis. The shape of the
+        result will match the shape of ``x`` up to broadcasting with ``w``. The convolved
+        axis will show the results of left padding zeros to ``x`` while applying the
+        convolutions.
+    """
+    orig_ndim = x.ndim
+    axis = axis if axis >= 0 else orig_ndim + axis
+    w = pt.as_tensor(w)
+    x = pt.moveaxis(x, axis, -1)
+    try:
+        l_max = w.shape[-1].eval()
+    except Exception:
+        l_max = None
+    x_shape, w_shape = params_broadcast_shapes([x.shape, w.shape], [1, 1])
+    x = pt.broadcast_to(x, x_shape)
+    w = pt.broadcast_to(w, w_shape)
+    x_time = x.shape[-1]
+    shape = (*x.shape, w.shape[-1])
+    padded_x = pt.zeros(shape, dtype=x.dtype)
+    if l_max is not None:
+        for i in range(l_max):
+            padded_x = pt.set_subtensor(
+                padded_x[..., i:x_time, i], x[..., : x_time - i]
+            )
+    else:  # pragma: no cover
+        raise NotImplementedError(
+            "At the moment, convolving with weight arrays that don't have a concrete shape "
+            "at compile time."
+        )
+    conv = pt.sum(padded_x * w[..., None, :], axis=-1)
+    return pt.moveaxis(conv, -1, axis + conv.ndim - orig_ndim)
+
+
+def geometric_adstock(
+    x, alpha: float = 0.0, l_max: int = 12, normalize: bool = False, axis: int = 0
+):
     """Geometric adstock transformation.
 
     Adstock with geometric decay assumes advertising effect peaks at the same
@@ -31,29 +84,19 @@ def geometric_adstock(x, alpha: float = 0.0, l_max: int = 12, normalize: bool = 
     .. [1] Jin, Yuxue, et al. "Bayesian methods for media mix modeling
        with carryover and shape effects." (2017).
     """
-    cycles = [pt.concatenate([pt.zeros(i), x[: x.shape[0] - i]]) for i in range(l_max)]
-    x_cycle = pt.stack(cycles)
-    w = pt.as_tensor_variable([pt.power(alpha, i) for i in range(l_max)])
-    w = w / pt.sum(w) if normalize else w
-    return pt.dot(w, x_cycle)
 
-
-def geometric_adstock_vectorized(x, alpha, l_max: int = 12, normalize: bool = False):
-    """Vectorized geometric adstock transformation."""
-    cycles = [
-        pt.concatenate(tensor_list=[pt.zeros(shape=x.shape)[:i], x[: x.shape[0] - i]])
-        for i in range(l_max)
-    ]
-    x_cycle = pt.stack(cycles)
-    x_cycle = pt.transpose(x=x_cycle, axes=[1, 2, 0])
-    w = pt.as_tensor_variable([pt.power(alpha, i) for i in range(l_max)])
-    w = pt.transpose(w)[None, ...]
-    w = w / pt.sum(w, axis=2, keepdims=True) if normalize else w
-    return pt.sum(pt.mul(x_cycle, w), axis=2)
+    w = pt.power(pt.as_tensor(alpha)[..., None], pt.arange(l_max, dtype=x.dtype))
+    w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
+    return batched_convolution(x, w, axis=axis)
 
 
 def delayed_adstock(
-    x, alpha: float = 0.0, theta: int = 0, l_max: int = 12, normalize: bool = False
+    x,
+    alpha: float = 0.0,
+    theta: int = 0,
+    l_max: int = 12,
+    normalize: bool = False,
+    axis: int = 0,
 ):
     """Delayed adstock transformation.
 
@@ -83,31 +126,12 @@ def delayed_adstock(
     .. [1] Jin, Yuxue, et al. "Bayesian methods for media mix modeling
        with carryover and shape effects." (2017).
     """
-    cycles = [pt.concatenate([pt.zeros(i), x[: x.shape[0] - i]]) for i in range(l_max)]
-    x_cycle = pt.stack(cycles)
-    w = pt.as_tensor_variable(
-        [pt.power(alpha, ((i - theta) ** 2)) for i in range(l_max)]
+    w = pt.power(
+        pt.as_tensor(alpha)[..., None],
+        (pt.arange(l_max, dtype=x.dtype) - pt.as_tensor(theta)[..., None]) ** 2,
     )
-    w = w / pt.sum(w) if normalize else w
-    return pt.dot(w, x_cycle)
-
-
-def delayed_adstock_vectorized(
-    x, alpha, theta, l_max: int = 12, normalize: bool = False
-):
-    """Delayed adstock transformation."""
-    cycles = [
-        pt.concatenate(tensor_list=[pt.zeros(shape=x.shape)[:i], x[: x.shape[0] - i]])
-        for i in range(l_max)
-    ]
-    x_cycle = pt.stack(cycles)
-    x_cycle = pt.transpose(x=x_cycle, axes=[1, 2, 0])
-    w = pt.as_tensor_variable(
-        [pt.power(alpha, ((i - theta) ** 2)) for i in range(l_max)]
-    )
-    w = pt.transpose(w)[None, ...]
-    w = w / pt.sum(w, axis=2, keepdims=True) if normalize else w
-    return pt.sum(pt.mul(x_cycle, w), axis=2)
+    w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
+    return batched_convolution(x, w, axis=axis)
 
 
 def logistic_saturation(x, lam: float = 0.5):

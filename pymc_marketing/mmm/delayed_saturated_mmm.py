@@ -7,10 +7,7 @@ from xarray import DataArray
 
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MixMaxScaleTarget
-from pymc_marketing.mmm.transformers import (
-    geometric_adstock_vectorized,
-    logistic_saturation,
-)
+from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.mmm.validating import ValidateControlColumns
 
 
@@ -82,11 +79,12 @@ class DelayedSaturatedMMM(
 
             channel_adstock = pm.Deterministic(
                 name="channel_adstock",
-                var=geometric_adstock_vectorized(
+                var=geometric_adstock(
                     x=channel_data_,
                     alpha=alpha,
                     l_max=adstock_max_lag,
                     normalize=True,
+                    axis=0,
                 ),
                 dims=("date", "channel"),
             )
