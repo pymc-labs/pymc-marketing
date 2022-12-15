@@ -16,7 +16,7 @@ REQUIREMENTS_FILE = join(PROJECT_ROOT, "requirements.txt")
 with open(REQUIREMENTS_FILE) as f:
     install_reqs = f.read().splitlines()
 
-TEST_REQUIREMENTS_FILE = join(PROJECT_ROOT, "tests", "test-requirements.txt")
+TEST_REQUIREMENTS_FILE = join(PROJECT_ROOT, "test-requirements.txt")
 
 with open(REQUIREMENTS_FILE) as f:
     test_reqs = f.read().splitlines()

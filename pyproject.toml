@@ -9,4 +9,4 @@ addopts = [
     "--cov=mmm",
     "--cov=pymmmc",
 ]
-testpaths = "pymmmc/tests"
+testpaths = "tests"
