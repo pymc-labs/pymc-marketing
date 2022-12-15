@@ -5,7 +5,7 @@ from numpy.testing import assert_almost_equal
 from pymc import Model
 from pymc.tests.helpers import select_by_precision
 
-from pymmmc.distributions import ContContract, ContNonContract
+from pymmmc.clv.distributions import ContContract, ContNonContract
 
 
 class TestContNonContract:

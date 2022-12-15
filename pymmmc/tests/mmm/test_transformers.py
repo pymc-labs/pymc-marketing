@@ -3,7 +3,7 @@ import pytensor.tensor as pt
 import pytest
 from pytensor.tensor.var import TensorVariable
 
-from pymmmc.transformers import (
+from pymmmc.mmm.transformers import (
     delayed_adstock,
     delayed_adstock_vectorized,
     geometric_adstock,
