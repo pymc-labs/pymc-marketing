@@ -11,7 +11,7 @@ from pymc.distributions.dist_math import betaln, check_parameters
 from pytensor.tensor import TensorVariable
 from scipy.special import expit, hyp2f1
 
-from pymmmc.clv.models.basic import CLVModel
+from pymc_marketing.clv.models.basic import CLVModel
 
 
 class BetaGeoModel(CLVModel):
@@ -59,7 +59,7 @@ class BetaGeoModel(CLVModel):
 
     .. code-block:: python
         import pymc as pm
-        from pymmmc.clv import BetaGeoModel
+        from pymc_marketing.clv import BetaGeoModel
 
         model = BetaGeoFitter(
             frequency=[4, 0, 6, 3, ...],

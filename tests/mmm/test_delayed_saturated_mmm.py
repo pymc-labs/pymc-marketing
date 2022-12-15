@@ -7,9 +7,9 @@ import pandas as pd
 import pymc as pm
 import pytest
 
-from pymmmc.mmm.delayed_saturated_mmm import DelayedSaturatedMMM
+from pymc_marketing.mmm.delayed_saturated_mmm import DelayedSaturatedMMM
 
-seed: int = sum(map(ord, "pymmmc"))
+seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
 
 

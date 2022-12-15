@@ -1,4 +1,4 @@
-# pymmmc
+# PyMC Marketing
 
 Bayesian MMMs and CLVs in PyMC.
 

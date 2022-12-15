@@ -1,14 +1,14 @@
 import numpy as np
 import pandas as pd
 
-from pymmmc.mmm.preprocessing import (
+from pymc_marketing.mmm.preprocessing import (
     MaxAbsScaleChannels,
     MixMaxScaleTarget,
     StandardizeControls,
     preprocessing_method,
 )
 
-seed: int = sum(map(ord, "pymmmc"))
+seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
 date_data: pd.DatetimeIndex = pd.date_range(
     start="2019-06-01", end="2021-12-31", freq="W-MON"
