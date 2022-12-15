@@ -1,16 +1,5 @@
 # API
 
-## Top level objects
-```{eval-rst}
-.. currentmodule:: pymmmc
-.. autosummary::
-  :toctree: generated/
-
-
-  ContNonContract
-  ContContract
-```
-
 ## Modules
 ```{eval-rst}
 .. currentmodule:: pymmmc
@@ -20,6 +9,4 @@
 
   clv
   mmm
-  transformers
-  utils
 ```

@@ -5,8 +5,8 @@ import pymc as pm
 
 from pymmmc.mmm.base import MMM
 from pymmmc.mmm.preprocessing import MaxAbsScaleChannels, MixMaxScaleTarget
+from pymmmc.mmm.transformers import geometric_adstock_vectorized, logistic_saturation
 from pymmmc.mmm.validating import ValidateControlColumns
-from pymmmc.transformers import geometric_adstock_vectorized, logistic_saturation
 
 
 class DelayedSaturatedMMM(
