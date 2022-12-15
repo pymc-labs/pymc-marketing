@@ -2,7 +2,7 @@
 
 ## Modules
 ```{eval-rst}
-.. currentmodule:: pymmmc
+.. currentmodule:: pymc_marketing
 .. autosummary::
   :recursive:
   :toctree: generated/

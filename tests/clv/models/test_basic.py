@@ -4,7 +4,7 @@ import pymc as pm
 import pytest
 from arviz import InferenceData
 
-from pymmmc.clv.models.basic import CLVModel
+from pymc_marketing.clv.models.basic import CLVModel
 
 
 class CLVModelTest(CLVModel):

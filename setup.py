@@ -23,7 +23,7 @@ with open(REQUIREMENTS_FILE) as f:
 
 
 def get_version():
-    version_file = join("pymmmc", "__init__.py")
+    version_file = join("pymc_marketing", "__init__.py")
     lines = open(version_file).readlines()
     version_regex = r"^__version__ = ['\"]([^'\"]*)['\"]"
     for line in lines:
@@ -33,7 +33,7 @@ def get_version():
 
 
 setup(
-    name="pymmmc",
+    name="pymc-marketing",
     version=get_version(),
     maintainer=AUTHOR,
     maintainer_email=AUTHOR_EMAIL,

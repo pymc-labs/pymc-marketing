@@ -5,7 +5,10 @@ import pandas as pd
 import pymc as pm
 import pytest
 
-from pymmmc.clv.models.gamma_gamma import GammaGammaModel, GammaGammaModelIndividual
+from pymc_marketing.clv.models.gamma_gamma import (
+    GammaGammaModel,
+    GammaGammaModelIndividual,
+)
 
 
 class BaseTestGammaGammaModel:
@@ -265,7 +268,9 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             rtol=0.3,
         )
 
-    @patch("pymmmc.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend")
+    @patch(
+        "pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend"
+    )
     def test_expected_spend(self, dummy_method):
         model = GammaGammaModelIndividual(
             customer_id=self.z_idx,

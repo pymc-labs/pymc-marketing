@@ -2,12 +2,12 @@
 
 import os
 
-import pymmmc  # isort:skip
+import pymc_marketing  # isort:skip
 
 # -- General configuration ------------------------------------------------
 
 # General information about the project.
-project = "pymmmc"
+project = "pymc-marketing"
 author = "PyMC Labs"
 copyright = f"2022, {author}"
 
@@ -39,7 +39,7 @@ templates_path = ["_templates"]
 source_suffix = [".rst", ".md"]
 
 # The full version, including alpha/beta/rc tags.
-release = pymmmc.__version__
+release = pymc_marketing.__version__
 
 # The version info for the project you're documenting
 if os.environ.get("READTHEDOCS", False):
@@ -110,7 +110,7 @@ html_theme_options = {
     "navbar_start": ["navbar-logo", "navbar-name"],
     "navbar_end": ["theme-switcher"],
     "footer_items": ["copyright", "sphinx-version", "theme-version", "footer-links"],
-    "github_url": "https://github.com/pymc-labs/pymmmc",
+    "github_url": "https://github.com/pymc-labs/pymc-marketing",
     "twitter_url": "https://twitter.com/pymc_labs",
     "icon_links": [
         {
@@ -139,7 +139,7 @@ html_theme_options = {
 }
 html_context = {
     "github_user": "pymc-labs",
-    "github_repo": "pymmmc",
+    "github_repo": "pymc-marketing",
     "github_version": "main",
     "doc_path": "docs/source/",
     "default_mode": "light",
@@ -156,13 +156,17 @@ html_css_files = ["custom.css"]
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
-latex_documents = [(master_doc, "pymmmc.tex", "pymmmc Documentation", author, "manual")]
+latex_documents = [
+    (master_doc, "pymc_marketing.tex", "pymc_marketing Documentation", author, "manual")
+]
 
 # -- Options for manual page output ---------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, "pymmmc", "pymmmc Documentation", [author], 1)]
+man_pages = [
+    (master_doc, "pymc_marketing", "pymc_marketing Documentation", [author], 1)
+]
 
 # -- Options for Texinfo output -------------------------------------------
 
@@ -172,10 +176,10 @@ man_pages = [(master_doc, "pymmmc", "pymmmc Documentation", [author], 1)]
 texinfo_documents = [
     (
         master_doc,
-        "pymmmc",
-        "pymmmc Documentation",
+        "pymc_marketing",
+        "pymc_marketing Documentation",
         author,
-        "pymmmc",
+        "pymc_marketing",
         "Bayesian MMMs and CLVs in PyMC.",
         "Miscellaneous",
     )

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from pymmmc.mmm.utils import generate_fourier_modes
+from pymc_marketing.mmm.utils import generate_fourier_modes
 
 
 @pytest.mark.parametrize(

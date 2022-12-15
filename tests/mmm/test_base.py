@@ -4,11 +4,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pymmmc.mmm.base import MMM
-from pymmmc.mmm.preprocessing import preprocessing_method
-from pymmmc.mmm.validating import validation_method
+from pymc_marketing.mmm.base import MMM
+from pymc_marketing.mmm.preprocessing import preprocessing_method
+from pymc_marketing.mmm.validating import validation_method
 
-seed: int = sum(map(ord, "pymmmc"))
+seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
 date_data: pd.DatetimeIndex = pd.date_range(
     start="2019-06-01", end="2021-12-31", freq="W-MON"
@@ -31,9 +31,9 @@ toy_df = pd.DataFrame(
 
 
 class TestMMM:
-    @patch("pymmmc.mmm.base.MMM.validate_target")
-    @patch("pymmmc.mmm.base.MMM.validate_date_col")
-    @patch("pymmmc.mmm.base.MMM.validate_channel_columns")
+    @patch("pymc_marketing.mmm.base.MMM.validate_target")
+    @patch("pymc_marketing.mmm.base.MMM.validate_date_col")
+    @patch("pymc_marketing.mmm.base.MMM.validate_channel_columns")
     @pytest.mark.parametrize(
         argnames="channel_columns",
         argvalues=[

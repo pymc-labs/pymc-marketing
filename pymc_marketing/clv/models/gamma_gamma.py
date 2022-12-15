@@ -8,7 +8,7 @@ import pytensor.tensor as pt
 from pymc import str_for_dist
 from pytensor.tensor import TensorVariable
 
-from pymmmc.clv.models.basic import CLVModel
+from pymc_marketing.clv.models.basic import CLVModel
 
 
 class BaseGammaGammaModel(CLVModel):
@@ -126,7 +126,7 @@ class GammaGammaModel(BaseGammaGammaModel):
         .. code-block:: python
 
             import pymc as pm
-            from pymmmc.clv import GammaGammaModel
+            from pymc_marketing.clv import GammaGammaModel
 
             model = GammaGammaModel(
                 customer_id=[0, 1, 2, 3, ...],
@@ -244,7 +244,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         .. code-block:: python
 
             import pymc as pm
-            from pymmmc.clv import GammaGammaModel
+            from pymc_marketing.clv import GammaGammaModel
 
             model = GammaGammaModel(
                 customer_id=[0, 0, 0, 1, 1, 2, ...],

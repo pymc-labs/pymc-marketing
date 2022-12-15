@@ -19,7 +19,7 @@ import seaborn as sns
 from pymc.util import RandomState
 from xarray import DataArray, Dataset
 
-from pymmmc.mmm.validating import (
+from pymc_marketing.mmm.validating import (
     ValidateChannelColumns,
     ValidateDateColumn,
     ValidateTargetColumn,

@@ -5,8 +5,8 @@ import pytest
 # shorter name for black code style formatter
 from lifetimes.fitters.beta_geo_fitter import BetaGeoFitter as BGF
 
-from pymmmc.clv.distributions import continuous_contractual
-from pymmmc.clv.models.beta_geo import BetaGeoModel
+from pymc_marketing.clv.distributions import continuous_contractual
+from pymc_marketing.clv.models.beta_geo import BetaGeoModel
 
 
 class TestBetaGeoModel:
