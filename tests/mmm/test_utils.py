@@ -1,7 +1,9 @@
 import numpy as np
+import pytensor
 import pytest
+from pytensor import tensor as pt
 
-from pymc_marketing.mmm.utils import generate_fourier_modes
+from pymc_marketing.mmm.utils import generate_fourier_modes, params_broadcast_shapes
 
 
 @pytest.mark.parametrize(
@@ -76,3 +78,129 @@ def test_bad_order(n_order):
         generate_fourier_modes(
             periods=np.linspace(start=0.0, stop=1.0, num=50), n_order=n_order
         )
+
+
+class TestParamsBroadcastShapes:
+    def test_numpy(self):
+        ndims_params = [0, 0]
+
+        a = np.empty(3)
+        b = np.empty(())
+        param_shapes = [a.shape, b.shape]
+        res = params_broadcast_shapes(param_shapes, ndims_params)
+        assert np.array_equal(res[0], [3])
+        assert np.array_equal(res[1], [3])
+
+        ndims_params = [1, 2]
+
+        a = np.empty(3)
+        b = np.empty((2, 3, 3))
+        param_shapes = [a.shape, b.shape]
+        res = params_broadcast_shapes(param_shapes, ndims_params)
+        assert np.array_equal(res[0], [2, 3])
+        assert np.array_equal(res[1], [2, 3, 3])
+
+        a = np.empty((2, 1, 3))
+        b = np.empty((2, 3, 3))
+        param_shapes = [a.shape, b.shape]
+        res = params_broadcast_shapes(param_shapes, ndims_params)
+        assert np.array_equal(res[0], [2, 2, 3])
+        assert np.array_equal(res[1], [2, 2, 3, 3])
+
+        with pytest.raises(
+            ValueError,
+            match="Cannot broadcast shapes 4 and 5 together",
+        ):
+            a = np.empty((4, 3))
+            b = np.empty((5, 3, 3))
+            param_shapes = [a.shape, b.shape]
+            res = params_broadcast_shapes(param_shapes, ndims_params)
+
+    def test_pytensor_concrete(self):
+        ndims_params = [0, 0]
+
+        a = pt.as_tensor_variable(np.empty(3))
+        b = pt.as_tensor_variable(np.empty(()))
+        param_shapes = [a.shape, b.shape]
+        res = params_broadcast_shapes(param_shapes, ndims_params)
+        assert np.array_equal(res[0], [3])
+        assert np.array_equal(res[1], [3])
+
+        ndims_params = [1, 2]
+
+        a = pt.as_tensor_variable(np.empty(3))
+        b = pt.as_tensor_variable(np.empty((2, 3, 3)))
+        param_shapes = [a.shape, b.shape]
+        res = params_broadcast_shapes(param_shapes, ndims_params)
+        assert np.array_equal(res[0], [2, 3])
+        assert np.array_equal(res[1], [2, 3, 3])
+
+        a = pt.as_tensor_variable(np.empty((2, 1, 3)))
+        b = pt.as_tensor_variable(np.empty((2, 3, 3)))
+        param_shapes = [a.shape, b.shape]
+        res = params_broadcast_shapes(param_shapes, ndims_params)
+        assert np.array_equal(res[0], [2, 2, 3])
+        assert np.array_equal(res[1], [2, 2, 3, 3])
+
+        with pytest.raises(
+            ValueError,
+            match="Cannot broadcast shapes 4 and 5 together",
+        ):
+            a = pt.as_tensor_variable(np.empty((4, 3)))
+            b = pt.as_tensor_variable(np.empty((5, 3, 3)))
+            param_shapes = [a.shape, b.shape]
+            res = params_broadcast_shapes(param_shapes, ndims_params)
+
+    def test_pytensor_symbolic(self):
+        ndims_params = [0, 0]
+
+        a = pt.dvector()
+        b = pt.dscalar()
+        param_shapes = [a.shape, b.shape]
+        res = params_broadcast_shapes(param_shapes, ndims_params)
+        c = pt.broadcast_to(a, res[0])
+        d = pt.broadcast_to(b, res[1])
+        f = pytensor.function([a, b], [c, d])
+        cv, dv = f(np.empty(3), np.empty(()))
+        assert np.array_equal(cv.shape, [3])
+        assert np.array_equal(dv.shape, [3])
+
+        ndims_params = [1, 2]
+
+        a = pt.dvector()
+        b = pt.dtensor3()
+        param_shapes = [a.shape, b.shape]
+        res = params_broadcast_shapes(param_shapes, ndims_params)
+        c = pt.broadcast_to(a, res[0])
+        d = pt.broadcast_to(b, res[1])
+        f = pytensor.function([a, b], [c, d])
+        cv, dv = f(np.empty(3), np.empty((2, 3, 3)))
+        assert np.array_equal(cv.shape, [2, 3])
+        assert np.array_equal(dv.shape, [2, 3, 3])
+
+        a = pt.dtensor3()
+        b = pt.dtensor3()
+        param_shapes = [a.shape, b.shape]
+        res = params_broadcast_shapes(param_shapes, ndims_params)
+        c = pt.broadcast_to(a, res[0])
+        d = pt.broadcast_to(b, res[1])
+        f = pytensor.function([a, b], [c, d])
+        cv, dv = f(np.empty((2, 1, 3)), np.empty((2, 3, 3)))
+        assert np.array_equal(cv.shape, [2, 2, 3])
+        assert np.array_equal(dv.shape, [2, 2, 3, 3])
+
+        a = pt.dmatrix()
+        b = pt.dtensor3()
+        param_shapes = [a.shape, b.shape]
+        res = params_broadcast_shapes(param_shapes, ndims_params)
+        c = pt.broadcast_to(a, res[0])
+        d = pt.broadcast_to(b, res[1])
+        f = pytensor.function([a, b], [c, d])
+        with pytest.raises(
+            AssertionError,
+            match=(
+                "Failed to broadcast dynamically set shapes along axis 0 "
+                "in the 1 supplied param_shape"
+            ),
+        ):
+            cv, dv = f(np.empty((4, 3)), np.empty((5, 3, 3)))
