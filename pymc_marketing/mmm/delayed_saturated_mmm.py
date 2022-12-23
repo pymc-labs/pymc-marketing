@@ -93,13 +93,13 @@ class DelayedSaturatedMMM(
                 var=logistic_saturation(x=channel_adstock, lam=lam),
                 dims=("date", "channel"),
             )
-            channel_contribution = pm.Deterministic(
-                name="channel_contribution",
-                var=pm.math.dot(channel_adstock_saturated, beta_channel),
-                dims="date",
+            channel_contributions = pm.Deterministic(
+                name="channel_contributions",
+                var=channel_adstock_saturated * beta_channel,
+                dims=("date", "channel"),
             )
 
-            mu_var = intercept + channel_contribution
+            mu_var = intercept + channel_contributions.sum(axis=-1)
 
             if control_data is not None:
                 control_data_ = pm.MutableData(
@@ -110,13 +110,13 @@ class DelayedSaturatedMMM(
                     name="gamma_control", mu=0, sigma=2, dims="control"
                 )
 
-                control_contribution = pm.Deterministic(
-                    name="control_contribution",
-                    var=pm.math.dot(control_data_, gamma_control),
-                    dims="date",
+                control_contributions = pm.Deterministic(
+                    name="control_contributions",
+                    var=control_data_ * gamma_control,
+                    dims=("date", "control"),
                 )
 
-                mu_var += control_contribution
+                mu_var += control_contributions.sum(axis=-1)
 
             mu = pm.Deterministic(name="mu", var=mu_var, dims="date")
 
