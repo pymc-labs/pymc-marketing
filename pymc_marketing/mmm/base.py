@@ -12,12 +12,13 @@ import arviz as az
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
-import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import seaborn as sns
 from pymc.util import RandomState
-from xarray import DataArray, Dataset
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import FunctionTransformer
+from xarray import DataArray
 
 from pymc_marketing.mmm.validating import (
     ValidateChannelColumns,
@@ -51,7 +52,6 @@ class BaseMMM:
             self.validate(self.data_df)
         self.preprocessed_data = self.preprocess(self.data_df.copy())
 
-        self.model: pm.Model = pm.Model()
         self.build_model(
             data_df=self.preprocessed_data,
             **kwargs,
@@ -88,6 +88,13 @@ class BaseMMM:
             if getattr(method, "_tags", {}).get("preprocessing", False)
         ]
 
+    def get_target_transformer(self) -> Pipeline:
+        try:
+            return self.target_transformer
+        except AttributeError:
+            identity_transformer = FunctionTransformer()
+            return Pipeline(steps=[("scaler", identity_transformer)])
+
     def validate(self, data_df: pd.DataFrame):
         for method in self.validation_methods:
             method(self, data_df)
@@ -102,11 +109,14 @@ class BaseMMM:
         raise NotImplementedError()
 
     def get_prior_predictive_data(self, *args, **kwargs) -> az.InferenceData:
-        with self.model:
-            prior_predictive: az.InferenceData = pm.sample_prior_predictive(
-                *args, **kwargs
-            )
-        return prior_predictive
+        try:
+            return self._prior_predictive
+        except AttributeError:
+            with self.model:
+                self.prior_predictive: az.InferenceData = pm.sample_prior_predictive(
+                    *args, **kwargs
+                )
+            return self._prior_predictive
 
     def fit(
         self,
@@ -190,10 +200,10 @@ class BaseMMM:
         )["likelihood"]
 
         if original_scale:
-            likelihood_hdi_94 = self.target_transformer.inverse_transform(
+            likelihood_hdi_94 = self.get_target_transformer().inverse_transform(
                 Xt=likelihood_hdi_94
             )
-            likelihood_hdi_50 = self.target_transformer.inverse_transform(
+            likelihood_hdi_50 = self.get_target_transformer().inverse_transform(
                 Xt=likelihood_hdi_50
             )
 
@@ -231,41 +241,79 @@ class BaseMMM:
         return fig
 
     def plot_components_contributions(self, **plt_kwargs: Any) -> plt.Figure:
-        model_hdi: Dataset = az.hdi(ary=self.fit_result, hdi_prob=0.94)
-        # ? Should this be passed as an argument?
-        contribution_vars: List[str] = ["channel_contribution"]
 
-        if self.control_columns:
-            contribution_vars.append("control_contribution")
+        channel_contributions = az.extract(
+            self.fit_result,
+            var_names=["channel_contributions"],
+            combined=False,
+        )
+        contracted_dims = [
+            d for d in channel_contributions.dims if d not in ["chain", "draw", "date"]
+        ]
+        channel_contributions = (
+            channel_contributions.sum(contracted_dims)
+            if contracted_dims
+            else channel_contributions
+        )
+        means = [channel_contributions.mean(["chain", "draw"])]
+        contribution_vars = [
+            az.hdi(channel_contributions, hdi_prob=0.94).channel_contributions
+        ]
+
+        if getattr(self, "control_columns", None):
+            control_contributions = az.extract(
+                self.fit_result,
+                var_names=["control_contributions"],
+                combined=False,
+            )
+            contracted_dims = [
+                d
+                for d in control_contributions.dims
+                if d not in ["chain", "draw", "date"]
+            ]
+            control_contributions = (
+                control_contributions.sum(contracted_dims)
+                if contracted_dims
+                else control_contributions
+            )
+            means.append(control_contributions.mean(["chain", "draw"]))
+            contribution_vars.append(
+                az.hdi(control_contributions, hdi_prob=0.94).control_contributions
+            )
 
         fig, ax = plt.subplots(**plt_kwargs)
 
-        for i, var_contribution in enumerate(contribution_vars):
+        for i, (mean, hdi, var_contribution) in enumerate(
+            zip(
+                means,
+                contribution_vars,
+                ["channel_contribution", "control_contribution"],
+            )
+        ):
             ax.fill_between(
                 x=self.data_df[self.date_column],
-                y1=model_hdi[var_contribution][:, 0],
-                y2=model_hdi[var_contribution][:, 1],
+                y1=hdi.isel(hdi=0),
+                y2=hdi.isel(hdi=1),
                 color=f"C{i}",
                 alpha=0.25,
                 label=f"$94 %$ HDI ({var_contribution})",
             )
             sns.lineplot(
                 x=self.data_df[self.date_column],
-                y=az.extract(self.fit_result, var_names=[var_contribution]).mean(
-                    axis=1
-                ),
+                y=mean,
                 color=f"C{i}",
                 ax=ax,
             )
 
-        intercept_hdi: npt.NDArray[np.float_] = np.repeat(
-            a=model_hdi["intercept"].to_numpy()[None, ...],
+        intercept = az.extract(self.fit_result, var_names=["intercept"], combined=False)
+        intercept_hdi = np.repeat(
+            a=az.hdi(intercept).intercept.data[None, ...],
             repeats=self.n_obs,
             axis=0,
         )
         sns.lineplot(
             x=self.data_df[self.date_column],
-            y=az.extract(self.fit_result, var_names=["intercept"]).mean().item(),
+            y=intercept.mean().data,
             color=f"C{i + 1}",
             ax=ax,
         )
@@ -309,32 +357,15 @@ class BaseMMM:
         return fig
 
     def compute_channel_contribution_original_scale(self) -> DataArray:
-        beta_channel_samples_extended: DataArray = az.extract(
-            data=self.fit_result, var_names=["beta_channel"], combined=False
-        ).expand_dims({"date": self.n_obs}, axis=2)
-
-        channel_transformed: DataArray = az.extract(
-            data=self.fit_result,
-            var_names=["channel_adstock_saturated"],
-            combined=False,
+        channel_contribution = az.extract(
+            data=self.fit_result, var_names=["channel_contributions"], combined=False
         )
 
-        normalization_factor: float = self.target_transformer.named_steps[
-            "scaler"
-        ].scale_.item()
-        return (
-            beta_channel_samples_extended * channel_transformed
-        ) / normalization_factor
+        return self.get_target_transformer().inverse_transform(channel_contribution)
 
     def plot_contribution_curves(self) -> plt.Figure:
-        beta_adstock_saturated_inverse_transform: DataArray = (
-            az.extract(data=self.fit_result, var_names=["beta_channel"])
-            / self.target_transformer.named_steps["scaler"].scale_.item()
-        )
-
-        channel_adstock_saturated_effect_original_scale: DataArray = (
-            beta_adstock_saturated_inverse_transform
-            * az.extract(data=self.fit_result, var_names=["channel_adstock_saturated"])
+        channel_contributions = self.compute_channel_contribution_original_scale().mean(
+            ["chain", "draw"]
         )
 
         fig, axes = plt.subplots(
@@ -350,7 +381,7 @@ class BaseMMM:
             ax = axes[i]
             sns.regplot(
                 x=self.data_df[self.channel_columns].to_numpy()[:, i],
-                y=channel_adstock_saturated_effect_original_scale[i, :, :].mean(axis=0),
+                y=channel_contributions.sel(channel=channel),
                 color=f"C{i}",
                 order=2,
                 ci=None,
@@ -369,9 +400,7 @@ class BaseMMM:
 
     def _get_channel_contributions_share_samples(self) -> DataArray:
         channel_contribution_original_scale_samples: DataArray = (
-            self.compute_channel_contribution_original_scale().stack(
-                samples=("chain", "draw")
-            )
+            self.compute_channel_contribution_original_scale()
         )
         numerator: DataArray = channel_contribution_original_scale_samples.sum(["date"])
         denominator: DataArray = numerator.sum("channel")
@@ -385,7 +414,7 @@ class BaseMMM:
         )
 
         ax, *_ = az.plot_forest(
-            data=channel_contributions_share.unstack(),
+            data=channel_contributions_share,
             combined=True,
             hdi_prob=hdi_prob,
             backend_kwargs=plot_kwargs,
