@@ -1,7 +1,6 @@
-from typing import Any, Dict, List
+from typing import List
 
 import arviz as az
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -161,23 +160,3 @@ class TestMMM:
             n_channel,
             draws * chains,
         )
-
-    @pytest.mark.parametrize(
-        argnames="func_plot_name, kwargs_plot",
-        argvalues=[
-            ("plot_prior_predictive", {"samples": 3}),
-            ("plot_posterior_predictive", {}),
-            ("plot_components_contributions", {}),
-            ("plot_channel_parameter", {"param_name": "alpha"}),
-            ("plot_contribution_curves", {}),
-            ("plot_channel_contribution_share_hdi", {"hdi_prob": 0.95}),
-        ],
-    )
-    def test_plots(
-        self,
-        mmm_fitted: DelayedSaturatedMMM,
-        func_plot_name: str,
-        kwargs_plot: Dict[str, Any],
-    ) -> None:
-        func = mmm_fitted.__getattribute__(func_plot_name)
-        assert isinstance(func(**kwargs_plot), plt.Figure)
