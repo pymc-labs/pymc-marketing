@@ -8,7 +8,7 @@ import xarray as xr
 from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.base import MMM
-from pymc_marketing.mmm.preprocessing import preprocessing_method
+from pymc_marketing.mmm.preprocessing import MixMaxScaleTarget, preprocessing_method
 from pymc_marketing.mmm.validating import validation_method
 
 seed: int = sum(map(ord, "pymc_marketing"))
@@ -33,11 +33,28 @@ toy_df = pd.DataFrame(
 )
 
 
-@pytest.fixture(scope="module", params=["without_controls", "with_controls"])
+@pytest.fixture(
+    scope="module",
+    params=[
+        "without_controls-default_transform",
+        "with_controls-default_transform",
+        "without_controls-target_transform",
+        "with_controls-target_transform",
+    ],
+)
 def plotting_mmm(request):
-    class ToyMMM(MMM):
-        def build_model(self, data_df, **kwargs):
-            pass
+    control, transform = request.param.split("-")
+    if transform == "default_transform":
+
+        class ToyMMM(MMM):
+            def build_model(self, data_df, **kwargs):
+                pass
+
+    elif transform == "target_transform":
+
+        class ToyMMM(MMM, MixMaxScaleTarget):
+            def build_model(self, data_df, **kwargs):
+                pass
 
     mmm = ToyMMM(
         toy_df,
@@ -83,7 +100,7 @@ def plotting_mmm(request):
             )
         }
     )
-    if request.param == "with_controls":
+    if control == "with_controls":
         mmm.control_columns = ["control_1", "control_2"]
         coords["control"] = mmm.control_columns
         control_contrib_dims = ["chain", "draw", "date", "control"]
@@ -185,6 +202,7 @@ class TestMMM:
         argvalues=[
             ("plot_prior_predictive", {"samples": 3}),
             ("plot_posterior_predictive", {}),
+            ("plot_posterior_predictive", {"original_scale": True}),
             ("plot_components_contributions", {}),
             ("plot_channel_parameter", {"param_name": "alpha"}),
             ("plot_contribution_curves", {}),
