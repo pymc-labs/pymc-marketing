@@ -361,7 +361,20 @@ class BaseMMM:
             data=self.fit_result, var_names=["channel_contributions"], combined=False
         )
 
-        return self.get_target_transformer().inverse_transform(channel_contribution)
+        # sklearn preprocessers expect 2-D arrays of (obs, features)
+        # We need to treat all entries of channel_contribution as independent obs
+        # so we flatten it, then apply the transform, and finally reshape back into its
+        # original form
+        return DataArray(
+            np.reshape(
+                self.get_target_transformer().inverse_transform(
+                    channel_contribution.data.flatten()[:, None]
+                ),
+                channel_contribution.shape,
+            ),
+            dims=channel_contribution.dims,
+            coords=channel_contribution.coords,
+        )
 
     def plot_contribution_curves(self) -> plt.Figure:
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
