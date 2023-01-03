@@ -2,6 +2,7 @@ import numpy as np
 import pytensor
 import pytest
 from pytensor import tensor as pt
+from pytensor.tensor.shape import specify_broadcastable
 
 from pymc_marketing.mmm.utils import generate_fourier_modes, params_broadcast_shapes
 
@@ -87,25 +88,60 @@ class TestParamsBroadcastShapes:
         a = np.empty(3)
         b = np.empty(())
         param_shapes = [a.shape, b.shape]
-        res = params_broadcast_shapes(param_shapes, ndims_params)
+        broadcastable_patterns = [
+            tuple([s == 1 for s in a.shape]),
+            tuple([s == 1 for s in b.shape]),
+        ]
+        res, bcast = params_broadcast_shapes(
+            param_shapes, ndims_params, broadcastable_patterns
+        )
         assert np.array_equal(res[0], [3])
         assert np.array_equal(res[1], [3])
+        assert bcast == [(False,), (False,)]
 
         ndims_params = [1, 2]
 
         a = np.empty(3)
         b = np.empty((2, 3, 3))
         param_shapes = [a.shape, b.shape]
-        res = params_broadcast_shapes(param_shapes, ndims_params)
+        broadcastable_patterns = [
+            tuple([s == 1 for s in a.shape]),
+            tuple([s == 1 for s in b.shape]),
+        ]
+        res, bcast = params_broadcast_shapes(
+            param_shapes, ndims_params, broadcastable_patterns
+        )
         assert np.array_equal(res[0], [2, 3])
         assert np.array_equal(res[1], [2, 3, 3])
+        assert bcast == [(False,) * 2, (False,) * 3]
+
+        a = np.empty(3)
+        b = np.empty((1, 3, 3))
+        param_shapes = [a.shape, b.shape]
+        broadcastable_patterns = [
+            tuple([s == 1 for s in a.shape]),
+            tuple([s == 1 for s in b.shape]),
+        ]
+        res, bcast = params_broadcast_shapes(
+            param_shapes, ndims_params, broadcastable_patterns
+        )
+        assert np.array_equal(res[0], [1, 3])
+        assert np.array_equal(res[1], [1, 3, 3])
+        assert bcast == [(True, False), (True, False, False)]
 
         a = np.empty((2, 1, 3))
         b = np.empty((2, 3, 3))
         param_shapes = [a.shape, b.shape]
-        res = params_broadcast_shapes(param_shapes, ndims_params)
+        broadcastable_patterns = [
+            tuple([s == 1 for s in a.shape]),
+            tuple([s == 1 for s in b.shape]),
+        ]
+        res, bcast = params_broadcast_shapes(
+            param_shapes, ndims_params, broadcastable_patterns
+        )
         assert np.array_equal(res[0], [2, 2, 3])
         assert np.array_equal(res[1], [2, 2, 3, 3])
+        assert bcast == [(False,) * 3, (False,) * 4]
 
         with pytest.raises(
             ValueError,
@@ -114,7 +150,24 @@ class TestParamsBroadcastShapes:
             a = np.empty((4, 3))
             b = np.empty((5, 3, 3))
             param_shapes = [a.shape, b.shape]
-            res = params_broadcast_shapes(param_shapes, ndims_params)
+            broadcastable_patterns = [
+                tuple([s == 1 for s in a.shape]),
+                tuple([s == 1 for s in b.shape]),
+            ]
+            res, bcast = params_broadcast_shapes(
+                param_shapes, ndims_params, broadcastable_patterns
+            )
+        with pytest.raises(
+            ValueError,
+            match="Shape along axis 0 in the 1 supplied param_shape was tagged as not broadcastable",
+        ):
+            a = np.empty((1, 3))
+            b = np.empty((5, 3, 3))
+            param_shapes = [a.shape, b.shape]
+            broadcastable_patterns = [(False,) * 2, tuple([s == 1 for s in b.shape])]
+            res, bcast = params_broadcast_shapes(
+                param_shapes, ndims_params, broadcastable_patterns
+            )
 
     def test_pytensor_concrete(self):
         ndims_params = [0, 0]
@@ -122,25 +175,48 @@ class TestParamsBroadcastShapes:
         a = pt.as_tensor_variable(np.empty(3))
         b = pt.as_tensor_variable(np.empty(()))
         param_shapes = [a.shape, b.shape]
-        res = params_broadcast_shapes(param_shapes, ndims_params)
+        broadcastable_patterns = [a.broadcastable, b.broadcastable]
+        res, bcast = params_broadcast_shapes(
+            param_shapes, ndims_params, broadcastable_patterns
+        )
         assert np.array_equal(res[0], [3])
         assert np.array_equal(res[1], [3])
+        assert bcast == [(False,), (False,)]
 
         ndims_params = [1, 2]
 
         a = pt.as_tensor_variable(np.empty(3))
         b = pt.as_tensor_variable(np.empty((2, 3, 3)))
         param_shapes = [a.shape, b.shape]
-        res = params_broadcast_shapes(param_shapes, ndims_params)
+        broadcastable_patterns = [a.broadcastable, b.broadcastable]
+        res, bcast = params_broadcast_shapes(
+            param_shapes, ndims_params, broadcastable_patterns
+        )
         assert np.array_equal(res[0], [2, 3])
         assert np.array_equal(res[1], [2, 3, 3])
+        assert bcast == [(False,) * 2, (False,) * 3]
+
+        a = pt.as_tensor_variable(np.empty(3))
+        b = pt.as_tensor_variable(np.empty((1, 3, 3)))
+        param_shapes = [a.shape, b.shape]
+        broadcastable_patterns = [a.broadcastable, b.broadcastable]
+        res, bcast = params_broadcast_shapes(
+            param_shapes, ndims_params, broadcastable_patterns
+        )
+        assert np.array_equal(res[0], [1, 3])
+        assert np.array_equal(res[1], [1, 3, 3])
+        assert bcast == [(True, False), (True, False, False)]
 
         a = pt.as_tensor_variable(np.empty((2, 1, 3)))
         b = pt.as_tensor_variable(np.empty((2, 3, 3)))
         param_shapes = [a.shape, b.shape]
-        res = params_broadcast_shapes(param_shapes, ndims_params)
+        broadcastable_patterns = [a.broadcastable, b.broadcastable]
+        res, bcast = params_broadcast_shapes(
+            param_shapes, ndims_params, broadcastable_patterns
+        )
         assert np.array_equal(res[0], [2, 2, 3])
         assert np.array_equal(res[1], [2, 2, 3, 3])
+        assert bcast == [(False,) * 3, (False,) * 4]
 
         with pytest.raises(
             ValueError,
@@ -149,7 +225,10 @@ class TestParamsBroadcastShapes:
             a = pt.as_tensor_variable(np.empty((4, 3)))
             b = pt.as_tensor_variable(np.empty((5, 3, 3)))
             param_shapes = [a.shape, b.shape]
-            res = params_broadcast_shapes(param_shapes, ndims_params)
+            broadcastable_patterns = [a.broadcastable, b.broadcastable]
+            res, bcast = params_broadcast_shapes(
+                param_shapes, ndims_params, broadcastable_patterns
+            )
 
     def test_pytensor_symbolic(self):
         ndims_params = [0, 0]
@@ -157,7 +236,11 @@ class TestParamsBroadcastShapes:
         a = pt.dvector()
         b = pt.dscalar()
         param_shapes = [a.shape, b.shape]
-        res = params_broadcast_shapes(param_shapes, ndims_params)
+        broadcastable_patterns = [a.broadcastable, b.broadcastable]
+        res, bcast = params_broadcast_shapes(
+            param_shapes, ndims_params, broadcastable_patterns
+        )
+        assert bcast == [(False,), (False,)]
         c = pt.broadcast_to(a, res[0])
         d = pt.broadcast_to(b, res[1])
         f = pytensor.function([a, b], [c, d])
@@ -170,7 +253,11 @@ class TestParamsBroadcastShapes:
         a = pt.dvector()
         b = pt.dtensor3()
         param_shapes = [a.shape, b.shape]
-        res = params_broadcast_shapes(param_shapes, ndims_params)
+        broadcastable_patterns = [a.broadcastable, b.broadcastable]
+        res, bcast = params_broadcast_shapes(
+            param_shapes, ndims_params, broadcastable_patterns
+        )
+        assert bcast == [(False,) * 2, (False,) * 3]
         c = pt.broadcast_to(a, res[0])
         d = pt.broadcast_to(b, res[1])
         f = pytensor.function([a, b], [c, d])
@@ -180,8 +267,13 @@ class TestParamsBroadcastShapes:
 
         a = pt.dtensor3()
         b = pt.dtensor3()
+        a = specify_broadcastable(a, 1)
         param_shapes = [a.shape, b.shape]
-        res = params_broadcast_shapes(param_shapes, ndims_params)
+        broadcastable_patterns = [a.broadcastable, b.broadcastable]
+        res, bcast = params_broadcast_shapes(
+            param_shapes, ndims_params, broadcastable_patterns
+        )
+        assert bcast == [(False,) * 3, (False,) * 4]
         c = pt.broadcast_to(a, res[0])
         d = pt.broadcast_to(b, res[1])
         f = pytensor.function([a, b], [c, d])
@@ -189,18 +281,44 @@ class TestParamsBroadcastShapes:
         assert np.array_equal(cv.shape, [2, 2, 3])
         assert np.array_equal(dv.shape, [2, 2, 3, 3])
 
-        a = pt.dmatrix()
+        a = pt.dtensor3()
         b = pt.dtensor3()
         param_shapes = [a.shape, b.shape]
-        res = params_broadcast_shapes(param_shapes, ndims_params)
+        broadcastable_patterns = [a.broadcastable, b.broadcastable]
+        res, bcast = params_broadcast_shapes(
+            param_shapes, ndims_params, broadcastable_patterns
+        )
+        assert bcast == [(False,) * 3, (False,) * 4]
         c = pt.broadcast_to(a, res[0])
         d = pt.broadcast_to(b, res[1])
         f = pytensor.function([a, b], [c, d])
         with pytest.raises(
             AssertionError,
             match=(
-                "Failed to broadcast dynamically set shapes along axis 0 "
-                "in the 1 supplied param_shape"
+                "Shape along axis 0 in the 1 supplied param_shape was tagged as "
+                "not broadcastable and it was not exactly equal to the other supplied "
+                "param_shapes."
+            ),
+        ):
+            cv, dv = f(np.empty((2, 1, 3)), np.empty((2, 3, 3)))
+
+        a = pt.dmatrix()
+        b = pt.dtensor3()
+        param_shapes = [a.shape, b.shape]
+        broadcastable_patterns = [a.broadcastable, b.broadcastable]
+        res, bcast = params_broadcast_shapes(
+            param_shapes, ndims_params, broadcastable_patterns
+        )
+        assert bcast == [(False,) * 2, (False,) * 3]
+        c = pt.broadcast_to(a, res[0])
+        d = pt.broadcast_to(b, res[1])
+        f = pytensor.function([a, b], [c, d])
+        with pytest.raises(
+            AssertionError,
+            match=(
+                "Shape along axis 0 in the 1 supplied param_shape was tagged as "
+                "not broadcastable and it was not exactly equal to the other supplied "
+                "param_shapes."
             ),
         ):
             cv, dv = f(np.empty((4, 3)), np.empty((5, 3, 3)))

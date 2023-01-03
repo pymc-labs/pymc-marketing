@@ -32,7 +32,14 @@ def batched_convolution(x, w, axis: int = 0):
         l_max = w.shape[-1].eval()
     except Exception:
         l_max = None
-    x_shape, w_shape = params_broadcast_shapes([x.shape, w.shape], [1, 1])
+    (x_shape, w_shape), _ = params_broadcast_shapes(
+        param_shapes=[x.shape, w.shape],
+        ndims_params=[1, 1],
+        broadcastable_patterns=[
+            getattr(x, "broadcastable", tuple([s == 1 for s in x.shape])),
+            getattr(w, "broadcastable", tuple([s == 1 for s in w.shape])),
+        ],
+    )
     x = pt.broadcast_to(x, x_shape)
     w = pt.broadcast_to(w, w_shape)
     x_time = x.shape[-1]

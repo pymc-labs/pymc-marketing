@@ -7,7 +7,6 @@ from pytensor import tensor as pt
 from pytensor.raise_op import Assert
 from pytensor.tensor.basic import get_scalar_constant_value
 from pytensor.tensor.exceptions import NotScalarConstantError
-from pytensor.tensor.math import maximum
 from pytensor.tensor.var import TensorConstant
 
 
@@ -43,7 +42,7 @@ def generate_fourier_modes(
     )
 
 
-def params_broadcast_shapes(param_shapes, ndims_params, use_pytensor=True):
+def params_broadcast_shapes(param_shapes, ndims_params, broadcastable_patterns):
     """Broadcast shape tuples except for some number of support dimensions.
 
     Parameters
@@ -53,19 +52,19 @@ def params_broadcast_shapes(param_shapes, ndims_params, use_pytensor=True):
     ndims_params : list of int
         The number of dimensions for each shape that are to be considered support dimensions that
         need not broadcast together.
-    use_pytensor : bool
-        If ``True``, use PyTensor maximum Op; otherwise, use NumPy.
+    broadcastable_patterns : list of bool
+        The broadcastable pattern of each input shape.
 
     Returns
     =======
     bcast_shapes : list of ndarray
         The broadcasted values of `params`.
     """
-    max_fn = maximum if use_pytensor else np.maximum
 
-    rev_extra_dims = []
-    for param_ind, (ndim_param, param_shape) in enumerate(
-        zip(ndims_params, param_shapes)
+    rev_extra_dims = tuple()
+    rev_extra_broadcastable = tuple()
+    for param_ind, (ndim_param, param_shape, broadcastable) in enumerate(
+        zip(ndims_params, param_shapes, broadcastable_patterns)
     ):
         # Try to get concrete shapes from the start
         if isinstance(param_shape, TensorConstant):
@@ -73,12 +72,9 @@ def params_broadcast_shapes(param_shapes, ndims_params, use_pytensor=True):
         # We need this in order to use `len`
         param_shape = tuple(param_shape)
         extras = tuple(param_shape[: (len(param_shape) - ndim_param)])
+        extra_broadcastable = tuple(broadcastable[: (len(param_shape) - ndim_param)])
 
-        def max_bcast(x, y, i):
-            assert_op = Assert(
-                f"Failed to broadcast dynamically set shapes along axis {i} "
-                f"in the {param_ind} supplied param_shape"
-            )
+        def bcast(x, y, bcast_x, bcast_y, i):
             try:
                 concrete_x = get_scalar_constant_value(x)
             except NotScalarConstantError:
@@ -87,35 +83,56 @@ def params_broadcast_shapes(param_shapes, ndims_params, use_pytensor=True):
                 concrete_y = get_scalar_constant_value(y)
             except NotScalarConstantError:
                 concrete_y = None
-            if concrete_x == 1:
-                return y
-            if concrete_y == 1:
-                return x
-            if concrete_x is not None and concrete_y is not None:
-                if concrete_x == concrete_y:
-                    return x
-                raise ValueError(
-                    f"Cannot broadcast shapes {concrete_x} and {concrete_y} together"
-                )
-            return assert_op(
-                max_fn(x, y),
-                pt.or_(
-                    pt.eq(x, 1),
-                    pt.or_(
-                        pt.eq(y, 1),
-                        pt.eq(x, y),
-                    ),
-                ),
-            )
+            if not bcast_x and not bcast_y:
+                if concrete_x is not None and concrete_y is not None:
+                    if (
+                        (concrete_x == 1 and not bcast_x)
+                        or (concrete_y == 1 and not bcast_y)
+                    ) and concrete_x != concrete_y:
+                        raise ValueError(
+                            f"Shape along axis {i} in the {param_ind} supplied param_shape was "
+                            "tagged as not broadcastable and it was not exactly equal to the other "
+                            "supplied param_shapes."
+                        )
+                    elif concrete_x != concrete_y:
+                        raise ValueError(
+                            f"Cannot broadcast shapes {concrete_x} and {concrete_y} together"
+                        )
+                    return (x, False)
+                else:
+                    assert_op = Assert(
+                        f"Shape along axis {i} in the {param_ind} supplied param_shape was tagged as "
+                        f"not broadcastable and it was not exactly equal to the other supplied "
+                        "param_shapes."
+                    )
+                    return (assert_op(x, pt.eq(x, y)), False)
+            elif bcast_x:
+                return (y, bcast_y)
+            elif bcast_y:
+                return (x, bcast_x)
+            else:
+                return (x, bcast_x)
 
-        rev_extra_dims = [
-            max_bcast(a, b, i)
-            for i, (b, a) in enumerate(
-                zip_longest(reversed(extras), rev_extra_dims, fillvalue=1)
+        temp = [
+            bcast(a, b, broadcastable_a, broadcastable_b, i)
+            for i, (b, a, (broadcastable_b, broadcastable_a)) in enumerate(
+                zip_longest(
+                    reversed(extras),
+                    rev_extra_dims,
+                    zip_longest(
+                        reversed(extra_broadcastable),
+                        rev_extra_broadcastable,
+                        fillvalue=True,
+                    ),
+                    fillvalue=1,
+                )
             )
         ]
+        if len(temp) > 0:
+            rev_extra_dims, rev_extra_broadcastable = list(zip(*temp))
 
     extra_dims = tuple(reversed(rev_extra_dims))
+    extra_broadcastable = tuple(reversed(rev_extra_broadcastable))
 
     bcast_shapes = [
         (extra_dims + tuple(getattr(param_shape, "value", param_shape))[-ndim_param:])
@@ -123,5 +140,11 @@ def params_broadcast_shapes(param_shapes, ndims_params, use_pytensor=True):
         else extra_dims
         for ndim_param, param_shape in zip(ndims_params, param_shapes)
     ]
+    new_broadcastable_patterns = [
+        (extra_broadcastable + broadcastable[-ndim_param:])
+        if ndim_param > 0
+        else extra_broadcastable
+        for ndim_param, broadcastable in zip(ndims_params, broadcastable_patterns)
+    ]
 
-    return bcast_shapes
+    return list(bcast_shapes), list(new_broadcastable_patterns)
