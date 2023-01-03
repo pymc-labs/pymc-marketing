@@ -12,6 +12,7 @@ from pytensor.tensor import TensorVariable
 from scipy.special import expit, hyp2f1
 
 from pymc_marketing.clv.models.basic import CLVModel
+from pymc_marketing.clv.utils import to_xarray
 
 
 class BetaGeoModel(CLVModel):
@@ -174,15 +175,6 @@ class BetaGeoModel(CLVModel):
                 logp(x=frequency, t_x=recency, a=a, b=b, alpha=alpha, r=r, T=T),
             )
 
-    def _to_xarray(self, customer_id, *arrays, **kwargs):
-        dims = ("customer_id",)
-        coords = {"customer_id": customer_id}
-
-        if len(arrays) == 1:
-            return xr.DataArray(data=arrays[0], coords=coords, dims=dims)
-
-        return (xr.DataArray(data=array, coords=coords, dims=dims) for array in arrays)
-
     def _process_priors(self, a_prior, b_prior, alpha_prior, r_prior):
         # hyper priors for the Gamma params
         if a_prior is None:
@@ -229,6 +221,7 @@ class BetaGeoModel(CLVModel):
         frequency: Union[np.ndarray, pd.Series, TensorVariable],
         recency: Union[np.ndarray, pd.Series, TensorVariable],
         T: Union[np.ndarray, pd.Series, TensorVariable],
+        **kwargs,
     ):
         r"""
         Given a purchase history/profile of :math:`x` and :math:`t_x` for an individual
@@ -257,9 +250,7 @@ class BetaGeoModel(CLVModel):
            }
         """
 
-        t, frequency, recency, T = self._to_xarray(
-            customer_id, t, frequency, recency, T
-        )
+        t, frequency, recency, T = to_xarray(customer_id, t, frequency, recency, T)
 
         a, b, alpha, r = self._unload_params()
 
@@ -298,7 +289,7 @@ class BetaGeoModel(CLVModel):
                 \right\}
         """
 
-        frequency, recency, T = self._to_xarray(customer_id, frequency, recency, T)
+        frequency, recency, T = to_xarray(customer_id, frequency, recency, T)
 
         a, b, alpha, r = self._unload_params()
 
@@ -332,7 +323,7 @@ class BetaGeoModel(CLVModel):
 
         TODO: Should the xarray dim name be different than customer_id?
         """
-        t = self._to_xarray(customer_id, t)
+        t = to_xarray(customer_id, t)
 
         a, b, alpha, r = self._unload_params()
 
