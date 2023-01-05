@@ -10,7 +10,7 @@ from pymc import str_for_dist
 from pytensor.tensor import TensorVariable
 
 from pymc_marketing.clv.models.basic import CLVModel
-from pymc_marketing.clv.utils import to_xarray
+from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
 
 
 class BaseGammaGammaModel(CLVModel):
@@ -128,6 +128,39 @@ class BaseGammaGammaModel(CLVModel):
         # var_spend = (p_mean ** 2 * v_mean ** 2) / ((q_mean - 1) ** 2 * (q_mean - 2))
 
         return mean_spend
+
+    def expected_customer_lifetime_value(
+        self,
+        transaction_model: CLVModel,
+        customer_id: Union[np.ndarray, pd.Series],
+        mean_transaction_value: Union[np.ndarray, pd.Series],
+        number_transactions: Union[np.ndarray, pd.Series],
+        recency: Union[np.ndarray, pd.Series],
+        T: Union[np.ndarray, pd.Series],
+        time: int = 12,
+        discount_rate: float = 0.01,
+        freq: str = "D",
+    ) -> xarray.DataArray:
+        """Expected customer lifetime value."""
+
+        # Use the Gamma-Gamma estimates for the monetary_values
+        adjusted_monetary_value = self.expected_customer_spend(
+            customer_id=customer_id,
+            mean_transaction_value=mean_transaction_value,
+            number_transactions=number_transactions,
+        )
+
+        return customer_lifetime_value(
+            transaction_model=transaction_model,
+            customer_id=customer_id,
+            frequency=number_transactions,
+            recency=recency,
+            T=T,
+            monetary_value=adjusted_monetary_value,
+            time=time,
+            discount_rate=discount_rate,
+            freq=freq,
+        )
 
 
 class GammaGammaModel(BaseGammaGammaModel):
@@ -396,4 +429,33 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             mean_transaction_value=z_mean,
             frequency=x,
             random_seed=random_seed,
+        )
+
+    def expected_customer_lifetime_value(
+        self,
+        transaction_model: CLVModel,
+        customer_id: Union[np.ndarray, pd.Series],
+        individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
+        recency: Union[np.ndarray, pd.Series],
+        T: Union[np.ndarray, pd.Series],
+        time: int = 12,
+        discount_rate: float = 0.01,
+        freq: str = "D",
+    ) -> xarray.DataArray:
+        """Return expected customer lifetime value."""
+
+        customer_id, z_mean, x = self._summarize_mean_data(
+            customer_id, individual_transaction_value
+        )
+
+        return super().expected_customer_lifetime_value(
+            transaction_model=transaction_model,
+            customer_id=customer_id,
+            mean_transaction_value=z_mean,
+            frequency=x,
+            recency=recency,
+            T=T,
+            time=time,
+            discount_rate=discount_rate,
+            freq=freq,
         )

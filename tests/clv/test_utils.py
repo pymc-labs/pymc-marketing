@@ -4,7 +4,7 @@ import pymc as pm
 import pytest
 import xarray
 
-from pymc_marketing.clv import BetaGeoModel
+from pymc_marketing.clv import BetaGeoModel, GammaGammaModel
 from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
 
 
@@ -53,6 +53,31 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
         alpha_prior=pm.DiracDelta.dist(1.86428187),
         b_prior=pm.DiracDelta.dist(3.18105431),
         r_prior=pm.DiracDelta.dist(0.16385072),
+    )
+
+    fake_fit = pm.sample_prior_predictive(
+        samples=50, model=model.model, random_seed=rng
+    )
+    fake_fit.add_groups(dict(posterior=fake_fit.prior))
+    model._fit_result = fake_fit
+
+    return model
+
+
+@pytest.fixture(scope="module")
+def fitted_gg(test_summary_data) -> GammaGammaModel:
+    rng = np.random.default_rng(40)
+
+    pd.Series({"p": 6.25, "q": 3.74, "v": 15.44})
+
+    model = GammaGammaModel(
+        customer_id=test_summary_data.index,
+        mean_transaction_value=test_summary_data["monetary_value"],
+        frequency=test_summary_data["frequency"],
+        # Params used in lifetimes test
+        p_prior=pm.DiracDelta.dist(6.25),
+        q_prior=pm.DiracDelta.dist(3.74),
+        v_prior=pm.DiracDelta.dist(15.44),
     )
 
     fake_fit = pm.sample_prior_predictive(
@@ -136,3 +161,30 @@ def test_customer_lifetime_value_with_known_values(test_summary_data, fitted_bg)
         .values
     )
     np.testing.assert_allclose(clv_t2_d1, expected / 2.0 + expected / 4.0, rtol=0.1)
+
+
+def test_customer_lifetime_value_gg_with_bgf(test_summary_data, fitted_gg, fitted_bg):
+    t = test_summary_data.head()
+
+    ggf_clv = fitted_gg.expected_customer_lifetime_value(
+        transaction_model=fitted_bg,
+        customer_id=t.index,
+        number_transactions=t["frequency"],
+        recency=t["recency"],
+        T=t["T"],
+        mean_transaction_value=t["monetary_value"],
+    )
+
+    utils_clv = customer_lifetime_value(
+        transaction_model=fitted_bg,
+        customer_id=t.index,
+        frequency=t["frequency"],
+        recency=t["recency"],
+        T=t["T"],
+        monetary_value=fitted_gg.expected_customer_spend(
+            t.index,
+            mean_transaction_value=t["monetary_value"],
+            number_transactions=t["frequency"],
+        ),
+    )
+    np.testing.assert_equal(ggf_clv.values, utils_clv.values)
