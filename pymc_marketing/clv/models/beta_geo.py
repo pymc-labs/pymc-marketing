@@ -33,6 +33,8 @@ class BetaGeoModel(CLVModel):
 
     Parameters
     ----------
+    customer_id: array_like
+        Customer labels. Must not repeat.
     frequency: array_like
         The number of purchases of customers.
     recency: array_like

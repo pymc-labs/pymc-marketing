@@ -101,10 +101,7 @@ class GammaGammaModel(BaseGammaGammaModel):
     Parameters
     ----------
     customer_id: array_like
-        Customer indexes. If specifying mean_transaction_value, one index per customer
-        is expected. If specifying individual_transaction_value, one index per
-        observation is expected. The same value should be used for each observation
-        coming from the same customer.
+        Customer labels. Must not repeat.
     mean_transaction_value: array_like
         Mean transaction value of each customer.
     number_transactions: array_like
@@ -219,9 +216,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     Parameters
     ----------
     customer_id: array_like
-        Customer indexes. If specifying mean_transaction_value, one index per customer
-        is expected. If specifying individual_transaction_value, one index per
-        observation is expected. The same value should be used for each observation
+        Customer labels. The same value should be used for each observation
         coming from the same customer.
     individual_transaction_value: array_like
         Value of individual transactions.
