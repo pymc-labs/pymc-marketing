@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
-
 from pymmmc.clv.models.gamma_gamma import GammaGammaModel, GammaGammaModelIndividual
 
 

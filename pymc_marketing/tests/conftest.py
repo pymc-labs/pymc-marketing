@@ -1,6 +1,5 @@
 import pandas as pd
 import pytest
-
 from pymmmc.datasets import cdnow_summary, cdnow_transactions, donations
 
 

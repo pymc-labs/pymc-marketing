@@ -3,7 +3,6 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 import pytest
-
 from pymmmc.mmm.base import RescaledMMM, preprocessing_method, validation_method
 
 seed: int = sum(map(ord, "pymmmc"))

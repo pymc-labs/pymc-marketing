@@ -2,7 +2,6 @@ import aesara.tensor as at
 import numpy as np
 import pytest
 from aesara.tensor.var import TensorVariable
-
 from pymmmc.transformers import (
     delayed_adstock,
     delayed_adstock_vectorized,

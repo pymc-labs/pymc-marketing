@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-
 from pymmmc.utils import generate_fourier_modes
 
 

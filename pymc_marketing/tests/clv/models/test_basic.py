@@ -3,7 +3,6 @@ from unittest.mock import patch
 import pymc as pm
 import pytest
 from arviz import InferenceData
-
 from pymmmc.clv.models.basic import CLVModel
 
 

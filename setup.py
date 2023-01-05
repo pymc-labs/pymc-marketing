@@ -44,4 +44,9 @@ setup(
     python_requires=">=3.8",
     install_requires=install_reqs,
     tests_require=test_reqs,
+    data_files=[
+        ("cdnow_sample", ["pymc_marketing/datasets/CDNOW_sample.txt"]),
+        ("cdnow_summary", ["pymc_marketing/datasets/cdnow_summary.csv"]),
+        ("donations", ["pymc_marketing/datasets/donations.csv"]),
+    ],
 )

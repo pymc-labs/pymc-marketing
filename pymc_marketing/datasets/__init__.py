@@ -1,6 +1,6 @@
+import importlib_resources
 import numpy as np
 import pandas as pd
-from pkg_resources import resource_filename
 
 __all__ = [
     "cdnow_summary",
@@ -25,9 +25,9 @@ def cdnow_summary(**kwargs) -> pd.DataFrame:
     DataFrame
     """
 
-    return pd.read_csv(
-        resource_filename("pymmmc", "datasets/cdnow_summary.csv"), **kwargs
-    )
+    ref = importlib_resources.files("pymc_marketing") / "datasets" / "cdnow_summary.csv"
+    with importlib_resources.as_file(ref) as path:
+        return pd.read_csv(path, **kwargs)
 
 
 def cdnow_transactions(**kwargs) -> pd.DataFrame:
@@ -46,13 +46,15 @@ def cdnow_transactions(**kwargs) -> pd.DataFrame:
     DataFrame
     """
 
-    return pd.read_csv(
-        resource_filename("pymmmc", "datasets/CDNOW_sample.txt"),
-        sep=r"\s+",
-        header=None,
-        names=["master_id", "sample_id", "date", "cds_bought", "spent"],
-        **kwargs
-    )
+    ref = importlib_resources.files("pymc_marketing") / "datasets" / "CDNOW_sample.txt"
+    with importlib_resources.as_file(ref) as path:
+        return pd.read_csv(
+            path,
+            sep=r"\s+",
+            header=None,
+            names=["master_id", "sample_id", "date", "cds_bought", "spent"],
+            **kwargs
+        )
 
 
 def donations(**kwargs) -> pd.DataFrame:
@@ -71,9 +73,9 @@ def donations(**kwargs) -> pd.DataFrame:
     DataFrame
     """
 
-    donations = pd.read_csv(
-        resource_filename("pymmmc", "datasets/donations.csv"), **kwargs
-    )
+    ref = importlib_resources.files("pymc_marketing") / "datasets" / "donations.csv"
+    with importlib_resources.as_file(ref) as path:
+        donations = pd.read_csv(path, **kwargs)
 
     donations_df = donations.drop("count", axis=1)
 

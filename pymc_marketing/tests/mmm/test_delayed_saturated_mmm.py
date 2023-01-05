@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
-
 from pymmmc.mmm.delayed_saturated_mmm import DelayedSaturatedMMM
 
 seed: int = sum(map(ord, "pymmmc"))

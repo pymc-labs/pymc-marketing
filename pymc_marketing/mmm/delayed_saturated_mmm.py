@@ -2,7 +2,6 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import pymc as pm
-
 from pymmmc.mmm.base import RescaledMMM, validation_method
 from pymmmc.transformers import geometric_adstock_vectorized, logistic_saturation
 
