@@ -41,13 +41,13 @@ class BaseGammaGammaModel(CLVModel):
         self,
         customer_id: Union[np.ndarray, pd.Series],
         mean_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
-        number_transactions: Union[np.ndarray, pd.Series, TensorVariable],
+        frequency: Union[np.ndarray, pd.Series, TensorVariable],
         random_seed=None,
     ):
         """Return distribution of expected transaction value per customer, based on
         observed individual or mean transaction values"""
 
-        x = number_transactions
+        x = frequency
         z_mean = mean_transaction_value
 
         coords = {"customer_id": np.unique(customer_id)}
@@ -104,7 +104,7 @@ class GammaGammaModel(BaseGammaGammaModel):
         Customer labels. Must not repeat.
     mean_transaction_value: array_like
         Mean transaction value of each customer.
-    number_transactions: array_like
+    frequency: array_like
         Number of transactions observed for each customer.
     p_prior: scalar PyMC distribution, optional
         PyMC prior distribution, created via `.dist()` API. Defaults to
@@ -128,7 +128,7 @@ class GammaGammaModel(BaseGammaGammaModel):
             model = GammaGammaModel(
                 customer_id=[0, 1, 2, 3, ...],
                 mean_transactionn_value=[23.5, 19.3, 11.2, 100.5, ...],
-                number_transactions=[6, 8, 2, 1, ...],
+                frequency=[6, 8, 2, 1, ...],
                 p_prior=pm.HalfNormal.dist(10),
                 q_prior=pm.HalfNormal.dist(10),
                 v_prior=pm.HalfNormal.dist(10),
@@ -142,7 +142,7 @@ class GammaGammaModel(BaseGammaGammaModel):
             expected_customer_spend = model.expected_customer_spend(
                 customer_id=[4, 5, 6, 7, ...],
                 mean_transactionn_value=[2.3, 5.9, 221, 3.0, ...],
-                number_transactions=[3, 4, 6, 6, ...],
+                frequency=[3, 4, 6, 6, ...],
             )
             print(expected_customer_spend.mean("customer_id"))
 
@@ -166,7 +166,7 @@ class GammaGammaModel(BaseGammaGammaModel):
         self,
         customer_id: Union[np.ndarray, pd.Series],
         mean_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
-        number_transactions: Union[np.ndarray, pd.Series, TensorVariable],
+        frequency: Union[np.ndarray, pd.Series, TensorVariable],
         p_prior: Optional[TensorVariable] = None,
         q_prior: Optional[TensorVariable] = None,
         v_prior: Optional[TensorVariable] = None,
@@ -176,7 +176,7 @@ class GammaGammaModel(BaseGammaGammaModel):
         p_prior, q_prior, v_prior = self._process_priors(p_prior, q_prior, v_prior)
 
         z_mean = pt.as_tensor_variable(mean_transaction_value)
-        x = pt.as_tensor_variable(number_transactions)
+        x = pt.as_tensor_variable(frequency)
 
         coords = {"customer_id": np.unique(customer_id)}
         with pm.Model(coords=coords) as self.model:
@@ -324,6 +324,6 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         return super().expected_customer_spend(
             customer_id=customer_id,
             mean_transaction_value=z_mean,
-            number_transactions=x,
+            frequency=x,
             random_seed=random_seed,
         )

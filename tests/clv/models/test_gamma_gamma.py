@@ -56,7 +56,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         model = GammaGammaModel(
             customer_id=self.z_mean_idx,
             mean_transaction_value=self.z_mean,
-            number_transactions=self.z_mean_nobs,
+            frequency=self.z_mean_nobs,
             p_prior=p_prior,
             q_prior=q_prior,
             v_prior=v_prior,
@@ -92,7 +92,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         model = GammaGammaModel(
             customer_id=self.z_mean_idx,
             mean_transaction_value=self.z_mean,
-            number_transactions=self.z_mean_nobs,
+            frequency=self.z_mean_nobs,
         )
         model.fit(chains=2, progressbar=False, random_seed=self.rng)
         fit = model.fit_result.posterior
@@ -110,7 +110,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         model = GammaGammaModel(
             customer_id=self.z_mean_idx,
             mean_transaction_value=self.z_mean,
-            number_transactions=self.z_mean_nobs,
+            frequency=self.z_mean_nobs,
             # Narrow values
             p_prior=pm.Normal.dist(p_mean, 0.01),
             q_prior=pm.Normal.dist(q_mean, 0.01),
@@ -127,7 +127,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         preds = model.expected_customer_spend(
             customer_id=self.z_mean_idx,
             mean_transaction_value=self.z_mean,
-            number_transactions=1000,
+            frequency=1000,
             random_seed=self.rng,
         )
         assert preds.shape == (1, 1000, len(self.z_mean_idx))
@@ -141,7 +141,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             customer_id=self.z_mean_idx[:10],
             mean_transaction_value=self.z_mean[:10],
             # Force the posterior to be centered around the empirical mean
-            number_transactions=0,
+            frequency=0,
             random_seed=self.rng,
         )
         assert preds.shape == (1, 1000, 10)
@@ -167,7 +167,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         model = GammaGammaModel(
             customer_id=self.z_mean_idx,
             mean_transaction_value=self.z_mean,
-            number_transactions=self.z_mean_nobs,
+            frequency=self.z_mean_nobs,
             # Narrow values
             p_prior=pm.Normal.dist(p_mean, 0.01),
             q_prior=pm.Normal.dist(q_mean, 0.01),
@@ -200,7 +200,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         model = GammaGammaModel(
             customer_id=self.z_mean_idx,
             mean_transaction_value=self.z_mean,
-            number_transactions=self.z_mean_nobs,
+            frequency=self.z_mean_nobs,
             p_prior=pm.HalfNormal.dist(10),
         )
 
@@ -288,9 +288,7 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         np.testing.assert_array_equal(
             kwargs["mean_transaction_value"].values, self.z_mean
         )
-        np.testing.assert_array_equal(
-            kwargs["number_transactions"].values, self.z_mean_nobs
-        )
+        np.testing.assert_array_equal(kwargs["frequency"].values, self.z_mean_nobs)
         assert kwargs["random_seed"] == 123
 
     def test_model_repr(self):
