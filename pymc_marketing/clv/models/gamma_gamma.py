@@ -39,9 +39,9 @@ class BaseGammaGammaModel(CLVModel):
 
     def expected_customer_spend(
         self,
-        customer_id: Union[np.array, pd.Series],
-        mean_transaction_value: Union[np.array, pd.Series, TensorVariable],
-        number_transactions: Union[np.array, pd.Series, TensorVariable],
+        customer_id: Union[np.ndarray, pd.Series],
+        mean_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
+        number_transactions: Union[np.ndarray, pd.Series, TensorVariable],
         random_seed=None,
     ):
         """Return distribution of expected transaction value per customer, based on
@@ -167,9 +167,9 @@ class GammaGammaModel(BaseGammaGammaModel):
 
     def __init__(
         self,
-        customer_id: Union[np.array, pd.Series],
-        mean_transaction_value: Union[np.array, pd.Series, TensorVariable],
-        number_transactions: Union[np.array, pd.Series, TensorVariable],
+        customer_id: Union[np.ndarray, pd.Series],
+        mean_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
+        number_transactions: Union[np.ndarray, pd.Series, TensorVariable],
         p_prior: Optional[TensorVariable] = None,
         q_prior: Optional[TensorVariable] = None,
         v_prior: Optional[TensorVariable] = None,
@@ -281,8 +281,8 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
     def __init__(
         self,
-        customer_id: Union[np.array, pd.Series],
-        individual_transaction_value: Union[np.array, pd.Series, TensorVariable],
+        customer_id: Union[np.ndarray, pd.Series],
+        individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
         p_prior: Optional[TensorVariable] = None,
         q_prior: Optional[TensorVariable] = None,
         v_prior: Optional[TensorVariable] = None,
@@ -306,8 +306,8 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
     def expected_customer_spend(
         self,
-        customer_id: Union[np.array, pd.Series],
-        individual_transaction_value: Union[np.array, pd.Series, TensorVariable],
+        customer_id: Union[np.ndarray, pd.Series],
+        individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
         random_seed=None,
     ):
         """Return distribution of expected transaction value per customer, based on

@@ -104,10 +104,10 @@ class BetaGeoModel(CLVModel):
 
     def __init__(
         self,
-        customer_id: Union[np.array, pd.Series],
-        frequency: Union[np.array, pd.Series, TensorVariable],
-        recency: Union[np.array, pd.Series, TensorVariable],
-        T: Union[np.array, pd.Series, TensorVariable],
+        customer_id: Union[np.ndarray, pd.Series],
+        frequency: Union[np.ndarray, pd.Series, TensorVariable],
+        recency: Union[np.ndarray, pd.Series, TensorVariable],
+        T: Union[np.ndarray, pd.Series, TensorVariable],
         a_prior: Optional[TensorVariable] = None,
         b_prior: Optional[TensorVariable] = None,
         alpha_prior: Optional[TensorVariable] = None,
@@ -222,11 +222,11 @@ class BetaGeoModel(CLVModel):
     # taken from https://lifetimes.readthedocs.io/en/latest/lifetimes.fitters.html
     def expected_num_purchases(
         self,
-        customer_id: Union[np.array, pd.Series],
-        t: Union[np.array, pd.Series, TensorVariable],
-        frequency: Union[np.array, pd.Series, TensorVariable],
-        recency: Union[np.array, pd.Series, TensorVariable],
-        T: Union[np.array, pd.Series, TensorVariable],
+        customer_id: Union[np.ndarray, pd.Series],
+        t: Union[np.ndarray, pd.Series, TensorVariable],
+        frequency: Union[np.ndarray, pd.Series, TensorVariable],
+        recency: Union[np.ndarray, pd.Series, TensorVariable],
+        T: Union[np.ndarray, pd.Series, TensorVariable],
     ):
         r"""
         Given a purchase history/profile of :math:`x` and :math:`t_x` for an individual
@@ -276,10 +276,10 @@ class BetaGeoModel(CLVModel):
 
     def expected_probability_alive(
         self,
-        customer_id: Union[np.array, pd.Series],
-        frequency: Union[np.array, pd.Series, TensorVariable],
-        recency: Union[np.array, pd.Series, TensorVariable],
-        T: Union[np.array, pd.Series, TensorVariable],
+        customer_id: Union[np.ndarray, pd.Series],
+        frequency: Union[np.ndarray, pd.Series, TensorVariable],
+        recency: Union[np.ndarray, pd.Series, TensorVariable],
+        T: Union[np.ndarray, pd.Series, TensorVariable],
     ):
         r"""
         Posterior expected value of the probability of being alive at time T. The
@@ -310,8 +310,8 @@ class BetaGeoModel(CLVModel):
 
     def expected_num_purchases_new_customer(
         self,
-        customer_id: Union[np.array, pd.Series],
-        t: Union[np.array, pd.Series, TensorVariable],
+        customer_id: Union[np.ndarray, pd.Series],
+        t: Union[np.ndarray, pd.Series, TensorVariable],
     ):
         r"""
         Posterior expected number of purchases for any interval of length :math:`t`. See
