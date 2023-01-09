@@ -1,12 +1,13 @@
-from pymc_marketing.clv import distributions, models
-from pymc_marketing.clv.models.beta_geo import BetaGeoModel
-from pymc_marketing.clv.models.gamma_gamma import (
+from pymc_marketing.clv.models import (
+    BetaGeoModel,
     GammaGammaModel,
     GammaGammaModelIndividual,
 )
+from pymc_marketing.clv.utils import customer_lifetime_value
 
 __all__ = (
     "BetaGeoModel",
     "GammaGammaModel",
     "GammaGammaModelIndividual",
+    "customer_lifetime_value",
 )
