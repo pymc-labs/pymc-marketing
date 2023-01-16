@@ -5,7 +5,7 @@ from numpy.testing import assert_almost_equal
 from pymc import Model
 from pymc.tests.helpers import select_by_precision
 
-from pymc_marketing.clv.distributions import ContContract, ContNonContract
+from pymc_marketing.clv.distributions import ContContract, ContNonContract, ParetoNBD
 
 
 class TestContNonContract:
@@ -83,7 +83,7 @@ class TestContNonContract:
 
 class TestContContract:
     @pytest.mark.parametrize(
-        "value, lam, p, T, T0, logp",
+        "value, r, alpha, s, beta, T, T0, logp",
         [
             (np.array([6.3, 5, 1]), 0.3, 0.15, 12, 2, -10.45705972),
             (
@@ -154,3 +154,87 @@ class TestContContract:
             prior = pm.sample_prior_predictive(samples=100)
 
         assert prior["prior"]["cc"][0].shape == (100,) + expected_size
+
+
+class TestParetoNBD:
+    @pytest.mark.parametrize(
+        "value, r, alpha, s, beta, T, T0, logp",
+        [
+            (np.array([6.3, 5]), 0.55, 10.58, .61, 11.67, 12, 2, -8.39147106159807),
+            (
+                np.array([6.3, 5]),
+                np.array([0.55, 0.45]),
+                10.58,
+                .61,
+                11.67,
+                12,
+                2,
+                np.array([-9.15153637, -10.42037984]),
+            ),
+            (
+                np.array([[6.3, 5], [5.3, 4]]),
+                np.array([0.55, 0.45]),
+                10.58,
+                .61,
+                11.67,
+                12,
+                2,
+                np.array([-9.15153637, -8.57264195]),
+            ),
+            (
+                np.array([6.3, 5]),
+                0.55,
+                np.full((5, 3), 10.58),
+                .61,
+                11.67,
+                12,
+                2,
+                np.full(shape=(5, 3), fill_value=-9.15153637),
+            ),
+        ],
+    )
+    def test_pareto_nbd(self, value, r, alpha, s, beta, T, T0, logp):
+        with Model():
+            pareto_nbd = ParetoNBD("pareto_nbd", r=r, alpha=alpha, s=s, beta=beta, T=T, T0=T0)
+        pt = {"pareto_nbd": value}
+
+        assert_almost_equal(
+            pm.logp(pareto_nbd, value).eval(),
+            logp,
+            decimal=select_by_precision(float64=6, float32=2),
+            err_msg=str(pt),
+        )
+
+    def test_pareto_nbd_invalid(self):
+        pareto_nbd = ParetoNBD.dist(r=.55,alpha=10.58,s=.61,beta=11.67, T=10, T0=2)
+        assert pm.logp(pareto_nbd, np.array([-1, 3])).eval() == -np.inf
+        assert pm.logp(pareto_nbd, np.array([1.5, -1])).eval() == -np.inf
+        assert pm.logp(pareto_nbd, np.array([1.5, 0])).eval() == -np.inf
+        assert pm.logp(pareto_nbd, np.array([1.5, 11])).eval() == -np.inf
+        assert pm.logp(pareto_nbd, np.array([11, 3])).eval() == -np.inf
+
+    # TODO: test broadcasting of parameters, including T and T0
+    @pytest.mark.parametrize(
+        "r_size, alpha_size, s_size, beta_size, pareto_nbd_size, expected_size",
+        [
+            (None, None, None, None, None, (2,)),
+            ((5,), None, None, None, None, (5, 2)),
+            (None, (5,), None, None, (5,), (5, 2)),
+            (None, None, (5,1), (1, 3), (5, 3), (5, 3, 2)),
+            (None, None, None, None, (5, 3), (5, 3, 2)),
+        ],
+    )
+    def test_continuous_non_contractual_sample_prior(
+        self, r_size, alpha_size, s_size, beta_size, pareto_nbd_size, expected_size
+    ):
+        with Model():
+
+            r = pm.Gamma(name="r", alpha=1, beta=1, size=r_size)
+            alpha = pm.Gamma(name="alpha", alpha=1, beta=1, size=alpha_size)
+            s = pm.Gamma(name="s", alpha=1, beta=1, size=s_size)
+            beta = pm.Gamma(name="beta", alpha=1, beta=1, size=beta_size)
+
+            ParetoNBD(name="pareto_nbd", r=r, alpha=alpha, s=s, beta=beta, T=10, T0=2, size=pareto_nbd_size)
+            prior = pm.sample_prior_predictive(samples=100)
+
+        assert prior["prior"]["pareto_nbd"][0].shape == (100,) + expected_size
