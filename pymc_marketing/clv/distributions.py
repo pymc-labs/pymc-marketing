@@ -295,6 +295,7 @@ class ContContract(PositiveContinuous):
             msg="lam > 0, 0 <= p <= 1, T0 < T",
         )
 
+
 class ContNonContract(PositiveContinuous):
     r"""
     Individual-level model for the customer lifetime value. See equation (3)
@@ -390,7 +391,9 @@ class ParetoNBDRV(RandomVariable):
         T0 = np.asarray(T0)
 
         if size == ():
-            size = np.broadcast_shapes(r.shape, alpha.shape, s.shape, beta.shape, T.shape, T0.shape)
+            size = np.broadcast_shapes(
+                r.shape, alpha.shape, s.shape, beta.shape, T.shape, T0.shape
+            )
 
         r = np.broadcast_to(r, size)
         alpha = np.broadcast_to(alpha, size)
@@ -401,8 +404,8 @@ class ParetoNBDRV(RandomVariable):
 
         output = np.zeros(shape=size + (3,))
 
-        lam = rng.gamma(shape=r,scale=1/alpha,size=size)
-        mu = rng.gamma(shape=s,scale=1/beta,size=size)
+        lam = rng.gamma(shape=r, scale=1 / alpha, size=size)
+        mu = rng.gamma(shape=s, scale=1 / beta, size=size)
 
         def sim_data(lam, mu, T, T0):
             t = 0
@@ -411,7 +414,7 @@ class ParetoNBDRV(RandomVariable):
             dropout_time = rng.exponential(scale=1 / mu)
             wait = rng.exponential(scale=1 / lam)
 
-            while t + wait  < min(dropout_time, T):
+            while t + wait < min(dropout_time, T):
                 t += wait
                 n += 1
                 wait = rng.exponential(scale=1 / lam)
@@ -423,7 +426,7 @@ class ParetoNBDRV(RandomVariable):
                     dropout_time,
                 ],
             )
-    
+
         for index in np.ndindex(*size):
             output[index] = sim_data(lam[index], mu[index], T[index], T0[index])
 
@@ -463,34 +466,43 @@ class ParetoNBD(PositiveContinuous):
     def logp(value, r, alpha, s, beta, T, T0):
         t_x = value[..., 0]
         x = value[..., 1]
-        
-        age = T-T0
+
+        age = T - T0
         rec = t_x - T0
 
         # Term A0 swaps alpha and beta terms depending on which is larger
-        if alpha < beta:
-            min_of_alpha_beta, max_of_alpha_beta, t = (alpha, beta, r + x)
-        else:
-            min_of_alpha_beta, max_of_alpha_beta, t = (beta, alpha, s + 1)
+        min_of_alpha_beta, max_of_alpha_beta, t = pt.switch(
+            pt.lt(alpha, beta),
+            (alpha, beta, r + x),
+            (beta, alpha, s + 1),
+        )
+
         abs_alpha_beta = max_of_alpha_beta - min_of_alpha_beta
 
         r_s_x = r + s + x
 
-        p_1 = pt.hyp2f1(r_s_x, t, r_s_x + 1.0, abs_alpha_beta / (max_of_alpha_beta + rec))
-        q_1 = max_of_alpha_beta + recency
-        p_2 = pt.hyp2f1(r_s_x, t, r_s_x + 1.0, abs_alpha_beta / (max_of_alpha_beta + age))
+        p_1 = pt.hyp2f1(
+            r_s_x, t, r_s_x + 1.0, abs_alpha_beta / (max_of_alpha_beta + rec)
+        )
+        q_1 = max_of_alpha_beta + rec
+        p_2 = pt.hyp2f1(
+            r_s_x, t, r_s_x + 1.0, abs_alpha_beta / (max_of_alpha_beta + age)
+        )
         q_2 = max_of_alpha_beta + age
-        
-        # TODO: This will not converge properly because it must be subtracted rather than added!
-        log_A_0 = pt.logaddexp(pt.log(p_1) + r_s_x * pt.log(q_2), pt.log(p_2) + r_s_x * pt.log(q_1)) - r_s_x * pt.log(q_1 * q_2)
 
-        A_1 = gammaln(r + x) - gammaln(r) + r * log(alpha) + s * log(beta)
+        # TODO: This will not converge properly because it must be subtracted rather than added!
+        log_A_0 = pt.logaddexp(
+            pt.log(p_1) + r_s_x * pt.log(q_2), pt.log(p_2) + r_s_x * pt.log(q_1)
+        ) - r_s_x * pt.log(q_1 * q_2)
+
+        A_1 = pt.gammaln(r + x) - pt.gammaln(r) + r * pt.log(alpha) + s * pt.log(beta)
 
         A_2 = pt.logaddexp(
-            -(r + x) * log(alpha + age) - s * log(beta + age), log(s) + log_A_0 - log(r_s_x)
+            -(r + x) * pt.log(alpha + age) - s * pt.log(beta + age),
+            pt.log(s) + log_A_0 - pt.log(r_s_x),
         )
 
-        logp =  A_1 + A_2
+        logp = A_1 + A_2
 
         logp = pt.switch(
             pt.any(
@@ -510,7 +522,7 @@ class ParetoNBD(PositiveContinuous):
             r > 0,
             alpha > 0,
             s > 0,
-            beta > 0,            
+            beta > 0,
             pt.all(T0 < T),
             msg="r > 0, alpha > 0, s > 0, beta > 0, T0 < T",
         )

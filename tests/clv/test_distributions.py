@@ -160,12 +160,12 @@ class TestParetoNBD:
     @pytest.mark.parametrize(
         "value, r, alpha, s, beta, T, T0, logp",
         [
-            (np.array([6.3, 5]), 0.55, 10.58, .61, 11.67, 12, 2, -8.39147106159807),
+            (np.array([6.3, 5]), 0.55, 10.58, 0.61, 11.67, 12, 2, -8.39147106159807),
             (
                 np.array([6.3, 5]),
                 np.array([0.55, 0.45]),
                 10.58,
-                .61,
+                0.61,
                 11.67,
                 12,
                 2,
@@ -175,7 +175,7 @@ class TestParetoNBD:
                 np.array([[6.3, 5], [5.3, 4]]),
                 np.array([0.55, 0.45]),
                 10.58,
-                .61,
+                0.61,
                 11.67,
                 12,
                 2,
@@ -185,7 +185,7 @@ class TestParetoNBD:
                 np.array([6.3, 5]),
                 0.55,
                 np.full((5, 3), 10.58),
-                .61,
+                0.61,
                 11.67,
                 12,
                 2,
@@ -195,7 +195,9 @@ class TestParetoNBD:
     )
     def test_pareto_nbd(self, value, r, alpha, s, beta, T, T0, logp):
         with Model():
-            pareto_nbd = ParetoNBD("pareto_nbd", r=r, alpha=alpha, s=s, beta=beta, T=T, T0=T0)
+            pareto_nbd = ParetoNBD(
+                "pareto_nbd", r=r, alpha=alpha, s=s, beta=beta, T=T, T0=T0
+            )
         pt = {"pareto_nbd": value}
 
         assert_almost_equal(
@@ -206,7 +208,7 @@ class TestParetoNBD:
         )
 
     def test_pareto_nbd_invalid(self):
-        pareto_nbd = ParetoNBD.dist(r=.55,alpha=10.58,s=.61,beta=11.67, T=10, T0=2)
+        pareto_nbd = ParetoNBD.dist(r=0.55, alpha=10.58, s=0.61, beta=11.67, T=10, T0=2)
         assert pm.logp(pareto_nbd, np.array([-1, 3])).eval() == -np.inf
         assert pm.logp(pareto_nbd, np.array([1.5, -1])).eval() == -np.inf
         assert pm.logp(pareto_nbd, np.array([1.5, 0])).eval() == -np.inf
@@ -220,7 +222,7 @@ class TestParetoNBD:
             (None, None, None, None, None, (2,)),
             ((5,), None, None, None, None, (5, 2)),
             (None, (5,), None, None, (5,), (5, 2)),
-            (None, None, (5,1), (1, 3), (5, 3), (5, 3, 2)),
+            (None, None, (5, 1), (1, 3), (5, 3), (5, 3, 2)),
             (None, None, None, None, (5, 3), (5, 3, 2)),
         ],
     )
@@ -234,7 +236,16 @@ class TestParetoNBD:
             s = pm.Gamma(name="s", alpha=1, beta=1, size=s_size)
             beta = pm.Gamma(name="beta", alpha=1, beta=1, size=beta_size)
 
-            ParetoNBD(name="pareto_nbd", r=r, alpha=alpha, s=s, beta=beta, T=10, T0=2, size=pareto_nbd_size)
+            ParetoNBD(
+                name="pareto_nbd",
+                r=r,
+                alpha=alpha,
+                s=s,
+                beta=beta,
+                T=10,
+                T0=2,
+                size=pareto_nbd_size,
+            )
             prior = pm.sample_prior_predictive(samples=100)
 
         assert prior["prior"]["pareto_nbd"][0].shape == (100,) + expected_size
