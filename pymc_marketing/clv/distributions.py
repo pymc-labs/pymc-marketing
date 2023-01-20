@@ -402,7 +402,7 @@ class ParetoNBDRV(RandomVariable):
         T = np.broadcast_to(T, size)
         T0 = np.broadcast_to(T0, size)
 
-        output = np.zeros(shape=size + (3,))
+        output = np.zeros(shape=size + (2,))
 
         lam = rng.gamma(shape=r, scale=1 / alpha, size=size)
         mu = rng.gamma(shape=s, scale=1 / beta, size=size)
@@ -423,7 +423,6 @@ class ParetoNBDRV(RandomVariable):
                 [
                     t,
                     n,
-                    dropout_time,
                 ],
             )
 
@@ -510,7 +509,6 @@ class ParetoNBD(PositiveContinuous):
                     pt.lt(t_x, T0),
                     pt.lt(x, 0),
                     pt.gt(t_x, T),
-                    pt.gt(x, T),
                 ),
             ),
             -np.inf,
