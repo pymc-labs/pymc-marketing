@@ -364,22 +364,25 @@ class ContNonContract(PositiveContinuous):
 class ParetoNBDRV(RandomVariable):
     name = "pareto_nbd"
     ndim_supp = 1
-    ndims_params = [0, 0, 0, 0, 0, 0]
+    ndims_params = [0, 0, 0, 0, 0]
     dtype = "floatX"
     _print_name = ("ParetoNBD", "\\operatorname{ParetoNBD}")
 
-    def make_node(self, rng, size, dtype, r, alpha, s, beta, T, T0):
+    def make_node(self, rng, size, dtype, r, alpha, s, beta, T):
 
+        r = pt.as_tensor_variable(r)
+        alpha = pt.as_tensor_variable(alpha)
+        s = pt.as_tensor_variable(s)
+        beta = pt.as_tensor_variable(beta)
         T = pt.as_tensor_variable(T)
-        T0 = pt.as_tensor_variable(T0)
 
-        return super().make_node(rng, size, dtype, r, alpha, s, beta, T, T0)
+        return super().make_node(rng, size, dtype, r, alpha, s, beta, T)
 
-    def __call__(self, r, alpha, s, beta, T, T0=0, size=None, **kwargs):
-        return super().__call__(r, alpha, s, beta, T, T0, size=size, **kwargs)
+    def __call__(self, r, alpha, s, beta, T, size=None, **kwargs):
+        return super().__call__(r, alpha, s, beta, T, size=size, **kwargs)
 
     @classmethod
-    def rng_fn(cls, rng, r, alpha, s, beta, T, T0, size) -> np.array:
+    def rng_fn(cls, rng, r, alpha, s, beta, T, size) -> np.array:
 
         size = pm.distributions.shape_utils.to_tuple(size)
 
@@ -388,11 +391,10 @@ class ParetoNBDRV(RandomVariable):
         s = np.asarray(s)
         beta = np.asarray(beta)
         T = np.asarray(T)
-        T0 = np.asarray(T0)
 
         if size == ():
             size = np.broadcast_shapes(
-                r.shape, alpha.shape, s.shape, beta.shape, T.shape, T0.shape
+                r.shape, alpha.shape, s.shape, beta.shape, T.shape
             )
 
         r = np.broadcast_to(r, size)
@@ -400,19 +402,18 @@ class ParetoNBDRV(RandomVariable):
         s = np.broadcast_to(s, size)
         beta = np.broadcast_to(beta, size)
         T = np.broadcast_to(T, size)
-        T0 = np.broadcast_to(T0, size)
 
         output = np.zeros(shape=size + (2,))
 
-        lam = rng.gamma(shape=r, scale=1 / alpha, size=size)
-        mu = rng.gamma(shape=s, scale=1 / beta, size=size)
+        lam = rng.gamma(shape=r, scale=1 / (alpha + 10e-8), size=size)
+        mu = rng.gamma(shape=s, scale=1 / (beta + 10e-8), size=size)
 
-        def sim_data(lam, mu, T, T0):
+        def sim_data(lam, mu, T):
             t = 0
             n = 0
 
-            dropout_time = rng.exponential(scale=1 / mu)
-            wait = rng.exponential(scale=1 / lam)
+            dropout_time = rng.exponential(scale=1 / (mu + 10e-8))
+            wait = rng.exponential(scale=1 / (lam + 10e-8))
 
             while t + wait < min(dropout_time, T):
                 t += wait
@@ -421,18 +422,18 @@ class ParetoNBDRV(RandomVariable):
 
             return np.array(
                 [
-                    t,
                     n,
+                    t,
                 ],
             )
 
         for index in np.ndindex(*size):
-            output[index] = sim_data(lam[index], mu[index], T[index], T0[index])
+            output[index] = sim_data(lam[index], mu[index], T[index])
 
         return output
 
     def _supp_shape_from_params(*args, **kwargs):
-        return (3,)
+        return (2,)
 
 
 pareto_nbd = ParetoNBDRV()
@@ -459,18 +460,15 @@ class ParetoNBD(PositiveContinuous):
     rv_op = pareto_nbd
 
     @classmethod
-    def dist(cls, r, alpha, s, beta, T, T0, **kwargs):
-        return super().dist([r, alpha, s, beta, T, T0], **kwargs)
+    def dist(cls, r, alpha, s, beta, **kwargs):
+        return super().dist([r, alpha, s, beta], **kwargs)
 
-    def logp(value, r, alpha, s, beta, T, T0):
-        t_x = value[..., 0]
-        x = value[..., 1]
-
-        age = T - T0
-        rec = t_x - T0
+    def logp(value, r, alpha, s, beta, T):
+        x = value[..., 0]
+        t_x = value[..., 1]
 
         # Term A0 swaps alpha and beta terms depending on which is larger
-        min_of_alpha_beta, max_of_alpha_beta, t = pt.switch(
+        min_of_alpha_beta, max_of_alpha_beta, hyp2f1_term = pt.switch(
             pt.lt(alpha, beta),
             (alpha, beta, r + x),
             (beta, alpha, s + 1),
@@ -481,13 +479,13 @@ class ParetoNBD(PositiveContinuous):
         r_s_x = r + s + x
 
         p_1 = pt.hyp2f1(
-            r_s_x, t, r_s_x + 1.0, abs_alpha_beta / (max_of_alpha_beta + rec)
+            r_s_x, hyp2f1_term, r_s_x + 1.0, abs_alpha_beta / (max_of_alpha_beta + t_x)
         )
-        q_1 = max_of_alpha_beta + rec
+        q_1 = max_of_alpha_beta + t_x
         p_2 = pt.hyp2f1(
-            r_s_x, t, r_s_x + 1.0, abs_alpha_beta / (max_of_alpha_beta + age)
+            r_s_x, hyp2f1_term, r_s_x + 1.0, abs_alpha_beta / (max_of_alpha_beta + T)
         )
-        q_2 = max_of_alpha_beta + age
+        q_2 = max_of_alpha_beta + T
 
         # TODO: This will not converge properly because it must be subtracted rather than added!
         log_A_0 = pt.logaddexp(
@@ -497,7 +495,7 @@ class ParetoNBD(PositiveContinuous):
         A_1 = pt.gammaln(r + x) - pt.gammaln(r) + r * pt.log(alpha) + s * pt.log(beta)
 
         A_2 = pt.logaddexp(
-            -(r + x) * pt.log(alpha + age) - s * pt.log(beta + age),
+            -(r + x) * pt.log(alpha + T) - s * pt.log(beta + T),
             pt.log(s) + log_A_0 - pt.log(r_s_x),
         )
 
@@ -506,7 +504,7 @@ class ParetoNBD(PositiveContinuous):
         logp = pt.switch(
             pt.any(
                 (
-                    pt.lt(t_x, T0),
+                    pt.lt(t_x, 0),
                     pt.lt(x, 0),
                     pt.gt(t_x, T),
                 ),
@@ -521,6 +519,5 @@ class ParetoNBD(PositiveContinuous):
             alpha > 0,
             s > 0,
             beta > 0,
-            pt.all(T0 < T),
-            msg="r > 0, alpha > 0, s > 0, beta > 0, T0 < T",
+            msg="r > 0, alpha > 0, s > 0, beta > 0",
         )

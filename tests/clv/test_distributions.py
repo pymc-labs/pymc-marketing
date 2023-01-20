@@ -83,7 +83,7 @@ class TestContNonContract:
 
 class TestContContract:
     @pytest.mark.parametrize(
-        "value, r, alpha, s, beta, T, T0, logp",
+        "value, lam, p, T, T0, logp",
         [
             (np.array([6.3, 5, 1]), 0.3, 0.15, 12, 2, -10.45705972),
             (
@@ -158,45 +158,33 @@ class TestContContract:
 
 class TestParetoNBD:
     @pytest.mark.parametrize(
-        "value, r, alpha, s, beta, T, T0, logp",
+        "value, r, alpha, s, beta, T, logp",
         [
-            (np.array([6.3, 5]), 0.55, 10.58, 0.61, 11.67, 12, 2, -8.39147106159807),
+            (np.array([6.3, 5]), 0.55, 10.58, 0.61, 11.67, 12, -13.834517),
             (
                 np.array([6.3, 5]),
-                np.array([0.55, 0.45]),
+                0.45,
                 10.58,
                 0.61,
                 11.67,
                 12,
-                2,
-                np.array([-9.15153637, -10.42037984]),
-            ),
-            (
-                np.array([[6.3, 5], [5.3, 4]]),
-                np.array([0.55, 0.45]),
-                10.58,
-                0.61,
-                11.67,
-                12,
-                2,
-                np.array([-9.15153637, -8.57264195]),
+                -14.151817,
             ),
             (
                 np.array([6.3, 5]),
                 0.55,
-                np.full((5, 3), 10.58),
-                0.61,
+                10.58,
+                0.71,
                 11.67,
                 12,
-                2,
-                np.full(shape=(5, 3), fill_value=-9.15153637),
+                -13.80449,
             ),
         ],
     )
-    def test_pareto_nbd(self, value, r, alpha, s, beta, T, T0, logp):
+    def test_pareto_nbd(self, value, r, alpha, s, beta, T, logp):
         with Model():
             pareto_nbd = ParetoNBD(
-                "pareto_nbd", r=r, alpha=alpha, s=s, beta=beta, T=T, T0=T0
+                "pareto_nbd", r=r, alpha=alpha, s=s, beta=beta, T=T
             )
         pt = {"pareto_nbd": value}
 
@@ -208,14 +196,11 @@ class TestParetoNBD:
         )
 
     def test_pareto_nbd_invalid(self):
-        pareto_nbd = ParetoNBD.dist(r=0.55, alpha=10.58, s=0.61, beta=11.67, T=10, T0=2)
+        pareto_nbd = ParetoNBD.dist(r=0.55, alpha=10.58, s=0.61, beta=11.67, T=10)
         assert pm.logp(pareto_nbd, np.array([-1, 3])).eval() == -np.inf
         assert pm.logp(pareto_nbd, np.array([1.5, -1])).eval() == -np.inf
-        assert pm.logp(pareto_nbd, np.array([1.5, 0])).eval() == -np.inf
         assert pm.logp(pareto_nbd, np.array([1.5, 11])).eval() == -np.inf
-        assert pm.logp(pareto_nbd, np.array([11, 3])).eval() == -np.inf
 
-    # TODO: test broadcasting of parameters, including T and T0
     @pytest.mark.parametrize(
         "r_size, alpha_size, s_size, beta_size, pareto_nbd_size, expected_size",
         [
@@ -226,7 +211,7 @@ class TestParetoNBD:
             (None, None, None, None, (5, 3), (5, 3, 2)),
         ],
     )
-    def test_continuous_non_contractual_sample_prior(
+    def test_pareto_nbd_sample_prior(
         self, r_size, alpha_size, s_size, beta_size, pareto_nbd_size, expected_size
     ):
         with Model():
@@ -236,14 +221,15 @@ class TestParetoNBD:
             s = pm.Gamma(name="s", alpha=1, beta=1, size=s_size)
             beta = pm.Gamma(name="beta", alpha=1, beta=1, size=beta_size)
 
+            T = pm.MutableData(name = "T", value = np.array(10))
+
             ParetoNBD(
                 name="pareto_nbd",
                 r=r,
                 alpha=alpha,
                 s=s,
                 beta=beta,
-                T=10,
-                T0=2,
+                T=T,
                 size=pareto_nbd_size,
             )
             prior = pm.sample_prior_predictive(samples=100)
