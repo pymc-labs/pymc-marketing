@@ -160,7 +160,7 @@ class TestParetoNBD:
     @pytest.mark.parametrize(
         "value, r, alpha, s, beta, T, logp",
         [
-            (np.array([6.3, 5]), 0.55, 10.58, 0.61, 11.67, 12, -13.834517),
+            (np.array([6.3, 5]), 0.55, 10.58, 0.61, 11.67, 12, 27.06462),
             (
                 np.array([6.3, 5]),
                 0.45,
@@ -168,7 +168,7 @@ class TestParetoNBD:
                 0.61,
                 11.67,
                 12,
-                -14.151817,
+                26.196219,
             ),
             (
                 np.array([6.3, 5]),
@@ -177,7 +177,7 @@ class TestParetoNBD:
                 0.71,
                 11.67,
                 12,
-                -13.80449,
+                27.640976,
             ),
         ],
     )

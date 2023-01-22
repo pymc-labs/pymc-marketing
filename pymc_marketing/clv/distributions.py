@@ -462,44 +462,36 @@ class ParetoNBD(PositiveContinuous):
     @classmethod
     def dist(cls, r, alpha, s, beta, **kwargs):
         return super().dist([r, alpha, s, beta], **kwargs)
-
+    
     def logp(value, r, alpha, s, beta, T):
         x = value[..., 0]
         t_x = value[..., 1]
 
-        # Term A0 swaps alpha and beta terms depending on which is larger
-        min_of_alpha_beta, max_of_alpha_beta, hyp2f1_term = pt.switch(
-            pt.lt(alpha, beta),
-            (alpha, beta, r + x),
-            (beta, alpha, s + 1),
-        )
+        rsx = r+s+x
+        rx = r+x
 
-        abs_alpha_beta = max_of_alpha_beta - min_of_alpha_beta
+        if pt.gt(alpha, beta):
+            gt_param = alpha
+            param_diff = alpha-beta
+            hyp2f1_param1 = s+1
+            hyp2f1_param2 = s
+        else:
+            gt_param = beta
+            param_diff = beta-alpha
+            hyp2f1_param1 = r+x
+            hyp2f1_param2 = r+x+1
 
-        r_s_x = r + s + x
+        # This term is factored out of the denominator of hyp2f_t1 for numerical stability
+        refactored_term = rsx*pt.log(gt_param+t_x)
 
-        p_1 = pt.hyp2f1(
-            r_s_x, hyp2f1_term, r_s_x + 1.0, abs_alpha_beta / (max_of_alpha_beta + t_x)
-        )
-        q_1 = max_of_alpha_beta + t_x
-        p_2 = pt.hyp2f1(
-            r_s_x, hyp2f1_term, r_s_x + 1.0, abs_alpha_beta / (max_of_alpha_beta + T)
-        )
-        q_2 = max_of_alpha_beta + T
+        hyp2f1_t1 = pt.log(pt.hyp2f1(rsx,hyp2f1_param1,rsx+1,(param_diff)/(gt_param+t_x)))
+        hyp2f1_t2 = pt.log(pt.hyp2f1(rsx,hyp2f1_param2,rsx+1,(param_diff)/(gt_param+T)))-rsx*pt.log(gt_param+T)+refactored_term
 
-        # TODO: This will not converge properly because it must be subtracted rather than added!
-        log_A_0 = pt.logaddexp(
-            pt.log(p_1) + r_s_x * pt.log(q_2), pt.log(p_2) + r_s_x * pt.log(q_1)
-        ) - r_s_x * pt.log(q_1 * q_2)
+        A1 = pt.gammaln(rx) - pt.gammaln(r) + r * pt.log(gt_param) + s * pt.log(beta) + refactored_term
+        A2 = pt.log(s) - pt.log(rsx) + hyp2f1_t1
+        A3 = pt.log(rx) - pt.log(rsx) + hyp2f1_t2
 
-        A_1 = pt.gammaln(r + x) - pt.gammaln(r) + r * pt.log(alpha) + s * pt.log(beta)
-
-        A_2 = pt.logaddexp(
-            -(r + x) * pt.log(alpha + T) - s * pt.log(beta + T),
-            pt.log(s) + log_A_0 - pt.log(r_s_x),
-        )
-
-        logp = A_1 + A_2
+        logp = A1 + pt.logaddexp(A2,A3)
 
         logp = pt.switch(
             pt.any(
