@@ -296,71 +296,6 @@ class ContContract(PositiveContinuous):
         )
 
 
-class ContNonContract(PositiveContinuous):
-    r"""
-    Individual-level model for the customer lifetime value. See equation (3)
-    from Fader et al. (2005) [1]_.
-
-    .. math::
-
-        f(\lambda, p | x, t_1, \dots, t_x, T)
-        = f(\lambda, p | t_x, T) = (1 - p)^x \lambda^x \exp(-\lambda T)
-          + \delta_{x > 0} p (1 - p)^{x-1} \lambda^x \exp(-\lambda t_x)
-
-    ========  ===============================================
-    Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
-    Mean      :math:`\mathbb{E}[X(t) | \lambda, p] = \frac{1}{p} - \frac{1}{p}\exp\left(-\lambda p \min(t, T)\right)`
-    ========  ===============================================
-
-    References
-    ----------
-    .. [1] Fader, Peter S., Bruce GS Hardie, and Ka Lok Lee. "“Counting your customers”
-           the easy way: An alternative to the Pareto/NBD model." Marketing science
-           24.2 (2005): 275-284.
-    """
-    rv_op = continuous_non_contractual
-
-    @classmethod
-    def dist(cls, lam, p, T, T0=0, **kwargs):
-        return super().dist([lam, p, T, T0], **kwargs)
-
-    def logp(value, lam, p, T, T0):
-        t_x = value[..., 0]
-        x = value[..., 1]
-
-        zero_observations = pt.eq(x, 0)
-
-        A = x * pt.log(1 - p) + x * pt.log(lam) - lam * (T - T0)
-        B = pt.log(p) + (x - 1) * pt.log(1 - p) + x * pt.log(lam) - lam * (t_x - T0)
-
-        logp = pt.switch(
-            zero_observations,
-            A,
-            pt.logaddexp(A, B),
-        )
-
-        logp = pt.switch(
-            pt.any(
-                (
-                    pt.lt(t_x, T0),
-                    pt.lt(x, 0),
-                    pt.gt(t_x, T),
-                ),
-            ),
-            -np.inf,
-            logp,
-        )
-
-        return check_parameters(
-            logp,
-            lam > 0,
-            0 <= p,
-            p <= 1,
-            pt.all(T0 < T),
-            msg="lam > 0, 0 <= p <= 1, T0 < T",
-        )
-
-
 class ParetoNBDRV(RandomVariable):
     name = "pareto_nbd"
     ndim_supp = 1
@@ -441,21 +376,42 @@ pareto_nbd = ParetoNBDRV()
 
 class ParetoNBD(PositiveContinuous):
     r"""
-    Distribution class for a continuous, non-contractual, Pareto/NBD population.
-    The Pareto/NBD model assumes transaction rates and lifetimes are both exponentially distributed,
-    with heterogeneity following a gamma distribution.
+    Population-level distribution class for a continuous, non-contractual, Pareto/NBD process, 
+    based on Schmittlein, et al. in [2]_.
+
+    The likelihood function is derived from equations (22) and (23) of [3]_, with terms rearranged for numerical stability.
+    The modified expression is provided below:   
 
     .. math::
-
-        L(r, \alpha, s, \beta | x, t_x, T)
-        = f(\lambda, p | t_x, T) = (1 - p)^{x-1} \lambda^x \exp(-\lambda t_x)
-        p^d \left\{(1-p)\exp(-\lambda*(T - t_x))\right\}^{1 - d}
+        `if \alpha > \beta: \\\\
+        \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) \\
+        = \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\alpha +t_x)^{r+s+x}}
+        [(\frac{s}{r+s+x})_2F_1(r+s+x,s+1;r+s+x+1;\frac{\alpha-\beta}{\alpha+t_x})\\
+        + (\frac{r+x}{r+s+x})
+        \frac{_2F_1(r+s+x,s;r+s+x+1;\frac{\alpha-\beta}{\alpha+T})(\alpha +t_x)^{r+s+x}}
+        {(\alpha +T)^{r+s+x}}] \\\\
+        if \beta >= \alpha: \\\\
+        \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) \\
+        = \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\beta +t_x)^{r+s+x}}
+        [(\frac{s}{r+s+x})_2F_1(r+s+x,r+x;r+s+x+1;\frac{\beta-\alpha}{\beta+t_x})\\
+        + (\frac{r+x}{r+s+x})
+        \frac{_2F_1(r+s+x,r+x+1;r+s+x+1;\frac{\beta-\alpha}{\beta+T})(\beta +t_x)^{r+s+x}}
+        {(\beta +T)^{r+s+x}}]
+        `
 
     ========  ===============================================
     Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
-    Mean      :math:`\mathbb{E}[X(t) | \lambda, p, d] = \frac{1}{p} - \frac{1}{p}\exp\left(-\lambda p \min(t, T)\right)`
+    Mean      :math:`\mathbb{E}[X(t) | r, \alpha, s, \beta] = \frac{r\beta}{\alpha(s-1)}[1-(\frac{\beta}{\beta + t})^{s-1}]`
     ========  ===============================================
 
+    References
+    ----------
+    .. [2] David C. Schmittlein, Donald G. Morrison and Richard Colombo
+       Management Science,Vol. 33, No. 1 (Jan., 1987), pp. 1-24
+      "Counting Your Customers: Who Are They and What Will They Do Next,"
+    
+    .. [3] Fader, Peter & G. S. Hardie, Bruce (2005).
+        `"A Note on Deriving the Pareto/NBD Model and Related Expressions."<http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf>`__
     """
     rv_op = pareto_nbd
 
