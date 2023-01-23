@@ -12,8 +12,8 @@ class CLVModelTest(CLVModel):
 
     def __init__(self):
         super().__init__()
-        with pm.Model() as self.model:
-            x = pm.Normal("x", 100)
+        with pm.Model(coords={"test_x_dim": [99]}) as self.model:
+            x = pm.HalfNormal("x", 100, dims=("test_x_dim",))
             pm.Normal("y", x, observed=[1, 3, 3, 3, 5])
 
 
@@ -35,6 +35,16 @@ class TestCLVModel:
         assert len(idata.posterior.draw) == 10
         assert model.fit_result is idata
 
+    def test_fit_MAP(self):
+        model = CLVModelTest()
+
+        idata = model.fit(fitting_method="map")
+        assert isinstance(idata, InferenceData)
+        assert len(idata.posterior.chain) == 1
+        assert len(idata.posterior.draw) == 1
+        assert idata.posterior["x"].dims == ("chain", "draw", "test_x_dim")
+        assert model.fit_result is idata
+
     @patch("arviz.summary", return_value="fake_summary")
     def test_fit_summary(self, dummy_summary):
         model = CLVModelTest()
@@ -44,4 +54,4 @@ class TestCLVModel:
 
     def test_repr(self):
         model = CLVModelTest()
-        assert model.__repr__() == "CLVModelTest\nx ~ N(100, 1)\ny ~ N(x, 1)"
+        assert model.__repr__() == "CLVModelTest\nx ~ N**+(0, 100)\ny ~ N(x, 1)"
