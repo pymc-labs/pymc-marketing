@@ -169,7 +169,7 @@ def test_customer_lifetime_value_gg_with_bgf(test_summary_data, fitted_gg, fitte
     ggf_clv = fitted_gg.expected_customer_lifetime_value(
         transaction_model=fitted_bg,
         customer_id=t.index,
-        number_transactions=t["frequency"],
+        frequency=t["frequency"],
         recency=t["recency"],
         T=t["T"],
         mean_transaction_value=t["monetary_value"],
@@ -184,7 +184,7 @@ def test_customer_lifetime_value_gg_with_bgf(test_summary_data, fitted_gg, fitte
         monetary_value=fitted_gg.expected_customer_spend(
             t.index,
             mean_transaction_value=t["monetary_value"],
-            number_transactions=t["frequency"],
+            frequency=t["frequency"],
         ),
     )
     np.testing.assert_equal(ggf_clv.values, utils_clv.values)

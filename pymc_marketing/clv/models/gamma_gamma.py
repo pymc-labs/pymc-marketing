@@ -72,7 +72,7 @@ class BaseGammaGammaModel(CLVModel):
         self,
         customer_id: Union[np.ndarray, pd.Series],
         mean_transaction_value: Union[np.ndarray, pd.Series],
-        number_transactions: Union[np.ndarray, pd.Series],
+        frequency: Union[np.ndarray, pd.Series],
     ) -> xarray.DataArray:
         """Expected transaction value per customer
 
@@ -81,15 +81,15 @@ class BaseGammaGammaModel(CLVModel):
         Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117  # noqa: E501
         """
 
-        mean_transaction_value, number_transactions = to_xarray(
-            customer_id, mean_transaction_value, number_transactions
+        mean_transaction_value, frequency = to_xarray(
+            customer_id, mean_transaction_value, frequency
         )
 
         p = self.fit_result.posterior["p"]
         q = self.fit_result.posterior["q"]
         v = self.fit_result.posterior["v"]
 
-        individual_weight = p * number_transactions / (p * number_transactions + q - 1)
+        individual_weight = p * frequency / (p * frequency + q - 1)
         population_mean = v * p / (q - 1)
         return (
             1 - individual_weight
@@ -134,7 +134,7 @@ class BaseGammaGammaModel(CLVModel):
         transaction_model: CLVModel,
         customer_id: Union[np.ndarray, pd.Series],
         mean_transaction_value: Union[np.ndarray, pd.Series],
-        number_transactions: Union[np.ndarray, pd.Series],
+        frequency: Union[np.ndarray, pd.Series],
         recency: Union[np.ndarray, pd.Series],
         T: Union[np.ndarray, pd.Series],
         time: int = 12,
@@ -147,13 +147,13 @@ class BaseGammaGammaModel(CLVModel):
         adjusted_monetary_value = self.expected_customer_spend(
             customer_id=customer_id,
             mean_transaction_value=mean_transaction_value,
-            number_transactions=number_transactions,
+            frequency=frequency,
         )
 
         return customer_lifetime_value(
             transaction_model=transaction_model,
             customer_id=customer_id,
-            frequency=number_transactions,
+            frequency=frequency,
             recency=recency,
             T=T,
             monetary_value=adjusted_monetary_value,
@@ -408,7 +408,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         return super().distribution_customer_spend(
             customer_id=customer_id,
             mean_transaction_value=z_mean,
-            number_transactions=x,
+            frequency=x,
             random_seed=random_seed,
         )
 
