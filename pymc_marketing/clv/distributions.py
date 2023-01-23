@@ -441,13 +441,13 @@ pareto_nbd = ParetoNBDRV()
 
 class ParetoNBD(PositiveContinuous):
     r"""
-    Distribution class for a continuous, non-contractual, Pareto/NBD data-generating process.
+    Distribution class for a continuous, non-contractual, Pareto/NBD population.
     The Pareto/NBD model assumes transaction rates and lifetimes are both exponentially distributed,
     with heterogeneity following a gamma distribution.
 
     .. math::
 
-        f(\lambda, p | d, x, t_1, \dots, t_x, T)
+        L(r, \alpha, s, \beta | x, t_x, T)
         = f(\lambda, p | t_x, T) = (1 - p)^{x-1} \lambda^x \exp(-\lambda t_x)
         p^d \left\{(1-p)\exp(-\lambda*(T - t_x))\right\}^{1 - d}
 
@@ -462,36 +462,50 @@ class ParetoNBD(PositiveContinuous):
     @classmethod
     def dist(cls, r, alpha, s, beta, **kwargs):
         return super().dist([r, alpha, s, beta], **kwargs)
-    
+
     def logp(value, r, alpha, s, beta, T):
         x = value[..., 0]
         t_x = value[..., 1]
 
-        rsx = r+s+x
-        rx = r+x
+        rsx = r + s + x
+        rx = r + x
 
         if pt.gt(alpha, beta):
             gt_param = alpha
-            param_diff = alpha-beta
-            hyp2f1_param1 = s+1
+            param_diff = alpha - beta
+            hyp2f1_param1 = s + 1
             hyp2f1_param2 = s
         else:
             gt_param = beta
-            param_diff = beta-alpha
-            hyp2f1_param1 = r+x
-            hyp2f1_param2 = r+x+1
+            param_diff = beta - alpha
+            hyp2f1_param1 = rx
+            hyp2f1_param2 = rx + 1
 
         # This term is factored out of the denominator of hyp2f_t1 for numerical stability
-        refactored_term = rsx*pt.log(gt_param+t_x)
+        refactored_term = rsx * pt.log(gt_param + t_x)
 
-        hyp2f1_t1 = pt.log(pt.hyp2f1(rsx,hyp2f1_param1,rsx+1,(param_diff)/(gt_param+t_x)))
-        hyp2f1_t2 = pt.log(pt.hyp2f1(rsx,hyp2f1_param2,rsx+1,(param_diff)/(gt_param+T)))-rsx*pt.log(gt_param+T)+refactored_term
+        hyp2f1_t1 = pt.log(
+            pt.hyp2f1(rsx, hyp2f1_param1, rsx + 1, (param_diff) / (gt_param + t_x))
+        )
+        hyp2f1_t2 = (
+            pt.log(
+                pt.hyp2f1(rsx, hyp2f1_param2, rsx + 1, (param_diff) / (gt_param + T))
+            )
+            - rsx * pt.log(gt_param + T)
+            + refactored_term
+        )
 
-        A1 = pt.gammaln(rx) - pt.gammaln(r) + r * pt.log(gt_param) + s * pt.log(beta) + refactored_term
+        A1 = (
+            pt.gammaln(rx)
+            - pt.gammaln(r)
+            + r * pt.log(gt_param)
+            + s * pt.log(beta)
+            - refactored_term
+        )
         A2 = pt.log(s) - pt.log(rsx) + hyp2f1_t1
         A3 = pt.log(rx) - pt.log(rsx) + hyp2f1_t2
 
-        logp = A1 + pt.logaddexp(A2,A3)
+        logp = A1 + pt.logaddexp(A2, A3)
 
         logp = pt.switch(
             pt.any(
