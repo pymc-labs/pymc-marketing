@@ -6,7 +6,6 @@ addopts = [
     "-v",
     "--strict-markers",
     "--strict-config",
-    "--cov=mmm",
-    "--cov=pymmmc",
+    "--cov=pymc_marketing",
 ]
 testpaths = "tests"
