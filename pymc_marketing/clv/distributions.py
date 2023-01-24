@@ -384,8 +384,7 @@ class ParetoNBD(PositiveContinuous):
 
     .. math::
     
-        \begin{align*}
-        \text{if }{\alpha > \beta:} \\\\
+        \text{if }\alpha > \beta: \\\\
 
         \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) \\
         = \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\alpha +t_x)^{r+s+x}}
@@ -394,7 +393,7 @@ class ParetoNBD(PositiveContinuous):
         \frac{_2F_1(r+s+x,s;r+s+x+1;\frac{\alpha-\beta}{\alpha+T})(\alpha +t_x)^{r+s+x}}
         {(\alpha +T)^{r+s+x}}] \\\\
 
-        \text{if }{\beta >= \alpha:} \\\\
+        \text{if }\beta >= \alpha: \\\\
 
         \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) \\
         = \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\beta +t_x)^{r+s+x}}
@@ -402,7 +401,6 @@ class ParetoNBD(PositiveContinuous):
         + (\frac{r+x}{r+s+x})
         \frac{_2F_1(r+s+x,r+x+1;r+s+x+1;\frac{\beta-\alpha}{\beta+T})(\beta +t_x)^{r+s+x}}
         {(\beta +T)^{r+s+x}}]
-        \end{align*}
 
     ========  ===============================================
     Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
