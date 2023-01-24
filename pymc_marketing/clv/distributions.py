@@ -384,27 +384,27 @@ class ParetoNBD(PositiveContinuous):
 
     .. math::
 
-        \begin{flalign*}
+        \begin{eqnarray}
 
-        \text{if }\alpha > \beta: \\\\
+        \text{if }\alpha > \beta: \nonumber\\\\
 
         \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) &=
         \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\alpha +t_x)^{r+s+x}}
-        [(\frac{s}{r+s+x})_2F_1(r+s+x,s+1;r+s+x+1;\frac{\alpha-\beta}{\alpha+t_x}) &\\
+        [(\frac{s}{r+s+x})_2F_1(r+s+x,s+1;r+s+x+1;\frac{\alpha-\beta}{\alpha+t_x}) \nonumber\\
         &+ (\frac{r+x}{r+s+x})
         \frac{_2F_1(r+s+x,s;r+s+x+1;\frac{\alpha-\beta}{\alpha+T})(\alpha +t_x)^{r+s+x}}
         {(\alpha +T)^{r+s+x}}] \\\\
 
-        \text{if }\beta >= \alpha: \\\\
+        \text{if }\beta >= \alpha: \nonumber\\\\
 
         \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) &=
         \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\beta +t_x)^{r+s+x}}
-        [(\frac{s}{r+s+x})_2F_1(r+s+x,r+x;r+s+x+1;\frac{\beta-\alpha}{\beta+t_x}) &\\
+        [(\frac{s}{r+s+x})_2F_1(r+s+x,r+x;r+s+x+1;\frac{\beta-\alpha}{\beta+t_x}) \nonumber\\
         &+ (\frac{r+x}{r+s+x})
         \frac{_2F_1(r+s+x,r+x+1;r+s+x+1;\frac{\beta-\alpha}{\beta+T})(\beta +t_x)^{r+s+x}}
-        {(\beta +T)^{r+s+x}}] &
+        {(\beta +T)^{r+s+x}}] \nonumber
 
-        \end{flalign*}
+        \end{eqnarray}
 
     ========  ===============================================
     Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
