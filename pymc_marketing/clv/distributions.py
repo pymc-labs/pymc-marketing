@@ -383,21 +383,26 @@ class ParetoNBD(PositiveContinuous):
     The modified expression is provided below:   
 
     .. math::
-        `if \alpha > \beta: \\\\
+    
+        \begin{align*}
+        \text{if }{\alpha > \beta:} \\\\
+
         \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) \\
         = \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\alpha +t_x)^{r+s+x}}
         [(\frac{s}{r+s+x})_2F_1(r+s+x,s+1;r+s+x+1;\frac{\alpha-\beta}{\alpha+t_x})\\
         + (\frac{r+x}{r+s+x})
         \frac{_2F_1(r+s+x,s;r+s+x+1;\frac{\alpha-\beta}{\alpha+T})(\alpha +t_x)^{r+s+x}}
         {(\alpha +T)^{r+s+x}}] \\\\
-        if \beta >= \alpha: \\\\
+
+        \text{if }{\beta >= \alpha:} \\\\
+
         \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) \\
         = \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\beta +t_x)^{r+s+x}}
         [(\frac{s}{r+s+x})_2F_1(r+s+x,r+x;r+s+x+1;\frac{\beta-\alpha}{\beta+t_x})\\
         + (\frac{r+x}{r+s+x})
         \frac{_2F_1(r+s+x,r+x+1;r+s+x+1;\frac{\beta-\alpha}{\beta+T})(\beta +t_x)^{r+s+x}}
         {(\beta +T)^{r+s+x}}]
-        `
+        \end{align*}
 
     ========  ===============================================
     Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
@@ -426,16 +431,11 @@ class ParetoNBD(PositiveContinuous):
         rsx = r + s + x
         rx = r + x
 
-        if pt.gt(alpha, beta):
-            gt_param = alpha
-            param_diff = alpha - beta
-            hyp2f1_param1 = s + 1
-            hyp2f1_param2 = s
-        else:
-            gt_param = beta
-            param_diff = beta - alpha
-            hyp2f1_param1 = rx
-            hyp2f1_param2 = rx + 1
+        switch_cond = pt.gt(alpha, beta)
+        gt_param = pt.switch(switch_cond, alpha, beta)
+        param_diff = pt.switch(switch_cond, alpha - beta, beta - alpha)
+        hyp2f1_param1 = pt.switch(switch_cond, s + 1, rx)
+        hyp2f1_param2 = pt.switch(switch_cond, s, rx + 1)
 
         # This term is factored out of the denominator of hyp2f_t1 for numerical stability
         refactored_term = rsx * pt.log(gt_param + t_x)
