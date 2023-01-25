@@ -411,12 +411,13 @@ class ParetoNBD(PositiveContinuous):
 
     References
     ----------
-    .. [2] David C. Schmittlein, Donald G. Morrison and Richard Colombo
-       Management Science,Vol. 33, No. 1 (Jan., 1987), pp. 1-24
-      "Counting Your Customers: Who Are They and What Will They Do Next,"
+    .. [2] David C. Schmittlein, Donald G. Morrison and Richard Colombo.
+           "Counting Your Customers: Who Are They and What Will They Do Next."
+           Management Science,Vol. 33, No. 1 (Jan., 1987), pp. 1-24.
     
     .. [3] Fader, Peter & G. S. Hardie, Bruce (2005).
-        "A Note on Deriving the Pareto/NBD Model and Related Expressions." http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
+           "A Note on Deriving the Pareto/NBD Model and Related Expressions."
+           http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
     """
     rv_op = pareto_nbd
 
