@@ -15,4 +15,5 @@ mmm/mmm_example
 clv/clv_quickstart
 clv/bg_nbd
 clv/gamma_gamma
+clv/sBG
 :::
