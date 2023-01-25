@@ -234,10 +234,10 @@ class TestParetoNBD:
     ):
         with Model():
 
-            r = pm.Gamma(name="r", alpha=1, beta=1, size=r_size)
-            alpha = pm.Gamma(name="alpha", alpha=1, beta=1, size=alpha_size)
-            s = pm.Gamma(name="s", alpha=1, beta=1, size=s_size)
-            beta = pm.Gamma(name="beta", alpha=1, beta=1, size=beta_size)
+            r = pm.Gamma(name="r", alpha=5, beta=1, size=r_size)
+            alpha = pm.Gamma(name="alpha", alpha=5, beta=1, size=alpha_size)
+            s = pm.Gamma(name="s", alpha=5, beta=1, size=s_size)
+            beta = pm.Gamma(name="beta", alpha=5, beta=1, size=beta_size)
 
             T = pm.MutableData(name = "T", value = np.array(10))
 

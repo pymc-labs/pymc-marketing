@@ -30,7 +30,7 @@ class ContNonContractRV(RandomVariable):
         return super().__call__(lam, p, T, T0, size=size, **kwargs)
 
     @classmethod
-    def rng_fn(cls, rng, lam, p, T, T0, size) -> np.array:
+    def rng_fn(cls, rng, lam, p, T, T0, size) -> np.ndarray:
 
         size = pm.distributions.shape_utils.to_tuple(size)
 
@@ -165,7 +165,7 @@ class ContContractRV(RandomVariable):
         return super().__call__(lam, p, T, T0, size=size, **kwargs)
 
     @classmethod
-    def rng_fn(cls, rng, lam, p, T, T0, size) -> np.array:
+    def rng_fn(cls, rng, lam, p, T, T0, size) -> np.ndarray:
 
         size = pm.distributions.shape_utils.to_tuple(size)
 
@@ -317,7 +317,7 @@ class ParetoNBDRV(RandomVariable):
         return super().__call__(r, alpha, s, beta, T, size=size, **kwargs)
 
     @classmethod
-    def rng_fn(cls, rng, r, alpha, s, beta, T, size) -> np.array:
+    def rng_fn(cls, rng, r, alpha, s, beta, T, size) -> np.ndarray:
 
         size = pm.distributions.shape_utils.to_tuple(size)
 
@@ -340,15 +340,15 @@ class ParetoNBDRV(RandomVariable):
 
         output = np.zeros(shape=size + (2,))
 
-        lam = rng.gamma(shape=r, scale=1 / (alpha + 10e-8), size=size)
-        mu = rng.gamma(shape=s, scale=1 / (beta + 10e-8), size=size)
+        lam = rng.gamma(shape=r, scale=1 / alpha, size=size)
+        mu = rng.gamma(shape=s, scale=1 / beta, size=size)
 
         def sim_data(lam, mu, T):
             t = 0
             n = 0
 
-            dropout_time = rng.exponential(scale=1 / (mu + 10e-8))
-            wait = rng.exponential(scale=1 / (lam + 10e-8))
+            dropout_time = rng.exponential(scale=1 / mu)
+            wait = rng.exponential(scale=1 / lam)
 
             while t + wait < min(dropout_time, T):
                 t += wait
