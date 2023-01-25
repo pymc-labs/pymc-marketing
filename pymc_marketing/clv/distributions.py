@@ -357,8 +357,8 @@ class ParetoNBDRV(RandomVariable):
 
             return np.array(
                 [
-                    n,
                     t,
+                    n,
                 ],
             )
 
@@ -384,27 +384,23 @@ class ParetoNBD(PositiveContinuous):
 
     .. math::
 
-        \begin{eqnarray}
-
-        \text{if }\alpha > \beta: \nonumber\\\\
+        \text{if }\alpha > \beta: \\\\
 
         \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) &=
         \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\alpha +t_x)^{r+s+x}}
-        [(\frac{s}{r+s+x})_2F_1(r+s+x,s+1;r+s+x+1;\frac{\alpha-\beta}{\alpha+t_x}) \nonumber\\
+        [(\frac{s}{r+s+x})_2F_1(r+s+x,s+1;r+s+x+1;\frac{\alpha-\beta}{\alpha+t_x}) \\
         &+ (\frac{r+x}{r+s+x})
         \frac{_2F_1(r+s+x,s;r+s+x+1;\frac{\alpha-\beta}{\alpha+T})(\alpha +t_x)^{r+s+x}}
         {(\alpha +T)^{r+s+x}}] \\\\
 
-        \text{if }\beta >= \alpha: \nonumber\\\\
+        \text{if }\beta >= \alpha: \\\\
 
         \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) &=
         \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\beta +t_x)^{r+s+x}}
-        [(\frac{s}{r+s+x})_2F_1(r+s+x,r+x;r+s+x+1;\frac{\beta-\alpha}{\beta+t_x}) \nonumber\\
+        [(\frac{s}{r+s+x})_2F_1(r+s+x,r+x;r+s+x+1;\frac{\beta-\alpha}{\beta+t_x}) \\
         &+ (\frac{r+x}{r+s+x})
         \frac{_2F_1(r+s+x,r+x+1;r+s+x+1;\frac{\beta-\alpha}{\beta+T})(\beta +t_x)^{r+s+x}}
-        {(\beta +T)^{r+s+x}}] \nonumber
-
-        \end{eqnarray}
+        {(\beta +T)^{r+s+x}}]
 
     ========  ===============================================
     Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
@@ -418,17 +414,17 @@ class ParetoNBD(PositiveContinuous):
       "Counting Your Customers: Who Are They and What Will They Do Next,"
     
     .. [3] Fader, Peter & G. S. Hardie, Bruce (2005).
-        "A Note on Deriving the Pareto/NBD Model and Related Expressions."<http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf>
+        `"A Note on Deriving the Pareto/NBD Model and Related Expressions."<http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf>`_
     """
     rv_op = pareto_nbd
 
     @classmethod
-    def dist(cls, r, alpha, s, beta, **kwargs):
-        return super().dist([r, alpha, s, beta], **kwargs)
+    def dist(cls, r, alpha, s, beta, T, **kwargs):
+        return super().dist([r, alpha, s, beta, T], **kwargs)
 
     def logp(value, r, alpha, s, beta, T):
-        x = value[..., 0]
-        t_x = value[..., 1]
+        t_x = value[..., 0]
+        x = value[..., 1]
 
         rsx = r + s + x
         rx = r + x

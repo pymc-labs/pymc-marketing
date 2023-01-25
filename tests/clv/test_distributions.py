@@ -160,9 +160,9 @@ class TestParetoNBD:
     @pytest.mark.parametrize(
         "value, r, alpha, s, beta, T, logp",
         [
-            (np.array([6.3, 5]), 0.55, 10.58, 0.61, 11.67, 12, -13.851591),
+            (np.array([5, 6.3]), 0.55, 10.58, 0.61, 11.67, 12, -13.851591),
             (
-                np.array([6.3, 5]),
+                np.array([5, 6.3]),
                 [0.45,.55],
                 10.58,
                 0.61,
@@ -171,7 +171,7 @@ class TestParetoNBD:
                 [-14.180599, -13.851591],
             ),
             (
-                np.array([6.3, 5]),
+                np.array([5, 6.3]),
                 [0.45,0.55],
                 10.58,
                 [0.71,0.61],
@@ -180,7 +180,7 @@ class TestParetoNBD:
                 [-14.154623, -13.851591],
             ),
             (
-                np.array([[6.3, 5], [5.3, 4], [2, 6]]),
+                np.array([[5, 6.3], [4, 5.3], [6, 2]]),
                 0.55,
                 11.67,
                 0.71,
@@ -189,7 +189,7 @@ class TestParetoNBD:
                 [-14.197283, -12.440579, -6.7121],
             ),
             (
-                np.array([6.3, 5]),
+                np.array([5, 6.3]),
                 0.55,
                 10.58,
                 0.71,
@@ -215,9 +215,9 @@ class TestParetoNBD:
 
     def test_pareto_nbd_invalid(self):
         pareto_nbd = ParetoNBD.dist(r=0.55, alpha=10.58, s=0.61, beta=11.67, T=10)
-        assert pm.logp(pareto_nbd, np.array([-1, 3])).eval() == -np.inf
-        assert pm.logp(pareto_nbd, np.array([1.5, -1])).eval() == -np.inf
-        assert pm.logp(pareto_nbd, np.array([1.5, 11])).eval() == -np.inf
+        assert pm.logp(pareto_nbd, np.array([3, -1])).eval() == -np.inf
+        assert pm.logp(pareto_nbd, np.array([-1, 1.5])).eval() == -np.inf
+        assert pm.logp(pareto_nbd, np.array([11, 1.5])).eval() == -np.inf
 
     @pytest.mark.parametrize(
         "r_size, alpha_size, s_size, beta_size, pareto_nbd_size, expected_size",
