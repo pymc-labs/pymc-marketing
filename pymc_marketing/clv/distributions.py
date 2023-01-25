@@ -416,7 +416,7 @@ class ParetoNBD(PositiveContinuous):
       "Counting Your Customers: Who Are They and What Will They Do Next,"
     
     .. [3] Fader, Peter & G. S. Hardie, Bruce (2005).
-        `"A Note on Deriving the Pareto/NBD Model and Related Expressions."<http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf>`_
+        ["A Note on Deriving the Pareto/NBD Model and Related Expressions."](http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf)
     """
     rv_op = pareto_nbd
 
