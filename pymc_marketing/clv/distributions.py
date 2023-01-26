@@ -432,32 +432,37 @@ class ParetoNBD(PositiveContinuous):
         rsx = r + s + x
         rx = r + x
 
-        switch_cond = pt.gt(alpha, beta)
-        gt_param = pt.switch(switch_cond, alpha, beta)
-        param_diff = pt.switch(switch_cond, alpha - beta, beta - alpha)
-        hyp2f1_param1 = pt.switch(switch_cond, s + 1, rx)
-        hyp2f1_param2 = pt.switch(switch_cond, s, rx + 1)
+        cond = alpha >= beta
+        larger_param = pt.switch(cond, alpha, beta)
+        smaller_param = pt.switch(cond, beta, alpha)
+        param_diff = larger_param - smaller_param
+        hyp2f1_t1_2nd_param = pt.switch(cond, s + 1, rx)
+        hyp2f1_t2_2nd_param = pt.switch(cond, s, rx + 1)
 
         # This term is factored out of the denominator of hyp2f_t1 for numerical stability
-        refactored_term = rsx * pt.log(gt_param + t_x)
+        refactored = rsx * pt.log(larger_param + t_x)
 
         hyp2f1_t1 = pt.log(
-            pt.hyp2f1(rsx, hyp2f1_param1, rsx + 1, (param_diff) / (gt_param + t_x))
+            pt.hyp2f1(
+                rsx, hyp2f1_t1_2nd_param, rsx + 1, param_diff / (larger_param + t_x)
+            )
         )
         hyp2f1_t2 = (
             pt.log(
-                pt.hyp2f1(rsx, hyp2f1_param2, rsx + 1, (param_diff) / (gt_param + T))
+                pt.hyp2f1(
+                    rsx, hyp2f1_t2_2nd_param, rsx + 1, param_diff / (larger_param + T)
+                )
             )
-            - rsx * pt.log(gt_param + T)
-            + refactored_term
+            - rsx * pt.log(larger_param + T)
+            + refactored
         )
 
         A1 = (
             pt.gammaln(rx)
             - pt.gammaln(r)
-            + r * pt.log(gt_param)
+            + r * pt.log(alpha)
             + s * pt.log(beta)
-            - refactored_term
+            - refactored
         )
         A2 = pt.log(s) - pt.log(rsx) + hyp2f1_t1
         A3 = pt.log(rx) - pt.log(rsx) + hyp2f1_t2
@@ -465,12 +470,12 @@ class ParetoNBD(PositiveContinuous):
         logp = A1 + pt.logaddexp(A2, A3)
 
         logp = pt.switch(
-            pt.any(
-                (
+            pt.or_(
+                pt.or_(
                     pt.lt(t_x, 0),
                     pt.lt(x, 0),
-                    pt.gt(t_x, T),
                 ),
+                pt.gt(t_x, T),
             ),
             -np.inf,
             logp,

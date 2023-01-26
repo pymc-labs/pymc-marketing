@@ -7,6 +7,8 @@ from pymc.tests.helpers import select_by_precision
 
 from pymc_marketing.clv.distributions import ContContract, ContNonContract, ParetoNBD
 
+from lifetimes import ParetoNBDFitter as PF
+
 
 class TestContNonContract:
     @pytest.mark.parametrize(
@@ -160,42 +162,43 @@ class TestParetoNBD:
     @pytest.mark.parametrize(
         "value, r, alpha, s, beta, T, logp",
         [
-            (np.array([6.3, 5]), 0.55, 10.58, 0.61, 11.67, 12, -12.439054),
+            (np.array([1.5, 1]), 0.55, 10.58, 0.61, 11.67, 12, PF._conditional_log_likelihood((.55,10.58,.61,11.67), 1, 1.5, 12)
+            ),
             (
-                np.array([6.3, 5]),
+                np.array([1.5, 1]),
                 [0.45,.55],
                 10.58,
                 0.61,
                 11.67,
                 12,
-                [-12.737081, -12.439054],
+                [-4.147702, -4.006949],
             ),
             (
-                np.array([6.3, 5]),
+                np.array([1.5, 1]),
                 [0.45,0.55],
                 10.58,
                 [0.71,0.61],
                 11.67,
                 12,
-                [-12.751517, -12.439054],
+                [-4.135933, -4.006949],
             ),
             (
-                np.array([[6.3, 5], [5.3, 4], [6, 2]]),
+                np.array([[1.5, 1], [5.3, 4], [6, 2]]),
                 0.55,
                 11.67,
-                0.71,
+                0.61,
                 10.58,
                 [12,10,8],
-                [-12.746811, -10.752672, -6.7121],
+                PF._conditional_log_likelihood((.55,11.67,.61,10.58), np.array([1,4,2]), np.array([1.5,5.3,6]), np.array([12, 10, 8])),
             ),
             (
-                np.array([6.3, 5]),
+                np.array([1.5, 1]),
                 0.55,
                 10.58,
-                0.71,
-                np.full((5, 3), 9.15),
+                0.61,
+                np.full((5, 3), 11.67),
                 12,
-                np.full(shape=(5, 3), fill_value=-12.542225),
+                np.full(shape=(5, 3), fill_value=-4.006949),
             ),
         ],
     )
