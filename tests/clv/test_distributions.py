@@ -160,9 +160,9 @@ class TestContContract:
 
 class TestParetoNBD:
     @pytest.mark.parametrize(
-        "value, r, alpha, s, beta, T, logp",
+        "value, r, alpha, s, beta, T",
         [
-            (np.array([1.5, 1]), 0.55, 10.58, 0.61, 11.67, 12, PF._conditional_log_likelihood((.55,10.58,.61,11.67), 1, 1.5, 12)
+            (np.array([1.5, 1]), 0.55, 10.58, 0.61, 11.67, 12,
             ),
             (
                 np.array([1.5, 1]),
@@ -171,7 +171,6 @@ class TestParetoNBD:
                 0.61,
                 11.67,
                 12,
-                [-4.147702, -4.006949],
             ),
             (
                 np.array([1.5, 1]),
@@ -180,7 +179,6 @@ class TestParetoNBD:
                 [0.71,0.61],
                 11.67,
                 12,
-                [-4.135933, -4.006949],
             ),
             (
                 np.array([[1.5, 1], [5.3, 4], [6, 2]]),
@@ -189,7 +187,6 @@ class TestParetoNBD:
                 0.61,
                 10.58,
                 [12,10,8],
-                PF._conditional_log_likelihood((.55,11.67,.61,10.58), np.array([1,4,2]), np.array([1.5,5.3,6]), np.array([12, 10, 8])),
             ),
             (
                 np.array([1.5, 1]),
@@ -198,11 +195,17 @@ class TestParetoNBD:
                 0.61,
                 np.full((5, 3), 11.67),
                 12,
-                np.full(shape=(5, 3), fill_value=-4.006949),
             ),
         ],
     )
-    def test_pareto_nbd(self, value, r, alpha, s, beta, T, logp):
+    def test_pareto_nbd(self, value, r, alpha, s, beta, T):
+
+        def lifetimes_wrapper(r, alpha, s, beta, freq, rec, T):
+            """ Simple wrapper for Vectorizing the lifetimes likelihood function. """
+            return PF._conditional_log_likelihood((r, alpha, s, beta), freq, rec, T)
+
+        vectorized_logp = np.vectorize(lifetimes_wrapper)
+
         with Model():
             pareto_nbd = ParetoNBD(
                 "pareto_nbd", r=r, alpha=alpha, s=s, beta=beta, T=T
@@ -211,7 +214,7 @@ class TestParetoNBD:
 
         assert_almost_equal(
             pm.logp(pareto_nbd, value).eval(),
-            logp,
+            vectorized_logp(r,alpha,s,beta,value[...,1],value[...,0],T),
             decimal=select_by_precision(float64=6, float32=2),
             err_msg=str(pt),
         )
