@@ -1,13 +1,12 @@
 import numpy as np
 import pymc as pm
 import pytest
+from lifetimes import ParetoNBDFitter as PF
 from numpy.testing import assert_almost_equal
 from pymc import Model
 from pymc.tests.helpers import select_by_precision
 
 from pymc_marketing.clv.distributions import ContContract, ContNonContract, ParetoNBD
-
-from lifetimes import ParetoNBDFitter as PF
 
 
 class TestContNonContract:
@@ -162,11 +161,9 @@ class TestParetoNBD:
     @pytest.mark.parametrize(
         "value, r, alpha, s, beta, T",
         [
-            (np.array([1.5, 1]), 0.55, 10.58, 0.61, 11.67, 12,
-            ),
             (
                 np.array([1.5, 1]),
-                [0.45,.55],
+                0.55,
                 10.58,
                 0.61,
                 11.67,
@@ -174,9 +171,17 @@ class TestParetoNBD:
             ),
             (
                 np.array([1.5, 1]),
-                [0.45,0.55],
+                [0.45, 0.55],
                 10.58,
-                [0.71,0.61],
+                0.61,
+                11.67,
+                12,
+            ),
+            (
+                np.array([1.5, 1]),
+                [0.45, 0.55],
+                10.58,
+                [0.71, 0.61],
                 11.67,
                 12,
             ),
@@ -186,7 +191,7 @@ class TestParetoNBD:
                 11.67,
                 0.61,
                 10.58,
-                [12,10,8],
+                [12, 10, 8],
             ),
             (
                 np.array([1.5, 1]),
@@ -199,22 +204,19 @@ class TestParetoNBD:
         ],
     )
     def test_pareto_nbd(self, value, r, alpha, s, beta, T):
-
         def lifetimes_wrapper(r, alpha, s, beta, freq, rec, T):
-            """ Simple wrapper for Vectorizing the lifetimes likelihood function. """
+            """Simple wrapper for Vectorizing the lifetimes likelihood function."""
             return PF._conditional_log_likelihood((r, alpha, s, beta), freq, rec, T)
 
         vectorized_logp = np.vectorize(lifetimes_wrapper)
 
         with Model():
-            pareto_nbd = ParetoNBD(
-                "pareto_nbd", r=r, alpha=alpha, s=s, beta=beta, T=T
-            )
+            pareto_nbd = ParetoNBD("pareto_nbd", r=r, alpha=alpha, s=s, beta=beta, T=T)
         pt = {"pareto_nbd": value}
 
         assert_almost_equal(
             pm.logp(pareto_nbd, value).eval(),
-            vectorized_logp(r,alpha,s,beta,value[...,1],value[...,0],T),
+            vectorized_logp(r, alpha, s, beta, value[..., 1], value[..., 0], T),
             decimal=select_by_precision(float64=6, float32=2),
             err_msg=str(pt),
         )
@@ -245,7 +247,7 @@ class TestParetoNBD:
             s = pm.Gamma(name="s", alpha=5, beta=1, size=s_size)
             beta = pm.Gamma(name="beta", alpha=5, beta=1, size=beta_size)
 
-            T = pm.MutableData(name = "T", value = np.array(10))
+            T = pm.MutableData(name="T", value=np.array(10))
 
             ParetoNBD(
                 name="pareto_nbd",
