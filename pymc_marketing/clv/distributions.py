@@ -376,11 +376,11 @@ pareto_nbd = ParetoNBDRV()
 
 class ParetoNBD(PositiveContinuous):
     r"""
-    Population-level distribution class for a continuous, non-contractual, Pareto/NBD process, 
+    Population-level distribution class for a continuous, non-contractual, Pareto/NBD process,
     based on Schmittlein, et al. in [2]_.
 
     The likelihood function is derived from equations (22) and (23) of [3]_, with terms rearranged for numerical stability.
-    The modified expression is provided below:   
+    The modified expression is provided below:
 
     .. math::
 
@@ -414,7 +414,7 @@ class ParetoNBD(PositiveContinuous):
     .. [2] David C. Schmittlein, Donald G. Morrison and Richard Colombo.
            "Counting Your Customers: Who Are They and What Will They Do Next."
            Management Science,Vol. 33, No. 1 (Jan., 1987), pp. 1-24.
-    
+
     .. [3] Fader, Peter & G. S. Hardie, Bruce (2005).
            "A Note on Deriving the Pareto/NBD Model and Related Expressions."
            http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
