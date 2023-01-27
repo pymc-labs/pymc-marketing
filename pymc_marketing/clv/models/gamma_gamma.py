@@ -215,18 +215,17 @@ class GammaGammaModel(BaseGammaGammaModel):
             model.fit()
             print(model.fit_summary())
 
-            # Predict spend of customers for which we know transaction history,
-            # conditioned on data. May include customers not included in fitting
+            # Predict spend of customers for which we know transaction history, conditioned on data.
             expected_customer_spend = model.expected_customer_spend(
-                customer_id=[4, 5, 6, 7, ...],
-                mean_transactionn_value=[2.3, 5.9, 221, 3.0, ...],
-                frequency=[3, 4, 6, 6, ...],
+                customer_id=[0, 1, 2, 3, ...],
+                mean_transactionn_value=[23.5, 19.3, 11.2, 100.5, ...],
+                frequency=[6, 8, 2, 1, ...],
             )
             print(expected_customer_spend.mean("customer_id"))
 
             # Predict spend of 10 new customers, conditioned on data
             new_customer_spend = model.expected_new_customer_spend(n=10)
-            print(new_customer_spend.mean("customer_id"))
+            print(new_customer_spend.mean("new_customer_id"))
 
     References
     ----------
@@ -337,7 +336,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
             # Predict spend of 10 new customers, conditioned on data
             new_customer_spend = model.expected_new_customer_spend(n=10)
-            print(new_customer_spend.mean("customer_id"))
+            print(new_customer_spend.mean("new_customer_id"))
 
 
     References
