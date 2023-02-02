@@ -118,6 +118,11 @@ class BetaGeoModel(CLVModel):
     ):
         super().__init__()
 
+        self.customer_id = customer_id
+        self.frequency = frequency
+        self.recency = recency
+        self.T = T
+
         a_prior, b_prior, alpha_prior, r_prior = self._process_priors(
             a_prior, b_prior, alpha_prior, r_prior
         )
