@@ -20,7 +20,6 @@ class ContNonContractRV(RandomVariable):
     _print_name = ("ContNonContract", "\\operatorname{ContNonContract}")
 
     def make_node(self, rng, size, dtype, lam, p, T, T0):
-
         T = pt.as_tensor_variable(T)
         T0 = pt.as_tensor_variable(T0)
 
@@ -31,7 +30,6 @@ class ContNonContractRV(RandomVariable):
 
     @classmethod
     def rng_fn(cls, rng, lam, p, T, T0, size) -> np.ndarray:
-
         size = pm.distributions.shape_utils.to_tuple(size)
 
         # TODO: broadcast sizes
@@ -155,7 +153,6 @@ class ContContractRV(RandomVariable):
     _print_name = ("ContinuousContractual", "\\operatorname{ContinuousContractual}")
 
     def make_node(self, rng, size, dtype, lam, p, T, T0):
-
         T = pt.as_tensor_variable(T)
         T0 = pt.as_tensor_variable(T0)
 
@@ -166,7 +163,6 @@ class ContContractRV(RandomVariable):
 
     @classmethod
     def rng_fn(cls, rng, lam, p, T, T0, size) -> np.ndarray:
-
         size = pm.distributions.shape_utils.to_tuple(size)
 
         # To do: broadcast sizes
@@ -304,7 +300,6 @@ class ParetoNBDRV(RandomVariable):
     _print_name = ("ParetoNBD", "\\operatorname{ParetoNBD}")
 
     def make_node(self, rng, size, dtype, r, alpha, s, beta, T):
-
         r = pt.as_tensor_variable(r)
         alpha = pt.as_tensor_variable(alpha)
         s = pt.as_tensor_variable(s)
@@ -318,7 +313,6 @@ class ParetoNBDRV(RandomVariable):
 
     @classmethod
     def rng_fn(cls, rng, r, alpha, s, beta, T, size) -> np.ndarray:
-
         size = pm.distributions.shape_utils.to_tuple(size)
 
         r = np.asarray(r)

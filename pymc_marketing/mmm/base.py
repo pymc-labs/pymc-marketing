@@ -241,7 +241,6 @@ class BaseMMM:
         return fig
 
     def plot_components_contributions(self, **plt_kwargs: Any) -> plt.Figure:
-
         channel_contributions = az.extract(
             self.fit_result,
             var_names=["channel_contributions"],

@@ -37,7 +37,6 @@ class CLVModel:
     def _fit_mcmc(self, **kwargs):
         """Draw samples from model posterior using MCMC sampling"""
         with self.model:
-
             self._fit_result = pm.sample(**kwargs)
         return self._fit_result
 

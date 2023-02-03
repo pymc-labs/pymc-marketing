@@ -241,7 +241,6 @@ class TestParetoNBD:
         self, r_size, alpha_size, s_size, beta_size, pareto_nbd_size, expected_size
     ):
         with Model():
-
             r = pm.Gamma(name="r", alpha=5, beta=1, size=r_size)
             alpha = pm.Gamma(name="alpha", alpha=5, beta=1, size=alpha_size)
             s = pm.Gamma(name="s", alpha=5, beta=1, size=s_size)
