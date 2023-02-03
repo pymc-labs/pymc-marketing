@@ -3,10 +3,10 @@ from os.path import dirname, join, realpath
 
 from setuptools import find_packages, setup
 
-DESCRIPTION = "Media Mix Modeling in PyMC"
-AUTHOR = "TBD"
-AUTHOR_EMAIL = "TBD"
-URL = "https://github.com/pymc-labs/pymmmc"
+DESCRIPTION = "Marketing Statistical Models in PyMC"
+AUTHOR = "PyMC Labs"
+AUTHOR_EMAIL = "info@pymc-labs.io "
+URL = "https://github.com/pymc-labs/pymc-marketing"
 LICENSE = "Apache License, Version 2.0"
 
 PROJECT_ROOT = dirname(realpath(__file__))
