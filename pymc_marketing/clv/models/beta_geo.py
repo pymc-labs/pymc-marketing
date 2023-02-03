@@ -221,7 +221,6 @@ class BetaGeoModel(CLVModel):
         frequency: Union[np.ndarray, pd.Series, TensorVariable],
         recency: Union[np.ndarray, pd.Series, TensorVariable],
         T: Union[np.ndarray, pd.Series, TensorVariable],
-        **kwargs,
     ):
         r"""
         Given a purchase history/profile of :math:`x` and :math:`t_x` for an individual
@@ -249,8 +248,16 @@ class BetaGeoModel(CLVModel):
             \right)^{r + x}
            }
         """
+        t = np.asarray(t)
+        if t.size != 1:
+            t = to_xarray(customer_id, t)
 
-        t, frequency, recency, T = to_xarray(customer_id, t, frequency, recency, T)
+        T = np.asarray(T)
+        if T.size != 1:
+            T = to_xarray(customer_id, T)
+
+        # print(customer_id)
+        frequency, recency = to_xarray(customer_id, frequency, recency)
 
         a, b, alpha, r = self._unload_params()
 
@@ -265,14 +272,16 @@ class BetaGeoModel(CLVModel):
             (alpha + T) / (alpha + recency)
         ) ** (r + frequency)
 
-        return (numerator / denominator).transpose("chain", "draw", "customer_id")
+        return (numerator / denominator).transpose(
+            "chain", "draw", "customer_id", missing_dims="ignore"
+        )
 
     def expected_probability_alive(
         self,
         customer_id: Union[np.ndarray, pd.Series],
-        frequency: Union[np.ndarray, pd.Series, TensorVariable],
-        recency: Union[np.ndarray, pd.Series, TensorVariable],
-        T: Union[np.ndarray, pd.Series, TensorVariable],
+        frequency: Union[np.ndarray, pd.Series],
+        recency: Union[np.ndarray, pd.Series],
+        T: Union[np.ndarray, pd.Series],
     ):
         r"""
         Posterior expected value of the probability of being alive at time T. The
@@ -288,8 +297,11 @@ class BetaGeoModel(CLVModel):
                         \right)^{r x}
                 \right\}
         """
+        T = np.asarray(T)
+        if T.size != 1:
+            T = to_xarray(customer_id, T)
 
-        frequency, recency, T = to_xarray(customer_id, frequency, recency, T)
+        frequency, recency = to_xarray(customer_id, frequency, recency)
 
         a, b, alpha, r = self._unload_params()
 
@@ -298,13 +310,13 @@ class BetaGeoModel(CLVModel):
         )
 
         return xr.where(frequency == 0, 1.0, expit(-log_div)).transpose(
-            "chain", "draw", "customer_id"
+            "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
     def expected_num_purchases_new_customer(
         self,
         customer_id: Union[np.ndarray, pd.Series],
-        t: Union[np.ndarray, pd.Series, TensorVariable],
+        t: Union[np.ndarray, pd.Series],
     ):
         r"""
         Posterior expected number of purchases for any interval of length :math:`t`. See
@@ -323,7 +335,9 @@ class BetaGeoModel(CLVModel):
 
         TODO: Should the xarray dim name be different than customer_id?
         """
-        t = to_xarray(customer_id, t)
+        t = np.asarray(t)
+        if t.size != 1:
+            t = to_xarray(customer_id, t)
 
         a, b, alpha, r = self._unload_params()
 
@@ -332,4 +346,6 @@ class BetaGeoModel(CLVModel):
             r, b, a + b - 1, t / (alpha + t)
         )
 
-        return (left_term * right_term).transpose("chain", "draw", "customer_id")
+        return (left_term * right_term).transpose(
+            "chain", "draw", "customer_id", missing_dims="ignore"
+        )
