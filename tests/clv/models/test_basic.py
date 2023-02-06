@@ -2,7 +2,8 @@ from unittest.mock import patch
 
 import pymc as pm
 import pytest
-from arviz import InferenceData
+from arviz import InferenceData, from_dict
+from pandas import Series
 
 from pymc_marketing.clv.models.basic import CLVModel
 
@@ -45,12 +46,19 @@ class TestCLVModel:
         assert idata.posterior["x"].dims == ("chain", "draw", "test_x_dim")
         assert model.fit_result is idata
 
+        # Check that summary only includes single value
+        summ = model.fit_summary()
+        assert isinstance(summ, Series)
+        assert summ.name == "value"
+
     @patch("arviz.summary", return_value="fake_summary")
     def test_fit_summary(self, dummy_summary):
         model = CLVModelTest()
         model._fit_result = "fake_fit"
+        fake_mcmc_fit = from_dict({"x": [[0, 0]]})
+        model._fit_result = fake_mcmc_fit
         assert model.fit_summary(opt_kwarg="opt_kwarg") == "fake_summary"
-        dummy_summary.assert_called_once_with("fake_fit", opt_kwarg="opt_kwarg")
+        dummy_summary.assert_called_once_with(fake_mcmc_fit, opt_kwarg="opt_kwarg")
 
     def test_repr(self):
         model = CLVModelTest()

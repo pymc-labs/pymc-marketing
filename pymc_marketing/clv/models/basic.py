@@ -63,7 +63,16 @@ class CLVModel:
         return self._fit_result
 
     def fit_summary(self, **kwargs):
-        return az.summary(self.fit_result, **kwargs)
+        res = self.fit_result
+        # Map fitting only gives one value, so we return it. We use arviz
+        # just to get it nicely into a DataFrame
+        if res.posterior.chain.size == 1 and res.posterior.draw.size == 1:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                res = az.summary(self.fit_result, **kwargs, kind="stats")
+            return res["mean"].rename("value")
+        else:
+            return az.summary(self.fit_result, **kwargs)
 
     def __repr__(self):
         return f"{self._model_name}\n{self.model.str_repr()}"
