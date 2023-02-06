@@ -200,11 +200,11 @@ class TestBetaGeoModel:
 
     def test_expected_num_purchases_new_customer(self):
         est_num_purchases = self.fixed_model.expected_num_purchases_new_customer(
-            list(range(20, 40, 2)), self.test_t
+            self.test_t
         )
 
         assert est_num_purchases.shape == (1, 1000, 10)
-        assert est_num_purchases.dims == ("chain", "draw", "customer_id")
+        assert est_num_purchases.dims == ("chain", "draw", "t")
 
         np.testing.assert_allclose(
             self.expected_test_num_purchases,
