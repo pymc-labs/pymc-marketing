@@ -315,7 +315,6 @@ class BetaGeoModel(CLVModel):
 
     def expected_num_purchases_new_customer(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
         t: Union[np.ndarray, pd.Series],
     ):
         r"""
@@ -333,11 +332,10 @@ class BetaGeoModel(CLVModel):
                 \text{hyp2f1}\left(r, b; a + b - 1; \frac{t}{\alpha + t}\right)
             \right]
 
-        TODO: Should the xarray dim name be different than customer_id?
         """
         t = np.asarray(t)
         if t.size != 1:
-            t = to_xarray(customer_id, t)
+            t = to_xarray(range(len(t)), t, dim="t")
 
         a, b, alpha, r = self._unload_params()
 
@@ -347,5 +345,5 @@ class BetaGeoModel(CLVModel):
         )
 
         return (left_term * right_term).transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", "t", missing_dims="ignore"
         )
