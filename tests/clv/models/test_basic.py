@@ -1,3 +1,4 @@
+import warnings
 from unittest.mock import patch
 
 import pymc as pm
@@ -63,3 +64,12 @@ class TestCLVModel:
     def test_repr(self):
         model = CLVModelTest()
         assert model.__repr__() == "CLVModelTest\nx ~ N**+(0, 100)\ny ~ N(x, 1)"
+
+    def test_fit_override(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+
+            model = CLVModelTest()
+            model.fit_result = 1
+            with pytest.warns(UserWarning, match="Overriding pre-existing fit_result"):
+                model.fit_result = 2
