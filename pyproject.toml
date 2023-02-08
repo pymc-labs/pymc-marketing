@@ -50,8 +50,9 @@ test = [
 [tool.setuptools]
 packages = [
     "pymc_marketing", 
-    "pymc_marketing.clv", 
     "pymc_marketing.mmm", 
+    "pymc_marketing.clv", 
+    "pymc_marketing.clv.models"
 ]
 
 [tool.setuptools.dynamic]
