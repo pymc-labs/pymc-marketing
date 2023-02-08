@@ -4,18 +4,18 @@ init:
 	python -m pip install -e .
 
 lint:
-	pip install -r lint-requirements.txt
+	pip install .[lint]
 	isort .
 	black .
 
 check_lint:
-	pip install -r lint-requirements.txt
+	pip install .[lint]
 	flake8 .
 	isort --check-only .
 	black --diff --check --fast .
 
 test:
-	pip install -r test-requirements.txt
+	pip install .[test]
 	pytest
 
 html:

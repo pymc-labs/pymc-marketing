@@ -1,3 +1,2 @@
-__version__ = "0.0.1"
-
 from pymc_marketing import clv, mmm
+from pymc_marketing.version import __version__

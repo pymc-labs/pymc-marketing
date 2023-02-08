@@ -1,0 +1,8 @@
+[flake8]
+max-line-length = 88
+extend-ignore = E203, E501
+per-file-ignores = */__init__.py:F401,F403
+
+# flake8 does not support pyproject.toml
+# https://github.com/PyCQA/flake8/issues/234
+# https://stackoverflow.com/questions/64482562/specify-per-file-ignores-with-pyproject-toml-and-flake8
