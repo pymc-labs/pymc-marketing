@@ -1,3 +1,69 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools>=61.0"]
+
+[project]
+name = "pymc-marketing"
+description = "Marketing Statistical Models in PyMC"
+requires-python = ">=3.8"
+readme = "README.md"
+license = {file = "LICENSE"}
+dynamic = ["version"]
+maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.io" }]
+
+dependencies = [
+    "arviz>=0.13.0",
+    "matplotlib==3.5.1",
+    "numpy>=1.17,!=1.24.0",
+    "pandas",
+    "pymc>=5.0.0",
+    "scikit-learn>=1.1.1",
+    "seaborn>=0.12.1",
+    "xarray"
+]
+
+[project.optional-dependencies]
+docs = [
+    "sphinx",
+    "ipython!=8.7.0",
+    "myst-parser",
+    "myst-nb",
+    "pydata-sphinx-theme>=0.12.0.dev0",
+    "sphinx-copybutton",
+    "sphinx-autodoc-typehints",
+    "sphinxext-opengraph",
+    "sphinx-notfound-page",
+    "sphinx-design"
+]
+lint = [
+    "black>=22.3.0",
+    "flake8>=4.0.1",
+    "isort>=5.10.1",
+    "pre-commit>=2.19.0"
+]
+test = [
+    "lifetimes==0.11.3",
+    "pytest==7.0.1",
+    "pytest-cov==3.0.0"
+]
+
+[tool.setuptools]
+packages = [
+    "pymc_marketing", 
+    "pymc_marketing.clv", 
+    "pymc_marketing.mmm", 
+]
+
+[tool.setuptools.dynamic]
+version = {file = "pymc_marketing/version.txt"}
+
+[project.urls]
+repository = "https://github.com/pymc-labs/pymc-marketing"
+# Other options
+#homepage = "https://bambinos.github.io/bambi"
+#documentation = ""
+#changelog = ""
+
 [tool.isort]
 profile = "black"
 
