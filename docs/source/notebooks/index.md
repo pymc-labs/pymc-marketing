@@ -6,6 +6,6 @@
 :maxdepth: 1
 
 mmm/mmm_example
-clv/bg-nbd
+clv/bg_nbd
 clv/gamma_gamma
 :::
