@@ -12,7 +12,7 @@ mmm/mmm_example
 :caption: CLVs
 :maxdepth: 1
 
-clv/quick_start
+clv/clv_quickstart
 clv/bg_nbd
 clv/gamma_gamma
 :::
