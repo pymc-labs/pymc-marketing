@@ -17,6 +17,12 @@ $$
 
 where $\alpha$ is the intercept, $f$ is a media transformation function and $\varepsilon_{t}$ is the error therm which we assume is normally distributed. The function $f$ encodes the contribution of media on the target variable. Typically we consider two types of transformation: adstock (carry-over) and saturation effects.
 
+[Here](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) you can find a simulated example:
+
+1. First, we describe the data genaration process of a simulated dataset.
+2. Next, we describe how to specify and fit a media mix model (as described above) using the `pymc-marketing` MMM's API.
+3. Finally, we describe the model results: channel constribution and ROAS estimation. We also show how the model recovers the parameters from the data generation process step.
+
 ### References:
 
 - [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).](https://research.google/pubs/pub46001/)
@@ -47,20 +53,10 @@ To explain further:
 
 - **Continuous:** In the continuous-time domain, purchases can be made at any point within a firms opening hours. For online ordering this could be any point within a 24 hour cycle, or purchases in physical stores could be made at any point during the trading day.
 
-Below are links to notebooks we've written that outline CLV models by type
+In the documentation we provide some examples on how to use the CLV API. We use the data from the [`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) package [Quickstart](https://lifetimes.readthedocs.io/en/latest/Quickstart.html) section to illustrate the models.
 
-### Continuous non-contractual models
-[links to notebook(s) here]
-
-### Continuous contractual models
-[links to notebook(s) here]
-
-### Discrete non-conntractual models
-[links to notebook(s) here]
-
-### Discrete contractual models
-[links to notebook(s) here]
-
+- [BG/NBD model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/bg-nbd.html)
+- [Gamma-Gamma model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/gamma_gamma.html)
 
 ---
 
