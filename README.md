@@ -64,16 +64,16 @@ Below are links to notebooks we've written that outline CLV models by type
 1. Create conda environment. For example:
 
 ```shell
-conda create -n pymmmc_env python=3.8
+conda create -n pymc_marketing_env
 ```
 
 2. Activate environment.
 
 ```shell
-conda activate pymmmc_env
+conda activate pymc_marketing_env
 ```
 
-3. Install `pymmmc` package:
+3. Install `pymc_marketing` package:
 
 ```shell
 make init
