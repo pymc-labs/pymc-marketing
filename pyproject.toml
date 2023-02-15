@@ -74,5 +74,6 @@ addopts = [
     "--strict-markers",
     "--strict-config",
     "--cov=pymc_marketing",
+    "--cov-report=term-missing",
 ]
 testpaths = "tests"
