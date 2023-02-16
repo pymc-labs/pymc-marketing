@@ -53,9 +53,10 @@ To explain further:
 
 - **Continuous:** In the continuous-time domain, purchases can be made at any point within a firms opening hours. For online ordering this could be any point within a 24 hour cycle, or purchases in physical stores could be made at any point during the trading day.
 
-In the documentation we provide some examples on how to use the CLV API. We use the data from the [`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) package [Quickstart](https://lifetimes.readthedocs.io/en/latest/Quickstart.html) section to illustrate the models.
+In the documentation we provide some examples on how to use the CLV API. We use the data from the [`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) package to illustrate the models.
 
-- [BG/NBD model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/bg-nbd.html)
+- [CLV Quickstart](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/clv_quickstart.html)
+- [BG/NBD model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/bg_nbd.html)
 - [Gamma-Gamma model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/gamma_gamma.html)
 
 ---
