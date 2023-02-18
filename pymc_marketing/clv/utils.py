@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Union
 
 import numpy as np
@@ -119,14 +120,14 @@ def customer_lifetime_value(
 
 
 def _find_first_transactions(
-    transactions,
-    customer_id_col,
-    datetime_col,
-    monetary_value_col=None,
-    datetime_format=None,
-    observation_period_end=None,
-    freq="D",
-):
+    transactions: pd.DataFrame,
+    customer_id_col: str,
+    datetime_col: str,
+    monetary_value_col: str = None,
+    datetime_format: str = None,
+    observation_period_end: Union[str, pd.Period, datetime] = None,
+    freq: str = "D",
+) -> pd.DataFrame:
     """
     Return dataframe with first transactions.
 
@@ -214,16 +215,16 @@ def _find_first_transactions(
 
 
 def clv_summary(
-    transactions,
-    customer_id_col,
-    datetime_col,
-    monetary_value_col=None,
-    datetime_format=None,
-    observation_period_end=None,
-    freq="D",
+    transactions: pd.DataFrame,
+    customer_id_col: str,
+    datetime_col: str,
+    monetary_value_col: str = None,
+    datetime_format: str = None,
+    observation_period_end: Union[str, pd.Period, datetime] = None,
+    freq: str = "D",
     freq_multiplier=1,
-    include_first_transaction=False,
-):
+    include_first_transaction: bool = False,
+) -> pd.DataFrame:
     """
     Return summary data from transactions.
 
