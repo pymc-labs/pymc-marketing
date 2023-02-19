@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import xarray
 
+__all__ = ["to_xarray", "customer_lifetime_value", "clv_summary"]
+
 
 def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
     """Convert vector arrays to xarray with a common dim (default "customer_id")."""
@@ -173,7 +175,9 @@ def _find_first_transactions(
     transactions[datetime_col] = pd.to_datetime(
         transactions[datetime_col], format=datetime_format
     )
-    transactions = transactions.set_index(datetime_col).to_period(time_unit).to_timestamp()
+    transactions = (
+        transactions.set_index(datetime_col).to_period(time_unit).to_timestamp()
+    )
 
     transactions = transactions.loc[
         (transactions.index <= observation_period_end)
@@ -220,7 +224,6 @@ def clv_summary(
     observation_period_end: Union[str, pd.Period, datetime] = None,
     time_unit: str = "D",
     time_scaler: float = 1,
-    include_first_transaction: bool = False,
 ) -> pd.DataFrame:
     """
     Summarize transaction data for modeling.
@@ -295,16 +298,13 @@ def clv_summary(
         repeated_transactions[datetime_col]
     ).to_timestamp()
 
-    # count all orders by customer.
+    # count all orders by customer
     customers = repeated_transactions.groupby(customer_id_col, sort=False)[
         datetime_col
     ].agg(["min", "max", "count"])
 
-    if not include_first_transaction:
-        # subtract 1 from count, as we ignore their first order.
-        customers["frequency"] = customers["count"] - 1
-    else:
-        customers["frequency"] = customers["count"]
+    # subtract 1 from count for non-repeat customers
+    customers["frequency"] = customers["count"] - 1
 
     customers["T"] = (
         (observation_period_end - customers["min"])
@@ -320,14 +320,11 @@ def clv_summary(
     summary_columns = ["frequency", "recency", "T"]
 
     if monetary_value_col:
-        if not include_first_transaction:
-            # create an index of all the first purchases
-            first_purchases = repeated_transactions[
-                repeated_transactions["first"]
-            ].index
-            # by setting the monetary_value cells of all the first purchases to NaN,
-            # those values will be excluded from the mean value calculation
-            repeated_transactions.loc[first_purchases, monetary_value_col] = np.nan
+        # create an index of first purchases
+        first_purchases = repeated_transactions[repeated_transactions["first"]].index
+        # Exclude first purchases from the mean value calculation,
+        # by setting as null, then imputing with zero
+        repeated_transactions.loc[first_purchases, monetary_value_col] = np.nan
         customers["monetary_value"] = (
             repeated_transactions.groupby(customer_id_col)[monetary_value_col]
             .mean()
