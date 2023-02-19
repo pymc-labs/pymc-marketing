@@ -1,4 +1,5 @@
 import pytest
+import pandas as pd
 
 
 def pytest_addoption(parser):
@@ -19,3 +20,17 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "slow" in item.keywords:
             item.add_marker(skip_slow)
+
+
+@pytest.fixture(scope="module")
+def cdnow_data() -> pd.DataFrame:
+    """
+    Load CDNOW_sample.txt into a Pandas dataframe for model and utility function testing.
+    """
+    df = pd.read_csv(
+        "tests/clv/datasets/CDNOW_sample.txt",
+        sep=r"\s+",
+        header=None,
+        names=["_id", "id", "date", "cds_bought", "spent"],
+    )
+    return df

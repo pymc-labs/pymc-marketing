@@ -212,6 +212,9 @@ def test_customer_lifetime_value_gg_with_bgf(test_summary_data, fitted_gg, fitte
 
 
 def test_find_first_transactions_returns_correct_results(transaction_data):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
+
     today = "2015-02-07"
     actual = _find_first_transactions(
         transaction_data, "id", "date", observation_period_end=today
@@ -240,13 +243,16 @@ def test_find_first_transactions_returns_correct_results(transaction_data):
 def test_find_first_transactions_with_specific_non_daily_frequency(
     transaction_data,
 ):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
+
     today = "2015-02-07"
     actual = _find_first_transactions(
         transaction_data,
         "id",
         "date",
         observation_period_end=today,
-        freq="W",
+        time_unit="W",
     )
     expected = pd.DataFrame(
         [
@@ -269,6 +275,9 @@ def test_find_first_transactions_with_specific_non_daily_frequency(
 def test_find_first_transactions_with_monetary_values(
     transaction_data,
 ):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
+
     today = "2015-02-07"
     actual = _find_first_transactions(
         transaction_data,
@@ -301,6 +310,9 @@ def test_find_first_transactions_with_monetary_values(
 def test_find_first_transactions_with_monetary_values_with_specific_non_daily_frequency(
     transaction_data,
 ):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
+
     today = "2015-02-07"
     actual = _find_first_transactions(
         transaction_data,
@@ -308,7 +320,7 @@ def test_find_first_transactions_with_monetary_values_with_specific_non_daily_fr
         "date",
         "monetary_value",
         observation_period_end=today,
-        freq="W",
+        time_unit="W",
     )
     expected = pd.DataFrame(
         [
@@ -330,6 +342,9 @@ def test_find_first_transactions_with_monetary_values_with_specific_non_daily_fr
 def test_clv_summary_returns_correct_results(
     transaction_data,
 ):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
+
     today = "2015-02-07"
     actual = clv_summary(
         transaction_data, "id", "date", observation_period_end=today
@@ -344,6 +359,9 @@ def test_clv_summary_returns_correct_results(
 
 def test_clv_summary_works_with_string_customer_ids(
 ):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
+
     d = [
         ["X", "2015-02-01"],
         ["X", "2015-02-06"],
@@ -357,6 +375,9 @@ def test_clv_summary_works_with_string_customer_ids(
 
 
 def test_clv_summary_works_with_int_customer_ids_and_doesnt_coerce_to_float():
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
+
     d = [
         [1, "2015-02-01"],
         [1, "2015-02-06"],
@@ -373,6 +394,9 @@ def test_clv_summary_works_with_int_customer_ids_and_doesnt_coerce_to_float():
 def test_clv_summary_with_specific_datetime_format(
     transaction_data,
 ):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
+
     transaction_data["date"] = transaction_data["date"].map(
         lambda x: x.replace("-", "")
     )
@@ -396,13 +420,16 @@ def test_clv_summary_with_specific_datetime_format(
 def test_summary_date_from_transaction_data_with_specific_non_daily_frequency(
     transaction_data,
 ):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
+
     today = "20150207"
     actual = clv_summary(
         transaction_data,
         "id",
         "date",
         observation_period_end=today,
-        freq="W",
+        time_unit="W",
     )
     expected = pd.DataFrame(
         [
@@ -421,6 +448,9 @@ def test_summary_date_from_transaction_data_with_specific_non_daily_frequency(
 def test_summary_date_from_transaction_with_monetary_values(
     transaction_data,
 ):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
+
     today = "20150207"
     actual = clv_summary(
         transaction_data,
@@ -444,6 +474,9 @@ def test_summary_date_from_transaction_with_monetary_values(
 
 
 def test_clv_summary_will_choose_the_correct_first_order_to_drop_in_monetary_transactions():
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
+
     # this is the correct behaviour. See https://github.com/CamDavidsonPilon/lifetimes/issues/85
     # and test_summary_statistics_are_identical_to_hardie_paper_confirming_correct_aggregations
     cust = pd.Series([2, 2, 2])
@@ -471,18 +504,13 @@ def test_clv_summary_will_choose_the_correct_first_order_to_drop_in_monetary_tra
     assert summary_ordered_data["monetary_value"].loc[2] == 22.5
 
 
-def test_summary_statistics_are_identical_to_hardie_paper_confirming_correct_aggregations():
+def test_summary_statistics_are_identical_to_hardie_paper_confirming_correct_aggregations(cdnow_data):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
+
     # see http://brucehardie.com/papers/rfm_clv_2005-02-16.pdf
     # RFM and CLV: Using Iso-value Curves for Customer Base Analysis
-    df = pd.read_csv(
-        "tests/clv/datasets/CDNOW_sample.txt",
-        sep=r"\s+",
-        header=None,
-        names=["_id", "id", "date", "cds_bought", "spent"],
-    )
-    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
-    df_train = df[df["date"] < "1997-10-01"]
-    summary = clv_summary(df_train, "id", "date", "spent")
+    summary = clv_summary(cdnow_data, "id", "date", "spent",observation_period_end="19971001",datetime_format="%Y%m%d")
     results = summary[summary["frequency"] > 0]["monetary_value"].describe()
 
     assert np.round(results.loc["mean"]) == 35
