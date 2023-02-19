@@ -1,5 +1,5 @@
-import pytest
 import pandas as pd
+import pytest
 
 
 def pytest_addoption(parser):
