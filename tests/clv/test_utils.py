@@ -513,7 +513,7 @@ def test_clv_summary_will_choose_the_correct_first_order_to_drop_in_monetary_tra
 
 
 def test_summary_statistics_are_identical_to_hardie_paper_confirming_correct_aggregations(
-    cdnow_data,
+    cdnow_trans,
 ):
     # Test borrowed from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L353
@@ -521,7 +521,7 @@ def test_summary_statistics_are_identical_to_hardie_paper_confirming_correct_agg
     # see http://brucehardie.com/papers/rfm_clv_2005-02-16.pdf
     # RFM and CLV: Using Iso-value Curves for Customer Base Analysis
     summary = clv_summary(
-        cdnow_data,
+        cdnow_trans,
         "id",
         "date",
         "spent",

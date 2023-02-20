@@ -23,9 +23,11 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture(scope="module")
-def cdnow_data() -> pd.DataFrame:
+def cdnow_trans() -> pd.DataFrame:
     """
-    Load CDNOW_sample.txt into a Pandas dataframe for model and utility function testing.
+    Load CDNOW_sample.txt transaction data into a Pandas dataframe.
+
+    Data source: https://www.brucehardie.com/datasets/
     """
     df = pd.read_csv(
         "tests/clv/datasets/CDNOW_sample.txt",
