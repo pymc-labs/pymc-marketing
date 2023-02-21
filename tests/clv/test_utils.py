@@ -3,9 +3,15 @@ import pandas as pd
 import pymc as pm
 import pytest
 import xarray
+from pandas.testing import assert_frame_equal
 
 from pymc_marketing.clv import BetaGeoModel, GammaGammaModel
-from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
+from pymc_marketing.clv.utils import (
+    _find_first_transactions,
+    clv_summary,
+    customer_lifetime_value,
+    to_xarray,
+)
 
 
 def test_to_xarray():
@@ -87,6 +93,26 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
     model._fit_result = fake_fit
 
     return model
+
+
+@pytest.fixture(scope="module")
+def transaction_data() -> pd.DataFrame:
+    d = [
+        [1, "2015-01-01", 1],
+        [1, "2015-02-06", 2],
+        [2, "2015-01-01", 2],
+        [3, "2015-01-01", 3],
+        [3, "2015-01-02", 1],
+        [3, "2015-01-05", 5],
+        [4, "2015-01-16", 6],
+        [4, "2015-02-02", 3],
+        [4, "2015-02-05", 3],
+        [5, "2015-01-16", 3],
+        [5, "2015-01-17", 1],
+        [5, "2015-01-18", 8],
+        [6, "2015-02-02", 5],
+    ]
+    return pd.DataFrame(d, columns=["id", "date", "monetary_value"])
 
 
 def test_customer_lifetime_value_with_known_values(test_summary_data, fitted_bg):
@@ -188,3 +214,325 @@ def test_customer_lifetime_value_gg_with_bgf(test_summary_data, fitted_gg, fitte
         ),
     )
     np.testing.assert_equal(ggf_clv.values, utils_clv.values)
+
+
+def test_find_first_transactions_returns_correct_results(transaction_data):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L137
+
+    today = "2015-02-07"
+    actual = _find_first_transactions(
+        transaction_data, "id", "date", observation_period_end=today
+    )
+    expected = pd.DataFrame(
+        [
+            [1, pd.Period("2015-01-01", "D"), True],
+            [1, pd.Period("2015-02-06", "D"), False],
+            [2, pd.Period("2015-01-01", "D"), True],
+            [3, pd.Period("2015-01-01", "D"), True],
+            [3, pd.Period("2015-01-02", "D"), False],
+            [3, pd.Period("2015-01-05", "D"), False],
+            [4, pd.Period("2015-01-16", "D"), True],
+            [4, pd.Period("2015-02-02", "D"), False],
+            [4, pd.Period("2015-02-05", "D"), False],
+            [5, pd.Period("2015-01-16", "D"), True],
+            [5, pd.Period("2015-01-17", "D"), False],
+            [5, pd.Period("2015-01-18", "D"), False],
+            [6, pd.Period("2015-02-02", "D"), True],
+        ],
+        columns=["id", "date", "first"],
+    )
+    assert_frame_equal(actual, expected)
+
+
+def test_find_first_transactions_with_specific_non_daily_frequency(
+    transaction_data,
+):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L161
+
+    today = "2015-02-07"
+    actual = _find_first_transactions(
+        transaction_data,
+        "id",
+        "date",
+        observation_period_end=today,
+        time_unit="W",
+    )
+    expected = pd.DataFrame(
+        [
+            [1, pd.Period("2014-12-29/2015-01-04", "W-SUN"), True],
+            [1, pd.Period("2015-02-02/2015-02-08", "W-SUN"), False],
+            [2, pd.Period("2014-12-29/2015-01-04", "W-SUN"), True],
+            [3, pd.Period("2014-12-29/2015-01-04", "W-SUN"), True],
+            [3, pd.Period("2015-01-05/2015-01-11", "W-SUN"), False],
+            [4, pd.Period("2015-01-12/2015-01-18", "W-SUN"), True],
+            [4, pd.Period("2015-02-02/2015-02-08", "W-SUN"), False],
+            [5, pd.Period("2015-01-12/2015-01-18", "W-SUN"), True],
+            [6, pd.Period("2015-02-02/2015-02-08", "W-SUN"), True],
+        ],
+        columns=["id", "date", "first"],
+        index=actual.index,
+    )  # we shouldn't really care about row ordering or indexing, but assert_frame_equals is strict about it
+    assert_frame_equal(actual, expected)
+
+
+def test_find_first_transactions_with_monetary_values(
+    transaction_data,
+):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L184
+
+    today = "2015-02-07"
+    actual = _find_first_transactions(
+        transaction_data,
+        "id",
+        "date",
+        "monetary_value",
+        observation_period_end=today,
+    )
+    expected = pd.DataFrame(
+        [
+            [1, pd.Period("2015-01-01", "D"), 1, True],
+            [1, pd.Period("2015-02-06", "D"), 2, False],
+            [2, pd.Period("2015-01-01", "D"), 2, True],
+            [3, pd.Period("2015-01-01", "D"), 3, True],
+            [3, pd.Period("2015-01-02", "D"), 1, False],
+            [3, pd.Period("2015-01-05", "D"), 5, False],
+            [4, pd.Period("2015-01-16", "D"), 6, True],
+            [4, pd.Period("2015-02-02", "D"), 3, False],
+            [4, pd.Period("2015-02-05", "D"), 3, False],
+            [5, pd.Period("2015-01-16", "D"), 3, True],
+            [5, pd.Period("2015-01-17", "D"), 1, False],
+            [5, pd.Period("2015-01-18", "D"), 8, False],
+            [6, pd.Period("2015-02-02", "D"), 5, True],
+        ],
+        columns=["id", "date", "monetary_value", "first"],
+    )
+    assert_frame_equal(actual, expected)
+
+
+def test_find_first_transactions_with_monetary_values_with_specific_non_daily_frequency(
+    transaction_data,
+):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L210
+
+    today = "2015-02-07"
+    actual = _find_first_transactions(
+        transaction_data,
+        "id",
+        "date",
+        "monetary_value",
+        observation_period_end=today,
+        time_unit="W",
+    )
+    expected = pd.DataFrame(
+        [
+            [1, pd.Period("2014-12-29/2015-01-04", "W-SUN"), 1, True],
+            [1, pd.Period("2015-02-02/2015-02-08", "W-SUN"), 2, False],
+            [2, pd.Period("2014-12-29/2015-01-04", "W-SUN"), 2, True],
+            [3, pd.Period("2014-12-29/2015-01-04", "W-SUN"), 4, True],
+            [3, pd.Period("2015-01-05/2015-01-11", "W-SUN"), 5, False],
+            [4, pd.Period("2015-01-12/2015-01-18", "W-SUN"), 6, True],
+            [4, pd.Period("2015-02-02/2015-02-08", "W-SUN"), 6, False],
+            [5, pd.Period("2015-01-12/2015-01-18", "W-SUN"), 12, True],
+            [6, pd.Period("2015-02-02/2015-02-08", "W-SUN"), 5, True],
+        ],
+        columns=["id", "date", "monetary_value", "first"],
+    )
+    assert_frame_equal(actual, expected)
+
+
+def test_clv_summary_returns_correct_results(
+    transaction_data,
+):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L239
+
+    today = "2015-02-07"
+    actual = clv_summary(transaction_data, "id", "date", observation_period_end=today)
+    expected = pd.DataFrame(
+        [
+            [1, 1.0, 36.0, 37.0],
+            [2, 0.0, 0.0, 37.0],
+            [3, 2.0, 4.0, 37.0],
+            [4, 2.0, 20.0, 22.0],
+            [5, 2.0, 2.0, 22.0],
+            [6, 0.0, 0.0, 5.0],
+        ],
+        columns=["id", "frequency", "recency", "T"],
+    )
+    assert_frame_equal(actual, expected)
+
+
+def test_clv_summary_works_with_string_customer_ids():
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L250
+
+    d = [
+        ["X", "2015-02-01"],
+        ["X", "2015-02-06"],
+        ["Y", "2015-01-01"],
+        ["Y", "2015-01-01"],
+        ["Y", "2015-01-02"],
+        ["Y", "2015-01-05"],
+    ]
+    df = pd.DataFrame(d, columns=["id", "date"])
+    clv_summary(df, "id", "date")
+
+
+def test_clv_summary_works_with_int_customer_ids_and_doesnt_coerce_to_float():
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L263
+
+    d = [
+        [1, "2015-02-01"],
+        [1, "2015-02-06"],
+        [1, "2015-01-01"],
+        [2, "2015-01-01"],
+        [2, "2015-01-02"],
+        [2, "2015-01-05"],
+    ]
+    df = pd.DataFrame(d, columns=["id", "date"])
+    actual = clv_summary(df, "id", "date")
+    assert actual.index.dtype == "int64"
+
+
+def test_clv_summary_with_specific_datetime_format(
+    transaction_data,
+):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L279
+
+    transaction_data["date"] = transaction_data["date"].map(
+        lambda x: x.replace("-", "")
+    )
+    format = "%Y%m%d"
+    today = "20150207"
+    actual = clv_summary(
+        transaction_data,
+        "id",
+        "date",
+        observation_period_end=today,
+        datetime_format=format,
+    )
+    expected = pd.DataFrame(
+        [
+            [1, 1.0, 36.0, 37.0],
+            [2, 0.0, 0.0, 37.0],
+            [3, 2.0, 4.0, 37.0],
+            [4, 2.0, 20.0, 22.0],
+            [5, 2.0, 2.0, 22.0],
+            [6, 0.0, 0.0, 5.0],
+        ],
+        columns=["id", "frequency", "recency", "T"],
+    )
+    assert_frame_equal(actual, expected)
+
+
+def test_summary_date_from_transaction_data_with_specific_non_daily_frequency(
+    transaction_data,
+):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L292
+
+    today = "20150207"
+    actual = clv_summary(
+        transaction_data,
+        "id",
+        "date",
+        observation_period_end=today,
+        time_unit="W",
+    )
+    expected = pd.DataFrame(
+        [
+            [1, 1.0, 5.0, 5.0],
+            [2, 0.0, 0.0, 5.0],
+            [3, 1.0, 1.0, 5.0],
+            [4, 1.0, 3.0, 3.0],
+            [5, 0.0, 0.0, 3.0],
+            [6, 0.0, 0.0, 0.0],
+        ],
+        columns=["id", "frequency", "recency", "T"],
+    )
+    assert_frame_equal(actual, expected)
+
+
+def test_summary_date_from_transaction_with_monetary_values(
+    transaction_data,
+):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L311
+
+    today = "20150207"
+    actual = clv_summary(
+        transaction_data,
+        "id",
+        "date",
+        monetary_value_col="monetary_value",
+        observation_period_end=today,
+    )
+    expected = pd.DataFrame(
+        [
+            [1, 1.0, 36.0, 37.0, 2],
+            [2, 0.0, 0.0, 37.0, 0],
+            [3, 2.0, 4.0, 37.0, 3],
+            [4, 2.0, 20.0, 22.0, 3],
+            [5, 2.0, 2.0, 22.0, 4.5],
+            [6, 0.0, 0.0, 5.0, 0],
+        ],
+        columns=["id", "frequency", "recency", "T", "monetary_value"],
+    )
+    assert_frame_equal(actual, expected)
+
+
+def test_clv_summary_will_choose_the_correct_first_order_to_drop_in_monetary_transactions():
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L334
+
+    cust = pd.Series([2, 2, 2])
+    dates_ordered = pd.to_datetime(
+        pd.Series(["2014-03-14 00:00:00", "2014-04-09 00:00:00", "2014-05-21 00:00:00"])
+    )
+    sales = pd.Series([10, 20, 25])
+    transaction_data = pd.DataFrame({"date": dates_ordered, "id": cust, "sales": sales})
+    summary_ordered_data = clv_summary(transaction_data, "id", "date", "sales")
+
+    dates_unordered = pd.to_datetime(
+        pd.Series(["2014-04-09 00:00:00", "2014-03-14 00:00:00", "2014-05-21 00:00:00"])
+    )
+    sales = pd.Series([20, 10, 25])
+    transaction_data = pd.DataFrame(
+        {"date": dates_unordered, "id": cust, "sales": sales}
+    )
+    summary_unordered_data = clv_summary(transaction_data, "id", "date", "sales")
+
+    assert_frame_equal(summary_ordered_data, summary_unordered_data)
+    assert summary_ordered_data["monetary_value"].loc[0] == 22.5
+
+
+def test_summary_statistics_are_identical_to_hardie_paper_confirming_correct_aggregations(
+    cdnow_trans,
+):
+    # Test borrowed from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L353
+
+    # see http://brucehardie.com/papers/rfm_clv_2005-02-16.pdf
+    # RFM and CLV: Using Iso-value Curves for Customer Base Analysis
+    summary = clv_summary(
+        cdnow_trans,
+        "id",
+        "date",
+        "spent",
+        observation_period_end="19971001",
+        datetime_format="%Y%m%d",
+    )
+    results = summary[summary["frequency"] > 0]["monetary_value"].describe()
+
+    assert np.round(results.loc["mean"]) == 35
+    assert np.round(results.loc["std"]) == 30
+    assert np.round(results.loc["min"]) == 3
+    assert np.round(results.loc["50%"]) == 27
+    assert np.round(results.loc["max"]) == 300
+    assert np.round(results.loc["count"]) == 946

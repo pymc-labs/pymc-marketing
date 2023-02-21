@@ -1,3 +1,4 @@
+import pandas as pd
 import pytest
 
 
@@ -19,3 +20,13 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "slow" in item.keywords:
             item.add_marker(skip_slow)
+
+
+@pytest.fixture(scope="module")
+def cdnow_trans() -> pd.DataFrame:
+    """
+    Load CDNOW sample transaction data into a Pandas dataframe.
+
+    Data source: https://www.brucehardie.com/datasets/
+    """
+    return pd.read_csv("tests/clv/datasets/cdnow_transactions.csv")
