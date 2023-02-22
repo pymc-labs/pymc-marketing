@@ -16,6 +16,12 @@ repos:
         entry: isort --profile black
         language: system
         types: [python]
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: system
+        types: [python]
+        files: ^pymc_marketing/
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v3.2.0
     hooks:

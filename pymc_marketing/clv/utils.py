@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -17,9 +17,7 @@ def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
         xarray.DataArray(data=array, coords=coords, dims=dims) for array in arrays
     )
 
-    if len(arrays) == 1:
-        return res[0]
-    return res
+    return res[0] if len(arrays) == 1 else res
 
 
 def customer_lifetime_value(
@@ -58,12 +56,12 @@ def customer_lifetime_value(
     time: int, optional
         The lifetime expected for the user in months. Default: 12
     discount_rate: float, optional
-        The monthly adjusted discount rate. Default: 1
+        The monthly adjusted discount rate. Default: 0.01
     freq: string, optional
-        Frequency of discrete time steps used to estimate the customer lifetime value.
-        Defaults to "D" for daily. Other options are "W" (weekly), "M" (monthly), and "H" (hourly).
-        Smaller time frames estimate better the effects of discounting rate, at the cost of more
-        evaluations.
+        Unit of time of the purchase history. Defaults to "D" for daily.
+        Other options are "W" (weekly), "M" (monthly), and "H" (hourly).
+        Example: If your dataset contains information about weekly purchases,
+        you should use "W".
 
     Returns
     -------
@@ -125,9 +123,9 @@ def _find_first_transactions(
     transactions: pd.DataFrame,
     customer_id_col: str,
     datetime_col: str,
-    monetary_value_col: str = None,
-    datetime_format: str = None,
-    observation_period_end: Union[str, pd.Period, datetime] = None,
+    monetary_value_col: Optional[str] = None,
+    datetime_format: Optional[str] = None,
+    observation_period_end: Optional[Union[str, pd.Period, datetime]] = None,
     time_unit: str = "D",
 ) -> pd.DataFrame:
     """
@@ -152,12 +150,12 @@ def _find_first_transactions(
     monetary_value_col: string, optional
         Column in the transactions DataFrame that denotes the monetary value of the transaction.
         Optional; only needed for spend estimation models like the Gamma-Gamma model.
-    observation_period_end: :obj: datetime
-        A string or datetime to denote the final date of the study.
-        Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
     datetime_format: string, optional
         A string that represents the timestamp format. Useful if Pandas can't understand
         the provided format.
+    observation_period_end: Union[str, pd.Period, datetime], optional
+        A string or datetime to denote the final date of the study.
+        Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
     time_unit: string, optional
         Time granularity for study.
         Default: 'D' for days. Possible values listed here:
@@ -165,6 +163,12 @@ def _find_first_transactions(
     """
 
     select_columns = [customer_id_col, datetime_col]
+
+    if observation_period_end is None:
+        observation_period_end = transactions[datetime_col].max()
+
+    if isinstance(observation_period_end, pd.Period):
+        observation_period_end = observation_period_end.to_timestamp()
 
     if monetary_value_col:
         select_columns.append(monetary_value_col)
@@ -179,9 +183,9 @@ def _find_first_transactions(
         transactions.set_index(datetime_col).to_period(time_unit).to_timestamp()
     )
 
-    transactions = transactions.loc[
-        (transactions.index <= observation_period_end)
-    ].reset_index()
+    mask = pd.DatetimeIndex(transactions.index) <= observation_period_end
+
+    transactions = transactions.loc[mask].reset_index()
 
     period_groupby = transactions.groupby(
         [datetime_col, customer_id_col], sort=False, as_index=False
@@ -208,9 +212,9 @@ def _find_first_transactions(
     period_transactions.loc[first_transactions, "first"] = True
     select_columns.append("first")
     # reset datetime_col to period
-    period_transactions.loc[:, datetime_col] = pd.Index(
-        period_transactions[datetime_col]
-    ).to_period(time_unit)
+    period_transactions.loc[:, datetime_col] = period_transactions[
+        datetime_col
+    ].dt.to_period(time_unit)
 
     return period_transactions[select_columns]
 
@@ -219,9 +223,9 @@ def clv_summary(
     transactions: pd.DataFrame,
     customer_id_col: str,
     datetime_col: str,
-    monetary_value_col: str = None,
-    datetime_format: str = None,
-    observation_period_end: Union[str, pd.Period, datetime] = None,
+    monetary_value_col: Optional[str] = None,
+    datetime_format: Optional[str] = None,
+    observation_period_end: Optional[Union[str, pd.Period, datetime]] = None,
     time_unit: str = "D",
     time_scaler: float = 1,
 ) -> pd.DataFrame:
@@ -247,9 +251,9 @@ def clv_summary(
     monetary_value_col: string, optional
         Column in the transactions DataFrame that denotes the monetary value of the transaction.
         Optional; only needed for spend estimation models like the Gamma-Gamma model.
-    observation_period_end: datetime, optional
-         A string or datetime to denote the final date of the study.
-         Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
+    observation_period_end: Union[str, pd.Period, datetime], optional
+        A string or datetime to denote the final date of the study.
+        Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
     datetime_format: string, optional
         A string that represents the timestamp format. Useful if Pandas can't understand
         the provided format.
@@ -271,13 +275,15 @@ def clv_summary(
     """
 
     if observation_period_end is None:
-        observation_period_end = (
+        observation_period_end_ts = (
             pd.to_datetime(transactions[datetime_col].max(), format=datetime_format)
             .to_period(time_unit)
             .to_timestamp()
         )
+    elif isinstance(observation_period_end, pd.Period):
+        observation_period_end_ts = observation_period_end.to_timestamp()
     else:
-        observation_period_end = (
+        observation_period_end_ts = (
             pd.to_datetime(observation_period_end, format=datetime_format)
             .to_period(time_unit)
             .to_timestamp()
@@ -290,13 +296,13 @@ def clv_summary(
         datetime_col,
         monetary_value_col,
         datetime_format,
-        observation_period_end,
+        observation_period_end_ts,
         time_unit,
     )
     # reset datetime_col to timestamp
-    repeated_transactions[datetime_col] = pd.Index(
-        repeated_transactions[datetime_col]
-    ).to_timestamp()
+    repeated_transactions[datetime_col] = repeated_transactions[
+        datetime_col
+    ].dt.to_timestamp()
 
     # count all orders by customer
     customers = repeated_transactions.groupby(customer_id_col, sort=False)[
@@ -307,12 +313,12 @@ def clv_summary(
     customers["frequency"] = customers["count"] - 1
 
     customers["T"] = (
-        (observation_period_end - customers["min"])
+        (observation_period_end_ts - customers["min"])
         / np.timedelta64(1, time_unit)
         / time_scaler
     )
     customers["recency"] = (
-        (customers["max"] - customers["min"])
+        (pd.to_datetime(customers["max"]) - pd.to_datetime(customers["min"]))
         / np.timedelta64(1, time_unit)
         / time_scaler
     )

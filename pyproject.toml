@@ -13,13 +13,15 @@ maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.io" }]
 
 dependencies = [
     "arviz>=0.13.0",
-    "matplotlib==3.5.1",
-    "numpy>=1.17,!=1.24.0",
+    "matplotlib>=3.5.1",
+    "numpy>=1.17",
     "pandas",
-    "pymc>=5.0.0",
+    # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
+    "pymc>=5.4.0",
     "scikit-learn>=1.1.1",
-    "seaborn>=0.12.1",
-    "xarray"
+    "seaborn>=0.12.2",
+    "xarray",
+    "xarray-einstats>=0.5.1",
 ]
 
 [project.optional-dependencies]
@@ -39,7 +41,10 @@ lint = [
     "black>=22.3.0",
     "flake8>=4.0.1",
     "isort>=5.10.1",
-    "pre-commit>=2.19.0"
+    "mypy",
+    "pandas-stubs",
+    "pre-commit>=2.19.0",
+    "pylint"
 ]
 test = [
     "lifetimes==0.11.3",
@@ -75,5 +80,6 @@ addopts = [
     "--strict-config",
     "--cov=pymc_marketing",
     "--cov-report=term-missing",
+    "--color=yes",
 ]
 testpaths = "tests"

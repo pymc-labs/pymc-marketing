@@ -6,7 +6,7 @@ from inspect import (
     ismemberdescriptor,
     ismethoddescriptor,
 )
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -30,30 +30,32 @@ __all__ = ("BaseMMM", "MMM")
 
 
 class BaseMMM:
+    model: pm.Model
+
     def __init__(
         self,
-        data_df: pd.DataFrame,
+        data: pd.DataFrame,
         target_column: str,
         date_column: str,
         channel_columns: Union[List[str], Tuple[str]],
         validate_data: bool = True,
         **kwargs,
     ) -> None:
-        self.data_df: pd.DataFrame = data_df
+        self.data: pd.DataFrame = data
         self.target_column: str = target_column
         self.date_column: str = date_column
         self.channel_columns: Union[List[str], Tuple[str]] = channel_columns
-        self.n_obs: int = data_df.shape[0]
+        self.n_obs: int = data.shape[0]
         self.n_channel: int = len(channel_columns)
         self._fit_result: Optional[az.InferenceData] = None
         self._posterior_predictive: Optional[az.InferenceData] = None
 
         if validate_data:
-            self.validate(self.data_df)
-        self.preprocessed_data = self.preprocess(self.data_df.copy())
+            self.validate(self.data)
+        self.preprocessed_data = self.preprocess(self.data.copy())
 
         self.build_model(
-            data_df=self.preprocessed_data,
+            data=self.preprocessed_data,
             **kwargs,
         )
 
@@ -73,7 +75,7 @@ class BaseMMM:
         ]
 
     @property
-    def validation_methods(self) -> List[Callable[[pd.DataFrame], None]]:
+    def validation_methods(self) -> List[Callable[["BaseMMM", pd.DataFrame], None]]:
         return [
             method
             for method in self.methods
@@ -81,7 +83,9 @@ class BaseMMM:
         ]
 
     @property
-    def preprocessing_methods(self) -> List[Callable[[pd.DataFrame], pd.DataFrame]]:
+    def preprocessing_methods(
+        self,
+    ) -> List[Callable[["BaseMMM", pd.DataFrame], pd.DataFrame]]:
         return [
             method
             for method in self.methods
@@ -90,22 +94,22 @@ class BaseMMM:
 
     def get_target_transformer(self) -> Pipeline:
         try:
-            return self.target_transformer
+            return self.target_transformer  # type: ignore
         except AttributeError:
             identity_transformer = FunctionTransformer()
             return Pipeline(steps=[("scaler", identity_transformer)])
 
-    def validate(self, data_df: pd.DataFrame):
+    def validate(self, data: pd.DataFrame):
         for method in self.validation_methods:
-            method(self, data_df)
+            method(self, data)
 
-    def preprocess(self, data_df: pd.DataFrame) -> pd.DataFrame:
+    def preprocess(self, data: pd.DataFrame) -> pd.DataFrame:
         for method in self.preprocessing_methods:
-            data_df = method(self, data_df)
-        return data_df
+            data = method(self, data)
+        return data
 
     @abstractmethod
-    def build_model(*args, **kwargs):
+    def build_model(self, *args, **kwargs) -> None:
         raise NotImplementedError()
 
     def get_prior_predictive_data(self, *args, **kwargs) -> az.InferenceData:
@@ -113,7 +117,7 @@ class BaseMMM:
             return self._prior_predictive
         except AttributeError:
             with self.model:
-                self.prior_predictive: az.InferenceData = pm.sample_prior_predictive(
+                self._prior_predictive: az.InferenceData = pm.sample_prior_predictive(
                     *args, **kwargs
                 )
             return self._prior_predictive
@@ -162,7 +166,7 @@ class BaseMMM:
         fig, ax = plt.subplots(**plt_kwargs)
 
         ax.fill_between(
-            x=self.data_df[self.date_column],
+            x=self.data[self.date_column],
             y1=likelihood_hdi_94[:, 0],
             y2=likelihood_hdi_94[:, 1],
             color="C0",
@@ -171,7 +175,7 @@ class BaseMMM:
         )
 
         ax.fill_between(
-            x=self.data_df[self.date_column],
+            x=self.data[self.date_column],
             y1=likelihood_hdi_50[:, 0],
             y2=likelihood_hdi_50[:, 1],
             color="C0",
@@ -180,7 +184,7 @@ class BaseMMM:
         )
 
         ax.plot(
-            self.data_df[self.date_column],
+            self.data[self.date_column],
             self.preprocessed_data[self.target_column],
             color="black",
         )
@@ -210,7 +214,7 @@ class BaseMMM:
         fig, ax = plt.subplots(**plt_kwargs)
 
         ax.fill_between(
-            x=self.data_df[self.date_column],
+            x=self.data[self.date_column],
             y1=likelihood_hdi_94[:, 0],
             y2=likelihood_hdi_94[:, 1],
             color="C0",
@@ -219,7 +223,7 @@ class BaseMMM:
         )
 
         ax.fill_between(
-            x=self.data_df[self.date_column],
+            x=self.data[self.date_column],
             y1=likelihood_hdi_50[:, 0],
             y2=likelihood_hdi_50[:, 1],
             color="C0",
@@ -228,11 +232,11 @@ class BaseMMM:
         )
 
         target_to_plot: pd.Series = (
-            self.data_df[self.target_column]
+            self.data[self.target_column]
             if original_scale
             else self.preprocessed_data[self.target_column]
         )
-        ax.plot(self.data_df[self.date_column], target_to_plot, color="black")
+        ax.plot(self.data[self.date_column], target_to_plot, color="black")
         ax.set(
             title="Posterior Predictive Check",
             xlabel="date",
@@ -240,45 +244,38 @@ class BaseMMM:
         )
         return fig
 
-    def plot_components_contributions(self, **plt_kwargs: Any) -> plt.Figure:
-        channel_contributions = az.extract(
+    def _format_model_contributions(self, var_contribution: str) -> DataArray:
+        contributions = az.extract(
             self.fit_result,
-            var_names=["channel_contributions"],
+            var_names=[var_contribution],
             combined=False,
         )
         contracted_dims = [
-            d for d in channel_contributions.dims if d not in ["chain", "draw", "date"]
+            d for d in contributions.dims if d not in ["chain", "draw", "date"]
         ]
-        channel_contributions = (
-            channel_contributions.sum(contracted_dims)
-            if contracted_dims
-            else channel_contributions
+        return contributions.sum(contracted_dims) if contracted_dims else contributions
+
+    def plot_components_contributions(self, **plt_kwargs: Any) -> plt.Figure:
+        channel_contributions = self._format_model_contributions(
+            var_contribution="channel_contributions"
         )
         means = [channel_contributions.mean(["chain", "draw"])]
         contribution_vars = [
             az.hdi(channel_contributions, hdi_prob=0.94).channel_contributions
         ]
 
-        if getattr(self, "control_columns", None):
-            control_contributions = az.extract(
-                self.fit_result,
-                var_names=["control_contributions"],
-                combined=False,
-            )
-            contracted_dims = [
-                d
-                for d in control_contributions.dims
-                if d not in ["chain", "draw", "date"]
-            ]
-            control_contributions = (
-                control_contributions.sum(contracted_dims)
-                if contracted_dims
-                else control_contributions
-            )
-            means.append(control_contributions.mean(["chain", "draw"]))
-            contribution_vars.append(
-                az.hdi(control_contributions, hdi_prob=0.94).control_contributions
-            )
+        for arg, var_contribution in zip(
+            ["control_columns", "yearly_seasonality"],
+            ["control_contributions", "fourier_contributions"],
+        ):
+            if getattr(self, arg, None):
+                contributions = self._format_model_contributions(
+                    var_contribution=var_contribution
+                )
+                means.append(contributions.mean(["chain", "draw"]))
+                contribution_vars.append(
+                    az.hdi(contributions, hdi_prob=0.94)[var_contribution]
+                )
 
         fig, ax = plt.subplots(**plt_kwargs)
 
@@ -286,11 +283,15 @@ class BaseMMM:
             zip(
                 means,
                 contribution_vars,
-                ["channel_contribution", "control_contribution"],
+                [
+                    "channel_contribution",
+                    "control_contribution",
+                    "fourier_contribution",
+                ],
             )
         ):
             ax.fill_between(
-                x=self.data_df[self.date_column],
+                x=self.data[self.date_column],
                 y1=hdi.isel(hdi=0),
                 y2=hdi.isel(hdi=1),
                 color=f"C{i}",
@@ -298,7 +299,7 @@ class BaseMMM:
                 label=f"$94 %$ HDI ({var_contribution})",
             )
             sns.lineplot(
-                x=self.data_df[self.date_column],
+                x=self.data[self.date_column],
                 y=mean,
                 color=f"C{i}",
                 ax=ax,
@@ -311,13 +312,13 @@ class BaseMMM:
             axis=0,
         )
         sns.lineplot(
-            x=self.data_df[self.date_column],
+            x=self.data[self.date_column],
             y=intercept.mean().data,
             color=f"C{i + 1}",
             ax=ax,
         )
         ax.fill_between(
-            x=self.data_df[self.date_column],
+            x=self.data[self.date_column],
             y1=intercept_hdi[:, 0],
             y2=intercept_hdi[:, 1],
             color=f"C{i + 1}",
@@ -325,7 +326,7 @@ class BaseMMM:
             label="$94 %$ HDI (intercept)",
         )
         ax.plot(
-            self.data_df[self.date_column],
+            self.data[self.date_column],
             self.preprocessed_data[self.target_column],
             color="black",
         )
@@ -392,7 +393,7 @@ class BaseMMM:
         for i, channel in enumerate(self.channel_columns):
             ax = axes[i]
             sns.regplot(
-                x=self.data_df[self.channel_columns].to_numpy()[:, i],
+                x=self.data[self.channel_columns].to_numpy()[:, i],
                 y=channel_contributions.sel(channel=channel),
                 color=f"C{i}",
                 order=2,
@@ -408,6 +409,157 @@ class BaseMMM:
             ax.set(title=f"{channel}", xlabel="total_cost_eur")
 
         fig.suptitle("Contribution Plots", fontsize=16)
+        return fig
+
+    def compute_mean_contributions_over_time(
+        self, original_scale: bool = False
+    ) -> pd.DataFrame:
+        """Get the contributions of each channel over time.
+
+        Parameters
+        ----------
+        original_scale : bool, optional
+            Whether to return the contributions in the original scale of the target
+            variable. If False, the contributions are returned in the scale of the
+            transformed target variable. Defaults to False.
+
+        Returns
+        -------
+        pd.DataFrame
+            A dataframe with the mean contributions of each channel and control variables over time.
+        """
+        contributions_channel_over_time = (
+            az.extract(
+                self.fit_result,
+                var_names=["channel_contributions"],
+                combined=True,
+            )
+            .mean("sample")
+            .to_dataframe()
+            .squeeze()
+            .unstack()
+        )
+
+        if getattr(self, "control_columns", None):
+            contributions_control_over_time = (
+                az.extract(
+                    self.fit_result,
+                    var_names=["control_contributions"],
+                    combined=True,
+                )
+                .mean("sample")
+                .to_dataframe()
+                .squeeze()
+                .unstack()
+            )
+        else:
+            contributions_control_over_time = pd.DataFrame(
+                index=contributions_channel_over_time.index
+            )
+
+        if getattr(self, "yearly_seasonality", None):
+            contributions_fourier_over_time = (
+                az.extract(
+                    self.fit_result,
+                    var_names=["fourier_contributions"],
+                    combined=True,
+                )
+                .mean("sample")
+                .to_dataframe()
+                .squeeze()
+                .unstack()
+            )
+        else:
+            contributions_fourier_over_time = pd.DataFrame(
+                index=contributions_channel_over_time.index
+            )
+
+        contributions_intercept_over_time = (
+            az.extract(
+                self.fit_result,
+                var_names=["intercept"],
+                combined=True,
+            )
+            .mean("sample")
+            .to_numpy()
+        )
+
+        all_contributions_over_time = (
+            contributions_channel_over_time.join(contributions_control_over_time)
+            .join(contributions_fourier_over_time)
+            .assign(intercept=contributions_intercept_over_time)
+        )
+
+        if original_scale:
+            all_contributions_over_time = pd.DataFrame(
+                data=self.get_target_transformer().inverse_transform(
+                    all_contributions_over_time
+                ),
+                columns=all_contributions_over_time.columns,
+                index=all_contributions_over_time.index,
+            )
+        return all_contributions_over_time
+
+    def plot_grouped_contribution_breakdown_over_time(
+        self,
+        stack_groups: Optional[Dict[str, List[str]]] = None,
+        original_scale: bool = False,
+        area_kwargs: Optional[Dict[str, Any]] = None,
+        **plt_kwargs: Any,
+    ) -> plt.Figure:
+        """Plot a time series area chart for all channel contributions.
+
+        Since a chart like this can become quite crowded if you have many channels or
+        control variables, you can group certain variables together using the
+        `stack_groups` keyword.
+
+        Parameters
+        ----------
+        stack_groups : dict of {str: list of str}, optional
+            Specifies which variables to group together.
+            Example: passing
+                {
+                    "Baseline": ["intercept"],
+                    "Offline": ["TV", "Radio"],
+                    "Online": ["Banners"]
+                }
+            results in a chart with three colors, one for Baseline, one for Online,
+            and one for Offline. If `stack_groups` is None, the chart would have four
+            colors since TV and Radio would be separated.
+
+            Note: If you only pass {"Baseline": "intercept", "Online": ["Banners"]},
+            you will not see the TV and Radio channels in the chart.
+        original_scale : bool, by default False
+            If True, the contributions are plotted in the original scale of the target.
+
+        Returns
+        -------
+        plt.Figure
+            Matplotlib figure with the plot.
+        """
+
+        all_contributions_over_time = self.compute_mean_contributions_over_time(
+            original_scale=original_scale
+        )
+
+        if stack_groups is not None:
+            grouped_buffer = []
+            for group, columns in stack_groups.items():
+                grouped = (
+                    all_contributions_over_time.filter(columns)
+                    .sum(axis="columns")
+                    .rename(group)
+                )
+                grouped_buffer.append(grouped)
+
+            all_contributions_over_time = pd.concat(grouped_buffer, axis="columns")
+
+        fig, ax = plt.subplots(**plt_kwargs)
+        area_params = dict(stacked=True, ax=ax)
+        if area_kwargs is not None:
+            area_params.update(area_kwargs)
+        all_contributions_over_time.plot.area(**area_params)
+        ax.legend(title="groups", loc="center left", bbox_to_anchor=(1, 0.5))
         return fig
 
     def _get_channel_contributions_share_samples(self) -> DataArray:
@@ -429,12 +581,15 @@ class BaseMMM:
             data=channel_contributions_share,
             combined=True,
             hdi_prob=hdi_prob,
-            backend_kwargs=plot_kwargs,
+            **plot_kwargs,
         )
         ax.xaxis.set_major_formatter(mtick.FuncFormatter(lambda y, _: f"{y: 0.0%}"))
         fig: plt.Figure = plt.gcf()
         fig.suptitle("channel Contribution Share", fontsize=16, y=1.05)
         return fig
+
+    def graphviz(self, **kwargs):
+        return pm.model_to_graphviz(self.model, **kwargs)
 
 
 class MMM(BaseMMM, ValidateTargetColumn, ValidateDateColumn, ValidateChannelColumns):

@@ -1,4 +1,3 @@
-import types
 from typing import Optional, Union
 
 import numpy as np
@@ -6,7 +5,7 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray
-from pymc import str_for_dist
+from pymc.util import RandomState
 from pytensor.tensor import TensorVariable
 
 from pymc_marketing.clv.models.basic import CLVModel
@@ -18,33 +17,24 @@ class BaseGammaGammaModel(CLVModel):
         if p_prior is None:
             p_prior = pm.HalfFlat.dist()
         else:
-            assert p_prior.eval().shape == ()
+            self._check_prior_ndim(p_prior)
         if q_prior is None:
             q_prior = pm.HalfFlat.dist()
         else:
-            assert q_prior.eval().shape == ()
+            self._check_prior_ndim(q_prior)
         if v_prior is None:
             v_prior = pm.HalfFlat.dist()
         else:
-            assert v_prior.eval().shape == ()
+            self._check_prior_ndim(v_prior)
 
-        assert p_prior is not q_prior
-        assert p_prior is not v_prior
-        assert q_prior is not v_prior
-
-        # Who had the idea of attaching methods to pre-existing objects?
-        p_prior.str_repr = types.MethodType(str_for_dist, p_prior)
-        q_prior.str_repr = types.MethodType(str_for_dist, q_prior)
-        v_prior.str_repr = types.MethodType(str_for_dist, v_prior)
-
-        return p_prior, q_prior, v_prior
+        return super()._process_priors(p_prior, q_prior, v_prior)
 
     def distribution_customer_spend(
         self,
         customer_id: Union[np.ndarray, pd.Series],
         mean_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
         frequency: Union[np.ndarray, pd.Series, TensorVariable],
-        random_seed=None,
+        random_seed: Optional[RandomState] = None,
     ) -> xarray.DataArray:
         """Posterior distribution of transaction value per customer"""
 
@@ -141,7 +131,10 @@ class BaseGammaGammaModel(CLVModel):
         discount_rate: float = 0.01,
         freq: str = "D",
     ) -> xarray.DataArray:
-        """Expected customer lifetime value."""
+        """Expected customer lifetime value.
+
+        See clv.utils.customer_lifetime_value for details on the meaning of each parameter
+        """
 
         # Use the Gamma-Gamma estimates for the monetary_values
         adjusted_monetary_value = self.expected_customer_spend(
@@ -215,18 +208,17 @@ class GammaGammaModel(BaseGammaGammaModel):
             model.fit()
             print(model.fit_summary())
 
-            # Predict spend of customers for which we know transaction history,
-            # conditioned on data. May include customers not included in fitting
+            # Predict spend of customers for which we know transaction history, conditioned on data.
             expected_customer_spend = model.expected_customer_spend(
-                customer_id=[4, 5, 6, 7, ...],
-                mean_transactionn_value=[2.3, 5.9, 221, 3.0, ...],
-                frequency=[3, 4, 6, 6, ...],
+                customer_id=[0, 1, 2, 3, ...],
+                mean_transactionn_value=[23.5, 19.3, 11.2, 100.5, ...],
+                frequency=[6, 8, 2, 1, ...],
             )
             print(expected_customer_spend.mean("customer_id"))
 
             # Predict spend of 10 new customers, conditioned on data
             new_customer_spend = model.expected_new_customer_spend(n=10)
-            print(new_customer_spend.mean("customer_id"))
+            print(new_customer_spend.mean("new_customer_id"))
 
     References
     ----------
@@ -337,7 +329,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
             # Predict spend of 10 new customers, conditioned on data
             new_customer_spend = model.expected_new_customer_spend(n=10)
-            print(new_customer_spend.mean("customer_id"))
+            print(new_customer_spend.mean("new_customer_id"))
 
 
     References
@@ -393,11 +385,11 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
         return customer_id, z_mean, x
 
-    def distribution_customer_spend(
+    def distribution_customer_spend(  # type: ignore [override]
         self,
         customer_id: Union[np.ndarray, pd.Series],
         individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
-        random_seed=None,
+        random_seed: Optional[RandomState] = None,
     ) -> xarray.DataArray:
         """Return distribution of transaction value per customer"""
 
@@ -416,7 +408,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         self,
         customer_id: Union[np.ndarray, pd.Series],
         individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
-        random_seed=None,
+        random_seed: Optional[RandomState] = None,
     ) -> xarray.DataArray:
         """Return expected transaction value per customer"""
 
@@ -428,10 +420,10 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             customer_id=customer_id,
             mean_transaction_value=z_mean,
             frequency=x,
-            random_seed=random_seed,
+            random_seed=random_seed,  # type: ignore [call-arg]
         )
 
-    def expected_customer_lifetime_value(
+    def expected_customer_lifetime_value(  # type: ignore [override]
         self,
         transaction_model: CLVModel,
         customer_id: Union[np.ndarray, pd.Series],
@@ -442,7 +434,10 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         discount_rate: float = 0.01,
         freq: str = "D",
     ) -> xarray.DataArray:
-        """Return expected customer lifetime value."""
+        """Return expected customer lifetime value.
+
+        See clv.utils.customer_lifetime_value for details on the meaning of each parameter
+        """
 
         customer_id, z_mean, x = self._summarize_mean_data(
             customer_id, individual_transaction_value

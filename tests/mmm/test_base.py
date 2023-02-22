@@ -8,7 +8,7 @@ import xarray as xr
 from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.base import MMM
-from pymc_marketing.mmm.preprocessing import MixMaxScaleTarget, preprocessing_method
+from pymc_marketing.mmm.preprocessing import MaxAbsScaleTarget, preprocessing_method
 from pymc_marketing.mmm.validating import validation_method
 
 seed: int = sum(map(ord, "pymc_marketing"))
@@ -47,13 +47,13 @@ def plotting_mmm(request):
     if transform == "default_transform":
 
         class ToyMMM(MMM):
-            def build_model(self, data_df, **kwargs):
+            def build_model(self, data, **kwargs):
                 pass
 
     elif transform == "target_transform":
 
-        class ToyMMM(MMM, MixMaxScaleTarget):
-            def build_model(self, data_df, **kwargs):
+        class ToyMMM(MMM, MaxAbsScaleTarget):
+            def build_model(self, data, **kwargs):
                 pass
 
     mmm = ToyMMM(
@@ -164,7 +164,7 @@ class TestMMM:
             def build_model(*args, **kwargs):
                 nonlocal build_model_count
                 build_model_count += 1
-                pd.testing.assert_frame_equal(kwargs["data_df"], toy_df)
+                pd.testing.assert_frame_equal(kwargs["data"], toy_df)
                 return None
 
             @validation_method
@@ -182,12 +182,12 @@ class TestMMM:
                 return data
 
         instance = ToyMMM(
-            data_df=toy_df,
+            data=toy_df,
             target_column="y",
             date_column="date",
             channel_columns=channel_columns,
         )
-        pd.testing.assert_frame_equal(instance.data_df, toy_df)
+        pd.testing.assert_frame_equal(instance.data, toy_df)
         pd.testing.assert_frame_equal(instance.preprocessed_data, toy_df)
         validate_target.assert_called_once_with(instance, toy_df)
         validate_date_col.assert_called_once_with(instance, toy_df)
@@ -207,6 +207,15 @@ class TestMMM:
             ("plot_channel_parameter", {"param_name": "alpha"}),
             ("plot_contribution_curves", {}),
             ("plot_channel_contribution_share_hdi", {"hdi_prob": 0.95}),
+            ("plot_grouped_contribution_breakdown_over_time", {}),
+            (
+                "plot_grouped_contribution_breakdown_over_time",
+                {
+                    "stack_groups": {"controls": ["control_1"]},
+                    "original_scale": True,
+                    "area_kwargs": {"alpha": 0.5},
+                },
+            ),
         ],
     )
     def test_plots(

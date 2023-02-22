@@ -19,59 +19,46 @@ class ContNonContractRV(RandomVariable):
     dtype = "floatX"
     _print_name = ("ContNonContract", "\\operatorname{ContNonContract}")
 
-    def make_node(self, rng, size, dtype, lam, p, T, T0):
+    def make_node(self, rng, size, dtype, lam, p, T):
         T = pt.as_tensor_variable(T)
-        T0 = pt.as_tensor_variable(T0)
 
-        return super().make_node(rng, size, dtype, lam, p, T, T0)
-
-    def __call__(self, lam, p, T, T0=0, size=None, **kwargs):
-        return super().__call__(lam, p, T, T0, size=size, **kwargs)
+        return super().make_node(rng, size, dtype, lam, p, T)
 
     @classmethod
-    def rng_fn(cls, rng, lam, p, T, T0, size) -> np.ndarray:
+    def rng_fn(cls, rng, lam, p, T, size):
         size = pm.distributions.shape_utils.to_tuple(size)
 
         # TODO: broadcast sizes
         lam = np.asarray(lam)
         p = np.asarray(p)
         T = np.asarray(T)
-        T0 = np.asarray(T0)
 
         if size == ():
-            size = np.broadcast_shapes(lam.shape, p.shape, T.shape, T0.shape)
+            size = np.broadcast_shapes(lam.shape, p.shape, T.shape)
 
         lam = np.broadcast_to(lam, size)
         p = np.broadcast_to(p, size)
         T = np.broadcast_to(T, size)
-        T0 = np.broadcast_to(T0, size)
 
-        output = np.zeros(shape=size + (2,))
+        x_1 = rng.poisson(lam * T)
+        x_2 = rng.geometric(p)
+        x = np.minimum(x_1, x_2)
 
-        # TODO: Optimize to work in a vectorized manner!
-        def sim_data(lam, p, T, T0):
-            t = T0
-            n = 0
+        nzp = x == 0  # nzp = non-zero purchases
 
-            while True:
-                wait = rng.exponential(scale=1 / lam)
-                dropout = rng.binomial(n=1, p=p)
+        if x.shape == ():
+            if nzp:
+                return np.array([0, 0])
+            else:
+                return np.array([rng.beta(x, np.maximum(x_1 + 1 - x_2, 1)) * T, x])
 
-                if t + wait > T:
-                    break
-                else:
-                    t += wait
-                    n += 1
+        x[nzp] = 1.0  # temporary to avoid errors in rng.beta below
+        t_x = rng.beta(x, np.maximum(x_1 + 1 - x_2, 1)) * T
 
-                    if dropout == 1:
-                        break
+        x[nzp] = 0.0
+        t_x[nzp] = 0.0
 
-            return np.array([t, n])
-
-        for index in np.ndindex(*size):
-            output[index] = sim_data(lam[index], p[index], T[index], T0[index])
-
-        return output
+        return np.stack([t_x, x], axis=-1)
 
     def _supp_shape_from_params(*args, **kwargs):
         return (2,)
@@ -105,17 +92,17 @@ class ContNonContract(PositiveContinuous):
     rv_op = continuous_non_contractual
 
     @classmethod
-    def dist(cls, lam, p, T, T0=0, **kwargs):
-        return super().dist([lam, p, T, T0], **kwargs)
+    def dist(cls, lam, p, T, **kwargs):
+        return super().dist([lam, p, T], **kwargs)
 
-    def logp(value, lam, p, T, T0):
+    def logp(value, lam, p, T):
         t_x = value[..., 0]
         x = value[..., 1]
 
         zero_observations = pt.eq(x, 0)
 
-        A = x * pt.log(1 - p) + x * pt.log(lam) - lam * (T - T0)
-        B = pt.log(p) + (x - 1) * pt.log(1 - p) + x * pt.log(lam) - lam * (t_x - T0)
+        A = x * pt.log(1 - p) + x * pt.log(lam) - lam * T
+        B = pt.log(p) + (x - 1) * pt.log(1 - p) + x * pt.log(lam) - lam * t_x
 
         logp = pt.switch(
             zero_observations,
@@ -126,7 +113,8 @@ class ContNonContract(PositiveContinuous):
         logp = pt.switch(
             pt.any(
                 (
-                    pt.lt(t_x, T0),
+                    pt.and_(pt.ge(t_x, 0), zero_observations),
+                    pt.lt(t_x, 0),
                     pt.lt(x, 0),
                     pt.gt(t_x, T),
                 ),
@@ -140,8 +128,7 @@ class ContNonContract(PositiveContinuous):
             lam > 0,
             0 <= p,
             p <= 1,
-            pt.all(T0 < T),
-            msg="lam > 0, 0 <= p <= 1, T0 < T",
+            msg="lam > 0, 0 <= p <= 1",
         )
 
 
@@ -152,62 +139,51 @@ class ContContractRV(RandomVariable):
     dtype = "floatX"
     _print_name = ("ContinuousContractual", "\\operatorname{ContinuousContractual}")
 
-    def make_node(self, rng, size, dtype, lam, p, T, T0):
+    def make_node(self, rng, size, dtype, lam, p, T):
         T = pt.as_tensor_variable(T)
-        T0 = pt.as_tensor_variable(T0)
 
-        return super().make_node(rng, size, dtype, lam, p, T, T0)
+        return super().make_node(rng, size, dtype, lam, p, T)
 
-    def __call__(self, lam, p, T, T0=0, size=None, **kwargs):
-        return super().__call__(lam, p, T, T0, size=size, **kwargs)
+    def __call__(self, lam, p, T, size=None, **kwargs):
+        return super().__call__(lam, p, T, size=size, **kwargs)
 
     @classmethod
-    def rng_fn(cls, rng, lam, p, T, T0, size) -> np.ndarray:
+    def rng_fn(cls, rng, lam, p, T, size):
         size = pm.distributions.shape_utils.to_tuple(size)
 
         # To do: broadcast sizes
         lam = np.asarray(lam)
         p = np.asarray(p)
         T = np.asarray(T)
-        T0 = np.asarray(T0)
 
         if size == ():
-            size = np.broadcast_shapes(lam.shape, p.shape, T.shape, T0.shape)
+            size = np.broadcast_shapes(lam.shape, p.shape, T.shape)
 
         lam = np.broadcast_to(lam, size)
         p = np.broadcast_to(p, size)
         T = np.broadcast_to(T, size)
-        T0 = np.broadcast_to(T0, size)
 
-        output = np.zeros(shape=size + (3,))
+        x_1 = rng.poisson(lam * T)
+        x_2 = rng.geometric(p)
+        x = np.minimum(x_1, x_2)
 
-        def sim_data(lam, p, T, T0):
-            t = 0
-            n = 0
+        nzp = x == 0  # nzp = non-zero purchases
 
-            dropout = 0
-            while not dropout:
-                wait = rng.exponential(scale=1 / lam)
-                # If we didn't go into the future
-                if (t + wait) < T:
-                    n += 1
-                    t = t + wait
-                    dropout = rng.binomial(n=1, p=p)
-                else:
-                    break
+        if x.shape == ():
+            if nzp:
+                return np.array([0, 0, float(x_1 > x_2)])
+            else:
+                return np.array(
+                    [rng.beta(x, np.maximum(x_1 + 1 - x_2, 1)) * T, x, float(x_1 > x_2)]
+                )
 
-            return np.array(
-                [
-                    t,
-                    n,
-                    dropout,
-                ],
-            )
+        x[nzp] = 1.0  # temporary to avoid errors in rng.beta below
+        t_x = rng.beta(x, np.maximum(x_1 + 1 - x_2, 1)) * T
 
-        for index in np.ndindex(*size):
-            output[index] = sim_data(lam[index], p[index], T[index], T0[index])
+        x[nzp] = 0.0
+        t_x[nzp] = 0.0
 
-        return output
+        return np.stack([t_x, x, (x_1 > x_2).astype(float)], axis=-1)
 
     def _supp_shape_from_params(*args, **kwargs):
         return (3,)
@@ -237,10 +213,10 @@ class ContContract(PositiveContinuous):
     rv_op = continuous_contractual
 
     @classmethod
-    def dist(cls, lam, p, T, T0, **kwargs):
-        return super().dist([lam, p, T, T0], **kwargs)
+    def dist(cls, lam, p, T, **kwargs):
+        return super().dist([lam, p, T], **kwargs)
 
-    def logp(value, lam, p, T, T0):
+    def logp(value, lam, p, T):
         t_x = value[..., 0]
         x = value[..., 1]
         churn = value[..., 2]
@@ -248,18 +224,16 @@ class ContContract(PositiveContinuous):
         zero_observations = pt.eq(x, 0)
 
         logp = (x - 1) * pt.log(1 - p) + x * pt.log(lam) - lam * t_x
-        logp += churn * pt.log(p) + (1 - churn) * (
-            pt.log(1 - p) - lam * ((T - T0) - t_x)
-        )
+        logp += churn * pt.log(p) + (1 - churn) * (pt.log(1 - p) - lam * (T - t_x))
 
         logp = pt.switch(
             zero_observations,
-            -lam * (T - T0),
+            -lam * T,
             logp,
         )
 
         logp = pt.switch(
-            pt.any(pt.or_(pt.lt(t_x, 0), pt.lt(x, 0))),
+            pt.any(pt.or_(pt.lt(t_x, 0), zero_observations)),
             -np.inf,
             logp,
         )
@@ -273,7 +247,7 @@ class ContContract(PositiveContinuous):
         logp = pt.switch(
             pt.any(
                 (
-                    pt.lt(t_x, T0),
+                    pt.lt(t_x, 0),
                     pt.lt(x, 0),
                     pt.gt(t_x, T),
                 ),
@@ -287,8 +261,8 @@ class ContContract(PositiveContinuous):
             lam > 0,
             0 <= p,
             p <= 1,
-            pt.all(T0 < T),
-            msg="lam > 0, 0 <= p <= 1, T0 < T",
+            pt.all(0 < T),
+            msg="lam > 0, 0 <= p <= 1",
         )
 
 
@@ -312,7 +286,7 @@ class ParetoNBDRV(RandomVariable):
         return super().__call__(r, alpha, s, beta, T, size=size, **kwargs)
 
     @classmethod
-    def rng_fn(cls, rng, r, alpha, s, beta, T, size) -> np.ndarray:
+    def rng_fn(cls, rng, r, alpha, s, beta, T, size):
         size = pm.distributions.shape_utils.to_tuple(size)
 
         r = np.asarray(r)

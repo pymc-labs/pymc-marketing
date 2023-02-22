@@ -103,13 +103,14 @@ html_favicon = "_static/favicon.ico"
 # documentation.
 html_theme_options = {
     "logo": {
-        "image_light": "logo-light.png",
-        "image_dark": "logo-dark.png",
+        "image_light": "marketing-logo-light.jpg",
+        "image_dark": "marketing-logo-dark.jpg",
     },
     "navbar_align": "right",
     "navbar_start": ["navbar-logo", "navbar-name"],
     "navbar_end": ["theme-switcher"],
-    "footer_items": ["copyright", "sphinx-version", "theme-version", "footer-links"],
+    "footer_start": ["copyright", "footer-links"],
+    "footer_end": ["sphinx-version", "theme-version"],
     "github_url": "https://github.com/pymc-labs/pymc-marketing",
     "twitter_url": "https://twitter.com/pymc_labs",
     "icon_links": [

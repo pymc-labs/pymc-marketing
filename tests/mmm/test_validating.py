@@ -68,7 +68,7 @@ def test_validate_target():
     obj.target_column = "y"
     assert obj.validate_target(toy_df) is None
 
-    with pytest.raises(ValueError, match="target y not in data_df"):
+    with pytest.raises(ValueError, match="target y not in data"):
         obj.validate_target(toy_df.drop(columns=["y"]))
 
 
@@ -76,7 +76,7 @@ def test_validate_date_col():
     obj = ValidateDateColumn()
     obj.date_column = "date"
     assert obj.validate_date_col(toy_df) is None
-    with pytest.raises(ValueError, match="date_col date not in data_df"):
+    with pytest.raises(ValueError, match="date_col date not in data"):
         obj.validate_date_col(toy_df.drop(columns=["date"]))
     with pytest.raises(ValueError, match="date_col date has repeated values"):
         obj.validate_date_col(pd.concat([toy_df, toy_df], ignore_index=True, axis=0))
@@ -95,7 +95,7 @@ def test_channel_columns():
         obj.validate_channel_columns(toy_df)
     with pytest.raises(
         ValueError,
-        match="channel_columns \['out_of_columns'\] not in data_df",  # noqa: W605
+        match="channel_columns \['out_of_columns'\] not in data",  # noqa: W605
     ):
         obj.channel_columns = ["out_of_columns"]
         obj.validate_channel_columns(toy_df)
@@ -134,7 +134,7 @@ def test_control_columns():
         obj.validate_control_columns(toy_df)
     with pytest.raises(
         ValueError,
-        match="control_columns \['out_of_columns'\] not in data_df",  # noqa: W605
+        match="control_columns \['out_of_columns'\] not in data",  # noqa: W605
     ):
         obj.control_columns = ["out_of_columns"]
         obj.validate_control_columns(toy_df)

@@ -1,9 +1,13 @@
+import types
 import warnings
+from typing import Tuple
 
 import arviz as az
 import pymc as pm
+from pymc import str_for_dist
 from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
+from pytensor.tensor import TensorVariable
 
 
 class CLVModel:
@@ -15,25 +19,43 @@ class CLVModel:
         with pm.Model() as self.model:
             pass
 
-    def fit(self, fitting_method="mcmc", **kwargs):
+    @staticmethod
+    def _check_prior_ndim(prior, ndim=0):
+        if prior.ndim != ndim:
+            raise ValueError(
+                f"Prior variable {prior} must be have {ndim} ndims, but it has {prior.ndim} ndims."
+            )
+
+    @staticmethod
+    def _process_priors(*priors: TensorVariable) -> Tuple[TensorVariable, ...]:
+        """Check that each prior variable is unique and attach `str_repr` method."""
+        if len(priors) != len(set(priors)):
+            raise ValueError("Prior variables must be unique")
+
+        # Related to https://github.com/pymc-devs/pymc/issues/6311
+        for prior in priors:
+            prior.str_repr = types.MethodType(str_for_dist, prior)  # type: ignore
+        return priors
+
+    def fit(self, fit_method="mcmc", **kwargs):
         """Infer model posterior
 
         Parameters
         ----------
-        fitting_method: str
+        fit_method: str
             Method used to fit the model. Options are:
             - "mcmc": Samples from the posterior via `pymc.sample` (default)
             - "map": Finds maximum a posteriori via `pymc.find_MAP`
         kwargs:
             Other keyword arguments passed to the underlying PyMC routines
         """
-        if fitting_method == "mcmc":
+        if fit_method == "mcmc":
             res = self._fit_mcmc(**kwargs)
-        elif fitting_method == "map":
+        elif fit_method == "map":
             res = self._fit_MAP(**kwargs)
         else:
             raise ValueError(
-                f"Fitting method options are ['mcmc', 'map'], got: {fitting_method}"
+                f"Fit method options are ['mcmc', 'map'], got: {fit_method}"
             )
         self.fit_result = res
         return res
