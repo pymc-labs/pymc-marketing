@@ -1,4 +1,3 @@
-import types
 from typing import Optional, Union
 
 import numpy as np
@@ -6,7 +5,6 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
-from pymc import str_for_dist
 from pymc.distributions.dist_math import betaln, check_parameters
 from pytensor.tensor import TensorVariable
 from scipy.special import expit, hyp2f1
@@ -185,28 +183,23 @@ class BetaGeoModel(CLVModel):
         if a_prior is None:
             a_prior = pm.HalfFlat.dist()
         else:
-            assert a_prior.eval().shape == ()
+            self._check_prior_ndim(a_prior)
         if b_prior is None:
             b_prior = pm.HalfFlat.dist()
         else:
-            assert b_prior.eval().shape == ()
+            self._check_prior_ndim(b_prior)
 
         # hyper priors for the Beta params
         if alpha_prior is None:
             alpha_prior = pm.HalfFlat.dist()
         else:
-            assert alpha_prior.eval().shape == ()
+            self._check_prior_ndim(alpha_prior)
         if r_prior is None:
             r_prior = pm.HalfFlat.dist()
         else:
-            assert r_prior.eval().shape == ()
+            self._check_prior_ndim(r_prior)
 
-        a_prior.str_repr = types.MethodType(str_for_dist, a_prior)
-        b_prior.str_repr = types.MethodType(str_for_dist, b_prior)
-        alpha_prior.str_repr = types.MethodType(str_for_dist, alpha_prior)
-        r_prior.str_repr = types.MethodType(str_for_dist, r_prior)
-
-        return a_prior, b_prior, alpha_prior, r_prior
+        return super()._process_priors(a_prior, b_prior, alpha_prior, r_prior)
 
     def _unload_params(self):
         trace = self.fit_result.posterior

@@ -1,9 +1,13 @@
+import types
 import warnings
+from typing import Tuple
 
 import arviz as az
 import pymc as pm
+from pymc import str_for_dist
 from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
+from pytensor.tensor import TensorVariable
 
 
 class CLVModel:
@@ -14,6 +18,24 @@ class CLVModel:
 
         with pm.Model() as self.model:
             pass
+
+    @staticmethod
+    def _check_prior_ndim(prior, ndim=0):
+        if prior.ndim != ndim:
+            raise ValueError(
+                f"Prior variable {prior} must be have {ndim} ndims, but it has {prior.ndim} ndims."
+            )
+
+    @staticmethod
+    def _process_priors(*priors: TensorVariable) -> Tuple[TensorVariable]:
+        """Check that each prior variable is unique and attach `str_repr` method."""
+        if len(priors) != len(set(priors)):
+            raise ValueError("Prior variables must be unique")
+
+        # Related to https://github.com/pymc-devs/pymc/issues/6311
+        for prior in priors:
+            prior.str_repr = types.MethodType(str_for_dist, prior)
+        return priors
 
     def fit(self, fitting_method="mcmc", **kwargs):
         """Infer model posterior
