@@ -73,3 +73,30 @@ class TestCLVModel:
             model.fit_result = 1
             with pytest.warns(UserWarning, match="Overriding pre-existing fit_result"):
                 model.fit_result = 2
+
+    def test_check_prior_ndim(self):
+        prior = pm.Normal.dist(shape=(5,))  # ndim = 1
+        with pytest.raises(
+            ValueError, match="must be have 0 ndims, but it has 1 ndims"
+        ):
+            # Default ndim=0
+            CLVModel._check_prior_ndim(prior)
+        CLVModel._check_prior_ndim(prior, ndim=1)
+        with pytest.raises(
+            ValueError, match="must be have 2 ndims, but it has 1 ndims"
+        ):
+            CLVModel._check_prior_ndim(prior, ndim=2)
+
+    def test_process_priors(self):
+        prior1 = pm.Normal.dist()
+        prior2 = pm.HalfNormal.dist()
+
+        ret_prior1, ret_prior2 = CLVModel._process_priors(prior1, prior2)
+
+        assert ret_prior1 is prior1
+        assert ret_prior2 is prior2
+        assert ret_prior1.str_repr() == "N(0, 1)"
+        assert ret_prior2.str_repr() == "N**+(0, 1)"
+
+        with pytest.raises(ValueError, match="Prior variables must be unique"):
+            CLVModel._process_priors(prior1, prior2, prior1)

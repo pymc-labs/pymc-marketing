@@ -1,4 +1,3 @@
-import types
 from typing import Optional, Union
 
 import numpy as np
@@ -6,7 +5,6 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray
-from pymc import str_for_dist
 from pytensor.tensor import TensorVariable
 
 from pymc_marketing.clv.models.basic import CLVModel
@@ -18,26 +16,17 @@ class BaseGammaGammaModel(CLVModel):
         if p_prior is None:
             p_prior = pm.HalfFlat.dist()
         else:
-            assert p_prior.eval().shape == ()
+            self._check_prior_ndim(p_prior)
         if q_prior is None:
             q_prior = pm.HalfFlat.dist()
         else:
-            assert q_prior.eval().shape == ()
+            self._check_prior_ndim(q_prior)
         if v_prior is None:
             v_prior = pm.HalfFlat.dist()
         else:
-            assert v_prior.eval().shape == ()
+            self._check_prior_ndim(v_prior)
 
-        assert p_prior is not q_prior
-        assert p_prior is not v_prior
-        assert q_prior is not v_prior
-
-        # Who had the idea of attaching methods to pre-existing objects?
-        p_prior.str_repr = types.MethodType(str_for_dist, p_prior)
-        q_prior.str_repr = types.MethodType(str_for_dist, q_prior)
-        v_prior.str_repr = types.MethodType(str_for_dist, v_prior)
-
-        return p_prior, q_prior, v_prior
+        return super()._process_priors(p_prior, q_prior, v_prior)
 
     def distribution_customer_spend(
         self,
