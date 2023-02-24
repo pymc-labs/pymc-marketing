@@ -354,37 +354,24 @@ pareto_nbd = ParetoNBDRV()
 
 class ParetoNBD(PositiveContinuous):
     r"""
-    Population-level distribution class for a continuous, non-contractual, Pareto/NBD process,
-    based on Schmittlein, et al. in [2]_.
+    Distribution class for an individual customer following a continuous, non-contractual, Pareto/NBD process.
+    Based on Schmittlein, et al. in [2]_.
 
     The likelihood function is derived from equations (22) and (23) of [3]_, with terms rearranged for numerical stability.
     The modified expression is provided below:
-
+    # TODO: review Latex
     .. math::
 
         \begin{align}
-        \text{if }\alpha > \beta: \\
         \\
-        \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) &=
-        \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\alpha +t_x)^{r+s+x}}
-        [(\frac{s}{r+s+x})_2F_1(r+s+x,s+1;r+s+x+1;\frac{\alpha-\beta}{\alpha+t_x}) \\
-        &+ (\frac{r+x}{r+s+x})
-        \frac{_2F_1(r+s+x,s;r+s+x+1;\frac{\alpha-\beta}{\alpha+T})(\alpha +t_x)^{r+s+x}}
-        {(\alpha +T)^{r+s+x}}] \\
-        \\
-        \text{if }\beta >= \alpha: \\
-        \\
-        \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) &=
-        \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\beta +t_x)^{r+s+x}}
-        [(\frac{s}{r+s+x})_2F_1(r+s+x,r+x;r+s+x+1;\frac{\beta-\alpha}{\beta+t_x}) \\
-        &+ (\frac{r+x}{r+s+x})
-        \frac{_2F_1(r+s+x,r+x+1;r+s+x+1;\frac{\beta-\alpha}{\beta+T})(\beta +t_x)^{r+s+x}}
-        {(\beta +T)^{r+s+x}}]
+        \mathbb{L}(\lambda, \mu | x, t_x, T) &=
+        \frac{\lambda^r\mu}{\lambda+\mu} \ExponentialE^-(\lambda+\mu)t_x
+        &+ frac{\lambda^(x+1)}{\lambda+\mu} \ExponentialE^-(\lambda+\mu)T \\
         \end{align}
 
     ========  ===============================================
     Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
-    Mean      :math:`\mathbb{E}[X(t) | r, \alpha, s, \beta] = \frac{r\beta}{\alpha(s-1)}[1-(\frac{\beta}{\beta + t})^{s-1}]`
+    Mean      :math:`\mathbb{E}[X(t) | \lambda, \mu = \frac{\lambda}{\mu}-\frac{\lambda}{\mu}\ExponentialE^-(\mu t)`
     ========  ===============================================
 
     References
@@ -400,72 +387,26 @@ class ParetoNBD(PositiveContinuous):
     rv_op = pareto_nbd
 
     @classmethod
-    def dist(cls, r, alpha, s, beta, T, **kwargs):
-        return super().dist([r, alpha, s, beta, T], **kwargs)
+    def dist(cls, purchase_rate, churn, T, **kwargs):
+        return super().dist([purchase_rate, churn, T], **kwargs)
 
-    def logp(value, r, alpha, s, beta, T):
+    def logp(value, purchase_rate, churn, T):
         t_x = value[..., 0]
         x = value[..., 1]
 
-        rsx = r + s + x
-        rx = r + x
+        lam = purchase_rate
+        mu = churn
 
-        cond = alpha >= beta
-        larger_param = pt.switch(cond, alpha, beta)
-        smaller_param = pt.switch(cond, beta, alpha)
-        param_diff = larger_param - smaller_param
-        hyp2f1_t1_2nd_param = pt.switch(cond, s + 1, rx)
-        hyp2f1_t2_2nd_param = pt.switch(cond, s, rx + 1)
+        A1 = x * pt.log(lam) + pt.log(mu) - pt.log(lam) - pt.log(mu) - (lam + mu) * t_x
+        A2 = (x + 1) * pt.log(lam) - pt.log(lam) - pt.log(mu) - (lam + mu) * T
 
-        # This term is factored out of the denominator of hyp2f_t1 for numerical stability
-        refactored = rsx * pt.log(larger_param + t_x)
-
-        hyp2f1_t1 = pt.log(
-            pt.hyp2f1(
-                rsx, hyp2f1_t1_2nd_param, rsx + 1, param_diff / (larger_param + t_x)
-            )
-        )
-        hyp2f1_t2 = (
-            pt.log(
-                pt.hyp2f1(
-                    rsx, hyp2f1_t2_2nd_param, rsx + 1, param_diff / (larger_param + T)
-                )
-            )
-            - rsx * pt.log(larger_param + T)
-            + refactored
-        )
-
-        A1 = (
-            pt.gammaln(rx)
-            - pt.gammaln(r)
-            + r * pt.log(alpha)
-            + s * pt.log(beta)
-            - refactored
-        )
-        A2 = pt.log(s) - pt.log(rsx) + hyp2f1_t1
-        A3 = pt.log(rx) - pt.log(rsx) + hyp2f1_t2
-
-        logp = A1 + pt.logaddexp(A2, A3)
-
-        logp = pt.switch(
-            pt.or_(
-                pt.or_(
-                    pt.lt(t_x, 0),
-                    pt.lt(x, 0),
-                ),
-                pt.gt(t_x, T),
-            ),
-            -np.inf,
-            logp,
-        )
+        logp = A1 + A2
 
         return check_parameters(
             logp,
-            r > 0,
-            alpha > 0,
-            s > 0,
-            beta > 0,
-            msg="r > 0, alpha > 0, s > 0, beta > 0",
+            purchase_rate > 0,
+            churn > 0,
+            msg="purchase_rate > 0, churn > 0",
         )
 
 
