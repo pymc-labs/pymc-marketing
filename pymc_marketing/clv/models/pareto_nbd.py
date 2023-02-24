@@ -18,9 +18,9 @@ from pymc_marketing.clv.utils import to_xarray
 
 class ParetoNBDModel(CLVModel):
     # TODO: EDIT ME
-    r"""Beta-Geo Negative Binomial Distribution (BG/NBD) model
+    r"""Pareto Negative Binomial Distribution (Pareto/NBD) model
 
-    In the BG/NBD model, the frequency of customer purchases is modelled as the time
+    In the Pareto/NBD model, the frequency of customer purchases is modelled as the time
     of each purchase has an instantaneous probability of occurrence (hazard) and, at
     every purchase, a probability of "dropout", i.e. no longer being a customer.
 
@@ -30,7 +30,7 @@ class ParetoNBDModel(CLVModel):
     exponential function of the joint likelihood; see Section 4.1 of [1] for more
     details.
 
-    Methods below are adapted from the BetaGeoFitter class from the lifetimes package
+    Methods below are adapted from the ParetoFitter class from the lifetimes package
     (see https://github.com/CamDavidsonPilon/lifetimes/).
 
 
@@ -60,18 +60,23 @@ class ParetoNBDModel(CLVModel):
 
     Examples
     --------
-    BG/NBD model for customer
+    Pareto/NBD model for customer
 
     .. code-block:: python
         import pymc as pm
-        from pymc_marketing.clv import BetaGeoModel
+        from pymc_marketing.clv import ParetoNBDModel, clv_summary
 
-        model = BetaGeoFitter(
-            frequency=[4, 0, 6, 3, ...],
-            recency=[30.73, 1.72, 0., 0., ...]
-            p_prior=pm.HalfNormal.dist(10),
-            q_prior=pm.HalfNormal.dist(10),
-            v_prior=pm.HalfNormal.dist(10),
+        summary = clv_summary(raw_data,'id_col_name','date_col_name')
+
+        model = ParetoNBDModel(
+            customer_id=summary['id_col'],
+            frequency=summary['frequency']
+            recency=[summary['recency'],
+            T=summary['T'],
+            r_prior=pm.HalfNormal.dist(10),
+            alpha_prior=pm.HalfNormal.dist(10),
+            s_prior=pm.HalfNormal.dist(10),
+            beta_prior=pm.HalfNormal.dist(10),
         )
 
         model.fit()
@@ -106,6 +111,7 @@ class ParetoNBDModel(CLVModel):
     """
 
     _model_name = "Pareto/NBD"  # Pareto Negative-Binomial Distribution
+    _params = ["r", "alpha", "s", "beta", "purchase_rate", "churn"]
 
     def __init__(
         self,
@@ -130,6 +136,7 @@ class ParetoNBDModel(CLVModel):
         )
 
         # each customer's information should be encapsulated by a single data entry
+        # TODO: Create a separate _check_inputs() utility function for this and other constraints
         if len(np.unique(customer_id)) != len(customer_id):
             raise ValueError(
                 "ParetoNBD  expects exactly one entry per customer. More than"
@@ -138,20 +145,31 @@ class ParetoNBDModel(CLVModel):
 
         coords = {"customer_id": customer_id}
         with pm.Model(coords=coords) as self.model:
-            # transaction rate priors
-            r = self.model.register_rv(a_prior, name="a")
-            alpha = self.model.register_rv(b_prior, name="b")
+            # purchase rate hyperpriors
+            r = self.model.register_rv(a_prior, name="r")
+            alpha = self.model.register_rv(b_prior, name="alpha")
 
-            # dropout rate priors
-            s = self.model.register_rv(alpha_prior, name="alpha")
-            beta = self.model.register_rv(r_prior, name="r")
+            # churn hyperpriors
+            s = self.model.register_rv(alpha_prior, name="s")
+            beta = self.model.register_rv(r_prior, name="beta")
 
-            transaction_rate = None
-            dropout_rate = None
+            purchase_rate_prior = pm.Gamma(
+                name="purchase_rate", alpha=r, beta=alpha, size=None
+            )
+            churn_prior = pm.Gamma(name="churn", alpha=s, beta=beta, size=None)
 
-            ParetoNBD()
+            T = pm.MutableData(name="T", value=self.t)
 
-    # TODO: Move to CLVModel?
+            llike = ParetoNBD(
+                name="llike",
+                purchase_rate=purchase_rate_prior,
+                churn=churn_prior,
+                T=T,
+                size=None,
+                observed=np.stack((self.recency, self.frequency), axis=1),
+            )
+
+    # TODO: this is moved to CLVModel in https://github.com/pymc-labs/pymc-marketing/pull/133
     def _process_priors(self, r_prior, alpha_prior, s_prior, beta_prior):
         # hyper priors for the transaction rate
         if r_prior is None:
@@ -180,7 +198,7 @@ class ParetoNBDModel(CLVModel):
 
         return r_prior, alpha_prior, s_prior, beta_prior
 
-    # TODO: Move to CLVModel?
+    # TODO: Move to CLVModel after https://github.com/pymc-labs/pymc-marketing/pull/133 is merged
     def _unload_params(self):
         trace = self.fit_result.posterior
 
@@ -188,12 +206,15 @@ class ParetoNBDModel(CLVModel):
         alpha = trace["alpha"]
         a = trace["s"]
         beta = trace["beta"]
+        purchase_rate = trace["purchase_rate"]
+        churn = trace["churn"]
 
-        return r, alpha, s, beta
+        return r, alpha, s, beta, purchase_rate, churn
 
-    # TODO: Look into a decorator for to_xarray
+    # TODO: clv.utils.to_xarray needs to be called here
+    # TODO: Add type hinting for returned value
     # TODO: An individual equivalent does not appear in the research link.
-    #       Resolve against Abe paper.
+    #       Resolve against Abe variant: https://link.springer.com/article/10.1007/s11573-021-01057-6
     # taken from https://lifetimes.readthedocs.io/en/latest/lifetimes.fitters.html
     def expected_num_purchases(
         self,
@@ -273,6 +294,52 @@ class ParetoNBDModel(CLVModel):
 
         return exp(first_term + second_term + third_term - likelihood)
 
+    # TODO: clv.utils.to_xarray needs to be called here
+    # TODO: Add type hinting for returned value
+    # TODO: rename to expected_avg_purchases_all_customers?
+    # TODO: individual variant is (26) in paper, but both are simple
+    def expected_num_purchases_new_customer(
+        self,
+        t: Union[np.ndarray, pd.Series],
+    ):
+        # TODO: EDIT ME
+        r"""
+        Posterior expected number of purchases for any interval of length :math:`t`. See
+        equation (9) of [1].
+
+        .. math::
+            \mathbb{E}\left(X(t) \mid r, \alpha, a, b \right)
+            = \frac{a + b - 1}{a - 1}
+            \left[
+                1 - \left(\frac{\alpha}{\alpha + t}\right)^r
+                \text{hyp2f1}\left(r, b; a + b - 1; \frac{t}{\alpha + t}\right)
+            \right]
+
+        Return expected number of repeat purchases up to time t.
+
+        Calculate the expected number of repeat purchases up to time t for a
+        randomly choose individual from the population.
+
+        Equation (27) from:
+        http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
+
+        Parameters
+        ----------
+        t: array_like
+            times to calculate the expectation for.
+
+        Returns
+        -------
+        array_like
+        """
+        r, alpha, s, beta = self._unload_params("r", "alpha", "s", "beta")
+        first_term = r * beta / alpha / (s - 1)
+        second_term = 1 - (beta / (beta + t)) ** (s - 1)
+
+        return first_term * second_term
+
+    # TODO: clv.utils.to_xarray needs to be called here
+    # TODO: Add type hinting for returned value
     # TODO: The equation cited in the docstrings is wrong; it's actually (35)
     #       The very next equation at the bottom of page 12 is a more stable equivalent,
     #       and very similar to conditional_probability_of_being_alive_up_to_time()
@@ -336,58 +403,15 @@ class ParetoNBDModel(CLVModel):
             )
         )
 
-    # TODO: rename to expected_avg_purchases_all_customers?
-    # TODO: individual variant is (26) in paper, but both are simple
-    def expected_num_purchases_new_customer(
-        self,
-        t: Union[np.ndarray, pd.Series],
-    ):
-        # TODO: EDIT ME
-        r"""
-        Posterior expected number of purchases for any interval of length :math:`t`. See
-        equation (9) of [1].
-
-        The customer_id shouldn't matter too much here since no individual-specific data
-        is conditioned on.
-
-        .. math::
-            \mathbb{E}\left(X(t) \mid r, \alpha, a, b \right)
-            = \frac{a + b - 1}{a - 1}
-            \left[
-                1 - \left(\frac{\alpha}{\alpha + t}\right)^r
-                \text{hyp2f1}\left(r, b; a + b - 1; \frac{t}{\alpha + t}\right)
-            \right]
-
-        Return expected number of repeat purchases up to time t.
-
-        Calculate the expected number of repeat purchases up to time t for a
-        randomly choose individual from the population.
-
-        Equation (27) from:
-        http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
-
-        Parameters
-        ----------
-        t: array_like
-            times to calculate the expectation for.
-
-        Returns
-        -------
-        array_like
-        """
-        r, alpha, s, beta = self._unload_params("r", "alpha", "s", "beta")
-        first_term = r * beta / alpha / (s - 1)
-        second_term = 1 - (beta / (beta + t)) ** (s - 1)
-
-        return first_term * second_term
-
-    # TODO: Add type hinting, xarray edits, and look into xarray decorator
+    # TODO: clv.utils.to_xarray needs to be called here
+    # TODO: Add type hinting
     # TODO: This is a new method based on (13) in below conditional_pmf.pdf
     #       Must be implemented at the individual level.
     def expected_purchases_probability_new_customer(self, n, t):
         pass
 
-    # TODO: Add type hinting, xarray edits, and look into xarray decorator
+    # TODO: clv.utils.to_xarray needs to be called here
+    # TODO: Add type hinting
     # TODO: This method omits the case of x=0, and is ridiculously complex.
     #       Test individual logp to see if individual variant
     #       (15) and (20) can be implemented instead.
@@ -523,15 +547,14 @@ class ParetoNBDModel(CLVModel):
             )[0]
         )
 
-    # TODO: Add type hinting, xarray edits, and look into xarray decorator
+    # TODO: clv.utils.to_xarray needs to be called here
+    # TODO: Add type hinting
     # TODO: This function looks nothing like (18) in the paper.
     #       It may have been rewritten for stability.
     #       It also has no individual logp equivalent and should be resolved against Abe.
     #       This function is also almost identical to (34) for prob_alive,
     #       and should be refactored accordingly.
-    def conditional_probability_of_being_alive_up_to_time(
-        self, t, frequency, recency, T
-    ):
+    def expected_future_probability_alive(self, t, frequency, recency, T):
         """
         Conditional probability of being alive up to time T+t.
 

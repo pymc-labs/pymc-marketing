@@ -29,7 +29,7 @@ def cdnow_trans() -> pd.DataFrame:
 
     Data source: https://www.brucehardie.com/datasets/
     """
-    return pd.read_csv("clv/datasets/cdnow_transactions.csv")
+    return pd.read_csv("tests/clv/datasets/cdnow_transactions.csv")
 
 
 @pytest.fixture(scope="module")
@@ -39,7 +39,7 @@ def cdnow_sample() -> pd.DataFrame:
 
     Data source: https://www.brucehardie.com/datasets/
     """
-    return pd.read_csv("clv/datasets/cdnow_sample.csv")
+    return pd.read_csv("tests/clv/datasets/cdnow_sample.csv")
 
 
 @pytest.fixture(scope="module")
@@ -49,4 +49,4 @@ def cdnow_full() -> pd.DataFrame:
 
     Data source: https://www.brucehardie.com/datasets/
     """
-    return pd.read_csv("clv/datasets/cdnow_master.csv")
+    return pd.read_csv("tests/clv/datasets/cdnow_master.csv")
