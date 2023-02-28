@@ -13,7 +13,7 @@ maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.io" }]
 
 dependencies = [
     "arviz>=0.13.0",
-    "matplotlib==3.5.1",
+    "matplotlib>=3.5.1",
     "numpy>=1.17,!=1.24.0",
     "pandas",
     "pymc>=5.0.0",
