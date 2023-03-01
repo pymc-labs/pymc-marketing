@@ -1,7 +1,7 @@
-.PHONY: init lint check_lint test
+.PHONY: init lint check_lint test html cleandocs
 
 init:
-	python -m pip install -e .
+	python3 -m pip install -e .
 
 lint:
 	pip install .[lint]
