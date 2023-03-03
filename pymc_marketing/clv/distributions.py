@@ -402,18 +402,6 @@ class ParetoNBD(PositiveContinuous):
 
         logp = A1 + A2
 
-        logp = pt.switch(
-            pt.or_(
-                pt.or_(
-                    pt.lt(t_x, 0),
-                    pt.lt(x, 0),
-                ),
-                pt.gt(t_x, T),
-            ),
-            -np.inf,
-            logp,
-        )
-
         return check_parameters(
             logp,
             purchase_rate > 0,

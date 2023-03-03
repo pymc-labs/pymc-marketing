@@ -6,12 +6,7 @@ from numpy.testing import assert_almost_equal
 from pymc import Model
 from pymc.tests.helpers import select_by_precision
 
-from pymc_marketing.clv.distributions import (
-    ContContract,
-    ContNonContract,
-    ParetoNBD,
-    ParetoNBDAggregate,
-)
+from pymc_marketing.clv.distributions import ContContract, ContNonContract, ParetoNBD
 
 
 class TestContNonContract:
@@ -164,100 +159,6 @@ class TestContContract:
 
 class TestParetoNBD:
     @pytest.mark.parametrize(
-        "value, purchase_rate, churn, T, expected",
-        [
-            (
-                np.array([1.5, 1]),
-                0.55,
-                10.58,
-                12,
-                -153.211802,
-            ),
-            (
-                np.array([1.5, 1]),
-                [0.45, 0.55],
-                10.58,
-                12,
-                [-152.062473, -153.211802],
-            ),
-            (
-                np.array([1.5, 1]),
-                [0.45, 0.55],
-                [0.71, 0.61],
-                12,
-                [-16.116017, -15.763541],
-            ),
-            (
-                np.array([[1.5, 1], [5.3, 4], [6, 2]]),
-                0.55,
-                11.67,
-                [12, 10, 8],
-                [-168.024858, -193.60788, -175.330532],
-            ),
-            (
-                np.array([1.5, 1]),
-                0.55,
-                np.full((5, 3), 11.67),
-                12,
-                np.full((5, 3), -168.024858),
-            ),
-        ],
-    )
-    def test_pareto_nbd(self, value, purchase_rate, churn, T, expected):
-        with Model():
-            pareto_nbd = ParetoNBD(
-                "pareto_nbd", purchase_rate=purchase_rate, churn=churn, T=T
-            )
-        pt = {"pareto_nbd": value}
-
-        assert_almost_equal(
-            pm.logp(pareto_nbd, value).eval(),
-            expected,
-            decimal=select_by_precision(float64=6, float32=2),
-            err_msg=str(pt),
-        )
-
-    def test_pareto_nbd_invalid(self):
-        pareto_nbd = ParetoNBD.dist(purchase_rate=0.55, churn=0.61, T=10)
-        assert pm.logp(pareto_nbd, np.array([3, -1])).eval() == -np.inf
-        assert pm.logp(pareto_nbd, np.array([-1, 1.5])).eval() == -np.inf
-        assert pm.logp(pareto_nbd, np.array([11, 1.5])).eval() == -np.inf
-
-    @pytest.mark.parametrize(
-        "purchase_rate_size, churn_size, pareto_nbd_size, expected_size",
-        [
-            (None, None, None, (2,)),
-            ((5,), None, None, (5, 2)),
-            (None, (5,), (5,), (5, 2)),
-            ((5, 1), (1, 3), (5, 3), (5, 3, 2)),
-            (None, None, (5, 3), (5, 3, 2)),
-        ],
-    )
-    def test_pareto_nbd_sample_prior(
-        self, purchase_rate_size, churn_size, pareto_nbd_size, expected_size
-    ):
-        with Model():
-            purchase_rate = pm.Gamma(
-                name="purchase_rate", alpha=5, beta=1, size=purchase_rate_size
-            )
-            churn = pm.Gamma(name="churn", alpha=5, beta=1, size=churn_size)
-
-            T = pm.MutableData(name="T", value=np.array(10))
-
-            ParetoNBD(
-                name="pareto_nbd",
-                purchase_rate=purchase_rate,
-                churn=churn,
-                T=T,
-                size=pareto_nbd_size,
-            )
-            prior = pm.sample_prior_predictive(samples=100)
-
-        assert prior["prior"]["pareto_nbd"][0].shape == (100,) + expected_size
-
-
-class TestParetoNBDAggregate:
-    @pytest.mark.parametrize(
         "value, r, alpha, s, beta, T",
         [
             (
@@ -302,7 +203,7 @@ class TestParetoNBDAggregate:
             ),
         ],
     )
-    def test_pareto_nbd_agg(self, value, r, alpha, s, beta, T):
+    def test_pareto_nbd(self, value, r, alpha, s, beta, T):
         def lifetimes_wrapper(r, alpha, s, beta, freq, rec, T):
             """Simple wrapper for Vectorizing the lifetimes likelihood function."""
             return PF._conditional_log_likelihood((r, alpha, s, beta), freq, rec, T)
@@ -310,28 +211,24 @@ class TestParetoNBDAggregate:
         vectorized_logp = np.vectorize(lifetimes_wrapper)
 
         with Model():
-            pareto_nbd_agg = ParetoNBDAggregate(
-                "pareto_nbd_agg", r=r, alpha=alpha, s=s, beta=beta, T=T
-            )
-        pt = {"pareto_nbd_agg": value}
+            pareto_nbd = ParetoNBD("pareto_nbd", r=r, alpha=alpha, s=s, beta=beta, T=T)
+        pt = {"pareto_nbd": value}
 
         assert_almost_equal(
-            pm.logp(pareto_nbd_agg, value).eval(),
+            pm.logp(pareto_nbd, value).eval(),
             vectorized_logp(r, alpha, s, beta, value[..., 1], value[..., 0], T),
             decimal=select_by_precision(float64=6, float32=2),
             err_msg=str(pt),
         )
 
-    def test_pareto_nbd_agg_invalid(self):
-        pareto_nbd_agg = ParetoNBDAggregate.dist(
-            r=0.55, alpha=10.58, s=0.61, beta=11.67, T=10
-        )
-        assert pm.logp(pareto_nbd_agg, np.array([3, -1])).eval() == -np.inf
-        assert pm.logp(pareto_nbd_agg, np.array([-1, 1.5])).eval() == -np.inf
-        assert pm.logp(pareto_nbd_agg, np.array([11, 1.5])).eval() == -np.inf
+    def test_pareto_nbd_invalid(self):
+        pareto_nbd = ParetoNBD.dist(r=0.55, alpha=10.58, s=0.61, beta=11.67, T=10)
+        assert pm.logp(pareto_nbd, np.array([3, -1])).eval() == -np.inf
+        assert pm.logp(pareto_nbd, np.array([-1, 1.5])).eval() == -np.inf
+        assert pm.logp(pareto_nbd, np.array([11, 1.5])).eval() == -np.inf
 
     @pytest.mark.parametrize(
-        "r_size, alpha_size, s_size, beta_size, pareto_nbd_agg_size, expected_size",
+        "r_size, alpha_size, s_size, beta_size, pareto_nbd_size, expected_size",
         [
             (None, None, None, None, None, (2,)),
             ((5,), None, None, None, None, (5, 2)),
@@ -341,7 +238,7 @@ class TestParetoNBDAggregate:
         ],
     )
     def test_pareto_nbd_sample_prior(
-        self, r_size, alpha_size, s_size, beta_size, pareto_nbd_agg_size, expected_size
+        self, r_size, alpha_size, s_size, beta_size, pareto_nbd_size, expected_size
     ):
         with Model():
             r = pm.Gamma(name="r", alpha=5, beta=1, size=r_size)
@@ -351,15 +248,15 @@ class TestParetoNBDAggregate:
 
             T = pm.MutableData(name="T", value=np.array(10))
 
-            ParetoNBDAggregate(
-                name="pareto_nbd_agg",
+            ParetoNBD(
+                name="pareto_nbd",
                 r=r,
                 alpha=alpha,
                 s=s,
                 beta=beta,
                 T=T,
-                size=pareto_nbd_agg_size,
+                size=pareto_nbd_size,
             )
             prior = pm.sample_prior_predictive(samples=100)
 
-        assert prior["prior"]["pareto_nbd_agg"][0].shape == (100,) + expected_size
+        assert prior["prior"]["pareto_nbd"][0].shape == (100,) + expected_size
