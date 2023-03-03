@@ -108,7 +108,7 @@ class ParetoNBDModel(CLVModel):
     """
 
     _model_name = "Pareto/NBD"  # Pareto Negative-Binomial Distribution
-    _params = ["r", "alpha", "s", "beta", "purchase_rate", "churn"]
+    _params = ["r", "alpha", "s", "beta"]
 
     def __init__(
         self,
@@ -155,18 +155,18 @@ class ParetoNBDModel(CLVModel):
             )
             churn_prior = pm.Gamma(name="churn", alpha=s, beta=beta, size=None)
 
-            T = pm.MutableData(name="T", value=self.t)
+            T_ = pm.MutableData(name="T", value=self.T)
 
             llike = ParetoNBD(
                 name="llike",
                 purchase_rate=purchase_rate_prior,
                 churn=churn_prior,
-                T=T,
+                T=T_,
                 size=None,
                 observed=np.stack((self.recency, self.frequency), axis=1),
             )
 
-    # TODO: this is moved to CLVModel in https://github.com/pymc-labs/pymc-marketing/pull/133
+    # TODO: Edit per https://github.com/pymc-labs/pymc-marketing/pull/133
     def _process_priors(self, r_prior, alpha_prior, s_prior, beta_prior):
         # hyper priors for the transaction rate
         if r_prior is None:
@@ -195,7 +195,7 @@ class ParetoNBDModel(CLVModel):
 
         return r_prior, alpha_prior, s_prior, beta_prior
 
-    # TODO: Move to CLVModel after https://github.com/pymc-labs/pymc-marketing/pull/133 is merged
+    # TODO: Move to CLVModel in future PR
     def _unload_params(self):
         trace = self.fit_result.posterior
 
@@ -203,16 +203,11 @@ class ParetoNBDModel(CLVModel):
         alpha = trace["alpha"]
         a = trace["s"]
         beta = trace["beta"]
-        purchase_rate = trace["purchase_rate"]
-        churn = trace["churn"]
 
         return r, alpha, s, beta, purchase_rate, churn
 
     # TODO: clv.utils.to_xarray needs to be called here
     # TODO: Add type hinting for returned value
-    # TODO: An individual equivalent does not appear in the research link.
-    #       Resolve against Abe variant: https://link.springer.com/article/10.1007/s11573-021-01057-6
-    # taken from https://lifetimes.readthedocs.io/en/latest/lifetimes.fitters.html
     def expected_num_purchases(
         self,
         customer_id: Union[np.ndarray, pd.Series],
@@ -294,7 +289,6 @@ class ParetoNBDModel(CLVModel):
     # TODO: clv.utils.to_xarray needs to be called here
     # TODO: Add type hinting for returned value
     # TODO: rename to expected_avg_purchases_all_customers?
-    # TODO: individual variant is (26) in paper, but both are simple
     def expected_num_purchases_new_customer(
         self,
         t: Union[np.ndarray, pd.Series],
@@ -340,7 +334,6 @@ class ParetoNBDModel(CLVModel):
     # TODO: The equation cited in the docstrings is wrong; it's actually (35)
     #       The very next equation at the bottom of page 12 is a more stable equivalent,
     #       and very similar to conditional_probability_of_being_alive_up_to_time()
-    #       Resolve against Abe, but otherwise do not use lambda and mu for this.
     def expected_probability_alive(
         self,
         customer_id: Union[np.ndarray, pd.Series],
@@ -400,18 +393,30 @@ class ParetoNBDModel(CLVModel):
             )
         )
 
-    # TODO: clv.utils.to_xarray needs to be called here
-    # TODO: Add type hinting
-    # TODO: This is a new method based on (13) in below conditional_pmf.pdf
-    #       Must be implemented at the individual level.
+    # TODO: a new predictive method,
+    #       based on (16) in https://www.brucehardie.com/notes/012/pareto_NBD_pmf_derivation_rev.pdf
     def expected_purchases_probability_new_customer(self, n, t):
+        pass
+
+    # TODO: a new predictive method,
+    #       based on (8) in  https://www.brucehardie.com/notes/013/Pareto_NBD_interval_pmf_rev.pdf
+    #       https://www.brucehardie.com/notes/029/BGNBD_interval_pmf.pdf contains a BG/NBD variant
+    def expected_purchases_interval(self, n, t):
+        pass
+
+    # TODO: a new method,
+    #       based on (9) in  http://www.brucehardie.com/notes/015/additional_pareto_nbd_results.pdf
+    def marginal_posterior_transaction_rate(self, frequency, recency, T):
+        pass
+
+    # TODO: a new method,
+    #       based on (9) in  http://www.brucehardie.com/notes/015/additional_pareto_nbd_results.pdf
+    def marginal_posterior_churn_rate(self, frequency, recency, T):
         pass
 
     # TODO: clv.utils.to_xarray needs to be called here
     # TODO: Add type hinting
     # TODO: This method omits the case of x=0, and is ridiculously complex.
-    #       Test individual logp to see if individual variant
-    #       (15) and (20) can be implemented instead.
     def expected_purchases_probability(self, n, t, frequency, recency, T):
         """
         Return conditional probability of n purchases up to time t.
@@ -494,7 +499,6 @@ class ParetoNBDModel(CLVModel):
             - (gammaln(r) + gammaln(s) + (r + s + x) * log(max_of_alpha_beta + T))
         )
 
-        # TODO: This is a recursive function that will impact performance
         def _log_B_three(i):
             return (
                 r * log(alpha)
@@ -547,9 +551,7 @@ class ParetoNBDModel(CLVModel):
     # TODO: clv.utils.to_xarray needs to be called here
     # TODO: Add type hinting
     # TODO: This function looks nothing like (18) in the paper.
-    #       It may have been rewritten for stability.
-    #       It also has no individual logp equivalent and should be resolved against Abe.
-    #       This function is also almost identical to (34) for prob_alive,
+    #       It is also almost identical to (34) for prob_alive,
     #       and should be refactored accordingly.
     def expected_future_probability_alive(self, t, frequency, recency, T):
         """
