@@ -5,7 +5,11 @@ from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.dist_math import check_parameters
 from pytensor.tensor.random.op import RandomVariable
 
-__all__ = ["ContContract", "ContNonContract", "ParetoNBD", "ParetoNBDAggregate"]
+__all__ = [
+    "ContContract",
+    "ContNonContract",
+    "ParetoNBD",
+]
 
 
 class ContNonContractRV(RandomVariable):
@@ -295,187 +299,6 @@ class ParetoNBDRV(RandomVariable):
     dtype = "floatX"
     _print_name = ("ParetoNBD", "\\operatorname{ParetoNBD}")
 
-    def make_node(self, rng, size, dtype, purchase_rate, churn, T):
-        purchase_rate = pt.as_tensor_variable(purchase_rate)
-        churn = pt.as_tensor_variable(churn)
-        T = pt.as_tensor_variable(T)
-
-        return super().make_node(rng, size, dtype, purchase_rate, churn, T)
-
-    def __call__(self, purchase_rate, churn, T, size=None, **kwargs):
-        return super().__call__(purchase_rate, churn, T, size=size, **kwargs)
-
-    @classmethod
-    def rng_fn(cls, rng, purchase_rate, churn, T, size) -> np.ndarray:
-        size = pm.distributions.shape_utils.to_tuple(size)
-
-        purchase_rate = np.asarray(purchase_rate)
-        churn = np.asarray(churn)
-
-        if size == ():
-            size = np.broadcast_shapes(purchase_rate.shape, churn.shape, T.shape)
-
-        purchase_rate = np.broadcast_to(purchase_rate, size)
-        churn = np.broadcast_to(churn, size)
-        T = np.broadcast_to(T, size)
-
-        output = np.zeros(shape=size + (2,))
-
-        def sim_data(purchase_rate, churn, T):
-            t = 0
-            n = 0
-
-            churn_time = rng.exponential(scale=1 / churn)
-            wait = rng.exponential(scale=1 / purchase_rate)
-
-            while t + wait < min(churn_time, T):
-                t += wait
-                n += 1
-                wait = rng.exponential(scale=1 / purchase_rate)
-
-            return np.array(
-                [
-                    t,
-                    n,
-                ],
-            )
-
-        for index in np.ndindex(*size):
-            output[index] = sim_data(purchase_rate[index], churn[index], T[index])
-
-        return output
-
-    def _supp_shape_from_params(*args, **kwargs):
-        return (2,)
-
-
-pareto_nbd = ParetoNBDRV()
-
-
-class ParetoNBD(PositiveContinuous):
-    r"""
-    Population-level distribution class for a continuous, non-contractual, Pareto/NBD process,
-    based on Schmittlein, et al. in [2]_.
-
-    The likelihood function is derived from equations (22) and (23) of [3]_, with terms rearranged for numerical stability.
-    The modified expression is provided below:
-
-    .. math::
-
-        \begin{align}
-        \text{if }\alpha > \beta: \\
-        \\
-        \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) &=
-        \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\alpha +t_x)^{r+s+x}}
-        [(\frac{s}{r+s+x})_2F_1(r+s+x,s+1;r+s+x+1;\frac{\alpha-\beta}{\alpha+t_x}) \\
-        &+ (\frac{r+x}{r+s+x})
-        \frac{_2F_1(r+s+x,s;r+s+x+1;\frac{\alpha-\beta}{\alpha+T})(\alpha +t_x)^{r+s+x}}
-        {(\alpha +T)^{r+s+x}}] \\
-        \\
-        \text{if }\beta >= \alpha: \\
-        \\
-        \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) &=
-        \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\beta +t_x)^{r+s+x}}
-        [(\frac{s}{r+s+x})_2F_1(r+s+x,r+x;r+s+x+1;\frac{\beta-\alpha}{\beta+t_x}) \\
-        &+ (\frac{r+x}{r+s+x})
-        \frac{_2F_1(r+s+x,r+x+1;r+s+x+1;\frac{\beta-\alpha}{\beta+T})(\beta +t_x)^{r+s+x}}
-        {(\beta +T)^{r+s+x}}]
-        \end{align}
-
-    ========  ===============================================
-    Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
-    Mean      :math:`\mathbb{E}[X(t) | r, \alpha, s, \beta] = \frac{r\beta}{\alpha(s-1)}[1-(\frac{\beta}{\beta + t})^{s-1}]`
-    ========  ===============================================
-
-    References
-    ----------
-    .. [2] David C. Schmittlein, Donald G. Morrison and Richard Colombo.
-           "Counting Your Customers: Who Are They and What Will They Do Next."
-           Management Science,Vol. 33, No. 1 (Jan., 1987), pp. 1-24.
-
-    .. [3] Fader, Peter & G. S. Hardie, Bruce (2005).
-           "A Note on Deriving the Pareto/NBD Model and Related Expressions."
-           http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
-    """
-    rv_op = pareto_nbd
-
-    @classmethod
-    def dist(cls, r, alpha, s, beta, T, **kwargs):
-        return super().dist([r, alpha, s, beta, T], **kwargs)
-
-    def logp(value, r, alpha, s, beta, T):
-        t_x = value[..., 0]
-        x = value[..., 1]
-
-        rsx = r + s + x
-        rx = r + x
-
-        cond = alpha >= beta
-        larger_param = pt.switch(cond, alpha, beta)
-        smaller_param = pt.switch(cond, beta, alpha)
-        param_diff = larger_param - smaller_param
-        hyp2f1_t1_2nd_param = pt.switch(cond, s + 1, rx)
-        hyp2f1_t2_2nd_param = pt.switch(cond, s, rx + 1)
-
-        # This term is factored out of the denominator of hyp2f_t1 for numerical stability
-        refactored = rsx * pt.log(larger_param + t_x)
-
-        hyp2f1_t1 = pt.log(
-            pt.hyp2f1(
-                rsx, hyp2f1_t1_2nd_param, rsx + 1, param_diff / (larger_param + t_x)
-            )
-        )
-        hyp2f1_t2 = (
-            pt.log(
-                pt.hyp2f1(
-                    rsx, hyp2f1_t2_2nd_param, rsx + 1, param_diff / (larger_param + T)
-                )
-            )
-            - rsx * pt.log(larger_param + T)
-            + refactored
-        )
-
-        A1 = (
-            pt.gammaln(rx)
-            - pt.gammaln(r)
-            + r * pt.log(alpha)
-            + s * pt.log(beta)
-            - refactored
-        )
-        A2 = pt.log(s) - pt.log(rsx) + hyp2f1_t1
-        A3 = pt.log(rx) - pt.log(rsx) + hyp2f1_t2
-
-        logp = A1 + pt.logaddexp(A2, A3)
-
-        logp = pt.switch(
-            pt.or_(
-                pt.or_(
-                    pt.lt(t_x, 0),
-                    pt.lt(x, 0),
-                ),
-                pt.gt(t_x, T),
-            ),
-            -np.inf,
-            logp,
-        )
-
-        return check_parameters(
-            logp,
-            r > 0,
-            alpha > 0,
-            s > 0,
-            beta > 0,
-            msg="r > 0, alpha > 0, s > 0, beta > 0",
-        )
-
-
-class ParetoNBDAggRV(RandomVariable):
-    name = "pareto_nbd_agg"
-    ndim_supp = 1
-    ndims_params = [0, 0, 0, 0, 0]
-    dtype = "floatX"
-    _print_name = ("ParetoNBDAggregate", "\\operatorname{ParetoNBDAggregate}")
-
     def make_node(self, rng, size, dtype, r, alpha, s, beta, T):
         r = pt.as_tensor_variable(r)
         alpha = pt.as_tensor_variable(alpha)
@@ -542,13 +365,13 @@ class ParetoNBDAggRV(RandomVariable):
         return (2,)
 
 
-pareto_nbd_agg = ParetoNBDAggRV()
+pareto_nbd = ParetoNBDRV()
 
 
-class ParetoNBDAggregate(PositiveContinuous):
+class ParetoNBD(PositiveContinuous):
     r"""
-    Distribution class for a population of customers following a continuous, non-contractual, Pareto/NBD process.
-    Based on Schmittlein, et al. in [2]_.
+    Population-level distribution class for a continuous, non-contractual, Pareto/NBD process,
+    based on Schmittlein, et al. in [2]_.
 
     The likelihood function is derived from equations (22) and (23) of [3]_, with terms rearranged for numerical stability.
     The modified expression is provided below:
@@ -590,7 +413,7 @@ class ParetoNBDAggregate(PositiveContinuous):
            "A Note on Deriving the Pareto/NBD Model and Related Expressions."
            http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
     """
-    rv_op = pareto_nbd_agg
+    rv_op = pareto_nbd
 
     @classmethod
     def dist(cls, r, alpha, s, beta, T, **kwargs):
