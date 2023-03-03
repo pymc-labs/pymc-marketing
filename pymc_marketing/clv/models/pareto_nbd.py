@@ -27,7 +27,7 @@ class ParetoNBDModel(CLVModel):
     Customer-specific data needed for statistical inference include 1) the total
     number of purchases (:math:`x`) and 2) the time of the last, i.e. xth, purchase. The
     omission of purchase times :math:`t_1, ..., t_x` is due to a telescoping sum in the
-    exponential function of the joint likelihood; see Section 4.1 of [1] for more
+    exponential function of the joint likelihood; see Section 4.1 of [2] for more
     details.
 
     Methods below are adapted from the ParetoFitter class from the lifetimes package
@@ -99,15 +99,12 @@ class ParetoNBDModel(CLVModel):
 
     References
     ----------
-    .. [1] Fader, P. S., Hardie, B. G., & Lee, K. L. (2005). “Counting your customers”
-           the easy way: An alternative to the Pareto/NBD model. Marketing science,
-           24(2), 275-284. http://brucehardie.com/papers/018/fader_et_al_mksc_05.pdf
-    .. [2] Fader, P. S., Hardie, B. G., & Lee, K. L. (2008). Computing
-           P (alive) using the BG/NBD model. Research Note available via
-           http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
-    .. [3] Fader, P. S. & Hardie, B. G. (2013) Overcoming the BG/NBD Model’s #NUM!
-           Error Problem. Research Note available via
-           http://brucehardie.com/notes/027/bgnbd_num_error.pdf.
+    .. [1] David C. Schmittlein, Donald G. Morrison and Richard Colombo.
+           "Counting Your Customers: Who Are They and What Will They Do Next."
+           Management Science,Vol. 33, No. 1 (Jan., 1987), pp. 1-24.
+    .. [2] Fader, Peter & G. S. Hardie, Bruce (2005).
+           "A Note on Deriving the Pareto/NBD Model and Related Expressions."
+           http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
     """
 
     _model_name = "Pareto/NBD"  # Pareto Negative-Binomial Distribution
