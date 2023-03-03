@@ -357,8 +357,8 @@ class ParetoNBD(PositiveContinuous):
     Distribution class for an individual customer following a continuous, non-contractual, Pareto/NBD process.
     Based on Schmittlein, et al. in [2]_.
 
-    The likelihood function is derived from equation (14) of [3]_.
-
+    The likelihood function is derived from equations (22) and (23) of [3]_, with terms rearranged for numerical stability.
+    The modified expression is provided below:
     # TODO: review Latex
     .. math::
 

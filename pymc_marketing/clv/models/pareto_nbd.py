@@ -99,13 +99,15 @@ class ParetoNBDModel(CLVModel):
 
     References
     ----------
-    .. [2] David C. Schmittlein, Donald G. Morrison and Richard Colombo.
-           "Counting Your Customers: Who Are They and What Will They Do Next."
-           Management Science,Vol. 33, No. 1 (Jan., 1987), pp. 1-24.
-
-    .. [3] Fader, Peter & G. S. Hardie, Bruce (2005).
-           "A Note on Deriving the Pareto/NBD Model and Related Expressions."
-           http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
+    .. [1] Fader, P. S., Hardie, B. G., & Lee, K. L. (2005). “Counting your customers”
+           the easy way: An alternative to the Pareto/NBD model. Marketing science,
+           24(2), 275-284. http://brucehardie.com/papers/018/fader_et_al_mksc_05.pdf
+    .. [2] Fader, P. S., Hardie, B. G., & Lee, K. L. (2008). Computing
+           P (alive) using the BG/NBD model. Research Note available via
+           http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
+    .. [3] Fader, P. S. & Hardie, B. G. (2013) Overcoming the BG/NBD Model’s #NUM!
+           Error Problem. Research Note available via
+           http://brucehardie.com/notes/027/bgnbd_num_error.pdf.
     """
 
     _model_name = "Pareto/NBD"  # Pareto Negative-Binomial Distribution
