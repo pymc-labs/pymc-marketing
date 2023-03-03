@@ -393,27 +393,6 @@ class ParetoNBDModel(CLVModel):
             )
         )
 
-    # TODO: a new predictive method,
-    #       based on (16) in https://www.brucehardie.com/notes/012/pareto_NBD_pmf_derivation_rev.pdf
-    def expected_purchases_probability_new_customer(self, n, t):
-        pass
-
-    # TODO: a new predictive method,
-    #       based on (8) in  https://www.brucehardie.com/notes/013/Pareto_NBD_interval_pmf_rev.pdf
-    #       https://www.brucehardie.com/notes/029/BGNBD_interval_pmf.pdf contains a BG/NBD variant
-    def expected_purchases_interval(self, n, t):
-        pass
-
-    # TODO: a new method,
-    #       based on (9) in  http://www.brucehardie.com/notes/015/additional_pareto_nbd_results.pdf
-    def marginal_posterior_transaction_rate(self, frequency, recency, T):
-        pass
-
-    # TODO: a new method,
-    #       based on (9) in  http://www.brucehardie.com/notes/015/additional_pareto_nbd_results.pdf
-    def marginal_posterior_churn_rate(self, frequency, recency, T):
-        pass
-
     # TODO: clv.utils.to_xarray needs to be called here
     # TODO: Add type hinting
     # TODO: This method omits the case of x=0, and is ridiculously complex.
