@@ -3,6 +3,7 @@ import pymc as pm
 import pytensor.tensor as pt
 from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.dist_math import check_parameters
+from pytensor import scan
 from pytensor.tensor.random.op import RandomVariable
 
 __all__ = ["ContContract", "ContNonContract", "ParetoNBD", "BetaGeoBetaBinom"]
@@ -557,13 +558,11 @@ class BetaGeoBetaBinomRV(RandomVariable):
 beta_geo_beta_binom = BetaGeoBetaBinomRV()
 
 
+# TODO: Edit likelihood expression in docstring
 class BetaGeoBetaBinom(PositiveContinuous):
     r"""
-    Population-level distribution class for a continuous, non-contractual, Pareto/NBD process,
-    based on Schmittlein, et al. in [2]_.
-
-    The likelihood function is derived from equations (22) and (23) of [3]_, with terms rearranged for numerical stability.
-    The modified expression is provided below:
+    Population-level distribution class for a discrete, non-contractual, Beta-Geometric/Beta-Binomial process,
+    based on Fader, et al. in [1]_.
 
     .. math::
 
@@ -594,63 +593,53 @@ class BetaGeoBetaBinom(PositiveContinuous):
 
     References
     ----------
-    .. [2] David C. Schmittlein, Donald G. Morrison and Richard Colombo.
-           "Counting Your Customers: Who Are They and What Will They Do Next."
-           Management Science,Vol. 33, No. 1 (Jan., 1987), pp. 1-24.
+    .. [1] Fader, Peter S., Bruce G.S. Hardie, and Jen Shang (2010),
+       "Customer-Base Analysis in a Discrete-Time Noncontractual Setting,"
+       Marketing Science, 29 (6), 1086-1108. https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf
 
-    .. [3] Fader, Peter & G. S. Hardie, Bruce (2005).
-           "A Note on Deriving the Pareto/NBD Model and Related Expressions."
-           http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
     """
-    rv_op = pareto_nbd
+    rv_op = beta_geo_beta_binom
 
     @classmethod
-    def dist(cls, r, alpha, s, beta, T, **kwargs):
-        return super().dist([r, alpha, s, beta, T], **kwargs)
+    def dist(cls, alpha, beta, gamma, delta, T, **kwargs):
+        return super().dist([alpha, beta, gamma, delta, T], **kwargs)
 
-    def logp(value, r, alpha, s, beta, T):
+    def logp(value, alpha, beta, gamma, delta, T):
         t_x = value[..., 0]
         x = value[..., 1]
 
-        rsx = r + s + x
-        rx = r + x
+        betaln_ab = pt.betaln(alpha, beta)
+        betaln_gd = pt.betaln(gamma, delta)
 
-        cond = alpha >= beta
-        larger_param = pt.switch(cond, alpha, beta)
-        smaller_param = pt.switch(cond, beta, alpha)
-        param_diff = larger_param - smaller_param
-        hyp2f1_t1_2nd_param = pt.switch(cond, s + 1, rx)
-        hyp2f1_t2_2nd_param = pt.switch(cond, s, rx + 1)
+        A = (
+            pt.betaln(alpha + x, beta + T - x)
+            - betaln_ab
+            + pt.betaln(gamma, delta + T)
+            - betaln_gd
+        )
 
-        # This term is factored out of the denominator of hyp2f_t1 for numerical stability
-        refactored = rsx * pt.log(larger_param + t_x)
+        t_loop = T - t_x - 1
 
-        hyp2f1_t1 = pt.log(
-            pt.hyp2f1(
-                rsx, hyp2f1_t1_2nd_param, rsx + 1, param_diff / (larger_param + t_x)
+        # TODO: Resolve this scan loop and logp will be ready
+        for j in np.arange(t_loop):
+            ix = t_loop >= j
+            B = 0
+            B += (
+                ix
+                * pt.beta(alpha + x, beta + t_x - x + j)
+                * pt.beta(gamma + 1, delta + t_x + j)
             )
-        )
-        hyp2f1_t2 = (
-            pt.log(
-                pt.hyp2f1(
-                    rsx, hyp2f1_t2_2nd_param, rsx + 1, param_diff / (larger_param + T)
-                )
-            )
-            - rsx * pt.log(larger_param + T)
-            + refactored
+
+        result, updates = scan(
+            fn=lambda prior_result, A: prior_result * A,
+            outputs_info=pt.ones_like(A),
+            non_sequences=A,
+            n_steps=t_loop,
         )
 
-        A1 = (
-            pt.gammaln(rx)
-            - pt.gammaln(r)
-            + r * pt.log(alpha)
-            + s * pt.log(beta)
-            - refactored
-        )
-        A2 = pt.log(s) - pt.log(rsx) + hyp2f1_t1
-        A3 = pt.log(rx) - pt.log(rsx) + hyp2f1_t2
+        B = pt.log(B) - betaln_gd - betaln_ab
 
-        logp = A1 + pt.logaddexp(A2, A3)
+        logp = pt.logaddexp(A, B)
 
         logp = pt.switch(
             pt.or_(
@@ -666,9 +655,9 @@ class BetaGeoBetaBinom(PositiveContinuous):
 
         return check_parameters(
             logp,
-            r > 0,
             alpha > 0,
-            s > 0,
             beta > 0,
-            msg="r > 0, alpha > 0, s > 0, beta > 0",
+            gamma > 0,
+            delta > 0,
+            msg="alpha > 0, beta > 0, gamma > 0, delta > 0",
         )
