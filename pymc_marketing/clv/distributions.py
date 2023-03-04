@@ -2,8 +2,8 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 from pymc.distributions.continuous import PositiveContinuous
-from pymc.distributions.dist_math import check_parameters
-from pytensor import function, scan
+from pymc.distributions.dist_math import betaln, check_parameters
+from pytensor import scan
 from pytensor.tensor.random.op import RandomVariable
 
 __all__ = ["ContContract", "ContNonContract", "ParetoNBD", "BetaGeoBetaBinom"]
@@ -608,13 +608,13 @@ class BetaGeoBetaBinom(PositiveContinuous):
         t_x = value[..., 0]
         x = value[..., 1]
 
-        betaln_ab = pt.betaln(alpha, beta)
-        betaln_gd = pt.betaln(gamma, delta)
+        betaln_ab = betaln(alpha, beta)
+        betaln_gd = betaln(gamma, delta)
 
         A = (
-            pt.betaln(alpha + x, beta + T - x)
+            betaln(alpha + x, beta + T - x)
             - betaln_ab
-            + pt.betaln(gamma, delta + T)
+            + betaln(gamma, delta + T)
             - betaln_gd
         )
 
@@ -623,21 +623,21 @@ class BetaGeoBetaBinom(PositiveContinuous):
 
         # TODO: Resolve this scan loop and logp will be ready
         def _B_iter(ix):
-            return pt.beta(alpha + x, beta + t_x - x + ix) * pt.beta(
+            return betaln(alpha + x, beta + t_x - x + ix) + betaln(
                 gamma + 1, delta + t_x + ix
             )
 
         iter_result, _ = scan(
             fn=_B_iter,
-            outputs_info=pt.zeros(1),
-            sequences=[pt.arange(t_recent)],
+            # outputs_info=pt.zeros(1),
+            sequences=pt.arange(t_recent),
         )
 
         scan_sum = iter_result.sum()
 
-        B_sum = function(inputs=[t_recent], outputs=scan_sum)
+        # B_sum = function(inputs=[t_recent], outputs=[scan_sum])
 
-        B = pt.log(B_sum) - betaln_gd - betaln_ab
+        B = scan_sum - betaln_gd - betaln_ab
 
         logp = pt.logaddexp(A, B)
 
@@ -649,7 +649,7 @@ class BetaGeoBetaBinom(PositiveContinuous):
                 ),
                 pt.gt(t_x, T),
             ),
-            np.nan,
+            -np.inf,
             logp,
         )
 

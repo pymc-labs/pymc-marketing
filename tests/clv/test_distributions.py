@@ -1,12 +1,17 @@
 import numpy as np
 import pymc as pm
 import pytest
-from lifetimes import ParetoNBDFitter as PF
+from lifetimes import BetaGeoBetaBinomFitter, ParetoNBDFitter
 from numpy.testing import assert_almost_equal
 from pymc import Model
 from pymc.tests.helpers import select_by_precision
 
-from pymc_marketing.clv.distributions import ContContract, ContNonContract, ParetoNBD
+from pymc_marketing.clv.distributions import (
+    BetaGeoBetaBinom,
+    ContContract,
+    ContNonContract,
+    ParetoNBD,
+)
 
 
 class TestContNonContract:
@@ -204,11 +209,12 @@ class TestParetoNBD:
         ],
     )
     def test_pareto_nbd(self, value, r, alpha, s, beta, T):
-        def lifetimes_wrapper(r, alpha, s, beta, freq, rec, T):
-            """Simple wrapper for Vectorizing the lifetimes likelihood function."""
-            return PF._conditional_log_likelihood((r, alpha, s, beta), freq, rec, T)
-
-        vectorized_logp = np.vectorize(lifetimes_wrapper)
+        @np.vectorize
+        def lifetimes_llike(r, alpha, s, beta, freq, rec, T):
+            """Vectorize the lifetimes likelihood function for comparison."""
+            return ParetoNBDFitter._conditional_log_likelihood(
+                (r, alpha, s, beta), freq, rec, T
+            )
 
         with Model():
             pareto_nbd = ParetoNBD("pareto_nbd", r=r, alpha=alpha, s=s, beta=beta, T=T)
@@ -216,7 +222,7 @@ class TestParetoNBD:
 
         assert_almost_equal(
             pm.logp(pareto_nbd, value).eval(),
-            vectorized_logp(r, alpha, s, beta, value[..., 1], value[..., 0], T),
+            lifetimes_llike(r, alpha, s, beta, value[..., 1], value[..., 0], T),
             decimal=select_by_precision(float64=6, float32=2),
             err_msg=str(pt),
         )
@@ -260,3 +266,124 @@ class TestParetoNBD:
             prior = pm.sample_prior_predictive(samples=100)
 
         assert prior["prior"]["pareto_nbd"][0].shape == (100,) + expected_size
+
+
+class TestBetaGeoBetaBinom:
+    @pytest.mark.parametrize(
+        "value, alpha, beta, gamma, delta, T",
+        [
+            (
+                np.array([1.5, 1]),
+                0.55,
+                10.58,
+                0.61,
+                11.67,
+                12,
+            ),
+            (
+                np.array([1.5, 1]),
+                [0.45, 0.55],
+                10.58,
+                0.61,
+                11.67,
+                12,
+            ),
+            (
+                np.array([1.5, 1]),
+                [0.45, 0.55],
+                10.58,
+                [0.71, 0.61],
+                11.67,
+                12,
+            ),
+            (
+                np.array([[1.5, 1], [5.3, 4], [6, 2]]),
+                0.55,
+                11.67,
+                0.61,
+                10.58,
+                10,
+            ),
+            (
+                np.array([1.5, 1]),
+                0.55,
+                10.58,
+                0.61,
+                np.full((5, 3), 11.67),
+                12,
+            ),
+        ],
+    )
+    def test_beta_geo_beta_binom(self, value, alpha, beta, gamma, delta, T):
+        @np.vectorize
+        def lifetimes_llike(alpha, beta, gamma, delta, freq, rec, T):
+            """Vectorize the lifetimes likelihood function for comparison."""
+            return BetaGeoBetaBinomFitter._loglikelihood(
+                (alpha, beta, gamma, delta), freq, rec, T
+            )
+
+        with Model():
+            beta_geo_beta_binom = BetaGeoBetaBinom(
+                "beta_geo_beta_binom",
+                alpha=alpha,
+                beta=beta,
+                gamma=gamma,
+                delta=delta,
+                T=T,
+            )
+        pt = {"beta_geo_beta_binom": value}
+
+        assert_almost_equal(
+            pm.logp(beta_geo_beta_binom, value).eval(),
+            lifetimes_llike(alpha, beta, gamma, delta, value[..., 1], value[..., 0], T),
+            decimal=select_by_precision(float64=6, float32=2),
+            err_msg=str(pt),
+        )
+
+    def test_beta_geo_beta_binom_invalid(self):
+        beta_geo_beta_binom = BetaGeoBetaBinom.dist(
+            alpha=1.20, beta=0.75, gamma=0.66, delta=2.78, T=6
+        )
+        assert pm.logp(beta_geo_beta_binom, np.array([3, -1])).eval() == -np.inf
+        assert pm.logp(beta_geo_beta_binom, np.array([-1, 1.5])).eval() == -np.inf
+        assert pm.logp(beta_geo_beta_binom, np.array([11, 1.5])).eval() == -np.inf
+
+    @pytest.mark.parametrize(
+        "alpha_size, beta_size, gamma_size, delta_size, beta_geo_beta_binom_size, expected_size",
+        [
+            (None, None, None, None, None, (2,)),
+            ((5,), None, None, None, None, (5, 2)),
+            (None, (5,), None, None, (5,), (5, 2)),
+            (None, None, (5, 1), (1, 3), (5, 3), (5, 3, 2)),
+            (None, None, None, None, (5, 3), (5, 3, 2)),
+        ],
+    )
+    def test_pareto_nbd_sample_prior(
+        self,
+        alpha_size,
+        beta_size,
+        gamma_size,
+        delta_size,
+        beta_geo_beta_binom_size,
+        expected_size,
+    ):
+        with Model():
+            alpha = pm.Gamma(name="alpha", alpha=5, beta=1, size=alpha_size)
+            beta = pm.Gamma(name="beta", alpha=5, beta=1, size=beta_size)
+            gamma = pm.Gamma(name="gamma", alpha=5, beta=1, size=gamma_size)
+            delta = pm.Gamma(name="delta", alpha=5, beta=1, size=delta_size)
+
+            T = pm.MutableData(name="T", value=np.array(10))
+
+            BetaGeoBetaBinom(
+                name="beta_geo_beta_binom",
+                alpha=alpha,
+                beta=beta,
+                gamma=gamma,
+                delta=delta,
+                T=T,
+                size=beta_geo_beta_binom_size,
+            )
+            prior = pm.sample_prior_predictive(samples=100)
+
+        assert prior["prior"]["beta_geo_beta_binom"][0].shape == (100,) + expected_size
