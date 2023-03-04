@@ -7,7 +7,7 @@ import pytensor.tensor as pt
 import xarray as xr
 from pymc.distributions.dist_math import betaln
 from pytensor.tensor import TensorVariable
-from scipy.special import expit, hyp2f1
+from scipy.special import betaln, binom, gammaln
 
 from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models.basic import CLVModel
@@ -99,8 +99,8 @@ class BetaGeoBetaBinomModel(CLVModel):
         frequency: Union[np.ndarray, pd.Series, TensorVariable],
         recency: Union[np.ndarray, pd.Series, TensorVariable],
         T: Union[int, TensorVariable],
-        purchase_prior: Optional[TensorVariable] = None,
-        churn_prior: Optional[TensorVariable] = None,
+        purchase_hyperprior: Optional[TensorVariable] = None,
+        churn_hyperprior: Optional[TensorVariable] = None,
     ):
         super().__init__()
 
@@ -147,10 +147,10 @@ class BetaGeoBetaBinomModel(CLVModel):
             delta = pm.Deterministic("delta", (1.0 - churn_pool) * churn_hyper)
 
             purchase_heterogeniety = pm.Beta(
-                "purchase_heterogeniety", alpha=alpha, beta=beta
+                "purchase_heterogeneity", alpha=alpha, beta=beta
             )
             churn_heterogeniety = pm.Beta(
-                "churn_heterogeniety", alpha=gamma, beta=delta
+                "churn_heterogeneity", alpha=gamma, beta=delta
             )
 
             llike = BetaGeoBetaBinom(
@@ -262,10 +262,9 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         return exp(p1 + p2) / exp(p3)
 
-    # TODO: Add xarray call.
     # TODO: This is just copy-pasted from lifetimes; revise where needed.
     # TODO: Add type hinting
-    def expected_number_of_transactions_in_first_n_periods(self, n):
+    def expected_transactions(self, t):
         r"""
         Return expected number of transactions in first n n_periods.
         Expected number of transactions occurring across first n transaction
@@ -275,27 +274,31 @@ class BetaGeoBetaBinomModel(CLVModel):
         See (7) in Fader & Hardie 2010.
         Parameters
         ----------
-        n: float
+        t: int
             number of transaction opportunities
         Returns
         -------
         DataFrame:
             Predicted values, indexed by x
         """
-        params = self._unload_params("alpha", "beta", "gamma", "delta")
-        alpha, beta, gamma, delta = params
+
+        t = np.asarray(t)
+        if t.size != 1:
+            t = to_xarray(range(len(t)), t, dim="t")
+
+        alpha, beta, gamma, delta = self._unload_params()
 
         x_counts = self.data.groupby("frequency")["weights"].sum()
         x = np.asarray(x_counts.index)
 
-        p1 = binom(n, x) * exp(
-            betaln(alpha + x, beta + n - x)
+        p1 = binom(t, x) * exp(
+            betaln(alpha + x, beta + t - x)
             - betaln(alpha, beta)
-            + betaln(gamma, delta + n)
+            + betaln(gamma, delta + t)
             - betaln(gamma, delta)
         )
 
-        I = np.arange(x.min(), n)
+        I = np.arange(x.min(), t)
 
         @np.vectorize
         def p2(j, x):
