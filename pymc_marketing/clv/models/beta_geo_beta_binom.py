@@ -176,16 +176,17 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         return super()._process_priors(purchase_hyperprior, churn_hyperprior)
 
-    # TODO: Loop through _params for this
-    def _unload_params(self):
-        trace = self.fit_result.posterior
+    def _unload_params(self) -> Tuple[np.ndarray]:
+        # trace = self.fit_result.posterior
+        #
+        # alpha = trace["alpha"]
+        # beta = trace["beta"]
+        # gamma = trace["gamma"]
+        # delta = trace["delta"]
+        # return alpha, beta, gamma, delta
 
-        alpha = trace["alpha"]
-        beta = trace["beta"]
-        gamma = trace["gamma"]
-        delta = trace["delta"]
-
-        return alpha, beta, gamma, delta
+        # TODO: will .get(param) work here?
+        return tuple([self.fit_result.posterior[param] for param in self._params])
 
     # TODO: Add xarray call.
     # TODO: This is just copy-pasted from lifetimes; revise where needed.

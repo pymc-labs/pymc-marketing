@@ -3,7 +3,7 @@ import pymc as pm
 import pytensor.tensor as pt
 from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.dist_math import check_parameters
-from pytensor import scan
+from pytensor import function, scan
 from pytensor.tensor.random.op import RandomVariable
 
 __all__ = ["ContContract", "ContNonContract", "ParetoNBD", "BetaGeoBetaBinom"]
@@ -618,26 +618,26 @@ class BetaGeoBetaBinom(PositiveContinuous):
             - betaln_gd
         )
 
-        t_loop = T - t_x - 1
+        # TODO: The -1 may need to be omitted for the sequences loop
+        t_recent = T - t_x - 1
 
         # TODO: Resolve this scan loop and logp will be ready
-        for j in np.arange(t_loop):
-            ix = t_loop >= j
-            B = 0
-            B += (
-                ix
-                * pt.beta(alpha + x, beta + t_x - x + j)
-                * pt.beta(gamma + 1, delta + t_x + j)
+        def _B_iter(ix):
+            return pt.beta(alpha + x, beta + t_x - x + ix) * pt.beta(
+                gamma + 1, delta + t_x + ix
             )
 
-        result, updates = scan(
-            fn=lambda prior_result, A: prior_result * A,
-            outputs_info=pt.ones_like(A),
-            non_sequences=A,
-            n_steps=t_loop,
+        iter_result, _ = scan(
+            fn=_B_iter,
+            outputs_info=pt.zeros(1),
+            sequences=[pt.arange(t_recent)],
         )
 
-        B = pt.log(B) - betaln_gd - betaln_ab
+        scan_sum = iter_result.sum()
+
+        B_sum = function(inputs=[t_recent], outputs=scan_sum)
+
+        B = pt.log(B_sum) - betaln_gd - betaln_ab
 
         logp = pt.logaddexp(A, B)
 
@@ -649,7 +649,7 @@ class BetaGeoBetaBinom(PositiveContinuous):
                 ),
                 pt.gt(t_x, T),
             ),
-            -np.inf,
+            np.nan,
             logp,
         )
 
