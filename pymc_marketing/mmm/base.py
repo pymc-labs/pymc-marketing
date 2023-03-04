@@ -32,28 +32,28 @@ __all__ = ("BaseMMM", "MMM")
 class BaseMMM:
     def __init__(
         self,
-        data: pd.DataFrame,
+        data_df: pd.DataFrame,
         target_column: str,
         date_column: str,
         channel_columns: Union[List[str], Tuple[str]],
         validate_data: bool = True,
         **kwargs,
     ) -> None:
-        self.data: pd.DataFrame = data
+        self.data_df: pd.DataFrame = data_df
         self.target_column: str = target_column
         self.date_column: str = date_column
         self.channel_columns: Union[List[str], Tuple[str]] = channel_columns
-        self.n_obs: int = data.shape[0]
+        self.n_obs: int = data_df.shape[0]
         self.n_channel: int = len(channel_columns)
         self._fit_result: Optional[az.InferenceData] = None
         self._posterior_predictive: Optional[az.InferenceData] = None
 
         if validate_data:
-            self.validate(self.data)
-        self.preprocessed_data = self.preprocess(self.data.copy())
+            self.validate(self.data_df)
+        self.preprocessed_data = self.preprocess(self.data_df.copy())
 
         self.build_model(
-            data=self.preprocessed_data,
+            data_df=self.preprocessed_data,
             **kwargs,
         )
 
@@ -95,14 +95,14 @@ class BaseMMM:
             identity_transformer = FunctionTransformer()
             return Pipeline(steps=[("scaler", identity_transformer)])
 
-    def validate(self, data: pd.DataFrame):
+    def validate(self, data_df: pd.DataFrame):
         for method in self.validation_methods:
-            method(self, data)
+            method(self, data_df)
 
-    def preprocess(self, data: pd.DataFrame) -> pd.DataFrame:
+    def preprocess(self, data_df: pd.DataFrame) -> pd.DataFrame:
         for method in self.preprocessing_methods:
-            data = method(self, data)
-        return data
+            data_df = method(self, data_df)
+        return data_df
 
     @abstractmethod
     def build_model(*args, **kwargs):
@@ -162,7 +162,7 @@ class BaseMMM:
         fig, ax = plt.subplots(**plt_kwargs)
 
         ax.fill_between(
-            x=self.data[self.date_column],
+            x=self.data_df[self.date_column],
             y1=likelihood_hdi_94[:, 0],
             y2=likelihood_hdi_94[:, 1],
             color="C0",
@@ -171,7 +171,7 @@ class BaseMMM:
         )
 
         ax.fill_between(
-            x=self.data[self.date_column],
+            x=self.data_df[self.date_column],
             y1=likelihood_hdi_50[:, 0],
             y2=likelihood_hdi_50[:, 1],
             color="C0",
@@ -180,7 +180,7 @@ class BaseMMM:
         )
 
         ax.plot(
-            self.data[self.date_column],
+            self.data_df[self.date_column],
             self.preprocessed_data[self.target_column],
             color="black",
         )
@@ -210,7 +210,7 @@ class BaseMMM:
         fig, ax = plt.subplots(**plt_kwargs)
 
         ax.fill_between(
-            x=self.data[self.date_column],
+            x=self.data_df[self.date_column],
             y1=likelihood_hdi_94[:, 0],
             y2=likelihood_hdi_94[:, 1],
             color="C0",
@@ -219,7 +219,7 @@ class BaseMMM:
         )
 
         ax.fill_between(
-            x=self.data[self.date_column],
+            x=self.data_df[self.date_column],
             y1=likelihood_hdi_50[:, 0],
             y2=likelihood_hdi_50[:, 1],
             color="C0",
@@ -228,11 +228,11 @@ class BaseMMM:
         )
 
         target_to_plot: pd.Series = (
-            self.data[self.target_column]
+            self.data_df[self.target_column]
             if original_scale
             else self.preprocessed_data[self.target_column]
         )
-        ax.plot(self.data[self.date_column], target_to_plot, color="black")
+        ax.plot(self.data_df[self.date_column], target_to_plot, color="black")
         ax.set(
             title="Posterior Predictive Check",
             xlabel="date",
@@ -290,7 +290,7 @@ class BaseMMM:
             )
         ):
             ax.fill_between(
-                x=self.data[self.date_column],
+                x=self.data_df[self.date_column],
                 y1=hdi.isel(hdi=0),
                 y2=hdi.isel(hdi=1),
                 color=f"C{i}",
@@ -298,7 +298,7 @@ class BaseMMM:
                 label=f"$94 %$ HDI ({var_contribution})",
             )
             sns.lineplot(
-                x=self.data[self.date_column],
+                x=self.data_df[self.date_column],
                 y=mean,
                 color=f"C{i}",
                 ax=ax,
@@ -311,13 +311,13 @@ class BaseMMM:
             axis=0,
         )
         sns.lineplot(
-            x=self.data[self.date_column],
+            x=self.data_df[self.date_column],
             y=intercept.mean().data,
             color=f"C{i + 1}",
             ax=ax,
         )
         ax.fill_between(
-            x=self.data[self.date_column],
+            x=self.data_df[self.date_column],
             y1=intercept_hdi[:, 0],
             y2=intercept_hdi[:, 1],
             color=f"C{i + 1}",
@@ -325,7 +325,7 @@ class BaseMMM:
             label="$94 %$ HDI (intercept)",
         )
         ax.plot(
-            self.data[self.date_column],
+            self.data_df[self.date_column],
             self.preprocessed_data[self.target_column],
             color="black",
         )
@@ -392,7 +392,7 @@ class BaseMMM:
         for i, channel in enumerate(self.channel_columns):
             ax = axes[i]
             sns.regplot(
-                x=self.data[self.channel_columns].to_numpy()[:, i],
+                x=self.data_df[self.channel_columns].to_numpy()[:, i],
                 y=channel_contributions.sel(channel=channel),
                 color=f"C{i}",
                 order=2,
