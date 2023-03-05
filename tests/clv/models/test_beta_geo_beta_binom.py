@@ -38,7 +38,7 @@ class TestBetaGeoBetaBinomModel:
     @classmethod
     def setup_class(cls, donations):
         # Set random seed
-        rng = np.random.default_rng(34)
+        cls.rng = np.random.default_rng(34)
 
         # Parameters
         alpha_true = 1.204
@@ -60,39 +60,15 @@ class TestBetaGeoBetaBinomModel:
             T=cls.T,
         )
 
+        cls.lifetimes_model = BetaGeoBetaBinomFitter
+
         # Instead of fitting BetaGeoBetaBinomFitter,
         # Load the true model parameters directly
-        BBF._unload_params = (
-            cls.alpha_true,
-            cls.beta_true,
-            cls.gamma_true,
-            cls.delta_true,
-        )
-
-        # TODO: Is this declaration needed?
-        BGF.conditional_expected_number_of_purchases_up_to_time = classmethod(
-            BGF.conditional_expected_number_of_purchases_up_to_time
-        )
-
-        cls.test_num_purchases = (
-            BGF.conditional_expected_number_of_purchases_up_to_time(
-                m_periods_in_future=cls.test_t,
-                frequency=cls.frequency,
-                recency=cls.recency,
-                n_periods=cls.T,
-            )
-        )
-
-        # TODO: Is this declaration needed?
-        BGF.conditional_probability_alive = classmethod(
-            BGF.conditional_probability_alive
-        )
-
-        cls.test_alive = BGF.conditional_probability_alive(
-            m_periods_in_future=cls.test_t,
-            frequency=cls.frequency,
-            recency=cls.recency,
-            n_periods=cls.T,
+        cls.lifetimes_model._unload_params = (
+            alpha_true,
+            beta_true,
+            gamma_true,
+            delta_true,
         )
 
     def test_unload_params(self):
@@ -117,11 +93,15 @@ class TestBetaGeoBetaBinomModel:
 
         assert isinstance(
             model.model["purchase_hyperprior"].owner.op,
-            pm.HalfFlat if a_prior is None else type(purchase_hyperprior.owner.op),
+            pm.HalfFlat
+            if purchase_hyperprior is None
+            else type(purchase_hyperprior.owner.op),
         )
         assert isinstance(
             model.model["churn_hyperprior"].owner.op,
-            pm.HalfFlat if b_prior is None else type(churn_hyperprior.owner.op),
+            pm.HalfFlat
+            if churn_hyperprior is None
+            else type(churn_hyperprior.owner.op),
         )
         assert model.model.eval_rv_shapes() == {
             "purchase_hyperprior": (),
@@ -157,7 +137,7 @@ class TestBetaGeoBetaBinomModel:
     )
     def test_model_convergence(self, fit_method, rtol):
         self.model.fit(
-            fitting_method=fit_method, chains=1, progressbar=False, random_seed=cls.rng
+            fitting_method=fit_method, chains=1, progressbar=False, random_seed=self.rng
         )
 
         fit = self.model.fit_result.posterior
@@ -173,53 +153,65 @@ class TestBetaGeoBetaBinomModel:
         )
 
     @pytest.mark.skip(reason="logp tests failing")
-    def test_probability_alive(self):
-        """
-        The "true" prefix refers to the value obtained using 1) the closed form
-        solution and 2) the data-generating parameter values.
-        """
-        true_prob_alive = self.test_alive.mean()
+    @pytest.mark.parametrize("test_t", [1, 2, 3, 4, 5, 6])
+    def test_probability_alive(self, test_t):
+        # TODO: Will need to hardcode expected values from http://brucehardie.com/notes/010/
+        true_alive = self.lifetimes_model.conditional_probability_alive(
+            m_periods_in_future=test_t,
+            frequency=self.frequency,
+            recency=self.recency,
+            n_periods=self.T,
+        )
 
-        est_prob_alive = self.model.probability_alive(t=self.test_t)
+        est_prob_alive = self.model.probability_alive(t=test_t)
 
         assert est_prob_alive.shape == (1, 1000, len(self.customer_id))
         assert est_prob_alive.dims == ("chain", "draw", "customer_id")
 
         np.testing.assert_allclose(
-            true_prob_alive,
+            true_alive.mean(),
             est_prob_alive.mean(),
             rtol=0.05,
         )
 
     @pytest.mark.skip(reason="logp tests failing")
-    def test_expected_purchases(self):
-        true_prob_alive = self.test_num_purchases.mean()
+    @pytest.mark.parametrize("test_t", [1, 2, 3, 4, 5, 6])
+    def test_expected_purchases(self, test_t):
+        # TODO: Will need to hardcode expected values from http://brucehardie.com/notes/010/
+        true_purchases = (
+            self.lifetimes_model.conditional_expected_number_of_purchases_up_to_time(
+                m_periods_in_future=test_t,
+                frequency=self.frequency,
+                recency=self.recency,
+                n_periods=self.T,
+            )
+        )
 
-        est_purchases = self.fixed_model.expected_purchases(self.test_t, self.test_x)
+        est_purchases = self.model.expected_purchases(test_t)
 
-        assert est_num_purchases.shape == (1, 1000, len(self.customer_id))
-        assert est_num_purchases.dims == ("chain", "draw", "customer_id")
+        assert est_purchases.shape == (1, 1000, len(self.customer_id))
+        assert est_purchases.dims == ("chain", "draw", "customer_id")
 
         np.testing.assert_allclose(
-            self.test_num_purchases,
+            true_purchases,
             est_purchases.mean(("chain", "draw")),
             rtol=0.1,
         )
 
     @pytest.mark.skip(reason="logp tests failing")
-    def test_expected_purchases_new_customer(self):
-        # TODO: Will need to hardcode expected values from http://brucehardie.com/notes/010/
+    @pytest.mark.parametrize("test_t", [1, 2, 3, 4, 5, 6])
+    def test_expected_purchases_new_customer(self, test_t):
+        # TODO: Parametrize expected values from http://brucehardie.com/notes/010/
+        true_purchases_new_customer = []
 
-        est_num_purchases = self.fixed_model.expected_purchases_new_customer(
-            self.test_t
-        )
+        est_purchases_new_customer = self.model.expected_purchases_new_customer(test_t)
 
-        assert est_num_purchases.shape == (1, 1000, 1)
-        assert est_num_purchases.dims == ("chain", "draw", "t")
+        assert est_purchases_new_customer.shape == (1, 1000, 1)
+        assert est_purchases_new_customer.dims == ("chain", "draw", "t")
 
         np.testing.assert_allclose(
-            self.expected_test_num_purchases,
-            est_num_purchases.mean(("chain", "draw")),
+            true_purchases_new_customer,
+            est_purchases_new_customer.mean(("chain", "draw")),
             rtol=1,
         )
 
