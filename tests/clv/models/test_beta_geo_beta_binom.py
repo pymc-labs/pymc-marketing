@@ -7,36 +7,34 @@ from lifetimes import BetaGeoBetaBinomFitter
 from pymc_marketing.clv.models.beta_geo_beta_binom import BetaGeoBetaBinomModel
 
 
-@pytest.fixture(scope="module")
-def donations() -> pd.DataFrame:
-    """
-    Load donations benchmark dataset into a Pandas dataframe.
-    This dataset aggregates identical customers by count,
-    and should be exploded into one customer per row for testing.
-
-    Data source: https://www.brucehardie.com/datasets/
-    """
-
-    count_df = pd.read_csv("tests/clv/datasets/donations.csv")
-
-    agg_df = count_df.drop("count", axis=1)
-
-    for row in zip(agg_df.values, count_df["count"]):
-        array = np.tile(row[0], (row[1], 1))
-        try:
-            concat_array = np.concatenate((concat_array, array), axis=0)
-        except NameError:
-            concat_array = array
-
-    exploded_df = pd.DataFrame(concat_array, columns=["frequency", "recency", "T"])
-
-    return exploded_df
-
-
-@pytest.mark.skip(reason="Still a WIP")
 class TestBetaGeoBetaBinomModel:
     @classmethod
-    def setup_class(cls, donations):
+    def load_data(self) -> pd.DataFrame:
+        """
+        Load donations benchmark dataset into a Pandas dataframe.
+        This dataset aggregates identical customers by count,
+        and should be exploded into one customer per row for testing.
+
+        Data source: https://www.brucehardie.com/datasets/
+        """
+
+        count_df = pd.read_csv("tests/clv/datasets/donations.csv")
+
+        agg_df = count_df.drop("count", axis=1)
+
+        for row in zip(agg_df.values, count_df["count"]):
+            array = np.tile(row[0], (row[1], 1))
+            try:
+                concat_array = np.concatenate((concat_array, array), axis=0)
+            except NameError:
+                concat_array = array
+
+        exploded_df = pd.DataFrame(concat_array, columns=["frequency", "recency", "T"])
+
+        return exploded_df
+
+    @classmethod
+    def setup_class(cls):
         # Set random seed
         cls.rng = np.random.default_rng(34)
 
@@ -47,6 +45,7 @@ class TestBetaGeoBetaBinomModel:
         delta_true = 2.783
 
         # Define testing data
+        donations = cls.load_data()
         cls.customer_id = donations.index
         cls.recency = donations["recency"]
         cls.frequency = donations["frequency"]
@@ -103,28 +102,29 @@ class TestBetaGeoBetaBinomModel:
             if churn_hyperprior is None
             else type(churn_hyperprior.owner.op),
         )
-        assert model.model.eval_rv_shapes() == {
+
+        actual_rv = model.model.eval_rv_shapes()
+
+        # pm.HalfFlat() will have an *_interval__  attr instead of *_log__,
+        # so test to see if the dict of rv names & shapes is a subset of the following dict
+        expected_rv = {
             "purchase_hyperprior": (),
             "purchase_hyperprior_log__": (),
+            "purchase_hyperprior_interval__": (),
             "churn_hyperprior": (),
             "churn_hyperprior_log__": (),
+            "churn_hyperprior_interval__": (),
             "purchase_pool": (),
-            "purchase_pool_log__": (),
+            "purchase_pool_interval__": (),
             "churn_pool": (),
-            "churn_pool_log__": (),
-            "alpha": (),
-            "alpha_log__": (),
-            "beta": (),
-            "beta_log__": (),
-            "gamma": (),
-            "gamma_log__": (),
-            "delta": (),
-            "delta_log__": (),
+            "churn_pool_interval__": (),
             "purchase_heterogeneity": (),
-            "purchase_heterogeneity_log__": (),
+            "purchase_heterogeneity_logodds__": (),
             "churn_heterogeneity": (),
-            "churn_heterogeneity_log__": (),
+            "churn_heterogeneity_logodds__": (),
         }
+
+        assert set(actual_rv.items()).issubset(set(expected_rv.items()))
 
     @pytest.mark.skip(reason="logp tests failing")
     @pytest.mark.slow
@@ -216,11 +216,17 @@ class TestBetaGeoBetaBinomModel:
         )
 
     def test_model_repr(self):
-        assert self.fixed_model.__repr__().replace(" ", "") == (
+        assert self.model.__repr__().replace(" ", "") == (
             "BG/BB"
-            "\na~HalfFlat()"
-            "\nb~HalfFlat()"
-            "\nalpha~HalfFlat()"
-            "\nr~HalfFlat()"
-            "\nlikelihood~Potential(f(r,alpha,b,a))"
+            "\npurchase_hyperprior~HalfFlat()"
+            "\nchurn_hyperprior~HalfFlat()"
+            "\npurchase_pool~U(0,1)"
+            "\nchurn_pool~U(0,1)"
+            "\npurchase_heterogeneity~Beta(alpha,beta)"
+            "\nchurn_heterogeneity~Beta(gamma,delta)"
+            "\nalpha~Deterministic(f(purchase_hyperprior,purchase_pool))"
+            "\nbeta~Deterministic(f(purchase_hyperprior,purchase_pool))"
+            "\ngamma~Deterministic(f(churn_hyperprior,churn_pool))"
+            "\ndelta~Deterministic(f(churn_hyperprior,churn_pool))"
+            "\nllike~BetaGeoBetaBinom(alpha,beta,gamma,delta,<constant>)"
         )
