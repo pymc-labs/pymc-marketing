@@ -1,7 +1,7 @@
 import numpy as np
 import pymc as pm
 import pytest
-from lifetimes import BetaGeoBetaBinomFitter, ParetoNBDFitter
+from lifetimes import ParetoNBDFitter
 from numpy.testing import assert_almost_equal
 from pymc import Model
 from pymc.tests.helpers import select_by_precision
@@ -270,58 +270,50 @@ class TestParetoNBD:
 
 class TestBetaGeoBetaBinom:
     @pytest.mark.parametrize(
-        "value, alpha, beta, gamma, delta, T",
+        "value, alpha, beta, gamma, delta, T, logp",
         [
+            (np.array([1, 1]), 1.204, 0.750, 0.657, 2.783, 6, np.log(0.1014)),
             (
-                np.array([1.5, 1]),
-                0.55,
-                10.58,
-                0.61,
-                11.67,
-                12,
+                np.array([2, 2]),
+                [1.204, 1.204],
+                0.750,
+                0.657,
+                2.783,
+                6,
+                [np.log(0.0492), np.log(0.0492)],
             ),
             (
-                np.array([1.5, 1]),
-                [0.45, 0.55],
-                10.58,
-                0.61,
-                11.67,
-                12,
+                np.array([[0, 0], [5, 1]]),
+                [1.204, 1.204],
+                0.750,
+                0.657,
+                [2.783, 2.783],
+                6,
+                [np.log(0.3111), np.log(0.0085)],
             ),
             (
-                np.array([1.5, 1]),
-                [0.45, 0.55],
-                10.58,
-                [0.71, 0.61],
-                11.67,
-                12,
+                np.array([[6, 5], [3, 2], [5, 5]]),
+                1.204,
+                0.750,
+                0.657,
+                2.783,
+                6,
+                [np.log(0.0136) + np.log(0.0109) + np.log(0.0243)],
             ),
             (
-                np.array([[1.5, 1], [5.3, 4], [6, 2]]),
-                0.55,
-                11.67,
-                0.61,
-                10.58,
-                10,
-            ),
-            (
-                np.array([1.5, 1]),
-                0.55,
-                10.58,
-                0.61,
-                np.full((5, 3), 11.67),
-                12,
+                np.array([6, 6]),
+                1.204,
+                0.750,
+                0.657,
+                np.full((5, 3), 2.783),
+                6,
+                np.full((5, 3), np.log(0.1129)),
             ),
         ],
     )
-    def test_beta_geo_beta_binom(self, value, alpha, beta, gamma, delta, T):
-        @np.vectorize
-        def lifetimes_llike(alpha, beta, gamma, delta, freq, rec, T):
-            """Vectorize the lifetimes likelihood function for comparison."""
-            return BetaGeoBetaBinomFitter._loglikelihood(
-                (alpha, beta, gamma, delta), freq, rec, T
-            )
-
+    def test_beta_geo_beta_binom(self, value, alpha, beta, gamma, delta, T, logp):
+        # comparisons to lifetimes loglike difficult due to differences in array broadcasting.
+        # Expected logp values can be found in http://brucehardie.com/notes/010/
         with Model():
             beta_geo_beta_binom = BetaGeoBetaBinom(
                 "beta_geo_beta_binom",
@@ -335,7 +327,7 @@ class TestBetaGeoBetaBinom:
 
         assert_almost_equal(
             pm.logp(beta_geo_beta_binom, value).eval(),
-            lifetimes_llike(alpha, beta, gamma, delta, value[..., 1], value[..., 0], T),
+            logp,
             decimal=select_by_precision(float64=6, float32=2),
             err_msg=str(pt),
         )

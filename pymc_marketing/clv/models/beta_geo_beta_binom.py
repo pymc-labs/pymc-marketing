@@ -18,7 +18,7 @@ from pymc_marketing.clv.utils import to_xarray
 
 # TODO: Proofread docstrings
 class BetaGeoBetaBinomModel(CLVModel):
-    r"""Beta-Geometric Beta Binomial Distribution (BG/BB) model for discrete, noncontractual transactions.
+    r"""Beta-Geometric Beta Binomial Distribution (BG/BB) model for discrete, non-contractual transactions.
 
     In the BG/BB model, the frequency of customer purchases is modelled as the time
     of each purchase has an instantaneous probability of occurrence (hazard) and, at
@@ -29,10 +29,6 @@ class BetaGeoBetaBinomModel(CLVModel):
     omission of purchase times :math:`t_1, ..., t_x` is due to a telescoping sum in the
     exponential function of the joint likelihood; see Section 4.1 of [1] for more
     details.
-
-    Methods below are adapted from the BetaGeoFitter class from the lifetimes package
-    (see https://github.com/CamDavidsonPilon/lifetimes/).
-
 
     Parameters
     ----------
@@ -100,10 +96,26 @@ class BetaGeoBetaBinomModel(CLVModel):
         customer_id: Union[np.ndarray, pd.Series],
         frequency: Union[np.ndarray, pd.Series, TensorVariable],
         recency: Union[np.ndarray, pd.Series, TensorVariable],
-        T: Union[int, TensorVariable],
+        T: Union[int, np.ndarray, pd.Series, TensorVariable],
         purchase_hyperprior: Optional[TensorVariable] = None,
         churn_hyperprior: Optional[TensorVariable] = None,
     ):
+        # Validate inputs before initializing model:
+
+        t_array = np.array(T)
+        if np.unique(t_array).shape[0] != 1:
+            raise ValueError(
+                "The BG/BB Model requires a static T value for all customers,"
+                " but a heterogeneous T array was provided."
+                " If using clv_summary(), try df.assign(T=df['T'].max())"
+            )
+
+        if len(np.unique(customer_id)) != len(customer_id):
+            raise ValueError(
+                "The BG/BB expects exactly one entry per customer. More than"
+                " one entry is currently provided per customer id."
+            )
+
         super().__init__()
 
         self.customer_id = customer_id
@@ -115,13 +127,6 @@ class BetaGeoBetaBinomModel(CLVModel):
             purchase_hyperprior, churn_hyperprior
         )
 
-        # each customer's information should be encapsulated by a single data entry
-        if len(np.unique(customer_id)) != len(customer_id):
-            raise ValueError(
-                "The BG/BB expects exactly one entry per customer. More than"
-                " one entry is currently provided per customer id."
-            )
-
         coords = {"customer_id": customer_id}
         with pm.Model(coords=coords) as self.model:
             purchase_hyper = self.model.register_rv(
@@ -131,7 +136,8 @@ class BetaGeoBetaBinomModel(CLVModel):
                 churn_hyperprior, name="churn_hyperprior"
             )
 
-            # Heirarchical pooling of hyperparams for beta parameters.
+            # Heirarchical pooling of hyperparams for beta distribution parameters.
+
             purchase_pool = pm.Uniform(
                 "purchase_pool",
                 lower=0,
@@ -203,6 +209,10 @@ class BetaGeoBetaBinomModel(CLVModel):
         (x, tx, n).
         .. math:: E(X(n_{periods}, n_{periods}+m_{periods_in_future})| \alpha, \beta, \gamma, \delta, frequency, recency, n_{periods})
         See (13) in Fader & Hardie 2010.
+
+        Methods below are adapted from the BetaGeoFitter class from the lifetimes package
+        (see https://github.com/CamDavidsonPilon/lifetimes/).
+
         Parameters
         ----------
         t: array_like
@@ -233,7 +243,7 @@ class BetaGeoBetaBinomModel(CLVModel):
     # TODO: Add xarray call.
     # TODO: This is just copy-pasted from lifetimes; revise where needed.
     # TODO: Add type hinting
-    def conditional_probability_alive(
+    def probability_alive(
         self, m_periods_in_future, frequency, recency, n_periods
     ) -> xarray.DataArray:
         """
@@ -242,6 +252,10 @@ class BetaGeoBetaBinomModel(CLVModel):
         n_periods + m_periods_in_future.
         .. math:: P(alive at n_periods + m_periods_in_future|alpha, beta, gamma, delta, frequency, recency, n_periods)
         See (11) in [1].
+
+        Methods below are adapted from the BetaGeoFitter class from the lifetimes package
+        (see https://github.com/CamDavidsonPilon/lifetimes/).
+
         Parameters
         ----------
         m: array_like
@@ -264,7 +278,6 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         return exp(p1 + p2) / exp(p3)
 
-    # TODO: Add type hinting
     def expected_purchases_new_customer(
         self,
         t=Union[int, np.ndarray, pd.Series, TensorVariable],
@@ -293,10 +306,10 @@ class BetaGeoBetaBinomModel(CLVModel):
         alpha, beta, gamma, delta = self._unload_params()
 
         term1 = alpha / (alpha + beta) * delta / (gamma - 1)
-        term2 = 1 - (gammaf(gamma + delta)) / gammaf(gamma + delta + n) * (
-            gammaf(1 + delta + n)
+        term2 = 1 - (gammaf(gamma + delta)) / gammaf(gamma + delta + t) * (
+            gammaf(1 + delta + t)
         ) / gammaf(1 + delta)
-        expected_purchases_n_periods = term1 * term2
+
         return (term1 * term2).transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
