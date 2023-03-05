@@ -7,7 +7,9 @@ import pytensor.tensor as pt
 import xarray as xr
 from pymc.distributions.dist_math import betaln
 from pytensor.tensor import TensorVariable
-from scipy.special import betaln, binom, gammaln
+from scipy.special import betaln, binom
+from scipy.special import gamma as gammaf
+from scipy.special import gammaln
 
 from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models.basic import CLVModel
@@ -193,7 +195,7 @@ class BetaGeoBetaBinomModel(CLVModel):
     # TODO: Add type hinting
     def conditional_expected_number_of_purchases_up_to_time(
         self, m_periods_in_future, frequency, recency, n_periods
-    ):
+    ) -> xarray.DataArray:
         r"""
         Conditional expected purchases in future time period.
         The  expected  number  of  future  transactions across the next m_periods_in_future
@@ -233,7 +235,7 @@ class BetaGeoBetaBinomModel(CLVModel):
     # TODO: Add type hinting
     def conditional_probability_alive(
         self, m_periods_in_future, frequency, recency, n_periods
-    ):
+    ) -> xarray.DataArray:
         """
         Conditional probability alive.
         Conditional probability customer is alive at transaction opportunity
@@ -262,16 +264,18 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         return exp(p1 + p2) / exp(p3)
 
-    # TODO: This is just copy-pasted from lifetimes; revise where needed.
     # TODO: Add type hinting
-    def expected_transactions(self, t):
+    def expected_purchases_new_customer(
+        self,
+        t=Union[int, np.ndarray, pd.Series, TensorVariable],
+    ) -> xarray.DataArray:
         r"""
         Return expected number of transactions in first n n_periods.
         Expected number of transactions occurring across first n transaction
         opportunities.
         Used by Fader and Hardie to assess in-sample fit.
-        .. math:: Pr(X(n) = x| \alpha, \beta, \gamma, \delta)
-        See (7) in Fader & Hardie 2010.
+        .. math:: E(X(n) = x| \alpha, \beta, \gamma, \delta)
+        See (8) in Fader & Hardie 2010.
         Parameters
         ----------
         t: int
@@ -288,40 +292,11 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         alpha, beta, gamma, delta = self._unload_params()
 
-        x_counts = self.data.groupby("frequency")["weights"].sum()
-        x = np.asarray(x_counts.index)
-
-        p1 = binom(t, x) * exp(
-            betaln(alpha + x, beta + t - x)
-            - betaln(alpha, beta)
-            + betaln(gamma, delta + t)
-            - betaln(gamma, delta)
+        term1 = alpha / (alpha + beta) * delta / (gamma - 1)
+        term2 = 1 - (gammaf(gamma + delta)) / gammaf(gamma + delta + n) * (
+            gammaf(1 + delta + n)
+        ) / gammaf(1 + delta)
+        expected_purchases_n_periods = term1 * term2
+        return (term1 * term2).transpose(
+            "chain", "draw", "customer_id", missing_dims="ignore"
         )
-
-        I = np.arange(x.min(), t)
-
-        @np.vectorize
-        def p2(j, x):
-            i = I[int(j) :]
-            return np.sum(
-                binom(i, x)
-                * exp(
-                    betaln(alpha + x, beta + i - x)
-                    - betaln(alpha, beta)
-                    + betaln(gamma + 1, delta + i)
-                    - betaln(gamma, delta)
-                )
-            )
-
-        p1 += np.fromfunction(p2, (x.shape[0],), x=x)
-
-        idx = pd.Index(x, name="frequency")
-        return DataFrame(p1 * x_counts.sum(), index=idx, columns=["model"])
-
-    # TODO: See (9) & (10) in https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf
-    def expected_transactions_in_interval_new_customer(self, n_start, n_end):
-        pass
-
-    # TODO: See (9) & (10) in https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf
-    def expected_transactions_in_interval_new_customer(self, n_start, n_end):
-        pass
