@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pymc as pm
 import pytest
 from lifetimes import ParetoNBDFitter
@@ -7,9 +8,9 @@ from pymc_marketing.clv.models.pareto_nbd import ParetoNBDModel
 
 
 class TestParetoNBDModel:
-    # TODO: Is this this needed?
+    # TODO: Pytest fixtures cannot be called from within setup_class
     def load_data(self, cdnow_sample):
-        return cdnow_sample()
+        return cdnow_sample
 
     # TODO: lifetimes predictive methods have different formulations
     #       compared to their counterparts in ParetoNBDModel
@@ -30,25 +31,24 @@ class TestParetoNBDModel:
         cls.s_prior = None
         cls.beta_prior = None
 
-        # test_data = cdnow_sample()
-        test_data = cls.load_data()
+        # TODO: To use the fixtures in conftest.py, refactor setup_class into several fixtures
+        test_data = pd.read_csv("tests/clv/datasets/cdnow_sample.csv")
         cls.customer_id = test_data.index
         cls.frequency = test_data["frequency"]
         cls.recency = test_data["recency"]
         cls.T = test_data["T"]
 
-        # TODO: if cdnow_sample doesn't work here, create a fixture instead
         # fit a model with find_MAP() for testing
-        # model = ParetoNBDModel(
-        # customer_id=cdnow_sample["customer_id"].values,
-        # frequency=cdnow_sample["frequency"].values,
-        # recency=cdnow_sample["recency"].values,
-        # T=cdnow_sample["T"].values,
-        # r_prior = r_prior,
-        # alpha_prior = alpha_prior,
-        # s_prior = s_prior,
-        # beta_prior = beta_prior,
-        # )
+        cls.model = ParetoNBDModel(
+            customer_id=cls.customer_id,
+            frequency=cls.frequency,
+            recency=cls.recency,
+            T=cls.T,
+            r_prior=cls.r_prior,
+            alpha_prior=cls.alpha_prior,
+            s_prior=cls.s_prior,
+            beta_prior=cls.beta_prior,
+        )
         # model.fit(fitting_method="map", random_seed=self.rng)
 
         cls.lifetimes_model = ParetoNBDFitter
@@ -100,15 +100,20 @@ class TestParetoNBDModel:
             model.model["beta"].owner.op,
             pm.HalfFlat if beta_prior is None else type(beta_prior.owner.op),
         )
+
         assert model.model.eval_rv_shapes() == {
-            "r": (),
-            "r_log__": (),
             "alpha": (),
             "alpha_log__": (),
-            "s": (),
-            "s_log__": (),
             "beta": (),
             "beta_log__": (),
+            "r": (),
+            "r_log__": (),
+            "s": (),
+            "s_log__": (),
+            "churn": (),
+            "churn_log__": (),
+            "purchase_rate": (),
+            "purchase_rate_log__": (),
         }
 
     @pytest.mark.slow
@@ -132,13 +137,15 @@ class TestParetoNBDModel:
         )
 
     def test_model_repr(self):
-        assert self.fixed_model.__repr__().replace(" ", "") == (
-            "BG/NBD"
+        assert self.model.__repr__().replace(" ", "") == (
+            "Pareto/NBD"
             "\nr~HalfFlat()"
             "\nalpha~HalfFlat()"
             "\ns~HalfFlat()"
             "\nbeta~HalfFlat()"
-            "\nlikelihood~Potential(f(r,alpha,b,a))"
+            "\npurchase_rate~Gamma(r,f(alpha))"
+            "\nchurn~Gamma(s,f(beta))"
+            "\nllike~ParetoNBD(r,alpha,s,beta,<constant>)"
         )
 
     @pytest.mark.skip(reason="Still a WIP")

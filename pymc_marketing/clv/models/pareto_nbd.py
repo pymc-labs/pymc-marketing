@@ -1,23 +1,20 @@
-import types
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 import pymc as pm
-import pytensor.tensor as pt
-import xarray as xr
-from pymc import str_for_dist
-from pymc.distributions.dist_math import betaln, check_parameters
+import xarray
+from numpy import exp, log
 from pytensor.tensor import TensorVariable
-from scipy.special import expit, hyp2f1
+from scipy.special import betaln, gammaln, hyp2f1, logsumexp
 
 from pymc_marketing.clv.distributions import ParetoNBD
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 
 
+# TODO: Edit docstrings
 class ParetoNBDModel(CLVModel):
-    # TODO: EDIT ME
     r"""Pareto Negative Binomial Distribution (Pareto/NBD) model
 
     In the Pareto/NBD model, the frequency of customer purchases is modelled as the time
@@ -121,102 +118,86 @@ class ParetoNBDModel(CLVModel):
         s_prior: Optional[TensorVariable] = None,
         beta_prior: Optional[TensorVariable] = None,
     ):
+        # each customer's information should be encapsulated by a single data entry
+        if len(np.unique(customer_id)) != len(customer_id):
+            raise ValueError(
+                "ParetoNBD expects exactly one entry per customer. More than"
+                " one entry is currently provided per customer id."
+            )
+
         super().__init__()
 
-        self.customer_id = customer_id
-        self.frequency = frequency
-        self.recency = recency
-        self.T = T
+        self._customer_id = customer_id
+        self._frequency = frequency
+        self._recency = recency
+        self._T = T
 
         r_prior, alpha_prior, s_prior, beta_prior = self._process_priors(
             r_prior, alpha_prior, s_prior, beta_prior
         )
 
-        # each customer's information should be encapsulated by a single data entry
-        # TODO: Create a separate _check_inputs() utility function for this and other constraints
-        if len(np.unique(customer_id)) != len(customer_id):
-            raise ValueError(
-                "ParetoNBD  expects exactly one entry per customer. More than"
-                " one entry is currently provided per customer id."
-            )
-
-        coords = {"customer_id": customer_id}
+        coords = {"customer_id": self._customer_id}
         with pm.Model(coords=coords) as self.model:
             # purchase rate hyperpriors
-            r = self.model.register_rv(a_prior, name="r")
-            alpha = self.model.register_rv(b_prior, name="alpha")
+            r = self.model.register_rv(r_prior, name="r")
+            alpha = self.model.register_rv(alpha_prior, name="alpha")
 
             # churn hyperpriors
-            s = self.model.register_rv(alpha_prior, name="s")
-            beta = self.model.register_rv(r_prior, name="beta")
+            s = self.model.register_rv(s_prior, name="s")
+            beta = self.model.register_rv(beta_prior, name="beta")
 
-            purchase_rate_prior = pm.Gamma(
-                name="purchase_rate", alpha=r, beta=alpha, size=None
-            )
-            churn_prior = pm.Gamma(name="churn", alpha=s, beta=beta, size=None)
+            # TODO: This is for plotting the population posterior, but will fail flake8
+            purchase_rate_prior = pm.Gamma(name="purchase_rate", alpha=r, beta=alpha)
+            # TODO: This is for plotting the population posterior, but will fail flake8
+            churn_prior = pm.Gamma(name="churn", alpha=s, beta=beta)
 
-            T_ = pm.MutableData(name="T", value=self.T)
-
-            llike = ParetoNBD(
+            self.llike = ParetoNBD(
                 name="llike",
-                purchase_rate=purchase_rate_prior,
-                churn=churn_prior,
-                T=T_,
-                size=None,
-                observed=np.stack((self.recency, self.frequency), axis=1),
+                r=r,
+                alpha=alpha,
+                s=s,
+                beta=beta,
+                T=self._T,
+                observed=np.stack((self._recency, self._frequency), axis=1),
             )
 
-    # TODO: Edit per https://github.com/pymc-labs/pymc-marketing/pull/133
     def _process_priors(self, r_prior, alpha_prior, s_prior, beta_prior):
         # hyper priors for the transaction rate
         if r_prior is None:
             r_prior = pm.HalfFlat.dist()
         else:
-            assert r_prior.eval().shape == ()
+            self._check_prior_ndim(r_prior)
         if alpha_prior is None:
             alpha_prior = pm.HalfFlat.dist()
         else:
-            assert alpha_prior.eval().shape == ()
+            self._check_prior_ndim(alpha_prior)
 
         # hyper priors for the dropout rate
         if s_prior is None:
             s_prior = pm.HalfFlat.dist()
         else:
-            assert s_prior.eval().shape == ()
+            self._check_prior_ndim(s_prior)
         if beta_prior is None:
             beta_prior = pm.HalfFlat.dist()
         else:
-            assert beta_prior.eval().shape == ()
+            self._check_prior_ndim(beta_prior)
 
-        r_prior.str_repr = types.MethodType(str_for_dist, r_prior)
-        alpha_prior.str_repr = types.MethodType(str_for_dist, alpha_prior)
-        s_prior.str_repr = types.MethodType(str_for_dist, s_prior)
-        beta_prior.str_repr = types.MethodType(str_for_dist, beta_prior)
+        return super()._process_priors(r_prior, alpha_prior, s_prior, beta_prior)
 
-        return r_prior, alpha_prior, s_prior, beta_prior
+    # TODO: Is this return type hint correct?
+    def _unload_params(self) -> Tuple[np.ndarray]:
+        # TODO: will .get(param) work here?
+        return tuple([self.fit_result.posterior[param] for param in self._params])
 
-    # TODO: Move to CLVModel in future PR
-    def _unload_params(self):
-        trace = self.fit_result.posterior
-
-        r = trace["r"]
-        alpha = trace["alpha"]
-        a = trace["s"]
-        beta = trace["beta"]
-
-        return r, alpha, s, beta, purchase_rate, churn
-
-    # TODO: clv.utils.to_xarray needs to be called here
-    # TODO: Add type hinting for returned value
-    def expected_num_purchases(
+    # TODO: Edit docstrings
+    def expected_purchases(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        t: Union[np.ndarray, pd.Series, TensorVariable],
-        frequency: Union[np.ndarray, pd.Series, TensorVariable],
-        recency: Union[np.ndarray, pd.Series, TensorVariable],
-        T: Union[np.ndarray, pd.Series, TensorVariable],
-    ):
-        # TODO: EDIT ME
+        future_t: Union[float, np.ndarray, pd.Series, TensorVariable],
+        customer_id: Union[np.ndarray, pd.Series] = None,
+        frequency: Union[np.ndarray, pd.Series, TensorVariable] = None,
+        recency: Union[np.ndarray, pd.Series, TensorVariable] = None,
+        T: Union[np.ndarray, pd.Series, TensorVariable] = None,
+    ) -> xarray.DataArray:
         r"""
         Given a purchase history/profile of :math:`x` and :math:`t_x` for an individual
         customer, this method returns the expected number of future purchases in the
@@ -268,11 +249,30 @@ class ParetoNBDModel(CLVModel):
         array_like
         """
 
-        x, t_x = frequency, recency
-        params = self._unload_params("r", "alpha", "s", "beta")
-        r, alpha, s, beta = params
+        if customer_id is None:
+            customer_id = self._customer_id
+        if frequency is None:
+            x = self._frequency
+        else:
+            x = frequency
+        if recency is None:
+            tx = self._recency
+        else:
+            tx = recency
+        if T is None:
+            T = self._T
 
-        likelihood = self._conditional_log_likelihood(params, x, t_x, T)
+        t = np.asarray(future_t)
+        if t.size != 1:
+            t = to_xarray(customer_id, t)
+
+        T = np.asarray(T)
+        if T.size != 1:
+            T = to_xarray(customer_id, T)
+
+        r, alpha, s, beta = self._unload_params()
+
+        likelihood = pm.logp(self.llike, np.stack((tx, x), axis=1)).eval()
         first_term = (
             gammaln(r + x)
             - gammaln(r)
@@ -284,16 +284,19 @@ class ParetoNBDModel(CLVModel):
         second_term = log(r + x) + log(beta + T) - log(alpha + T)
         third_term = log((1 - ((beta + T) / (beta + T + t)) ** (s - 1)) / (s - 1))
 
-        return exp(first_term + second_term + third_term - likelihood)
+        exp_purchases = exp(first_term + second_term + third_term - likelihood)
+
+        return exp_purchases.transpose(
+            "chain", "draw", "customer_id", missing_dims="ignore"
+        )
 
     # TODO: clv.utils.to_xarray needs to be called here
-    # TODO: Add type hinting for returned value
     # TODO: rename to expected_avg_purchases_all_customers?
-    def expected_num_purchases_new_customer(
+    # TODO: Edit docstrings
+    def expected_purchases_new_customer(
         self,
         t: Union[np.ndarray, pd.Series],
-    ):
-        # TODO: EDIT ME
+    ) -> xarray.DataArray:
         r"""
         Posterior expected number of purchases for any interval of length :math:`t`. See
         equation (9) of [1].
@@ -323,25 +326,29 @@ class ParetoNBDModel(CLVModel):
         -------
         array_like
         """
-        r, alpha, s, beta = self._unload_params("r", "alpha", "s", "beta")
+        t = np.asarray(t)
+        if t.size != 1:
+            t = to_xarray(range(len(t)), t, dim="t")
+
+        r, alpha, s, beta = self._unload_params()
         first_term = r * beta / alpha / (s - 1)
         second_term = 1 - (beta / (beta + t)) ** (s - 1)
 
-        return first_term * second_term
+        return (first_term * second_term).transpose(
+            "chain", "draw", "t", missing_dims="ignore"
+        )
 
     # TODO: clv.utils.to_xarray needs to be called here
-    # TODO: Add type hinting for returned value
-    # TODO: The equation cited in the docstrings is wrong; it's actually (35)
-    #       The very next equation at the bottom of page 12 is a more stable equivalent,
-    #       and very similar to conditional_probability_of_being_alive_up_to_time()
-    def expected_probability_alive(
+    # TODO: Replace this with equation cited in conditional_probability_of_being_alive_up_to_time()
+    # TODO: Edit docstrings
+    def probability_alive(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        frequency: Union[np.ndarray, pd.Series],
-        recency: Union[np.ndarray, pd.Series],
-        T: Union[np.ndarray, pd.Series],
-    ):
-        # TODO: EDIT ME
+        future_t: Union[float, np.ndarray, pd.Series, TensorVariable] = 0,
+        customer_id: Union[np.ndarray, pd.Series] = None,
+        frequency: Union[np.ndarray, pd.Series, TensorVariable] = None,
+        recency: Union[np.ndarray, pd.Series, TensorVariable] = None,
+        T: Union[np.ndarray, pd.Series, TensorVariable] = None,
+    ) -> xarray.DataArray:
         r"""
         Posterior expected value of the probability of being alive at time T. The
         derivation of the closed form solution is available in [2].
@@ -378,11 +385,32 @@ class ParetoNBDModel(CLVModel):
         float
             value representing a probability
         """
-        x, t_x = frequency, recency
-        r, alpha, s, beta = self._unload_params("r", "alpha", "s", "beta")
+        if customer_id is None:
+            customer_id = self._customer_id
+        if frequency is None:
+            x = self._frequency
+        else:
+            x = frequency
+        if recency is None:
+            t_x = self._recency
+        else:
+            t_x = recency
+        if T is None:
+            T = self._T
+
+        t = np.asarray(future_t)
+        if t.size != 1:
+            t = to_xarray(customer_id, t)
+
+        T = np.asarray(T)
+        if T.size != 1:
+            T = to_xarray(customer_id, T)
+
+        r, alpha, s, beta = self._unload_params()
+
         A_0 = self._log_A_0([r, alpha, s, beta], x, t_x, T)
 
-        return 1.0 / (
+        prob_alive = 1.0 / (
             1.0
             + exp(
                 log(s)
@@ -393,10 +421,22 @@ class ParetoNBDModel(CLVModel):
             )
         )
 
+        return prob_alive.transpose(
+            "chain", "draw", "customer_id", missing_dims="ignore"
+        )
+
     # TODO: clv.utils.to_xarray needs to be called here
-    # TODO: Add type hinting
-    # TODO: This method omits the case of x=0, and is ridiculously complex.
-    def expected_purchases_probability(self, n, t, frequency, recency, T):
+    # TODO: This method omits the case of x=0.
+    # TODO: Edit docstrings
+    def expected_purchases_probability(
+        self,
+        n: Union[int, np.ndarray, pd.Series, TensorVariable],
+        future_t: Union[float, np.ndarray, pd.Series, TensorVariable],
+        customer_id: Union[np.ndarray, pd.Series] = None,
+        frequency: Union[np.ndarray, pd.Series, TensorVariable] = None,
+        recency: Union[np.ndarray, pd.Series, TensorVariable] = None,
+        T: Union[np.ndarray, pd.Series, TensorVariable] = None,
+    ) -> xarray.DataArray:
         """
         Return conditional probability of n purchases up to time t.
 
@@ -424,12 +464,31 @@ class ParetoNBDModel(CLVModel):
         array_like
         """
 
-        if t <= 0:
+        if future_t <= 0:
             return 0
 
-        x, t_x = frequency, recency
-        params = self._unload_params("r", "alpha", "s", "beta")
-        r, alpha, s, beta = params
+        if customer_id is None:
+            customer_id = self._customer_id
+        if frequency is None:
+            x = self._frequency
+        else:
+            x = frequency
+        if recency is None:
+            tx = self._recency
+        else:
+            tx = recency
+        if T is None:
+            T = self._T
+
+        t = np.asarray(future_t)
+        if t.size != 1:
+            t = to_xarray(customer_id, t)
+
+        T = np.asarray(T)
+        if T.size != 1:
+            T = to_xarray(customer_id, T)
+
+        r, alpha, s, beta = self._unload_params()
 
         if alpha < beta:
             min_of_alpha_beta, max_of_alpha_beta, p, _, _ = (
@@ -449,7 +508,7 @@ class ParetoNBDModel(CLVModel):
             )
         abs_alpha_beta = max_of_alpha_beta - min_of_alpha_beta
 
-        log_l = self._conditional_log_likelihood(params, x, t_x, T)
+        log_l = pm.logp(self.llike, np.stack((tx, x), axis=1)).eval()
         log_p_zero = (
             gammaln(r + x)
             + r * log(alpha)
@@ -518,7 +577,7 @@ class ParetoNBDModel(CLVModel):
 
         # In some scenarios (e.g. large n) tiny numerical errors in the calculation of second_term and third_term
         # cause sumexp to be ever so slightly negative and logsumexp throws an error. Hence we ignore the sign here.
-        return zeroth_term + exp(
+        purchase_prob = zeroth_term + exp(
             logsumexp(
                 [first_term, second_term, third_term],
                 b=[sign, sign, -sign],
@@ -527,12 +586,16 @@ class ParetoNBDModel(CLVModel):
             )[0]
         )
 
-    # TODO: clv.utils.to_xarray needs to be called here
-    # TODO: Add type hinting
+        return purchase_prob.transpose(
+            "chain", "draw", "customer_id", missing_dims="ignore"
+        )
+
     # TODO: This function looks nothing like (18) in the paper.
     #       It is also almost identical to (34) for prob_alive,
-    #       and should be refactored accordingly.
-    def expected_future_probability_alive(self, t, frequency, recency, T):
+    #       so add t as a param for that function and delete this one.
+    def expected_future_probability_alive(
+        self, t, frequency, recency, T
+    ) -> xarray.DataArray:
         """
         Conditional probability of being alive up to time T+t.
 
@@ -559,7 +622,7 @@ class ParetoNBDModel(CLVModel):
         """
 
         x, t_x = frequency, recency
-        r, alpha, s, beta = self._unload_params("r", "alpha", "s", "beta")
+        r, alpha, s, beta = self._unload_params()
         A_0 = self._log_A_0([r, alpha, s, beta], x, t_x, T)
         K_1 = s * log(beta + T + t) - s * log(beta + T)
         K_2 = (
