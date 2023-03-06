@@ -113,7 +113,7 @@ class BaseMMM:
             return self._prior_predictive
         except AttributeError:
             with self.model:
-                self.prior_predictive: az.InferenceData = pm.sample_prior_predictive(
+                self._prior_predictive: az.InferenceData = pm.sample_prior_predictive(
                     *args, **kwargs
                 )
             return self._prior_predictive

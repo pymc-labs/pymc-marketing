@@ -57,7 +57,7 @@ class DelayedSaturatedMMM(
         }
 
         if control_data is not None:
-            coords["control_names"] = control_data.columns
+            coords["control"] = control_data.columns
 
         with pm.Model(coords=coords) as self.model:
             channel_data_ = pm.MutableData(
