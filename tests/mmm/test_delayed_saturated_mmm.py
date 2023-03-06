@@ -37,7 +37,7 @@ def toy_df() -> pd.DataFrame:
 @pytest.fixture(scope="class")
 def mmm(toy_df: pd.DataFrame) -> DelayedSaturatedMMM:
     return DelayedSaturatedMMM(
-        data_df=toy_df,
+        data=toy_df,
         target_column="y",
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
@@ -81,7 +81,7 @@ class TestMMM:
         adstock_max_lag: int,
     ) -> None:
         mmm = DelayedSaturatedMMM(
-            data_df=toy_df,
+            data=toy_df,
             target_column="y",
             date_column="date",
             channel_columns=channel_columns,
@@ -129,7 +129,7 @@ class TestMMM:
         chains: int = 2
 
         mmm = DelayedSaturatedMMM(
-            data_df=toy_df,
+            data=toy_df,
             target_column="y",
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
