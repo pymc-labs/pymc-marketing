@@ -290,8 +290,6 @@ class ParetoNBDModel(CLVModel):
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
-    # TODO: clv.utils.to_xarray needs to be called here
-    # TODO: rename to expected_avg_purchases_all_customers?
     # TODO: Edit docstrings
     def expected_purchases_new_customer(
         self,
@@ -408,25 +406,19 @@ class ParetoNBDModel(CLVModel):
 
         r, alpha, s, beta = self._unload_params()
 
-        A_0 = self._log_A_0([r, alpha, s, beta], x, t_x, T)
+        log_l = pm.logp(self.llike, np.stack((t_x, x), axis=1)).eval()
 
-        prob_alive = 1.0 / (
-            1.0
-            + exp(
-                log(s)
-                - log(r + s + x)
-                + (r + x) * log(alpha + T)
-                + s * log(beta + T)
-                + A_0
-            )
-        )
+        term1 = gammaln(r + x) - gammaln(r)
+        term2 = r * log(alpha / (alpha + T))
+        term3 = x * log(1 / (alpha + T))
+        term4 = s * log(beta / (beta + T + t))
+
+        prob_alive = exp((term1 + term2 + term3 + term4) / log_l)
 
         return prob_alive.transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
-    # TODO: clv.utils.to_xarray needs to be called here
-    # TODO: This method omits the case of x=0.
     # TODO: Edit docstrings
     def expected_purchases_probability(
         self,
@@ -589,48 +581,3 @@ class ParetoNBDModel(CLVModel):
         return purchase_prob.transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
-
-    # TODO: This function looks nothing like (18) in the paper.
-    #       It is also almost identical to (34) for prob_alive,
-    #       so add t as a param for that function and delete this one.
-    def expected_future_probability_alive(
-        self, t, frequency, recency, T
-    ) -> xarray.DataArray:
-        """
-        Conditional probability of being alive up to time T+t.
-
-        Compute the probability that a customer with history
-        (frequency, recency, T) is still alive up to time T+t, given they have
-            purchase history (frequency, recency, T).
-        From paper:
-        http://www.brucehardie.com/notes/015/additional_pareto_nbd_results.pdf
-
-        Parameters
-        ----------
-        t: int
-            time up to which probability should be calculated.
-        frequency: float
-            historical frequency of customer.
-        recency: float
-            historical recency of customer.
-        T: float
-            age of the customer.
-        Returns
-        -------
-        float
-            value representing a probability
-        """
-
-        x, t_x = frequency, recency
-        r, alpha, s, beta = self._unload_params()
-        A_0 = self._log_A_0([r, alpha, s, beta], x, t_x, T)
-        K_1 = s * log(beta + T + t) - s * log(beta + T)
-        K_2 = (
-            log(s)
-            - log(r + s + x)
-            + (r + x) * log(alpha + T)
-            + s * log(beta + T + t)
-            + A_0
-        )
-
-        return 1.0 / (exp(K_1) + exp(K_2))
