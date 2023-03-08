@@ -4,7 +4,6 @@ import pytest
 from lifetimes import ParetoNBDFitter
 from numpy.testing import assert_almost_equal
 from pymc import Model
-from pymc.tests.helpers import select_by_precision
 
 from pymc_marketing.clv.distributions import (
     BetaGeoBetaBinom,
@@ -53,7 +52,7 @@ class TestContNonContract:
         assert_almost_equal(
             pm.logp(cnc, value).eval(),
             logp,
-            decimal=select_by_precision(float64=6, float32=2),
+            decimal=6,
             err_msg=str(pt),
         )
 
@@ -126,7 +125,7 @@ class TestContContract:
         assert_almost_equal(
             pm.logp(cc, value).eval(),
             logp,
-            decimal=select_by_precision(float64=6, float32=2),
+            decimal=6,
             err_msg=str(pt),
         )
 
@@ -223,7 +222,7 @@ class TestParetoNBD:
         assert_almost_equal(
             pm.logp(pareto_nbd, value).eval(),
             lifetimes_llike(r, alpha, s, beta, value[..., 1], value[..., 0], T),
-            decimal=select_by_precision(float64=6, float32=2),
+            decimal=6,
             err_msg=str(pt),
         )
 
@@ -328,7 +327,7 @@ class TestBetaGeoBetaBinom:
         assert_almost_equal(
             pm.logp(beta_geo_beta_binom, value).eval(),
             logp,
-            decimal=select_by_precision(float64=6, float32=2),
+            decimal=6,
             err_msg=str(pt),
         )
 
