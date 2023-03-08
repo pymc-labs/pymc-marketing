@@ -1,6 +1,6 @@
 # PyMC-Marketing
 
-![Build](https://github.com/pymc-labs/pymmmc/workflows/ci/badge.svg)
+![Build](https://github.com/pymc-labs/pymc-marketing/workflows/ci/badge.svg)
 [![codecov](https://codecov.io/gh/pymc-labs/pymc-marketing/branch/main/graph/badge.svg?token=OBV3BS5TYE)](https://codecov.io/gh/pymc-labs/pymc-marketing)
 [![docs](https://readthedocs.org/projects/pymc-marketing/badge/?version=latest)](https://docs.readthedocs.io/en/latest/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
