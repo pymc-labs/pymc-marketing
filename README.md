@@ -9,7 +9,7 @@
 
 ## Bayesian Media Mix Models (MMMs) in PyMC
 
-In this package we provide an API for a Bayesian media mix model (MMM) specification following [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).](https://research.google/pubs/pub46001/). Concretely, given a time series target variable $y_{t}$ (e.g. sales on conversions), media variiables $x_{m, t}$ (e.g. impressions, clicks or costs) and a set of control covariates $z_{c, t}$ (e.g. holidays, special events) we consider a linear model of the form
+In this package we provide an API for a Bayesian media mix model (MMM) specification following [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).](https://research.google/pubs/pub46001/) Concretely, given a time series target variable $y_{t}$ (e.g. sales on conversions), media variables $x_{m, t}$ (e.g. impressions, clicks or costs) and a set of control covariates $z_{c, t}$ (e.g. holidays, special events) we consider a linear model of the form
 
 $$
 y_{t} = \alpha + \sum_{m=1}^{M}\beta_{m}f(x_{m, t}) +  \sum_{c=1}^{C}\gamma_{c}z_{c, t} + \varepsilon_{t},
@@ -45,15 +45,15 @@ where $\alpha$ is the intercept, $f$ is a media transformation function and $\va
 | **Discrete**   | Cinema ticket       | Monthly or yearly subscriptions |
 
 To explain further:
-- **Contractual:** In contractual settings a customer has a contract which continues to be active until it is explicitly cancelled. Therefore in contractual settings, customer churn events are observed.
+- **Contractual:** In contractual settings, a customer has a contract which continues to be active until it is explicitly cancelled. Therefore, customer churn events are observed.
 
 - **Non-contractual:** In non-contractual settings, there is no ongoing contract that a customer has with a company. Instead, purchases can be ad hoc and churn events are unobserved.
 
 - **Discrete:** Here, purchases are made at discrete points in time. This obviously depends upon the timescale that we are working on, but typically a relevant time period would be a month or year. However it could be more granualar than this - think of taking the 2nd of 4 inter-city train journeys offered per day.
 
-- **Continuous:** In the continuous-time domain, purchases can be made at any point within a firms opening hours. For online ordering this could be any point within a 24 hour cycle, or purchases in physical stores could be made at any point during the trading day.
+- **Continuous:** In the continuous-time domain, purchases can be made at any point within a firms opening hours. For online ordering, this could be any point within a 24 hour cycle, or purchases in physical stores could be made at any point during the trading day.
 
-In the documentation we provide some examples on how to use the CLV API. We use the data from the [`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) package to illustrate the models.
+In the documentation, we provide some examples on how to use the CLV API. We use the data from the [`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) package to illustrate the models.
 
 - [CLV Quickstart](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/clv_quickstart.html)
 - [BG/NBD model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/bg_nbd.html)
