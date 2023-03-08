@@ -8,12 +8,6 @@ from pymc_marketing.clv.models.pareto_nbd import ParetoNBDModel
 
 
 class TestParetoNBDModel:
-    # TODO: Pytest fixtures cannot be called from within setup_class
-    def load_data(self, cdnow_sample):
-        return cdnow_sample
-
-    # TODO: lifetimes predictive methods have different formulations
-    #       compared to their counterparts in ParetoNBDModel
     @classmethod
     def setup_class(cls):
         # Set random seed
@@ -26,12 +20,12 @@ class TestParetoNBDModel:
         cls.beta_true = 11.67
 
         # Specify priors here for convergence testing
-        cls.r_prior = None
-        cls.alpha_prior = None
-        cls.s_prior = None
-        cls.beta_prior = None
+        # Note that None/pm.HalfFlat is extremely slow to converge
+        cls.r_prior = pm.Weibull.dist(alpha=10, beta=1)
+        cls.alpha_prior = pm.Weibull.dist(alpha=10, beta=10)
+        cls.s_prior = pm.Weibull.dist(alpha=10, beta=1)
+        cls.beta_prior = pm.Weibull.dist(alpha=10, beta=10)
 
-        # TODO: To use the fixtures in conftest.py, refactor setup_class into several fixtures
         test_data = pd.read_csv("tests/clv/datasets/cdnow_sample.csv")
         cls.customer_id = test_data.index
         cls.frequency = test_data["frequency"]
@@ -49,7 +43,7 @@ class TestParetoNBDModel:
             s_prior=cls.s_prior,
             beta_prior=cls.beta_prior,
         )
-        # model.fit(fitting_method="map", random_seed=self.rng)
+        cls.model.fit(fitting_method="map")
 
         cls.lifetimes_model = ParetoNBDFitter
 
@@ -128,7 +122,7 @@ class TestParetoNBDModel:
             recency=cdnow_sample["recency"].values,
             T=cdnow_sample["T"].values,
         )
-        model.fit(chains=1, progressbar=False, random_seed=self.rng)
+        model.fit(chains=1, progressbar=False, random_seed=self.rng, step=pm.Slice())
         fit = model.fit_result.posterior
         np.testing.assert_allclose(
             [fit["r"].mean(), fit["alpha"].mean(), fit["s"].mean(), fit["beta"].mean()],
@@ -139,16 +133,15 @@ class TestParetoNBDModel:
     def test_model_repr(self):
         assert self.model.__repr__().replace(" ", "") == (
             "Pareto/NBD"
-            "\nr~HalfFlat()"
-            "\nalpha~HalfFlat()"
-            "\ns~HalfFlat()"
-            "\nbeta~HalfFlat()"
+            "\nr~Weibull(10,1)"
+            "\nalpha~Weibull(10,10)"
+            "\ns~Weibull(10,1)"
+            "\nbeta~Weibull(10,10)"
             "\npurchase_rate~Gamma(r,f(alpha))"
             "\nchurn~Gamma(s,f(beta))"
             "\nllike~ParetoNBD(r,alpha,s,beta,<constant>)"
         )
 
-    @pytest.mark.skip(reason="Still a WIP")
     @pytest.mark.parametrize("test_t", [1, 2, 3, 4, 5, 6])
     def test_expected_purchases(self, test_t):
         true_purchases = (
@@ -167,11 +160,10 @@ class TestParetoNBDModel:
 
         np.testing.assert_allclose(
             true_purchases,
-            est_num_purchases.mean(("chain", "draw")),
+            est_num_purchases.mean(("chain", "draw", "customer_id")),
             rtol=0.1,
         )
 
-    @pytest.mark.skip(reason="Still a WIP")
     @pytest.mark.parametrize("test_t", [1, 2, 3, 4, 5, 6])
     def test_expected_purchases_new_customer(self, test_t):
         true_purchases_new = (
@@ -180,7 +172,7 @@ class TestParetoNBDModel:
             )
         )
 
-        est_purchases_new = self.model.expected_num_purchases_new_customer(self.test_t)
+        est_purchases_new = self.model.expected_purchases_new_customer(self.test_t)
 
         assert est_purchases_new.shape == (1, 1000, 1)
         assert est_purchases_new.dims == ("chain", "draw", "t")
@@ -191,19 +183,19 @@ class TestParetoNBDModel:
             rtol=1,
         )
 
-    @pytest.mark.skip(reason="Still a WIP")
-    @pytest.mark.parametrize("test_t", [1, 2, 3, 4, 5, 6])
     def test_expected_probability_alive(self, test_t):
-        true_prob_alive = self.lifetimes_model.expected_number_of_purchases_up_to_time(
+        true_prob_alive = self.lifetimes_model.conditional_probability_alive(
             frequency=self.frequency,
             recency=self.recency,
             T=self.T,
         )
 
-        est_prob_alive = self.model.probability_alive(test_t)
+        est_prob_alive = self.model.probability_alive()
+        est_prob_alive_t = self.model.probability_alive(t=5)
 
         assert est_prob_alive.shape == (1, 1000, len(self.customer_id))
         assert est_prob_alive.dims == ("chain", "draw", "customer_id")
+        assert est_prob_alive.mean() > est_prob_alive_t.mean()
 
         np.testing.assert_allclose(
             true_prob_alive.mean(),
@@ -211,16 +203,17 @@ class TestParetoNBDModel:
             rtol=0.05,
         )
 
-    @pytest.mark.skip(reason="Still a WIP")
     @pytest.mark.parametrize("test_n, test_t", [(0, 0), (1, 1), (2, 2)])
     def test_expected_purchases_probability(self, test_n, test_t):
-        true_prob_purchase = self.lifetimes_model.expected_purchases_probability(
-            frequency=self.frequency,
-            recency=self.recency,
-            T=self.T,
+        true_prob_purchase = (
+            self.lifetimes_model.conditional_probability_of_n_purchases_up_to_time(
+                frequency=self.frequency,
+                recency=self.recency,
+                T=self.T,
+            )
         )
-        est_purchases_new_customer = (
-            self.model.expected_purchases_probability_new_customer(n=test_n, t=test_t)
+        est_purchases_new_customer = self.model.expected_purchases_probability(
+            n=test_n, t=test_t
         )
 
         assert est_purchases_new_customer.shape == (1, 1000, len(self.customer_id))
