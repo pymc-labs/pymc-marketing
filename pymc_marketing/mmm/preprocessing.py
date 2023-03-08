@@ -21,38 +21,38 @@ def preprocessing_method(method: Callable) -> Callable:
 
 class MixMaxScaleTarget:
     @preprocessing_method
-    def min_max_scale_target_data(self, data_df: pd.DataFrame) -> pd.DataFrame:
-        target_vector = data_df[self.target_column].to_numpy().reshape(-1, 1)
+    def min_max_scale_target_data(self, data: pd.DataFrame) -> pd.DataFrame:
+        target_vector = data[self.target_column].to_numpy().reshape(-1, 1)
         transformers = [("scaler", MinMaxScaler())]
         pipeline = Pipeline(steps=transformers)
         self.target_transformer: Pipeline = pipeline.fit(X=target_vector)
-        data_df[self.target_column] = self.target_transformer.transform(
+        data[self.target_column] = self.target_transformer.transform(
             X=target_vector
         ).flatten()
-        return data_df
+        return data
 
 
 class MaxAbsScaleChannels:
     @preprocessing_method
-    def max_abs_scale_channel_data(self, data_df: pd.DataFrame) -> pd.DataFrame:
-        channel_data: pd.DataFrame = data_df[self.channel_columns]
+    def max_abs_scale_channel_data(self, data: pd.DataFrame) -> pd.DataFrame:
+        channel_data: pd.DataFrame = data[self.channel_columns]
         transformers = [("scaler", MaxAbsScaler())]
         pipeline: Pipeline = Pipeline(steps=transformers)
         self.channel_transformer: Pipeline = pipeline.fit(X=channel_data.to_numpy())
-        data_df[self.channel_columns] = self.channel_transformer.transform(
+        data[self.channel_columns] = self.channel_transformer.transform(
             channel_data.to_numpy()
         )
-        return data_df
+        return data
 
 
 class StandardizeControls:
     @preprocessing_method
-    def standardize_control_data(self, data_df: pd.DataFrame) -> pd.DataFrame:
-        control_data: pd.DataFrame = data_df[self.control_columns]
+    def standardize_control_data(self, data: pd.DataFrame) -> pd.DataFrame:
+        control_data: pd.DataFrame = data[self.control_columns]
         transformers = [("scaler", StandardScaler())]
         pipeline: Pipeline = Pipeline(steps=transformers)
         self.control_transformer: Pipeline = pipeline.fit(X=control_data.to_numpy())
-        data_df[self.control_columns] = self.control_transformer.transform(
+        data[self.control_columns] = self.control_transformer.transform(
             control_data.to_numpy()
         )
-        return data_df
+        return data

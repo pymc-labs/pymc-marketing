@@ -19,7 +19,7 @@ class DelayedSaturatedMMM(
 ):
     def __init__(
         self,
-        data_df: pd.DataFrame,
+        data: pd.DataFrame,
         target_column: str,
         date_column: str,
         channel_columns: List[str],
@@ -31,7 +31,7 @@ class DelayedSaturatedMMM(
         self.control_columns = control_columns
         self.adstock_max_lag = adstock_max_lag
         super().__init__(
-            data_df=data_df,
+            data=data,
             target_column=target_column,
             date_column=date_column,
             channel_columns=channel_columns,
@@ -41,14 +41,14 @@ class DelayedSaturatedMMM(
 
     def build_model(
         self,
-        data_df: pd.DataFrame,
+        data: pd.DataFrame,
         adstock_max_lag: int = 4,
     ) -> None:
-        date_data = data_df[self.date_column]
-        target_data = data_df[self.target_column]
-        channel_data = data_df[self.channel_columns]
+        date_data = data[self.date_column]
+        target_data = data[self.target_column]
+        channel_data = data[self.channel_columns]
         if self.control_columns is not None:
-            control_data: Optional[pd.DataFrame] = data_df[self.control_columns]
+            control_data: Optional[pd.DataFrame] = data[self.control_columns]
         else:
             control_data = None
         coords: Dict[str, Any] = {
