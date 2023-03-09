@@ -420,7 +420,7 @@ class ParetoNBDModel(CLVModel):
         )
 
     # TODO: Edit docstrings
-    def expected_purchases_probability(
+    def purchase_probability(
         self,
         n: Union[int, np.ndarray, pd.Series, TensorVariable],
         future_t: Union[float, np.ndarray, pd.Series, TensorVariable],
@@ -460,21 +460,21 @@ class ParetoNBDModel(CLVModel):
             return 0
 
         if customer_id is None:
-            customer_id = self._customer_id
+            customer_id = self._customer_id.values
         if frequency is None:
-            x = self._frequency
+            x = self._frequency.values
         else:
             x = frequency
         if recency is None:
-            tx = self._recency
+            tx = self._recency.values
         else:
             tx = recency
         if T is None:
-            T = self._T
+            T = self._T.values
 
         t = np.asarray(future_t)
         if t.size != 1:
-            t = to_xarray(customer_id, t)
+            t = to_xarray(customer_id, future_t)
 
         T = np.asarray(T)
         if T.size != 1:
