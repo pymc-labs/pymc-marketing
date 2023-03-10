@@ -109,7 +109,8 @@ html_theme_options = {
     "navbar_align": "right",
     "navbar_start": ["navbar-logo", "navbar-name"],
     "navbar_end": ["theme-switcher"],
-    "footer_items": ["copyright", "sphinx-version", "theme-version", "footer-links"],
+    "footer_start": ["copyright", "footer-links"],
+    "footer_end": ["sphinx-version", "theme-version"],
     "github_url": "https://github.com/pymc-labs/pymc-marketing",
     "twitter_url": "https://twitter.com/pymc_labs",
     "icon_links": [
