@@ -83,6 +83,27 @@ class TestBetaGeoModel:
             "r_log__": (),
         }
 
+    def test_numerically_stable_logp(self):
+        """
+        See Solution #2 on pages 3 and 4 of http://brucehardie.com/notes/027/bgnbd_num_error.pdf
+        """
+        model = BetaGeoModel(
+            customer_id=np.asarray([1]),
+            frequency=np.asarray([200]),
+            recency=np.asarray([38]),
+            T=np.asarray([40]),
+            a_prior=pm.Flat.dist(),
+            b_prior=pm.Flat.dist(),
+            alpha_prior=pm.Flat.dist(),
+            r_prior=pm.Flat.dist(),
+        )
+        pymc_model = model.model
+        logp = pymc_model.compile_fn(pymc_model.potentiallogp)
+
+        np.testing.assert_almost_equal(
+            logp({"a": 0.80, "b": 2.50, "r": 0.25, "alpha": 4.00}), 100.7957, decimal=5
+        )
+
     @pytest.mark.slow
     @pytest.mark.parametrize(
         "N, fit_method, rtol",
