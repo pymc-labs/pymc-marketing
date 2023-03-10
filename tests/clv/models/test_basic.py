@@ -40,7 +40,7 @@ class TestCLVModel:
     def test_fit_MAP(self):
         model = CLVModelTest()
 
-        idata = model.fit(fitting_method="map")
+        idata = model.fit(fit_method="map")
         assert isinstance(idata, InferenceData)
         assert len(idata.posterior.chain) == 1
         assert len(idata.posterior.draw) == 1
