@@ -5,7 +5,7 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
-from pymc.distributions.dist_math import betaln, check_parameters
+from pymc.distributions.dist_math import check_parameters
 from pytensor.tensor import TensorVariable
 from scipy.special import expit, hyp2f1
 
@@ -145,24 +145,23 @@ class BetaGeoModel(CLVModel):
                 The log-likelihood expression here aligns with expression (4) from [3]
                 due to the possible numerical instability of expression (3).
                 """
-                zero_observations = pt.eq(x, 0)
+                x_zero = pt.where(x > 0, 1, 0)
 
-                A = betaln(a, b + x) - betaln(a, b) + pt.gammaln(r + x) - pt.gammaln(r)
-                A += r * pt.log(alpha) - (r + x) * pt.log(alpha + T)
-
-                B = (
-                    betaln(a + 1, b + x - 1)
-                    - betaln(a, b)
-                    + pt.gammaln(r + x)
+                # Refactored for numerical error
+                d1 = (
+                    pt.gammaln(r + x)
                     - pt.gammaln(r)
+                    + pt.gammaln(a + b)
+                    + pt.gammaln(b + x)
+                    - pt.gammaln(b)
+                    - pt.gammaln(a + b + x)
                 )
-                B += r * pt.log(alpha) - (r + x) * pt.log(alpha + t_x)
 
-                logp = pt.switch(
-                    zero_observations,
-                    A,
-                    pt.logaddexp(A, B),
-                )
+                d2 = r * pt.log(alpha) - (r + x) * pt.log(alpha + t_x)
+                c3 = ((alpha + t_x) / (alpha + T)) ** (r + x)
+                c4 = a / (b + x - 1)
+
+                logp = d1 + d2 + pt.log(c3 + c4 * pt.switch(x_zero, 1, 0))
 
                 return check_parameters(
                     logp,
