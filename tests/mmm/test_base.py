@@ -8,7 +8,7 @@ import xarray as xr
 from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.base import MMM
-from pymc_marketing.mmm.preprocessing import MixMaxScaleTarget, preprocessing_method
+from pymc_marketing.mmm.preprocessing import MinMaxScaleTarget, preprocessing_method
 from pymc_marketing.mmm.validating import validation_method
 
 seed: int = sum(map(ord, "pymc_marketing"))
@@ -52,7 +52,7 @@ def plotting_mmm(request):
 
     elif transform == "target_transform":
 
-        class ToyMMM(MMM, MixMaxScaleTarget):
+        class ToyMMM(MMM, MinMaxScaleTarget):
             def build_model(self, data, **kwargs):
                 pass
 

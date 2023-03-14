@@ -6,7 +6,7 @@ from sklearn.preprocessing import MaxAbsScaler, MinMaxScaler, StandardScaler
 
 __all__ = [
     "preprocessing_method",
-    "MixMaxScaleTarget",
+    "MinMaxScaleTarget",
     "MaxAbsScaleChannels",
     "StandardizeControls",
 ]
@@ -19,7 +19,7 @@ def preprocessing_method(method: Callable) -> Callable:
     return method
 
 
-class MixMaxScaleTarget:
+class MinMaxScaleTarget:
     @preprocessing_method
     def min_max_scale_target_data(self, data: pd.DataFrame) -> pd.DataFrame:
         target_vector = data[self.target_column].to_numpy().reshape(-1, 1)

@@ -6,7 +6,7 @@ import pymc as pm
 from xarray import DataArray
 
 from pymc_marketing.mmm.base import MMM
-from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MixMaxScaleTarget
+from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MinMaxScaleTarget
 from pymc_marketing.mmm.transformers import (
     geometric_adstock_vectorized,
     logistic_saturation,
@@ -15,7 +15,7 @@ from pymc_marketing.mmm.validating import ValidateControlColumns
 
 
 class DelayedSaturatedMMM(
-    MMM, MixMaxScaleTarget, MaxAbsScaleChannels, ValidateControlColumns
+    MMM, MinMaxScaleTarget, MaxAbsScaleChannels, ValidateControlColumns
 ):
     def __init__(
         self,

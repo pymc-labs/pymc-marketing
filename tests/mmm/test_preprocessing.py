@@ -3,7 +3,7 @@ import pandas as pd
 
 from pymc_marketing.mmm.preprocessing import (
     MaxAbsScaleChannels,
-    MixMaxScaleTarget,
+    MinMaxScaleTarget,
     StandardizeControls,
     preprocessing_method,
 )
@@ -62,7 +62,7 @@ def test_preprocessing_method():
 
 
 def test_min_max_scale_target():
-    obj = MixMaxScaleTarget()
+    obj = MinMaxScaleTarget()
     obj.target_column = "y"
     out = obj.min_max_scale_target_data(toy_df)["y"]
     assert out.min() == 0
