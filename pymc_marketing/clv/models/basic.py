@@ -37,25 +37,25 @@ class CLVModel:
             prior.str_repr = types.MethodType(str_for_dist, prior)
         return priors
 
-    def fit(self, fitting_method="mcmc", **kwargs):
+    def fit(self, fit_method="mcmc", **kwargs):
         """Infer model posterior
 
         Parameters
         ----------
-        fitting_method: str
+        fit_method: str
             Method used to fit the model. Options are:
             - "mcmc": Samples from the posterior via `pymc.sample` (default)
             - "map": Finds maximum a posteriori via `pymc.find_MAP`
         kwargs:
             Other keyword arguments passed to the underlying PyMC routines
         """
-        if fitting_method == "mcmc":
+        if fit_method == "mcmc":
             res = self._fit_mcmc(**kwargs)
-        elif fitting_method == "map":
+        elif fit_method == "map":
             res = self._fit_MAP(**kwargs)
         else:
             raise ValueError(
-                f"Fitting method options are ['mcmc', 'map'], got: {fitting_method}"
+                f"Fit method options are ['mcmc', 'map'], got: {fit_method}"
             )
         self.fit_result = res
         return res

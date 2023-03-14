@@ -9,7 +9,7 @@ coverage:
         paths:
           - "pymc-marketing/"
        # advanced settings
-        branches: 
+        branches:
           - main
         if_ci_failed: error #success, failure, error, ignore
         informational: false
