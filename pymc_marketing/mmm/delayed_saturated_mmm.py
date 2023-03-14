@@ -15,7 +15,10 @@ from pymc_marketing.mmm.validating import ValidateControlColumns
 
 
 class DelayedSaturatedMMM(
-    MMM, MinMaxScaleTarget, MaxAbsScaleChannels, ValidateControlColumns
+    MMM,
+    MinMaxScaleTarget,
+    MaxAbsScaleChannels,
+    ValidateControlColumns
 ):
     def __init__(
         self,
@@ -24,6 +27,7 @@ class DelayedSaturatedMMM(
         date_column: str,
         channel_columns: List[str],
         validate_data: bool = True,
+        preprocess_data: bool = True,
         control_columns: Optional[List[str]] = None,
         adstock_max_lag: int = 4,
         **kwargs,
@@ -36,6 +40,7 @@ class DelayedSaturatedMMM(
             date_column=date_column,
             channel_columns=channel_columns,
             validate_data=validate_data,
+            preprocess_data=preprocess_data,
             adstock_max_lag=adstock_max_lag,
         )
 

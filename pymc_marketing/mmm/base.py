@@ -37,6 +37,7 @@ class BaseMMM:
         date_column: str,
         channel_columns: Union[List[str], Tuple[str]],
         validate_data: bool = True,
+        preprocess_data: bool = True,
         **kwargs,
     ) -> None:
         self.data: pd.DataFrame = data
@@ -50,7 +51,11 @@ class BaseMMM:
 
         if validate_data:
             self.validate(self.data)
-        self.preprocessed_data = self.preprocess(self.data.copy())
+
+        if preprocess_data:
+            self.preprocessed_data = self.preprocess(self.data.copy())
+        else:
+            self.preprocessed_data = self.data.copy()
 
         self.build_model(
             data=self.preprocessed_data,
