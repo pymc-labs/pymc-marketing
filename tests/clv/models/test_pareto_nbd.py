@@ -104,7 +104,7 @@ class TestParetoNBDModel:
         ],
     )
     def test_model_convergence(self, cdnow_sample, fit_method, rtol):
-        # # Specify priors here for convergence testing
+        # # Edit priors here for convergence testing
         # # Note that None/pm.HalfFlat is extremely slow to converge
         r_prior = pm.Weibull.dist(alpha=10, beta=1)
         alpha_prior = pm.Weibull.dist(alpha=10, beta=10)
@@ -197,20 +197,22 @@ class TestParetoNBDModel:
             T=self.T.values,
         )
 
+        N = len(self.customer_id)
+
         fake_fit = az.from_dict(
             {
-                "r": self.rng.normal(self.r_true, 1e-3, size=(2, 25)),
-                "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(2, 25)),
-                "s": self.rng.normal(self.s_true, 1e-3, size=(2, 25)),
-                "beta": self.rng.normal(self.beta_true, 1e-3, size=(2, 25)),
+                "r": self.rng.normal(self.r_true, 1e-3, size=(1, 1000)),
+                "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(1, 1000)),
+                "s": self.rng.normal(self.s_true, 1e-3, size=(1, 1000)),
+                "beta": self.rng.normal(self.beta_true, 1e-3, size=(1, 1000)),
             }
         )
         self.model._fit_result = fake_fit
 
         est_prob_alive = self.model.probability_alive()
-        est_prob_alive_t = self.model.probability_alive(t=5)
+        est_prob_alive_t = self.model.probability_alive(future_t=5)
 
-        assert est_prob_alive.shape == (2, 25, len(self.customer_id))
+        assert est_prob_alive.shape == (1, 1000, N)
         assert est_prob_alive.dims == ("chain", "draw", "customer_id")
         assert est_prob_alive.mean() > est_prob_alive_t.mean()
 

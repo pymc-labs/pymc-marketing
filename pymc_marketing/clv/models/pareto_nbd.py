@@ -146,8 +146,8 @@ class ParetoNBDModel(CLVModel):
             s = self.model.register_rv(s_prior, name="s")
             beta = self.model.register_rv(beta_prior, name="beta")
 
-            self.llike = ParetoNBD(
-                name="llike",
+            ParetoNBD(
+                name="loglike",
                 r=r,
                 alpha=alpha,
                 s=s,
@@ -399,16 +399,22 @@ class ParetoNBDModel(CLVModel):
         if T.size != 1:
             T = to_xarray(customer_id, T)
 
+        x, t_x = to_xarray(customer_id, x, t_x)
+
         r, alpha, s, beta = self._unload_params()
 
-        log_l = pm.logp(self.llike, np.stack((t_x, x), axis=1)).eval()
+        # Get likelihood expression
+        with pm.Model():
+            logp = ParetoNBD("logp", r, alpha, s, beta, T)
+
+        loglike = pm.logp(logp, [t_x, x]).eval()
 
         term1 = gammaln(r + x) - gammaln(r)
         term2 = r * log(alpha / (alpha + T))
-        term3 = x * log(1 / (alpha + T))
+        term3 = -x * log(alpha + T)
         term4 = s * log(beta / (beta + T + t))
 
-        prob_alive = exp((term1 + term2 + term3 + term4) / log_l)
+        prob_alive = exp(term1 + term2 + term3 + term4 - loglike)
 
         return prob_alive.transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
