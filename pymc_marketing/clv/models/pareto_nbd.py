@@ -42,18 +42,18 @@ class ParetoNBDModel(CLVModel):
     T: array_like
         The time of a customer's period under which they are under observation. By
         construction of the model, T > t_x.
-    a_prior: scalar PyMC distribution, optional
+    r_prior: scalar PyMC distribution, optional
         PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    b_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
+        `pm.Weibull.dist(alpha=10, beta=1)`
     alpha_prior: scalar PyMC distribution, optional
         PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    r: scalar PyMC distribution, optional
+        `pm.Weibull.dist(alpha=10, beta=10)`
+    s_prior: scalar PyMC distribution, optional
         PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
+        `pm.Weibull.dist(alpha=10, beta=1)`
+    beta_prior: scalar PyMC distribution, optional
+        PyMC prior distribution, created via `.dist()` API. Defaults to
+        `pm.Weibull.dist(alpha=10, beta=10)`
 
     Examples
     --------
@@ -146,11 +146,6 @@ class ParetoNBDModel(CLVModel):
             s = self.model.register_rv(s_prior, name="s")
             beta = self.model.register_rv(beta_prior, name="beta")
 
-            # TODO: This is for plotting the population posterior, but will fail flake8
-            purchase_rate_prior = pm.Gamma(name="purchase_rate", alpha=r, beta=alpha)
-            # TODO: This is for plotting the population posterior, but will fail flake8
-            churn_prior = pm.Gamma(name="churn", alpha=s, beta=beta)
-
             self.llike = ParetoNBD(
                 name="llike",
                 r=r,
@@ -164,21 +159,21 @@ class ParetoNBDModel(CLVModel):
     def _process_priors(self, r_prior, alpha_prior, s_prior, beta_prior):
         # hyper priors for the transaction rate
         if r_prior is None:
-            r_prior = pm.HalfFlat.dist()
+            r_prior = pm.Weibull.dist(alpha=10, beta=1)
         else:
             self._check_prior_ndim(r_prior)
         if alpha_prior is None:
-            alpha_prior = pm.HalfFlat.dist()
+            alpha_prior = pm.Weibull.dist(alpha=10, beta=10)
         else:
             self._check_prior_ndim(alpha_prior)
 
         # hyper priors for the dropout rate
         if s_prior is None:
-            s_prior = pm.HalfFlat.dist()
+            s_prior = pm.Weibull.dist(alpha=10, beta=1)
         else:
             self._check_prior_ndim(s_prior)
         if beta_prior is None:
-            beta_prior = pm.HalfFlat.dist()
+            beta_prior = pm.Weibull.dist(alpha=10, beta=10)
         else:
             self._check_prior_ndim(beta_prior)
 

@@ -1,3 +1,4 @@
+import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -19,34 +20,21 @@ class TestParetoNBDModel:
         cls.s_true = 0.61
         cls.beta_true = 11.67
 
-        # Specify priors here for convergence testing
-        # Note that None/pm.HalfFlat is extremely slow to converge
-        cls.r_prior = pm.Weibull.dist(alpha=10, beta=1)
-        cls.alpha_prior = pm.Weibull.dist(alpha=10, beta=10)
-        cls.s_prior = pm.Weibull.dist(alpha=10, beta=1)
-        cls.beta_prior = pm.Weibull.dist(alpha=10, beta=10)
-
         test_data = pd.read_csv("tests/clv/datasets/cdnow_sample.csv")
         cls.customer_id = test_data.index
         cls.frequency = test_data["frequency"]
         cls.recency = test_data["recency"]
         cls.T = test_data["T"]
 
-        # fit a model with find_MAP() for testing
+        # Instantiate model with CDNOW data for testing
         cls.model = ParetoNBDModel(
             customer_id=cls.customer_id,
             frequency=cls.frequency,
             recency=cls.recency,
             T=cls.T,
-            r_prior=cls.r_prior,
-            alpha_prior=cls.alpha_prior,
-            s_prior=cls.s_prior,
-            beta_prior=cls.beta_prior,
         )
-        cls.model.fit(fitting_method="map")
-        # cls.model.fit(chains=1, progressbar=False, random_seed=cls.rng, step=pm.Slice())
 
-        # Also fit the equivalent lifetimes model for comparison
+        # Also fit the same equivalent lifetimes model to the same dataset for comparison
         cls.lifetimes_model = ParetoNBDFitter().fit(
             frequency=cls.frequency.values, recency=cls.recency.values, T=cls.T.values
         )
@@ -108,23 +96,45 @@ class TestParetoNBDModel:
         }
 
     @pytest.mark.slow
-    def test_model_convergence(self, cdnow_sample):
+    @pytest.mark.parametrize(
+        "fit_method, rtol",
+        [
+            ("mcmc", 0.3),
+            ("map", 0.1),
+        ],
+    )
+    def test_model_convergence(self, cdnow_sample, fit_method, rtol):
+        # # Specify priors here for convergence testing
+        # # Note that None/pm.HalfFlat is extremely slow to converge
+        r_prior = pm.Weibull.dist(alpha=10, beta=1)
+        alpha_prior = pm.Weibull.dist(alpha=10, beta=10)
+        s_prior = pm.Weibull.dist(alpha=10, beta=1)
+        beta_prior = pm.Weibull.dist(alpha=10, beta=10)
+
         # TODO: casting these Pandas Series to numpy arrays with the .values suffix
         #      was recommended due to bugs in lifetimes. try also testing with PD series because
         #      data preprocessing is now handled by pymc_marketing.clv.utils.clv_summary
-
         model = ParetoNBDModel(
             customer_id=cdnow_sample["customer_id"].values,
             frequency=cdnow_sample["frequency"].values,
             recency=cdnow_sample["recency"].values,
             T=cdnow_sample["T"].values,
+            r_prior=r_prior,
+            alpha_prior=alpha_prior,
+            s_prior=s_prior,
+            beta_prior=beta_prior,
         )
-        model.fit(chains=1, progressbar=False, random_seed=self.rng, step=pm.Slice())
+        sample_kwargs = (
+            dict(random_seed=self.rng, chains=2, step=pm.Slice())
+            if fit_method == "mcmc"
+            else {}
+        )
+        model.fit(fit_method=fit_method, progressbar=False, **sample_kwargs)
         fit = model.fit_result.posterior
         np.testing.assert_allclose(
             [fit["r"].mean(), fit["alpha"].mean(), fit["s"].mean(), fit["beta"].mean()],
             [self.r_true, self.alpha_true, self.s_true, self.beta_true],
-            rtol=1,
+            rtol=rtol,
         )
 
     def test_model_repr(self):
@@ -187,10 +197,20 @@ class TestParetoNBDModel:
             T=self.T.values,
         )
 
+        fake_fit = az.from_dict(
+            {
+                "r": self.rng.normal(self.r_true, 1e-3, size=(2, 25)),
+                "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(2, 25)),
+                "s": self.rng.normal(self.s_true, 1e-3, size=(2, 25)),
+                "beta": self.rng.normal(self.beta_true, 1e-3, size=(2, 25)),
+            }
+        )
+        self.model._fit_result = fake_fit
+
         est_prob_alive = self.model.probability_alive()
         est_prob_alive_t = self.model.probability_alive(t=5)
 
-        assert est_prob_alive.shape == (1, 1000, len(self.customer_id))
+        assert est_prob_alive.shape == (2, 25, len(self.customer_id))
         assert est_prob_alive.dims == ("chain", "draw", "customer_id")
         assert est_prob_alive.mean() > est_prob_alive_t.mean()
 
