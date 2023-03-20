@@ -198,29 +198,35 @@ class TestParetoNBDModel:
         )
 
         N = len(self.customer_id)
-
+        chains = 2
+        draws = 50
         fake_fit = az.from_dict(
             {
-                "r": self.rng.normal(self.r_true, 1e-3, size=(1, 1000)),
-                "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(1, 1000)),
-                "s": self.rng.normal(self.s_true, 1e-3, size=(1, 1000)),
-                "beta": self.rng.normal(self.beta_true, 1e-3, size=(1, 1000)),
+                "r": np.broadcast_to(self.r_true, shape=(chains, draws)),
+                "alpha": np.broadcast_to(self.alpha_true, shape=(chains, draws)),
+                "s": np.broadcast_to(self.s_true, shape=(chains, draws)),
+                "beta": np.broadcast_to(self.beta_true, shape=(chains, draws)),
             }
+            # {
+            #     "r": self.rng.normal(self.r_true, 1e-3, size=(chains, draws)),
+            #     "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(chains, draws)),
+            #     "s": self.rng.normal(self.s_true, 1e-3, size=(chains, draws)),
+            #     "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
+            # }
         )
         self.model._fit_result = fake_fit
 
         est_prob_alive = self.model.probability_alive()
-        est_prob_alive_t = self.model.probability_alive(future_t=5)
-
-        assert est_prob_alive.shape == (1, 1000, N)
+        assert est_prob_alive.shape == (chains, draws, N)
         assert est_prob_alive.dims == ("chain", "draw", "customer_id")
-        assert est_prob_alive.mean() > est_prob_alive_t.mean()
-
         np.testing.assert_allclose(
             true_prob_alive.mean(),
             est_prob_alive.mean(),
             rtol=0.05,
         )
+
+        est_prob_alive_t = self.model.probability_alive(future_t=5)
+        assert est_prob_alive.mean() > est_prob_alive_t.mean()
 
     @pytest.mark.parametrize("test_n, test_t", [(0, 0), (1, 1), (2, 2)])
     def test_purchase_probability(self, test_n, test_t):

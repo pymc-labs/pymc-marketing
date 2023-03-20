@@ -404,10 +404,17 @@ class ParetoNBDModel(CLVModel):
         r, alpha, s, beta = self._unload_params()
 
         # Get likelihood expression
-        with pm.Model():
-            logp = ParetoNBD("logp", r, alpha, s, beta, T)
-
-        loglike = pm.logp(logp, [t_x, x]).eval()
+        # Add one dummy dimension to the right of the scalar parameters, so they broadcast with the `T` vector
+        pareto_dist = ParetoNBD.dist(
+            r=r.values[..., None],
+            alpha=alpha.values[..., None],
+            s=s.values[..., None],
+            beta=beta.values[..., None],
+            T=T.values,
+        )
+        values = np.vstack((t_x.values, x.values)).T
+        loglike = pm.logp(pareto_dist, values).eval()
+        loglike = xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
 
         term1 = gammaln(r + x) - gammaln(r)
         term2 = r * log(alpha / (alpha + T))
