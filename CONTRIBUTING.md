@@ -41,3 +41,9 @@ make check_lint
 ```shell
 pre-commit install
 ```
+
+## Build the docs locally
+
+```shell
+make html
+```
