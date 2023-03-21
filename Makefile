@@ -7,6 +7,8 @@ lint:
 	pip install .[lint]
 	isort .
 	black .
+	pyreverse pymc_marketing/mmm -d docs/source/uml -f 'ALL' -o png -p mmm
+	pyreverse pymc_marketing/clv -d docs/source/uml -f 'ALL' -o png -p clv
 
 check_lint:
 	pip install .[lint]
