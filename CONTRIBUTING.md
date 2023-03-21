@@ -41,3 +41,11 @@ make check_lint
 ```shell
 pre-commit install
 ```
+
+## Build the docs locally
+
+```shell
+make html
+```
+
+To delete all intermediate files and cached content and build the docs from scratch, run `make cleandocs` before `make html`
