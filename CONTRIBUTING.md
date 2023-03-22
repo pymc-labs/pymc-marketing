@@ -49,3 +49,23 @@ make html
 ```
 
 To delete all intermediate files and cached content and build the docs from scratch, run `make cleandocs` before `make html`
+
+## Overview of the MMM codebase
+
+Packages
+
+![](docs/source/uml/packages_mmm.png)
+
+Classes
+
+![](docs/source/uml/classes_mmm.png)
+
+## Overview of the CLV codebase
+
+Packages
+
+![](docs/source/uml/packages_clv.png)
+
+Classes
+
+![](docs/source/uml/classes_clv.png)
