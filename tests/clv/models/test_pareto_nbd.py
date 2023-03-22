@@ -1,9 +1,9 @@
 import arviz as az
 import numpy as np
-import pandas as pd
 import pymc as pm
 import pytest
 from lifetimes import ParetoNBDFitter
+from lifetimes.datasets import load_cdnow_summary
 
 from pymc_marketing.clv.models.pareto_nbd import ParetoNBDModel
 
@@ -15,13 +15,16 @@ class TestParetoNBDModel:
         cls.rng = np.random.default_rng(34)
 
         # Parameters
-        cls.r_true = 0.55
-        cls.alpha_true = 10.58
-        cls.s_true = 0.61
-        cls.beta_true = 11.67
+        cls.r_true = 0.5534
+        cls.alpha_true = 10.5802
+        cls.s_true = 0.6061
+        cls.beta_true = 11.6562
 
-        test_data = pd.read_csv("tests/clv/datasets/cdnow_sample.csv")
-        cls.customer_id = test_data.index
+        # TODO: The CDNOW_sample pytest fixture was not processed properly.
+        #       Use the lifetimes equivalent for now.
+        # test_data = pd.read_csv("tests/clv/datasets/cdnow_sample.csv")
+        test_data = load_cdnow_summary()
+        cls.customer_id = test_data["ID"]
         cls.frequency = test_data["frequency"]
         cls.recency = test_data["recency"]
         cls.T = test_data["T"]
@@ -35,9 +38,13 @@ class TestParetoNBDModel:
         )
 
         # Also fit the same equivalent lifetimes model to the same dataset for comparison
-        cls.lifetimes_model = ParetoNBDFitter().fit(
-            frequency=cls.frequency.values, recency=cls.recency.values, T=cls.T.values
-        )
+        cls.lifetimes_model = ParetoNBDFitter()
+        cls.lifetimes_model.params_ = {
+            "r": cls.r_true,
+            "alpha": cls.alpha_true,
+            "s": cls.s_true,
+            "beta": cls.beta_true,
+        }
 
     @pytest.mark.parametrize(
         "r_prior, alpha_prior, s_prior, beta_prior",
@@ -191,10 +198,16 @@ class TestParetoNBDModel:
         )
 
     def test_probability_alive(self):
+        # true_prob_alive = self.lifetimes_model.conditional_probability_alive(
+        #     frequency=self.frequency.values,
+        #     recency=self.recency.values,
+        #     T=self.T.values,
+        # )
+
         true_prob_alive = self.lifetimes_model.conditional_probability_alive(
-            frequency=self.frequency.values,
-            recency=self.recency.values,
-            T=self.T.values,
+            frequency=self.frequency,
+            recency=self.recency,
+            T=self.T,
         )
 
         N = len(self.customer_id)
@@ -202,27 +215,22 @@ class TestParetoNBDModel:
         draws = 50
         fake_fit = az.from_dict(
             {
-                "r": np.broadcast_to(self.r_true, shape=(chains, draws)),
-                "alpha": np.broadcast_to(self.alpha_true, shape=(chains, draws)),
-                "s": np.broadcast_to(self.s_true, shape=(chains, draws)),
-                "beta": np.broadcast_to(self.beta_true, shape=(chains, draws)),
+                "r": self.rng.normal(self.r_true, 1e-3, size=(chains, draws)),
+                "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(chains, draws)),
+                "s": self.rng.normal(self.s_true, 1e-3, size=(chains, draws)),
+                "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
             }
-            # {
-            #     "r": self.rng.normal(self.r_true, 1e-3, size=(chains, draws)),
-            #     "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(chains, draws)),
-            #     "s": self.rng.normal(self.s_true, 1e-3, size=(chains, draws)),
-            #     "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
-            # }
         )
         self.model._fit_result = fake_fit
 
         est_prob_alive = self.model.probability_alive()
+
         assert est_prob_alive.shape == (chains, draws, N)
         assert est_prob_alive.dims == ("chain", "draw", "customer_id")
         np.testing.assert_allclose(
             true_prob_alive.mean(),
             est_prob_alive.mean(),
-            rtol=0.05,
+            rtol=0.001,
         )
 
         est_prob_alive_t = self.model.probability_alive(future_t=5)
