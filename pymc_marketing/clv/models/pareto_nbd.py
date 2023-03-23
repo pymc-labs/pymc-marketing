@@ -247,27 +247,29 @@ class ParetoNBDModel(CLVModel):
         if customer_id is None:
             customer_id = self._customer_id
         if frequency is None:
-            x = self._frequency
-        else:
-            x = frequency
+            frequency = self._frequency
         if recency is None:
-            tx = self._recency
-        else:
-            tx = recency
+            recency = self._recency
         if T is None:
             T = self._T
 
-        t = np.asarray(future_t)
-        if t.size != 1:
-            t = to_xarray(customer_id, t)
-
-        T = np.asarray(T)
-        if T.size != 1:
-            T = to_xarray(customer_id, T)
+        x, t_x, T = to_xarray(customer_id, frequency, recency, T)
 
         r, alpha, s, beta = self._unload_params()
 
-        likelihood = pm.logp(self.llike, np.stack((tx, x), axis=1)).eval()
+        # Get likelihood expression
+        # Add one dummy dimension to the right of the scalar parameters, so they broadcast with the `T` vector
+        pareto_dist = ParetoNBD.dist(
+            r=r.values[..., None],
+            alpha=alpha.values[..., None],
+            s=s.values[..., None],
+            beta=beta.values[..., None],
+            T=T.values,
+        )
+        values = np.vstack((t_x.values, x.values)).T
+        loglike = pm.logp(pareto_dist, values).eval()
+        loglike = xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
+
         first_term = (
             gammaln(r + x)
             - gammaln(r)
@@ -277,9 +279,11 @@ class ParetoNBDModel(CLVModel):
             - s * log(beta + T)
         )
         second_term = log(r + x) + log(beta + T) - log(alpha + T)
-        third_term = log((1 - ((beta + T) / (beta + T + t)) ** (s - 1)) / (s - 1))
+        third_term = log(
+            (1 - ((beta + T) / (beta + T + future_t)) ** (s - 1)) / (s - 1)
+        )
 
-        exp_purchases = exp(first_term + second_term + third_term - likelihood)
+        exp_purchases = exp(first_term + second_term + third_term - loglike)
 
         return exp_purchases.transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
@@ -319,9 +323,9 @@ class ParetoNBDModel(CLVModel):
         -------
         array_like
         """
+        r, alpha, s, beta = self._unload_params()
+
         t = np.asarray(t)
-        if t.size != 1:
-            t = to_xarray(range(len(t)), t, dim="t")
 
         r, alpha, s, beta = self._unload_params()
         first_term = r * beta / alpha / (s - 1)
@@ -332,9 +336,10 @@ class ParetoNBDModel(CLVModel):
         )
 
     # TODO: Edit docstrings
+    # TODO: Get clarification around ducktyping. Are TensorVariables accepted?
     def probability_alive(
         self,
-        future_t: Union[float, np.ndarray, pd.Series, TensorVariable] = 0,
+        future_t: Union[int, float] = 0,
         customer_id: Union[np.ndarray, pd.Series] = None,
         frequency: Union[np.ndarray, pd.Series, TensorVariable] = None,
         recency: Union[np.ndarray, pd.Series, TensorVariable] = None,
@@ -379,25 +384,13 @@ class ParetoNBDModel(CLVModel):
         if customer_id is None:
             customer_id = self._customer_id
         if frequency is None:
-            x = self._frequency
-        else:
-            x = frequency
+            frequency = self._frequency
         if recency is None:
-            t_x = self._recency
-        else:
-            t_x = recency
+            recency = self._recency
         if T is None:
             T = self._T
 
-        t = np.asarray(future_t)
-        if t.size != 1:
-            t = to_xarray(customer_id, t)
-
-        T = np.asarray(T)
-        if T.size != 1:
-            T = to_xarray(customer_id, T)
-
-        x, t_x = to_xarray(customer_id, x, t_x)
+        x, t_x, T = to_xarray(customer_id, frequency, recency, T)
 
         r, alpha, s, beta = self._unload_params()
 
@@ -417,7 +410,7 @@ class ParetoNBDModel(CLVModel):
         term1 = gammaln(r + x) - gammaln(r)
         term2 = r * log(alpha / (alpha + T))
         term3 = -x * log(alpha + T)
-        term4 = s * log(beta / (beta + T + t))
+        term4 = s * log(beta / (beta + T + future_t))
 
         prob_alive = exp(term1 + term2 + term3 + term4 - loglike)
 
@@ -466,27 +459,30 @@ class ParetoNBDModel(CLVModel):
             return 0
 
         if customer_id is None:
-            customer_id = self._customer_id.values
+            customer_id = self._customer_id
         if frequency is None:
-            x = self._frequency.values
-        else:
-            x = frequency
+            frequency = self._frequency
         if recency is None:
-            tx = self._recency.values
-        else:
-            tx = recency
+            recency = self._recency
         if T is None:
-            T = self._T.values
+            T = self._T
 
-        t = np.asarray(future_t)
-        if t.size != 1:
-            t = to_xarray(customer_id, future_t)
-
-        T = np.asarray(T)
-        if T.size != 1:
-            T = to_xarray(customer_id, T)
+        x, t_x, T = to_xarray(customer_id, frequency, recency, T)
 
         r, alpha, s, beta = self._unload_params()
+
+        # Get likelihood expression
+        # Add one dummy dimension to the right of the scalar parameters, so they broadcast with the `T` vector
+        pareto_dist = ParetoNBD.dist(
+            r=r.values[..., None],
+            alpha=alpha.values[..., None],
+            s=s.values[..., None],
+            beta=beta.values[..., None],
+            T=T.values,
+        )
+        values = np.vstack((t_x.values, x.values)).T
+        loglike = pm.logp(pareto_dist, values).eval()
+        loglike = xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
 
         if alpha < beta:
             min_of_alpha_beta, max_of_alpha_beta, p, _, _ = (
@@ -506,18 +502,21 @@ class ParetoNBDModel(CLVModel):
             )
         abs_alpha_beta = max_of_alpha_beta - min_of_alpha_beta
 
-        log_l = pm.logp(self.llike, np.stack((tx, x), axis=1)).eval()
         log_p_zero = (
             gammaln(r + x)
             + r * log(alpha)
             + s * log(beta)
-            - (gammaln(r) + (r + x) * log(alpha + T) + s * log(beta + T) + log_l)
+            - (gammaln(r) + (r + x) * log(alpha + T) + s * log(beta + T) + loglike)
         )
         log_B_one = (
             gammaln(r + x + n)
             + r * log(alpha)
             + s * log(beta)
-            - (gammaln(r) + (r + x + n) * log(alpha + T + t) + s * log(beta + T + t))
+            - (
+                gammaln(r)
+                + (r + x + n) * log(alpha + T + future_t)
+                + s * log(beta + T + future_t)
+            )
         )
         log_B_two = (
             r * log(alpha)
@@ -546,22 +545,22 @@ class ParetoNBDModel(CLVModel):
                         r + s + x + i,
                         p,
                         r + s + x + n + 1,
-                        abs_alpha_beta / (max_of_alpha_beta + T + t),
+                        abs_alpha_beta / (max_of_alpha_beta + T + future_t),
                     )
                 )
                 - (
                     gammaln(r)
                     + gammaln(s)
-                    + (r + s + x + i) * log(max_of_alpha_beta + T + t)
+                    + (r + s + x + i) * log(max_of_alpha_beta + T + future_t)
                 )
             )
 
         zeroth_term = (n == 0) * (1 - exp(log_p_zero))
-        first_term = n * log(t) - gammaln(n + 1) + log_B_one - log_l
-        second_term = log_B_two - log_l
+        first_term = n * log(future_t) - gammaln(n + 1) + log_B_one - loglike
+        second_term = log_B_two - loglike
         third_term = logsumexp(
             [
-                i * log(t) - gammaln(i + 1) + _log_B_three(i) - log_l
+                i * log(future_t) - gammaln(i + 1) + _log_B_three(i) - loglike
                 for i in range(n + 1)
             ],
             axis=0,

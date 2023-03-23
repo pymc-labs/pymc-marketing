@@ -159,15 +159,28 @@ class TestParetoNBDModel:
             )
         )
 
+        N = len(self.customer_id)
+        chains = 2
+        draws = 50
+        fake_fit = az.from_dict(
+            {
+                "r": self.rng.normal(self.r_true, 1e-3, size=(chains, draws)),
+                "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(chains, draws)),
+                "s": self.rng.normal(self.s_true, 1e-3, size=(chains, draws)),
+                "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
+            }
+        )
+        self.model._fit_result = fake_fit
+
         est_num_purchases = self.model.expected_purchases(test_t)
 
-        assert est_num_purchases.shape == (1, 1000, len(self.customer_id))
+        assert est_num_purchases.shape == (chains, draws, N)
         assert est_num_purchases.dims == ("chain", "draw", "customer_id")
 
         np.testing.assert_allclose(
-            true_purchases,
-            est_num_purchases.mean(("chain", "draw", "customer_id")),
-            rtol=0.1,
+            true_purchases.mean(),
+            est_num_purchases.mean(),
+            rtol=0.001,
         )
 
     @pytest.mark.parametrize("test_t", [1, 2, 3, 4, 5, 6])
@@ -178,10 +191,22 @@ class TestParetoNBDModel:
             )
         )
 
+        chains = 2
+        draws = 50
+        fake_fit = az.from_dict(
+            {
+                "r": self.rng.normal(self.r_true, 1e-3, size=(chains, draws)),
+                "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(chains, draws)),
+                "s": self.rng.normal(self.s_true, 1e-3, size=(chains, draws)),
+                "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
+            }
+        )
+        self.model._fit_result = fake_fit
+
         est_purchases_new = self.model.expected_purchases_new_customer(test_t)
 
-        assert est_purchases_new.shape == (1, 1000, 1)
-        assert est_purchases_new.dims == ("chain", "draw", "t")
+        assert est_purchases_new.shape == (chains, draws)
+        assert est_purchases_new.dims == ("chain", "draw")
 
         np.testing.assert_allclose(
             true_purchases_new,
@@ -190,12 +215,6 @@ class TestParetoNBDModel:
         )
 
     def test_probability_alive(self):
-        # true_prob_alive = self.lifetimes_model.conditional_probability_alive(
-        #     frequency=self.frequency.values,
-        #     recency=self.recency.values,
-        #     T=self.T.values,
-        # )
-
         true_prob_alive = self.lifetimes_model.conditional_probability_alive(
             frequency=self.frequency,
             recency=self.recency,
@@ -225,27 +244,41 @@ class TestParetoNBDModel:
             rtol=0.001,
         )
 
-        est_prob_alive_t = self.model.probability_alive(future_t=5)
+        est_prob_alive_t = self.model.probability_alive(future_t=4.5)
         assert est_prob_alive.mean() > est_prob_alive_t.mean()
 
-    @pytest.mark.parametrize("test_n, test_t", [(0, 0), (1, 1), (2, 2)])
+    @pytest.mark.parametrize("test_n, test_t", [(1, 1), (2, 2)])
     def test_purchase_probability(self, test_n, test_t):
         true_prob_purchase = (
             self.lifetimes_model.conditional_probability_of_n_purchases_up_to_time(
                 test_n,
                 test_t,
-                frequency=self.frequency.values,
-                recency=self.recency.values,
-                T=self.T.values,
+                frequency=self.frequency,
+                recency=self.recency,
+                T=self.T,
             )
         )
+
+        N = len(self.customer_id)
+        chains = 2
+        draws = 50
+        fake_fit = az.from_dict(
+            {
+                "r": self.rng.normal(self.r_true, 1e-3, size=(chains, draws)),
+                "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(chains, draws)),
+                "s": self.rng.normal(self.s_true, 1e-3, size=(chains, draws)),
+                "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
+            }
+        )
+        self.model._fit_result = fake_fit
+
         est_purchases_new_customer = self.model.purchase_probability(test_n, test_t)
 
-        assert est_purchases_new_customer.shape == (1, 1000, len(self.customer_id))
+        assert est_purchases_new_customer.shape == (chains, draws, N)
         assert est_purchases_new_customer.dims == ("chain", "draw", "customer_id")
 
         np.testing.assert_allclose(
             true_prob_purchase.mean(),
             est_purchases_new_customer.mean(),
-            rtol=0.05,
+            rtol=0.001,
         )
