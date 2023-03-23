@@ -147,7 +147,7 @@ class ParetoNBDModel(CLVModel):
             beta = self.model.register_rv(beta_prior, name="beta")
 
             ParetoNBD(
-                name="loglike",
+                name="likelihood",
                 r=r,
                 alpha=alpha,
                 s=s,
@@ -331,8 +331,6 @@ class ParetoNBDModel(CLVModel):
             "chain", "draw", "t", missing_dims="ignore"
         )
 
-    # TODO: clv.utils.to_xarray needs to be called here
-    # TODO: Replace this with equation cited in conditional_probability_of_being_alive_up_to_time()
     # TODO: Edit docstrings
     def probability_alive(
         self,

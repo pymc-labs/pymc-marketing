@@ -35,7 +35,7 @@ class TestParetoNBDModel:
             T=cls.T,
         )
 
-        # Also fit the same equivalent lifetimes model to the same dataset for comparison
+        # Also instantiate lifetimes model for comparison
         cls.lifetimes_model = ParetoNBDFitter()
         cls.lifetimes_model.params_ = {
             "r": cls.r_true,
@@ -70,19 +70,19 @@ class TestParetoNBDModel:
 
         assert isinstance(
             model.model["r"].owner.op,
-            pm.HalfFlat if r_prior is None else type(r_prior.owner.op),
+            pm.Weibull if r_prior is None else type(r_prior.owner.op),
         )
         assert isinstance(
             model.model["alpha"].owner.op,
-            pm.HalfFlat if alpha_prior is None else type(alpha_prior.owner.op),
+            pm.Weibull if alpha_prior is None else type(alpha_prior.owner.op),
         )
         assert isinstance(
             model.model["s"].owner.op,
-            pm.HalfFlat if s_prior is None else type(s_prior.owner.op),
+            pm.Weibull if s_prior is None else type(s_prior.owner.op),
         )
         assert isinstance(
             model.model["beta"].owner.op,
-            pm.HalfFlat if beta_prior is None else type(beta_prior.owner.op),
+            pm.Weibull if beta_prior is None else type(beta_prior.owner.op),
         )
 
         assert model.model.eval_rv_shapes() == {
@@ -94,10 +94,6 @@ class TestParetoNBDModel:
             "r_log__": (),
             "s": (),
             "s_log__": (),
-            "churn": (),
-            "churn_log__": (),
-            "purchase_rate": (),
-            "purchase_rate_log__": (),
         }
 
     @pytest.mark.slow
@@ -149,9 +145,7 @@ class TestParetoNBDModel:
             "\nalpha~Weibull(10,10)"
             "\ns~Weibull(10,1)"
             "\nbeta~Weibull(10,10)"
-            "\npurchase_rate~Gamma(r,f(alpha))"
-            "\nchurn~Gamma(s,f(beta))"
-            "\nllike~ParetoNBD(r,alpha,s,beta,<constant>)"
+            "\nlikelihood~ParetoNBD(r,alpha,s,beta,<constant>)"
         )
 
     @pytest.mark.parametrize("test_t", [1, 2, 3, 4, 5, 6])
