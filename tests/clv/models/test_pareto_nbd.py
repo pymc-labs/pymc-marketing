@@ -1,9 +1,9 @@
 import arviz as az
 import numpy as np
+import pandas as pd
 import pymc as pm
 import pytest
 from lifetimes import ParetoNBDFitter
-from lifetimes.datasets import load_cdnow_summary
 
 from pymc_marketing.clv.models.pareto_nbd import ParetoNBDModel
 
@@ -20,11 +20,9 @@ class TestParetoNBDModel:
         cls.s_true = 0.6061
         cls.beta_true = 11.6562
 
-        # TODO: The CDNOW_sample pytest fixture was not processed properly.
-        #       Use the lifetimes equivalent for now.
-        # test_data = pd.read_csv("tests/clv/datasets/cdnow_sample.csv")
-        test_data = load_cdnow_summary()
-        cls.customer_id = test_data["ID"]
+        test_data = pd.read_csv("tests/clv/datasets/cdnow_sample.csv")
+
+        cls.customer_id = test_data["customer_id"]
         cls.frequency = test_data["frequency"]
         cls.recency = test_data["recency"]
         cls.T = test_data["T"]
