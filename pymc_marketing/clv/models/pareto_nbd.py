@@ -484,7 +484,8 @@ class ParetoNBDModel(CLVModel):
         loglike = pm.logp(pareto_dist, values).eval()
         loglike = xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
 
-        if alpha < beta:
+        # TODO: Are these mean comparisons kosher?
+        if alpha.mean() < beta.mean():
             min_of_alpha_beta, max_of_alpha_beta, p, _, _ = (
                 alpha,
                 beta,
