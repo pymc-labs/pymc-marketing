@@ -7,6 +7,10 @@
 [![PyPI Version](https://img.shields.io/pypi/v/pymc-marketing.svg)](https://pypi.python.org/pypi/pymc-marketing)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
+PyMC-Marketing is an open source Python package for Bayesian marketing analytics. It provides a flexible API for working with two key types of models: Media Mix Models (MMM) and Customer Lifetime Value (CLV). The package is built on top of [PyMC](https://www.pymc.io/).
+
+---
+
 ## Bayesian Media Mix Models (MMMs) in PyMC
 
 In this package we provide an API for a Bayesian media mix model (MMM) specification following [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).](https://research.google/pubs/pub46001/) Concretely, given a time series target variable $y_{t}$ (e.g. sales on conversions), media variables $x_{m, t}$ (e.g. impressions, clicks or costs) and a set of control covariates $z_{c, t}$ (e.g. holidays, special events) we consider a linear model of the form
@@ -35,7 +39,7 @@ where $\alpha$ is the intercept, $f$ is a media transformation function and $\va
 ---
 
 ## Bayesian CLVs in PyMC
-[Customer Lifetime Value](https://en.wikipedia.org/wiki/Customer_lifetime_value) models is another important class of models. There are many different types of CLV models and it can be helpful to conceptualise them as fitting in a 2-dimensional grid as below. An excellent set of introduction slides to CLV's is provided in [Probability Models for Customer-Base Analysis](https://www.brucehardie.com/talks/ho_cba_tut_art_09.pdf) by Fader & Hardie (2009).
+[Customer Lifetime Value](https://en.wikipedia.org/wiki/Customer_lifetime_value) (CLV) models are another important class of models. There are many different types of CLV models and it can be helpful to conceptualise them as fitting in a 2-dimensional grid as below. An excellent set of introduction slides to CLV's is provided in [Probability Models for Customer-Base Analysis](https://www.brucehardie.com/talks/ho_cba_tut_art_09.pdf) by Fader & Hardie (2009).
 
 ### Examples
 
@@ -61,40 +65,9 @@ In the documentation, we provide some examples on how to use the CLV API. We use
 
 ---
 
-## Local Development
+## Using PyMC-Marketing and how PyMC Labs can help you
+PyMC-Marketing uses the [Apache 2.0 licence](LICENSE) which permits commercial use, amongst other things.
 
-1. Create conda environment. For example:
+If you want to build upon the package, please feel free to fork the repo and submit a pull request. If in doubt, please open an issue.
 
-```shell
-conda create -n pymc_marketing_env
-```
-
-2. Activate environment.
-
-```shell
-conda activate pymc_marketing_env
-```
-
-3. Install `pymc_marketing` package:
-
-```shell
-make init
-```
-
-4. To run tests:
-
-```shell
-make test
-```
-
-5. To check code style:
-
-```shell
-make check_lint
-```
-
-6. Set [pre-commit hooks](https://pre-commit.com/) (Optional):
-
-```shell
-pre-commit install
-```
+For companies that want to use PyMC-Marketing in production, [PyMC Labs](https://www.pymc-labs.io) is available for consulting and training. We can help you build and deploy your models in production. We have experience with cutting edge Bayesian modelling techniques in general, and in particular with MMMs and CLVs. For example, see our video on [Bayesian Marketing Mix Models: State of the Art and their Future](https://www.youtube.com/watch?v=xVx91prC81g).

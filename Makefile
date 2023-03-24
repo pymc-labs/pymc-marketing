@@ -19,6 +19,7 @@ test:
 	pytest
 
 html:
+	pip install .[docs]
 	sphinx-build docs/source docs/build -b html
 
 cleandocs:
