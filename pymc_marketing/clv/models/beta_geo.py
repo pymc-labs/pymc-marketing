@@ -345,11 +345,10 @@ class BetaGeoModel(CLVModel):
             "chain", "draw", "t", missing_dims="ignore"
         )
 
-
     def probability_of_n_purchases_up_to_time(
         self,
         t: Union[np.ndarray, pd.Series],
-        n,
+        n: int,
     ):
         r"""
         Compute the probability of n purchases.
@@ -388,9 +387,12 @@ class BetaGeoModel(CLVModel):
 
         if n > 0:
             j = np.arange(0, n)
-            finite_sum = (
-                gamma(r + j) / gamma(r) / gamma(j + 1) * (t / (alpha + t)) ** j
-            ).sum()
+            finite_sum = 0
+            for j in range(n):
+                finite_sum += (
+                    gamma(r + j) / gamma(r) / gamma(j + 1) * (t / (alpha + t)) ** j
+                )
+
             second_term = (
                 beta(a + 1, b + n - 1)
                 / beta(a, b)
