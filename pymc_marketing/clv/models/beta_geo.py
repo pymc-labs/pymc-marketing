@@ -7,7 +7,7 @@ import pytensor.tensor as pt
 import xarray as xr
 from pymc.distributions.dist_math import check_parameters
 from pytensor.tensor import TensorVariable
-from scipy.special import expit, hyp2f1
+from scipy.special import beta, expit, gamma, hyp2f1
 
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
@@ -344,3 +344,65 @@ class BetaGeoModel(CLVModel):
         return (left_term * right_term).transpose(
             "chain", "draw", "t", missing_dims="ignore"
         )
+
+
+    def probability_of_n_purchases_up_to_time(
+        self,
+        t: Union[np.ndarray, pd.Series],
+        n,
+        MAP: bool = False,
+    ):
+        r"""
+        Compute the probability of n purchases.
+         .. math::  P( N(t) = n | \text{model} )
+        where N(t) is the number of repeat purchases a customer makes in t
+        units of time.
+        Comes from equation (8) of [2]_.
+        Parameters
+        ----------
+        t: float
+            number units of time
+        n: int
+            number of purchases
+        Returns
+        -------
+        float:
+            Probability to have n purchases up to t units of time
+        References
+        ----------
+        .. [2] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005a),
+        "Counting Your Customers the Easy Way: An Alternative to the
+        Pareto/NBD Model," Marketing Science, 24 (2), 275-84.
+        """
+
+        a, b, alpha, r = self._unload_params()
+        if MAP:
+            a = a.to_numpy().mean()
+            b = b.to_numpy().mean()
+            alpha = alpha.to_numpy().mean()
+            r = r.to_numpy().mean()
+
+        first_term = (
+            beta(a, b + n)
+            / beta(a, b)
+            * gamma(r + n)
+            / gamma(r)
+            / gamma(n + 1)
+            * (alpha / (alpha + t)) ** r
+            * (t / (alpha + t)) ** n
+        )
+
+        if n > 0:
+            j = np.arange(0, n)
+            finite_sum = (
+                gamma(r + j) / gamma(r) / gamma(j + 1) * (t / (alpha + t)) ** j
+            ).sum()
+            second_term = (
+                beta(a + 1, b + n - 1)
+                / beta(a, b)
+                * (1 - (alpha / (alpha + t)) ** r * finite_sum)
+            )
+        else:
+            second_term = 0
+
+        return first_term + second_term
