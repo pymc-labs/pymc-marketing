@@ -484,7 +484,6 @@ class ParetoNBDModel(CLVModel):
         loglike = pm.logp(pareto_dist, values).eval()
         loglike = xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
 
-        # TODO: Are these mean comparisons kosher?
         if alpha.mean() < beta.mean():
             min_of_alpha_beta, max_of_alpha_beta, p, _, _ = (
                 alpha,
@@ -567,10 +566,10 @@ class ParetoNBDModel(CLVModel):
             axis=0,
         )
 
-        try:
+        if len(x) > 1:
             size = len(x)
             sign = np.ones(size)
-        except TypeError:
+        else:
             sign = 1
 
         # In some scenarios (e.g. large n) tiny numerical errors in the calculation of second_term and third_term
@@ -580,7 +579,7 @@ class ParetoNBDModel(CLVModel):
                 [first_term, second_term, third_term],
                 b=[sign, sign, -sign],
                 axis=0,
-                return_sign=True,
+                return_sign=False,
             )[0]
         )
 
