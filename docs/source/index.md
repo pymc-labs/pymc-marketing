@@ -117,7 +117,7 @@ Initiate fitting and get a visualization of some of the outputs with:
 
 ```python
 model.fit()
-model.plot_components_contributions()
+model.plot_components_contributions();
 ```
 
 See the Example notebooks section for examples of further types of plot you can get, as well as introspect the results of the fitting.
