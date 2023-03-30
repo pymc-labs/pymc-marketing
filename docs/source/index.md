@@ -113,7 +113,7 @@ model = mmm.DelayedSaturatedMMM(
 )
 ```
 
-Initiate fitting and get a visualisation of some of the outputs with:
+Initiate fitting and get a visualization of some of the outputs with:
 
 ```python
 model.fit()
