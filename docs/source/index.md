@@ -96,7 +96,7 @@ data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data
 data = pd.read_csv(data_url, parse_dates=['date_week'])
 
 model = mmm.DelayedSaturatedMMM(
-    data_df=data,
+    data=data,
     target_column="y",
     date_column="date_week",
     channel_columns=["x1", "x2"],
