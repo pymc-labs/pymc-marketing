@@ -13,12 +13,12 @@ PyMC-Marketing is an open source Python package for Bayesian marketing analytics
 
 ## Installation
 
-You may have already set up an environment (e.g. `marketing_test_env`) you’d like to work in. It may look something like the following:
+You may have already set up an environment (e.g. `marketing_env`) you’d like to work in. It may look something like the following:
 
 ```
-mamba create -c conda-forge -n marketing_test_env python=3.10 matplotlib jupyterlab ipykernel seaborn pandas pymc
-mamba activate marketing_test_env
-python -m ipykernel install --user --name marketing_test_env
+mamba create -c conda-forge -n marketing_env python=3.10 matplotlib jupyterlab ipykernel seaborn pandas pymc
+mamba activate marketing_env
+python -m ipykernel install --user --name marketing_env
 ```
 
 See the official [PyMC installation guide](https://www.pymc.io/projects/docs/en/latest/installation.html) if more detail is needed.
