@@ -59,17 +59,17 @@ To the reference guide
 
 ## Installation
 
-You may have already set up an environment (e.g. `marketing_env`) you’d like to work in. It may look something like the following:
+Start by setting up an environment (e.g. `marketing_env`) with PyMC. It may look something like the following:
 
-```
-mamba create -c conda-forge -n marketing_env python=3.10 matplotlib jupyterlab ipykernel seaborn pandas "pymc>=5"
+```bash
+mamba create -c conda-forge -n marketing_env python=3.11 "pymc>=5"
 mamba activate marketing_env
-python -m ipykernel install --user --name marketing_env
 ```
 
 See the official [PyMC installation guide](https://www.pymc.io/projects/docs/en/latest/installation.html) if more detail is needed.
 
 Assuming you have an environment set up then install PyMC-Marketing with the following command. This will give you the latest version of the library from PyPI.
+
 ```bash
 pip install pymc-marketing
 ```
@@ -82,10 +82,14 @@ pip install git+https://github.com/pymc-labs/pymc-marketing.git
 
 ## Quickstart
 
-Once you've installed the library (see above), you can get started.
+Once you've installed the library (see above), you can get started. If you want to work in a jupyter lab notebook then remember to do the following:
+
+```bash
+pip install jupyterlab
+python -m ipykernel install --user --name marketing_env
+```
 
 ### MMM Quickstart
-You could then get started in a Python session, or a jupyter lab notebook with:
 
 ```python
 import pandas as pd
@@ -123,8 +127,6 @@ model.plot_components_contributions();
 See the Example notebooks section for examples of further types of plot you can get, as well as introspect the results of the fitting.
 
 ### CLV Quickstart
-
-Again, in a Python session, or juputer lab notebook:
 
 ```python
 import matplotlib.pyplot as plt
