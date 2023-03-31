@@ -11,6 +11,29 @@ PyMC-Marketing is an open source Python package for Bayesian marketing analytics
 
 ---
 
+## Installation
+
+Start by setting up an environment (e.g. `marketing_env`) with PyMC. It may look something like the following:
+
+```bash
+mamba create -c conda-forge -n marketing_env python "pymc>=5"
+mamba activate marketing_env
+```
+
+See the official [PyMC installation guide](https://www.pymc.io/projects/docs/en/latest/installation.html) if more detail is needed.
+
+Assuming you have an environment set up then install PyMC-Marketing with the following command. This will give you the latest version of the library from PyPI.
+
+```bash
+pip install pymc-marketing
+```
+
+Alternatively you can install from GitHub directly:
+
+```bash
+pip install git+https://github.com/pymc-labs/pymc-marketing.git
+```
+
 ## Bayesian Media Mix Models (MMMs) in PyMC
 
 In this package we provide an API for a Bayesian media mix model (MMM) specification following [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).](https://research.google/pubs/pub46001/) Concretely, given a time series target variable $y_{t}$ (e.g. sales on conversions), media variables $x_{m, t}$ (e.g. impressions, clicks or costs) and a set of control covariates $z_{c, t}$ (e.g. holidays, special events) we consider a linear model of the form
