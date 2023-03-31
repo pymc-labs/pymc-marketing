@@ -3,7 +3,7 @@ import pandas as pd
 
 from pymc_marketing.mmm.preprocessing import (
     MaxAbsScaleChannels,
-    MixMaxScaleTarget,
+    MaxAbsScaleTarget,
     StandardizeControls,
     preprocessing_method,
 )
@@ -61,11 +61,12 @@ def test_preprocessing_method():
     assert vf.__name__ == "f3"
 
 
-def test_min_max_scale_target():
-    obj = MixMaxScaleTarget()
+def test_max_abs_scale_target():
+    obj = MaxAbsScaleTarget()
     obj.target_column = "y"
-    out = obj.min_max_scale_target_data(toy_df)["y"]
-    assert out.min() == 0
+    out = obj.max_abs_scale_target_data(toy_df)["y"]
+    temp = toy_df["y"]
+    assert out.min() == temp.min() / temp.max()
     assert out.max() == 1
     pd.testing.assert_index_equal(out.index, toy_df.index)
 

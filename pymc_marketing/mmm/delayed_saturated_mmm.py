@@ -1,12 +1,10 @@
 from typing import Any, Dict, List, Optional
 
-import arviz as az
 import pandas as pd
 import pymc as pm
-from xarray import DataArray
 
 from pymc_marketing.mmm.base import MMM
-from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MixMaxScaleTarget
+from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import (
     geometric_adstock_vectorized,
     logistic_saturation,
@@ -15,7 +13,7 @@ from pymc_marketing.mmm.validating import ValidateControlColumns
 
 
 class DelayedSaturatedMMM(
-    MMM, MixMaxScaleTarget, MaxAbsScaleChannels, ValidateControlColumns
+    MMM, MaxAbsScaleTarget, MaxAbsScaleChannels, ValidateControlColumns
 ):
     def __init__(
         self,
@@ -129,21 +127,3 @@ class DelayedSaturatedMMM(
                 observed=target_,
                 dims="date",
             )
-
-    def compute_channel_contribution_original_scale(self) -> DataArray:
-        beta_channel_samples_extended: DataArray = az.extract(
-            data=self.fit_result, var_names=["beta_channel"], combined=False
-        ).expand_dims({"date": self.n_obs}, axis=2)
-
-        channel_transformed: DataArray = az.extract(
-            data=self.fit_result,
-            var_names=["channel_adstock_saturated"],
-            combined=False,
-        )
-
-        normalization_factor: float = self.target_transformer.named_steps[
-            "scaler"
-        ].scale_.item()
-        return (
-            beta_channel_samples_extended * channel_transformed
-        ) / normalization_factor

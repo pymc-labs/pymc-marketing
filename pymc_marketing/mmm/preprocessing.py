@@ -2,11 +2,11 @@ from typing import Callable
 
 import pandas as pd
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import MaxAbsScaler, MinMaxScaler, StandardScaler
+from sklearn.preprocessing import MaxAbsScaler, StandardScaler
 
 __all__ = [
     "preprocessing_method",
-    "MixMaxScaleTarget",
+    "MaxAbsScaleTarget",
     "MaxAbsScaleChannels",
     "StandardizeControls",
 ]
@@ -19,11 +19,11 @@ def preprocessing_method(method: Callable) -> Callable:
     return method
 
 
-class MixMaxScaleTarget:
+class MaxAbsScaleTarget:
     @preprocessing_method
-    def min_max_scale_target_data(self, data: pd.DataFrame) -> pd.DataFrame:
+    def max_abs_scale_target_data(self, data: pd.DataFrame) -> pd.DataFrame:
         target_vector = data[self.target_column].to_numpy().reshape(-1, 1)
-        transformers = [("scaler", MinMaxScaler())]
+        transformers = [("scaler", MaxAbsScaler())]
         pipeline = Pipeline(steps=transformers)
         self.target_transformer: Pipeline = pipeline.fit(X=target_vector)
         data[self.target_column] = self.target_transformer.transform(
