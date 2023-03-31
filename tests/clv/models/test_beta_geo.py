@@ -83,6 +83,18 @@ class TestBetaGeoModel:
             "r_log__": (),
         }
 
+    def test_customer_id_warning(self):
+        with pytest.raises(
+            ValueError,
+            match="The BetaGeoModel expects exactly one entry per customer. More than one entry is currently provided per customer id.",
+        ):
+            BetaGeoModel(
+                customer_id=np.asarray([1, 1]),
+                frequency=np.asarray([1, 2]),
+                recency=np.asarray([1, 2]),
+                T=np.asarray([5, 8]),
+            )
+
     @pytest.mark.parametrize(
         "frequency, recency, logp_value",
         [
