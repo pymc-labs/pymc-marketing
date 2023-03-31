@@ -62,7 +62,7 @@ To the reference guide
 Start by setting up an environment (e.g. `marketing_env`) with PyMC. It may look something like the following:
 
 ```bash
-mamba create -c conda-forge -n marketing_env python=3.11 "pymc>=5"
+mamba create -c conda-forge -n marketing_env python "pymc>=5"
 mamba activate marketing_env
 ```
 
