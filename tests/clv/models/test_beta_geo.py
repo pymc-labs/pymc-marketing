@@ -19,7 +19,7 @@ class TestBetaGeoModel:
         # Observations
         data, T = pm.draw(
             [
-                continuous_contractual(p=p, lam=lam, T=T, T0=0, size=N),
+                continuous_contractual(p=p, lam=lam, T=T, size=N),
                 T,
             ],
             random_seed=rng,
