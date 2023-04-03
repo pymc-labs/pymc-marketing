@@ -441,6 +441,9 @@ class BaseMMM(ModelBuilder):
         fig.suptitle("channel Contribution Share", fontsize=16, y=1.05)
         return fig
 
+    def graphviz(self, **kwargs):
+        return pm.model_to_graphviz(self.model, **kwargs)
+
 
 class MMM(BaseMMM, ValidateTargetColumn, ValidateDateColumn, ValidateChannelColumns):
     pass
