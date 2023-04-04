@@ -1,6 +1,6 @@
 # PyMC Marketing
 
-Bayesian MMMs and CLVs in PyMC.
+**Unlock the power of marketing analytics with PyMC-Marketing – the open source solution for smarter decision-making.** Media mix modeling and customer lifetime value modules allow businesses to make data-driven decisions about their marketing campaigns. Optimize your marketing strategy and unlock the full potential of your customer data.
 
 ## Quick links
 
@@ -149,9 +149,14 @@ beta_geo_model.fit()
 ```
 Once fitted, we can use the model to predict the number of future purchases for known customers, the probability that they are still alive, and get various visualizations plotted. See the Examples section for more on this.
 
+## 📞 Schedule a Consultation
+Unlock your potential with a free 30-minute strategy session with our PyMC experts. Discover how open source solutions and pymc-marketing can elevate your media-mix models and customer lifetime value analyses. Boost your career and organization by making smarter, data-driven decisions. Don't wait—[claim your complimentary session](https://calendly.com/benjamin-vincent/pymc-marketing) today and lead the way in marketing and data science innovation.
+
 ## Support
 
 This repository is supported by [PyMC Labs](https://www.pymc-labs.io).
+
+For companies that want to use PyMC-Marketing in production, [PyMC Labs](https://www.pymc-labs.io) is available for consulting and training. We can help you build and deploy your models in production. We have experience with cutting edge Bayesian modelling techniques which we have applied to a range of business domains including marketing analytics.
 
 :::{image} _static/logo-dark.png
 :align: center
@@ -173,6 +178,7 @@ This repository is supported by [PyMC Labs](https://www.pymc-labs.io).
 :::{toctree}
 :hidden:
 
+guide/index
 api/index
 notebooks/index
 :::
