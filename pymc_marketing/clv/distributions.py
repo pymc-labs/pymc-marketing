@@ -40,32 +40,25 @@ class ContNonContractRV(RandomVariable):
         p = np.broadcast_to(p, size)
         T = np.broadcast_to(T, size)
 
-        output = np.zeros(shape=size + (2,))
+        x_1 = rng.poisson(lam * T)
+        x_2 = rng.geometric(p)
+        x = np.minimum(x_1, x_2)
 
-        # TODO: Optimize to work in a vectorized manner!
-        def sim_data(lam, p, T):
-            t = 0
-            n = 0
+        nzp = x == 0  # nzp = non-zero purchases
 
-            while True:
-                wait = rng.exponential(scale=1 / lam)
-                dropout = rng.binomial(n=1, p=p)
+        if x.shape == ():
+            if nzp:
+                return np.array([0, 0])
+            else:
+                return np.array([rng.beta(x, np.maximum(x_1 + 1 - x_2, 1)) * T, x])
 
-                if t + wait > T:
-                    break
-                else:
-                    t += wait
-                    n += 1
+        x[nzp] = 1.0  # temporary to avoid errors in rng.beta below
+        t_x = rng.beta(x, np.maximum(x_1 + 1 - x_2, 1)) * T
 
-                    if dropout == 1:
-                        break
+        x[nzp] = 0.0
+        t_x[nzp] = 0.0
 
-            return np.array([t, n])
-
-        for index in np.ndindex(*size):
-            output[index] = sim_data(lam[index], p[index], T[index])
-
-        return output
+        return np.stack([t_x, x], axis=-1)
 
     def _supp_shape_from_params(*args, **kwargs):
         return (2,)
@@ -170,35 +163,27 @@ class ContContractRV(RandomVariable):
         p = np.broadcast_to(p, size)
         T = np.broadcast_to(T, size)
 
-        output = np.zeros(shape=size + (3,))
+        x_1 = rng.poisson(lam * T)
+        x_2 = rng.geometric(p)
+        x = np.minimum(x_1, x_2)
 
-        def sim_data(lam, p, T):
-            t = 0
-            n = 0
+        nzp = x == 0  # nzp = non-zero purchases
 
-            dropout = 0
-            while not dropout:
-                wait = rng.exponential(scale=1 / lam)
-                # If we didn't go into the future
-                if (t + wait) < T:
-                    n += 1
-                    t = t + wait
-                    dropout = rng.binomial(n=1, p=p)
-                else:
-                    break
+        if x.shape == ():
+            if nzp:
+                return np.array([0, 0, float(x_1 > x_2)])
+            else:
+                return np.array(
+                    [rng.beta(x, np.maximum(x_1 + 1 - x_2, 1)) * T, x, float(x_1 > x_2)]
+                )
 
-            return np.array(
-                [
-                    t,
-                    n,
-                    dropout,
-                ],
-            )
+        x[nzp] = 1.0  # temporary to avoid errors in rng.beta below
+        t_x = rng.beta(x, np.maximum(x_1 + 1 - x_2, 1)) * T
 
-        for index in np.ndindex(*size):
-            output[index] = sim_data(lam[index], p[index], T[index])
+        x[nzp] = 0.0
+        t_x[nzp] = 0.0
 
-        return output
+        return np.stack([t_x, x, (x_1 > x_2).astype(float)], axis=-1)
 
     def _supp_shape_from_params(*args, **kwargs):
         return (3,)
