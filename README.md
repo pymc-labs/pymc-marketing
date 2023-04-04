@@ -7,7 +7,7 @@
 [![PyPI Version](https://img.shields.io/pypi/v/pymc-marketing.svg)](https://pypi.python.org/pypi/pymc-marketing)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-PyMC-Marketing is an open source Python package for Bayesian marketing analytics. It provides a flexible API for working with two key types of models: Media Mix Models (MMM) and Customer Lifetime Value (CLV). The package is built on top of [PyMC](https://www.pymc.io/).
+**Unlock the power of marketing analytics with PyMC-Marketing – the open source solution for smarter decision-making.** Media mix modeling and customer lifetime value modules allow businesses to make data-driven decisions about their marketing campaigns. Optimize your marketing strategy and unlock the full potential of your customer data.
 
 ---
 
@@ -87,6 +87,9 @@ In the documentation, we provide some examples on how to use the CLV API. We use
 - [Gamma-Gamma model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/gamma_gamma.html)
 
 ---
+
+## 📞 Schedule a Consultation
+Unlock your potential with a free 30-minute strategy session with our PyMC experts. Discover how open source solutions and pymc-marketing can elevate your media-mix models and customer lifetime value analyses. Boost your career and organization by making smarter, data-driven decisions. Don't wait—[claim your complimentary session](https://calendly.com/benjamin-vincent/pymc-marketing) today and lead the way in marketing and data science innovation.
 
 ## Using PyMC-Marketing and how PyMC Labs can help you
 PyMC-Marketing uses the [Apache 2.0 licence](LICENSE) which permits commercial use, amongst other things.
