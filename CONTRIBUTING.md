@@ -34,7 +34,7 @@ For more instructions see the [Pull request checklist](#pull-request-checklist)
 
     ```bash
     git clone git@github.com:<your GitHub handle>/pymc-marketing.git
-    cd bambi
+    cd pymc-marketing
     git remote add upstream git@github.com:pymc-labs/pymc-marketing.git
     ```
 
