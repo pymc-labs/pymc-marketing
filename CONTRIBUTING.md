@@ -117,19 +117,11 @@ We recommend that your contribution complies with the following guidelines befor
 
 - When adding additional functionality, either edit an existing example, or create a new example (typically in the form of a Jupyter Notebook) in the `pymc-marketing/docs/source/mmm` or `pymc-marketing/docs/source/clv` folders. Have a look at other examples for reference. Examples should demonstrate why the new functionality is useful in practice.
 
-- ???? Added tests follow the [pytest fixture pattern](https://docs.pytest.org/en/latest/fixture.html#fixture)
-
 - Documentation and high-coverage tests are necessary for enhancements to be accepted.
 
-- ???? Documentation follows Numpy style guide
+- Documentation follows Numpy style guide
 
 - Run any of the pre-existing examples in `pymc-marketing/docs/source/*` that contain analyses that would be affected by your changes to ensure that nothing breaks. This is a useful opportunity to not only check your work for bugs that might not be revealed by unit test, but also to show how your contribution improves PyMC-Marketing for end users.
-
-- Code coverage **cannot** decrease. Coverage can be checked with **pytest-cov** package:
-
-  ```bash
-  ????
-  ```
 
 - Your code passes linting tests. Run the line below to check linting errors:
 
