@@ -1,6 +1,6 @@
 # Guidelines for Contributing
 
-PyMC-Marketing welcomes contributions from interested individuals or groups. These guidelines are provided to give potential contributors information to make their contribution compliant with the conventions of the PyMC-Marketing project, and maximize the probability of such contributions to be merged as quickly and efficiently as possible.
+PyMC-Marketing welcomes contributions from interested individuals or groups. These guidelines are provided to give potential contributors information to make their contribution compliant with the conventions of the PyMC-Marketing project, and maximize the probability of such contributions to be merged as quickly and efficiently as possible. Contributors need not be experts, but should be interested in the project, willing to learn, and share knowledge.
 
 There are 4 main ways of contributing to the PyMC-Marketing project (in ascending order of difficulty or scope):
 
