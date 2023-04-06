@@ -42,4 +42,4 @@ Thus we can summarize the full MMM with this image:
 ![](bayesian_mmm.png)
 
 ## Putting it all together
-To see how all these different components come together, you can review the :ref:`MMM Example Notebook`.
+To see how all these different components come together, you can review the {ref}`MMM Example Notebook`.
