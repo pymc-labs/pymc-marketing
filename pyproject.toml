@@ -16,7 +16,7 @@ dependencies = [
     "matplotlib>=3.5.1",
     "numpy>=1.17",
     "pandas",
-    "pymc>=5.0.0",
+    "pymc>=5.1.2",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "xarray"
