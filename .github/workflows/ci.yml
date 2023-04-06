@@ -45,3 +45,13 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
           name: ${{ matrix.python-version }}
           fail_ci_if_error: false
+
+  all:
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    name: All checks
+    needs: [ lint, test ]
+    steps:
+      - name: Confirm checks passed
+        if: ${{ (needs.lint.result != 'success' || needs.test.result != 'success') }}
+        run: exit 1
