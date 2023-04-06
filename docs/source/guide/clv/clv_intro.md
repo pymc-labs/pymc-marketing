@@ -31,4 +31,4 @@ Unfortunately, not all customer relationships last forever.  The second componen
 By combining the purchasing behavior of each customer with the expected period over which such purchases will be made, we arrive at an estimate of the total revenue expected from each customer.
 
 ## Putting it all together
-To see how all these different components come together, you can review the {ref}`CLV Quickstart` or one of {ref}`specific CLV models <Examples>` available within PyMC-Marketing. 
+To see how all these different components come together, you can review the {ref}`CLV Quickstart <clv_quickstart>` or one of {ref}`specific CLV models <clv_examples>` available within PyMC-Marketing. 
