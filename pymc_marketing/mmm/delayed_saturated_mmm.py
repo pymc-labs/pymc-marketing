@@ -138,6 +138,7 @@ class DelayedSaturatedMMM(
         target_data = data_df[self.target_column]
         channel_data = data_df[self.channel_columns]
         model_data = {
+            "coords": coords,
             "target": {"value": target_data, "dims": ("date",)},
             "channel_data": {"value": channel_data, "dims": ("date", "channel")},
         }

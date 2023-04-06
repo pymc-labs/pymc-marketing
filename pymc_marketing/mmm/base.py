@@ -57,7 +57,7 @@ class BaseMMM(ModelBuilder):
             data_df=self.preprocessed_data,
             **kwargs,
         )
-        super.__init__(data_df, self.model_config)
+        super.__init__(self.data_df, self.model_config)
 
     @property
     def methods(self) -> List[Any]:
