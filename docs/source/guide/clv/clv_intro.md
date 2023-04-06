@@ -29,3 +29,6 @@ The revenue model characterizes the rate at which individual customers "buy" (i.
 Unfortunately, not all customer relationships last forever.  The second component allows us to model the expected duration of the customer relationship.  With contractual relationships, customers may voluntarily churn at the end of contract periods (e.g., deciding not to renew a subscription) and CLV models estimate the probability with which a given customer does or does not do so.  With non-contractual customer relationships, things are trickier. If a customer tends to make a purchase once per month and hasn't done so for 6 weeks, should we assume the customer has churned? Or perhaps this is just part of the typical variability in this customer's behavior. Either way, CLV models permit us to evaluate the probability that a given customer will continue to be a customer at some given time in the future and the total lifetime of each customer.
 
 By combining the purchasing behavior of each customer with the expected period over which such purchases will be made, we arrive at an estimate of the total revenue expected from each customer.
+
+## Putting it all together
+To see how all these different components come together, you can review the :ref:`CLV Quickstart` or one of :ref:`specific CLV models<Examples>` available within PyMC-Marketing. 
