@@ -64,7 +64,7 @@ For more instructions see the [Pull request checklist](#pull-request-checklist)
     make init
     ```
 
-    Set [pre-commit hooks](https://pre-commit.com/):
+    Set [pre-commit hooks](https://pre-commit.com/). First install pre-commit package (either `pip install pre-commit`, see the package's installation instructions). Alternatively you can run `make check_lint` which will install the `pre-commit` package. Then run this to set up the git hook scripts:
 
     ```bash
     pre-commit install
