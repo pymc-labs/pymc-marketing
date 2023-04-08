@@ -20,6 +20,7 @@ class TestParetoNBDModel:
         cls.s_true = 0.6061
         cls.beta_true = 11.6562
 
+        # Quickstart dataset is the CDNOW_sample research dataset
         test_data = pd.read_csv("datasets/clv_quickstart.csv")
 
         cls.customer_id = test_data.index
@@ -104,7 +105,7 @@ class TestParetoNBDModel:
             ("map", 0.1),
         ],
     )
-    def test_model_convergence(self, cdnow_sample, fit_method, rtol):
+    def test_model_convergence(self, fit_method, rtol):
         # # Edit priors here for convergence testing
         # # Note that None/pm.HalfFlat is extremely slow to converge
         r_prior = pm.Weibull.dist(alpha=10, beta=1)
@@ -116,10 +117,10 @@ class TestParetoNBDModel:
         #      was recommended due to bugs in lifetimes. try also testing with PD series because
         #      data preprocessing is now handled by pymc_marketing.clv.utils.clv_summary
         model = ParetoNBDModel(
-            customer_id=cdnow_sample["customer_id"].values,
-            frequency=cdnow_sample["frequency"].values,
-            recency=cdnow_sample["recency"].values,
-            T=cdnow_sample["T"].values,
+            customer_id=self.customer_id,
+            frequency=self.frequency,
+            recency=self.recency,
+            T=self.T,
             r_prior=r_prior,
             alpha_prior=alpha_prior,
             s_prior=s_prior,

@@ -484,22 +484,12 @@ class ParetoNBDModel(CLVModel):
         loglike = pm.logp(pareto_dist, values).eval()
         loglike = xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
 
-        if alpha.mean() < beta.mean():
-            min_of_alpha_beta, max_of_alpha_beta, p, _, _ = (
-                alpha,
-                beta,
-                r + x + n,
-                r + x,
-                r + x + 1,
-            )
-        else:
-            min_of_alpha_beta, max_of_alpha_beta, p, _, _ = (
-                beta,
-                alpha,
-                s + 1,
-                s + 1,
-                s,
-            )
+        min_of_alpha_beta, max_of_alpha_beta, p = np.where(
+            alpha < beta,
+            (alpha, beta, r + x + n),
+            (beta, alpha, s + 1),
+        )
+
         abs_alpha_beta = max_of_alpha_beta - min_of_alpha_beta
 
         log_p_zero = (
@@ -558,7 +548,7 @@ class ParetoNBDModel(CLVModel):
         zeroth_term = (n == 0) * (1 - exp(log_p_zero))
         first_term = n * log(future_t) - gammaln(n + 1) + log_B_one - loglike
         second_term = log_B_two - loglike
-        third_term = logsumexp(
+        third_term = -logsumexp(
             [
                 i * log(future_t) - gammaln(i + 1) + _log_B_three(i) - loglike
                 for i in range(n + 1)
@@ -566,21 +556,27 @@ class ParetoNBDModel(CLVModel):
             axis=0,
         )
 
-        if len(x) > 1:
-            size = len(x)
-            sign = np.ones(size)
-        else:
-            sign = 1
+        # all_terms = np.concatenate([first_term, second_term, third_term])
+
+        # if len(x) > 1:
+        #     size = len(x)
+        #     sign = np.ones(size)
+        # else:
+        #     sign = 1
+
+        # signs = np.array([sign, sign, -sign])
+        # term_signs = np.ones_like([first_term, second_term, third_term])
+        # term_signs = np.multiply(term_signs, signs)
 
         # In some scenarios (e.g. large n) tiny numerical errors in the calculation of second_term and third_term
         # cause sumexp to be ever so slightly negative and logsumexp throws an error. Hence we ignore the sign here.
         purchase_prob = zeroth_term + exp(
             logsumexp(
                 [first_term, second_term, third_term],
-                b=[sign, sign, -sign],
+                # b=term_signs,
                 axis=0,
                 return_sign=False,
-            )[0]
+            )
         )
 
         return purchase_prob.transpose(
