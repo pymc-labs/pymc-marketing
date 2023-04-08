@@ -20,9 +20,9 @@ class TestParetoNBDModel:
         cls.s_true = 0.6061
         cls.beta_true = 11.6562
 
-        test_data = pd.read_csv("tests/clv/datasets/cdnow_sample.csv")
+        test_data = pd.read_csv("datasets/clv_quickstart.csv")
 
-        cls.customer_id = test_data["customer_id"]
+        cls.customer_id = test_data.index
         cls.frequency = test_data["frequency"]
         cls.recency = test_data["recency"]
         cls.T = test_data["T"]

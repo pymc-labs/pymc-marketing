@@ -30,23 +30,3 @@ def cdnow_trans() -> pd.DataFrame:
     Data source: https://www.brucehardie.com/datasets/
     """
     return pd.read_csv("tests/clv/datasets/cdnow_transactions.csv")
-
-
-@pytest.fixture(scope="module")
-def cdnow_sample() -> pd.DataFrame:
-    """
-    Load CDNOW_sample summary data into a Pandas dataframe.
-
-    Data source: https://www.brucehardie.com/datasets/
-    """
-    return pd.read_csv("tests/clv/datasets/cdnow_sample.csv")
-
-
-@pytest.fixture(scope="module")
-def cdnow_full() -> pd.DataFrame:
-    """
-    Load CDNOW_master summary data into a Pandas dataframe.
-
-    Data source: https://www.brucehardie.com/datasets/
-    """
-    return pd.read_csv("tests/clv/datasets/cdnow_master.csv")
