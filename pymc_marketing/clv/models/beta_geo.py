@@ -145,7 +145,7 @@ class BetaGeoModel(CLVModel):
                 The log-likelihood expression here aligns with expression (4) from [3]
                 due to the possible numerical instability of expression (3).
                 """
-                x_zero = pt.where(x > 0, 1, 0)
+                x_non_zero = x > 0
 
                 # Refactored for numerical error
                 d1 = (
@@ -161,7 +161,7 @@ class BetaGeoModel(CLVModel):
                 c3 = ((alpha + t_x) / (alpha + T)) ** (r + x)
                 c4 = a / (b + x - 1)
 
-                logp = d1 + d2 + pt.log(c3 + c4 * pt.switch(x_zero, 1, 0))
+                logp = d1 + d2 + pt.log(c3 + pt.switch(x_non_zero, c4, 0))
 
                 return check_parameters(
                     logp,

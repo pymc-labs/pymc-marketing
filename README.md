@@ -7,9 +7,32 @@
 [![PyPI Version](https://img.shields.io/pypi/v/pymc-marketing.svg)](https://pypi.python.org/pypi/pymc-marketing)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-PyMC-Marketing is an open source Python package for Bayesian marketing analytics. It provides a flexible API for working with two key types of models: Media Mix Models (MMM) and Customer Lifetime Value (CLV). The package is built on top of [PyMC](https://www.pymc.io/).
+**Unlock the power of marketing analytics with PyMC-Marketing – the open source solution for smarter decision-making.** Media mix modeling and customer lifetime value modules allow businesses to make data-driven decisions about their marketing campaigns. Optimize your marketing strategy and unlock the full potential of your customer data.
 
 ---
+
+## Installation
+
+Start by setting up an environment (e.g. `marketing_env`) with PyMC. It may look something like the following:
+
+```bash
+mamba create -c conda-forge -n marketing_env python "pymc>=5"
+mamba activate marketing_env
+```
+
+See the official [PyMC installation guide](https://www.pymc.io/projects/docs/en/latest/installation.html) if more detail is needed.
+
+Assuming you have an environment set up then install PyMC-Marketing with the following command. This will give you the latest version of the library from PyPI.
+
+```bash
+pip install pymc-marketing
+```
+
+Alternatively you can install from GitHub directly:
+
+```bash
+pip install git+https://github.com/pymc-labs/pymc-marketing.git
+```
 
 ## Bayesian Media Mix Models (MMMs) in PyMC
 
@@ -64,6 +87,9 @@ In the documentation, we provide some examples on how to use the CLV API. We use
 - [Gamma-Gamma model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/gamma_gamma.html)
 
 ---
+
+## 📞 Schedule a Consultation
+Unlock your potential with a free 30-minute strategy session with our PyMC experts. Discover how open source solutions and pymc-marketing can elevate your media-mix models and customer lifetime value analyses. Boost your career and organization by making smarter, data-driven decisions. Don't wait—[claim your complimentary session](https://calendly.com/benjamin-vincent/pymc-marketing) today and lead the way in marketing and data science innovation.
 
 ## Using PyMC-Marketing and how PyMC Labs can help you
 PyMC-Marketing uses the [Apache 2.0 licence](LICENSE) which permits commercial use, amongst other things.
