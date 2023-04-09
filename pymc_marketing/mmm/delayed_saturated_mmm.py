@@ -171,8 +171,8 @@ class DelayedSaturatedMMM(
             )
             model_config["mu_var"] = (
                 {
-                    # got to figure out how to save information about interactions between model variables
-                    # or functions being applied to them
+                    # TODO got to figure out how to save information about interactions between model variables
+                    # or functions being applied to them.
                 },
             )
             if control_data is not None:
