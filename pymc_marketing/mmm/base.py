@@ -16,6 +16,7 @@ import pandas as pd
 import pymc as pm
 import seaborn as sns
 from pymc.util import RandomState
+from pymc_experimental import ModelBuilder
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray
@@ -29,7 +30,7 @@ from pymc_marketing.mmm.validating import (
 __all__ = ("BaseMMM", "MMM")
 
 
-class BaseMMM:
+class BaseMMM(ModelBuilder):
     def __init__(
         self,
         data: pd.DataFrame,
@@ -56,6 +57,7 @@ class BaseMMM:
             data=self.preprocessed_data,
             **kwargs,
         )
+        super.__init__(data, self.model_config)
 
     @property
     def methods(self) -> List[Any]:
@@ -125,6 +127,9 @@ class BaseMMM:
         *args: Any,
         **kwargs: Any,
     ) -> None:
+        sampler_config = {"progressbar": progressbar, "random_seed": random_seed}
+        sampler_config.update(kwargs)
+        self.sampler_config = sampler_config
         with self.model:
             self._fit_result = pm.sample(
                 progressbar=progressbar, random_seed=random_seed, *args, **kwargs

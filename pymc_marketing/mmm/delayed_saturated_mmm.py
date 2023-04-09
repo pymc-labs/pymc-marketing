@@ -125,3 +125,79 @@ class DelayedSaturatedMMM(
                 observed=target_,
                 dims="date",
             )
+
+            self.data, self.model_config = self._assmemble_model_info(
+                data, coords, adstock_max_lag, control_data
+            )
+
+        def _assmemble_model_info(
+            self, data, coords, adstock_max_lag, control_data
+        ) -> tuple(Dict, Dict):
+            target_data = data[self.target_column]
+            channel_data = data[self.channel_columns]
+            model_data = {
+                "target": {"value": target_data, "dims": ("date",)},
+                "channel_data": {"value": channel_data, "dims": ("date", "channel")},
+            }
+            model_config = {
+                "intercept": {"type": "dist", "mu": 0, "sigma": 2},
+                "beta_channel": {"type": "dist", "sigma": 2, "dims": ("channel",)},
+                "alpha": {"type": "dist", "alpha": 1, "beta": 3, "dims": ("channel",)},
+                "lam": {"type": "dist", "alpha": 3, "beta": 1, "dims": ("channel",)},
+                "sigma": {"type": "dist", "sigma": 2},
+            }
+            model_config["channel_adstock"] = (
+                {
+                    "type": "deterministic",
+                    "apply_function": geometric_adstock,
+                    "var": {
+                        "x": channel_data,
+                        "alpha": model_config["alpha"],
+                        "l_max": adstock_max_lag,
+                        "normalize": True,
+                    },
+                },
+            )
+            model_config["channel_addstock_saturated"] = (
+                {
+                    "type": "deterministic",
+                    "apply_function": logistic_saturation,
+                    "var": {
+                        "x": model_config["channel_adstock"],
+                        "lam": model_config["lam"],
+                    },
+                    "dims": ("date", "channel"),
+                },
+            )
+            model_config["mu_var"] = (
+                {
+                    # got to figure out how to save information about interactions between model variables
+                    # or functions being applied to them
+                },
+            )
+            if control_data is not None:
+                model_data["control_data"] = {
+                    "value": control_data,
+                    "dims": ("date", "control"),
+                }
+                model_config["gamma_control"] = {
+                    "type": "dist",
+                    "mu": 0,
+                    "sigma": 2,
+                    "dims": ("control",),
+                }
+                model_config["control_contributions"] = {
+                    "type": "deterministic",
+                    # TODO find a way to save interactions
+                    "var": {},
+                    "dims": ("date", "control"),
+                }
+                model_config["mu"] = {"var": model_config["mu_var"], "dims": ("date",)}
+                model_config["likelihood"] = {
+                    "mu": model_config["mu"],
+                    "sigma": model_config["sigma"],
+                    "observed": model_data["target"],
+                    "dims": ("date",),
+                }
+
+            return model_data, model_config
