@@ -52,11 +52,11 @@ class BaseMMM(ModelBuilder):
         if validate_data:
             self.validate(self.data)
         self.preprocessed_data = self.preprocess(self.data.copy())
-
-        self.build_model(
+        self.data["model_data"], self.model_config = self._assmemble_model_info(
             data=self.preprocessed_data,
             **kwargs,
         )
+        self.build_model(self.model_config, self.data["model_data"])
         super.__init__(data, self.model_config)
 
     @property
