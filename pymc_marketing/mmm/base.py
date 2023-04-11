@@ -16,7 +16,7 @@ import pandas as pd
 import pymc as pm
 import seaborn as sns
 from pymc.util import RandomState
-from pymc_experimental import ModelBuilder
+from pymc_experimental.model_builder import ModelBuilder
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray
