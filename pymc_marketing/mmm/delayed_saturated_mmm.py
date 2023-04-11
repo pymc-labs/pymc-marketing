@@ -1,5 +1,6 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
+import numpy as np
 import pandas as pd
 import pymc as pm
 
@@ -136,78 +137,108 @@ class DelayedSaturatedMMM(
                 dims=model_config.likelihood["dims"],
             )
 
-        @classmethod
-        def create_sample_input(
-            self, data, adstock_max_lag: int = 4
-        ) -> tuple(Dict, Dict):
-            date_data = data[self.date_column]
-            target_data = data[self.target_column]
-            channel_data = data[self.channel_columns]
-            if self.control_columns is not None:
-                control_data: Optional[pd.DataFrame] = data[self.control_columns]
-            else:
-                control_data = None
-            coords: Dict[str, Any] = {
-                "date": date_data,
-                "channel": channel_data.columns,
-            }
+    @classmethod
+    def create_sample_input(
+        self, data, adstock_max_lag: int = 4
+    ) -> tuple(Dict[dict, Any], Dict[dict, Any]):
+        """
+        Needs to be implemented by the user in the inherited class.
+        Returns examples for data, model_config.
+        This is useful for understanding the required
+        data structures for the user model.
+        """
 
-            if control_data is not None:
-                coords["control"] = control_data.columns
-
-            model_data = {
-                "target": {"value": target_data, "dims": ("date",)},
-                "channel_data": {"value": channel_data, "dims": ("date", "channel")},
-            }
-            model_config = {
-                "intercept": {"type": "dist", "mu": 0, "sigma": 2},
-                "beta_channel": {"type": "dist", "sigma": 2, "dims": ("channel",)},
-                "alpha": {"type": "dist", "alpha": 1, "beta": 3, "dims": ("channel",)},
-                "lam": {"type": "dist", "alpha": 3, "beta": 1, "dims": ("channel",)},
-                "sigma": {"type": "dist", "sigma": 2},
-            }
-            model_config["channel_adstock"] = (
-                {
-                    "type": "deterministic",
-                    "apply_function": geometric_adstock,
-                    "var": {
-                        "x": channel_data,
-                        "alpha": model_config["alpha"],
-                        "l_max": adstock_max_lag,
-                        "normalize": True,
-                    },
+        date_data = data[self.date_column]
+        target_data = data[self.target_column]
+        channel_data = data[self.channel_columns]
+        if self.control_columns is not None:
+            control_data: Optional[pd.DataFrame] = data[self.control_columns]
+        else:
+            control_data = None
+        coords: Dict[str, Any] = {
+            "date": date_data,
+            "channel": channel_data.columns,
+        }
+        model_config = {
+            "intercept": {"type": "dist", "mu": 0, "sigma": 2},
+            "beta_channel": {"type": "dist", "sigma": 2, "dims": ("channel",)},
+            "alpha": {"type": "dist", "alpha": 1, "beta": 3, "dims": ("channel",)},
+            "lam": {"type": "dist", "alpha": 3, "beta": 1, "dims": ("channel",)},
+            "sigma": {"type": "dist", "sigma": 2},
+        }
+        model_config["channel_adstock"] = (
+            {
+                "type": "deterministic",
+                "apply_function": geometric_adstock,
+                "var": {
+                    "x": channel_data,
+                    "alpha": model_config["alpha"],
+                    "l_max": adstock_max_lag,
+                    "normalize": True,
                 },
-            )
-            model_config["channel_addstock_saturated"] = (
-                {
-                    "type": "deterministic",
-                    "apply_function": logistic_saturation,
-                    "var": {
-                        "x": model_config["channel_adstock"],
-                        "lam": model_config["lam"],
-                    },
-                    "dims": ("date", "channel"),
+            },
+        )
+        model_config["channel_addstock_saturated"] = (
+            {
+                "type": "deterministic",
+                "apply_function": logistic_saturation,
+                "var": {
+                    "x": model_config["channel_adstock"],
+                    "lam": model_config["lam"],
                 },
-            )
-            if control_data is not None:
-                model_data["control_data"] = {
-                    "value": control_data,
-                    "dims": ("date", "control"),
-                }
-                model_config["gamma_control"] = {
-                    "type": "dist",
-                    "mu": 0,
-                    "sigma": 2,
-                    "dims": ("control",),
-                }
-                model_config["control_contributions"] = {
-                    "type": "deterministic",
-                    "dims": ("date", "control"),
-                }
-                model_config["mu"] = {"dims": ("date",)}
-                model_config["likelihood"] = {
-                    "dims": ("date",),
-                }
-                model_config["coords"] = coords
+                "dims": ("date", "channel"),
+            },
+        )
+        if control_data is not None:
+            coords["control"] = control_data.columns
+        model_data = {
+            "target": {"value": target_data, "dims": ("date",)},
+            "channel_data": {"value": channel_data, "dims": ("date", "channel")},
+        }
+        if control_data is not None:
+            model_data["control_data"] = {
+                "value": control_data,
+                "dims": ("date", "control"),
+            }
+            model_config["gamma_control"] = {
+                "type": "dist",
+                "mu": 0,
+                "sigma": 2,
+                "dims": ("control",),
+            }
+            model_config["control_contributions"] = {
+                "type": "deterministic",
+                "dims": ("date", "control"),
+            }
+            model_config["mu"] = {"dims": ("date",)}
+            model_config["likelihood"] = {
+                "dims": ("date",),
+            }
+            model_config["coords"] = coords
+        return model_data, model_config
 
-            return model_data, model_config
+    def _data_setter(self, data: Dict[str, Union[np.ndarray, pd.DataFrame, pd.Series]]):
+        """
+        Sets new data in the model.
+
+        Parameters
+        ----------
+        data : Dictionary of string and either of numpy array, pandas dataframe or pandas Series
+            It is the data we need to set as idata for the model
+        """
+
+        with self.model:
+            try:
+                new_channel_data = data["channel_data"]
+            except KeyError as e:
+                print("New data must contain channel_data!", e)
+            try:
+                target = data["target"]
+            except KeyError as e:
+                print("New data must contain target", e)
+            pm.set_data(
+                {
+                    "channel_data": new_channel_data,
+                    "target": target,
+                }
+            )
