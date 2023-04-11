@@ -140,10 +140,10 @@ class DelayedSaturatedMMM(
     @classmethod
     def create_sample_input(
         self, data, adstock_max_lag: int = 4
-    ) -> tuple(Dict[dict, Any], Dict[dict, Any]):
+    ) -> tuple(Dict[dict, Any]):
         """
         Needs to be implemented by the user in the inherited class.
-        Returns examples for data, model_config.
+        Returns examples for data, model_config and sampler_config.
         This is useful for understanding the required
         data structures for the user model.
         """
@@ -215,6 +215,8 @@ class DelayedSaturatedMMM(
                 "dims": ("date",),
             }
             model_config["coords"] = coords
+
+            self.sampler_config = {"progressbar": True, "random_seed": None}
         return model_data, model_config
 
     def _data_setter(self, data: Dict[str, Union[np.ndarray, pd.DataFrame, pd.Series]]):
