@@ -136,7 +136,8 @@ class DelayedSaturatedMMM(
                 dims=model_config.likelihood["dims"],
             )
 
-        def _assmemble_model_info(
+        @classmethod
+        def create_sample_input(
             self, data, adstock_max_lag: int = 4
         ) -> tuple(Dict, Dict):
             date_data = data[self.date_column]
