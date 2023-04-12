@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -140,7 +140,7 @@ class DelayedSaturatedMMM(
     @classmethod
     def create_sample_input(
         self, data, adstock_max_lag: int = 4
-    ) -> tuple(Dict[dict, Union[dict, str]]):
+    ) -> Tuple(Dict[dict, Union[dict, str]]):
         """
         Needs to be implemented by the user in the inherited class.
         Returns examples for data, model_config and sampler_config.
