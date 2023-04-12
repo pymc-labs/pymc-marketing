@@ -19,7 +19,8 @@ dependencies = [
     "pymc>=5.1.2",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
-    "xarray"
+    "xarray",
+    "xarray-einstats>0.5.1",
 ]
 
 [project.optional-dependencies]
