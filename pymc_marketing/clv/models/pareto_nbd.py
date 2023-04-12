@@ -6,7 +6,8 @@ import pymc as pm
 import xarray
 from numpy import exp, log
 from pytensor.tensor import TensorVariable
-from scipy.special import betaln, gammaln, hyp2f1, logsumexp
+from scipy.special import betaln, gammaln, hyp2f1
+from xarray_einstats.stats import logsumexp as xr_logsumexp
 
 from pymc_marketing.clv.distributions import ParetoNBD
 from pymc_marketing.clv.models.basic import CLVModel
@@ -480,15 +481,14 @@ class ParetoNBDModel(CLVModel):
             beta=beta.values[..., None],
             T=T.values,
         )
-        values = np.vstack((t_x.values, x.values)).T
+        values = np.column_stack((t_x.values, x.values))
         loglike = pm.logp(pareto_dist, values).eval()
         loglike = xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
 
-        min_of_alpha_beta, max_of_alpha_beta, p = np.where(
-            alpha < beta,
-            (alpha, beta, r + x + n),
-            (beta, alpha, s + 1),
-        )
+        _alpha_less_than_beta = alpha < beta
+        min_of_alpha_beta = xarray.where(_alpha_less_than_beta, alpha, beta)
+        max_of_alpha_beta = xarray.where(_alpha_less_than_beta, beta, alpha)
+        p = xarray.where(_alpha_less_than_beta, r + x + n, s + 1)
 
         abs_alpha_beta = max_of_alpha_beta - min_of_alpha_beta
 
@@ -548,34 +548,22 @@ class ParetoNBDModel(CLVModel):
         zeroth_term = (n == 0) * (1 - exp(log_p_zero))
         first_term = n * log(future_t) - gammaln(n + 1) + log_B_one - loglike
         second_term = log_B_two - loglike
-        third_term = -logsumexp(
-            [
-                i * log(future_t) - gammaln(i + 1) + _log_B_three(i) - loglike
-                for i in range(n + 1)
-            ],
-            axis=0,
+        third_term = xr_logsumexp(
+            xarray.concat(
+                [
+                    i * log(future_t) - gammaln(i + 1) + _log_B_three(i) - loglike
+                    for i in range(n + 1)
+                ],
+                dim="concat_dim_",
+            ),
+            dims="concat_dim_",
         )
 
-        # all_terms = np.concatenate([first_term, second_term, third_term])
-
-        # if len(x) > 1:
-        #     size = len(x)
-        #     sign = np.ones(size)
-        # else:
-        #     sign = 1
-
-        # signs = np.array([sign, sign, -sign])
-        # term_signs = np.ones_like([first_term, second_term, third_term])
-        # term_signs = np.multiply(term_signs, signs)
-
-        # In some scenarios (e.g. large n) tiny numerical errors in the calculation of second_term and third_term
-        # cause sumexp to be ever so slightly negative and logsumexp throws an error. Hence we ignore the sign here.
         purchase_prob = zeroth_term + exp(
-            logsumexp(
-                [first_term, second_term, third_term],
-                # b=term_signs,
-                axis=0,
-                return_sign=False,
+            xr_logsumexp(
+                xarray.concat([first_term, second_term, third_term], dim="_concat_dim"),
+                b=xarray.DataArray(data=[1, 1, -1], dims="_concat_dim"),
+                dims="_concat_dim",
             )
         )
 

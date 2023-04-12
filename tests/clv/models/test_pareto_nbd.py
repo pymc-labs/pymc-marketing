@@ -279,7 +279,7 @@ class TestParetoNBDModel:
         assert est_purchases_new_customer.dims == ("chain", "draw", "customer_id")
 
         np.testing.assert_allclose(
-            true_prob_purchase.mean(),
-            est_purchases_new_customer.mean(),
-            rtol=0.001,
+            true_prob_purchase,
+            est_purchases_new_customer.mean(("chain", "draw")),
+            rtol=0.01,
         )
