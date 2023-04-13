@@ -40,3 +40,7 @@ The marketing spend for a given channel may have a short-term effect or long-ter
 Thus we can summarize the full MMM with this image:
 
 ![](bayesian_mmm.png)
+
+## Putting it all together
+
+To see how all these different components come together, you can review the {ref}`MMM Example notebook <mmm_example>`.
