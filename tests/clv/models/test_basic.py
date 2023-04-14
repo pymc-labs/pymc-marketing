@@ -63,7 +63,9 @@ class TestCLVModel:
 
     def test_repr(self):
         model = CLVModelTest()
-        assert model.__repr__() == "CLVModelTest\nx ~ N**+(0, 100)\ny ~ N(x, 1)"
+        assert (
+            model.__repr__() == "CLVModelTest\nx ~ HalfNormal(0, 100)\ny ~ Normal(x, 1)"
+        )
 
     def test_fit_override(self):
         with warnings.catch_warnings():
@@ -95,8 +97,8 @@ class TestCLVModel:
 
         assert ret_prior1 is prior1
         assert ret_prior2 is prior2
-        assert ret_prior1.str_repr() == "N(0, 1)"
-        assert ret_prior2.str_repr() == "N**+(0, 1)"
+        assert ret_prior1.str_repr() == "Normal(0, 1)"
+        assert ret_prior2.str_repr() == "HalfNormal(0, 1)"
 
         with pytest.raises(ValueError, match="Prior variables must be unique"):
             CLVModel._process_priors(prior1, prior2, prior1)
