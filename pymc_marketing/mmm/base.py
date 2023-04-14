@@ -284,13 +284,38 @@ class BaseMMM:
                 az.hdi(control_contributions, hdi_prob=0.94).control_contributions
             )
 
+        if getattr(self, "yearly_seasonality", None):
+            fourier_contribution = az.extract(
+                self.fit_result,
+                var_names=["fourier_contribution"],
+                combined=False,
+            )
+            contracted_dims = [
+                d
+                for d in fourier_contribution.dims
+                if d not in ["chain", "draw", "date"]
+            ]
+            fourier_contribution = (
+                fourier_contribution.sum(contracted_dims)
+                if contracted_dims
+                else fourier_contribution
+            )
+            means.append(fourier_contribution.mean(["chain", "draw"]))
+            contribution_vars.append(
+                az.hdi(fourier_contribution, hdi_prob=0.94).fourier_contribution
+            )
+
         fig, ax = plt.subplots(**plt_kwargs)
 
         for i, (mean, hdi, var_contribution) in enumerate(
             zip(
                 means,
                 contribution_vars,
-                ["channel_contribution", "control_contribution"],
+                [
+                    "channel_contribution",
+                    "control_contribution",
+                    "fourier_contribution",
+                ],
             )
         ):
             ax.fill_between(
@@ -542,7 +567,7 @@ class BaseMMM:
             data=channel_contributions_share,
             combined=True,
             hdi_prob=hdi_prob,
-            backend_kwargs=plot_kwargs,
+            **plot_kwargs,
         )
         ax.xaxis.set_major_formatter(mtick.FuncFormatter(lambda y, _: f"{y: 0.0%}"))
         fig: plt.Figure = plt.gcf()
