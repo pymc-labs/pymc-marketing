@@ -319,7 +319,7 @@ class TestBetaGeoModel:
         assert model.__repr__().replace(" ", "") == (
             "BG/NBD"
             "\na~HalfFlat()"
-            "\nb~N**+(0,10)"
+            "\nb~HalfNormal(0,10)"
             "\nalpha~HalfFlat()"
             "\nr~HalfFlat()"
             "\nlikelihood~Potential(f(r,alpha,b,a))"

@@ -232,7 +232,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
 
         assert model.__repr__().replace(" ", "") == (
             "Gamma-GammaModel(MeanTransactions)"
-            "\np~N**+(0,10)"
+            "\np~HalfNormal(0,10)"
             "\nq~HalfFlat()"
             "\nv~HalfFlat()"
             "\nlikelihood~Potential(f(q,p,v))"
@@ -350,7 +350,7 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         assert model.__repr__().replace(" ", "") == (
             "Gamma-GammaModel(IndividualTransactions)"
             "\np~HalfFlat()"
-            "\nq~N**+(0,10)"
+            "\nq~HalfNormal(0,10)"
             "\nv~HalfFlat()"
             "\nnu~Gamma(q,f(v))"
             "\nspend~Gamma(p,f(nu))"

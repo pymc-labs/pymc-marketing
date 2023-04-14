@@ -111,10 +111,10 @@ class TestShiftedBetaGeoModel:
 
         assert model.__repr__().replace(" ", "") == (
             "Shifted-Beta-GeometricModel(IndividualCustomers)"
-            "\nalpha~N**+(0,10)"
+            "\nalpha~HalfNormal(0,10)"
             "\nbeta~HalfFlat()"
             "\ntheta~Beta(alpha,beta)"
-            f"\nchurn_censored~Censored(Geom(theta),-inf,{self.T})"
+            f"\nchurn_censored~Censored(Geometric(theta),-inf,{self.T})"
         )
 
     @pytest.mark.slow
