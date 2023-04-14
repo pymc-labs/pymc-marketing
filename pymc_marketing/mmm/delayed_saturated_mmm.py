@@ -27,7 +27,7 @@ class DelayedSaturatedMMM(
         yearly_seasonality: Optional[int] = None,
         **kwargs,
     ) -> None:
-        """Media Mix Model with delayed adstock and logistic saturation class.
+        """Media Mix Model with delayed adstock and logistic saturation class (see [1]_).
 
         Parameters
         ----------
@@ -47,6 +47,10 @@ class DelayedSaturatedMMM(
             Number of lags to consider in the adstock transformation, by default 4
         yearly_seasonality : Optional[int], optional
             Number of Fourier modes to model yearly seasonality, by default None
+
+        References
+        ----------
+        .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
         """
         self.control_columns = control_columns
         self.adstock_max_lag = adstock_max_lag
@@ -68,21 +72,23 @@ class DelayedSaturatedMMM(
         date_data = data[self.date_column]
         target_data = data[self.target_column]
         channel_data = data[self.channel_columns]
-        if self.control_columns is not None:
-            control_data: Optional[pd.DataFrame] = data[self.control_columns]
-        else:
-            control_data = None
+
         coords: Dict[str, Any] = {
             "date": date_data,
             "channel": channel_data.columns,
         }
 
-        if control_data is not None:
+        if self.control_columns is not None:
+            control_data: Optional[pd.DataFrame] = data[self.control_columns]
             coords["control"] = control_data.columns
+        else:
+            control_data = None
 
         if self.yearly_seasonality is not None:
-            fourier_features: pd.DataFrame = self._get_fourier_models_data()
+            fourier_features: Optional[pd.DataFrame] = self._get_fourier_models_data()
             coords["fourier_mode"] = fourier_features.columns.to_numpy()
+        else:
+            fourier_features = None
 
         with pm.Model(coords=coords) as self.model:
             channel_data_ = pm.MutableData(

@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 import arviz as az
 import numpy as np
@@ -73,9 +73,15 @@ class TestMMM:
             "multiple_channel",
         ],
     )
+    @pytest.mark.parametrize(
+        argnames="yearly_seasonality",
+        argvalues=[None, 2],
+        ids=["no_yearly_seasonality", "yearly_seasonality"],
+    )
     def test_init(
         self,
         toy_df: pd.DataFrame,
+        yearly_seasonality: Optional[int],
         channel_columns: List[str],
         control_columns: List[str],
         adstock_max_lag: int,
@@ -87,6 +93,7 @@ class TestMMM:
             channel_columns=channel_columns,
             control_columns=control_columns,
             adstock_max_lag=adstock_max_lag,
+            yearly_seasonality=yearly_seasonality,
         )
 
         n_channel: int = len(mmm.channel_columns)
@@ -135,6 +142,7 @@ class TestMMM:
             channel_columns=["channel_1", "channel_2"],
             control_columns=["control_1", "control_2"],
             adstock_max_lag=2,
+            yearly_seasonality=2,
         )
         n_channel: int = len(mmm.channel_columns)
         mmm.fit(target_accept=0.81, draws=draws, chains=chains, random_seed=rng)
@@ -160,3 +168,33 @@ class TestMMM:
             n_channel,
             draws * chains,
         )
+
+    @pytest.mark.parametrize(
+        argnames="yearly_seasonality",
+        argvalues=[None, 1, 2],
+        ids=["no_yearly_seasonality", "yearly_seasonality=1", "yearly_seasonality=2"],
+    )
+    def test_get_fourier_models_data(
+        self, toy_df: pd.DataFrame, yearly_seasonality: Optional[int]
+    ) -> None:
+        mmm = DelayedSaturatedMMM(
+            data=toy_df,
+            target_column="y",
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            control_columns=["control_1", "control_2"],
+            adstock_max_lag=2,
+            yearly_seasonality=yearly_seasonality,
+        )
+
+        fourier_modes_data: Optional[pd.DataFrame] = mmm._get_fourier_models_data()
+
+        if yearly_seasonality is None:
+            assert fourier_modes_data is None
+        else:
+            assert fourier_modes_data.shape == (
+                toy_df.shape[0],
+                2 * yearly_seasonality,
+            )
+            assert fourier_modes_data.max().max() <= 1
+            assert fourier_modes_data.min().min() >= -1
