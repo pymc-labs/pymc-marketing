@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  OLDEST_PYMC_VERSION: "5.1.2"
+  OLDEST_PYMC_VERSION: "5.3.0"
 
 jobs:
   lint:
