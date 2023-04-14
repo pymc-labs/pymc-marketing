@@ -27,8 +27,30 @@ class DelayedSaturatedMMM(
         yearly_seasonality: Optional[int] = None,
         **kwargs,
     ) -> None:
+        """Media Mix Model with delayed adstock and logistic saturation class.
+
+        Parameters
+        ----------
+        data : pd.DataFrame
+            Training data.
+        target_column : str
+            Column name of the target variable.
+        date_column : str
+            Column name of the date variable.
+        channel_columns : List[str]
+            Column names of the media channel variables.
+        validate_data : bool, optional
+            Wether to validate the data upon initialization, by default True
+        control_columns : Optional[List[str]], optional
+            Column names of control variables to be added as additional regressors, by default None
+        adstock_max_lag : int, optional
+            Number of lags to consider in the adstock transformation, by default 4
+        yearly_seasonality : Optional[int], optional
+            Number of Fourier modes to model yearly seasonality, by default None
+        """
         self.control_columns = control_columns
         self.adstock_max_lag = adstock_max_lag
+        self.yearly_seasonality = yearly_seasonality
         super().__init__(
             data=data,
             target_column=target_column,
@@ -42,7 +64,6 @@ class DelayedSaturatedMMM(
         self,
         data: pd.DataFrame,
         adstock_max_lag: int = 4,
-        yearly_seasonality: Optional[int] = None,
     ) -> None:
         date_data = data[self.date_column]
         target_data = data[self.target_column]
@@ -59,7 +80,7 @@ class DelayedSaturatedMMM(
         if control_data is not None:
             coords["control"] = control_data.columns
 
-        if yearly_seasonality is not None:
+        if self.yearly_seasonality is not None:
             fourier_features: pd.DataFrame = self._get_fourier_models_data()
             coords["fourier_mode"] = fourier_features.columns.to_numpy()
 
@@ -125,9 +146,7 @@ class DelayedSaturatedMMM(
 
                 mu_var += control_contributions.sum(axis=-1)
 
-            mu = pm.Deterministic(name="mu", var=mu_var, dims="date")
-
-            if yearly_seasonality is not None:
+            if fourier_features is not None:
                 fourier_data_ = pm.MutableData(
                     name="fourier_data",
                     value=fourier_features,
@@ -140,11 +159,13 @@ class DelayedSaturatedMMM(
 
                 fourier_contribution = pm.Deterministic(
                     name="fourier_contribution",
-                    var=pm.math.dot(fourier_data_, gamma_fourier),
-                    dims="date",
+                    var=fourier_data_ * gamma_fourier,
+                    dims=("date", "fourier_mode"),
                 )
 
-                mu_var += fourier_contribution
+                mu_var += fourier_contribution.sum(axis=-1)
+
+            mu = pm.Deterministic(name="mu", var=mu_var, dims="date")
 
             pm.Normal(
                 name="likelihood",
@@ -161,11 +182,11 @@ class DelayedSaturatedMMM(
         ----------
         https://www.pymc.io/projects/examples/en/latest/time_series/Air_passengers-Prophet_with_Bayesian_workflow.html
         """
-        if self.yearly_seasonality_modes is None:
+        if self.yearly_seasonality is None:
             return None
 
         date_data: pd.Series = pd.to_datetime(
-            arg=self.train_df[self.date_column], format="%Y-%m-%d"
+            arg=self.data[self.date_column], format="%Y-%m-%d"
         )
         periods: npt.NDArray[np.float_] = date_data.dt.dayofyear.to_numpy() / 365.25
         return generate_fourier_modes(
