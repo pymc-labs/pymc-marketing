@@ -411,8 +411,7 @@ class BaseMMM:
         return fig
 
     def plot_grouped_contribution_breakdown_over_time(
-        self, stack_groups: Optional[Dict[str, List[str]]] = None,
-        **plt_kwargs: Any
+        self, stack_groups: Optional[Dict[str, List[str]]] = None, **plt_kwargs: Any
     ) -> plt.Figure:
         """Plot a time series area chart for all channel contributions.
 
@@ -453,7 +452,7 @@ class BaseMMM:
             .squeeze()
             .unstack()
         )
-        
+
         if getattr(self, "control_columns", None):
             contributions_control_over_time = (
                 az.extract(
