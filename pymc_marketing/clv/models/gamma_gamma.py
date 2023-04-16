@@ -5,6 +5,7 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray
+from pymc.util import RandomState
 from pytensor.tensor import TensorVariable
 
 from pymc_marketing.clv.models.basic import CLVModel
@@ -33,7 +34,7 @@ class BaseGammaGammaModel(CLVModel):
         customer_id: Union[np.ndarray, pd.Series],
         mean_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
         frequency: Union[np.ndarray, pd.Series, TensorVariable],
-        random_seed=None,
+        random_seed: Optional[RandomState] = None,
     ) -> xarray.DataArray:
         """Posterior distribution of transaction value per customer"""
 
@@ -385,7 +386,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         self,
         customer_id: Union[np.ndarray, pd.Series],
         individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
-        random_seed=None,
+        random_seed: Optional[RandomState] = None,
     ) -> xarray.DataArray:
         """Return distribution of transaction value per customer"""
 
@@ -404,7 +405,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         self,
         customer_id: Union[np.ndarray, pd.Series],
         individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
-        random_seed=None,
+        random_seed=Optional[None],
     ) -> xarray.DataArray:
         """Return expected transaction value per customer"""
 
