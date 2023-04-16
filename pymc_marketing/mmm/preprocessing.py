@@ -54,7 +54,7 @@ class MaxAbsScaleChannels:
 
 class StandardizeControls:
 
-    control_columns: Optional[List[str]]
+    control_columns: List[str]  # TODO: Handle Optional[List[str]]
 
     @preprocessing_method
     def standardize_control_data(self, data: pd.DataFrame) -> pd.DataFrame:
