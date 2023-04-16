@@ -53,7 +53,7 @@ class ValidateChannelColumns:
             raise ValueError(
                 f"channel_columns {self.channel_columns} contains duplicates"
             )
-        if (data.filter(self.channel_columns) < 0).any().any():
+        if (data.filter(list(self.channel_columns)) < 0).any().any():
             raise ValueError(
                 f"channel_columns {self.channel_columns} contains negative values"
             )

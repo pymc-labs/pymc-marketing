@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -17,9 +17,7 @@ def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
         xarray.DataArray(data=array, coords=coords, dims=dims) for array in arrays
     )
 
-    if len(arrays) == 1:
-        return res[0]
-    return res
+    return res[0] if len(arrays) == 1 else res
 
 
 def customer_lifetime_value(
@@ -125,9 +123,9 @@ def _find_first_transactions(
     transactions: pd.DataFrame,
     customer_id_col: str,
     datetime_col: str,
-    monetary_value_col: str = None,
-    datetime_format: str = None,
-    observation_period_end: Union[str, pd.Period, datetime] = None,
+    monetary_value_col: Optional[str] = None,
+    datetime_format: Optional[str] = None,
+    observation_period_end: Optional[Union[str, pd.Period, datetime]] = None,
     time_unit: str = "D",
 ) -> pd.DataFrame:
     """
@@ -149,15 +147,15 @@ def _find_first_transactions(
         Column in the transactions DataFrame that denotes the customer_id.
     datetime_col:  string
         Column in the transactions DataFrame that denotes the datetime the purchase was made.
-    monetary_value_col: string, optional
+    monetary_value_col: Optional[str], by default None
         Column in the transactions DataFrame that denotes the monetary value of the transaction.
         Optional; only needed for spend estimation models like the Gamma-Gamma model.
-    observation_period_end: :obj: datetime
-        A string or datetime to denote the final date of the study.
-        Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
-    datetime_format: string, optional
+    datetime_format: Optional[str], by default None
         A string that represents the timestamp format. Useful if Pandas can't understand
         the provided format.
+    observation_period_end: Optional[Union[str, pd.Period, datetime]], by default None
+        A string or datetime to denote the final date of the study.
+        Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
     time_unit: string, optional
         Time granularity for study.
         Default: 'D' for days. Possible values listed here:
@@ -219,9 +217,9 @@ def clv_summary(
     transactions: pd.DataFrame,
     customer_id_col: str,
     datetime_col: str,
-    monetary_value_col: str = None,
-    datetime_format: str = None,
-    observation_period_end: Union[str, pd.Period, datetime] = None,
+    monetary_value_col: Optional[str] = None,
+    datetime_format: Optional[str] = None,
+    observation_period_end: Optional[Union[str, pd.Period, datetime]] = None,
     time_unit: str = "D",
     time_scaler: float = 1,
 ) -> pd.DataFrame:
@@ -244,13 +242,13 @@ def clv_summary(
         Column in the transactions DataFrame that denotes the customer_id.
     datetime_col:  string
         Column in the transactions DataFrame that denotes the datetime the purchase was made.
-    monetary_value_col: string, optional
+    monetary_value_col: Optional[str], by default None
         Column in the transactions DataFrame that denotes the monetary value of the transaction.
         Optional; only needed for spend estimation models like the Gamma-Gamma model.
-    observation_period_end: datetime, optional
-         A string or datetime to denote the final date of the study.
-         Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
-    datetime_format: string, optional
+    observation_period_end: Optional[Union[str, pd.Period, datetime]], by default None
+        A string or datetime to denote the final date of the study.
+        Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
+    datetime_format: Optional[str], by default None
         A string that represents the timestamp format. Useful if Pandas can't understand
         the provided format.
     time_unit: string, optional
