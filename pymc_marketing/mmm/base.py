@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import seaborn as sns
-from pymc_experimental.model_builder import ModelBuilder
+from pymc_experimental import ModelBuilder
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray
@@ -50,12 +50,6 @@ class BaseMMM(ModelBuilder):
         if validate_data:
             self.validate(self.data)
         self.preprocessed_data = self.preprocess(self.data.copy())
-        self.data["model_data"], self.model_config = self.create_sample_input(
-            data=self.preprocessed_data,
-            **kwargs,
-        )
-        self.build_model(self.model_config, self.data["model_data"])
-        super.__init__(self.data["model_data"], self.model_config)
 
     @property
     def methods(self) -> List[Any]:

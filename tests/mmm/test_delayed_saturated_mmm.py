@@ -91,7 +91,7 @@ class TestMMM:
 
         n_channel: int = len(mmm.channel_columns)
         samples: int = 3
-
+        mmm.fit()
         with mmm.model:
             prior_predictive: az.InferenceData = pm.sample_prior_predictive(
                 samples=samples, random_seed=rng
@@ -138,7 +138,7 @@ class TestMMM:
         )
         n_channel: int = len(mmm.channel_columns)
         mmm.fit(target_accept=0.81, draws=draws, chains=chains, random_seed=rng)
-        idata: az.InferenceData = mmm.fit_result
+        idata: az.InferenceData = mmm.idata.posterior
         assert (
             az.extract(data=idata, var_names=["intercept"], combined=True)
             .to_numpy()
