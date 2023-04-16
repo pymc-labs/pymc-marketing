@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Tuple, Union
 
 import pandas as pd
 from sklearn.pipeline import Pipeline
