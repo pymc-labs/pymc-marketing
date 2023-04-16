@@ -30,6 +30,9 @@ __all__ = ("BaseMMM", "MMM")
 
 
 class BaseMMM:
+
+    model: pm.Model
+
     def __init__(
         self,
         data: pd.DataFrame,
@@ -73,7 +76,7 @@ class BaseMMM:
         ]
 
     @property
-    def validation_methods(self) -> List[Callable[[pd.DataFrame], None]]:
+    def validation_methods(self) -> List[Callable[["BaseMMM", pd.DataFrame], None]]:
         return [
             method
             for method in self.methods
@@ -81,7 +84,9 @@ class BaseMMM:
         ]
 
     @property
-    def preprocessing_methods(self) -> List[Callable[[pd.DataFrame], pd.DataFrame]]:
+    def preprocessing_methods(
+        self,
+    ) -> List[Callable[["BaseMMM", pd.DataFrame], pd.DataFrame]]:
         return [
             method
             for method in self.methods
@@ -90,7 +95,7 @@ class BaseMMM:
 
     def get_target_transformer(self) -> Pipeline:
         try:
-            return self.target_transformer
+            return self.target_transformer  # type: ignore
         except AttributeError:
             identity_transformer = FunctionTransformer()
             return Pipeline(steps=[("scaler", identity_transformer)])
@@ -105,7 +110,7 @@ class BaseMMM:
         return data
 
     @abstractmethod
-    def build_model(*args, **kwargs):
+    def build_model(self, *args, **kwargs) -> None:
         raise NotImplementedError()
 
     def get_prior_predictive_data(self, *args, **kwargs) -> az.InferenceData:

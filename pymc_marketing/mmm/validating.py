@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -13,8 +13,8 @@ __all__ = [
 
 def validation_method(method: Callable) -> Callable:
     if not hasattr(method, "_tags"):
-        method._tags = {}
-    method._tags["validation"] = True
+        method._tags = {}  # type: ignore
+    method._tags["validation"] = True  # type: ignore
     return method
 
 
@@ -42,7 +42,7 @@ class ValidateDateColumn:
 
 class ValidateChannelColumns:
 
-    channel_columns: List[str]
+    channel_columns: Union[List[str], Tuple[str]]
 
     @validation_method
     def validate_channel_columns(self, data: pd.DataFrame) -> None:
@@ -56,7 +56,7 @@ class ValidateChannelColumns:
             raise ValueError(
                 f"channel_columns {self.channel_columns} contains duplicates"
             )
-        if (data[self.channel_columns] < 0).any().any():
+        if (data[self.channel_columns] < 0).any():
             raise ValueError(
                 f"channel_columns {self.channel_columns} contains negative values"
             )
