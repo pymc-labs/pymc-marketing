@@ -207,6 +207,7 @@ class TestMMM:
             ("plot_channel_parameter", {"param_name": "alpha"}),
             ("plot_contribution_curves", {}),
             ("plot_channel_contribution_share_hdi", {"hdi_prob": 0.95}),
+            ("plot_grouped_contribution_breakdown_over_time", {}),
         ],
     )
     def test_plots(
