@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, List, Optional
 
 import pandas as pd
 from sklearn.pipeline import Pipeline
@@ -20,6 +20,10 @@ def preprocessing_method(method: Callable) -> Callable:
 
 
 class MaxAbsScaleTarget:
+
+    target_column: str
+    target_transformer: Pipeline
+
     @preprocessing_method
     def max_abs_scale_target_data(self, data: pd.DataFrame) -> pd.DataFrame:
         target_vector = data[self.target_column].to_numpy().reshape(-1, 1)
@@ -33,6 +37,9 @@ class MaxAbsScaleTarget:
 
 
 class MaxAbsScaleChannels:
+
+    channel_columns: List[str]
+
     @preprocessing_method
     def max_abs_scale_channel_data(self, data: pd.DataFrame) -> pd.DataFrame:
         channel_data: pd.DataFrame = data[self.channel_columns]
@@ -46,6 +53,9 @@ class MaxAbsScaleChannels:
 
 
 class StandardizeControls:
+
+    control_columns: Optional[List[str]]
+
     @preprocessing_method
     def standardize_control_data(self, data: pd.DataFrame) -> pd.DataFrame:
         control_data: pd.DataFrame = data[self.control_columns]

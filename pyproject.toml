@@ -40,6 +40,8 @@ lint = [
     "black>=22.3.0",
     "flake8>=4.0.1",
     "isort>=5.10.1",
+    "mypy",
+    "pandas-stubs",
     "pre-commit>=2.19.0",
     "pylint"
 ]
