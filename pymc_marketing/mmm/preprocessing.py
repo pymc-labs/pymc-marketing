@@ -20,7 +20,6 @@ def preprocessing_method(method: Callable) -> Callable:
 
 
 class MaxAbsScaleTarget:
-
     target_column: str
     target_transformer: Pipeline
 
@@ -37,7 +36,6 @@ class MaxAbsScaleTarget:
 
 
 class MaxAbsScaleChannels:
-
     channel_columns: Union[List[str], Tuple[str]]
 
     @preprocessing_method
@@ -53,7 +51,6 @@ class MaxAbsScaleChannels:
 
 
 class StandardizeControls:
-
     control_columns: List[str]  # TODO: Handle Optional[List[str]]
 
     @preprocessing_method
