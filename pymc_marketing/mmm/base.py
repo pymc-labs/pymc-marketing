@@ -465,12 +465,10 @@ class BaseMMM:
                 .squeeze()
                 .unstack()
             )
-            control_columns = self.control_columns
         else:
             contributions_control_over_time = pd.DataFrame(
                 index=contributions_channel_over_time.index
             )
-            control_columns = []
 
         contributions_intercept_over_time = (
             az.extract(
