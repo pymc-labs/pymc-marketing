@@ -30,7 +30,6 @@ __all__ = ("BaseMMM", "MMM")
 
 
 class BaseMMM:
-
     model: pm.Model
 
     def __init__(

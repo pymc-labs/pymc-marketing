@@ -19,7 +19,6 @@ def validation_method(method: Callable) -> Callable:
 
 
 class ValidateTargetColumn:
-
     target_column: str
 
     @validation_method
@@ -29,7 +28,6 @@ class ValidateTargetColumn:
 
 
 class ValidateDateColumn:
-
     date_column: str
 
     @validation_method
@@ -41,7 +39,6 @@ class ValidateDateColumn:
 
 
 class ValidateChannelColumns:
-
     channel_columns: Union[List[str], Tuple[str]]
 
     @validation_method
@@ -63,7 +60,6 @@ class ValidateChannelColumns:
 
 
 class ValidateControlColumns:
-
     control_columns: Optional[List[str]]
 
     @validation_method
