@@ -213,9 +213,9 @@ class DelayedSaturatedMMM(
         model_config["mu"] = {"dims": ("date",)}
         model_config["likelihood"] = {"dims": ("date",)}
         model_config["coords"] = coords
-        self.sampler_config = {"progressbar": True, "random_seed": None}
+        sampler_config = {"progressbar": True, "random_seed": None}
 
-        return model_data, model_config
+        return model_data, model_config, sampler_config
 
     @property
     def serializable_model_config(self) -> Dict:
@@ -252,21 +252,22 @@ class DelayedSaturatedMMM(
         with self.model:
             new_channel_data = None
         try:
-            new_channel_data = data["channel_data"]
+            new_channel_data = data["channel_data"]["value"]
         except KeyError as e:
             print("New data must contain channel_data!", e)
         target = None
         try:
-            target = data["target"]
+            target = data["target"]["value"]
         except KeyError as e:
             print("New data must contain target", e)
 
         if new_channel_data is not None and target is not None:
-            pm.set_data(
-                {
-                    "channel_data": new_channel_data,
-                    "target": target,
-                }
-            )
+            with self.model:
+                pm.set_data(
+                    {
+                        "channel_data": new_channel_data,
+                        "target": target,
+                    }
+                )
         else:
             print("Failed to set new data: missing required keys")
