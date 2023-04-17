@@ -244,66 +244,38 @@ class BaseMMM:
         )
         return fig
 
-    def plot_components_contributions(self, **plt_kwargs: Any) -> plt.Figure:
-        channel_contributions = az.extract(
+    def _format_model_contributions(self, var_contribution: str) -> DataArray:
+        contributions = az.extract(
             self.fit_result,
-            var_names=["channel_contributions"],
+            var_names=[var_contribution],
             combined=False,
         )
         contracted_dims = [
-            d for d in channel_contributions.dims if d not in ["chain", "draw", "date"]
+            d for d in contributions.dims if d not in ["chain", "draw", "date"]
         ]
-        channel_contributions = (
-            channel_contributions.sum(contracted_dims)
-            if contracted_dims
-            else channel_contributions
+        return contributions.sum(contracted_dims) if contracted_dims else contributions
+
+    def plot_components_contributions(self, **plt_kwargs: Any) -> plt.Figure:
+        channel_contributions = self._format_model_contributions(
+            var_contribution="channel_contributions"
         )
         means = [channel_contributions.mean(["chain", "draw"])]
         contribution_vars = [
             az.hdi(channel_contributions, hdi_prob=0.94).channel_contributions
         ]
 
-        if getattr(self, "control_columns", None):
-            control_contributions = az.extract(
-                self.fit_result,
-                var_names=["control_contributions"],
-                combined=False,
-            )
-            contracted_dims = [
-                d
-                for d in control_contributions.dims
-                if d not in ["chain", "draw", "date"]
-            ]
-            control_contributions = (
-                control_contributions.sum(contracted_dims)
-                if contracted_dims
-                else control_contributions
-            )
-            means.append(control_contributions.mean(["chain", "draw"]))
-            contribution_vars.append(
-                az.hdi(control_contributions, hdi_prob=0.94).control_contributions
-            )
-
-        if getattr(self, "yearly_seasonality", None):
-            fourier_contribution = az.extract(
-                self.fit_result,
-                var_names=["fourier_contribution"],
-                combined=False,
-            )
-            contracted_dims = [
-                d
-                for d in fourier_contribution.dims
-                if d not in ["chain", "draw", "date"]
-            ]
-            fourier_contribution = (
-                fourier_contribution.sum(contracted_dims)
-                if contracted_dims
-                else fourier_contribution
-            )
-            means.append(fourier_contribution.mean(["chain", "draw"]))
-            contribution_vars.append(
-                az.hdi(fourier_contribution, hdi_prob=0.94).fourier_contribution
-            )
+        for arg, var_contribution in zip(
+            ["control_columns", "yearly_seasonality"],
+            ["control_contributions", "fourier_contributions"],
+        ):
+            if getattr(self, arg, None):
+                contributions = self._format_model_contributions(
+                    var_contribution=var_contribution
+                )
+                means.append(contributions.mean(["chain", "draw"]))
+                contribution_vars.append(
+                    az.hdi(contributions, hdi_prob=0.94)[var_contribution]
+                )
 
         fig, ax = plt.subplots(**plt_kwargs)
 

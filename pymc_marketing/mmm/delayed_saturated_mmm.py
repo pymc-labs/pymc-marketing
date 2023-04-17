@@ -40,13 +40,13 @@ class DelayedSaturatedMMM(
         channel_columns : List[str]
             Column names of the media channel variables.
         validate_data : bool, optional
-            Wether to validate the data upon initialization, by default True
+            Whether to validate the data upon initialization, by default True.
         control_columns : Optional[List[str]], optional
             Column names of control variables to be added as additional regressors, by default None
         adstock_max_lag : int, optional
             Number of lags to consider in the adstock transformation, by default 4
         yearly_seasonality : Optional[int], optional
-            Number of Fourier modes to model yearly seasonality, by default None
+            Number of Fourier modes to model yearly seasonality, by default None.
 
         References
         ----------
@@ -164,7 +164,7 @@ class DelayedSaturatedMMM(
                 )
 
                 fourier_contribution = pm.Deterministic(
-                    name="fourier_contribution",
+                    name="fourier_contributions",
                     var=fourier_data_ * gamma_fourier,
                     dims=("date", "fourier_mode"),
                 )
