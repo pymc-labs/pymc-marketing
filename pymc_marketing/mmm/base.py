@@ -411,7 +411,10 @@ class BaseMMM:
         return fig
 
     def plot_grouped_contribution_breakdown_over_time(
-        self, stack_groups: Optional[Dict[str, List[str]]] = None, **plt_kwargs: Any
+        self,
+        stack_groups: Optional[Dict[str, List[str]]] = None,
+        area_kwargs: Optional[Dict[str, Any]] = None,
+        **plt_kwargs: Any,
     ) -> plt.Figure:
         """Plot a time series area chart for all channel contributions.
 
@@ -496,8 +499,19 @@ class BaseMMM:
 
             all_contributions_over_time = pd.concat(grouped_buffer, axis="columns")
 
+        all_contributions_over_time_original_scale = pd.DataFrame(
+            data=self.get_target_transformer().inverse_transform(
+                all_contributions_over_time
+            ),
+            columns=all_contributions_over_time.columns,
+            index=all_contributions_over_time.index,
+        )
+
         fig, ax = plt.subplots(**plt_kwargs)
-        all_contributions_over_time.plot.area(stacked=True, ax=ax)
+        area_params = dict(stacked=True, ax=ax)
+        if area_kwargs is not None:
+            area_params.update(area_kwargs)
+        all_contributions_over_time_original_scale.plot.area(**area_params)
         ax.legend(title="groups", loc="center left", bbox_to_anchor=(1, 0.5))
         return fig
 
