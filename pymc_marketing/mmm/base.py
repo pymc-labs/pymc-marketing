@@ -412,6 +412,7 @@ class BaseMMM:
 
     def plot_grouped_contribution_breakdown_over_time(
         self,
+        original_scale: bool = False,
         stack_groups: Optional[Dict[str, List[str]]] = None,
         area_kwargs: Optional[Dict[str, Any]] = None,
         **plt_kwargs: Any,
@@ -438,6 +439,8 @@ class BaseMMM:
 
             Note: If you only pass {"Baseline": "intercept", "Online": ["Banners"]},
             you will not see the TV and Radio channels in the chart.
+        original_scale : bool, by default False
+            If True, the contributions are plotted in the original scale of the target.
 
         Returns
         -------
@@ -499,19 +502,20 @@ class BaseMMM:
 
             all_contributions_over_time = pd.concat(grouped_buffer, axis="columns")
 
-        all_contributions_over_time_original_scale = pd.DataFrame(
-            data=self.get_target_transformer().inverse_transform(
-                all_contributions_over_time
-            ),
-            columns=all_contributions_over_time.columns,
-            index=all_contributions_over_time.index,
-        )
+        if original_scale:
+            all_contributions_over_time = pd.DataFrame(
+                data=self.get_target_transformer().inverse_transform(
+                    all_contributions_over_time
+                ),
+                columns=all_contributions_over_time.columns,
+                index=all_contributions_over_time.index,
+            )
 
         fig, ax = plt.subplots(**plt_kwargs)
         area_params = dict(stacked=True, ax=ax)
         if area_kwargs is not None:
             area_params.update(area_kwargs)
-        all_contributions_over_time_original_scale.plot.area(**area_params)
+        all_contributions_over_time.plot.area(**area_params)
         ax.legend(title="groups", loc="center left", bbox_to_anchor=(1, 0.5))
         return fig
 

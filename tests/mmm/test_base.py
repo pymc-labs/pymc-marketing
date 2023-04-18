@@ -212,6 +212,7 @@ class TestMMM:
                 "plot_grouped_contribution_breakdown_over_time",
                 {
                     "stack_groups": {"controls": ["control_1"]},
+                    "original_scale": True,
                     "area_kwargs": {"alpha": 0.5},
                 },
             ),
