@@ -210,7 +210,10 @@ class TestMMM:
             ("plot_grouped_contribution_breakdown_over_time", {}),
             (
                 "plot_grouped_contribution_breakdown_over_time",
-                {"stack_groups": {"controls": ["control_1"]}},
+                {
+                    "stack_groups": {"controls": ["control_1"]},
+                    "area_kwargs": {"alpha": 0.5},
+                },
             ),
         ],
     )
