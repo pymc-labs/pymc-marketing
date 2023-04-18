@@ -6,7 +6,7 @@ from inspect import (
     ismemberdescriptor,
     ismethoddescriptor,
 )
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -408,6 +408,97 @@ class BaseMMM:
             ax.set(title=f"{channel}", xlabel="total_cost_eur")
 
         fig.suptitle("Contribution Plots", fontsize=16)
+        return fig
+
+    def plot_grouped_contribution_breakdown_over_time(
+        self, stack_groups: Optional[Dict[str, List[str]]] = None, **plt_kwargs: Any
+    ) -> plt.Figure:
+        """Plot a time series area chart for all channel contributions.
+
+        Since a chart like this can become quite crowded if you have many channels or
+        control variables, you can group certain variables together using the
+        `stack_groups` keyword.
+
+        Parameters
+        ----------
+        stack_groups : dict of {str: list of str}, optional
+            Specifies which variables to group together.
+            Example: passing
+                {
+                    "Baseline": ["intercept"],
+                    "Offline": ["TV", "Radio"],
+                    "Online": ["Banners"]
+                }
+            results in a chart with three colors, one for Baseline, one for Online,
+            and one for Offline. If `stack_groups` is None, the chart would have four
+            colors since TV and Radio would be separated.
+
+            Note: If you only pass {"Baseline": "intercept", "Online": ["Banners"]},
+            you will not see the TV and Radio channels in the chart.
+
+        Returns
+        -------
+        plt.Figure
+            The chart.
+        """
+        contributions_channel_over_time = (
+            az.extract(
+                self.fit_result,
+                var_names=["channel_contributions"],
+                combined=True,
+            )
+            .mean("sample")
+            .to_dataframe()
+            .squeeze()
+            .unstack()
+        )
+
+        if getattr(self, "control_columns", None):
+            contributions_control_over_time = (
+                az.extract(
+                    self.fit_result,
+                    var_names=["control_contributions"],
+                    combined=True,
+                )
+                .mean("sample")
+                .to_dataframe()
+                .squeeze()
+                .unstack()
+            )
+        else:
+            contributions_control_over_time = pd.DataFrame(
+                index=contributions_channel_over_time.index
+            )
+
+        contributions_intercept_over_time = (
+            az.extract(
+                self.fit_result,
+                var_names=["intercept"],
+                combined=True,
+            )
+            .mean("sample")
+            .to_numpy()
+        )
+
+        all_contributions_over_time = contributions_channel_over_time.join(
+            contributions_control_over_time
+        ).assign(intercept=contributions_intercept_over_time)
+
+        if stack_groups is not None:
+            grouped_buffer = []
+            for group, columns in stack_groups.items():
+                grouped = (
+                    all_contributions_over_time.filter(columns)
+                    .sum(axis="columns")
+                    .rename(group)
+                )
+                grouped_buffer.append(grouped)
+
+            all_contributions_over_time = pd.concat(grouped_buffer, axis="columns")
+
+        fig, ax = plt.subplots(**plt_kwargs)
+        all_contributions_over_time.plot.area(stacked=True, ax=ax)
+        ax.legend(title="groups", loc="center left", bbox_to_anchor=(1, 0.5))
         return fig
 
     def _get_channel_contributions_share_samples(self) -> DataArray:
