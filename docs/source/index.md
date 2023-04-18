@@ -59,22 +59,16 @@ To the reference guide
 
 ## Installation
 
-Start by setting up an environment (e.g. `marketing_env`) with PyMC. It may look something like the following:
+Install and activate an environment (e.g. `marketing_env`) with the `pymc-marketing` package from [conda-forge](https://conda-forge.org). It may look something like the following:
 
 ```bash
-mamba create -c conda-forge -n marketing_env python "pymc>=5"
+mamba create -c conda-forge -n marketing_env pymc-marketing
 mamba activate marketing_env
 ```
 
 See the official [PyMC installation guide](https://www.pymc.io/projects/docs/en/latest/installation.html) if more detail is needed.
 
-Assuming you have an environment set up then install PyMC-Marketing with the following command. This will give you the latest version of the library from PyPI.
-
-```bash
-pip install pymc-marketing
-```
-
-Alternatively you can install from GitHub directly:
+For testing purposes, if you wish to install the `main` branch directly from GitHub:
 
 ```bash
 pip install git+https://github.com/pymc-labs/pymc-marketing.git
@@ -82,12 +76,26 @@ pip install git+https://github.com/pymc-labs/pymc-marketing.git
 
 ## Quickstart
 
-Once you've installed the library (see above), you can get started. If you want to work in a jupyter lab notebook then remember to do the following:
+Create a new Jupyter notebook with either JupyterLab or VS Code.
+
+### JupyterLab Notebook
+
+After installing the `pymc-marketing` package (see above), run the following with `marketing_env` activated:
 
 ```bash
-pip install jupyterlab
-python -m ipykernel install --user --name marketing_env
+mamba install -c conda-forge jupyterlab
+jupyter lab
 ```
+
+### VS Code Notebook
+
+After installing the `pymc-marketing` package (see above), run the following with `marketing_env` activated:
+
+```bash
+mamba install -c conda-forge ipykernel
+```
+
+Start VS Code and ensure that the "Jupyter" extension is installed. Press Ctrl + Shift + P and type "Python: Select Interpreter". Ensure that `marketing_env` is selected. Press Ctrl + Shift + P and type "Create: New Jupyter Notebook".
 
 ### MMM Quickstart
 
