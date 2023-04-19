@@ -382,7 +382,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
         return customer_id, z_mean, x
 
-    def distribution_customer_spend(
+    def distribution_customer_spend(  # type: ignore [override]
         self,
         customer_id: Union[np.ndarray, pd.Series],
         individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
@@ -417,10 +417,10 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             customer_id=customer_id,
             mean_transaction_value=z_mean,
             frequency=x,
-            random_seed=random_seed,
+            random_seed=random_seed,  # type: ignore [call-arg]
         )
 
-    def expected_customer_lifetime_value(
+    def expected_customer_lifetime_value(  # type: ignore [override]
         self,
         transaction_model: CLVModel,
         customer_id: Union[np.ndarray, pd.Series],
