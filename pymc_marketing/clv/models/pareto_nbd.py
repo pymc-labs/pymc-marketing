@@ -122,7 +122,7 @@ class ParetoNBDModel(CLVModel):
         # each customer's information should be encapsulated by a single data entry
         if len(np.unique(customer_id)) != len(customer_id):
             raise ValueError(
-                "ParetoNBD expects exactly one entry per customer. More than"
+                "ParetoNBD expects exactly one entry per customer, but more than"
                 " one entry is currently provided per customer id."
             )
 
@@ -456,9 +456,6 @@ class ParetoNBDModel(CLVModel):
         array_like
         """
 
-        if future_t <= 0:
-            return 0
-
         if customer_id is None:
             customer_id = self._customer_id
         if frequency is None:
@@ -566,6 +563,10 @@ class ParetoNBDModel(CLVModel):
                 dims="_concat_dim",
             )
         )
+
+        # TODO: Can this be done prior to performing the above calculations?
+        if future_t <= 0:
+            purchase_prob = purchase_prob.fillna(0)
 
         return purchase_prob.transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"

@@ -248,7 +248,7 @@ class TestParetoNBDModel:
         est_prob_alive_t = self.model.probability_alive(future_t=4.5)
         assert est_prob_alive.mean() > est_prob_alive_t.mean()
 
-    @pytest.mark.parametrize("test_n, test_t", [(1, 1), (2, 2)])
+    @pytest.mark.parametrize("test_n, test_t", [(0, 0), (1, 1), (2, 2)])
     def test_purchase_probability(self, test_n, test_t):
         true_prob_purchase = (
             self.lifetimes_model.conditional_probability_of_n_purchases_up_to_time(
