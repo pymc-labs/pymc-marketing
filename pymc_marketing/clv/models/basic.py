@@ -27,14 +27,14 @@ class CLVModel:
             )
 
     @staticmethod
-    def _process_priors(*priors: TensorVariable) -> Tuple[TensorVariable]:
+    def _process_priors(*priors: TensorVariable) -> Tuple[TensorVariable, ...]:
         """Check that each prior variable is unique and attach `str_repr` method."""
         if len(priors) != len(set(priors)):
             raise ValueError("Prior variables must be unique")
 
         # Related to https://github.com/pymc-devs/pymc/issues/6311
         for prior in priors:
-            prior.str_repr = types.MethodType(str_for_dist, prior)
+            prior.str_repr = types.MethodType(str_for_dist, prior)  # type: ignore
         return priors
 
     def fit(self, fit_method="mcmc", **kwargs):
