@@ -177,9 +177,15 @@ def _find_first_transactions(
         transactions.set_index(datetime_col).to_period(time_unit).to_timestamp()
     )
 
-    transactions = transactions.loc[
-        (transactions.index <= observation_period_end)
-    ].reset_index()
+    if observation_period_end is None:
+        observation_period_end = transactions[datetime_col].max()
+
+    if isinstance(observation_period_end, pd.Period):
+        observation_period_end = observation_period_end.to_timestamp()
+
+    mask = pd.DatetimeIndex(transactions.index) <= observation_period_end
+
+    transactions = transactions.loc[mask].reset_index()
 
     period_groupby = transactions.groupby(
         [datetime_col, customer_id_col], sort=False, as_index=False
@@ -206,9 +212,9 @@ def _find_first_transactions(
     period_transactions.loc[first_transactions, "first"] = True
     select_columns.append("first")
     # reset datetime_col to period
-    period_transactions.loc[:, datetime_col] = pd.Index(
-        period_transactions[datetime_col]
-    ).to_period(time_unit)
+    period_transactions.loc[:, datetime_col] = period_transactions[
+        datetime_col
+    ].dt.to_period(time_unit)
 
     return period_transactions[select_columns]
 
@@ -274,6 +280,8 @@ def clv_summary(
             .to_period(time_unit)
             .to_timestamp()
         )
+    elif isinstance(observation_period_end, pd.Period):
+        observation_period_end = observation_period_end.to_timestamp()
     else:
         observation_period_end = (
             pd.to_datetime(observation_period_end, format=datetime_format)
