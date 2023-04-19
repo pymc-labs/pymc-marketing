@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
-from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.delayed_saturated_mmm import DelayedSaturatedMMM
 
@@ -114,57 +113,60 @@ class TestMMM:
             == samples
         )
         assert az.extract(
-            prior_predictive, group="prior", var_names=["beta_channel"], combined=True
+            data=prior_predictive,
+            group="prior",
+            var_names=["beta_channel"],
+            combined=True,
         ).to_numpy().shape == (
             n_channel,
             samples,
         )
         assert az.extract(
-            prior_predictive, group="prior", var_names=["alpha"], combined=True
+            data=prior_predictive, group="prior", var_names=["alpha"], combined=True
         ).to_numpy().shape == (
             n_channel,
             samples,
         )
         assert az.extract(
-            prior_predictive, group="prior", var_names=["lam"], combined=True
+            data=prior_predictive, group="prior", var_names=["lam"], combined=True
         ).to_numpy().shape == (
             n_channel,
             samples,
         )
 
-    @pytest.mark.parametrize(
-        argnames="yearly_seasonality",
-        argvalues=[None, 2],
-        ids=["no_yearly_seasonality", "yearly_seasonality"],
-    )
-    @pytest.mark.parametrize(
-        argnames="control_columns",
-        argvalues=[None, ["control_1"], ["control_1", "control_2"]],
-        ids=["no_control", "one_control", "two_controls"],
-    )
-    @pytest.mark.parametrize(
-        argnames="channel_columns",
-        argvalues=[["channel_1", "channel_2"]],
-        ids=["multiple_channel"],
-    )
-    def test_fit(
-        self,
-        toy_df: pd.DataFrame,
-        channel_columns: List[str],
-        control_columns: Optional[List[str]],
-        yearly_seasonality: Optional[int],
-    ) -> None:
-        draws: int = 20
+        if control_columns is not None:
+            n_control = len(control_columns)
+            assert az.extract(
+                data=prior_predictive,
+                group="prior",
+                var_names=["gamma_control"],
+                combined=True,
+            ).to_numpy().shape == (
+                n_control,
+                samples,
+            )
+        if yearly_seasonality is not None:
+            assert az.extract(
+                data=prior_predictive,
+                group="prior",
+                var_names=["gamma_fourier"],
+                combined=True,
+            ).to_numpy().shape == (
+                2 * yearly_seasonality,
+                samples,
+            )
+
+    def test_fit(self, toy_df: pd.DataFrame) -> None:
+        draws: int = 100
         chains: int = 2
 
         mmm = DelayedSaturatedMMM(
             data=toy_df,
             target_column="y",
             date_column="date",
-            channel_columns=channel_columns,
-            control_columns=control_columns,
+            channel_columns=["channel_1", "channel_2"],
+            control_columns=["control_1", "control_2"],
             adstock_max_lag=2,
-            yearly_seasonality=yearly_seasonality,
         )
         n_channel: int = len(mmm.channel_columns)
         mmm.fit(target_accept=0.81, draws=draws, chains=chains, random_seed=rng)
@@ -184,23 +186,12 @@ class TestMMM:
         assert az.extract(
             data=idata, var_names=["lam"], combined=True
         ).to_numpy().shape == (n_channel, draws * chains)
-
-        if control_columns is not None:
-            n_control = len(control_columns)
-            assert az.extract(
-                data=idata, var_names=["gamma_control"], combined=True
-            ).to_numpy().shape == (
-                n_control,
-                draws * chains,
-            )
-        if yearly_seasonality is not None:
-            assert az.extract(
-                data=idata, var_names=["gamma_fourier"], combined=True
-            ).to_numpy().shape == (
-                2 * yearly_seasonality,
-                draws * chains,
-            )
-        assert isinstance(mmm.plot_components_contributions(), plt.Figure)
+        assert az.extract(
+            data=idata, var_names=["gamma_control"], combined=True
+        ).to_numpy().shape == (
+            n_channel,
+            draws * chains,
+        )
 
     @pytest.mark.parametrize(
         argnames="yearly_seasonality",
@@ -220,11 +211,12 @@ class TestMMM:
             yearly_seasonality=yearly_seasonality,
         )
 
-        fourier_modes_data: Optional[pd.DataFrame] = mmm._get_fourier_models_data()
-
         if yearly_seasonality is None:
-            assert fourier_modes_data is None
+            with pytest.raises(ValueError):
+                mmm._get_fourier_models_data()
+
         else:
+            fourier_modes_data: Optional[pd.DataFrame] = mmm._get_fourier_models_data()
             assert fourier_modes_data.shape == (
                 toy_df.shape[0],
                 2 * yearly_seasonality,
