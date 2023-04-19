@@ -405,7 +405,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         self,
         customer_id: Union[np.ndarray, pd.Series],
         individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
-        random_seed=Optional[None],
+        random_seed: Optional[RandomState] = None,
     ) -> xarray.DataArray:
         """Return expected transaction value per customer"""
 
