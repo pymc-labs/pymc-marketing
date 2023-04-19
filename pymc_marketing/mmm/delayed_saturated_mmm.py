@@ -218,7 +218,7 @@ class DelayedSaturatedMMM(
         return model_data, model_config, sampler_config
 
     @property
-    def serializable_model_config(self) -> Dict:
+    def _serializable_model_config(self) -> Dict:
         serializable_config = self.model_config.copy()
         serializable_config["channel_adstock"]["var"]["x"] = serializable_config[
             "channel_adstock"
