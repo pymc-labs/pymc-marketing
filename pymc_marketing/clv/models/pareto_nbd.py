@@ -182,8 +182,55 @@ class ParetoNBDModel(CLVModel):
 
     # TODO: Is this return type hint correct?
     def _unload_params(self) -> Tuple[np.ndarray]:
-        # TODO: will .get(param) work here?
+        """Utility function retrieving posterior parameters for predictive methods"""
         return tuple([self.fit_result.posterior[param] for param in self._params])
+
+    # TODO: Convert to list comprehension to support covariates?
+    def _process_customers(
+        self,
+        customer_id: Union[np.ndarray, pd.Series],
+        frequency: Union[np.ndarray, pd.Series, TensorVariable],
+        recency: Union[np.ndarray, pd.Series, TensorVariable],
+        T: Union[np.ndarray, pd.Series, TensorVariable],
+    ) -> Tuple[xarray.DataArray]:
+        """Utility function assigning default customer arguments
+        for predictive methods and converting them to xarray DataArrays
+        """
+        if customer_id is None:
+            customer_id = self._customer_id
+        if frequency is None:
+            frequency = self._frequency
+        if recency is None:
+            recency = self._recency
+        if T is None:
+            T = self._T
+
+        return to_xarray(customer_id, frequency, recency, T)
+
+    @staticmethod
+    def _logp(
+        r: np.ndarray,
+        alpha: np.ndarray,
+        s: np.ndarray,
+        beta: np.ndarray,
+        x: xarray.DataArray,
+        t_x: xarray.DataArray,
+        T: xarray.DataArray,
+    ) -> xarray.DataArray:
+        """
+        Utility function for using ParetoNBD log-likelihood in predictive methods.
+        """
+        # Add one dummy dimension to the right of the scalar parameters, so they broadcast with the `T` vector
+        pareto_dist = ParetoNBD.dist(
+            r=r.values[..., None],
+            alpha=alpha.values[..., None],
+            s=s.values[..., None],
+            beta=beta.values[..., None],
+            T=T.values,
+        )
+        values = np.vstack((t_x.values, x.values)).T
+        loglike = pm.logp(pareto_dist, values).eval()
+        return xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
 
     # TODO: Edit docstrings
     def expected_purchases(
@@ -245,31 +292,9 @@ class ParetoNBDModel(CLVModel):
         array_like
         """
 
-        if customer_id is None:
-            customer_id = self._customer_id
-        if frequency is None:
-            frequency = self._frequency
-        if recency is None:
-            recency = self._recency
-        if T is None:
-            T = self._T
-
-        x, t_x, T = to_xarray(customer_id, frequency, recency, T)
-
+        x, t_x, T = self._process_customers(customer_id, frequency, recency, T)
         r, alpha, s, beta = self._unload_params()
-
-        # Get likelihood expression
-        # Add one dummy dimension to the right of the scalar parameters, so they broadcast with the `T` vector
-        pareto_dist = ParetoNBD.dist(
-            r=r.values[..., None],
-            alpha=alpha.values[..., None],
-            s=s.values[..., None],
-            beta=beta.values[..., None],
-            T=T.values,
-        )
-        values = np.vstack((t_x.values, x.values)).T
-        loglike = pm.logp(pareto_dist, values).eval()
-        loglike = xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
+        loglike = self._logp(r, alpha, s, beta, x, t_x, T)
 
         first_term = (
             gammaln(r + x)
@@ -382,31 +407,9 @@ class ParetoNBDModel(CLVModel):
         float
             value representing a probability
         """
-        if customer_id is None:
-            customer_id = self._customer_id
-        if frequency is None:
-            frequency = self._frequency
-        if recency is None:
-            recency = self._recency
-        if T is None:
-            T = self._T
-
-        x, t_x, T = to_xarray(customer_id, frequency, recency, T)
-
+        x, t_x, T = self._process_customers(customer_id, frequency, recency, T)
         r, alpha, s, beta = self._unload_params()
-
-        # Get likelihood expression
-        # Add one dummy dimension to the right of the scalar parameters, so they broadcast with the `T` vector
-        pareto_dist = ParetoNBD.dist(
-            r=r.values[..., None],
-            alpha=alpha.values[..., None],
-            s=s.values[..., None],
-            beta=beta.values[..., None],
-            T=T.values,
-        )
-        values = np.vstack((t_x.values, x.values)).T
-        loglike = pm.logp(pareto_dist, values).eval()
-        loglike = xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
+        loglike = self._logp(r, alpha, s, beta, x, t_x, T)
 
         term1 = gammaln(r + x) - gammaln(r)
         term2 = r * log(alpha / (alpha + T))
@@ -456,31 +459,9 @@ class ParetoNBDModel(CLVModel):
         array_like
         """
 
-        if customer_id is None:
-            customer_id = self._customer_id
-        if frequency is None:
-            frequency = self._frequency
-        if recency is None:
-            recency = self._recency
-        if T is None:
-            T = self._T
-
-        x, t_x, T = to_xarray(customer_id, frequency, recency, T)
-
+        x, t_x, T = self._process_customers(customer_id, frequency, recency, T)
         r, alpha, s, beta = self._unload_params()
-
-        # Get likelihood expression
-        # Add one dummy dimension to the right of the scalar parameters, so they broadcast with the `T` vector
-        pareto_dist = ParetoNBD.dist(
-            r=r.values[..., None],
-            alpha=alpha.values[..., None],
-            s=s.values[..., None],
-            beta=beta.values[..., None],
-            T=T.values,
-        )
-        values = np.column_stack((t_x.values, x.values))
-        loglike = pm.logp(pareto_dist, values).eval()
-        loglike = xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
+        loglike = self._logp(r, alpha, s, beta, x, t_x, T)
 
         _alpha_less_than_beta = alpha < beta
         min_of_alpha_beta = xarray.where(_alpha_less_than_beta, alpha, beta)
