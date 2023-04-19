@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -216,11 +218,33 @@ def test_customer_lifetime_value_gg_with_bgf(test_summary_data, fitted_gg, fitte
     np.testing.assert_equal(ggf_clv.values, utils_clv.values)
 
 
-def test_find_first_transactions_returns_correct_results(transaction_data):
+def test_find_first_transactions_observation_period_end_none(transaction_data):
+    max_date = transaction_data["date"].max()
+    pd.testing.assert_frame_equal(
+        left=_find_first_transactions(
+            transactions=transaction_data,
+            customer_id_col="id",
+            datetime_col="date",
+            observation_period_end=None,
+        ),
+        right=_find_first_transactions(
+            transactions=transaction_data,
+            customer_id_col="id",
+            datetime_col="date",
+            observation_period_end=max_date,
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    argnames="today",
+    argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7), None],
+    ids=["string", "period", "datetime", "none"],
+)
+def test_find_first_transactions_returns_correct_results(transaction_data, today):
     # Test borrowed from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L137
 
-    today = "2015-02-07"
     actual = _find_first_transactions(
         transaction_data, "id", "date", observation_period_end=today
     )
@@ -245,13 +269,17 @@ def test_find_first_transactions_returns_correct_results(transaction_data):
     assert_frame_equal(actual, expected)
 
 
+@pytest.mark.parametrize(
+    argnames="today",
+    argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7), None],
+    ids=["string", "period", "datetime", "none"],
+)
 def test_find_first_transactions_with_specific_non_daily_frequency(
-    transaction_data,
+    transaction_data, today
 ):
     # Test borrowed from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L161
 
-    today = "2015-02-07"
     actual = _find_first_transactions(
         transaction_data,
         "id",
@@ -277,13 +305,15 @@ def test_find_first_transactions_with_specific_non_daily_frequency(
     assert_frame_equal(actual, expected)
 
 
-def test_find_first_transactions_with_monetary_values(
-    transaction_data,
-):
+@pytest.mark.parametrize(
+    argnames="today",
+    argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7), None],
+    ids=["string", "period", "datetime", "none"],
+)
+def test_find_first_transactions_with_monetary_values(transaction_data, today):
     # Test borrowed from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L184
 
-    today = "2015-02-07"
     actual = _find_first_transactions(
         transaction_data,
         "id",
@@ -312,13 +342,17 @@ def test_find_first_transactions_with_monetary_values(
     assert_frame_equal(actual, expected)
 
 
+@pytest.mark.parametrize(
+    argnames="today",
+    argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7), None],
+    ids=["string", "period", "datetime", "none"],
+)
 def test_find_first_transactions_with_monetary_values_with_specific_non_daily_frequency(
-    transaction_data,
+    transaction_data, today
 ):
     # Test borrowed from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L210
 
-    today = "2015-02-07"
     actual = _find_first_transactions(
         transaction_data,
         "id",
@@ -344,13 +378,15 @@ def test_find_first_transactions_with_monetary_values_with_specific_non_daily_fr
     assert_frame_equal(actual, expected)
 
 
-def test_clv_summary_returns_correct_results(
-    transaction_data,
-):
+@pytest.mark.parametrize(
+    argnames="today",
+    argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7)],
+    ids=["string", "period", "datetime"],
+)
+def test_clv_summary_returns_correct_results(transaction_data, today):
     # Test borrowed from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L239
 
-    today = "2015-02-07"
     actual = clv_summary(transaction_data, "id", "date", observation_period_end=today)
     expected = pd.DataFrame(
         [

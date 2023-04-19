@@ -13,22 +13,16 @@
 
 ## Installation
 
-Start by setting up an environment (e.g. `marketing_env`) with PyMC. It may look something like the following:
+Install and activate an environment (e.g. `marketing_env`) with the `pymc-marketing` package from [conda-forge](https://conda-forge.org). It may look something like the following:
 
 ```bash
-mamba create -c conda-forge -n marketing_env python "pymc>=5"
+mamba create -c conda-forge -n marketing_env pymc-marketing
 mamba activate marketing_env
 ```
 
 See the official [PyMC installation guide](https://www.pymc.io/projects/docs/en/latest/installation.html) if more detail is needed.
 
-Assuming you have an environment set up then install PyMC-Marketing with the following command. This will give you the latest version of the library from PyPI.
-
-```bash
-pip install pymc-marketing
-```
-
-Alternatively you can install from GitHub directly:
+For testing purposes, if you wish to install the `main` branch directly from GitHub:
 
 ```bash
 pip install git+https://github.com/pymc-labs/pymc-marketing.git

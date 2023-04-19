@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, List, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -13,12 +13,14 @@ __all__ = [
 
 def validation_method(method: Callable) -> Callable:
     if not hasattr(method, "_tags"):
-        method._tags = {}
-    method._tags["validation"] = True
+        method._tags = {}  # type: ignore
+    method._tags["validation"] = True  # type: ignore
     return method
 
 
 class ValidateTargetColumn:
+    target_column: str
+
     @validation_method
     def validate_target(self, data: pd.DataFrame) -> None:
         if self.target_column not in data.columns:
@@ -26,6 +28,8 @@ class ValidateTargetColumn:
 
 
 class ValidateDateColumn:
+    date_column: str
+
     @validation_method
     def validate_date_col(self, data: pd.DataFrame) -> None:
         if self.date_column not in data.columns:
@@ -35,6 +39,8 @@ class ValidateDateColumn:
 
 
 class ValidateChannelColumns:
+    channel_columns: Union[List[str], Tuple[str]]
+
     @validation_method
     def validate_channel_columns(self, data: pd.DataFrame) -> None:
         if not isinstance(self.channel_columns, (list, tuple)):
@@ -47,13 +53,15 @@ class ValidateChannelColumns:
             raise ValueError(
                 f"channel_columns {self.channel_columns} contains duplicates"
             )
-        if (data[self.channel_columns] < 0).any().any():
+        if (data.filter(list(self.channel_columns)) < 0).any().any():
             raise ValueError(
                 f"channel_columns {self.channel_columns} contains negative values"
             )
 
 
 class ValidateControlColumns:
+    control_columns: Optional[List[str]]
+
     @validation_method
     def validate_control_columns(self, data: pd.DataFrame) -> None:
         if self.control_columns is None:

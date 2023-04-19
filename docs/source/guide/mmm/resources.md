@@ -17,3 +17,4 @@ The video below is a discussion, recorded in 2022, about the state of the art of
 * 1749: [Quantile Regression for Marketing Mix Modelling: Beyond BAU](https://1749.io/resource-centre/f/quantile-regression-for-marketing-mix-modelling-beyond-bau)
 * Juan Orduz: [Media Effect Estimation with Orbit's KTR Model](https://juanitorduz.github.io/orbit_mmm/)
 * Juan Orduz: [Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns](https://juanitorduz.github.io/pymc_mmm/)
+* Dr. Robert Kübler: [Convenient Bayesian Marketing Mix Modeling with PyMC Marketing](https://towardsdatascience.com/convenient-bayesian-marketing-mix-modeling-with-pymc-marketing-8b02a9a9c4aa)

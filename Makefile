@@ -13,6 +13,7 @@ check_lint:
 	flake8 .
 	isort --check-only .
 	black --diff --check --fast .
+	mypy .
 
 test:
 	pip install .[test]
