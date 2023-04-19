@@ -218,10 +218,28 @@ def test_customer_lifetime_value_gg_with_bgf(test_summary_data, fitted_gg, fitte
     np.testing.assert_equal(ggf_clv.values, utils_clv.values)
 
 
+def test_find_first_transactions_observation_period_end_none(transaction_data):
+    max_date = transaction_data["date"].max()
+    pd.testing.assert_frame_equal(
+        left=_find_first_transactions(
+            transactions=transaction_data,
+            customer_id_col="id",
+            datetime_col="date",
+            observation_period_end=None,
+        ),
+        right=_find_first_transactions(
+            transactions=transaction_data,
+            customer_id_col="id",
+            datetime_col="date",
+            observation_period_end=max_date,
+        ),
+    )
+
+
 @pytest.mark.parametrize(
     argnames="today",
-    argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7)],
-    ids=["string", "period", "datetime"],
+    argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7), None],
+    ids=["string", "period", "datetime", "none"],
 )
 def test_find_first_transactions_returns_correct_results(transaction_data, today):
     # Test borrowed from
@@ -253,8 +271,8 @@ def test_find_first_transactions_returns_correct_results(transaction_data, today
 
 @pytest.mark.parametrize(
     argnames="today",
-    argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7)],
-    ids=["string", "period", "datetime"],
+    argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7), None],
+    ids=["string", "period", "datetime", "none"],
 )
 def test_find_first_transactions_with_specific_non_daily_frequency(
     transaction_data, today
@@ -289,8 +307,8 @@ def test_find_first_transactions_with_specific_non_daily_frequency(
 
 @pytest.mark.parametrize(
     argnames="today",
-    argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7)],
-    ids=["string", "period", "datetime"],
+    argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7), None],
+    ids=["string", "period", "datetime", "none"],
 )
 def test_find_first_transactions_with_monetary_values(transaction_data, today):
     # Test borrowed from
@@ -326,8 +344,8 @@ def test_find_first_transactions_with_monetary_values(transaction_data, today):
 
 @pytest.mark.parametrize(
     argnames="today",
-    argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7)],
-    ids=["string", "period", "datetime"],
+    argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7), None],
+    ids=["string", "period", "datetime", "none"],
 )
 def test_find_first_transactions_with_monetary_values_with_specific_non_daily_frequency(
     transaction_data, today
