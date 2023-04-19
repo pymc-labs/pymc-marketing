@@ -119,12 +119,8 @@ class ParetoNBDModel(CLVModel):
         s_prior: Optional[TensorVariable] = None,
         beta_prior: Optional[TensorVariable] = None,
     ):
-        # each customer's information should be encapsulated by a single data entry
         if len(np.unique(customer_id)) != len(customer_id):
-            raise ValueError(
-                "ParetoNBD expects exactly one entry per customer, but more than"
-                " one entry is currently provided per customer id."
-            )
+            raise ValueError("Customers must have unique IDs.")
 
         super().__init__()
 

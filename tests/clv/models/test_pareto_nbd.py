@@ -45,6 +45,15 @@ class TestParetoNBDModel:
             "beta": cls.beta_true,
         }
 
+    def test_inputs(self):
+        with pytest.raises(ValueError, match="Customers must have unique IDs."):
+            model = ParetoNBDModel(
+                customer_id=np.array([1, 2, 2]),
+                frequency=np.array([3, 4, 7]),
+                recency=np.array([10, 20, 30]),
+                T=np.array([20, 30, 40]),
+            )
+
     @pytest.mark.parametrize(
         "r_prior, alpha_prior, s_prior, beta_prior",
         [
