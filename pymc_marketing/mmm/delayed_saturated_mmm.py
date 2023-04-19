@@ -80,13 +80,14 @@ class DelayedSaturatedMMM(
 
         if self.control_columns is not None:
             control_data: Optional[pd.DataFrame] = data[self.control_columns]
-            coords["control"] = control_data.columns
+            coords["control"] = data[self.control_columns].columns
         else:
             control_data = None
 
         if self.yearly_seasonality is not None:
-            fourier_features: Optional[pd.DataFrame] = self._get_fourier_models_data()
+            fourier_features = self._get_fourier_models_data()
             coords["fourier_mode"] = fourier_features.columns.to_numpy()
+
         else:
             fourier_features = None
 
@@ -181,7 +182,7 @@ class DelayedSaturatedMMM(
                 dims="date",
             )
 
-    def _get_fourier_models_data(self) -> Optional[pd.DataFrame]:
+    def _get_fourier_models_data(self) -> pd.DataFrame:
         """Generates fourier modes to model seasonality.
 
         References
@@ -189,7 +190,7 @@ class DelayedSaturatedMMM(
         https://www.pymc.io/projects/examples/en/latest/time_series/Air_passengers-Prophet_with_Bayesian_workflow.html
         """
         if self.yearly_seasonality is None:
-            return None
+            raise ValueError("yearly_seasonality must be specified.")
 
         date_data: pd.Series = pd.to_datetime(
             arg=self.data[self.date_column], format="%Y-%m-%d"
