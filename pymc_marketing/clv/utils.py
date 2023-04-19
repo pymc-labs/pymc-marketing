@@ -147,13 +147,13 @@ def _find_first_transactions(
         Column in the transactions DataFrame that denotes the customer_id.
     datetime_col:  string
         Column in the transactions DataFrame that denotes the datetime the purchase was made.
-    monetary_value_col: Optional[str], by default None
+    monetary_value_col: string, optional
         Column in the transactions DataFrame that denotes the monetary value of the transaction.
         Optional; only needed for spend estimation models like the Gamma-Gamma model.
-    datetime_format: Optional[str], by default None
+    datetime_format: string, optional
         A string that represents the timestamp format. Useful if Pandas can't understand
         the provided format.
-    observation_period_end: Optional[Union[str, pd.Period, datetime]], by default None
+    observation_period_end: Union[str, pd.Period, datetime], optional
         A string or datetime to denote the final date of the study.
         Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
     time_unit: string, optional
@@ -248,13 +248,13 @@ def clv_summary(
         Column in the transactions DataFrame that denotes the customer_id.
     datetime_col:  string
         Column in the transactions DataFrame that denotes the datetime the purchase was made.
-    monetary_value_col: Optional[str], by default None
+    monetary_value_col: string, optional
         Column in the transactions DataFrame that denotes the monetary value of the transaction.
         Optional; only needed for spend estimation models like the Gamma-Gamma model.
-    observation_period_end: Optional[Union[str, pd.Period, datetime]], by default None
+    observation_period_end: Union[str, pd.Period, datetime], optional
         A string or datetime to denote the final date of the study.
         Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
-    datetime_format: Optional[str], by default None
+    datetime_format: string, optional
         A string that represents the timestamp format. Useful if Pandas can't understand
         the provided format.
     time_unit: string, optional
