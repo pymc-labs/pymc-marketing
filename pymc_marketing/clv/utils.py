@@ -275,15 +275,15 @@ def clv_summary(
     """
 
     if observation_period_end is None:
-        observation_period_end = (
+        observation_period_end_ts = (
             pd.to_datetime(transactions[datetime_col].max(), format=datetime_format)
             .to_period(time_unit)
             .to_timestamp()
         )
     elif isinstance(observation_period_end, pd.Period):
-        observation_period_end = observation_period_end.to_timestamp()
+        observation_period_end_ts = observation_period_end.to_timestamp()
     else:
-        observation_period_end = (
+        observation_period_end_ts = (
             pd.to_datetime(observation_period_end, format=datetime_format)
             .to_period(time_unit)
             .to_timestamp()
@@ -296,13 +296,13 @@ def clv_summary(
         datetime_col,
         monetary_value_col,
         datetime_format,
-        observation_period_end,
+        observation_period_end_ts,
         time_unit,
     )
     # reset datetime_col to timestamp
-    repeated_transactions[datetime_col] = pd.Index(
-        repeated_transactions[datetime_col]
-    ).to_timestamp()
+    repeated_transactions[datetime_col] = repeated_transactions[
+        datetime_col
+    ].dt.to_timestamp()
 
     # count all orders by customer
     customers = repeated_transactions.groupby(customer_id_col, sort=False)[
@@ -313,12 +313,12 @@ def clv_summary(
     customers["frequency"] = customers["count"] - 1
 
     customers["T"] = (
-        (observation_period_end - customers["min"])
+        (observation_period_end_ts - customers["min"])
         / np.timedelta64(1, time_unit)
         / time_scaler
     )
     customers["recency"] = (
-        (customers["max"] - customers["min"])
+        (pd.to_datetime(customers["max"]) - pd.to_datetime(customers["min"]))
         / np.timedelta64(1, time_unit)
         / time_scaler
     )
