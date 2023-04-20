@@ -167,8 +167,12 @@ class TestMMM:
             channel_columns=["channel_1", "channel_2"],
             control_columns=["control_1", "control_2"],
             adstock_max_lag=2,
+            yearly_seasonality=2,
         )
         n_channel: int = len(mmm.channel_columns)
+        n_control: int = len(mmm.control_columns)
+        fourier_terms: int = 2 * mmm.yearly_seasonality
+
         mmm.fit(target_accept=0.81, draws=draws, chains=chains, random_seed=rng)
         idata: az.InferenceData = mmm.fit_result
         assert (
@@ -192,6 +196,25 @@ class TestMMM:
             n_channel,
             draws * chains,
         )
+
+        mean_model_contributions_ts = mmm.get_mean_contributions_over_time(
+            original_scale=True
+        )
+        assert mean_model_contributions_ts.shape == (
+            toy_df.shape[0],
+            n_channel + n_control + fourier_terms + 1,
+        )
+        assert mean_model_contributions_ts.columns.tolist() == [
+            "channel_1",
+            "channel_2",
+            "control_1",
+            "control_2",
+            "sin_order_1",
+            "cos_order_1",
+            "sin_order_2",
+            "cos_order_2",
+            "intercept",
+        ]
 
     @pytest.mark.parametrize(
         argnames="yearly_seasonality",

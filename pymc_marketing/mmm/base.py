@@ -411,10 +411,99 @@ class BaseMMM:
         fig.suptitle("Contribution Plots", fontsize=16)
         return fig
 
+    def get_mean_contributions_over_time(
+        self, original_scale: bool = False
+    ) -> pd.DataFrame:
+        """Get the contributions of each channel over time.
+
+        Parameters
+        ----------
+        original_scale : bool, optional
+            Whether to return the contributions in the original scale of the target
+            variable. If False, the contributions are returned in the scale of the
+            transformed target variable. Defaults to False.
+
+        Returns
+        -------
+        pd.DataFrame
+            A dataframe with the mean contributions of each channel and control variables over time.
+        """
+        contributions_channel_over_time = (
+            az.extract(
+                self.fit_result,
+                var_names=["channel_contributions"],
+                combined=True,
+            )
+            .mean("sample")
+            .to_dataframe()
+            .squeeze()
+            .unstack()
+        )
+
+        if getattr(self, "control_columns", None):
+            contributions_control_over_time = (
+                az.extract(
+                    self.fit_result,
+                    var_names=["control_contributions"],
+                    combined=True,
+                )
+                .mean("sample")
+                .to_dataframe()
+                .squeeze()
+                .unstack()
+            )
+        else:
+            contributions_control_over_time = pd.DataFrame(
+                index=contributions_channel_over_time.index
+            )
+
+        if getattr(self, "yearly_seasonality", None):
+            contributions_fourier_over_time = (
+                az.extract(
+                    self.fit_result,
+                    var_names=["fourier_contributions"],
+                    combined=True,
+                )
+                .mean("sample")
+                .to_dataframe()
+                .squeeze()
+                .unstack()
+            )
+        else:
+            contributions_fourier_over_time = pd.DataFrame(
+                index=contributions_fourier_over_time.index
+            )
+
+        contributions_intercept_over_time = (
+            az.extract(
+                self.fit_result,
+                var_names=["intercept"],
+                combined=True,
+            )
+            .mean("sample")
+            .to_numpy()
+        )
+
+        all_contributions_over_time = (
+            contributions_channel_over_time.join(contributions_control_over_time)
+            .join(contributions_fourier_over_time)
+            .assign(intercept=contributions_intercept_over_time)
+        )
+
+        if original_scale:
+            all_contributions_over_time = pd.DataFrame(
+                data=self.get_target_transformer().inverse_transform(
+                    all_contributions_over_time
+                ),
+                columns=all_contributions_over_time.columns,
+                index=all_contributions_over_time.index,
+            )
+        return all_contributions_over_time
+
     def plot_grouped_contribution_breakdown_over_time(
         self,
-        original_scale: bool = False,
         stack_groups: Optional[Dict[str, List[str]]] = None,
+        original_scale: bool = False,
         area_kwargs: Optional[Dict[str, Any]] = None,
         **plt_kwargs: Any,
     ) -> plt.Figure:
@@ -446,50 +535,12 @@ class BaseMMM:
         Returns
         -------
         plt.Figure
-            The chart.
+            Matplotlib figure with the plot.
         """
-        contributions_channel_over_time = (
-            az.extract(
-                self.fit_result,
-                var_names=["channel_contributions"],
-                combined=True,
-            )
-            .mean("sample")
-            .to_dataframe()
-            .squeeze()
-            .unstack()
+
+        all_contributions_over_time = self.get_mean_contributions_over_time(
+            original_scale=original_scale
         )
-
-        if getattr(self, "control_columns", None):
-            contributions_control_over_time = (
-                az.extract(
-                    self.fit_result,
-                    var_names=["control_contributions"],
-                    combined=True,
-                )
-                .mean("sample")
-                .to_dataframe()
-                .squeeze()
-                .unstack()
-            )
-        else:
-            contributions_control_over_time = pd.DataFrame(
-                index=contributions_channel_over_time.index
-            )
-
-        contributions_intercept_over_time = (
-            az.extract(
-                self.fit_result,
-                var_names=["intercept"],
-                combined=True,
-            )
-            .mean("sample")
-            .to_numpy()
-        )
-
-        all_contributions_over_time = contributions_channel_over_time.join(
-            contributions_control_over_time
-        ).assign(intercept=contributions_intercept_over_time)
 
         if stack_groups is not None:
             grouped_buffer = []
@@ -501,22 +552,15 @@ class BaseMMM:
                 )
                 grouped_buffer.append(grouped)
 
-            all_contributions_over_time = pd.concat(grouped_buffer, axis="columns")
-
-        if original_scale:
-            all_contributions_over_time = pd.DataFrame(
-                data=self.get_target_transformer().inverse_transform(
-                    all_contributions_over_time
-                ),
-                columns=all_contributions_over_time.columns,
-                index=all_contributions_over_time.index,
+            all_contributions_over_time_grouped = pd.concat(
+                grouped_buffer, axis="columns"
             )
 
         fig, ax = plt.subplots(**plt_kwargs)
         area_params = dict(stacked=True, ax=ax)
         if area_kwargs is not None:
             area_params.update(area_kwargs)
-        all_contributions_over_time.plot.area(**area_params)
+        all_contributions_over_time_grouped.plot.area(**area_params)
         ax.legend(title="groups", loc="center left", bbox_to_anchor=(1, 0.5))
         return fig
 
