@@ -56,12 +56,12 @@ def customer_lifetime_value(
     time: int, optional
         The lifetime expected for the user in months. Default: 12
     discount_rate: float, optional
-        The monthly adjusted discount rate. Default: 1
+        The monthly adjusted discount rate. Default: 0.01
     freq: string, optional
-        Frequency of discrete time steps used to estimate the customer lifetime value.
-        Defaults to "D" for daily. Other options are "W" (weekly), "M" (monthly), and "H" (hourly).
-        Smaller time frames estimate better the effects of discounting rate, at the cost of more
-        evaluations.
+        Unit of time of the purchase history. Defaults to "D" for daily.
+        Other options are "W" (weekly), "M" (monthly), and "H" (hourly).
+        Example: If your dataset contains information about weekly purchases,
+        you should use "W".
 
     Returns
     -------
