@@ -411,7 +411,7 @@ class BaseMMM:
         fig.suptitle("Contribution Plots", fontsize=16)
         return fig
 
-    def get_mean_contributions_over_time(
+    def compute_mean_contributions_over_time(
         self, original_scale: bool = False
     ) -> pd.DataFrame:
         """Get the contributions of each channel over time.
@@ -538,7 +538,7 @@ class BaseMMM:
             Matplotlib figure with the plot.
         """
 
-        all_contributions_over_time = self.get_mean_contributions_over_time(
+        all_contributions_over_time = self.compute_mean_contributions_over_time(
             original_scale=original_scale
         )
 
