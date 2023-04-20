@@ -471,7 +471,7 @@ class BaseMMM:
             )
         else:
             contributions_fourier_over_time = pd.DataFrame(
-                index=contributions_fourier_over_time.index
+                index=contributions_channel_over_time.index
             )
 
         contributions_intercept_over_time = (
@@ -552,15 +552,13 @@ class BaseMMM:
                 )
                 grouped_buffer.append(grouped)
 
-            all_contributions_over_time_grouped = pd.concat(
-                grouped_buffer, axis="columns"
-            )
+            all_contributions_over_time = pd.concat(grouped_buffer, axis="columns")
 
         fig, ax = plt.subplots(**plt_kwargs)
         area_params = dict(stacked=True, ax=ax)
         if area_kwargs is not None:
             area_params.update(area_kwargs)
-        all_contributions_over_time_grouped.plot.area(**area_params)
+        all_contributions_over_time.plot.area(**area_params)
         ax.legend(title="groups", loc="center left", bbox_to_anchor=(1, 0.5))
         return fig
 
