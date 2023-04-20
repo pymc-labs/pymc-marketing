@@ -197,7 +197,7 @@ class TestMMM:
             draws * chains,
         )
 
-        mean_model_contributions_ts = mmm.get_mean_contributions_over_time(
+        mean_model_contributions_ts = mmm.compute_mean_contributions_over_time(
             original_scale=True
         )
         assert mean_model_contributions_ts.shape == (
