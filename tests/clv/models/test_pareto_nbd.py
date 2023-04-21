@@ -5,7 +5,7 @@ import pymc as pm
 import pytest
 from lifetimes import ParetoNBDFitter
 
-from pymc_marketing.clv.models.pareto_nbd import ParetoNBDModel
+from pymc_marketing.clv import ParetoNBDModel
 
 
 class TestParetoNBDModel:
