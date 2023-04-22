@@ -29,7 +29,7 @@ class ContNonContractRV(RandomVariable):
         return super().__call__(lam, p, T, T0, size=size, **kwargs)
 
     @classmethod
-    def rng_fn(cls, rng, lam, p, T, T0, size) -> np.ndarray:
+    def rng_fn(cls, rng, lam, p, T, T0, size) -> np.ndarray:  # type: ignore [override]
         size = pm.distributions.shape_utils.to_tuple(size)
 
         # TODO: broadcast sizes
@@ -162,7 +162,7 @@ class ContContractRV(RandomVariable):
         return super().__call__(lam, p, T, T0, size=size, **kwargs)
 
     @classmethod
-    def rng_fn(cls, rng, lam, p, T, T0, size) -> np.ndarray:
+    def rng_fn(cls, rng, lam, p, T, T0, size) -> np.ndarray:  # type: ignore [override]
         size = pm.distributions.shape_utils.to_tuple(size)
 
         # To do: broadcast sizes
@@ -312,7 +312,9 @@ class ParetoNBDRV(RandomVariable):
         return super().__call__(r, alpha, s, beta, T, size=size, **kwargs)
 
     @classmethod
-    def rng_fn(cls, rng, r, alpha, s, beta, T, size) -> np.ndarray:
+    def rng_fn(  # type: ignore [override]
+        cls, rng, r, alpha, s, beta, T, size
+    ) -> np.ndarray:
         size = pm.distributions.shape_utils.to_tuple(size)
 
         r = np.asarray(r)
