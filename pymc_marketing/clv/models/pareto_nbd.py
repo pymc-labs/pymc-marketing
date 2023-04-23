@@ -177,7 +177,7 @@ class ParetoNBDModel(CLVModel):
         return super()._process_priors(r_prior, alpha_prior, s_prior, beta_prior)
 
     # TODO: Is this return type hint correct?
-    def _unload_params(self) -> Tuple[np.ndarray]:
+    def _unload_params(self) -> Tuple[Any]:
         """Utility function retrieving posterior parameters for predictive methods"""
         return tuple([self.fit_result.posterior[param] for param in self._params])
 
@@ -349,7 +349,7 @@ class ParetoNBDModel(CLVModel):
 
         t = np.asarray(t)
 
-        r, alpha, s, beta = self._unload_params()
+        r, alpha, s, beta = self._unload_params()  # type: ignore [has-type]
         first_term = r * beta / alpha / (s - 1)
         second_term = 1 - (beta / (beta + t)) ** (s - 1)
 
@@ -404,7 +404,7 @@ class ParetoNBDModel(CLVModel):
             value representing a probability
         """
         x, t_x, T = self._process_customers(customer_id, frequency, recency, T)
-        r, alpha, s, beta = self._unload_params()
+        r, alpha, s, beta = self._unload_params()  # type: ignore [has-type]
         loglike = self._logp(r, alpha, s, beta, x, t_x, T)
 
         term1 = gammaln(r + x) - gammaln(r)
@@ -455,8 +455,8 @@ class ParetoNBDModel(CLVModel):
         array_like
         """
 
-        x, t_x, T = self._process_customers(customer_id, frequency, recency, T)
-        r, alpha, s, beta = self._unload_params()
+        x, t_x, T = self._process_customers(customer_id, frequency, recency, T)  # type: ignore [has-type]
+        r, alpha, s, beta = self._unload_params()  # type: ignore [has-type]
         loglike = self._logp(r, alpha, s, beta, x, t_x, T)
 
         _alpha_less_than_beta = alpha < beta
