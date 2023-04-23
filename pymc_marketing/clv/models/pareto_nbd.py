@@ -177,7 +177,7 @@ class ParetoNBDModel(CLVModel):
         return super()._process_priors(r_prior, alpha_prior, s_prior, beta_prior)
 
     # TODO: Is this return type hint correct?
-    def _unload_params(self) -> Tuple[Any]:
+    def _unload_params(self) -> Tuple[np.ndarray]:
         """Utility function retrieving posterior parameters for predictive methods"""
         return tuple([self.fit_result.posterior[param] for param in self._params])
 
