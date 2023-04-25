@@ -254,20 +254,17 @@ class DelayedSaturatedMMM(
         try:
             new_channel_data = data["channel_data"]["value"]
         except KeyError as e:
-            print("New data must contain channel_data!", e)
+            raise RuntimeError("New data must contain channel_data!", e)
         target = None
         try:
             target = data["target"]["value"]
         except KeyError as e:
-            print("New data must contain target", e)
+            raise RuntimeError("New data must contain target", e)
 
-        if new_channel_data is not None and target is not None:
-            with self.model:
-                pm.set_data(
-                    {
-                        "channel_data": new_channel_data,
-                        "target": target,
-                    }
-                )
-        else:
-            print("Failed to set new data: missing required keys")
+        with self.model:
+            pm.set_data(
+                {
+                    "channel_data": new_channel_data,
+                    "target": target,
+                }
+            )
