@@ -244,45 +244,38 @@ class BaseMMM:
         )
         return fig
 
-    def plot_components_contributions(self, **plt_kwargs: Any) -> plt.Figure:
-        channel_contributions = az.extract(
+    def _format_model_contributions(self, var_contribution: str) -> DataArray:
+        contributions = az.extract(
             self.fit_result,
-            var_names=["channel_contributions"],
+            var_names=[var_contribution],
             combined=False,
         )
         contracted_dims = [
-            d for d in channel_contributions.dims if d not in ["chain", "draw", "date"]
+            d for d in contributions.dims if d not in ["chain", "draw", "date"]
         ]
-        channel_contributions = (
-            channel_contributions.sum(contracted_dims)
-            if contracted_dims
-            else channel_contributions
+        return contributions.sum(contracted_dims) if contracted_dims else contributions
+
+    def plot_components_contributions(self, **plt_kwargs: Any) -> plt.Figure:
+        channel_contributions = self._format_model_contributions(
+            var_contribution="channel_contributions"
         )
         means = [channel_contributions.mean(["chain", "draw"])]
         contribution_vars = [
             az.hdi(channel_contributions, hdi_prob=0.94).channel_contributions
         ]
 
-        if getattr(self, "control_columns", None):
-            control_contributions = az.extract(
-                self.fit_result,
-                var_names=["control_contributions"],
-                combined=False,
-            )
-            contracted_dims = [
-                d
-                for d in control_contributions.dims
-                if d not in ["chain", "draw", "date"]
-            ]
-            control_contributions = (
-                control_contributions.sum(contracted_dims)
-                if contracted_dims
-                else control_contributions
-            )
-            means.append(control_contributions.mean(["chain", "draw"]))
-            contribution_vars.append(
-                az.hdi(control_contributions, hdi_prob=0.94).control_contributions
-            )
+        for arg, var_contribution in zip(
+            ["control_columns", "yearly_seasonality"],
+            ["control_contributions", "fourier_contributions"],
+        ):
+            if getattr(self, arg, None):
+                contributions = self._format_model_contributions(
+                    var_contribution=var_contribution
+                )
+                means.append(contributions.mean(["chain", "draw"]))
+                contribution_vars.append(
+                    az.hdi(contributions, hdi_prob=0.94)[var_contribution]
+                )
 
         fig, ax = plt.subplots(**plt_kwargs)
 
@@ -290,7 +283,11 @@ class BaseMMM:
             zip(
                 means,
                 contribution_vars,
-                ["channel_contribution", "control_contribution"],
+                [
+                    "channel_contribution",
+                    "control_contribution",
+                    "fourier_contribution",
+                ],
             )
         ):
             ax.fill_between(
@@ -414,10 +411,99 @@ class BaseMMM:
         fig.suptitle("Contribution Plots", fontsize=16)
         return fig
 
+    def compute_mean_contributions_over_time(
+        self, original_scale: bool = False
+    ) -> pd.DataFrame:
+        """Get the contributions of each channel over time.
+
+        Parameters
+        ----------
+        original_scale : bool, optional
+            Whether to return the contributions in the original scale of the target
+            variable. If False, the contributions are returned in the scale of the
+            transformed target variable. Defaults to False.
+
+        Returns
+        -------
+        pd.DataFrame
+            A dataframe with the mean contributions of each channel and control variables over time.
+        """
+        contributions_channel_over_time = (
+            az.extract(
+                self.fit_result,
+                var_names=["channel_contributions"],
+                combined=True,
+            )
+            .mean("sample")
+            .to_dataframe()
+            .squeeze()
+            .unstack()
+        )
+
+        if getattr(self, "control_columns", None):
+            contributions_control_over_time = (
+                az.extract(
+                    self.fit_result,
+                    var_names=["control_contributions"],
+                    combined=True,
+                )
+                .mean("sample")
+                .to_dataframe()
+                .squeeze()
+                .unstack()
+            )
+        else:
+            contributions_control_over_time = pd.DataFrame(
+                index=contributions_channel_over_time.index
+            )
+
+        if getattr(self, "yearly_seasonality", None):
+            contributions_fourier_over_time = (
+                az.extract(
+                    self.fit_result,
+                    var_names=["fourier_contributions"],
+                    combined=True,
+                )
+                .mean("sample")
+                .to_dataframe()
+                .squeeze()
+                .unstack()
+            )
+        else:
+            contributions_fourier_over_time = pd.DataFrame(
+                index=contributions_channel_over_time.index
+            )
+
+        contributions_intercept_over_time = (
+            az.extract(
+                self.fit_result,
+                var_names=["intercept"],
+                combined=True,
+            )
+            .mean("sample")
+            .to_numpy()
+        )
+
+        all_contributions_over_time = (
+            contributions_channel_over_time.join(contributions_control_over_time)
+            .join(contributions_fourier_over_time)
+            .assign(intercept=contributions_intercept_over_time)
+        )
+
+        if original_scale:
+            all_contributions_over_time = pd.DataFrame(
+                data=self.get_target_transformer().inverse_transform(
+                    all_contributions_over_time
+                ),
+                columns=all_contributions_over_time.columns,
+                index=all_contributions_over_time.index,
+            )
+        return all_contributions_over_time
+
     def plot_grouped_contribution_breakdown_over_time(
         self,
-        original_scale: bool = False,
         stack_groups: Optional[Dict[str, List[str]]] = None,
+        original_scale: bool = False,
         area_kwargs: Optional[Dict[str, Any]] = None,
         **plt_kwargs: Any,
     ) -> plt.Figure:
@@ -449,50 +535,12 @@ class BaseMMM:
         Returns
         -------
         plt.Figure
-            The chart.
+            Matplotlib figure with the plot.
         """
-        contributions_channel_over_time = (
-            az.extract(
-                self.fit_result,
-                var_names=["channel_contributions"],
-                combined=True,
-            )
-            .mean("sample")
-            .to_dataframe()
-            .squeeze()
-            .unstack()
+
+        all_contributions_over_time = self.compute_mean_contributions_over_time(
+            original_scale=original_scale
         )
-
-        if getattr(self, "control_columns", None):
-            contributions_control_over_time = (
-                az.extract(
-                    self.fit_result,
-                    var_names=["control_contributions"],
-                    combined=True,
-                )
-                .mean("sample")
-                .to_dataframe()
-                .squeeze()
-                .unstack()
-            )
-        else:
-            contributions_control_over_time = pd.DataFrame(
-                index=contributions_channel_over_time.index
-            )
-
-        contributions_intercept_over_time = (
-            az.extract(
-                self.fit_result,
-                var_names=["intercept"],
-                combined=True,
-            )
-            .mean("sample")
-            .to_numpy()
-        )
-
-        all_contributions_over_time = contributions_channel_over_time.join(
-            contributions_control_over_time
-        ).assign(intercept=contributions_intercept_over_time)
 
         if stack_groups is not None:
             grouped_buffer = []
@@ -505,15 +553,6 @@ class BaseMMM:
                 grouped_buffer.append(grouped)
 
             all_contributions_over_time = pd.concat(grouped_buffer, axis="columns")
-
-        if original_scale:
-            all_contributions_over_time = pd.DataFrame(
-                data=self.get_target_transformer().inverse_transform(
-                    all_contributions_over_time
-                ),
-                columns=all_contributions_over_time.columns,
-                index=all_contributions_over_time.index,
-            )
 
         fig, ax = plt.subplots(**plt_kwargs)
         area_params = dict(stacked=True, ax=ax)
@@ -542,7 +581,7 @@ class BaseMMM:
             data=channel_contributions_share,
             combined=True,
             hdi_prob=hdi_prob,
-            backend_kwargs=plot_kwargs,
+            **plot_kwargs,
         )
         ax.xaxis.set_major_formatter(mtick.FuncFormatter(lambda y, _: f"{y: 0.0%}"))
         fig: plt.Figure = plt.gcf()

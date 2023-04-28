@@ -131,7 +131,10 @@ class BaseGammaGammaModel(CLVModel):
         discount_rate: float = 0.01,
         freq: str = "D",
     ) -> xarray.DataArray:
-        """Expected customer lifetime value."""
+        """Expected customer lifetime value.
+
+        See clv.utils.customer_lifetime_value for details on the meaning of each parameter
+        """
 
         # Use the Gamma-Gamma estimates for the monetary_values
         adjusted_monetary_value = self.expected_customer_spend(
@@ -431,7 +434,10 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         discount_rate: float = 0.01,
         freq: str = "D",
     ) -> xarray.DataArray:
-        """Return expected customer lifetime value."""
+        """Return expected customer lifetime value.
+
+        See clv.utils.customer_lifetime_value for details on the meaning of each parameter
+        """
 
         customer_id, z_mean, x = self._summarize_mean_data(
             customer_id, individual_transaction_value
