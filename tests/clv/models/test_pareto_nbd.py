@@ -110,17 +110,17 @@ class TestParetoNBDModel:
     @pytest.mark.parametrize(
         "fit_method, rtol",
         [
-            ("mcmc", 0.3),
-            ("map", 0.1),
+            ("mcmc", 0.1),
+            ("map", 0.2),
         ],
     )
     def test_model_convergence(self, fit_method, rtol):
-        # # Edit priors here for convergence testing
-        # # Note that None/pm.HalfFlat is extremely slow to converge
-        r_prior = pm.Weibull.dist(alpha=10, beta=1)
-        alpha_prior = pm.Weibull.dist(alpha=10, beta=10)
-        s_prior = pm.Weibull.dist(alpha=10, beta=1)
-        beta_prior = pm.Weibull.dist(alpha=10, beta=10)
+        # Edit priors here for convergence testing
+        # Note that None/pm.HalfFlat is extremely slow to converge
+        r_prior = pm.Weibull.dist(alpha=2, beta=1)
+        alpha_prior = pm.Weibull.dist(alpha=2, beta=10)
+        s_prior = pm.Weibull.dist(alpha=2, beta=1)
+        beta_prior = pm.Weibull.dist(alpha=2, beta=10)
 
         model = ParetoNBDModel(
             customer_id=self.customer_id,
@@ -132,12 +132,20 @@ class TestParetoNBDModel:
             s_prior=s_prior,
             beta_prior=beta_prior,
         )
-        sample_kwargs = (
-            dict(random_seed=self.rng, chains=2, step=pm.Slice())
-            if fit_method == "mcmc"
-            else {}
-        )
-        model.fit(fit_method=fit_method, progressbar=False, **sample_kwargs)
+
+        if fit_method == "mcmc":
+            with model.model:
+                model.fit(
+                    fit_method=fit_method,
+                    random_seed=self.rng,
+                    chains=2,
+                    step=pm.Slice(),
+                    draws=2000,
+                    progressbar=False,
+                )
+        else:
+            model.fit(fit_method=fit_method)
+
         fit = model.fit_result.posterior
         np.testing.assert_allclose(
             [fit["r"].mean(), fit["alpha"].mean(), fit["s"].mean(), fit["beta"].mean()],
