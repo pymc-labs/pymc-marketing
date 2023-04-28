@@ -23,42 +23,41 @@ class ParetoNBDModel(CLVModel):
     every purchase, a probability of "dropout", i.e. no longer being a customer.
 
     Customer-specific data needed for statistical inference include 1) the total
-    number of purchases (:math:`x`) and 2) the time of the last, i.e. xth, purchase. The
+    number of repeat purchases (:math:`x`) and 2) the time of the last, i.e. xth, purchase. The
     omission of purchase times :math:`t_1, ..., t_x` is due to a telescoping sum in the
     exponential function of the joint likelihood; see Section 4.1 of [2] for more
     details.
 
-    Methods below are adapted from the ParetoFitter class from the lifetimes package
-    (see https://github.com/CamDavidsonPilon/lifetimes/).
-
-
     Parameters
     ----------
     customer_id: array_like
-        Customer labels. Must not repeat.
+        Customer labels. Must be unique.
     frequency: array_like
-        The number of purchases of customers.
+        Number of repeat purchases per customer.
     recency: array_like
-        The time of the last, i.e. xth, purchase.
+        Number of time periods between the customer's first and most recent purchases.
     T: array_like
-        The time of a customer's period under which they are under observation. By
-        construction of the model, T > t_x.
+        Number of time periods since the customer's first purchase.
+        Model assumptions require T >= recency.
     r_prior: scalar PyMC distribution, optional
+        Shape parameter of time between purchases for customer population.
         PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.Weibull.dist(alpha=10, beta=1)`
+        `pm.Weibull.dist(alpha=2, beta=1)`
     alpha_prior: scalar PyMC distribution, optional
+        Scale parameter of time between purchases for customer population.
         PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.Weibull.dist(alpha=10, beta=10)`
+        `pm.Weibull.dist(alpha=2, beta=10)`
     s_prior: scalar PyMC distribution, optional
+        Shape parameter of time until churn for customer population.
         PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.Weibull.dist(alpha=10, beta=1)`
+        `pm.Weibull.dist(alpha=2, beta=1)`
     beta_prior: scalar PyMC distribution, optional
+        Scale parameter of time until churn for customer population.
         PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.Weibull.dist(alpha=10, beta=10)`
+        `pm.Weibull.dist(alpha=2, beta=10)`
 
     Examples
     --------
-    Pareto/NBD model for customer
 
     .. code-block:: python
         import pymc as pm
@@ -71,25 +70,47 @@ class ParetoNBDModel(CLVModel):
             frequency=summary['frequency']
             recency=[summary['recency'],
             T=summary['T'],
-            r_prior=pm.HalfNormal.dist(10),
-            alpha_prior=pm.HalfNormal.dist(10),
-            s_prior=pm.HalfNormal.dist(10),
-            beta_prior=pm.HalfNormal.dist(10),
+            r_prior=pm.Weibull.dist(alpha=2,beta=1),
+            alpha_prior=pm.Weibull.dist(alpha=2,beta=10),
+            s_prior=pm.Weibull.dist(alpha=2,beta=1),
+            beta_prior=pm.Weibull.dist(alpha=2,beta=10),,
         )
 
         model.fit()
         print(model.fit_summary())
 
-        # Estimating the expected number of purchases for a randomly chosen
-        # individual in a future time period of length t
-        expected_num_purchases = model.expected_num_purchases(
-            t=[2, 5, 7, 10],
+        # Predict number of purchases for a specific customer
+        # over (:math:`t`) time periods given their current frequency, recency, T
+        expected_purchases = model.expected_purchases(
+            future_t=[5, 5, 5, 5],
+            frequency=[5, 2, 1, 8],
+            recency=[7, 4, 2.5, 11],
+            T=[10, 8, 10, 22],
         )
 
-        # Predicting the customer-specific number of purchases for a future
-        # time interval of length t given their previous frequency and recency
-        expected_num_purchases_new_customer = model.expected_num_purchases_new_customer(
-            t=[5, 5, 5, 5],
+        # Predict probability a customer will still be active
+        # in 't' time periods given current frequency, recency, T
+        probability_alive = model.probability_alive(
+            future_t=[0, 3, 6, 9],
+            frequency=[5, 2, 1, 8],
+            recency=[7, 4, 2.5, 11],
+            T=[10, 8, 10, 22],
+        )
+
+        # Predict probability of customer making 'n' purchases over 't' time periods
+        # given current frequency, recency, T
+        expected_num_purchases = model.purchase_probability(
+            n=[0, 1, 2, 3],
+            future_t=[10,20,30,40],
+            frequency=[5, 2, 1, 8],
+            recency=[7, 4, 2.5, 11],
+            T=[10, 8, 10, 22],
+        )
+
+        # Estimate expected number of purchases for a new customer
+        # over 't' time periods
+        expected_purchases_new_customer = model.expected_purchases_new_customer(
+            t=[2, 5, 7, 10],
             frequency=[5, 2, 1, 8],
             recency=[7, 4, 2.5, 11],
             T=[10, 8, 10, 22],
@@ -120,7 +141,7 @@ class ParetoNBDModel(CLVModel):
         beta_prior: Optional[TensorVariable] = None,
     ):
         if len(np.unique(customer_id)) != len(customer_id):
-            raise ValueError("Customers must have unique IDs.")
+            raise ValueError("Customers must have unique ID labels.")
 
         super().__init__()
 
@@ -132,14 +153,14 @@ class ParetoNBDModel(CLVModel):
         r_prior, alpha_prior, s_prior, beta_prior = self._process_priors(
             r_prior, alpha_prior, s_prior, beta_prior
         )
-
+        # TODO: rename hyperpriors to purchase_shape, purchase_scale, churn_shape, churn_scale?
         coords = {"customer_id": self._customer_id}
         with pm.Model(coords=coords) as self.model:
-            # purchase rate hyperpriors
+            # purchase rate priors
             r = self.model.register_rv(r_prior, name="r")
             alpha = self.model.register_rv(alpha_prior, name="alpha")
 
-            # churn hyperpriors
+            # churn priors
             s = self.model.register_rv(s_prior, name="s")
             beta = self.model.register_rv(beta_prior, name="beta")
 
@@ -154,7 +175,7 @@ class ParetoNBDModel(CLVModel):
             )
 
     def _process_priors(self, r_prior, alpha_prior, s_prior, beta_prior):
-        # hyper priors for the transaction rate
+        # priors for purchase rate
         if r_prior is None:
             r_prior = pm.Weibull.dist(alpha=10, beta=1)
         else:
@@ -164,7 +185,7 @@ class ParetoNBDModel(CLVModel):
         else:
             self._check_prior_ndim(alpha_prior)
 
-        # hyper priors for the dropout rate
+        # hyper priors for churn rate
         if s_prior is None:
             s_prior = pm.Weibull.dist(alpha=10, beta=1)
         else:
@@ -190,7 +211,7 @@ class ParetoNBDModel(CLVModel):
         T: Union[np.ndarray, pd.Series, TensorVariable],
     ) -> Tuple[xarray.DataArray]:
         """Utility function assigning default customer arguments
-        for predictive methods and converting them to xarray DataArrays
+        for predictive methods and converting to xarrays.
         """
         if customer_id is None:
             customer_id = self._customer_id
@@ -421,7 +442,7 @@ class ParetoNBDModel(CLVModel):
     # TODO: Edit docstrings
     def purchase_probability(
         self,
-        n: Union[int, np.ndarray, pd.Series, TensorVariable],
+        n_purchases: Union[int, np.ndarray, pd.Series, TensorVariable],
         future_t: Union[float, np.ndarray, pd.Series, TensorVariable],
         customer_id: Union[np.ndarray, pd.Series] = None,
         frequency: Union[np.ndarray, pd.Series, TensorVariable] = None,
@@ -429,20 +450,18 @@ class ParetoNBDModel(CLVModel):
         T: Union[np.ndarray, pd.Series, TensorVariable] = None,
     ) -> xarray.DataArray:
         """
-        Return conditional probability of n purchases up to time t.
-
-        Calculate the probability of n purchases up to time t for an individual
-        with history frequency, recency and T (age).
+        Estimate probability of (:math:`n`) purchases over (:math:`t`) time periods
+        given current frequency, recency, and T.
 
         The main equation being implemented is (16) from:
         http://www.brucehardie.com/notes/028/pareto_nbd_conditional_pmf.pdf
 
         Parameters
         ----------
-        n: int
+        n_purchases: int
             number of purchases.
-        t: a scalar
-            time up to which probability should be calculated.
+        future_t: a scalar
+            time periods over which the probability should be calculated.
         frequency: float
             historical frequency of customer.
         recency: float
@@ -462,7 +481,7 @@ class ParetoNBDModel(CLVModel):
         _alpha_less_than_beta = alpha < beta
         min_of_alpha_beta = xarray.where(_alpha_less_than_beta, alpha, beta)
         max_of_alpha_beta = xarray.where(_alpha_less_than_beta, beta, alpha)
-        p = xarray.where(_alpha_less_than_beta, r + x + n, s + 1)
+        p = xarray.where(_alpha_less_than_beta, r + x + n_purchases, s + 1)
 
         abs_alpha_beta = max_of_alpha_beta - min_of_alpha_beta
 
@@ -473,12 +492,12 @@ class ParetoNBDModel(CLVModel):
             - (gammaln(r) + (r + x) * log(alpha + T) + s * log(beta + T) + loglike)
         )
         log_B_one = (
-            gammaln(r + x + n)
+            gammaln(r + x + n_purchases)
             + r * log(alpha)
             + s * log(beta)
             - (
                 gammaln(r)
-                + (r + x + n) * log(alpha + T + future_t)
+                + (r + x + n_purchases) * log(alpha + T + future_t)
                 + s * log(beta + T + future_t)
             )
         )
@@ -486,12 +505,12 @@ class ParetoNBDModel(CLVModel):
             r * log(alpha)
             + s * log(beta)
             + gammaln(r + s + x)
-            + betaln(r + x + n, s + 1)
+            + betaln(r + x + n_purchases, s + 1)
             + log(
                 hyp2f1(
                     r + s + x,
                     p,
-                    r + s + x + n + 1,
+                    r + s + x + n_purchases + 1,
                     abs_alpha_beta / (max_of_alpha_beta + T),
                 )
             )
@@ -503,12 +522,12 @@ class ParetoNBDModel(CLVModel):
                 r * log(alpha)
                 + s * log(beta)
                 + gammaln(r + s + x + i)
-                + betaln(r + x + n, s + 1)
+                + betaln(r + x + n_purchases, s + 1)
                 + log(
                     hyp2f1(
                         r + s + x + i,
                         p,
-                        r + s + x + n + 1,
+                        r + s + x + n_purchases + 1,
                         abs_alpha_beta / (max_of_alpha_beta + T + future_t),
                     )
                 )
@@ -519,14 +538,16 @@ class ParetoNBDModel(CLVModel):
                 )
             )
 
-        zeroth_term = (n == 0) * (1 - exp(log_p_zero))
-        first_term = n * log(future_t) - gammaln(n + 1) + log_B_one - loglike
+        zeroth_term = (n_purchases == 0) * (1 - exp(log_p_zero))
+        first_term = (
+            n_purchases * log(future_t) - gammaln(n_purchases + 1) + log_B_one - loglike
+        )
         second_term = log_B_two - loglike
         third_term = xr_logsumexp(
             xarray.concat(
                 [
                     i * log(future_t) - gammaln(i + 1) + _log_B_three(i) - loglike
-                    for i in range(n + 1)
+                    for i in range(n_purchases + 1)
                 ],
                 dim="concat_dim_",
             ),

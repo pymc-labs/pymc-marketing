@@ -46,7 +46,7 @@ class TestParetoNBDModel:
         }
 
     def test_inputs(self):
-        with pytest.raises(ValueError, match="Customers must have unique IDs."):
+        with pytest.raises(ValueError, match="Customers must have unique ID labels."):
             ParetoNBDModel(
                 customer_id=np.array([1, 2, 2]),
                 frequency=np.array([3, 4, 7]),
@@ -122,9 +122,6 @@ class TestParetoNBDModel:
         s_prior = pm.Weibull.dist(alpha=10, beta=1)
         beta_prior = pm.Weibull.dist(alpha=10, beta=10)
 
-        # TODO: casting these Pandas Series to numpy arrays with the .values suffix
-        #      was recommended due to bugs in lifetimes. try also testing with PD series because
-        #      data preprocessing is now handled by pymc_marketing.clv.utils.clv_summary
         model = ParetoNBDModel(
             customer_id=self.customer_id,
             frequency=self.frequency,
@@ -188,8 +185,8 @@ class TestParetoNBDModel:
         assert est_num_purchases.dims == ("chain", "draw", "customer_id")
 
         np.testing.assert_allclose(
-            true_purchases.mean(),
-            est_num_purchases.mean(),
+            true_purchases,
+            est_num_purchases.mean(("chain", "draw")),
             rtol=0.001,
         )
 
@@ -221,7 +218,7 @@ class TestParetoNBDModel:
         np.testing.assert_allclose(
             true_purchases_new,
             est_purchases_new.mean(("chain", "draw")),
-            rtol=1,
+            rtol=0.001,
         )
 
     def test_probability_alive(self):
@@ -249,8 +246,8 @@ class TestParetoNBDModel:
         assert est_prob_alive.shape == (chains, draws, N)
         assert est_prob_alive.dims == ("chain", "draw", "customer_id")
         np.testing.assert_allclose(
-            true_prob_alive.mean(),
-            est_prob_alive.mean(),
+            true_prob_alive,
+            est_prob_alive.mean(("chain", "draw")),
             rtol=0.001,
         )
 
@@ -290,5 +287,5 @@ class TestParetoNBDModel:
         np.testing.assert_allclose(
             true_prob_purchase,
             est_purchases_new_customer.mean(("chain", "draw")),
-            rtol=0.01,
+            rtol=0.001,
         )
