@@ -1,5 +1,5 @@
 <div align="center">
-  <a href="https://github.com/uber/causalml"><img height="240px" src="docs/source/_static/logo-tight.jpg"></a>
+  <a href="https://github.com/pymc-labs/pymc-marketing"><img height="240px" src="docs/source/_static/logo-tight.jpg"></a>
 </div>
 
 ----
