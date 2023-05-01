@@ -103,8 +103,8 @@ html_favicon = "_static/favicon.ico"
 # documentation.
 html_theme_options = {
     "logo": {
-        "image_light": "logo-light.png",
-        "image_dark": "logo-dark.png",
+        "image_light": "marketing-logo-light.jpg",
+        "image_dark": "marketing-logo-dark.jpg",
     },
     "navbar_align": "right",
     "navbar_start": ["navbar-logo", "navbar-name"],

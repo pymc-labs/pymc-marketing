@@ -166,7 +166,7 @@ This repository is supported by [PyMC Labs](https://www.pymc-labs.io).
 
 For companies that want to use PyMC-Marketing in production, [PyMC Labs](https://www.pymc-labs.io) is available for consulting and training. We can help you build and deploy your models in production. We have experience with cutting edge Bayesian modelling techniques which we have applied to a range of business domains including marketing analytics.
 
-:::{image} _static/logo-dark.png
+:::{image} _static/labs-logo-dark.png
 :align: center
 :target: https://www.pymc-labs.io
 :scale: 20 %
@@ -174,7 +174,7 @@ For companies that want to use PyMC-Marketing in production, [PyMC Labs](https:/
 :class: only-dark
 :::
 
-:::{image} _static/logo-light.png
+:::{image} _static/labs-logo-light.png
 :align: center
 :target: https://www.pymc-labs.io
 :scale: 20 %
