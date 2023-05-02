@@ -16,22 +16,18 @@ from pymc_marketing.clv.utils import to_xarray
 
 # TODO: Edit docstrings
 class ParetoNBDModel(CLVModel):
-    r"""Pareto Negative Binomial Distribution (Pareto/NBD) model
+    r"""Pareto Negative Binomial Distribution (Pareto/NBD) population model for continuous, non-contractual scenarios,
+    based on Schmittlein, et al. in [1]_.
 
-    In the Pareto/NBD model, the frequency of customer purchases is modelled as the time
-    of each purchase has an instantaneous probability of occurrence (hazard) and, at
-    every purchase, a probability of "dropout", i.e. no longer being a customer.
+    The Pareto/NBD model assumes customer lifetime lengths follow a Gamma distribution,
+    and time between customer purchases are also Gamma-distributed while that customer is active.
 
-    Customer-specific data needed for statistical inference include 1) the total
-    number of repeat purchases (:math:`x`) and 2) the time of the last, i.e. xth, purchase. The
-    omission of purchase times :math:`t_1, ..., t_x` is due to a telescoping sum in the
-    exponential function of the joint likelihood; see Section 4.1 of [2] for more
-    details.
+    This model requires customer data to be aggregated in RFM format.
 
     Parameters
     ----------
     customer_id: array_like
-        Customer labels. Must be unique.
+        Customer labels; must be unique.
     frequency: array_like
         Number of repeat purchases per customer.
     recency: array_like
@@ -59,7 +55,7 @@ class ParetoNBDModel(CLVModel):
     Examples
     --------
 
-    .. code-block:: python
+    .. code:: ipython
         import pymc as pm
         from pymc_marketing.clv import ParetoNBDModel, clv_summary
 
