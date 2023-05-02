@@ -1,4 +1,8 @@
-# PyMC-Marketing
+<div align="center">
+  <a href="https://github.com/pymc-labs/pymc-marketing"><img height="240px" src="docs/source/_static/marketing-logo-light.jpg"></a>
+</div>
+
+----
 
 ![Build](https://github.com/pymc-labs/pymc-marketing/workflows/ci/badge.svg)
 [![codecov](https://codecov.io/gh/pymc-labs/pymc-marketing/branch/main/graph/badge.svg?token=OBV3BS5TYE)](https://codecov.io/gh/pymc-labs/pymc-marketing)
@@ -7,9 +11,9 @@
 [![PyPI Version](https://img.shields.io/pypi/v/pymc-marketing.svg)](https://pypi.python.org/pypi/pymc-marketing)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-**Unlock the power of marketing analytics with PyMC-Marketing – the open source solution for smarter decision-making.** Media mix modeling and customer lifetime value modules allow businesses to make data-driven decisions about their marketing campaigns. Optimize your marketing strategy and unlock the full potential of your customer data.
+# PyMC-Marketing
 
----
+**Unlock the power of marketing analytics with PyMC-Marketing – the open source solution for smarter decision-making.** Media mix modeling and customer lifetime value modules allow businesses to make data-driven decisions about their marketing campaigns. Optimize your marketing strategy and unlock the full potential of your customer data.
 
 ## Installation
 
