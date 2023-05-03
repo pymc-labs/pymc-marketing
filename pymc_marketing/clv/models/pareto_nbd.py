@@ -408,7 +408,7 @@ class ParetoNBDModel(CLVModel):
         frequency: Union[np.ndarray, pd.Series, TensorVariable] = None,
         T: Union[np.ndarray, pd.Series, TensorVariable] = None,
     ) -> xarray.DataArray:
-        """
+        r"""
             Estimate probability of :math:`n_purchases` over :math:`future_t` time periods,
             given an individual customer's current :math:`frequency`, :math:`recency`, and :math:`T`.
             If no customer data is provided, probabilities for all customers in model fit dataset are returned.
