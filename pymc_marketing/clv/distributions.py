@@ -25,7 +25,7 @@ class ContNonContractRV(RandomVariable):
         return super().make_node(rng, size, dtype, lam, p, T)
 
     @classmethod
-    def rng_fn(cls, rng, lam, p, T, size) -> np.ndarray:
+    def rng_fn(cls, rng, lam, p, T, size):
         size = pm.distributions.shape_utils.to_tuple(size)
 
         # TODO: broadcast sizes
@@ -155,7 +155,7 @@ class ContContractRV(RandomVariable):
         return super().__call__(lam, p, T, size=size, **kwargs)
 
     @classmethod
-    def rng_fn(cls, rng, lam, p, T, size) -> np.ndarray:
+    def rng_fn(cls, rng, lam, p, T, size):
         size = pm.distributions.shape_utils.to_tuple(size)
 
         # To do: broadcast sizes
@@ -301,7 +301,7 @@ class ParetoNBDRV(RandomVariable):
         return super().__call__(r, alpha, s, beta, T, size=size, **kwargs)
 
     @classmethod
-    def rng_fn(cls, rng, r, alpha, s, beta, T, size) -> np.ndarray:
+    def rng_fn(cls, rng, r, alpha, s, beta, T, size):
         size = pm.distributions.shape_utils.to_tuple(size)
 
         r = np.asarray(r)
