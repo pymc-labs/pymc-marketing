@@ -1,3 +1,4 @@
+import warnings
 from typing import Optional, Tuple, Union
 
 import numpy as np
@@ -19,10 +20,12 @@ class ParetoNBDModel(CLVModel):
     r"""Pareto Negative Binomial Distribution (Pareto/NBD) population model for continuous, non-contractual scenarios,
     based on Schmittlein, et al. in [1]_.
 
-    The Pareto/NBD model assumes customer lifetime lengths follow a Gamma distribution,
-    and time between customer purchases are also Gamma-distributed while that customer is active.
+    The Pareto/NBD model assumes the population of customer lifetime lengths follows a Gamma distribution,
+    and time between customer purchases are also Gamma-distributed while a given customer is active.
 
-    This model requires customer data to be aggregated in RFM format.
+    This model requires customer data to be aggregated in RFM format via `clv.rfm_summary()` or equivalent.
+
+    Please note this model is still experimental. See code examples in documentation if encountering fitting issues.
 
     Parameters
     ----------
@@ -55,62 +58,68 @@ class ParetoNBDModel(CLVModel):
     Examples
     --------
 
-    .. code:: ipython
-        import pymc as pm
-        from pymc_marketing.clv import ParetoNBDModel, clv_summary
+        .. code-block:: python
+            import pymc as pm
+            from pymc_marketing.clv import ParetoNBDModel, clv_summary
 
-        summary = clv_summary(raw_data,'id_col_name','date_col_name')
+            summary = clv_summary(raw_data,'id_col_name','date_col_name')
 
-        model = ParetoNBDModel(
-            customer_id=summary['id_col'],
-            frequency=summary['frequency']
-            recency=[summary['recency'],
-            T=summary['T'],
-            r_prior=pm.Weibull.dist(alpha=2,beta=1),
-            alpha_prior=pm.Weibull.dist(alpha=2,beta=10),
-            s_prior=pm.Weibull.dist(alpha=2,beta=1),
-            beta_prior=pm.Weibull.dist(alpha=2,beta=10),,
-        )
+            model = ParetoNBDModel(
+                customer_id=summary['id_col'],
+                frequency=summary['frequency']
+                recency=[summary['recency'],
+                T=summary['T'],
+                r_prior=pm.Weibull.dist(alpha=2,beta=1),
+                alpha_prior=pm.Weibull.dist(alpha=2,beta=10),
+                s_prior=pm.Weibull.dist(alpha=2,beta=1),
+                beta_prior=pm.Weibull.dist(alpha=2,beta=10),,
+            )
 
-        model.fit()
-        print(model.fit_summary())
+            # Fit model via Maximum a Posteriori:
+            model.fit(fit_method='map')
 
-        # Predict number of purchases for a specific customer
-        # over (:math:`t`) time periods given their current frequency, recency, T
-        expected_purchases = model.expected_purchases(
-            future_t=[5, 5, 5, 5],
-            frequency=[5, 2, 1, 8],
-            recency=[7, 4, 2.5, 11],
-            T=[10, 8, 10, 22],
-        )
+            # Full posterior estimation while model is still in experimental status:
+            with model.model:
+                model.fit(step=pm.Slice(), draws=2000, tune=1000)
 
-        # Predict probability a customer will still be active
-        # in 't' time periods given current frequency, recency, T
-        probability_alive = model.probability_alive(
-            future_t=[0, 3, 6, 9],
-            frequency=[5, 2, 1, 8],
-            recency=[7, 4, 2.5, 11],
-            T=[10, 8, 10, 22],
-        )
+            print(model.fit_summary())
 
-        # Predict probability of customer making 'n' purchases over 't' time periods
-        # given current frequency, recency, T
-        expected_num_purchases = model.purchase_probability(
-            n=[0, 1, 2, 3],
-            future_t=[10,20,30,40],
-            frequency=[5, 2, 1, 8],
-            recency=[7, 4, 2.5, 11],
-            T=[10, 8, 10, 22],
-        )
+            # Predict number of purchases for a specific customer
+            # over future_t time periods given their current frequency, recency, T
+            expected_purchases = model.expected_purchases(
+                future_t=[5, 5, 5, 5],
+                frequency=[5, 2, 1, 8],
+                recency=[7, 4, 2.5, 11],
+                T=[10, 8, 10, 22],
+            )
 
-        # Estimate expected number of purchases for a new customer
-        # over 't' time periods
-        expected_purchases_new_customer = model.expected_purchases_new_customer(
-            t=[2, 5, 7, 10],
-            frequency=[5, 2, 1, 8],
-            recency=[7, 4, 2.5, 11],
-            T=[10, 8, 10, 22],
-        )
+            # Predict probability a customer will still be active
+            # in 't' time periods given current frequency, recency, T
+            probability_alive = model.probability_alive(
+                future_t=[0, 3, 6, 9],
+                frequency=[5, 2, 1, 8],
+                recency=[7, 4, 2.5, 11],
+                T=[10, 8, 10, 22],
+            )
+
+            # Predict probability of customer making 'n' purchases over 't' time periods
+            # given current frequency, recency, T
+            expected_num_purchases = model.purchase_probability(
+                n=[0, 1, 2, 3],
+                future_t=[10,20,30,40],
+                frequency=[5, 2, 1, 8],
+                recency=[7, 4, 2.5, 11],
+                T=[10, 8, 10, 22],
+            )
+
+            # Estimate expected number of purchases for a new customer
+            # over 't' time periods
+            expected_purchases_new_customer = model.expected_purchases_new_customer(
+                t=[2, 5, 7, 10],
+                frequency=[5, 2, 1, 8],
+                recency=[7, 4, 2.5, 11],
+                T=[10, 8, 10, 22],
+            )
 
     References
     ----------
@@ -120,6 +129,12 @@ class ParetoNBDModel(CLVModel):
     .. [2] Fader, Peter & G. S. Hardie, Bruce (2005).
            "A Note on Deriving the Pareto/NBD Model and Related Expressions."
            http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
+    .. [3] Fader, Peter & G. S. Hardie, Bruce (2014).
+           "Additional Results for the Pareto/NBD Model."
+           https://www.brucehardie.com/notes/015/additional_pareto_nbd_results.pdf
+    .. [4] Fader, Peter & G. S. Hardie, Bruce (2014).
+           "Deriving the Conditional PMF of the Pareto/NBD Model."
+           https://www.brucehardie.com/notes/028/pareto_nbd_conditional_pmf.pdf
     """
 
     _model_name = "Pareto/NBD"  # Pareto Negative-Binomial Distribution
@@ -136,6 +151,12 @@ class ParetoNBDModel(CLVModel):
         s_prior: Optional[TensorVariable] = None,
         beta_prior: Optional[TensorVariable] = None,
     ):
+        warnings.warn(
+            "The Pareto/NBD model is still experimental. Please see code examples in\
+                        documentation if model fitting issues are encountered.",
+            UserWarning,
+        )
+
         if len(np.unique(customer_id)) != len(customer_id):
             raise ValueError("Customers must have unique ID labels.")
 
@@ -193,8 +214,7 @@ class ParetoNBDModel(CLVModel):
 
         return super()._process_priors(r_prior, alpha_prior, s_prior, beta_prior)
 
-    # TODO: Is this return type hint correct?
-    def _unload_params(self) -> Tuple[np.ndarray]:
+    def _unload_params(self) -> Tuple[xarray.DataArray]:
         """Utility function retrieving posterior parameters for predictive methods"""
         return tuple([self.fit_result.posterior[param] for param in self._params])
 
@@ -245,64 +265,39 @@ class ParetoNBDModel(CLVModel):
         loglike = pm.logp(pareto_dist, values).eval()
         return xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
 
-    # TODO: Edit docstrings
     def expected_purchases(
         self,
         future_t: Union[float, np.ndarray, pd.Series, TensorVariable],
         customer_id: Union[np.ndarray, pd.Series] = None,
-        frequency: Union[np.ndarray, pd.Series, TensorVariable] = None,
         recency: Union[np.ndarray, pd.Series, TensorVariable] = None,
+        frequency: Union[np.ndarray, pd.Series, TensorVariable] = None,
         T: Union[np.ndarray, pd.Series, TensorVariable] = None,
     ) -> xarray.DataArray:
         r"""
-        Given a purchase history/profile of :math:`x` and :math:`t_x` for an individual
-        customer, this method returns the expected number of future purchases in the
-        next time interval of length :math:`t`, i.e. :math:`(T, T + t]`. The closed form
-        solution for this equation is available as (10) from [1] linked above. With
-        :math:`\text{hyp2f1}` being the Gaussian hypergeometric function, the
-        expectation is defined as below.
+        Given :math:`recency`, :math:`frequency`, and :math:`T` for an individual customer, this method returns the
+        expected number of future purchases across :math:`future_t` time periods.
 
-        .. math::
-
-           \mathbb{E}\left[Y(t) \mid x, t_x, T, r, \alpha, a, b\right] =
-           \frac
-           {
-            \frac{a + b + x - 1}{a - 1}\left[
-                1 - \left(\frac{\alpha + T}{\alpha + T + t}\right)^{r + x}
-                \text{hyp2f1}\left(
-                    r + x, b + x; a + b + x, \frac{1}{\alpha + T + t}
-                \right)
-            \right]
-           }
-           {
-            1 + \delta_{x > 0} \frac{a}{b + x - 1} \left(
-                \frac{\alpha + T}{\alpha + T + t}
-            \right)^{r + x}
-           }
-
-        Conditional expected number of purchases up to time.
+        If no customer data is provided, probabilities for all customers in model fit dataset are returned.
 
         Calculate the expected number of repeat purchases up to time t for a
         randomly choose individual from the population, given they have
         purchase history (frequency, recency, T).
 
-        This is equation (41) from:
-        http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
+        See equation (41) from [2]_.
 
         Parameters
         ----------
-        t: array_like
+        future_t: array_like
             times to calculate the expectation for.
-        frequency: array_like
-            historical frequency of customer.
+        customer_id: array_like
+            Customer labels.
         recency: array_like
-            historical recency of customer.
+            Number of time periods between the customer's first and most recent purchases.
+        frequency: array_like
+            Number of repeat purchases per customer.
         T: array_like
-            age of the customer.
-
-        Returns
-        -------
-        array_like
+            Number of time periods since the customer's first purchase.
+            Model assumptions require T >= recency.
         """
 
         x, t_x, T = self._process_customers(customer_id, frequency, recency, T)
@@ -328,39 +323,20 @@ class ParetoNBDModel(CLVModel):
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
-    # TODO: Edit docstrings
     def expected_purchases_new_customer(
         self,
         t: Union[np.ndarray, pd.Series],
     ) -> xarray.DataArray:
         r"""
-        Posterior expected number of purchases for any interval of length :math:`t`. See
-        equation (9) of [1].
+        Expected number of purchases for a new customer across :math:`t` time periods. See
+        equation (27) of [2]_.
 
-        .. math::
-            \mathbb{E}\left(X(t) \mid r, \alpha, a, b \right)
-            = \frac{a + b - 1}{a - 1}
-            \left[
-                1 - \left(\frac{\alpha}{\alpha + t}\right)^r
-                \text{hyp2f1}\left(r, b; a + b - 1; \frac{t}{\alpha + t}\right)
-            \right]
-
-        Return expected number of repeat purchases up to time t.
-
-        Calculate the expected number of repeat purchases up to time t for a
-        randomly choose individual from the population.
-
-        Equation (27) from:
         http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
 
         Parameters
         ----------
         t: array_like
-            times to calculate the expectation for.
-
-        Returns
-        -------
-        array_like
+            Number of time periods over which to estimate purchases.
         """
         r, alpha, s, beta = self._unload_params()
 
@@ -380,45 +356,31 @@ class ParetoNBDModel(CLVModel):
         self,
         future_t: Union[int, float] = 0,
         customer_id: Union[np.ndarray, pd.Series] = None,
-        frequency: Union[np.ndarray, pd.Series, TensorVariable] = None,
         recency: Union[np.ndarray, pd.Series, TensorVariable] = None,
+        frequency: Union[np.ndarray, pd.Series, TensorVariable] = None,
         T: Union[np.ndarray, pd.Series, TensorVariable] = None,
     ) -> xarray.DataArray:
         r"""
-        Posterior expected value of the probability of being alive at time T. The
-        derivation of the closed form solution is available in [2].
+        Compute the probability that a customer with history :math:`frequency`, :math:`recency`, and :math:`T`
+        is currently alive. Can also estimate alive probability :math:`future_t` periods in the future.
 
-        .. math::
-            P\left\text{alive} \mid x, t_x, T, r, \alpha, a, b\right)
-            = 1 \Big/
-                \left\{
-                    1 + \delta_{x>0} \frac{a}{b + x - 1}
-                        \left(
-                            \frac{\alpha + T}{\alpha + t_x}^{r + x}
-                        \right)^{r x}
-                \right\}
+        If no customer data is provided, probabilities for all customers in model fit dataset are returned.
 
-        Conditional probability alive.
-
-        Compute the probability that a customer with history
-        (frequency, recency, T) is currently alive.
-
-        Section 5.1 from (equations (36) and (37)):
-        http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
+        See equation (18) from [3]_.
 
         Parameters
         ----------
-        frequency: float
-            historical frequency of customer.
-        recency: float
-            historical recency of customer.
-        T: float
-            age of the customer.
-
-        Returns
-        -------
-        float
-            value representing a probability
+        future_t: scalar
+            Number of time periods in the future to estimate alive probability; defaults to 0.
+        customer_id: array_like
+            Customer labels.
+        recency: array_like
+            Number of time periods between the customer's first and most recent purchases.
+        frequency: array_like
+            Number of repeat purchases per customer.
+        T: array_like
+            Number of time periods since the customer's first purchase.
+            Model assumptions require T >= recency.
         """
         x, t_x, T = self._process_customers(customer_id, frequency, recency, T)
         r, alpha, s, beta = self._unload_params()  # type: ignore [has-type]
@@ -441,33 +403,32 @@ class ParetoNBDModel(CLVModel):
         n_purchases: Union[int, np.ndarray, pd.Series, TensorVariable],
         future_t: Union[float, np.ndarray, pd.Series, TensorVariable],
         customer_id: Union[np.ndarray, pd.Series] = None,
-        frequency: Union[np.ndarray, pd.Series, TensorVariable] = None,
         recency: Union[np.ndarray, pd.Series, TensorVariable] = None,
+        frequency: Union[np.ndarray, pd.Series, TensorVariable] = None,
         T: Union[np.ndarray, pd.Series, TensorVariable] = None,
     ) -> xarray.DataArray:
         """
-        Estimate probability of (:math:`n`) purchases over (:math:`t`) time periods
-        given current frequency, recency, and T.
+        Estimate probability of :math:`n_purchases` over :math:`future_t` time periods,
+        given an individual customer's current :math:`frequency`, :math:`recency`, and :math:`T`.
+        If no customer data is provided, probabilities for all customers in model fit dataset are returned.
 
-        The main equation being implemented is (16) from:
-        http://www.brucehardie.com/notes/028/pareto_nbd_conditional_pmf.pdf
+        See equation (16) from [4]_.
 
         Parameters
         ----------
         n_purchases: int
-            number of purchases.
+            number of purchases predicted.
         future_t: a scalar
             time periods over which the probability should be calculated.
-        frequency: float
-            historical frequency of customer.
-        recency: float
-            historical recency of customer.
-        T: float
-            age of the customer.
-
-        Returns
-        -------
-        array_like
+        customer_id: array_like
+            Customer labels.
+        recency: array_like
+            Number of time periods between the customer's first and most recent purchases.
+        frequency: array_like
+            Number of repeat purchases per customer.
+        T: array_like
+            Number of time periods since the customer's first purchase.
+            Model assumptions require T >= recency.
         """
 
         x, t_x, T = self._process_customers(customer_id, frequency, recency, T)  # type: ignore [has-type]

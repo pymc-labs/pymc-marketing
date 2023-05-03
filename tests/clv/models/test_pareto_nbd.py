@@ -45,6 +45,20 @@ class TestParetoNBDModel:
             "beta": cls.beta_true,
         }
 
+        def test_experimental(self):
+            with pytest.raises(
+                UserWarning,
+                match="The Pareto/NBD model is still experimental. Please see\
+                                                   code examples in documentation if model fitting issues are\
+                                                   encountered.",
+            ):
+                ParetoNBDModel(
+                    customer_id=np.array([1, 2, 2]),
+                    frequency=np.array([3, 4, 7]),
+                    recency=np.array([10, 20, 30]),
+                    T=np.array([20, 30, 40]),
+                )
+
     def test_inputs(self):
         with pytest.raises(ValueError, match="Customers must have unique ID labels."):
             ParetoNBDModel(
