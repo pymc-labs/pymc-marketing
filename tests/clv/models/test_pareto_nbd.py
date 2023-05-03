@@ -45,19 +45,17 @@ class TestParetoNBDModel:
             "beta": cls.beta_true,
         }
 
-        def test_experimental(self):
-            with pytest.raises(
-                UserWarning,
-                match="The Pareto/NBD model is still experimental. Please see\
-                                                   code examples in documentation if model fitting issues are\
-                                                   encountered.",
-            ):
-                ParetoNBDModel(
-                    customer_id=np.array([1, 2, 2]),
-                    frequency=np.array([3, 4, 7]),
-                    recency=np.array([10, 20, 30]),
-                    T=np.array([20, 30, 40]),
-                )
+    def test_experimental(self):
+        with pytest.warns(
+            UserWarning,
+            match="The Pareto/NBD model is still experimental. Please see code examples in documentation if model fitting issues are encountered.",
+        ):
+            ParetoNBDModel(
+                customer_id=np.array([1, 2, 3]),
+                frequency=np.array([3, 4, 7]),
+                recency=np.array([10, 20, 30]),
+                T=np.array([20, 30, 40]),
+            )
 
     def test_inputs(self):
         with pytest.raises(ValueError, match="Customers must have unique ID labels."):
@@ -74,9 +72,9 @@ class TestParetoNBDModel:
             (None, None, None, None),
             (
                 pm.Gamma.dist(1, 1),
-                pm.Gamma.dist(1, 1),
-                pm.Gamma.dist(1, 1),
-                pm.Gamma.dist(1, 1),
+                pm.Gamma.dist(10, 1),
+                pm.Weibull.dist(5, 1),
+                pm.Gamma.dist(10, 10),
             ),
         ],
     )
@@ -243,7 +241,7 @@ class TestParetoNBDModel:
             rtol=0.001,
         )
 
-    def test_probability_alive(self):
+    def test_expected_probability_alive(self):
         true_prob_alive = self.lifetimes_model.conditional_probability_alive(
             frequency=self.frequency,
             recency=self.recency,
@@ -263,7 +261,7 @@ class TestParetoNBDModel:
         )
         self.model._fit_result = fake_fit
 
-        est_prob_alive = self.model.probability_alive()
+        est_prob_alive = self.model.expected_probability_alive()
 
         assert est_prob_alive.shape == (chains, draws, N)
         assert est_prob_alive.dims == ("chain", "draw", "customer_id")
@@ -273,11 +271,11 @@ class TestParetoNBDModel:
             rtol=0.001,
         )
 
-        est_prob_alive_t = self.model.probability_alive(future_t=4.5)
+        est_prob_alive_t = self.model.expected_probability_alive(future_t=4.5)
         assert est_prob_alive.mean() > est_prob_alive_t.mean()
 
     @pytest.mark.parametrize("test_n, test_t", [(0, 0), (1, 1), (2, 2)])
-    def test_purchase_probability(self, test_n, test_t):
+    def test_expected_purchase_probability(self, test_n, test_t):
         true_prob_purchase = (
             self.lifetimes_model.conditional_probability_of_n_purchases_up_to_time(
                 test_n,
@@ -301,7 +299,9 @@ class TestParetoNBDModel:
         )
         self.model._fit_result = fake_fit
 
-        est_purchases_new_customer = self.model.purchase_probability(test_n, test_t)
+        est_purchases_new_customer = self.model.expected_purchase_probability(
+            test_n, test_t
+        )
 
         assert est_purchases_new_customer.shape == (chains, draws, N)
         assert est_purchases_new_customer.dims == ("chain", "draw", "customer_id")

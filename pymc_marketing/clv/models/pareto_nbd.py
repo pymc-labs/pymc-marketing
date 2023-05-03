@@ -16,13 +16,18 @@ from pymc_marketing.clv.utils import to_xarray
 
 
 class ParetoNBDModel(CLVModel):
-    r"""Pareto Negative Binomial Distribution (Pareto/NBD) population model for continuous, non-contractual scenarios,
+    """Pareto Negative Binomial Distribution (Pareto/NBD) population model for continuous, non-contractual scenarios,
     based on Schmittlein, et al. in [1]_.
 
     The Pareto/NBD model assumes the population of customer lifetime lengths follows a Gamma distribution,
     and time between customer purchases are also Gamma-distributed while a given customer is active.
 
     This model requires customer data to be aggregated in RFM format via `clv.rfm_summary()` or equivalent.
+    Specifically, data must be summarized by recency, frequency, and T for each customer:
+
+    recency: Number of time periods between the customer's first and most recent purchases.
+    frequency: Number of repeat purchases per customer.
+    T: Number of time periods since the customer's first purchase. Model assumptions require T >= recency.
 
     Please note this model is still experimental. See code examples in documentation if encountering fitting issues.
 
@@ -94,7 +99,7 @@ class ParetoNBDModel(CLVModel):
 
             # Predict probability a customer will still be active
             # in 't' time periods given current frequency, recency, T
-            probability_alive = model.probability_alive(
+            probability_alive = model.expected_probability_alive(
                 future_t=[0, 3, 6, 9],
                 frequency=[5, 2, 1, 8],
                 recency=[7, 4, 2.5, 11],
@@ -103,7 +108,7 @@ class ParetoNBDModel(CLVModel):
 
             # Predict probability of customer making 'n' purchases over 't' time periods
             # given current frequency, recency, T
-            expected_num_purchases = model.purchase_probability(
+            expected_num_purchases = model.expected_purchase_probability(
                 n=[0, 1, 2, 3],
                 future_t=[10,20,30,40],
                 frequency=[5, 2, 1, 8],
@@ -142,17 +147,16 @@ class ParetoNBDModel(CLVModel):
     def __init__(
         self,
         customer_id: Union[np.ndarray, pd.Series],
-        recency: Union[np.ndarray, pd.Series, TensorVariable],
-        frequency: Union[np.ndarray, pd.Series, TensorVariable],
-        T: Union[np.ndarray, pd.Series, TensorVariable],
+        recency: Union[np.ndarray, pd.Series],
+        frequency: Union[np.ndarray, pd.Series],
+        T: Union[np.ndarray, pd.Series],
         r_prior: Optional[TensorVariable] = None,
         alpha_prior: Optional[TensorVariable] = None,
         s_prior: Optional[TensorVariable] = None,
         beta_prior: Optional[TensorVariable] = None,
     ):
         warnings.warn(
-            "The Pareto/NBD model is still experimental. Please see code examples in\
-                        documentation if model fitting issues are encountered.",
+            "The Pareto/NBD model is still experimental. Please see code examples in documentation if model fitting issues are encountered.",
             UserWarning,
         )
 
@@ -188,6 +192,7 @@ class ParetoNBDModel(CLVModel):
                 beta=beta,
                 T=self._T,
                 observed=np.stack((self._recency, self._frequency), axis=1),
+                dims="customer_id",
             )
 
     def _process_priors(self, r_prior, alpha_prior, s_prior, beta_prior):
@@ -221,9 +226,9 @@ class ParetoNBDModel(CLVModel):
     def _process_customers(
         self,
         customer_id: Union[np.ndarray, pd.Series],
-        frequency: Union[np.ndarray, pd.Series, TensorVariable],
-        recency: Union[np.ndarray, pd.Series, TensorVariable],
-        T: Union[np.ndarray, pd.Series, TensorVariable],
+        frequency: Union[np.ndarray, pd.Series],
+        recency: Union[np.ndarray, pd.Series],
+        T: Union[np.ndarray, pd.Series],
     ) -> Tuple[xarray.DataArray]:
         """Utility function assigning default customer arguments
         for predictive methods and converting to xarrays.
@@ -266,11 +271,11 @@ class ParetoNBDModel(CLVModel):
 
     def expected_purchases(
         self,
-        future_t: Union[float, np.ndarray, pd.Series, TensorVariable],
+        future_t: Union[float, np.ndarray, pd.Series],
         customer_id: Union[np.ndarray, pd.Series] = None,
-        recency: Union[np.ndarray, pd.Series, TensorVariable] = None,
-        frequency: Union[np.ndarray, pd.Series, TensorVariable] = None,
-        T: Union[np.ndarray, pd.Series, TensorVariable] = None,
+        recency: Union[np.ndarray, pd.Series] = None,
+        frequency: Union[np.ndarray, pd.Series] = None,
+        T: Union[np.ndarray, pd.Series] = None,
     ) -> xarray.DataArray:
         r"""
             Given :math:`recency`, :math:`frequency`, and :math:`T` for an individual customer, this method returns the
@@ -354,13 +359,13 @@ class ParetoNBDModel(CLVModel):
             "chain", "draw", "t", missing_dims="ignore"
         )
 
-    def probability_alive(
+    def expected_probability_alive(
         self,
         future_t: Union[int, float] = 0,
         customer_id: Union[np.ndarray, pd.Series] = None,
-        recency: Union[np.ndarray, pd.Series, TensorVariable] = None,
-        frequency: Union[np.ndarray, pd.Series, TensorVariable] = None,
-        T: Union[np.ndarray, pd.Series, TensorVariable] = None,
+        recency: Union[np.ndarray, pd.Series] = None,
+        frequency: Union[np.ndarray, pd.Series] = None,
+        T: Union[np.ndarray, pd.Series] = None,
     ) -> xarray.DataArray:
         r"""
         Compute the probability that a customer with history :math:`frequency`, :math:`recency`, and :math:`T`
@@ -399,14 +404,14 @@ class ParetoNBDModel(CLVModel):
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
-    def purchase_probability(
+    def expected_purchase_probability(
         self,
-        n_purchases: Union[int, np.ndarray, pd.Series, TensorVariable],
-        future_t: Union[float, np.ndarray, pd.Series, TensorVariable],
+        n_purchases: Union[int, np.ndarray, pd.Series],
+        future_t: Union[float, np.ndarray, pd.Series],
         customer_id: Union[np.ndarray, pd.Series] = None,
-        recency: Union[np.ndarray, pd.Series, TensorVariable] = None,
-        frequency: Union[np.ndarray, pd.Series, TensorVariable] = None,
-        T: Union[np.ndarray, pd.Series, TensorVariable] = None,
+        recency: Union[np.ndarray, pd.Series] = None,
+        frequency: Union[np.ndarray, pd.Series] = None,
+        T: Union[np.ndarray, pd.Series] = None,
     ) -> xarray.DataArray:
         r"""
             Estimate probability of :math:`n_purchases` over :math:`future_t` time periods,
