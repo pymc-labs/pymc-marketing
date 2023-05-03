@@ -274,30 +274,32 @@ class ParetoNBDModel(CLVModel):
         T: Union[np.ndarray, pd.Series, TensorVariable] = None,
     ) -> xarray.DataArray:
         r"""
-        Given :math:`recency`, :math:`frequency`, and :math:`T` for an individual customer, this method returns the
-        expected number of future purchases across :math:`future_t` time periods.
+            Given :math:`recency`, :math:`frequency`, and :math:`T` for an individual customer, this method returns the
+            expected number of future purchases across :math:`future_t` time periods.
 
-        If no customer data is provided, probabilities for all customers in model fit dataset are returned.
+            If no customer data is provided, probabilities for all customers in model fit dataset are returned.
 
-        Calculate the expected number of repeat purchases up to time t for a
-        randomly choose individual from the population, given they have
-        purchase history (frequency, recency, T).
+            Calculate the expected number of repeat purchases up to time t for a
+            randomly choose individual from the population, given they have
+            purchase history (frequency, recency, T).
 
-        See equation (41) from [2]_.
+            See equation (41) from [2]_.
 
-        Parameters
-        ----------
-        future_t: array_like
-            times to calculate the expectation for.
-        customer_id: array_like
-            Customer labels.
-        recency: array_like
-            Number of time periods between the customer's first and most recent purchases.
-        frequency: array_like
-            Number of repeat purchases per customer.
-        T: array_like
-            Number of time periods since the customer's first purchase.
-            Model assumptions require T >= recency.
+            Adapted from lifetimes package
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/pareto_nbd_fitter.py#L242
+            Parameters
+            ----------
+            future_t: array_like
+                times to calculate the expectation for.
+            customer_id: array_like
+                Customer labels.
+            recency: array_like
+                Number of time periods between the customer's first and most recent purchases.
+            frequency: array_like
+                Number of repeat purchases per customer.
+            T: array_like
+                Number of time periods since the customer's first purchase.
+                Model assumptions require T >= recency.
         """
 
         x, t_x, T = self._process_customers(customer_id, frequency, recency, T)
@@ -328,15 +330,18 @@ class ParetoNBDModel(CLVModel):
         t: Union[np.ndarray, pd.Series],
     ) -> xarray.DataArray:
         r"""
-        Expected number of purchases for a new customer across :math:`t` time periods. See
-        equation (27) of [2]_.
+            Expected number of purchases for a new customer across :math:`t` time periods. See
+            equation (27) of [2]_.
 
-        http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
+            http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
 
-        Parameters
-        ----------
-        t: array_like
-            Number of time periods over which to estimate purchases.
+            Adapted from lifetimes package
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/pareto_nbd_fitter.py#L359
+
+            Parameters
+            ----------
+            t: array_like
+                Number of time periods over which to estimate purchases.
         """
         r, alpha, s, beta = self._unload_params()
 
@@ -408,27 +413,30 @@ class ParetoNBDModel(CLVModel):
         T: Union[np.ndarray, pd.Series, TensorVariable] = None,
     ) -> xarray.DataArray:
         """
-        Estimate probability of :math:`n_purchases` over :math:`future_t` time periods,
-        given an individual customer's current :math:`frequency`, :math:`recency`, and :math:`T`.
-        If no customer data is provided, probabilities for all customers in model fit dataset are returned.
+            Estimate probability of :math:`n_purchases` over :math:`future_t` time periods,
+            given an individual customer's current :math:`frequency`, :math:`recency`, and :math:`T`.
+            If no customer data is provided, probabilities for all customers in model fit dataset are returned.
 
-        See equation (16) from [4]_.
+            See equation (16) from [4]_.
 
-        Parameters
-        ----------
-        n_purchases: int
-            number of purchases predicted.
-        future_t: a scalar
-            time periods over which the probability should be calculated.
-        customer_id: array_like
-            Customer labels.
-        recency: array_like
-            Number of time periods between the customer's first and most recent purchases.
-        frequency: array_like
-            Number of repeat purchases per customer.
-        T: array_like
-            Number of time periods since the customer's first purchase.
-            Model assumptions require T >= recency.
+            Adapted from lifetimes package
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/pareto_nbd_fitter.py#L388
+
+            Parameters
+            ----------
+            n_purchases: int
+                number of purchases predicted.
+            future_t: a scalar
+                time periods over which the probability should be calculated.
+            customer_id: array_like
+                Customer labels.
+            recency: array_like
+                Number of time periods between the customer's first and most recent purchases.
+            frequency: array_like
+                Number of repeat purchases per customer.
+            T: array_like
+                Number of time periods since the customer's first purchase.
+                Model assumptions require T >= recency.
         """
 
         x, t_x, T = self._process_customers(customer_id, frequency, recency, T)  # type: ignore [has-type]
