@@ -15,7 +15,6 @@ from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 
 
-# TODO: Edit docstrings
 class ParetoNBDModel(CLVModel):
     r"""Pareto Negative Binomial Distribution (Pareto/NBD) population model for continuous, non-contractual scenarios,
     based on Schmittlein, et al. in [1]_.
@@ -31,10 +30,10 @@ class ParetoNBDModel(CLVModel):
     ----------
     customer_id: array_like
         Customer labels; must be unique.
-    frequency: array_like
-        Number of repeat purchases per customer.
     recency: array_like
         Number of time periods between the customer's first and most recent purchases.
+    frequency: array_like
+        Number of repeat purchases per customer.
     T: array_like
         Number of time periods since the customer's first purchase.
         Model assumptions require T >= recency.
@@ -143,8 +142,8 @@ class ParetoNBDModel(CLVModel):
     def __init__(
         self,
         customer_id: Union[np.ndarray, pd.Series],
-        frequency: Union[np.ndarray, pd.Series, TensorVariable],
         recency: Union[np.ndarray, pd.Series, TensorVariable],
+        frequency: Union[np.ndarray, pd.Series, TensorVariable],
         T: Union[np.ndarray, pd.Series, TensorVariable],
         r_prior: Optional[TensorVariable] = None,
         alpha_prior: Optional[TensorVariable] = None,
@@ -355,8 +354,6 @@ class ParetoNBDModel(CLVModel):
             "chain", "draw", "t", missing_dims="ignore"
         )
 
-    # TODO: Edit docstrings
-    # TODO: Get clarification around ducktyping. Are TensorVariables accepted?
     def probability_alive(
         self,
         future_t: Union[int, float] = 0,
@@ -402,7 +399,6 @@ class ParetoNBDModel(CLVModel):
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
-    # TODO: Edit docstrings
     def purchase_probability(
         self,
         n_purchases: Union[int, np.ndarray, pd.Series, TensorVariable],
