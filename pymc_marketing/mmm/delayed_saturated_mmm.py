@@ -301,6 +301,8 @@ class BaseDelayedSaturatedMMM(MMM):
             n_order=self.yearly_seasonality,
         )
 
+
+
     @property
     def _serializable_model_config(self) -> Dict[str, Any]:
         serializable_config = self.model_config.copy()
@@ -369,7 +371,6 @@ class BaseDelayedSaturatedMMM(MMM):
                     "target": target,
                 }
             )
-
 
 class DelayedSaturatedMMM(
     MaxAbsScaleTarget,
