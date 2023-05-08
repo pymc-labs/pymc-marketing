@@ -11,10 +11,10 @@ from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturati
 from pymc_marketing.mmm.utils import generate_fourier_modes
 from pymc_marketing.mmm.validating import ValidateControlColumns
 
+__all__ = ["DelayedSaturatedMMM"]
 
-class DelayedSaturatedMMM(
-    MMM, MaxAbsScaleTarget, MaxAbsScaleChannels, ValidateControlColumns
-):
+
+class BaseDelayedSaturatedMMM(MMM):
     def __init__(
         self,
         data: pd.DataFrame,
@@ -200,3 +200,12 @@ class DelayedSaturatedMMM(
             periods=periods,
             n_order=self.yearly_seasonality,
         )
+
+
+class DelayedSaturatedMMM(
+    MaxAbsScaleTarget,
+    MaxAbsScaleChannels,
+    ValidateControlColumns,
+    BaseDelayedSaturatedMMM,
+):
+    ...
