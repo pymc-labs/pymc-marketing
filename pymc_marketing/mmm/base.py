@@ -166,7 +166,7 @@ class BaseMMM:
         fig, ax = plt.subplots(**plt_kwargs)
 
         ax.fill_between(
-            x=self.data[self.date_column],
+            x=np.asarray(self.data[self.date_column]),
             y1=likelihood_hdi_94[:, 0],
             y2=likelihood_hdi_94[:, 1],
             color="C0",
@@ -175,7 +175,7 @@ class BaseMMM:
         )
 
         ax.fill_between(
-            x=self.data[self.date_column],
+            x=np.asarray(self.data[self.date_column]),
             y1=likelihood_hdi_50[:, 0],
             y2=likelihood_hdi_50[:, 1],
             color="C0",
@@ -184,8 +184,8 @@ class BaseMMM:
         )
 
         ax.plot(
-            self.data[self.date_column],
-            self.preprocessed_data[self.target_column],
+            np.asarray(self.data[self.date_column]),
+            np.asarray(self.preprocessed_data[self.target_column]),
             color="black",
         )
         ax.set(title="Prior Predictive Check", xlabel="date", ylabel=self.target_column)
@@ -231,12 +231,12 @@ class BaseMMM:
             label="50% HDI",
         )
 
-        target_to_plot: pd.Series = (
+        target_to_plot: np.ndarray = np.asarray(
             self.data[self.target_column]
             if original_scale
             else self.preprocessed_data[self.target_column]
         )
-        ax.plot(self.data[self.date_column], target_to_plot, color="black")
+        ax.plot(np.asarray(self.data[self.date_column]), target_to_plot, color="black")
         ax.set(
             title="Posterior Predictive Check",
             xlabel="date",
@@ -298,11 +298,10 @@ class BaseMMM:
                 alpha=0.25,
                 label=f"$94 %$ HDI ({var_contribution})",
             )
-            sns.lineplot(
-                x=self.data[self.date_column],
-                y=mean,
+            ax.plot(
+                np.asarray(self.data[self.date_column]),
+                np.asarray(mean),
                 color=f"C{i}",
-                ax=ax,
             )
 
         intercept = az.extract(self.fit_result, var_names=["intercept"], combined=False)
@@ -311,11 +310,10 @@ class BaseMMM:
             repeats=self.n_obs,
             axis=0,
         )
-        sns.lineplot(
-            x=self.data[self.date_column],
-            y=intercept.mean().data,
+        ax.plot(
+            np.asarray(self.data[self.date_column]),
+            np.full(len(self.data), intercept.mean().data),
             color=f"C{i + 1}",
-            ax=ax,
         )
         ax.fill_between(
             x=self.data[self.date_column],
@@ -326,8 +324,8 @@ class BaseMMM:
             label="$94 %$ HDI (intercept)",
         )
         ax.plot(
-            self.data[self.date_column],
-            self.preprocessed_data[self.target_column],
+            np.asarray(self.data[self.date_column]),
+            np.asarray(self.preprocessed_data[self.target_column]),
             color="black",
         )
         ax.legend(title="components", loc="center left", bbox_to_anchor=(1, 0.5))
