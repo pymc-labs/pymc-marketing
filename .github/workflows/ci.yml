@@ -22,14 +22,8 @@ jobs:
         uses: actions/setup-python@v3
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install oldest version of PyMC
-        if: ${{ matrix.oldest-pymc }}
-        run: pip install pymc==${{ env.OLDEST_PYMC_VERSION }}
       - name: Run lint
-        run: make check_lint
-      - name: Check oldest version of PyMC
-        if: ${{ matrix.oldest-pymc }}
-        run: python -c "import pymc; assert pymc.__version__ == '${{  env.OLDEST_PYMC_VERSION }}'"
+        uses: pre-commit/action@v3.0.0
 
   test:
     runs-on: ubuntu-latest
