@@ -101,6 +101,7 @@ class TestDelayedSaturatedMMM:
         mmm = BaseDelayedSaturatedMMM(
             date_column="date",
             channel_columns=channel_columns,
+            channel_prior=channel_prior,
             control_columns=control_columns,
             adstock_max_lag=adstock_max_lag,
             yearly_seasonality=yearly_seasonality,
