@@ -6,7 +6,7 @@ import pandas as pd
 import pymc as pm
 import pytest
 
-from pymc_marketing.mmm.delayed_saturated_mmm import DelayedSaturatedMMM
+from pymc_marketing.mmm.delayed_saturated_mmm import BaseDelayedSaturatedMMM
 
 seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
@@ -35,8 +35,8 @@ def toy_df() -> pd.DataFrame:
 
 
 @pytest.fixture(scope="class")
-def mmm(toy_df: pd.DataFrame) -> DelayedSaturatedMMM:
-    return DelayedSaturatedMMM(
+def mmm(toy_df: pd.DataFrame) -> BaseDelayedSaturatedMMM:
+    return BaseDelayedSaturatedMMM(
         data=toy_df,
         target_column="y",
         date_column="date",
@@ -46,7 +46,7 @@ def mmm(toy_df: pd.DataFrame) -> DelayedSaturatedMMM:
 
 
 @pytest.fixture(scope="class")
-def mmm_fitted(mmm: DelayedSaturatedMMM) -> DelayedSaturatedMMM:
+def mmm_fitted(mmm: BaseDelayedSaturatedMMM) -> BaseDelayedSaturatedMMM:
     X = mmm.data[[col for col in mmm.data.columns if col != mmm.target_column]]
     y = mmm.data[mmm.target_column]
     mmm.fit(X=X, y=y, target_accept=0.8, draws=3, chains=2)
@@ -88,7 +88,7 @@ class TestMMM:
         control_columns: List[str],
         adstock_max_lag: int,
     ) -> None:
-        mmm = DelayedSaturatedMMM(
+        mmm = BaseDelayedSaturatedMMM(
             data=toy_df,
             target_column="y",
             date_column="date",
@@ -97,7 +97,7 @@ class TestMMM:
             adstock_max_lag=adstock_max_lag,
             yearly_seasonality=yearly_seasonality,
         )
-        mmm.build_model(mmm.data)
+        mmm.build_model(data=mmm.data)
         n_channel: int = len(mmm.channel_columns)
         samples: int = 3
         with mmm.model:
@@ -161,7 +161,7 @@ class TestMMM:
         draws: int = 100
         chains: int = 2
 
-        mmm = DelayedSaturatedMMM(
+        mmm = BaseDelayedSaturatedMMM(
             data=toy_df,
             target_column="y",
             date_column="date",
@@ -229,7 +229,7 @@ class TestMMM:
     def test_get_fourier_models_data(
         self, toy_df: pd.DataFrame, yearly_seasonality: Optional[int]
     ) -> None:
-        mmm = DelayedSaturatedMMM(
+        mmm = BaseDelayedSaturatedMMM(
             data=toy_df,
             target_column="y",
             date_column="date",
