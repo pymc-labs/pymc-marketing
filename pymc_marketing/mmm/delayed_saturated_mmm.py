@@ -301,6 +301,73 @@ class BaseDelayedSaturatedMMM(MMM):
             n_order=self.yearly_seasonality,
         )
 
+    @property
+    def _serializable_model_config(self) -> Dict[str, Any]:
+        serializable_config = self.model_config.copy()
+        return serializable_config
+
+    def _data_setter(
+        self,
+        X: Union[np.ndarray, pd.DataFrame],
+        y: Union[np.ndarray, pd.Series] = None,
+    ) -> None:
+        """
+        Sets new data in the model.
+
+        This function accepts data in various formats and sets them into the
+        model using the PyMC's `set_data` method. The data corresponds to the
+        channel data and the target.
+
+        Parameters
+        ----------
+        X : Union[np.ndarray, pd.DataFrame]
+            Data for the channel. It can be a numpy array or pandas DataFrame.
+            If it's a DataFrame, it should contain a column "channel_data".
+        y : Union[np.ndarray, pd.Series], optional
+            Target data. It can be a numpy array or a pandas Series.
+            If it's a Series, its values are used. If it's an ndarray, it's used
+            directly. The default is None.
+
+        Raises
+        ------
+        RuntimeError
+            If the data for the channel is not provided in `X`.
+        TypeError
+            If `y` is not a pandas Series or a numpy array.
+
+        Returns
+        -------
+        None
+        """
+        new_channel_data = None
+        if isinstance(X, pd.DataFrame):
+            try:
+                new_channel_data = X[self.channel_columns]
+            except KeyError as e:
+                raise RuntimeError("New data must contain channel_data!", e)
+        elif isinstance(X, np.ndarray):
+            new_channel_data = (
+                X  # Adjust as necessary depending on the structure of your ndarray
+            )
+        else:
+            raise TypeError("X must be either a pandas DataFrame or a numpy array")
+
+        target = None
+        if isinstance(y, pd.Series):
+            target = y.values
+        elif isinstance(y, np.ndarray):
+            target = y
+        else:
+            raise TypeError("y must be either a pandas Series or a numpy array")
+
+        with self.model:
+            pm.set_data(
+                {
+                    "channel_data": new_channel_data,
+                    "target": target,
+                }
+            )
+
 
 
     @property
