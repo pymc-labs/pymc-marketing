@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -17,10 +17,12 @@ class DelayedSaturatedMMM(
 ):
     def __init__(
         self,
-        data: pd.DataFrame,
         target_column: str,
         date_column: str,
         channel_columns: List[str],
+        data: Optional[pd.DataFrame] = None,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
         validate_data: bool = True,
         control_columns: Optional[List[str]] = None,
         adstock_max_lag: int = 4,
@@ -55,62 +57,155 @@ class DelayedSaturatedMMM(
         self.control_columns = control_columns
         self.adstock_max_lag = adstock_max_lag
         self.yearly_seasonality = yearly_seasonality
+        self.data = self.generate_model_data(data=data)
+        if self.yearly_seasonality is not None:
+            fourier_features = self._get_fourier_models_data()
+
+            self.data["fourier_features"] = (
+                {
+                    "value": fourier_features,
+                    "fourier_mode": fourier_features.columns.to_numpy(),
+                    "dims": ("date", "fourier_mode"),
+                },
+            )
+        else:
+            self.data["fourier_features"]["fourier_mode"] = None
+        self.data["coords"]["fourier_mode"] = self.data["fourier_features"][
+            "fourier_mode"
+        ]
         super().__init__(
-            data=data,
+            data=self.data,
             target_column=target_column,
             date_column=date_column,
             channel_columns=channel_columns,
             validate_data=validate_data,
             adstock_max_lag=adstock_max_lag,
         )
+        if model_config is None:
+            self.model_config = self.default_model_config
+        if sampler_config is None:
+            self.sampler_config = self.default_sampler_config
+
+    @property
+    def default_sampler_config(self) -> Dict:
+        return {"progressbar": True, "random_seed": 1234}
+
+    @classmethod
+    def generate_model_data(cls, data=None) -> pd.DataFrame:
+        if data is None:
+            data = {
+                """
+                Needs to be defined, should provide basic required data structure
+                that will allow users to use functions in order to learn about the class
+                and it's funcitons
+                """
+            }
+        date_data = data[cls.date_column]
+        target_data = data[cls.target_column]
+        channel_data = data[cls.channel_columns]
+        coords: Dict[str, Any] = {
+            "date": date_data,
+            "channels": channel_data.columns,
+        }
+
+        if cls.control_columns is not None:
+            control_data: Optional[pd.DataFrame] = data[cls.control_columns]
+            coords["control"] = data[cls.control_columns].columns
+        else:
+            control_data = None
+        model_data = {
+            "channel_data_": {
+                "type": "MutableData",
+                "value": channel_data,
+                "dims": ("date", "channel"),
+            },
+            "target_": {
+                "type": "MutableData",
+                "value": target_data,
+                "dims": "date",
+            },
+            "control_data": {
+                "value": control_data,
+                "dims": ("date", "control"),
+            },
+            "coords": coords,
+        }
+        cls.data = model_data
+        return model_data
+
+    @property
+    def default_model_config(self) -> Dict:
+        model_config: Dict = {
+            "intercept": {"type": "dist", "mu": 0, "sigma": 2},
+            "beta_channel": {"type": "dist", "sigma": 2, "dims": ("channel",)},
+            "alpha": {"type": "dist", "alpha": 1, "beta": 3, "dims": ("channel",)},
+            "lam": {"type": "dist", "alpha": 3, "beta": 1, "dims": ("channel",)},
+            "sigma": {"type": "dist", "sigma": 2},
+            "gamma_control": {
+                "type": "dist",
+                "mu": 0,
+                "sigma": 2,
+                "dims": ("control",),
+            },
+            "control_contributions": {
+                "type": "deterministic",
+                "dims": ("date", "control"),
+            },
+            "mu": {"dims": ("date",)},
+            "likelihood": {"dims": ("date",)},
+            "gamma_fourier": {"mu": 0, "b": 1, "dims": "fourier_mode"},
+            "fourier_contributions": {"dims": ("date", "fourier_mode")},
+        }
+        return model_config
 
     def build_model(
         self,
-        data: pd.DataFrame,
+        data: pd.DataFrame = None,
+        model_config: Optional[Dict] = None,
         adstock_max_lag: int = 4,
     ) -> None:
-        date_data = data[self.date_column]
-        target_data = data[self.target_column]
-        channel_data = data[self.channel_columns]
-
-        coords: Dict[str, Any] = {
-            "date": date_data,
-            "channel": channel_data.columns,
-        }
-
-        if self.control_columns is not None:
-            control_data: Optional[pd.DataFrame] = data[self.control_columns]
-            coords["control"] = data[self.control_columns].columns
-        else:
-            control_data = None
-
-        if self.yearly_seasonality is not None:
-            fourier_features = self._get_fourier_models_data()
-            coords["fourier_mode"] = fourier_features.columns.to_numpy()
-
-        else:
-            fourier_features = None
-
-        with pm.Model(coords=coords) as self.model:
+        if model_config is None:
+            model_config = self.default_model_config
+        with pm.Model(coords=data["coords"]) as self.model:
             channel_data_ = pm.MutableData(
                 name="channel_data",
-                value=channel_data,
-                dims=("date", "channel"),
+                value=self.data["channel_data_"]["value"],
+                dims=self.data["channel_data_"]["dims"],
             )
 
-            target_ = pm.MutableData(name="target", value=target_data, dims="date")
+            target_ = pm.MutableData(
+                name="target",
+                value=self.data["target_data_"]["value"],
+                dims=self.data["target_data_"]["dims"],
+            )
 
-            intercept = pm.Normal(name="intercept", mu=0, sigma=2)
+            intercept = pm.Normal(
+                name="intercept",
+                mu=model_config["intercept"]["mu"],
+                sigma=model_config["intercept"]["sigma"],
+            )
 
             beta_channel = pm.HalfNormal(
-                name="beta_channel", sigma=2, dims="channel"
+                name="beta_channel",
+                sigma=model_config["beta_channel"]["sigma"],
+                dims=model_config["beta_channel"]["dims"],
             )  # ? Allow prior depend on channel costs?
 
-            alpha = pm.Beta(name="alpha", alpha=1, beta=3, dims="channel")
+            alpha = pm.Beta(
+                name="alpha",
+                alpha=model_config["alpha"]["alpha"],
+                beta=model_config["alpha"]["beta"],
+                dims=model_config["alpha"]["dims"],
+            )
 
-            lam = pm.Gamma(name="lam", alpha=3, beta=1, dims="channel")
+            lam = pm.Gamma(
+                name="lam",
+                alpha=model_config["lam"]["alpha"],
+                beta=model_config["lam"]["beta"],
+                dims=model_config["lam"]["dims"],
+            )
 
-            sigma = pm.HalfNormal(name="sigma", sigma=2)
+            sigma = pm.HalfNormal(name="sigma", sigma=model_config["sigma"]["sigma"])
 
             channel_adstock = pm.Deterministic(
                 name="channel_adstock",
@@ -136,38 +231,46 @@ class DelayedSaturatedMMM(
 
             mu_var = intercept + channel_contributions.sum(axis=-1)
 
-            if control_data is not None:
+            if self.data["control_data_"]["value"] is not None:
                 control_data_ = pm.MutableData(
-                    name="control_data", value=control_data, dims=("date", "control")
+                    name="control_data",
+                    value=self.data["control_data"]["value"],
+                    dims=self.data["control_data"]["dims"],
                 )
 
                 gamma_control = pm.Normal(
-                    name="gamma_control", mu=0, sigma=2, dims="control"
+                    name="gamma_control",
+                    mu=model_config["gamma_control"]["mu"],
+                    sigma=model_config["gamma_control"]["sigma"],
+                    dims=model_config["gamma_control"]["dims"],
                 )
 
                 control_contributions = pm.Deterministic(
                     name="control_contributions",
                     var=control_data_ * gamma_control,
-                    dims=("date", "control"),
+                    dims=model_config["control_contributions"]["dims"],
                 )
 
                 mu_var += control_contributions.sum(axis=-1)
 
-            if fourier_features is not None:
+            if self.data["fourier_features"]["value"] is not None:
                 fourier_data_ = pm.MutableData(
                     name="fourier_data",
-                    value=fourier_features,
-                    dims=("date", "fourier_mode"),
+                    value=self.data["fourier_features"]["value"],
+                    dims=self.data["fourier_features"]["dims"],
                 )
 
                 gamma_fourier = pm.Laplace(
-                    name="gamma_fourier", mu=0, b=1, dims="fourier_mode"
+                    name="gamma_fourier",
+                    mu=model_config["gamma_fourier"]["mu"],
+                    b=model_config["gamma_fourier"]["b"],
+                    dims=model_config["gamma_fourier"]["dims"],
                 )
 
                 fourier_contribution = pm.Deterministic(
                     name="fourier_contributions",
                     var=fourier_data_ * gamma_fourier,
-                    dims=("date", "fourier_mode"),
+                    dims=model_config["fourier_contributions"]["dims"],
                 )
 
                 mu_var += fourier_contribution.sum(axis=-1)
@@ -200,3 +303,59 @@ class DelayedSaturatedMMM(
             periods=periods,
             n_order=self.yearly_seasonality,
         )
+
+    @property
+    def _serializable_model_config(self) -> Dict[str, Any]:
+        serializable_config = self.model_config.copy()
+        serializable_config["channel_adstock"]["var"]["x"] = serializable_config[
+            "channel_adstock"
+        ]["var"]["x"].to_dict()
+        serializable_config["coords"]["date"] = serializable_config["coords"][
+            "date"
+        ].apply(lambda x: x.strftime("%Y-%m-%d %H:%M:%S"))
+        serializable_config["coords"]["date"] = serializable_config["coords"][
+            "date"
+        ].to_dict()
+        serializable_config["coords"]["channel"] = serializable_config["coords"][
+            "channel"
+        ].to_list()
+        if "control" in serializable_config["coords"].keys():
+            serializable_config["coords"]["control"] = serializable_config["coords"][
+                "control"
+            ].to_list()
+
+        return serializable_config
+
+    def _data_setter(
+        self,
+        data: Dict[str, Union[np.ndarray[Any, Any], Any, Any]],
+        x_only: bool = True,
+    ) -> None:
+        """
+        Sets new data in the model.
+
+            Parameters
+        ----------
+        data : Dictionary of string and either of numpy array, pandas dataframe or pandas Series
+            It is the data we need to set as idata for the model
+        """
+
+        with self.model:
+            new_channel_data = None
+        try:
+            new_channel_data = data["channel_data"]["value"]
+        except KeyError as e:
+            raise RuntimeError("New data must contain channel_data!", e)
+        target = None
+        try:
+            target = data["target"]["value"]
+        except KeyError as e:
+            raise RuntimeError("New data must contain target", e)
+
+        with self.model:
+            pm.set_data(
+                {
+                    "channel_data": new_channel_data,
+                    "target": target,
+                }
+            )

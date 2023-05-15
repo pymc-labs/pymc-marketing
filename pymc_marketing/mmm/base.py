@@ -16,6 +16,7 @@ import pandas as pd
 import pymc as pm
 import seaborn as sns
 from pymc.util import RandomState
+from pymc_experimental import BayesianEstimator
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray
@@ -29,7 +30,7 @@ from pymc_marketing.mmm.validating import (
 __all__ = ("BaseMMM", "MMM")
 
 
-class BaseMMM:
+class BaseMMM(BayesianEstimator):
     model: pm.Model
 
     def __init__(
@@ -41,23 +42,38 @@ class BaseMMM:
         validate_data: bool = True,
         **kwargs,
     ) -> None:
-        self.data: pd.DataFrame = data
         self.target_column: str = target_column
         self.date_column: str = date_column
         self.channel_columns: Union[List[str], Tuple[str]] = channel_columns
-        self.n_obs: int = data.shape[0]
         self.n_channel: int = len(channel_columns)
         self._fit_result: Optional[az.InferenceData] = None
         self._posterior_predictive: Optional[az.InferenceData] = None
-
         if validate_data:
             self.validate(self.data)
         self.preprocessed_data = self.preprocess(self.data.copy())
+        super().__init__()
 
         self.build_model(
             data=self.preprocessed_data,
             **kwargs,
         )
+
+    @property
+    @abstractmethod
+    def default_model_config(self) -> Dict:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def default_sampler_config(self) -> Dict:
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def generate_model_data(
+        cls, data: Union[np.ndarray, pd.DataFrame, pd.Series] = None
+    ) -> pd.DataFrame:
+        raise NotImplementedError
 
     @property
     def methods(self) -> List[Any]:
@@ -590,6 +606,19 @@ class BaseMMM:
 
     def graphviz(self, **kwargs):
         return pm.model_to_graphviz(self.model, **kwargs)
+
+    @abstractmethod
+    def _data_setter(
+        self,
+        data: Dict[str, Union[np.ndarray, pd.DataFrame, pd.Series]],
+        x_only: bool = True,
+    ):
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def _serializable_model_config(self) -> Dict[str, Union[int, float, Dict]]:
+        raise NotImplementedError
 
 
 class MMM(BaseMMM, ValidateTargetColumn, ValidateDateColumn, ValidateChannelColumns):
