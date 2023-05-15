@@ -4,6 +4,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+from pymc.distributions.shape_utils import change_dist_size
 from pytensor.tensor import TensorVariable
 
 from pymc_marketing.mmm.base import MMM
@@ -44,10 +45,8 @@ class BaseDelayedSaturatedMMM(MMM):
         channel_prior : Optional[TensorVariable], optional
             Prior distribution for the channel coefficients, by default None which
             corresponds to a HalfNormal distribution with sigma=2 (so that all
-            contributions are positive). You need to specify the shape of the prior and
-            it should match the number of channels in the model. For example, if you
-            have two channels, then a possible prior could be
-            `pm.HalfNormal.dist(sigma=4, shape=2)`.
+            contributions are positive). The prior distribution is specified by the
+            `dist` API. For example, if you `pm.HalfNormal.dist(sigma=4, shape=2)`.
         validate_data : bool, optional
             Whether to validate the data upon initialization, by default True.
         control_columns : Optional[List[str]], optional
@@ -73,21 +72,14 @@ class BaseDelayedSaturatedMMM(MMM):
             validate_data=validate_data,
             adstock_max_lag=adstock_max_lag,
         )
-        self._validate_priors()
-
-    def _validate_priors(self) -> None:
-        if self.channel_prior is not None and self.channel_prior.shape.eval() != (
-            len(self.channel_columns),
-        ):
-            raise ValueError(
-                f"Channel prior shape {self.channel_prior.shape} does not match the number of channels {len(self.channel_columns)}"
-            )
 
     def _preprocess_channel_prior(self) -> TensorVariable:
         return (
             pm.HalfNormal.dist(sigma=2, shape=len(self.channel_columns))
             if self.channel_prior is None
-            else self.channel_prior
+            else change_dist_size(
+                dist=self.channel_prior, new_size=len(self.channel_columns)
+            )
         )
 
     def build_model(

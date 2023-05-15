@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+from pytensor.tensor import TensorVariable
 
 from pymc_marketing.mmm.delayed_saturated_mmm import DelayedSaturatedMMM
 
@@ -63,8 +64,8 @@ class TestMMM:
         ids=["no_control", "one_control", "two_controls"],
     )
     @pytest.mark.parametrize(
-        argnames="channel_prior_flag",
-        argvalues=[False, True],
+        argnames="channel_prior",
+        argvalues=[None, pm.HalfNormal.dist(sigma=3)],
         ids=["no_channel_prior", "channel_prior"],
     )
     @pytest.mark.parametrize(
@@ -88,16 +89,10 @@ class TestMMM:
         toy_df: pd.DataFrame,
         yearly_seasonality: Optional[int],
         channel_columns: List[str],
-        channel_prior_flag: bool,
+        channel_prior: Optional[TensorVariable],
         control_columns: List[str],
         adstock_max_lag: int,
     ) -> None:
-        # set channel prior (which depends on the number of channels)
-        channel_prior = (
-            pm.HalfNormal.dist(sigma=3, shape=len(channel_columns))
-            if channel_prior_flag
-            else None
-        )
         mmm = DelayedSaturatedMMM(
             data=toy_df,
             target_column="y",
@@ -167,16 +162,6 @@ class TestMMM:
             ).to_numpy().shape == (
                 2 * yearly_seasonality,
                 samples,
-            )
-
-    def test_bad_priors(self, toy_df: pd.DataFrame) -> None:
-        with pytest.raises(ValueError):
-            DelayedSaturatedMMM(
-                data=toy_df,
-                target_column="y",
-                date_column="date",
-                channel_columns=["channel_1", "channel_2"],
-                channel_prior=pm.HalfNormal.dist(sigma=3, shape=1),
             )
 
     def test_fit(self, toy_df: pd.DataFrame) -> None:
