@@ -1,4 +1,3 @@
-from abc import abstractmethod
 from inspect import (
     getattr_static,
     isdatadescriptor,
@@ -15,10 +14,10 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import seaborn as sns
-from pymc.util import RandomState
+from pymc_experimental.model_builder import ModelBuilder
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
-from xarray import DataArray
+from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.validating import (
     ValidateChannelColumns,
@@ -29,35 +28,27 @@ from pymc_marketing.mmm.validating import (
 __all__ = ("BaseMMM", "MMM")
 
 
-class BaseMMM:
+class BaseMMM(ModelBuilder):
     model: pm.Model
 
     def __init__(
         self,
-        data: pd.DataFrame,
-        target_column: str,
         date_column: str,
         channel_columns: Union[List[str], Tuple[str]],
+        data: pd.DataFrame = None,
         validate_data: bool = True,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
         **kwargs,
     ) -> None:
-        self.data: pd.DataFrame = data
-        self.target_column: str = target_column
+        self.X: Optional[pd.DataFrame] = None
+        self.y: Optional[pd.Series] = None
         self.date_column: str = date_column
         self.channel_columns: Union[List[str], Tuple[str]] = channel_columns
-        self.n_obs: int = data.shape[0]
         self.n_channel: int = len(channel_columns)
         self._fit_result: Optional[az.InferenceData] = None
         self._posterior_predictive: Optional[az.InferenceData] = None
-
-        if validate_data:
-            self.validate(self.data)
-        self.preprocessed_data = self.preprocess(self.data.copy())
-
-        self.build_model(
-            data=self.preprocessed_data,
-            **kwargs,
-        )
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
 
     @property
     def methods(self) -> List[Any]:
@@ -75,22 +66,151 @@ class BaseMMM:
         ]
 
     @property
-    def validation_methods(self) -> List[Callable[["BaseMMM", pd.DataFrame], None]]:
-        return [
-            method
-            for method in self.methods
-            if getattr(method, "_tags", {}).get("validation", False)
-        ]
+    def validation_methods(
+        self,
+    ) -> Tuple[
+        List[Callable[["BaseMMM", Union[pd.DataFrame, pd.Series]], None]],
+        List[Callable[["BaseMMM", Union[pd.DataFrame, pd.Series]], None]],
+    ]:
+        """
+        A property that provides validation methods for features ("X") and the target variable ("y").
+
+        This property scans the methods of the object and returns those marked for validation.
+        The methods are marked by having a _tags dictionary attribute, with either "validation_X" or "validation_y" set to True.
+        The "validation_X" tag indicates a method used for validating features, and "validation_y" indicates a method used for validating the target variable.
+
+        Returns
+        -------
+        tuple of list of Callable[["BaseMMM", pd.DataFrame], None]
+            A tuple where the first element is a list of methods for "X" validation, and the second element is a list of methods for "y" validation.
+
+        """
+        return (
+            [
+                method
+                for method in self.methods
+                if getattr(method, "_tags", {}).get("validation_X", False)
+            ],
+            [
+                method
+                for method in self.methods
+                if getattr(method, "_tags", {}).get("validation_y", False)
+            ],
+        )
+
+    def validate(self, target: str, data: Union[pd.DataFrame, pd.Series]) -> None:
+        """
+        Validates the input data based on the specified target type.
+
+        This function loops over the validation methods specified for
+        the target type and applies them to the input data.
+
+        Parameters
+        ----------
+        target : str
+            The type of target to be validated.
+            Expected values are "X" for features and "y" for the target variable.
+        data : Union[pd.DataFrame, pd.Series]
+            The input data to be validated.
+
+        Raises
+        ------
+        ValueError
+            If the target type is not "X" or "y", a ValueError will be raised.
+        """
+        if target not in ["X", "y"]:
+            raise ValueError("Target must be either 'X' or 'y'")
+        if target == "X":
+            validation_methods = self.validation_methods[0]
+        elif target == "y":
+            validation_methods = self.validation_methods[1]
+
+        for method in validation_methods:
+            method(self, data)
 
     @property
     def preprocessing_methods(
         self,
-    ) -> List[Callable[["BaseMMM", pd.DataFrame], pd.DataFrame]]:
-        return [
-            method
-            for method in self.methods
-            if getattr(method, "_tags", {}).get("preprocessing", False)
-        ]
+    ) -> Tuple[
+        List[
+            Callable[
+                ["BaseMMM", Union[pd.DataFrame, pd.Series]],
+                Union[pd.DataFrame, pd.Series],
+            ]
+        ],
+        List[
+            Callable[
+                ["BaseMMM", Union[pd.DataFrame, pd.Series]],
+                Union[pd.DataFrame, pd.Series],
+            ]
+        ],
+    ]:
+        """
+        A property that provides preprocessing methods for features ("X") and the target variable ("y").
+
+        This property scans the methods of the object and returns those marked for preprocessing.
+        The methods are marked by having a _tags dictionary attribute, with either "preprocessing_X" or "preprocessing_y" set to True.
+        The "preprocessing_X" tag indicates a method used for preprocessing features, and "preprocessing_y" indicates a method used for preprocessing the target variable.
+
+        Returns
+        -------
+        tuple of list of Callable[["BaseMMM", pd.DataFrame], pd.DataFrame]
+            A tuple where the first element is a list of methods for "X" preprocessing, and the second element is a list of methods for "y" preprocessing.
+        """
+        return (
+            [
+                method
+                for method in self.methods
+                if getattr(method, "_tags", {}).get("preprocessing_X", False)
+            ],
+            [
+                method
+                for method in self.methods
+                if getattr(method, "_tags", {}).get("preprocessing_y", False)
+            ],
+        )
+
+    def preprocess(
+        self, target: str, data: Union[pd.DataFrame, pd.Series]
+    ) -> Union[pd.DataFrame, pd.Series]:
+        """
+        Preprocess the provided data according to the specified target.
+
+        This method applies preprocessing methods to the data ("X" or "y"), which are specified in the preprocessing_methods property of this object.
+        It iteratively applies each method in the appropriate list (either for "X" or "y") to the data.
+
+        Parameters
+        ----------
+        target : str
+            Indicates whether the data represents features ("X") or the target variable ("y").
+
+        data : pd.DataFrame
+            The data to be preprocessed.
+
+        Returns
+        -------
+        Union[pd.DataFrame, pd.Series]
+            The preprocessed data.
+
+        Raises
+        ------
+        ValueError
+            If the target is neither "X" nor "y".
+
+        Example
+        -------
+        >>> data = pd.DataFrame({"x1": [1, 2, 3], "y": [4, 5, 6]})
+        >>> self.preprocess("X", data)
+        """
+        if target == "X":
+            for method in self.preprocessing_methods[0]:
+                data = method(self, data)
+        elif target == "y":
+            for method in self.preprocessing_methods[1]:
+                data = method(self, data)
+        else:
+            raise ValueError("Target must be either 'X' or 'y'")
+        return data
 
     def get_target_transformer(self) -> Pipeline:
         try:
@@ -99,108 +219,79 @@ class BaseMMM:
             identity_transformer = FunctionTransformer()
             return Pipeline(steps=[("scaler", identity_transformer)])
 
-    def validate(self, data: pd.DataFrame):
-        for method in self.validation_methods:
-            method(self, data)
-
-    def preprocess(self, data: pd.DataFrame) -> pd.DataFrame:
-        for method in self.preprocessing_methods:
-            data = method(self, data)
-        return data
-
-    @abstractmethod
-    def build_model(self, *args, **kwargs) -> None:
-        raise NotImplementedError()
-
-    def get_prior_predictive_data(self, *args, **kwargs) -> az.InferenceData:
-        try:
-            return self._prior_predictive
-        except AttributeError:
-            with self.model:
-                self._prior_predictive: az.InferenceData = pm.sample_prior_predictive(
-                    *args, **kwargs
-                )
-            return self._prior_predictive
-
-    def fit(
-        self,
-        progressbar: bool = True,
-        random_seed: RandomState = None,
-        *args: Any,
-        **kwargs: Any,
-    ) -> None:
-        with self.model:
-            self._fit_result = pm.sample(
-                progressbar=progressbar, random_seed=random_seed, *args, **kwargs
-            )
-            self._posterior_predictive = pm.sample_posterior_predictive(
-                trace=self._fit_result, progressbar=progressbar, random_seed=random_seed
-            )
+    @property
+    def prior_predictive(self) -> az.InferenceData:
+        if self.idata is None or "prior_predictive" not in self.idata:
+            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
+        return self.idata["prior_predictive"]
 
     @property
-    def fit_result(self) -> az.InferenceData:
-        if self._fit_result is None:
+    def fit_result(self) -> Dataset:
+        if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        return self._fit_result
+        return self.idata["posterior"]
 
     @property
-    def posterior_predictive(self) -> az.InferenceData:
-        if self._posterior_predictive is None:
+    def posterior_predictive(self) -> Dataset:
+        if self.idata is None or "posterior_predictive" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        return self._posterior_predictive
+        return self.idata["posterior_predictive"]
 
     def plot_prior_predictive(
         self, samples: int = 1_000, **plt_kwargs: Any
     ) -> plt.Figure:
-        prior_predictive_data: az.InferenceData = self.get_prior_predictive_data(
-            samples=samples
-        )
+        prior_predictive_data: az.InferenceData = self.prior_predictive
 
-        likelihood_hdi_94: DataArray = az.hdi(
-            ary=prior_predictive_data["prior_predictive"], hdi_prob=0.94
-        )["likelihood"]
-        likelihood_hdi_50: DataArray = az.hdi(
-            ary=prior_predictive_data["prior_predictive"], hdi_prob=0.50
-        )["likelihood"]
+        likelihood_hdi_94: DataArray = az.hdi(ary=prior_predictive_data, hdi_prob=0.94)[
+            "likelihood"
+        ]
+        likelihood_hdi_50: DataArray = az.hdi(ary=prior_predictive_data, hdi_prob=0.50)[
+            "likelihood"
+        ]
 
         fig, ax = plt.subplots(**plt_kwargs)
+        if self.X is not None and self.y is not None:
+            ax.fill_between(
+                x=np.asarray(self.X[self.date_column]),
+                y1=likelihood_hdi_94[:, 0],
+                y2=likelihood_hdi_94[:, 1],
+                color="C0",
+                alpha=0.2,
+                label="94% HDI",
+            )
 
-        ax.fill_between(
-            x=self.data[self.date_column],
-            y1=likelihood_hdi_94[:, 0],
-            y2=likelihood_hdi_94[:, 1],
-            color="C0",
-            alpha=0.2,
-            label="94% HDI",
-        )
+            ax.fill_between(
+                x=np.asarray(self.X[self.date_column]),
+                y1=likelihood_hdi_50[:, 0],
+                y2=likelihood_hdi_50[:, 1],
+                color="C0",
+                alpha=0.3,
+                label="50% HDI",
+            )
 
-        ax.fill_between(
-            x=self.data[self.date_column],
-            y1=likelihood_hdi_50[:, 0],
-            y2=likelihood_hdi_50[:, 1],
-            color="C0",
-            alpha=0.3,
-            label="50% HDI",
-        )
-
-        ax.plot(
-            self.data[self.date_column],
-            self.preprocessed_data[self.target_column],
-            color="black",
-        )
-        ax.set(title="Prior Predictive Check", xlabel="date", ylabel=self.target_column)
+            ax.plot(
+                np.asarray(self.X[self.date_column]),
+                np.asarray(self.preprocessed_data["y"]),
+                color="black",
+            )
+            ax.set(
+                title="Prior Predictive Check", xlabel="date", ylabel=self.output_var
+            )
+        else:
+            raise RuntimeError(
+                "The model hasn't been fit yet, call .fit() first with X and y data."
+            )
         return fig
 
     def plot_posterior_predictive(
         self, original_scale: bool = False, **plt_kwargs: Any
     ) -> plt.Figure:
-        posterior_predictive_data: az.InferenceData = self.posterior_predictive
-
+        posterior_predictive_data: Dataset = self.posterior_predictive
         likelihood_hdi_94: DataArray = az.hdi(
-            ary=posterior_predictive_data["posterior_predictive"], hdi_prob=0.94
+            ary=posterior_predictive_data, hdi_prob=0.94
         )["likelihood"]
         likelihood_hdi_50: DataArray = az.hdi(
-            ary=posterior_predictive_data["posterior_predictive"], hdi_prob=0.50
+            ary=posterior_predictive_data, hdi_prob=0.50
         )["likelihood"]
 
         if original_scale:
@@ -212,36 +303,40 @@ class BaseMMM:
             )
 
         fig, ax = plt.subplots(**plt_kwargs)
+        if self.X is not None and self.y is not None:
+            ax.fill_between(
+                x=self.X[self.date_column],
+                y1=likelihood_hdi_94[:, 0],
+                y2=likelihood_hdi_94[:, 1],
+                color="C0",
+                alpha=0.2,
+                label="94% HDI",
+            )
 
-        ax.fill_between(
-            x=self.data[self.date_column],
-            y1=likelihood_hdi_94[:, 0],
-            y2=likelihood_hdi_94[:, 1],
-            color="C0",
-            alpha=0.2,
-            label="94% HDI",
-        )
+            ax.fill_between(
+                x=self.X[self.date_column],
+                y1=likelihood_hdi_50[:, 0],
+                y2=likelihood_hdi_50[:, 1],
+                color="C0",
+                alpha=0.3,
+                label="50% HDI",
+            )
 
-        ax.fill_between(
-            x=self.data[self.date_column],
-            y1=likelihood_hdi_50[:, 0],
-            y2=likelihood_hdi_50[:, 1],
-            color="C0",
-            alpha=0.3,
-            label="50% HDI",
-        )
-
-        target_to_plot: pd.Series = (
-            self.data[self.target_column]
-            if original_scale
-            else self.preprocessed_data[self.target_column]
-        )
-        ax.plot(self.data[self.date_column], target_to_plot, color="black")
-        ax.set(
-            title="Posterior Predictive Check",
-            xlabel="date",
-            ylabel=self.target_column,
-        )
+            target_to_plot: np.ndarray = np.asarray(
+                self.y if original_scale else self.preprocessed_data["y"]
+            )
+            ax.plot(
+                np.asarray(self.X[self.date_column]),
+                target_to_plot,
+                color="black",
+            )
+            ax.set(
+                title="Posterior Predictive Check",
+                xlabel="date",
+                ylabel=self.output_var,
+            )
+        else:
+            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         return fig
 
     def _format_model_contributions(self, var_contribution: str) -> DataArray:
@@ -290,52 +385,53 @@ class BaseMMM:
                 ],
             )
         ):
+            if self.X is not None:
+                ax.fill_between(
+                    x=self.X[self.date_column],
+                    y1=hdi.isel(hdi=0),
+                    y2=hdi.isel(hdi=1),
+                    color=f"C{i}",
+                    alpha=0.25,
+                    label=f"$94 %$ HDI ({var_contribution})",
+                )
+                ax.plot(
+                    np.asarray(self.X[self.date_column]),
+                    np.asarray(mean),
+                    color=f"C{i}",
+                )
+        if self.X is not None:
+            intercept = az.extract(
+                self.fit_result, var_names=["intercept"], combined=False
+            )
+            intercept_hdi = np.repeat(
+                a=az.hdi(intercept).intercept.data[None, ...],
+                repeats=self.X[self.date_column].shape[0],
+                axis=0,
+            )
+            ax.plot(
+                np.asarray(self.X[self.date_column]),
+                np.full(len(self.X[self.date_column]), intercept.mean().data),
+                color=f"C{i + 1}",
+            )
             ax.fill_between(
-                x=self.data[self.date_column],
-                y1=hdi.isel(hdi=0),
-                y2=hdi.isel(hdi=1),
-                color=f"C{i}",
+                x=self.X[self.date_column],
+                y1=intercept_hdi[:, 0],
+                y2=intercept_hdi[:, 1],
+                color=f"C{i + 1}",
                 alpha=0.25,
-                label=f"$94 %$ HDI ({var_contribution})",
+                label="$94 %$ HDI (intercept)",
             )
-            sns.lineplot(
-                x=self.data[self.date_column],
-                y=mean,
-                color=f"C{i}",
-                ax=ax,
+            ax.plot(
+                np.asarray(self.X[self.date_column]),
+                np.asarray(self.preprocessed_data["y"]),
+                color="black",
             )
-
-        intercept = az.extract(self.fit_result, var_names=["intercept"], combined=False)
-        intercept_hdi = np.repeat(
-            a=az.hdi(intercept).intercept.data[None, ...],
-            repeats=self.n_obs,
-            axis=0,
-        )
-        sns.lineplot(
-            x=self.data[self.date_column],
-            y=intercept.mean().data,
-            color=f"C{i + 1}",
-            ax=ax,
-        )
-        ax.fill_between(
-            x=self.data[self.date_column],
-            y1=intercept_hdi[:, 0],
-            y2=intercept_hdi[:, 1],
-            color=f"C{i + 1}",
-            alpha=0.25,
-            label="$94 %$ HDI (intercept)",
-        )
-        ax.plot(
-            self.data[self.date_column],
-            self.preprocessed_data[self.target_column],
-            color="black",
-        )
-        ax.legend(title="components", loc="center left", bbox_to_anchor=(1, 0.5))
-        ax.set(
-            title="Posterior Predictive Model Components",
-            xlabel="date",
-            ylabel=self.target_column,
-        )
+            ax.legend(title="components", loc="center left", bbox_to_anchor=(1, 0.5))
+            ax.set(
+                title="Posterior Predictive Model Components",
+                xlabel="date",
+                ylabel=self.output_var,
+            )
         return fig
 
     def plot_channel_parameter(self, param_name: str, **plt_kwargs: Any) -> plt.Figure:
@@ -380,7 +476,6 @@ class BaseMMM:
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
         )
-
         fig, axes = plt.subplots(
             nrows=self.n_channel,
             ncols=1,
@@ -392,19 +487,20 @@ class BaseMMM:
 
         for i, channel in enumerate(self.channel_columns):
             ax = axes[i]
-            sns.regplot(
-                x=self.data[self.channel_columns].to_numpy()[:, i],
-                y=channel_contributions.sel(channel=channel),
-                color=f"C{i}",
-                order=2,
-                ci=None,
-                line_kws={
-                    "linestyle": "--",
-                    "alpha": 0.5,
-                    "label": "quadratic fit",
-                },
-                ax=ax,
-            )
+            if self.X is not None:
+                sns.regplot(
+                    x=self.X[self.channel_columns].to_numpy()[:, i],
+                    y=channel_contributions.sel(channel=channel),
+                    color=f"C{i}",
+                    order=2,
+                    ci=None,
+                    line_kws={
+                        "linestyle": "--",
+                        "alpha": 0.5,
+                        "label": "quadratic fit",
+                    },
+                    ax=ax,
+                )
             ax.legend(loc="upper left")
             ax.set(title=f"{channel}", xlabel="total_cost_eur")
 
@@ -439,6 +535,7 @@ class BaseMMM:
             .squeeze()
             .unstack()
         )
+        contributions_channel_over_time.columns = self.channel_columns
 
         if getattr(self, "control_columns", None):
             contributions_control_over_time = (
@@ -497,6 +594,11 @@ class BaseMMM:
                 ),
                 columns=all_contributions_over_time.columns,
                 index=all_contributions_over_time.index,
+            )
+            all_contributions_over_time.columns = (
+                all_contributions_over_time.columns.map(
+                    lambda x: f"channel_{x}" if isinstance(x, int) else x
+                )
             )
         return all_contributions_over_time
 
