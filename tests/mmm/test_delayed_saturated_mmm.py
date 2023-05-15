@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+from pytensor.tensor import TensorVariable
 
 from pymc_marketing.mmm.delayed_saturated_mmm import BaseDelayedSaturatedMMM
 
@@ -68,8 +69,8 @@ class TestDelayedSaturatedMMM:
         ids=["no_control", "one_control", "two_controls"],
     )
     @pytest.mark.parametrize(
-        argnames="channel_prior_flag",
-        argvalues=[False, True],
+        argnames="channel_prior",
+        argvalues=[None, pm.HalfNormal.dist(sigma=3)],
         ids=["no_channel_prior", "channel_prior"],
     )
     @pytest.mark.parametrize(
@@ -94,7 +95,7 @@ class TestDelayedSaturatedMMM:
         toy_y: pd.Series,
         yearly_seasonality: Optional[int],
         channel_columns: List[str],
-        channel_prior_flag: bool,
+        channel_prior: Optional[TensorVariable],
         control_columns: List[str],
         adstock_max_lag: int,
     ) -> None:

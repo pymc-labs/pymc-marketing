@@ -4,6 +4,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+from pymc.distributions.shape_utils import change_dist_size
 from pytensor.tensor import TensorVariable
 
 from pymc_marketing.mmm.base import MMM
