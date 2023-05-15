@@ -164,6 +164,49 @@ class TestMMM:
                 samples,
             )
 
+    @pytest.mark.parametrize(
+        argnames="channel_columns, channel_prior",
+        argvalues=[
+            (["channel_1"], None),
+            (["channel_1", "channel_2"], None),
+            (["channel_1"], pm.HalfNormal.dist(sigma=3)),
+            (["channel_1", "channel_2"], pm.HalfNormal.dist(sigma=3)),
+            (["channel_1", "channel_2"], pm.Normal.dist(mu=[0, 1], sigma=[1, 2])),
+            (["channel_1", "channel_2"], pm.HalfNormal.dist(sigma=[1, 2])),
+        ],
+    )
+    def test_custom_channel_prior(
+        self,
+        toy_df: pd.DataFrame,
+        channel_columns: List[str],
+        channel_prior: Optional[TensorVariable],
+    ) -> None:
+        mmm = DelayedSaturatedMMM(
+            data=toy_df,
+            target_column="y",
+            date_column="date",
+            channel_columns=channel_columns,
+            channel_prior=channel_prior,
+        )
+
+        n_channel: int = len(mmm.channel_columns)
+        samples: int = 3
+
+        with mmm.model:
+            prior_predictive: az.InferenceData = pm.sample_prior_predictive(
+                samples=samples, random_seed=rng
+            )
+
+        assert az.extract(
+            data=prior_predictive,
+            group="prior",
+            var_names=["beta_channel"],
+            combined=True,
+        ).to_numpy().shape == (
+            n_channel,
+            samples,
+        )
+
     def test_fit(self, toy_df: pd.DataFrame) -> None:
         draws: int = 100
         chains: int = 2
