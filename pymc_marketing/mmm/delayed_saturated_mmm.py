@@ -76,7 +76,7 @@ class BaseDelayedSaturatedMMM(MMM):
         self._validate_priors()
 
     def _validate_priors(self) -> None:
-        if self.channel_prior is not None and self.channel_prior.shape != (
+        if self.channel_prior is not None and self.channel_prior.shape.eval() != (
             len(self.channel_columns),
         ):
             raise ValueError(
