@@ -8,7 +8,7 @@ import pytest
 import xarray as xr
 from matplotlib import pyplot as plt
 
-from pymc_marketing.mmm.base import MMM
+from pymc_marketing.mmm.base import MMM, BaseMMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleTarget, preprocessing_method
 from pymc_marketing.mmm.validating import validation_method
 
@@ -130,6 +130,23 @@ def plotting_mmm(request):
         posterior_predictive=prior_post_pred,
     )
     return mmm
+
+
+class TestBaseMMM:
+    def test_bad_inheritance(self) -> None:
+        with pytest.raises(
+            NotImplementedError, match="Must implement build_model method in subclass"
+        ):
+
+            class BadMMM(BaseMMM):
+                pass
+
+            BadMMM(
+                data=toy_df,
+                target_column="y",
+                date_column="date",
+                channel_columns=["channel_1", "channel_2"],
+            )
 
 
 class TestMMM:
