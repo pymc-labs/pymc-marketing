@@ -1,4 +1,3 @@
-from abc import abstractmethod
 from inspect import (
     getattr_static,
     isdatadescriptor,
@@ -59,23 +58,6 @@ class BaseMMM(BayesianEstimator):
         )
 
     @property
-    @abstractmethod
-    def default_model_config(self) -> Dict:
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def default_sampler_config(self) -> Dict:
-        raise NotImplementedError
-
-    @classmethod
-    @abstractmethod
-    def generate_model_data(
-        cls, data: Union[np.ndarray, pd.DataFrame, pd.Series] = None
-    ) -> pd.DataFrame:
-        raise NotImplementedError
-
-    @property
     def methods(self) -> List[Any]:
         maybe_methods = [getattr_static(self, attr) for attr in dir(self)]
         return [
@@ -123,10 +105,6 @@ class BaseMMM(BayesianEstimator):
         for method in self.preprocessing_methods:
             data = method(self, data)
         return data
-
-    @abstractmethod
-    def build_model(self, *args, **kwargs) -> None:
-        raise NotImplementedError()
 
     def get_prior_predictive_data(self, *args, **kwargs) -> az.InferenceData:
         try:
@@ -606,19 +584,6 @@ class BaseMMM(BayesianEstimator):
 
     def graphviz(self, **kwargs):
         return pm.model_to_graphviz(self.model, **kwargs)
-
-    @abstractmethod
-    def _data_setter(
-        self,
-        data: Dict[str, Union[np.ndarray, pd.DataFrame, pd.Series]],
-        x_only: bool = True,
-    ):
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def _serializable_model_config(self) -> Dict[str, Union[int, float, Dict]]:
-        raise NotImplementedError
 
 
 class MMM(BaseMMM, ValidateTargetColumn, ValidateDateColumn, ValidateChannelColumns):
