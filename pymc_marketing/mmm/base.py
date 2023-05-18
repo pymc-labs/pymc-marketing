@@ -430,12 +430,12 @@ class BaseMMM:
                 for root in roots:
                     
                     if root >= x.min() and root <= x.max():
-                        ax.plot(root, polynomial(root), 'ro', label=f"Plateau Effect")
+                        ax.plot(root, polynomial(root), 'ro', label="Plateau Effect")
                     else:
-                        ax.plot(root, polynomial(root), marker='o', markersize=8, markeredgecolor=f"C{i}", markerfacecolor='white', label=f"Projected Plateau Effect")
+                        ax.plot(root, polynomial(root), marker='o', markersize=8, markeredgecolor=f"C{i}", markerfacecolor='white', label="Projected Plateau Effect")
 
                 # Plot the elbow point
-                ax.plot(elbow_x, elbow_y, marker='s', markersize=8, markeredgecolor=f"C{i}", markerfacecolor='white', label=f"Optimal Point")
+                ax.plot(elbow_x, elbow_y, marker='s', markersize=8, markeredgecolor=f"C{i}", markerfacecolor='white', label="Optimal Point")
                 
                 # Create a DataFrame for this iteration
                 temp_df = pd.DataFrame({'channel': [channel], 
@@ -451,11 +451,10 @@ class BaseMMM:
                     facecolor='white',
                     title=f"{channel} Legend",
                     fontsize='small'
-                )
-            
+                )   
         
-        axes.set(xlabel="Spent in Euros", ylabel="Contribution")
-        fig.suptitle("Response Curves", fontsize=16)
+            ax.set(xlabel="Spent", ylabel="Contribution")
+        fig.suptitle("Immediate Response Curves", fontsize=16)
         return fig, df_estimations
     
     def budget_allocator(self, total_budget: Optional[float]  = None, df_estimations: Optional[pd.DataFrame]  = None, budget_bounds: Optional[dict]  = None) -> pd.DataFrame:
