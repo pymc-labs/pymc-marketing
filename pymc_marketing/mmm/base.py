@@ -519,7 +519,6 @@ class BaseMMM:
                 # Call the new function
                 polynomial, _, _, _, _, _ = calculate_curve(x, y)
         
-                
                 # Calculate the collaboration for this channel based on its quadratic curve
                 total_collaboration -= polynomial(allocation)
             return total_collaboration
