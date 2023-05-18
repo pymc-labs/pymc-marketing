@@ -28,7 +28,7 @@ from pymc_marketing.mmm.validating import (
     ValidateDateColumn,
     ValidateTargetColumn,
 )
-from pymc_marketing.mmm.utils import find_elbow
+from pymc_marketing.mmm.utils import find_elbow, calculate_curve
 
 __all__ = ("BaseMMM", "MMM")
 
@@ -378,7 +378,7 @@ class BaseMMM:
             coords=channel_contribution.coords,
         )
 
-    def plot_contribution_curves(self, estimators = True) -> tuple:
+    def plot_contribution_curves(self, estimators: Optional[bool] = True) -> tuple[plt.Figure, pd.DataFrame]:
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
         )
@@ -413,25 +413,8 @@ class BaseMMM:
             )
             
             if estimators:
-
-                coefficients = np.polyfit(x, y, 2)
-                
-                polynomial = np.poly1d(coefficients)
-                
-                derivative = polynomial.deriv()
-                
-                roots = derivative.r
-                roots = [root.real for root in roots if root.imag == 0]
-                
-                x_space_actual = np.linspace(x.min(), x.max(), 100)
-                
-                x_space_projected = np.linspace(min(x.min(), min(roots)), max(x.max(), max(roots)), 100)
-                
-                y_space_projected = polynomial(x_space_projected)
-
-                # Calculate y-values for the fitted polynomial over the x-space
-                y_space_actual = polynomial(x_space_actual)
-                y_space_projected = polynomial(x_space_projected)
+                # Call the new function
+                polynomial, x_space_actual, y_space_actual, x_space_projected, y_space_projected, roots = calculate_curve(x, y)
                 
                 # Plot the polynomial for the actual data and the projected data
                 ax.plot(x_space_actual, y_space_actual, label=f"{channel} fit", color=f"C{i}", linestyle="-",)
@@ -475,32 +458,37 @@ class BaseMMM:
         fig.suptitle("Response Curves", fontsize=16)
         return fig, df_estimations
     
-    def budget_allocator(self, total_budget = None, df_estimations = None, budget_bounds = None) -> pd.DataFrame:
+    def budget_allocator(self, total_budget: Optional[float]  = None, df_estimations: Optional[pd.DataFrame]  = None, budget_bounds: Optional[dict]  = None) -> pd.DataFrame:
         """
         Allocates the budget optimally among different channels based on estimations and budget constraints.
 
-        Args:
-            total_budget: int or float, default=None
-                The total budget available for allocation.
-            df_estimations: pd.DataFrame, default=None
-                A DataFrame containing estimations and information about different channels.
-            budget_bounds: dict, default=None
-                A dictionary specifying the budget bounds for each channel.
+        Parameters
+        ----------
+        total_budget : float, optional
+            The total budget available for allocation.
+        df_estimations : pd.DataFrame, optional
+            A DataFrame containing estimations and information about different channels.
+        budget_bounds : dict, optional
+            A dictionary specifying the budget bounds for each channel.
 
-        Returns:
-            pd.DataFrame
-                A DataFrame with the optimal budget allocation for each channel.
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame with the optimal budget allocation for each channel.
 
-        Raises:
-            ValueError: If any of the required parameters are not provided or have an incorrect type.
+        Raises
+        ------
+        ValueError
+            If any of the required parameters are not provided or have an incorrect type.
 
-        Notes:
-            - The function optimally allocates the budget among different channels based on the provided estimations and budget constraints.
-            - It utilizes a cost function that calculates the contribution for each channel based on a quadratic curve fit to the data.
-            - The budget allocation is subject to a constraint to ensure the total allocated budget matches the total budget.
-            - The function uses optimization techniques to find the optimal budget allocation that maximizes contribution.
-            - The updated DataFrame includes an 'Optimal Budget' column with the allocated budget for each channel.
-            - The function also prints the maximum total contribution with the allocated budget and the proposed budget amount.
+        Notes
+        -----
+        - The function optimally allocates the budget among different channels based on the provided estimations and budget constraints.
+        - It utilizes a cost function that calculates the contribution for each channel based on a quadratic curve fit to the data.
+        - The budget allocation is subject to a constraint to ensure the total allocated budget matches the total budget.
+        - The function uses optimization techniques to find the optimal budget allocation that maximizes contribution.
+        - The updated DataFrame includes an 'Optimal Budget' column with the allocated budget for each channel.
+        - The function also prints the maximum total contribution with the allocated budget and the proposed budget amount.
         """
         
         if total_budget is None or df_estimations is None or budget_bounds is None:
@@ -529,8 +517,9 @@ class BaseMMM:
                 y = np.array(channel_contributions.sel(channel=channel).copy())
                 
                 # Fit a quadratic curve to the data
-                coefficients = np.polyfit(x, y, 2)
-                polynomial = np.poly1d(coefficients)
+                # Call the new function
+                polynomial, _, _, _, _, _ = calculate_curve(x, y)
+        
                 
                 # Calculate the collaboration for this channel based on its quadratic curve
                 total_collaboration -= polynomial(allocation)

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from pymc_marketing.mmm.utils import generate_fourier_modes
+from pymc_marketing.mmm.utils import generate_fourier_modes, find_elbow, calculate_curve
 
 
 @pytest.mark.parametrize(
@@ -76,3 +76,36 @@ def test_bad_order(n_order):
         generate_fourier_modes(
             periods=np.linspace(start=0.0, stop=1.0, num=50), n_order=n_order
         )
+#New tests
+
+@pytest.mark.parametrize(
+    "x, y, expected_index",
+    [
+        (np.array([0, 1, 2, 3, 4]), np.array([0, 1, 2, 1, 0]), 2),  # simple quadratic curve, elbow at index 2
+        (np.array([0, 1, 2, 3, 4]), np.array([0, 1, 3, 1, 0]), 2),  # same curve with steeper climb, elbow still at index 2
+    ],
+)
+def test_find_elbow(x, y, expected_index):
+    assert find_elbow(x, y) == expected_index
+
+
+@pytest.mark.parametrize(
+    "x, y",
+    [
+        (np.array([0, 1, 2, 3, 4]), np.array([0, 1, 2, 1, 0])),  # simple quadratic curve
+        (np.array([0, 1, 2, 3, 4]), np.array([0, 1, 3, 1, 0])),  # same curve with steeper climb
+    ],
+)
+def test_calculate_curve(x, y):
+    polynomial, x_space_actual, y_space_actual, x_space_projected, y_space_projected, roots = calculate_curve(x, y)
+
+    # Check if polynomial is of degree 2
+    assert len(polynomial.coefficients) == 3
+
+    # Check if y_space_actual and y_space_projected are calculated correctly
+    assert np.allclose(y_space_actual, polynomial(x_space_actual))
+    assert np.allclose(y_space_projected, polynomial(x_space_projected))
+
+    # Check if roots are real and located within x_space_projected
+    assert all(isinstance(root, float) for root in roots)
+    assert all(min(x_space_projected) <= root <= max(x_space_projected) for root in roots)
