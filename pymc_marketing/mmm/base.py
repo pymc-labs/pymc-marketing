@@ -454,7 +454,7 @@ class BaseMMM:
                 )   
         
             ax.set(xlabel="Spent", ylabel="Contribution")
-        fig.suptitle("Immediate Response Curves", fontsize=16)
+        fig.suptitle("Immediate response curves", fontsize=16)
         return fig, df_estimations
     
     def budget_allocator(self, total_budget: Optional[float]  = None, df_estimations: Optional[pd.DataFrame]  = None, budget_bounds: Optional[dict]  = None) -> pd.DataFrame:
