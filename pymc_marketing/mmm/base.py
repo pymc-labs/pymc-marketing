@@ -490,8 +490,8 @@ class BaseMMM:
         - The function also prints the maximum total contribution with the allocated budget and the proposed budget amount.
         """
         
-        if total_budget is None or df_estimations is None or budget_bounds is None:
-            raise ValueError("All parameters must be provided.")
+        if total_budget is None or df_estimations is None:
+            raise ValueError("Total Budget and Estimations dataframe parameters must be provided.")
             
         if not isinstance(total_budget, (int, float)):
             raise ValueError("The 'total_budget' parameter must be an integer or float.")
