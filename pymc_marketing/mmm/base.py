@@ -548,13 +548,13 @@ class BaseMMM:
         result = minimize(cost_function, initial_guess, args=(df,), bounds=bounds, constraints=cons)
 
         # Add the new column to the dataframe
-        df['Optimal Budget'] = result.x
+        df['Optimal Budget'] = np.round(result.x)
 
         print("The maximum total contribution with these allocations is:")
         print(-result.fun)
 
         print("The proposed budget is:")
-        print(result.x.sum())
+        print(np.round(result.x.sum()))
 
         # Return the updated dataframe
         return df
