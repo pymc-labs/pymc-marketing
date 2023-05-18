@@ -20,11 +20,15 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray
 
+from scipy.optimize import Bounds
+from scipy.optimize import minimize
+
 from pymc_marketing.mmm.validating import (
     ValidateChannelColumns,
     ValidateDateColumn,
     ValidateTargetColumn,
 )
+from pymc_marketing.mmm.utils import find_elbow
 
 __all__ = ("BaseMMM", "MMM")
 
@@ -374,10 +378,12 @@ class BaseMMM:
             coords=channel_contribution.coords,
         )
 
-    def plot_contribution_curves(self) -> plt.Figure:
+    def plot_contribution_curves(self, estimators = True) -> tuple:
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
         )
+
+        df_estimations = pd.DataFrame(columns=['channel', 'optimal_point', 'plateau_point'])
 
         fig, axes = plt.subplots(
             nrows=self.n_channel,
@@ -390,24 +396,181 @@ class BaseMMM:
 
         for i, channel in enumerate(self.channel_columns):
             ax = axes[i]
+            x = self.data[self.channel_columns].to_numpy()[:, i]
+            y = channel_contributions.sel(channel=channel)
+
             sns.regplot(
-                x=self.data[self.channel_columns].to_numpy()[:, i],
-                y=channel_contributions.sel(channel=channel),
+                x=x,
+                y=y,
                 color=f"C{i}",
                 order=2,
                 ci=None,
                 line_kws={
-                    "linestyle": "--",
+                    "linestyle": "-",
                     "alpha": 0.5,
-                    "label": "quadratic fit",
                 },
                 ax=ax,
             )
-            ax.legend(loc="upper left")
-            ax.set(title=f"{channel}", xlabel="total_cost_eur")
+            
+            if estimators:
 
-        fig.suptitle("Contribution Plots", fontsize=16)
-        return fig
+                coefficients = np.polyfit(x, y, 2)
+                
+                polynomial = np.poly1d(coefficients)
+                
+                derivative = polynomial.deriv()
+                
+                roots = derivative.r
+                roots = [root.real for root in roots if root.imag == 0]
+                
+                x_space_actual = np.linspace(x.min(), x.max(), 100)
+                
+                x_space_projected = np.linspace(min(x.min(), min(roots)), max(x.max(), max(roots)), 100)
+                
+                y_space_projected = polynomial(x_space_projected)
+
+                # Calculate y-values for the fitted polynomial over the x-space
+                y_space_actual = polynomial(x_space_actual)
+                y_space_projected = polynomial(x_space_projected)
+                
+                # Plot the polynomial for the actual data and the projected data
+                ax.plot(x_space_actual, y_space_actual, label=f"{channel} fit", color=f"C{i}", linestyle="-",)
+                ax.plot(x_space_projected, y_space_projected, linestyle="--", color=f"C{i}")
+
+                # Find the elbow point of the projected curve
+                idx_elbow = find_elbow(x_space_projected, y_space_projected)
+
+                # Get x- and y-values of elbow point
+                elbow_x = x_space_projected[idx_elbow]
+                elbow_y = y_space_projected[idx_elbow]
+
+                for root in roots:
+                    
+                    if root >= x.min() and root <= x.max():
+                        ax.plot(root, polynomial(root), 'ro', label=f"Plateau Effect")
+                    else:
+                        ax.plot(root, polynomial(root), marker='o', markersize=8, markeredgecolor=f"C{i}", markerfacecolor='white', label=f"Projected Plateau Effect")
+
+                # Plot the elbow point
+                ax.plot(elbow_x, elbow_y, marker='s', markersize=8, markeredgecolor=f"C{i}", markerfacecolor='white', label=f"Optimal Point")
+                
+                # Create a DataFrame for this iteration
+                temp_df = pd.DataFrame({'channel': [channel], 
+                                        'optimal_point': [elbow_x], 
+                                        'plateau_point': [root]
+                                        })
+
+                # Use concat to add the new data to the results DataFrame
+                df_estimations = pd.concat([df_estimations, temp_df], ignore_index=True)
+
+            ax.legend(
+                    loc='upper left',
+                    facecolor='white',
+                    title=f"{channel} Legend",
+                    fontsize='small'
+                )
+            
+        
+        axes.set(xlabel="Spent in Euros", ylabel="Contribution")
+        fig.suptitle("Response Curves", fontsize=16)
+        return fig, df_estimations
+    
+    def budget_allocator(self, total_budget = None, df_estimations = None, budget_bounds = None) -> pd.DataFrame:
+        """
+        Allocates the budget optimally among different channels based on estimations and budget constraints.
+
+        Args:
+            total_budget: int or float, default=None
+                The total budget available for allocation.
+            df_estimations: pd.DataFrame, default=None
+                A DataFrame containing estimations and information about different channels.
+            budget_bounds: dict, default=None
+                A dictionary specifying the budget bounds for each channel.
+
+        Returns:
+            pd.DataFrame
+                A DataFrame with the optimal budget allocation for each channel.
+
+        Raises:
+            ValueError: If any of the required parameters are not provided or have an incorrect type.
+
+        Notes:
+            - The function optimally allocates the budget among different channels based on the provided estimations and budget constraints.
+            - It utilizes a cost function that calculates the contribution for each channel based on a quadratic curve fit to the data.
+            - The budget allocation is subject to a constraint to ensure the total allocated budget matches the total budget.
+            - The function uses optimization techniques to find the optimal budget allocation that maximizes contribution.
+            - The updated DataFrame includes an 'Optimal Budget' column with the allocated budget for each channel.
+            - The function also prints the maximum total contribution with the allocated budget and the proposed budget amount.
+        """
+        
+        if total_budget is None or df_estimations is None or budget_bounds is None:
+            raise ValueError("All parameters must be provided.")
+            
+        if not isinstance(total_budget, (int, float)):
+            raise ValueError("The 'total_budget' parameter must be an integer or float.")
+            
+        if not isinstance(df_estimations, pd.DataFrame):
+            raise ValueError("The 'df_estimations' parameter must be a pandas DataFrame.")
+            
+        if not isinstance(budget_bounds, dict):
+            raise ValueError("The 'budget_bounds' parameter must be a dictionary.")
+            
+        df = df_estimations.copy()
+        channel_contributions = self.compute_channel_contribution_original_scale().mean(
+            ["chain", "draw"]
+        )
+        
+        def cost_function(budget_allocations, df):
+            total_collaboration = 0
+            for i, allocation in enumerate(budget_allocations):
+                # Retrieve the data for this channel
+                channel = df.loc[i, 'channel']
+                x = self.data[channel].to_numpy().copy()
+                y = np.array(channel_contributions.sel(channel=channel).copy())
+                
+                # Fit a quadratic curve to the data
+                coefficients = np.polyfit(x, y, 2)
+                polynomial = np.poly1d(coefficients)
+                
+                # Calculate the collaboration for this channel based on its quadratic curve
+                total_collaboration -= polynomial(allocation)
+            return total_collaboration
+
+        def budget_constraint(budget_allocations):
+            total_budget_allocated = np.sum(budget_allocations)
+            return total_budget_allocated - total_budget  # this should be zero
+
+        cons = {'type':'eq', 'fun': budget_constraint}
+
+        lower_bounds = []
+        upper_bounds = []
+
+        for channel in df['channel']:
+            if channel in budget_bounds:
+                min_bound, max_bound = budget_bounds[channel]
+            else:
+                min_bound = np.quantile(self.data[channel], 0.25)
+                max_bound = df.loc[df['channel'] == channel, 'plateau_point'].values[0]
+
+            lower_bounds.append(min_bound)
+            upper_bounds.append(max_bound)
+            
+        bounds = Bounds(lower_bounds, upper_bounds)
+
+        initial_guess = lower_bounds  # Start with minimum allocation for all channels
+        result = minimize(cost_function, initial_guess, args=(df,), bounds=bounds, constraints=cons)
+
+        # Add the new column to the dataframe
+        df['Optimal Budget'] = result.x
+
+        print("The maximum total contribution with these allocations is:")
+        print(-result.fun)
+
+        print("The proposed budget is:")
+        print(result.x.sum())
+
+        # Return the updated dataframe
+        return df
 
     def compute_mean_contributions_over_time(
         self, original_scale: bool = False

@@ -1,6 +1,7 @@
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from scipy.spatial import distance
 
 
 def generate_fourier_modes(
@@ -33,3 +34,34 @@ def generate_fourier_modes(
             for func in ("sin", "cos")
         }
     )
+
+def find_elbow(x, y):
+    """
+    Finds the elbow point in a curve by measuring the distance between the points and a line connecting the first and last points.
+
+    Args:
+        x: array-like
+            The x-coordinates of the points on the curve.
+        y: array-like
+            The y-coordinates of the points on the curve.
+
+    Returns:
+        index: int
+            The index of the point representing the elbow in the curve.
+
+    Notes:
+        The function calculates the coefficients of the line connecting the first and last points using polynomial fitting.
+        It then calculates the y-values of the line and measures the distances from the points of the curve to the line using the Euclidean distance.
+        The index of the point with the maximum distance to the line is returned as the elbow point.
+    """
+    # Calculate the coefficients of the line connecting the first and last points
+    line_coeffs = np.polyfit([x[0], x[-1]], [y[0], y[-1]], 1)
+
+    # Calculate the y-values of the line
+    line_y = np.poly1d(line_coeffs)(x)
+
+    # Calculate the distances from the points of the curve to the line
+    distances = distance.cdist(np.column_stack((x, y)), np.column_stack((x, line_y)), 'euclidean')
+
+    # Return the index of the point with the maximum distance to the line
+    return np.argmax(distances.diagonal())
