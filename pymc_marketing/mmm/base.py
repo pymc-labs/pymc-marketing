@@ -556,7 +556,7 @@ class BaseMMM:
             raise ValueError(
                 "Total Budget and Estimations dataframe parameters must be provided."
             )
-        
+
         if total_budget is None:
             total_budget = {}
 
