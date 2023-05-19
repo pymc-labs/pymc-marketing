@@ -379,7 +379,7 @@ class BaseMMM:
 
     def plot_contribution_curves(
         self, estimators: Optional[bool] = True
-    ) -> tuple[plt.Figure, pd.DataFrame]:
+    ) -> Tuple[plt.Figure, pd.DataFrame]:
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
         )
