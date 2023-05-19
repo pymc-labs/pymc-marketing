@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+from pytensor.tensor import TensorVariable
 
 from pymc_marketing.mmm.delayed_saturated_mmm import DelayedSaturatedMMM
 
@@ -63,6 +64,11 @@ class TestMMM:
         ids=["no_control", "one_control", "two_controls"],
     )
     @pytest.mark.parametrize(
+        argnames="channel_prior",
+        argvalues=[None, pm.HalfNormal.dist(sigma=3)],
+        ids=["no_channel_prior", "channel_prior"],
+    )
+    @pytest.mark.parametrize(
         argnames="channel_columns",
         argvalues=[
             (["channel_1"]),
@@ -83,6 +89,7 @@ class TestMMM:
         toy_df: pd.DataFrame,
         yearly_seasonality: Optional[int],
         channel_columns: List[str],
+        channel_prior: Optional[TensorVariable],
         control_columns: List[str],
         adstock_max_lag: int,
     ) -> None:
@@ -91,6 +98,7 @@ class TestMMM:
             target_column="y",
             date_column="date",
             channel_columns=channel_columns,
+            channel_prior=channel_prior,
             control_columns=control_columns,
             adstock_max_lag=adstock_max_lag,
             yearly_seasonality=yearly_seasonality,
@@ -155,6 +163,49 @@ class TestMMM:
                 2 * yearly_seasonality,
                 samples,
             )
+
+    @pytest.mark.parametrize(
+        argnames="channel_columns, channel_prior",
+        argvalues=[
+            (["channel_1"], None),
+            (["channel_1", "channel_2"], None),
+            (["channel_1"], pm.HalfNormal.dist(sigma=3)),
+            (["channel_1", "channel_2"], pm.HalfNormal.dist(sigma=3)),
+            (["channel_1", "channel_2"], pm.Normal.dist(mu=[0, 1], sigma=[1, 2])),
+            (["channel_1", "channel_2"], pm.HalfNormal.dist(sigma=[1, 2])),
+        ],
+    )
+    def test_custom_channel_prior(
+        self,
+        toy_df: pd.DataFrame,
+        channel_columns: List[str],
+        channel_prior: Optional[TensorVariable],
+    ) -> None:
+        mmm = DelayedSaturatedMMM(
+            data=toy_df,
+            target_column="y",
+            date_column="date",
+            channel_columns=channel_columns,
+            channel_prior=channel_prior,
+        )
+
+        n_channel: int = len(mmm.channel_columns)
+        samples: int = 3
+
+        with mmm.model:
+            prior_predictive: az.InferenceData = pm.sample_prior_predictive(
+                samples=samples, random_seed=rng
+            )
+
+        assert az.extract(
+            data=prior_predictive,
+            group="prior",
+            var_names=["beta_channel"],
+            combined=True,
+        ).to_numpy().shape == (
+            n_channel,
+            samples,
+        )
 
     def test_fit(self, toy_df: pd.DataFrame) -> None:
         draws: int = 100

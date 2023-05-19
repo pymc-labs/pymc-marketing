@@ -3,6 +3,7 @@ from unittest.mock import patch
 import arviz as az
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 import xarray as xr
 from matplotlib import pyplot as plt
@@ -136,6 +137,11 @@ class TestMMM:
     @patch("pymc_marketing.mmm.base.MMM.validate_date_col")
     @patch("pymc_marketing.mmm.base.MMM.validate_channel_columns")
     @pytest.mark.parametrize(
+        argnames="channel_prior",
+        argvalues=[None, pm.HalfNormal.dist(sigma=5)],
+        ids=["no_channel_prior", "channel_prior"],
+    )
+    @pytest.mark.parametrize(
         argnames="channel_columns",
         argvalues=[
             (["channel_1"]),
@@ -152,6 +158,7 @@ class TestMMM:
         validate_date_col,
         validate_target,
         channel_columns,
+        channel_prior,
     ) -> None:
         validate_channel_columns.configure_mock(_tags={"validation": True})
         validate_date_col.configure_mock(_tags={"validation": True})
@@ -186,6 +193,7 @@ class TestMMM:
             target_column="y",
             date_column="date",
             channel_columns=channel_columns,
+            channel_prior=channel_prior,
         )
         pd.testing.assert_frame_equal(instance.data, toy_df)
         pd.testing.assert_frame_equal(instance.preprocessed_data, toy_df)

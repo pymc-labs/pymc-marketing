@@ -16,7 +16,11 @@ import pandas as pd
 import pymc as pm
 import seaborn as sns
 from pymc.util import RandomState
+
 from scipy.optimize import Bounds, minimize
+
+from pytensor.tensor import TensorVariable
+
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray
@@ -41,6 +45,7 @@ class BaseMMM:
         target_column: str,
         date_column: str,
         channel_columns: Union[List[str], Tuple[str]],
+        channel_prior: Optional[TensorVariable] = None,
         validate_data: bool = True,
         **kwargs,
     ) -> None:
@@ -48,6 +53,7 @@ class BaseMMM:
         self.target_column: str = target_column
         self.date_column: str = date_column
         self.channel_columns: Union[List[str], Tuple[str]] = channel_columns
+        self.channel_prior = channel_prior
         self.n_obs: int = data.shape[0]
         self.n_channel: int = len(channel_columns)
         self._fit_result: Optional[az.InferenceData] = None
