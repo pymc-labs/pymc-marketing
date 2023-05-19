@@ -4,6 +4,8 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+from pymc.distributions.shape_utils import change_dist_size
+from pytensor.tensor import TensorVariable
 
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
@@ -23,6 +25,7 @@ class BaseDelayedSaturatedMMM(MMM):
         data: pd.DataFrame = None,
         model_config: Dict = {},
         sampler_config: Dict = {},
+        channel_prior: Optional[TensorVariable] = None,
         validate_data: bool = True,
         control_columns: Optional[List[str]] = None,
         adstock_max_lag: int = 4,
@@ -41,6 +44,11 @@ class BaseDelayedSaturatedMMM(MMM):
             Column name of the date variable.
         channel_columns : List[str]
             Column names of the media channel variables.
+        channel_prior : Optional[TensorVariable], optional
+            Prior distribution for the channel coefficients, by default None which
+            corresponds to a HalfNormal distribution with sigma=2 (so that all
+            contributions are positive). The prior distribution is specified by the
+            `dist` API. For example, if you `pm.HalfNormal.dist(sigma=4, shape=2)`.
         validate_data : bool, optional
             Whether to validate the data upon initialization, by default True.
         control_columns : Optional[List[str]], optional
@@ -67,10 +75,10 @@ class BaseDelayedSaturatedMMM(MMM):
             channel_columns=channel_columns,
             model_config=model_config,
             sampler_config=sampler_config,
+            channel_prior=channel_prior,
             validate_data=validate_data,
             adstock_max_lag=adstock_max_lag,
         )
-
     @property
     def default_sampler_config(self) -> Dict:
         return {"progressbar": True, "random_seed": 1234}
@@ -101,6 +109,21 @@ class BaseDelayedSaturatedMMM(MMM):
             )
         else:
             self.data = data
+    
+    def _preprocess_channel_prior(self) -> TensorVariable:
+        return (
+            pm.HalfNormal.dist(sigma=2, shape=len(self.channel_columns))
+            if self.channel_prior is None
+            else change_dist_size(
+                dist=self.channel_prior, new_size=len(self.channel_columns)
+            )
+        )
+
+    def build_model(
+        self,
+        data: pd.DataFrame,
+        adstock_max_lag: int = 4,
+    ) -> None:
         date_data = data[self.date_column]
         target_data = data[self.target_column]
         channel_data = data[self.channel_columns]
@@ -204,6 +227,10 @@ class BaseDelayedSaturatedMMM(MMM):
                 sigma=model_config["beta_channel"]["sigma"],
                 dims=model_config["beta_channel"]["dims"],
             )  # ? Allow prior depend on channel costs?
+            channel_prior = self._preprocess_channel_prior()
+            beta_channel = self.model.register_rv(
+                rv_var=channel_prior, name="beta_channel", dims="channel"
+            )
 
             alpha = pm.Beta(
                 name="alpha",
@@ -386,75 +413,6 @@ class BaseDelayedSaturatedMMM(MMM):
                 }
             )
 
-
-
-    @property
-    def _serializable_model_config(self) -> Dict[str, Any]:
-        serializable_config = self.model_config.copy()
-        return serializable_config
-
-    def _data_setter(
-        self,
-        X: Union[np.ndarray, pd.DataFrame],
-        y: Union[np.ndarray, pd.Series] = None,
-    ) -> None:
-        """
-        Sets new data in the model.
-
-        This function accepts data in various formats and sets them into the
-        model using the PyMC's `set_data` method. The data corresponds to the
-        channel data and the target.
-
-        Parameters
-        ----------
-        X : Union[np.ndarray, pd.DataFrame]
-            Data for the channel. It can be a numpy array or pandas DataFrame.
-            If it's a DataFrame, it should contain a column "channel_data".
-        y : Union[np.ndarray, pd.Series], optional
-            Target data. It can be a numpy array or a pandas Series.
-            If it's a Series, its values are used. If it's an ndarray, it's used
-            directly. The default is None.
-
-        Raises
-        ------
-        RuntimeError
-            If the data for the channel is not provided in `X`.
-        TypeError
-            If `y` is not a pandas Series or a numpy array.
-
-        Returns
-        -------
-        None
-        """
-        new_channel_data = None
-        if isinstance(X, pd.DataFrame):
-            try:
-                new_channel_data = X[self.channel_columns]
-            except KeyError as e:
-                raise RuntimeError("New data must contain channel_data!", e)
-        elif isinstance(X, np.ndarray):
-            new_channel_data = (
-                X  # Adjust as necessary depending on the structure of your ndarray
-            )
-        else:
-            raise TypeError("X must be either a pandas DataFrame or a numpy array")
-
-        target = None
-        if isinstance(y, pd.Series):
-            target = y.values
-        elif isinstance(y, np.ndarray):
-            target = y
-        else:
-            raise TypeError("y must be either a pandas Series or a numpy array")
-
-        with self.model:
-            pm.set_data(
-                {
-                    "channel_data": new_channel_data,
-                    "target": target,
-                }
-            )
-
 class DelayedSaturatedMMM(
     MaxAbsScaleTarget,
     MaxAbsScaleChannels,
@@ -462,3 +420,4 @@ class DelayedSaturatedMMM(
     BaseDelayedSaturatedMMM,
 ):
     ...
+

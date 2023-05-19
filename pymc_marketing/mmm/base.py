@@ -15,6 +15,8 @@ import pandas as pd
 import pymc as pm
 import seaborn as sns
 from pymc_experimental.model_builder import ModelBuilder
+from pymc.util import RandomState
+from pytensor.tensor import TensorVariable
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
@@ -37,6 +39,7 @@ class BaseMMM(ModelBuilder):
         date_column: str,
         channel_columns: Union[List[str], Tuple[str]],
         data: pd.DataFrame = None,
+        channel_prior: Optional[TensorVariable] = None,
         validate_data: bool = True,
         model_config: Dict = {},
         sampler_config: Dict = {},
@@ -46,6 +49,7 @@ class BaseMMM(ModelBuilder):
         self.target_column: str = target_column
         self.date_column: str = date_column
         self.channel_columns: Union[List[str], Tuple[str]] = channel_columns
+        self.channel_prior = channel_prior
         self.n_channel: int = len(channel_columns)
         self._fit_result: Optional[az.InferenceData] = None
         self._posterior_predictive: Optional[az.InferenceData] = None
