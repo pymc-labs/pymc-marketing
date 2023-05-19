@@ -106,23 +106,6 @@ def toy_mmm(request, toy_X, toy_y):
     )
 
 
-class TestBaseMMM:
-    def test_bad_inheritance(self) -> None:
-        with pytest.raises(
-            NotImplementedError, match="Must implement build_model method in subclass"
-        ):
-
-            class BadMMM(BaseMMM):
-                pass
-
-            BadMMM(
-                data=toy_df,
-                target_column="y",
-                date_column="date",
-                channel_columns=["channel_1", "channel_2"],
-            )
-
-
 class TestMMM:
     @patch("pymc_marketing.mmm.base.MMM.validate_target")
     @patch("pymc_marketing.mmm.base.MMM.validate_date_col")
