@@ -14,11 +14,10 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import seaborn as sns
-from pymc.util import RandomState
-from pymc_experimental import BayesianEstimator
+from pymc_experimental.model_builder import ModelBuilder
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
-from xarray import DataArray
+from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.validating import (
     ValidateChannelColumns,
@@ -29,32 +28,33 @@ from pymc_marketing.mmm.validating import (
 __all__ = ("BaseMMM", "MMM")
 
 
-class BaseMMM(BayesianEstimator):
+class BaseMMM(ModelBuilder):
     model: pm.Model
 
     def __init__(
         self,
-        data: pd.DataFrame,
         target_column: str,
         date_column: str,
         channel_columns: Union[List[str], Tuple[str]],
+        data: pd.DataFrame = None,
         validate_data: bool = True,
+        model_config: Dict = {},
+        sampler_config: Dict = {},
         **kwargs,
     ) -> None:
+        self.data: pd.DataFrame = data
         self.target_column: str = target_column
         self.date_column: str = date_column
         self.channel_columns: Union[List[str], Tuple[str]] = channel_columns
         self.n_channel: int = len(channel_columns)
         self._fit_result: Optional[az.InferenceData] = None
         self._posterior_predictive: Optional[az.InferenceData] = None
-        if validate_data:
-            self.validate(self.data)
-        self.preprocessed_data = self.preprocess(self.data.copy())
-        super().__init__()
-
-        self.build_model(
-            data=self.preprocessed_data,
-            **kwargs,
+        if data is not None:
+            if validate_data:
+                self.validate(self.data)
+            self.preprocessed_data = self.preprocess(self.data.copy())
+        super().__init__(
+            data=data, model_config=model_config, sampler_config=sampler_config
         )
 
     @property
@@ -116,32 +116,19 @@ class BaseMMM(BayesianEstimator):
                 )
             return self._prior_predictive
 
-    def fit(
-        self,
-        progressbar: bool = True,
-        random_seed: RandomState = None,
-        *args: Any,
-        **kwargs: Any,
-    ) -> None:
-        with self.model:
-            self._fit_result = pm.sample(
-                progressbar=progressbar, random_seed=random_seed, *args, **kwargs
-            )
-            self._posterior_predictive = pm.sample_posterior_predictive(
-                trace=self._fit_result, progressbar=progressbar, random_seed=random_seed
-            )
-
     @property
-    def fit_result(self) -> az.InferenceData:
-        if self._fit_result is None:
+    # requesting discussion, is it something that we want to keep? Should I put on the deprecation warning to phase it out in later versions?
+    def fit_result(self) -> Dataset:
+        if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        return self._fit_result
+        return self.idata["posterior"]
 
+    # requesting discussion, is it something that we want to keep? Should I put on the deprecation warning to phase it out in later versions?
     @property
-    def posterior_predictive(self) -> az.InferenceData:
-        if self._posterior_predictive is None:
+    def posterior_predictive(self) -> Dataset:
+        if self.idata is None or "posterior_predictive" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        return self._posterior_predictive
+        return self.idata["posterior_predictive"]
 
     def plot_prior_predictive(
         self, samples: int = 1_000, **plt_kwargs: Any
@@ -188,7 +175,7 @@ class BaseMMM(BayesianEstimator):
     def plot_posterior_predictive(
         self, original_scale: bool = False, **plt_kwargs: Any
     ) -> plt.Figure:
-        posterior_predictive_data: az.InferenceData = self.posterior_predictive
+        posterior_predictive_data: Dataset = self.posterior_predictive
 
         likelihood_hdi_94: DataArray = az.hdi(
             ary=posterior_predictive_data["posterior_predictive"], hdi_prob=0.94
@@ -302,7 +289,7 @@ class BaseMMM(BayesianEstimator):
         intercept = az.extract(self.fit_result, var_names=["intercept"], combined=False)
         intercept_hdi = np.repeat(
             a=az.hdi(intercept).intercept.data[None, ...],
-            repeats=self.n_obs,
+            repeats=self.data.shape[0],
             axis=0,
         )
         sns.lineplot(
@@ -433,6 +420,7 @@ class BaseMMM(BayesianEstimator):
             .squeeze()
             .unstack()
         )
+        contributions_channel_over_time.columns = self.channel_columns
 
         if getattr(self, "control_columns", None):
             contributions_control_over_time = (
@@ -491,6 +479,11 @@ class BaseMMM(BayesianEstimator):
                 ),
                 columns=all_contributions_over_time.columns,
                 index=all_contributions_over_time.index,
+            )
+            all_contributions_over_time.columns = (
+                all_contributions_over_time.columns.map(
+                    lambda x: f"channel_{x}" if isinstance(x, int) else x
+                )
             )
         return all_contributions_over_time
 

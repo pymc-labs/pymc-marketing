@@ -20,9 +20,9 @@ class DelayedSaturatedMMM(
         target_column: str,
         date_column: str,
         channel_columns: List[str],
-        data: Optional[pd.DataFrame] = None,
-        model_config: Optional[Dict] = None,
-        sampler_config: Optional[Dict] = None,
+        data: pd.DataFrame = None,
+        model_config: Dict = {},
+        sampler_config: Dict = {},
         validate_data: bool = True,
         control_columns: Optional[List[str]] = None,
         adstock_max_lag: int = 4,
@@ -57,69 +57,72 @@ class DelayedSaturatedMMM(
         self.control_columns = control_columns
         self.adstock_max_lag = adstock_max_lag
         self.yearly_seasonality = yearly_seasonality
-        self.data = self.generate_model_data(data=data)
-        if self.yearly_seasonality is not None:
-            fourier_features = self._get_fourier_models_data()
+        self.date_column = date_column
+        self.data = data
 
-            self.data["fourier_features"] = (
-                {
-                    "value": fourier_features,
-                    "fourier_mode": fourier_features.columns.to_numpy(),
-                    "dims": ("date", "fourier_mode"),
-                },
-            )
-        else:
-            self.data["fourier_features"]["fourier_mode"] = None
-        self.data["coords"]["fourier_mode"] = self.data["fourier_features"][
-            "fourier_mode"
-        ]
         super().__init__(
+            date_column=date_column,
             data=self.data,
             target_column=target_column,
-            date_column=date_column,
             channel_columns=channel_columns,
+            model_config=model_config,
+            sampler_config=sampler_config,
             validate_data=validate_data,
             adstock_max_lag=adstock_max_lag,
         )
-        if model_config is None:
-            self.model_config = self.default_model_config
-        if sampler_config is None:
-            self.sampler_config = self.default_sampler_config
 
     @property
     def default_sampler_config(self) -> Dict:
         return {"progressbar": True, "random_seed": 1234}
 
-    @classmethod
-    def generate_model_data(cls, data=None) -> pd.DataFrame:
+    def generate_model_data(self, data=None) -> pd.DataFrame:
         if data is None:
-            data = {
-                """
-                Needs to be defined, should provide basic required data structure
-                that will allow users to use functions in order to learn about the class
-                and it's funcitons
-                """
-            }
-        date_data = data[cls.date_column]
-        target_data = data[cls.target_column]
-        channel_data = data[cls.channel_columns]
+            seed: int = sum(map(ord, "pymc_marketing"))
+            rng: np.random.Generator = np.random.default_rng(seed=seed)
+            date_data: pd.DatetimeIndex = pd.date_range(
+                start="2019-06-01", end="2021-12-31", freq="W-MON"
+            )
+            n: int = date_data.size
+            self.target_column = "y"
+            self.date_column = "date"
+            self.channel_columns = ["channel_1", "channel_2"]
+            self.control_columns = ["control_1", "control_2"]
+            self.data = pd.DataFrame(
+                data={
+                    "date": date_data,
+                    "y": rng.integers(low=0, high=100, size=n),
+                    "channel_1": rng.integers(low=0, high=400, size=n),
+                    "channel_2": rng.integers(low=0, high=50, size=n),
+                    "control_1": rng.gamma(shape=1000, scale=500, size=n),
+                    "control_2": rng.gamma(shape=100, scale=5, size=n),
+                    "other_column_1": rng.integers(low=0, high=100, size=n),
+                    "other_column_2": rng.normal(loc=0, scale=1, size=n),
+                }
+            )
+        else:
+            self.data = data
+        date_data = data[self.date_column]
+        target_data = data[self.target_column]
+        channel_data = data[self.channel_columns]
         coords: Dict[str, Any] = {
             "date": date_data,
             "channels": channel_data.columns,
         }
-
-        if cls.control_columns is not None:
-            control_data: Optional[pd.DataFrame] = data[cls.control_columns]
-            coords["control"] = data[cls.control_columns].columns
-        else:
-            control_data = None
+        control_data: Optional[pd.DataFrame] = None
+        if self.control_columns is not None:
+            control_data = data[self.control_columns]
+            coords["control"] = data[self.control_columns].columns
+        fourier_features: Optional[pd.DataFrame] = None
+        if self.yearly_seasonality is not None:
+            fourier_features = self._get_fourier_models_data()
+            coords["fourier_mode"] = fourier_features.columns.to_numpy()
         model_data = {
             "channel_data_": {
                 "type": "MutableData",
                 "value": channel_data,
                 "dims": ("date", "channel"),
             },
-            "target_": {
+            "target_data_": {
                 "type": "MutableData",
                 "value": target_data,
                 "dims": "date",
@@ -127,10 +130,18 @@ class DelayedSaturatedMMM(
             "control_data": {
                 "value": control_data,
                 "dims": ("date", "control"),
-            },
+            }
+            if control_data is not None
+            else None,
+            "fourier_features": {
+                "value": fourier_features,
+                "dims": ("date", "fourier_mode"),
+            }
+            if fourier_features is not None
+            else None,
             "coords": coords,
         }
-        cls.data = model_data
+        model_data = model_data
         return model_data
 
     @property
@@ -160,13 +171,16 @@ class DelayedSaturatedMMM(
 
     def build_model(
         self,
-        data: pd.DataFrame = None,
-        model_config: Optional[Dict] = None,
-        adstock_max_lag: int = 4,
+        data: Union[np.ndarray, pd.DataFrame, pd.Series] = {},
+        model_config: Dict = {},
+        **kwargs,
     ) -> None:
-        if model_config is None:
+        self.output_var = "target"
+        self.data = self.generate_model_data(data=data)
+
+        if not model_config:
             model_config = self.default_model_config
-        with pm.Model(coords=data["coords"]) as self.model:
+        with pm.Model(coords=self.data["coords"]) as self.model:
             channel_data_ = pm.MutableData(
                 name="channel_data",
                 value=self.data["channel_data_"]["value"],
@@ -212,7 +226,9 @@ class DelayedSaturatedMMM(
                 var=geometric_adstock(
                     x=channel_data_,
                     alpha=alpha,
-                    l_max=adstock_max_lag,
+                    l_max=kwargs["adstock_max_lag"]
+                    if "adstock_max_lag" in kwargs
+                    else 4,
                     normalize=True,
                     axis=0,
                 ),
@@ -230,8 +246,7 @@ class DelayedSaturatedMMM(
             )
 
             mu_var = intercept + channel_contributions.sum(axis=-1)
-
-            if self.data["control_data_"]["value"] is not None:
+            if self.data["control_data"] is not None:
                 control_data_ = pm.MutableData(
                     name="control_data",
                     value=self.data["control_data"]["value"],
@@ -253,7 +268,7 @@ class DelayedSaturatedMMM(
 
                 mu_var += control_contributions.sum(axis=-1)
 
-            if self.data["fourier_features"]["value"] is not None:
+            if self.data["fourier_features"] is not None:
                 fourier_data_ = pm.MutableData(
                     name="fourier_data",
                     value=self.data["fourier_features"]["value"],
@@ -307,50 +322,61 @@ class DelayedSaturatedMMM(
     @property
     def _serializable_model_config(self) -> Dict[str, Any]:
         serializable_config = self.model_config.copy()
-        serializable_config["channel_adstock"]["var"]["x"] = serializable_config[
-            "channel_adstock"
-        ]["var"]["x"].to_dict()
-        serializable_config["coords"]["date"] = serializable_config["coords"][
-            "date"
-        ].apply(lambda x: x.strftime("%Y-%m-%d %H:%M:%S"))
-        serializable_config["coords"]["date"] = serializable_config["coords"][
-            "date"
-        ].to_dict()
-        serializable_config["coords"]["channel"] = serializable_config["coords"][
-            "channel"
-        ].to_list()
-        if "control" in serializable_config["coords"].keys():
-            serializable_config["coords"]["control"] = serializable_config["coords"][
-                "control"
-            ].to_list()
-
         return serializable_config
 
     def _data_setter(
         self,
-        data: Dict[str, Union[np.ndarray[Any, Any], Any, Any]],
-        x_only: bool = True,
+        X: Union[np.ndarray, pd.DataFrame],
+        y: Union[np.ndarray, pd.Series] = None,
     ) -> None:
         """
         Sets new data in the model.
 
-            Parameters
-        ----------
-        data : Dictionary of string and either of numpy array, pandas dataframe or pandas Series
-            It is the data we need to set as idata for the model
-        """
+        This function accepts data in various formats and sets them into the
+        model using the PyMC's `set_data` method. The data corresponds to the
+        channel data and the target.
 
-        with self.model:
-            new_channel_data = None
-        try:
-            new_channel_data = data["channel_data"]["value"]
-        except KeyError as e:
-            raise RuntimeError("New data must contain channel_data!", e)
+        Parameters
+        ----------
+        X : Union[np.ndarray, pd.DataFrame]
+            Data for the channel. It can be a numpy array or pandas DataFrame.
+            If it's a DataFrame, it should contain a column "channel_data".
+        y : Union[np.ndarray, pd.Series], optional
+            Target data. It can be a numpy array or a pandas Series.
+            If it's a Series, its values are used. If it's an ndarray, it's used
+            directly. The default is None.
+
+        Raises
+        ------
+        RuntimeError
+            If the data for the channel is not provided in `X`.
+        TypeError
+            If `y` is not a pandas Series or a numpy array.
+
+        Returns
+        -------
+        None
+        """
+        new_channel_data = None
+        if isinstance(X, pd.DataFrame):
+            try:
+                new_channel_data = X[self.channel_columns]
+            except KeyError as e:
+                raise RuntimeError("New data must contain channel_data!", e)
+        elif isinstance(X, np.ndarray):
+            new_channel_data = (
+                X  # Adjust as necessary depending on the structure of your ndarray
+            )
+        else:
+            raise TypeError("X must be either a pandas DataFrame or a numpy array")
+
         target = None
-        try:
-            target = data["target"]["value"]
-        except KeyError as e:
-            raise RuntimeError("New data must contain target", e)
+        if isinstance(y, pd.Series):
+            target = y.values
+        elif isinstance(y, np.ndarray):
+            target = y
+        else:
+            raise TypeError("y must be either a pandas Series or a numpy array")
 
         with self.model:
             pm.set_data(

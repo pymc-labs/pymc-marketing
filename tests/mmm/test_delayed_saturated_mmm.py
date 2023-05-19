@@ -47,7 +47,9 @@ def mmm(toy_df: pd.DataFrame) -> DelayedSaturatedMMM:
 
 @pytest.fixture(scope="class")
 def mmm_fitted(mmm: DelayedSaturatedMMM) -> DelayedSaturatedMMM:
-    mmm.fit(target_accept=0.8, draws=3, chains=2)
+    X = mmm.data[[col for col in mmm.data.columns if col != mmm.target_column]]
+    y = mmm.data[mmm.target_column]
+    mmm.fit(X=X, y=y, target_accept=0.8, draws=3, chains=2)
     return mmm
 
 
@@ -95,10 +97,9 @@ class TestMMM:
             adstock_max_lag=adstock_max_lag,
             yearly_seasonality=yearly_seasonality,
         )
-
+        mmm.build_model(mmm.data)
         n_channel: int = len(mmm.channel_columns)
         samples: int = 3
-
         with mmm.model:
             prior_predictive: az.InferenceData = pm.sample_prior_predictive(
                 samples=samples, random_seed=rng
@@ -172,8 +173,12 @@ class TestMMM:
         n_channel: int = len(mmm.channel_columns)
         n_control: int = len(mmm.control_columns)
         fourier_terms: int = 2 * mmm.yearly_seasonality
+        X = mmm.data[[col for col in mmm.data.columns if col != mmm.target_column]]
+        y = mmm.data[mmm.target_column]
+        mmm.fit(
+            X=X, y=y, target_accept=0.81, draws=draws, chains=chains, random_seed=rng
+        )
 
-        mmm.fit(target_accept=0.81, draws=draws, chains=chains, random_seed=rng)
         idata: az.InferenceData = mmm.fit_result
         assert (
             az.extract(data=idata, var_names=["intercept"], combined=True)
