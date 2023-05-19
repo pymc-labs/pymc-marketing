@@ -16,11 +16,8 @@ import pandas as pd
 import pymc as pm
 import seaborn as sns
 from pymc.util import RandomState
-
-from scipy.optimize import Bounds, minimize
-
 from pytensor.tensor import TensorVariable
-
+from scipy.optimize import Bounds, minimize
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray
