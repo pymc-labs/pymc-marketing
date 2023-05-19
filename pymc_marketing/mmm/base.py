@@ -113,7 +113,7 @@ class BaseMMM:
 
     @abstractmethod
     def build_model(self, *args, **kwargs) -> None:
-        raise NotImplementedError("Must implement build_model method in subclass")
+        raise NotImplementedError()
 
     def get_prior_predictive_data(self, *args, **kwargs) -> az.InferenceData:
         try:
