@@ -511,7 +511,7 @@ class BaseMMM:
         self,
         total_budget: Optional[float] = None,
         df_estimations: Optional[pd.DataFrame] = None,
-        budget_bounds: Optional[Dict] = None,
+        budget_bounds: Optional[Dict] = {},
     ) -> Dict:
         """
         Allocate the budget optimally among different channels based on estimations and budget constraints.
