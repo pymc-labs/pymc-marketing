@@ -517,7 +517,7 @@ class BaseMMM:
         self,
         total_budget: Optional[float] = None,
         df_estimations: Optional[pd.DataFrame] = None,
-        budget_bounds: Optional[Dict] = {},
+        budget_bounds: Optional[Dict] = None,
     ) -> Dict:
         """
         Allocate the budget optimally among different channels based on estimations and budget constraints.
@@ -556,6 +556,9 @@ class BaseMMM:
             raise ValueError(
                 "Total Budget and Estimations dataframe parameters must be provided."
             )
+        
+        if total_budget is None:
+            total_budget = {}
 
         if not isinstance(total_budget, (int, float)):
             raise ValueError(
