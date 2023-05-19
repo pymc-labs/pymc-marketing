@@ -1,8 +1,8 @@
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-
 from scipy.spatial import distance
+
 
 def generate_fourier_modes(
     periods: npt.NDArray[np.float_], n_order: int
@@ -35,7 +35,8 @@ def generate_fourier_modes(
         }
     )
 
-def find_elbow(x: np.array, y: np.array) -> int:
+
+def find_elbow(x: npt.NDArray[np.float_], y: npt.NDArray[np.float_]) -> int:
     """
     Finds the elbow point in a curve by measuring the distance between the points and a line connecting the first and last points.
 
@@ -64,26 +65,30 @@ def find_elbow(x: np.array, y: np.array) -> int:
     line_y = np.poly1d(line_coeffs)(x)
 
     # Calculate the distances from the points of the curve to the line
-    distances = distance.cdist(np.column_stack((x, y)), np.column_stack((x, line_y)), 'euclidean')
+    distances = distance.cdist(
+        np.column_stack((x, y)), np.column_stack((x, line_y)), "euclidean"
+    )
 
     # Return the index of the point with the maximum distance to the line
-    return np.argmax(distances.diagonal())
+    return int(np.argmax(distances.diagonal()))
 
-def calculate_curve(x: np.array, y: np.array) -> tuple[np.poly1d, np.ndarray, np.ndarray, np.ndarray, np.ndarray, list]:
+
+class CurveCalculator:
     """
-    Calculate the quadratic curve, its derivative, roots, and y values for given x values.
+    A class used to calculate the quadratic curve, its derivative, roots, and y values for given x values.
 
-    Parameters
+    ...
+
+    Attributes
     ----------
-    x : array-like
-        The x-coordinates of the points.
-    y : array-like
-        The y-coordinates of the points.
-
-    Returns
-    -------
+    coefficients : numpy.ndarray
+        Coefficients of the quadratic curve.
     polynomial : numpy.poly1d
         The quadratic polynomial representing the curve.
+    derivative : numpy.poly1d
+        The derivative of the polynomial.
+    roots : list of float
+        The real roots of the derivative of the curve.
     x_space_actual : numpy.ndarray
         The x-values for the actual curve.
     y_space_actual : numpy.ndarray
@@ -92,37 +97,68 @@ def calculate_curve(x: np.array, y: np.array) -> tuple[np.poly1d, np.ndarray, np
         The x-values for the projected curve, including the roots.
     y_space_projected : numpy.ndarray
         The y-values for the projected curve, including the roots.
-    roots : list of float
-        The real roots of the derivative of the curve.
 
-    Notes
-    -----
-    This function fits a quadratic curve to the given points using the numpy.polyfit function.
-    It calculates the derivative of the curve using the numpy.poly1d.deriv method.
-    The function finds the real roots of the derivative using numpy.poly1d.r.
-    It defines the x-values for the actual curve using numpy.linspace with the minimum and maximum x values.
-    The x-values for the projected curve are defined using the minimum and maximum x values, including the roots.
-    The y-values for both curves are calculated using the polynomial function.
-
+    Methods
+    -------
+    get_polynomial():
+        Returns the polynomial of the fitted curve.
+    get_x_space_actual():
+        Returns the x-values for the actual curve.
+    get_y_space_actual():
+        Returns the y-values for the actual curve.
+    get_x_space_projected():
+        Returns the x-values for the projected curve, including the roots.
+    get_y_space_projected():
+        Returns the y-values for the projected curve, including the roots.
+    get_roots():
+        Returns the real roots of the derivative of the curve.
     """
 
-    # Fit a quadratic curve
-    coefficients = np.polyfit(x, y, 2)
-    polynomial = np.poly1d(coefficients)
+    def __init__(self, x: npt.NDArray[np.float_], y: npt.NDArray[np.float_]):
+        """Fit a quadratic curve, calculate its derivative and find its roots.
 
-    # Calculate derivative
-    derivative = polynomial.deriv()
+        Parameters
+        ----------
+        x : array-like
+            The x-coordinates of the points.
+        y : array-like
+            The y-coordinates of the points.
+        """
+        # Fit a quadratic curve
+        self.coefficients = np.polyfit(x, y, 2)
+        self.polynomial = np.poly1d(self.coefficients)
 
-    # Find roots
-    roots = derivative.r
-    roots = [root.real for root in roots if root.imag == 0]
+        # Calculate derivative
+        self.derivative = self.polynomial.deriv()
 
-    # Define x spaces
-    x_space_actual = np.linspace(x.min(), x.max(), 100)
-    x_space_projected = np.linspace(min(x.min(), min(roots)), max(x.max(), max(roots)), 100)
+        # Find roots
+        self.roots = self.derivative.r
+        self.real_roots = [root.real for root in self.roots if root.imag == 0]
 
-    # Calculate y spaces
-    y_space_actual = polynomial(x_space_actual)
-    y_space_projected = polynomial(x_space_projected)
+        # Define x spaces
+        self.x_space_actual = np.linspace(x.min(), x.max(), 100)
+        self.x_space_projected = np.linspace(
+            min(x.min(), min(self.roots)), max(x.max(), max(self.roots)), 100
+        )
 
-    return polynomial, x_space_actual, y_space_actual, x_space_projected, y_space_projected, roots
+        # Calculate y spaces
+        self.y_space_actual = self.polynomial(self.x_space_actual)
+        self.y_space_projected = self.polynomial(self.x_space_projected)
+
+    def get_polynomial(self):
+        return self.polynomial
+
+    def get_x_space_actual(self):
+        return self.x_space_actual
+
+    def get_y_space_actual(self):
+        return self.y_space_actual
+
+    def get_x_space_projected(self):
+        return self.x_space_projected
+
+    def get_y_space_projected(self):
+        return self.y_space_projected
+
+    def get_roots(self):
+        return self.real_roots
