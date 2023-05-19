@@ -5,6 +5,8 @@ import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 
+import theano.tensor as tt
+
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
@@ -25,6 +27,7 @@ class BaseDelayedSaturatedMMM(MMM):
         control_columns: Optional[List[str]] = None,
         adstock_max_lag: int = 4,
         yearly_seasonality: Optional[int] = None,
+        channel_priors: Optional[Dict[str, pm.Distribution]] = None,
         **kwargs,
     ) -> None:
         """Media Mix Model with delayed adstock and logistic saturation class (see [1]_).
@@ -55,6 +58,7 @@ class BaseDelayedSaturatedMMM(MMM):
         self.control_columns = control_columns
         self.adstock_max_lag = adstock_max_lag
         self.yearly_seasonality = yearly_seasonality
+        self.channel_priors = channel_priors
         super().__init__(
             data=data,
             target_column=target_column,
@@ -102,9 +106,17 @@ class BaseDelayedSaturatedMMM(MMM):
 
             intercept = pm.Normal(name="intercept", mu=0, sigma=2)
 
-            beta_channel = pm.HalfNormal(
-                name="beta_channel", sigma=2, dims="channel"
-            )  # ? Allow prior depend on channel costs?
+            if self.channel_priors is None:
+                beta_channel = pm.HalfNormal(name="beta_channel", sigma=2, dims="channel")
+            else:
+                beta_channel = []
+                for channel in self.channel_columns:
+                    if channel in self.channel_priors:
+                        beta_channel.append(self.channel_priors[channel])
+                    else:
+                        beta_channel.append(pm.HalfNormal(name=f"beta_{channel}", sigma=2))
+                beta_channel = tt.stack(beta_channel, axis=-1)  
+            # ? Allow prior depend on channel costs?
 
             alpha = pm.Beta(name="alpha", alpha=1, beta=3, dims="channel")
 
