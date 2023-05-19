@@ -380,6 +380,19 @@ class BaseMMM:
     def plot_contribution_curves(
         self, estimators: Optional[bool] = True
     ) -> Tuple[plt.Figure, pd.DataFrame]:
+        """
+        Plot the direct contribution curves for each channel and optionally estimate optimal and plateau points.
+
+        Parameters
+        ----------
+        estimators : bool, optional
+            Whether to estimate and plot optimal and plateau points, whichs would be returned on a DataFrame. Defaults to True.
+
+        Returns
+        -------
+        Tuple[plt.Figure, pd.DataFrame]
+            A tuple containing the matplotlib Figure object representing the plot and a DataFrame with the estimated points.
+        """
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
         )
@@ -419,12 +432,12 @@ class BaseMMM:
                 # Call the new function
                 calculator = CurveCalculator(x, y)
 
-                polynomial = calculator.get_polynomial()
-                x_space_actual = calculator.get_x_space_actual()
-                y_space_actual = calculator.get_y_space_actual()
-                x_space_projected = calculator.get_x_space_projected()
-                y_space_projected = calculator.get_y_space_projected()
-                roots = calculator.get_roots()
+                polynomial = calculator.polynomial
+                x_space_actual = calculator.x_space_actual
+                y_space_actual = calculator.y_space_actual
+                x_space_projected = calculator.x_space_projected
+                y_space_projected = calculator.y_space_projected
+                roots = calculator.real_roots
 
                 # Plot the polynomial for the actual data and the projected data
                 ax.plot(
@@ -498,10 +511,10 @@ class BaseMMM:
         self,
         total_budget: Optional[float] = None,
         df_estimations: Optional[pd.DataFrame] = None,
-        budget_bounds: Optional[dict] = None,
-    ) -> pd.DataFrame:
+        budget_bounds: Optional[Dict] = None,
+    ) -> Dict:
         """
-        Allocates the budget optimally among different channels based on estimations and budget constraints.
+        Allocate the budget optimally among different channels based on estimations and budget constraints.
 
         Parameters
         ----------
@@ -514,8 +527,8 @@ class BaseMMM:
 
         Returns
         -------
-        pd.DataFrame
-            A DataFrame with the optimal budget allocation for each channel.
+        Dict
+            A dictionary containing the allocated budget and contribution information.
 
         Raises
         ------
@@ -524,12 +537,13 @@ class BaseMMM:
 
         Notes
         -----
-        - The function optimally allocates the budget among different channels based on the provided estimations and budget constraints.
-        - It utilizes a cost function that calculates the contribution for each channel based on a quadratic curve fit to the data.
-        - The budget allocation is subject to a constraint to ensure the total allocated budget matches the total budget.
-        - The function uses optimization techniques to find the optimal budget allocation that maximizes contribution.
-        - The updated DataFrame includes an 'Optimal Budget' column with the allocated budget for each channel.
-        - The function also prints the maximum total contribution with the allocated budget and the proposed budget amount.
+        - The function allocates the budget optimally among different channels based on the provided estimations and budget constraints.
+        - It performs validation checks on the input parameters to ensure they are of the correct type and not None.
+        - The channel contributions are computed using the `compute_channel_contribution_original_scale` method.
+        - The lower and upper bounds for the budget allocation are determined based on the provided `budget_bounds` or default values.
+        - Optimization is performed to find the optimal budget allocation that maximizes contribution while satisfying the budget constraint.
+        - The results are stored in a dictionary containing the allocated budget and contribution information.
+        - The updated DataFrame with the allocated budget and contribution information is returned as part of the dictionary.
         """
 
         if total_budget is None or df_estimations is None:
@@ -583,14 +597,17 @@ class BaseMMM:
         # Add the new column to the dataframe
         df["Optimal Budget"] = np.round(result.x)
 
-        print("The maximum total contribution with these allocations is:")
-        print(-result.fun)
+        contributions = pd.DataFrame(
+            {
+                "estimated_total_budget": np.round(result.x.sum()),
+                "estimated_max_contribution": (-result.fun),
+            }
+        )
 
-        print("The proposed budget is:")
-        print(np.round(result.x.sum()))
+        result_dict = {"allocation": df, "contribution": contributions}
 
-        # Return the updated dataframe
-        return df
+        # Return the updated results
+        return result_dict
 
     def compute_mean_contributions_over_time(
         self, original_scale: bool = False

@@ -97,21 +97,6 @@ class CurveCalculator:
         The x-values for the projected curve, including the roots.
     y_space_projected : numpy.ndarray
         The y-values for the projected curve, including the roots.
-
-    Methods
-    -------
-    get_polynomial():
-        Returns the polynomial of the fitted curve.
-    get_x_space_actual():
-        Returns the x-values for the actual curve.
-    get_y_space_actual():
-        Returns the y-values for the actual curve.
-    get_x_space_projected():
-        Returns the x-values for the projected curve, including the roots.
-    get_y_space_projected():
-        Returns the y-values for the projected curve, including the roots.
-    get_roots():
-        Returns the real roots of the derivative of the curve.
     """
 
     def __init__(self, x: npt.NDArray[np.float_], y: npt.NDArray[np.float_]):
@@ -144,21 +129,3 @@ class CurveCalculator:
         # Calculate y spaces
         self.y_space_actual = self.polynomial(self.x_space_actual)
         self.y_space_projected = self.polynomial(self.x_space_projected)
-
-    def get_polynomial(self):
-        return self.polynomial
-
-    def get_x_space_actual(self):
-        return self.x_space_actual
-
-    def get_y_space_actual(self):
-        return self.y_space_actual
-
-    def get_x_space_projected(self):
-        return self.x_space_projected
-
-    def get_y_space_projected(self):
-        return self.y_space_projected
-
-    def get_roots(self):
-        return self.real_roots
