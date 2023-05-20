@@ -121,12 +121,16 @@ class BaseDelayedSaturatedMMM(MMM):
 
             intercept = pm.Normal(name="intercept", mu=0, sigma=2)
 
-            beta_channel = []
-            for channel in self.channel_columns:
-                if channel in self.channel_priors:
-                    beta_channel.append(self.channel_priors[channel](name=f"beta_{channel}"))
-                else:
-                    beta_channel.append(pm.HalfNormal(name=f"beta_{channel}", sigma=2))
+            if self.channel_priors is not None:
+                prior_values = []
+                for channel in self.channel_columns:
+                    if channel in self.channel_priors:
+                        prior_values.append(self.channel_priors[channel].random())
+                    else:
+                        prior_values.append(pm.HalfNormal.dist(sigma=2).random())
+                beta_channel = pm.Normal("beta_channel", mu=prior_values, sigma=2, dims="channel")
+            else:
+                beta_channel = pm.HalfNormal("beta_channel", sigma=2, dims="channel")
             # ? Allow prior depend on channel costs?
 
             alpha = pm.Beta(name="alpha", alpha=1, beta=3, dims="channel")
