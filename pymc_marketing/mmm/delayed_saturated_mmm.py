@@ -125,7 +125,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 beta_channel = []
                 for channel in self.channel_columns:
                     if channel in self.channel_priors:
-                        beta_channel.append(self.channel_priors[channel](name=f"beta_{channel}", dims="priors"))
+                        beta_channel.append(self.channel_priors[channel](name=f"beta_{channel}"))
                     else:
                         beta_channel.append(pm.HalfNormal.dist(sigma=2, dims="non-prior"))
                 beta_channel = pm.HalfNormal("beta_channel", pm.math.stack(beta_channel, axis=-1), dims="channel")
