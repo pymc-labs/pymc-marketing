@@ -6,9 +6,6 @@ import pandas as pd
 import pymc as pm
 from pymc.distributions.shape_utils import change_dist_size
 from pytensor.tensor import TensorVariable
-
-import theano.tensor as tt
-
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
@@ -133,7 +130,7 @@ class BaseDelayedSaturatedMMM(MMM):
                         beta_channel.append(self.channel_priors[channel])
                     else:
                         beta_channel.append(pm.HalfNormal(name=f"beta_{channel}", sigma=2))
-                beta_channel = tt.stack(beta_channel, axis=-1)  
+                beta_channel = pm.HalfNormal('beta_channel', np.stack(beta_channel, axis=-1))
             # ? Allow prior depend on channel costs?
 
             alpha = pm.Beta(name="alpha", alpha=1, beta=3, dims="channel")
