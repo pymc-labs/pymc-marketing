@@ -128,7 +128,7 @@ class BaseDelayedSaturatedMMM(MMM):
                         beta_channel.append(self.channel_priors[channel](name=f"beta_{channel}"))
                     else:
                         beta_channel.append(pm.HalfNormal.dist(sigma=2))
-                beta_channel = pm.Deterministic("beta_channel", pm.math.stack(beta_channel, axis=-1))
+                beta_channel = pm.HalfNormal("beta_channel", pm.math.stack(beta_channel, axis=-1))
             else:
                 beta_channel = pm.HalfNormal(name="beta_channel", sigma=2, dims="channel")
             # ? Allow prior depend on channel costs?
