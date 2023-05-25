@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 import arviz as az
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -297,3 +298,29 @@ class TestMMM:
             )
             assert fourier_modes_data.max().max() <= 1
             assert fourier_modes_data.min().min() >= -1
+
+    def test_get_channel_contributions_forward_pass_grid(
+        self, mmm_fitted: DelayedSaturatedMMM
+    ) -> None:
+        n_channels = len(mmm_fitted.channel_columns)
+        data_range = mmm_fitted.data.shape[0]
+        draws = 3
+        chains = 2
+        grid_size = 2
+        contributions: pd.DataFrame = (
+            mmm_fitted.get_channel_contributions_forward_pass_grid(
+                start=0, stop=1.5, num=grid_size
+            )
+        )
+        assert contributions.shape == (
+            grid_size,
+            draws * chains,
+            data_range,
+            n_channels,
+        )
+
+    def test_plot_channel_contributions_grid(
+        self, mmm_fitted: DelayedSaturatedMMM
+    ) -> None:
+        fig = mmm_fitted.plot_channel_contributions_grid(start=0, stop=1.5, num=2)
+        assert isinstance(fig, plt.Figure)

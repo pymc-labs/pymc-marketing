@@ -404,3 +404,4 @@ class DelayedSaturatedMMM(
             xlabel=r"$\delta$",
             ylabel="contribution (sales)",
         )
+        return fig
