@@ -214,7 +214,6 @@ class TestMMM:
             ("plot_components_contributions", {}),
             ("plot_channel_parameter", {"param_name": "alpha"}),
             ("plot_direct_contribution_curves", {}),
-            ("plot_channel_contributions_grid", {"start": 0, "stop": 1.5, "num": 11}),
             ("plot_channel_contribution_share_hdi", {"hdi_prob": 0.95}),
             ("plot_grouped_contribution_breakdown_over_time", {}),
             (
