@@ -1,9 +1,12 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
+import arviz as az
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+import seaborn as sns
 from pymc.distributions.shape_utils import change_dist_size
 from pytensor.tensor import TensorVariable
 
@@ -220,6 +223,61 @@ class BaseDelayedSaturatedMMM(MMM):
             n_order=self.yearly_seasonality,
         )
 
+    def channel_contributions_forward_pass(
+        self, channel_data: Union[pd.DataFrame, pd.Series, npt.NDArray[np.float_]]
+    ) -> npt.NDArray[np.float_]:
+        """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
+
+        Parameters
+        ----------
+        channel_data : array-like
+            Input channel data.
+
+        Returns
+        -------
+        array-like
+            Transformed channel data.
+        """
+        alpha_posterior = (
+            az.extract(self.fit_result, group="posterior", var_names=["alpha"])
+            .to_numpy()
+            .T
+        )
+
+        lam_posterior = (
+            az.extract(self.fit_result, group="posterior", var_names=["lam"])
+            .to_numpy()
+            .T
+        )
+        lam_posterior_expanded = np.expand_dims(a=lam_posterior, axis=1)
+
+        beta_channel_posterior = (
+            az.extract(self.fit_result, group="posterior", var_names=["beta_channel"])
+            .to_numpy()
+            .T
+        )
+        beta_channel_posterior_expanded = np.expand_dims(
+            a=beta_channel_posterior, axis=1
+        )
+
+        geometric_adstock_posterior = geometric_adstock(
+            x=channel_data,
+            alpha=alpha_posterior,
+            l_max=self.adstock_max_lag,
+            normalize=True,
+            axis=0,
+        )
+
+        logistic_saturation_posterior = logistic_saturation(
+            x=geometric_adstock_posterior,
+            lam=lam_posterior_expanded,
+        )
+
+        channel_contribution_forward_pass = (
+            beta_channel_posterior_expanded * logistic_saturation_posterior
+        )
+        return channel_contribution_forward_pass.eval()
+
 
 class DelayedSaturatedMMM(
     MaxAbsScaleTarget,
@@ -227,4 +285,122 @@ class DelayedSaturatedMMM(
     ValidateControlColumns,
     BaseDelayedSaturatedMMM,
 ):
-    ...
+    def channel_contributions_forward_pass(
+        self, channel_data: Union[pd.DataFrame, pd.Series, npt.NDArray[np.float_]]
+    ) -> npt.NDArray[np.float_]:
+        """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
+
+        We return the contribution in the original scale of the target variable.
+
+        Parameters
+        ----------
+        channel_data : array-like
+            Input channel data.
+
+        Returns
+        -------
+        array-like
+            Transformed channel data.
+        """
+        channel_contribution_forward_pass = super().channel_contributions_forward_pass(
+            channel_data=channel_data
+        )
+        target_transformed_vectorized = np.vectorize(
+            self.target_transformer.inverse_transform,
+            excluded=[1, 2],
+            signature="(m, n) -> (m, n)",
+        )
+        return target_transformed_vectorized(channel_contribution_forward_pass)
+
+    def get_channel_contributions_forward_pass_grid(
+        self, start: float, stop: float, num: int
+    ) -> npt.NDArray[np.float_]:
+        """Generate a grid of scaled channel contributions for a given grid of share values.
+
+        Parameters
+        ----------
+        start : float
+            Start of the grid. It must be equal or greater than 0.
+        stop : float
+            End of the grid. It must be greater than start.
+        num : int
+            Number of points in the grid.
+
+        Returns
+        -------
+        array-like
+            Grid of channel contributions.
+        """
+        share_grid = np.linspace(start=start, stop=stop, num=num)
+
+        channel_contributions = []
+        for delta in share_grid:
+            channel_data = (
+                delta
+                * self.max_abs_scale_channel_data(data=self.data)[
+                    self.channel_columns
+                ].to_numpy()
+            )
+            channel_contribution_forward_pass = self.channel_contributions_forward_pass(
+                channel_data=channel_data
+            )
+            channel_contributions.append(channel_contribution_forward_pass)
+        return np.array(channel_contributions)
+
+    def plot_channel_contributions_grid(
+        self, start: float, stop: float, num: int, **plt_kwargs: Any
+    ) -> plt.Figure:
+        """Plots a grid of scaled channel contributions for a given grid of share values.
+
+        Parameters
+        ----------
+        start : float
+            Start of the grid. It must be equal or greater than 0.
+        stop : float
+            End of the grid. It must be greater than start.
+        num : int
+            Number of points in the grid.
+
+        Returns
+        -------
+        plt.Figure
+            Plot of grid of channel contributions.
+        """
+        if start < 0:
+            raise ValueError("start must be greater than or equal to 0.")
+
+        share_grid = np.linspace(start=start, stop=stop, num=num)
+        contributions = self.get_channel_contributions_forward_pass_grid(
+            start=start, stop=stop, num=num
+        )
+
+        fig, ax = plt.subplots(**plt_kwargs)
+
+        for i, x in enumerate(self.channel_columns):
+            hdi_contribution = az.hdi(ary=contributions[:, :, :, i].sum(axis=-1).T)
+
+            ax.fill_between(
+                x=share_grid,
+                y1=hdi_contribution[:, 0],
+                y2=hdi_contribution[:, 1],
+                color=f"C{i}",
+                label=f"{x} $94%$ HDI contribution",
+                alpha=0.4,
+            )
+
+            sns.lineplot(
+                x=share_grid,
+                y=contributions[:, :, :, i].sum(axis=-1).mean(axis=1),
+                color=f"C{i}",
+                marker="o",
+                label=f"{x} contribution mean",
+                ax=ax,
+            )
+
+        ax.axvline(x=1, color="black", linestyle="--", label=r"$\delta = 1$")
+        ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+        ax.set(
+            title="Channel contribution as a function of cost share",
+            xlabel=r"$\delta$",
+            ylabel="contribution (sales)",
+        )

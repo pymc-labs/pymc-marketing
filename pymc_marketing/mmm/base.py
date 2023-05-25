@@ -377,7 +377,7 @@ class BaseMMM:
             coords=channel_contribution.coords,
         )
 
-    def plot_contribution_curves(self) -> plt.Figure:
+    def plot_direct_contribution_curves(self) -> plt.Figure:
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
         )
