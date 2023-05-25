@@ -331,6 +331,9 @@ class DelayedSaturatedMMM(
         array-like
             Grid of channel contributions.
         """
+        if start < 0:
+            raise ValueError("start must be greater than or equal to 0.")
+
         share_grid = np.linspace(start=start, stop=stop, num=num)
 
         channel_contributions = []
@@ -366,9 +369,6 @@ class DelayedSaturatedMMM(
         plt.Figure
             Plot of grid of channel contributions.
         """
-        if start < 0:
-            raise ValueError("start must be greater than or equal to 0.")
-
         share_grid = np.linspace(start=start, stop=stop, num=num)
         contributions = self.get_channel_contributions_forward_pass_grid(
             start=start, stop=stop, num=num
