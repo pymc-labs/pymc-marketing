@@ -322,13 +322,13 @@ class TestMMM:
     def test_bad_start_get_channel_contributions_forward_pass_grid(
         self, mmm_fitted: DelayedSaturatedMMM
     ) -> None:
-        pytest.raises(
+        with pytest.raises(
             expected_exception=ValueError,
             match="start must be greater than or equal to 0.",
-        )
-        mmm_fitted.get_channel_contributions_forward_pass_grid(
-            start=-0.5, stop=1.5, num=2
-        )
+        ):
+            mmm_fitted.get_channel_contributions_forward_pass_grid(
+                start=-0.5, stop=1.5, num=2
+            )
 
     def test_plot_channel_contributions_grid(
         self, mmm_fitted: DelayedSaturatedMMM
