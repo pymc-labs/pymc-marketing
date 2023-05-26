@@ -182,7 +182,7 @@ class TestMMM:
         channel_columns: List[str],
         channel_prior: Optional[TensorVariable],
     ) -> None:
-        mmm = DelayedSaturatedMMM(
+        mmm = BaseDelayedSaturatedMMM(
             data=toy_df,
             target_column="y",
             date_column="date",

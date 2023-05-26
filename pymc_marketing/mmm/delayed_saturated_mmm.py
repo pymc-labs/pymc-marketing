@@ -22,9 +22,9 @@ class BaseDelayedSaturatedMMM(MMM):
         target_column: str,
         date_column: str,
         channel_columns: List[str],
-        data: pd.DataFrame = None,
-        model_config: Dict = {},
-        sampler_config: Dict = {},
+        data: Optional[pd.DataFrame] = None,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
         channel_prior: Optional[TensorVariable] = None,
         validate_data: bool = True,
         control_columns: Optional[List[str]] = None,
@@ -79,6 +79,7 @@ class BaseDelayedSaturatedMMM(MMM):
             validate_data=validate_data,
             adstock_max_lag=adstock_max_lag,
         )
+
     @property
     def default_sampler_config(self) -> Dict:
         return {"progressbar": True, "random_seed": 1234}
@@ -107,23 +108,8 @@ class BaseDelayedSaturatedMMM(MMM):
                     "other_column_2": rng.normal(loc=0, scale=1, size=n),
                 }
             )
-        else:
-            self.data = data
-    
-    def _preprocess_channel_prior(self) -> TensorVariable:
-        return (
-            pm.HalfNormal.dist(sigma=2, shape=len(self.channel_columns))
-            if self.channel_prior is None
-            else change_dist_size(
-                dist=self.channel_prior, new_size=len(self.channel_columns)
-            )
-        )
+            data = self.data  # add this line
 
-    def build_model(
-        self,
-        data: pd.DataFrame,
-        adstock_max_lag: int = 4,
-    ) -> None:
         date_data = data[self.date_column]
         target_data = data[self.target_column]
         channel_data = data[self.channel_columns]
@@ -139,7 +125,8 @@ class BaseDelayedSaturatedMMM(MMM):
         if self.yearly_seasonality is not None:
             fourier_features = self._get_fourier_models_data()
             coords["fourier_mode"] = fourier_features.columns.to_numpy()
-        model_data = {
+
+        model_data_dict = {  # change variable name to model_data_dict
             "channel_data_": {
                 "type": "MutableData",
                 "value": channel_data,
@@ -164,38 +151,25 @@ class BaseDelayedSaturatedMMM(MMM):
             else None,
             "coords": coords,
         }
-        model_data = model_data
+
+        model_data = pd.DataFrame.from_dict(
+            model_data_dict, orient="index"
+        )  # change how DataFrame is created
         return model_data
 
-    @property
-    def default_model_config(self) -> Dict:
-        model_config: Dict = {
-            "intercept": {"type": "dist", "mu": 0, "sigma": 2},
-            "beta_channel": {"type": "dist", "sigma": 2, "dims": ("channel",)},
-            "alpha": {"type": "dist", "alpha": 1, "beta": 3, "dims": ("channel",)},
-            "lam": {"type": "dist", "alpha": 3, "beta": 1, "dims": ("channel",)},
-            "sigma": {"type": "dist", "sigma": 2},
-            "gamma_control": {
-                "type": "dist",
-                "mu": 0,
-                "sigma": 2,
-                "dims": ("control",),
-            },
-            "control_contributions": {
-                "type": "deterministic",
-                "dims": ("date", "control"),
-            },
-            "mu": {"dims": ("date",)},
-            "likelihood": {"dims": ("date",)},
-            "gamma_fourier": {"mu": 0, "b": 1, "dims": "fourier_mode"},
-            "fourier_contributions": {"dims": ("date", "fourier_mode")},
-        }
-        return model_config
+    def _preprocess_channel_prior(self) -> TensorVariable:
+        return (
+            pm.HalfNormal.dist(sigma=2, shape=len(self.channel_columns))
+            if self.channel_prior is None
+            else change_dist_size(
+                dist=self.channel_prior, new_size=len(self.channel_columns)
+            )
+        )
 
     def build_model(
         self,
-        data: Union[np.ndarray, pd.DataFrame, pd.Series] = {},
-        model_config: Dict = {},
+        data: Optional[Union[np.ndarray, pd.DataFrame, pd.Series]] = None,
+        model_config: Optional[Dict] = None,
         **kwargs,
     ) -> None:
         self.output_var = "target"
@@ -327,6 +301,31 @@ class BaseDelayedSaturatedMMM(MMM):
                 dims="date",
             )
 
+    @property
+    def default_model_config(self) -> Dict:
+        model_config: Dict = {
+            "intercept": {"type": "dist", "mu": 0, "sigma": 2},
+            "beta_channel": {"type": "dist", "sigma": 2, "dims": ("channel",)},
+            "alpha": {"type": "dist", "alpha": 1, "beta": 3, "dims": ("channel",)},
+            "lam": {"type": "dist", "alpha": 3, "beta": 1, "dims": ("channel",)},
+            "sigma": {"type": "dist", "sigma": 2},
+            "gamma_control": {
+                "type": "dist",
+                "mu": 0,
+                "sigma": 2,
+                "dims": ("control",),
+            },
+            "control_contributions": {
+                "type": "deterministic",
+                "dims": ("date", "control"),
+            },
+            "mu": {"dims": ("date",)},
+            "likelihood": {"dims": ("date",)},
+            "gamma_fourier": {"mu": 0, "b": 1, "dims": "fourier_mode"},
+            "fourier_contributions": {"dims": ("date", "fourier_mode")},
+        }
+        return model_config
+
     def _get_fourier_models_data(self) -> pd.DataFrame:
         """Generates fourier modes to model seasonality.
 
@@ -336,10 +335,10 @@ class BaseDelayedSaturatedMMM(MMM):
         """
         if self.yearly_seasonality is None:
             raise ValueError("yearly_seasonality must be specified.")
-
-        date_data: pd.Series = pd.to_datetime(
-            arg=self.data[self.date_column], format="%Y-%m-%d"
-        )
+        if self.data is not None:
+            date_data: pd.Series = pd.to_datetime(
+                arg=self.data[self.date_column], format="%Y-%m-%d"
+            )
         periods: npt.NDArray[np.float_] = date_data.dt.dayofyear.to_numpy() / 365.25
         return generate_fourier_modes(
             periods=periods,
@@ -351,53 +350,58 @@ class BaseDelayedSaturatedMMM(MMM):
         serializable_config = self.model_config.copy()
         return serializable_config
 
-    def _data_setter(
-        self,
-        X: Union[np.ndarray, pd.DataFrame],
-        y: Union[np.ndarray, pd.Series] = None,
-    ) -> None:
-        """
-        Sets new data in the model.
 
-        This function accepts data in various formats and sets them into the
-        model using the PyMC's `set_data` method. The data corresponds to the
-        channel data and the target.
+def _data_setter(
+    self,
+    X: Union[np.ndarray, pd.DataFrame],
+    y: Optional[Union[np.ndarray, pd.Series]] = None,
+) -> None:
+    """
+    Sets new data in the model.
 
-        Parameters
-        ----------
-        X : Union[np.ndarray, pd.DataFrame]
-            Data for the channel. It can be a numpy array or pandas DataFrame.
-            If it's a DataFrame, it should contain a column "channel_data".
-        y : Union[np.ndarray, pd.Series], optional
-            Target data. It can be a numpy array or a pandas Series.
-            If it's a Series, its values are used. If it's an ndarray, it's used
-            directly. The default is None.
+    This function accepts data in various formats and sets them into the
+    model using the PyMC's `set_data` method. The data corresponds to the
+    channel data and the target.
 
-        Raises
-        ------
-        RuntimeError
-            If the data for the channel is not provided in `X`.
-        TypeError
-            If `y` is not a pandas Series or a numpy array.
+    Parameters
+    ----------
+    X : Union[np.ndarray, pd.DataFrame]
+        Data for the channel. It can be a numpy array or pandas DataFrame.
+        If it's a DataFrame, the columns corresponding to self.channel_columns
+        are used. If it's an ndarray, it's used directly.
+    y : Union[np.ndarray, pd.Series], optional
+        Target data. It can be a numpy array or a pandas Series.
+        If it's a Series, its values are used. If it's an ndarray, it's used
+        directly. The default is None.
 
-        Returns
-        -------
-        None
-        """
-        new_channel_data = None
-        if isinstance(X, pd.DataFrame):
-            try:
-                new_channel_data = X[self.channel_columns]
-            except KeyError as e:
-                raise RuntimeError("New data must contain channel_data!", e)
-        elif isinstance(X, np.ndarray):
-            new_channel_data = (
-                X  # Adjust as necessary depending on the structure of your ndarray
-            )
-        else:
-            raise TypeError("X must be either a pandas DataFrame or a numpy array")
+    Raises
+    ------
+    RuntimeError
+        If the data for the channel is not provided in `X`.
+    TypeError
+        If `X` is not a pandas DataFrame or a numpy array, or
+        if `y` is not a pandas Series or a numpy array and is not None.
 
-        target = None
+    Returns
+    -------
+    None
+    """
+
+    new_channel_data: Union[np.ndarray, pd.DataFrame, None] = None
+    if isinstance(X, pd.DataFrame):
+        try:
+            new_channel_data = X[self.channel_columns]
+        except KeyError as e:
+            raise RuntimeError("New data must contain channel_data!", e)
+    elif isinstance(X, np.ndarray):
+        new_channel_data = (
+            X  # Adjust as necessary depending on the structure of your ndarray
+        )
+    else:
+        raise TypeError("X must be either a pandas DataFrame or a numpy array")
+
+    target = None
+    if y is not None:
         if isinstance(y, pd.Series):
             target = y.values
         elif isinstance(y, np.ndarray):
@@ -405,13 +409,14 @@ class BaseDelayedSaturatedMMM(MMM):
         else:
             raise TypeError("y must be either a pandas Series or a numpy array")
 
-        with self.model:
-            pm.set_data(
-                {
-                    "channel_data": new_channel_data,
-                    "target": target,
-                }
-            )
+    with self.model:
+        pm.set_data(
+            {
+                "channel_data": new_channel_data,
+                "target": target,
+            }
+        )
+
 
 class DelayedSaturatedMMM(
     MaxAbsScaleTarget,
@@ -420,4 +425,3 @@ class DelayedSaturatedMMM(
     BaseDelayedSaturatedMMM,
 ):
     ...
-

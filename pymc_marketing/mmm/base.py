@@ -15,7 +15,6 @@ import pandas as pd
 import pymc as pm
 import seaborn as sns
 from pymc_experimental.model_builder import ModelBuilder
-from pymc.util import RandomState
 from pytensor.tensor import TensorVariable
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
@@ -38,14 +37,14 @@ class BaseMMM(ModelBuilder):
         target_column: str,
         date_column: str,
         channel_columns: Union[List[str], Tuple[str]],
-        data: pd.DataFrame = None,
+        data: Optional[pd.DataFrame] = None,
         channel_prior: Optional[TensorVariable] = None,
         validate_data: bool = True,
-        model_config: Dict = {},
-        sampler_config: Dict = {},
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
         **kwargs,
     ) -> None:
-        self.data: pd.DataFrame = data
+        self.data: Optional[pd.DataFrame] = data
         self.target_column: str = target_column
         self.date_column: str = date_column
         self.channel_columns: Union[List[str], Tuple[str]] = channel_columns
@@ -54,9 +53,10 @@ class BaseMMM(ModelBuilder):
         self._fit_result: Optional[az.InferenceData] = None
         self._posterior_predictive: Optional[az.InferenceData] = None
         if data is not None:
-            if validate_data:
-                self.validate(self.data)
-            self.preprocessed_data = self.preprocess(self.data.copy())
+            if type(self.data) == pd.DataFrame:
+                if validate_data:
+                    self.validate(self.data)
+                self.preprocessed_data = self.preprocess(self.data.copy())
         super().__init__(
             data=data, model_config=model_config, sampler_config=sampler_config
         )
@@ -149,31 +149,33 @@ class BaseMMM(ModelBuilder):
         )["likelihood"]
 
         fig, ax = plt.subplots(**plt_kwargs)
+        if self.data is not None:
+            ax.fill_between(
+                x=np.asarray(self.data[self.date_column]),
+                y1=likelihood_hdi_94[:, 0],
+                y2=likelihood_hdi_94[:, 1],
+                color="C0",
+                alpha=0.2,
+                label="94% HDI",
+            )
 
-        ax.fill_between(
-            x=np.asarray(self.data[self.date_column]),
-            y1=likelihood_hdi_94[:, 0],
-            y2=likelihood_hdi_94[:, 1],
-            color="C0",
-            alpha=0.2,
-            label="94% HDI",
-        )
+            ax.fill_between(
+                x=np.asarray(self.data[self.date_column]),
+                y1=likelihood_hdi_50[:, 0],
+                y2=likelihood_hdi_50[:, 1],
+                color="C0",
+                alpha=0.3,
+                label="50% HDI",
+            )
 
-        ax.fill_between(
-            x=np.asarray(self.data[self.date_column]),
-            y1=likelihood_hdi_50[:, 0],
-            y2=likelihood_hdi_50[:, 1],
-            color="C0",
-            alpha=0.3,
-            label="50% HDI",
-        )
-
-        ax.plot(
-            np.asarray(self.data[self.date_column]),
-            np.asarray(self.preprocessed_data[self.target_column]),
-            color="black",
-        )
-        ax.set(title="Prior Predictive Check", xlabel="date", ylabel=self.target_column)
+            ax.plot(
+                np.asarray(self.data[self.date_column]),
+                np.asarray(self.preprocessed_data[self.target_column]),
+                color="black",
+            )
+            ax.set(
+                title="Prior Predictive Check", xlabel="date", ylabel=self.target_column
+            )
         return fig
 
     def plot_posterior_predictive(
@@ -197,36 +199,38 @@ class BaseMMM(ModelBuilder):
             )
 
         fig, ax = plt.subplots(**plt_kwargs)
+        if self.data is not None:
+            ax.fill_between(
+                x=self.data[self.date_column],
+                y1=likelihood_hdi_94[:, 0],
+                y2=likelihood_hdi_94[:, 1],
+                color="C0",
+                alpha=0.2,
+                label="94% HDI",
+            )
 
-        ax.fill_between(
-            x=self.data[self.date_column],
-            y1=likelihood_hdi_94[:, 0],
-            y2=likelihood_hdi_94[:, 1],
-            color="C0",
-            alpha=0.2,
-            label="94% HDI",
-        )
+            ax.fill_between(
+                x=self.data[self.date_column],
+                y1=likelihood_hdi_50[:, 0],
+                y2=likelihood_hdi_50[:, 1],
+                color="C0",
+                alpha=0.3,
+                label="50% HDI",
+            )
 
-        ax.fill_between(
-            x=self.data[self.date_column],
-            y1=likelihood_hdi_50[:, 0],
-            y2=likelihood_hdi_50[:, 1],
-            color="C0",
-            alpha=0.3,
-            label="50% HDI",
-        )
-
-        target_to_plot: np.ndarray = np.asarray(
-            self.data[self.target_column]
-            if original_scale
-            else self.preprocessed_data[self.target_column]
-        )
-        ax.plot(np.asarray(self.data[self.date_column]), target_to_plot, color="black")
-        ax.set(
-            title="Posterior Predictive Check",
-            xlabel="date",
-            ylabel=self.target_column,
-        )
+            target_to_plot: np.ndarray = np.asarray(
+                self.data[self.target_column]
+                if original_scale
+                else self.preprocessed_data[self.target_column]
+            )
+            ax.plot(
+                np.asarray(self.data[self.date_column]), target_to_plot, color="black"
+            )
+            ax.set(
+                title="Posterior Predictive Check",
+                xlabel="date",
+                ylabel=self.target_column,
+            )
         return fig
 
     def _format_model_contributions(self, var_contribution: str) -> DataArray:
@@ -275,50 +279,53 @@ class BaseMMM(ModelBuilder):
                 ],
             )
         ):
-            ax.fill_between(
-                x=self.data[self.date_column],
-                y1=hdi.isel(hdi=0),
-                y2=hdi.isel(hdi=1),
-                color=f"C{i}",
-                alpha=0.25,
-                label=f"$94 %$ HDI ({var_contribution})",
+            if self.data is not None:
+                ax.fill_between(
+                    x=self.data[self.date_column],
+                    y1=hdi.isel(hdi=0),
+                    y2=hdi.isel(hdi=1),
+                    color=f"C{i}",
+                    alpha=0.25,
+                    label=f"$94 %$ HDI ({var_contribution})",
+                )
+                ax.plot(
+                    np.asarray(self.data[self.date_column]),
+                    np.asarray(mean),
+                    color=f"C{i}",
+                )
+        if self.data is not None:
+            intercept = az.extract(
+                self.fit_result, var_names=["intercept"], combined=False
+            )
+            intercept_hdi = np.repeat(
+                a=az.hdi(intercept).intercept.data[None, ...],
+                repeats=self.data.shape[0],
+                axis=0,
             )
             ax.plot(
                 np.asarray(self.data[self.date_column]),
-                np.asarray(mean),
-                color=f"C{i}",
+                np.full(len(self.data), intercept.mean().data),
+                color=f"C{i + 1}",
             )
-
-        intercept = az.extract(self.fit_result, var_names=["intercept"], combined=False)
-        intercept_hdi = np.repeat(
-            a=az.hdi(intercept).intercept.data[None, ...],
-            repeats=self.data.shape[0],
-            axis=0,
-        )
-        ax.plot(
-            np.asarray(self.data[self.date_column]),
-            np.full(len(self.data), intercept.mean().data),
-            color=f"C{i + 1}",
-        )
-        ax.fill_between(
-            x=self.data[self.date_column],
-            y1=intercept_hdi[:, 0],
-            y2=intercept_hdi[:, 1],
-            color=f"C{i + 1}",
-            alpha=0.25,
-            label="$94 %$ HDI (intercept)",
-        )
-        ax.plot(
-            np.asarray(self.data[self.date_column]),
-            np.asarray(self.preprocessed_data[self.target_column]),
-            color="black",
-        )
-        ax.legend(title="components", loc="center left", bbox_to_anchor=(1, 0.5))
-        ax.set(
-            title="Posterior Predictive Model Components",
-            xlabel="date",
-            ylabel=self.target_column,
-        )
+            ax.fill_between(
+                x=self.data[self.date_column],
+                y1=intercept_hdi[:, 0],
+                y2=intercept_hdi[:, 1],
+                color=f"C{i + 1}",
+                alpha=0.25,
+                label="$94 %$ HDI (intercept)",
+            )
+            ax.plot(
+                np.asarray(self.data[self.date_column]),
+                np.asarray(self.preprocessed_data[self.target_column]),
+                color="black",
+            )
+            ax.legend(title="components", loc="center left", bbox_to_anchor=(1, 0.5))
+            ax.set(
+                title="Posterior Predictive Model Components",
+                xlabel="date",
+                ylabel=self.target_column,
+            )
         return fig
 
     def plot_channel_parameter(self, param_name: str, **plt_kwargs: Any) -> plt.Figure:
@@ -375,19 +382,20 @@ class BaseMMM(ModelBuilder):
 
         for i, channel in enumerate(self.channel_columns):
             ax = axes[i]
-            sns.regplot(
-                x=self.data[self.channel_columns].to_numpy()[:, i],
-                y=channel_contributions.sel(channel=channel),
-                color=f"C{i}",
-                order=2,
-                ci=None,
-                line_kws={
-                    "linestyle": "--",
-                    "alpha": 0.5,
-                    "label": "quadratic fit",
-                },
-                ax=ax,
-            )
+            if self.data is not None:
+                sns.regplot(
+                    x=self.data[self.channel_columns].to_numpy()[:, i],
+                    y=channel_contributions.sel(channel=channel),
+                    color=f"C{i}",
+                    order=2,
+                    ci=None,
+                    line_kws={
+                        "linestyle": "--",
+                        "alpha": 0.5,
+                        "label": "quadratic fit",
+                    },
+                    ax=ax,
+                )
             ax.legend(loc="upper left")
             ax.set(title=f"{channel}", xlabel="total_cost_eur")
 
