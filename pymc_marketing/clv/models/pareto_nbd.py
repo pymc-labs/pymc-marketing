@@ -505,20 +505,28 @@ class ParetoNBDModel(CLVModel):
             )
 
         zeroth_term = (n_purchases == 0) * (1 - exp(log_p_zero))
-        first_term = (
-            n_purchases * log(future_t) - gammaln(n_purchases + 1) + log_B_one - loglike
-        )
-        second_term = log_B_two - loglike
-        third_term = xr_logsumexp(
-            xarray.concat(
-                [
-                    i * log(future_t) - gammaln(i + 1) + _log_B_three(i) - loglike
-                    for i in range(n_purchases + 1)
-                ],
-                dim="concat_dim_",
-            ),
-            dims="concat_dim_",
-        )
+
+        # ignore numerical errors when future_t <= 0,
+        # this is an unusual edge case in practice, so refactoring is unwarranted
+        with np.errstate(divide="ignore", invalid="ignore"):
+            first_term = (
+                n_purchases * log(future_t)
+                - gammaln(n_purchases + 1)
+                + log_B_one
+                - loglike
+            )
+            second_term = log_B_two - loglike
+
+            third_term = xr_logsumexp(
+                xarray.concat(
+                    [
+                        i * log(future_t) - gammaln(i + 1) + _log_B_three(i) - loglike
+                        for i in range(n_purchases + 1)
+                    ],
+                    dim="concat_dim_",
+                ),
+                dims="concat_dim_",
+            )
 
         purchase_prob = zeroth_term + exp(
             xr_logsumexp(
@@ -528,7 +536,6 @@ class ParetoNBDModel(CLVModel):
             )
         )
 
-        # TODO: Can this be done prior to performing the above calculations?
         if future_t <= 0:
             purchase_prob = purchase_prob.fillna(0)
 
