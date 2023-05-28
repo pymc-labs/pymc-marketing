@@ -63,6 +63,7 @@ class ParetoNBDModel(CLVModel):
     --------
 
         .. code-block:: python
+
             import pymc as pm
             from pymc_marketing.clv import ParetoNBDModel, clv_summary
 
