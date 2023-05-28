@@ -1,5 +1,5 @@
 import warnings
-from typing import Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -218,17 +218,19 @@ class ParetoNBDModel(CLVModel):
 
         return super()._process_priors(r_prior, alpha_prior, s_prior, beta_prior)
 
-    def _unload_params(self) -> Tuple[xarray.DataArray]:
+    def _unload_params(
+        self,
+    ) -> Tuple[Any, ...]:
         """Utility function retrieving posterior parameters for predictive methods"""
         return tuple([self.fit_result.posterior[param] for param in self._params])
 
     # TODO: Convert to list comprehension to support covariates?
     def _process_customers(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        frequency: Union[np.ndarray, pd.Series],
-        recency: Union[np.ndarray, pd.Series],
-        T: Union[np.ndarray, pd.Series],
+        customer_id: Union[np.ndarray, pd.Series, xarray.DataArray, None],
+        frequency: Union[np.ndarray, pd.Series, xarray.DataArray, None],
+        recency: Union[np.ndarray, pd.Series, xarray.DataArray, None],
+        T: Union[np.ndarray, pd.Series, xarray.DataArray, None],
     ) -> Tuple[xarray.DataArray]:
         """Utility function assigning default customer arguments
         for predictive methods and converting to xarrays.
@@ -246,10 +248,10 @@ class ParetoNBDModel(CLVModel):
 
     @staticmethod
     def _logp(
-        r: np.ndarray,
-        alpha: np.ndarray,
-        s: np.ndarray,
-        beta: np.ndarray,
+        r: xarray.DataArray,
+        alpha: xarray.DataArray,
+        s: xarray.DataArray,
+        beta: xarray.DataArray,
         x: xarray.DataArray,
         t_x: xarray.DataArray,
         T: xarray.DataArray,
@@ -272,10 +274,10 @@ class ParetoNBDModel(CLVModel):
     def expected_purchases(
         self,
         future_t: Union[float, np.ndarray, pd.Series],
-        customer_id: Union[np.ndarray, pd.Series] = None,
-        recency: Union[np.ndarray, pd.Series] = None,
-        frequency: Union[np.ndarray, pd.Series] = None,
-        T: Union[np.ndarray, pd.Series] = None,
+        customer_id: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
+        recency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
+        frequency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
+        T: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
     ) -> xarray.DataArray:
         r"""
             Given :math:`recency`, :math:`frequency`, and :math:`T` for an individual customer, this method returns the
@@ -305,9 +307,18 @@ class ParetoNBDModel(CLVModel):
                 Number of time periods since the customer's first purchase.
                 Model assumptions require T >= recency.
         """
+        # mypy requires explicit typing declarations for these variables.
+        x: xarray.DataArray
+        t_x: xarray.DataArray
+        r: xarray.DataArray
+        alpha: xarray.DataArray
+        s: xarray.DataArray
+        beta: xarray.DataArray
 
         x, t_x, T = self._process_customers(customer_id, frequency, recency, T)
+
         r, alpha, s, beta = self._unload_params()
+
         loglike = self._logp(r, alpha, s, beta, x, t_x, T)
 
         first_term = (
@@ -347,11 +358,15 @@ class ParetoNBDModel(CLVModel):
             t: array_like
                 Number of time periods over which to estimate purchases.
         """
-        r, alpha, s, beta = self._unload_params()
+        # mypy requires explicit typing declarations for these variables.
+        r: xarray.DataArray
+        alpha: xarray.DataArray
+        s: xarray.DataArray
+        beta: xarray.DataArray
 
         t = np.asarray(t)
 
-        r, alpha, s, beta = self._unload_params()  # type: ignore [has-type]
+        r, alpha, s, beta = self._unload_params()
         first_term = r * beta / alpha / (s - 1)
         second_term = 1 - (beta / (beta + t)) ** (s - 1)
 
@@ -362,10 +377,10 @@ class ParetoNBDModel(CLVModel):
     def expected_probability_alive(
         self,
         future_t: Union[int, float] = 0,
-        customer_id: Union[np.ndarray, pd.Series] = None,
-        recency: Union[np.ndarray, pd.Series] = None,
-        frequency: Union[np.ndarray, pd.Series] = None,
-        T: Union[np.ndarray, pd.Series] = None,
+        customer_id: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
+        recency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
+        frequency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
+        T: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
     ) -> xarray.DataArray:
         r"""
         Compute the probability that a customer with history :math:`frequency`, :math:`recency`, and :math:`T`
@@ -389,8 +404,17 @@ class ParetoNBDModel(CLVModel):
             Number of time periods since the customer's first purchase.
             Model assumptions require T >= recency.
         """
+        # mypy requires explicit typing declarations for these variables.
+        x: xarray.DataArray
+        t_x: xarray.DataArray
+        r: xarray.DataArray
+        alpha: xarray.DataArray
+        s: xarray.DataArray
+        beta: xarray.DataArray
+
         x, t_x, T = self._process_customers(customer_id, frequency, recency, T)
-        r, alpha, s, beta = self._unload_params()  # type: ignore [has-type]
+
+        r, alpha, s, beta = self._unload_params()
         loglike = self._logp(r, alpha, s, beta, x, t_x, T)
 
         term1 = gammaln(r + x) - gammaln(r)
@@ -408,10 +432,10 @@ class ParetoNBDModel(CLVModel):
         self,
         n_purchases: Union[int, np.ndarray, pd.Series],
         future_t: Union[float, np.ndarray, pd.Series],
-        customer_id: Union[np.ndarray, pd.Series] = None,
-        recency: Union[np.ndarray, pd.Series] = None,
-        frequency: Union[np.ndarray, pd.Series] = None,
-        T: Union[np.ndarray, pd.Series] = None,
+        customer_id: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
+        recency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
+        frequency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
+        T: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
     ) -> xarray.DataArray:
         r"""
             Estimate probability of :math:`n_purchases` over :math:`future_t` time periods,
@@ -439,9 +463,17 @@ class ParetoNBDModel(CLVModel):
                 Number of time periods since the customer's first purchase.
                 Model assumptions require T >= recency.
         """
+        # mypy requires explicit typing declarations for these variables.
+        x: xarray.DataArray
+        t_x: xarray.DataArray
+        r: xarray.DataArray
+        alpha: xarray.DataArray
+        s: xarray.DataArray
+        beta: xarray.DataArray
 
-        x, t_x, T = self._process_customers(customer_id, frequency, recency, T)  # type: ignore [has-type]
-        r, alpha, s, beta = self._unload_params()  # type: ignore [has-type]
+        x, t_x, T = self._process_customers(customer_id, frequency, recency, T)
+
+        r, alpha, s, beta = self._unload_params()
         loglike = self._logp(r, alpha, s, beta, x, t_x, T)
 
         _alpha_less_than_beta = alpha < beta
