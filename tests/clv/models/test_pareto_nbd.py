@@ -168,10 +168,10 @@ class TestParetoNBDModel:
     def test_model_repr(self):
         assert self.model.__repr__().replace(" ", "") == (
             "Pareto/NBD"
-            "\nr~Weibull(10,1)"
-            "\nalpha~Weibull(10,10)"
-            "\ns~Weibull(10,1)"
-            "\nbeta~Weibull(10,10)"
+            "\nr~Weibull(2,1)"
+            "\nalpha~Weibull(2,10)"
+            "\ns~Weibull(2,1)"
+            "\nbeta~Weibull(2,10)"
             "\nlikelihood~ParetoNBD(r,alpha,s,beta,<constant>)"
         )
 
