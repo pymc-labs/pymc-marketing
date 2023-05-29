@@ -189,7 +189,7 @@ class TestMMM:
             channel_columns=channel_columns,
             channel_prior=channel_prior,
         )
-
+        mmm.build_model(data=mmm.data, model_config=mmm.model_config)
         n_channel: int = len(mmm.channel_columns)
         samples: int = 3
 

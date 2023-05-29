@@ -108,7 +108,7 @@ class BaseDelayedSaturatedMMM(MMM):
                     "other_column_2": rng.normal(loc=0, scale=1, size=n),
                 }
             )
-            data = self.data  # add this line
+        data = self.data  # add this line
 
         date_data = data[self.date_column]
         target_data = data[self.target_column]
@@ -126,7 +126,7 @@ class BaseDelayedSaturatedMMM(MMM):
             fourier_features = self._get_fourier_models_data()
             coords["fourier_mode"] = fourier_features.columns.to_numpy()
 
-        model_data_dict = {  # change variable name to model_data_dict
+        model_data_dict = {
             "channel_data_": {
                 "type": "MutableData",
                 "value": channel_data,
@@ -137,23 +137,22 @@ class BaseDelayedSaturatedMMM(MMM):
                 "value": target_data,
                 "dims": "date",
             },
-            "control_data": {
+        }
+        self.model_coords = coords
+
+        if control_data is not None:
+            model_data_dict["control_data"] = {
                 "value": control_data,
                 "dims": ("date", "control"),
             }
-            if control_data is not None
-            else None,
-            "fourier_features": {
+
+        if fourier_features is not None:
+            model_data_dict["fourier_features"] = {
                 "value": fourier_features,
                 "dims": ("date", "fourier_mode"),
             }
-            if fourier_features is not None
-            else None,
-            "coords": coords,
-        }
-
         model_data = pd.DataFrame.from_dict(
-            model_data_dict, orient="index"
+            model_data_dict
         )  # change how DataFrame is created
         return model_data
 
@@ -177,11 +176,11 @@ class BaseDelayedSaturatedMMM(MMM):
 
         if not model_config:
             model_config = self.default_model_config
-        with pm.Model(coords=self.data["coords"]) as self.model:
+        with pm.Model(coords=self.model_coords) as self.model:
             channel_data_ = pm.MutableData(
                 name="channel_data",
-                value=self.data["channel_data_"]["value"],
-                dims=self.data["channel_data_"]["dims"],
+                value=self.data.channel_data_.value,
+                dims=self.data.channel_data_.dims,
             )
 
             target_ = pm.MutableData(
@@ -196,11 +195,11 @@ class BaseDelayedSaturatedMMM(MMM):
                 sigma=model_config["intercept"]["sigma"],
             )
 
-            beta_channel = pm.HalfNormal(
+            """beta_channel = pm.HalfNormal(
                 name="beta_channel",
                 sigma=model_config["beta_channel"]["sigma"],
                 dims=model_config["beta_channel"]["dims"],
-            )  # ? Allow prior depend on channel costs?
+            )  # ? Allow prior depend on channel costs?"""
             channel_prior = self._preprocess_channel_prior()
             beta_channel = self.model.register_rv(
                 rv_var=channel_prior, name="beta_channel", dims="channel"
@@ -247,7 +246,7 @@ class BaseDelayedSaturatedMMM(MMM):
             )
 
             mu_var = intercept + channel_contributions.sum(axis=-1)
-            if self.data["control_data"] is not None:
+            if "control_data" in self.data.columns:
                 control_data_ = pm.MutableData(
                     name="control_data",
                     value=self.data["control_data"]["value"],
@@ -269,7 +268,10 @@ class BaseDelayedSaturatedMMM(MMM):
 
                 mu_var += control_contributions.sum(axis=-1)
 
-            if self.data["fourier_features"] is not None:
+            if (
+                "fourier_features" in self.data.keys()
+                and self.data["fourier_features"] is not None
+            ):
                 fourier_data_ = pm.MutableData(
                     name="fourier_data",
                     value=self.data["fourier_features"]["value"],
@@ -350,72 +352,69 @@ class BaseDelayedSaturatedMMM(MMM):
         serializable_config = self.model_config.copy()
         return serializable_config
 
+    def _data_setter(
+        self,
+        X: Union[np.ndarray, pd.DataFrame],
+        y: Optional[Union[np.ndarray, pd.Series]] = None,
+    ) -> None:
+        """
+        Sets new data in the model.
 
-def _data_setter(
-    self,
-    X: Union[np.ndarray, pd.DataFrame],
-    y: Optional[Union[np.ndarray, pd.Series]] = None,
-) -> None:
-    """
-    Sets new data in the model.
+        This function accepts data in various formats and sets them into the
+        model using the PyMC's `set_data` method. The data corresponds to the
+        channel data and the target.
 
-    This function accepts data in various formats and sets them into the
-    model using the PyMC's `set_data` method. The data corresponds to the
-    channel data and the target.
+        Parameters
+        ----------
+        X : Union[np.ndarray, pd.DataFrame]
+            Data for the channel. It can be a numpy array or pandas DataFrame.
+            If it's a DataFrame, the columns corresponding to self.channel_columns
+            are used. If it's an ndarray, it's used directly.
+        y : Union[np.ndarray, pd.Series], optional
+            Target data. It can be a numpy array or a pandas Series.
+            If it's a Series, its values are used. If it's an ndarray, it's used
+            directly. The default is None.
 
-    Parameters
-    ----------
-    X : Union[np.ndarray, pd.DataFrame]
-        Data for the channel. It can be a numpy array or pandas DataFrame.
-        If it's a DataFrame, the columns corresponding to self.channel_columns
-        are used. If it's an ndarray, it's used directly.
-    y : Union[np.ndarray, pd.Series], optional
-        Target data. It can be a numpy array or a pandas Series.
-        If it's a Series, its values are used. If it's an ndarray, it's used
-        directly. The default is None.
+        Raises
+        ------
+        RuntimeError
+            If the data for the channel is not provided in `X`.
+        TypeError
+            If `X` is not a pandas DataFrame or a numpy array, or
+            if `y` is not a pandas Series or a numpy array and is not None.
 
-    Raises
-    ------
-    RuntimeError
-        If the data for the channel is not provided in `X`.
-    TypeError
-        If `X` is not a pandas DataFrame or a numpy array, or
-        if `y` is not a pandas Series or a numpy array and is not None.
+        Returns
+        -------
+        None
+        """
 
-    Returns
-    -------
-    None
-    """
-
-    new_channel_data: Union[np.ndarray, pd.DataFrame, None] = None
-    if isinstance(X, pd.DataFrame):
-        try:
-            new_channel_data = X[self.channel_columns]
-        except KeyError as e:
-            raise RuntimeError("New data must contain channel_data!", e)
-    elif isinstance(X, np.ndarray):
-        new_channel_data = (
-            X  # Adjust as necessary depending on the structure of your ndarray
-        )
-    else:
-        raise TypeError("X must be either a pandas DataFrame or a numpy array")
-
-    target = None
-    if y is not None:
-        if isinstance(y, pd.Series):
-            target = y.values
-        elif isinstance(y, np.ndarray):
-            target = y
+        new_channel_data = None
+        if isinstance(X, pd.DataFrame):
+            try:
+                new_channel_data = X[self.channel_columns]
+            except KeyError as e:
+                raise RuntimeError("New data must contain channel_data!", e)
+        elif isinstance(X, np.ndarray):
+            new_channel_data = X  # type: ignore
         else:
-            raise TypeError("y must be either a pandas Series or a numpy array")
+            raise TypeError("X must be either a pandas DataFrame or a numpy array")
 
-    with self.model:
-        pm.set_data(
-            {
-                "channel_data": new_channel_data,
-                "target": target,
-            }
-        )
+        target = None
+        if y is not None:
+            if isinstance(y, pd.Series):
+                target = y.values
+            elif isinstance(y, np.ndarray):
+                target = y
+            else:
+                raise TypeError("y must be either a pandas Series or a numpy array")
+
+        with self.model:
+            pm.set_data(
+                {
+                    "channel_data": new_channel_data,
+                    "target": target,
+                }
+            )
 
 
 class DelayedSaturatedMMM(
