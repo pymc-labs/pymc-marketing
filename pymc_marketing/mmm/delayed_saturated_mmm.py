@@ -9,6 +9,7 @@ import pymc as pm
 import seaborn as sns
 from pymc.distributions.shape_utils import change_dist_size
 from pytensor.tensor import TensorVariable
+from xarray import DataArray
 
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
@@ -238,26 +239,14 @@ class BaseDelayedSaturatedMMM(MMM):
         array-like
             Transformed channel data.
         """
-        alpha_posterior = (
-            az.extract(self.fit_result, group="posterior", var_names=["alpha"])
-            .to_numpy()
-            .T
-        )
+        alpha_posterior = self.fit_result["posterior"]["alpha"].to_numpy()
 
-        lam_posterior = (
-            az.extract(self.fit_result, group="posterior", var_names=["lam"])
-            .to_numpy()
-            .T
-        )
-        lam_posterior_expanded = np.expand_dims(a=lam_posterior, axis=1)
+        lam_posterior = self.fit_result["posterior"]["lam"].to_numpy()
+        lam_posterior_expanded = np.expand_dims(a=lam_posterior, axis=2)
 
-        beta_channel_posterior = (
-            az.extract(self.fit_result, group="posterior", var_names=["beta_channel"])
-            .to_numpy()
-            .T
-        )
+        beta_channel_posterior = self.fit_result["posterior"]["beta_channel"].to_numpy()
         beta_channel_posterior_expanded = np.expand_dims(
-            a=beta_channel_posterior, axis=1
+            a=beta_channel_posterior, axis=2
         )
 
         geometric_adstock_posterior = geometric_adstock(
@@ -314,7 +303,7 @@ class DelayedSaturatedMMM(
 
     def get_channel_contributions_forward_pass_grid(
         self, start: float, stop: float, num: int
-    ) -> npt.NDArray[np.float_]:
+    ) -> DataArray:
         """Generate a grid of scaled channel contributions for a given grid of share values.
 
         Parameters
@@ -328,7 +317,7 @@ class DelayedSaturatedMMM(
 
         Returns
         -------
-        array-like
+        DataArray
             Grid of channel contributions.
         """
         if start < 0:
@@ -348,7 +337,15 @@ class DelayedSaturatedMMM(
                 channel_data=channel_data
             )
             channel_contributions.append(channel_contribution_forward_pass)
-        return np.array(channel_contributions)
+        return DataArray(
+            data=np.array(channel_contributions),
+            dims=("delta", "chain", "draw", "date", "channel"),
+            coords={
+                "delta": share_grid,
+                "date": self.data[self.date_column],
+                "channel": self.channel_columns,
+            },
+        )
 
     def plot_channel_contributions_grid(
         self, start: float, stop: float, num: int, **plt_kwargs: Any
@@ -377,7 +374,9 @@ class DelayedSaturatedMMM(
         fig, ax = plt.subplots(**plt_kwargs)
 
         for i, x in enumerate(self.channel_columns):
-            hdi_contribution = az.hdi(ary=contributions[:, :, :, i].sum(axis=-1).T)
+            channel_contribution_total = contributions.sel(channel=x).sum(dim="date")
+
+            hdi_contribution = az.hdi(ary=channel_contribution_total).x
 
             ax.fill_between(
                 x=share_grid,
@@ -390,7 +389,7 @@ class DelayedSaturatedMMM(
 
             sns.lineplot(
                 x=share_grid,
-                y=contributions[:, :, :, i].sum(axis=-1).mean(axis=1),
+                y=channel_contribution_total.mean(dim=("chain", "draw")),
                 color=f"C{i}",
                 marker="o",
                 label=f"{x} contribution mean",
