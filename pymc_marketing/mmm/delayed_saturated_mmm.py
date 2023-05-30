@@ -257,7 +257,7 @@ class BaseDelayedSaturatedMMM(MMM):
             .T
         )
         beta_channel_posterior_expanded = np.expand_dims(
-            a=beta_channel_posterior, axis=-1
+            a=beta_channel_posterior, axis=1
         )
 
         geometric_adstock_posterior = geometric_adstock(
