@@ -307,14 +307,13 @@ class TestMMM:
         draws = 3
         chains = 2
         grid_size = 2
-        contributions: pd.DataFrame = (
-            mmm_fitted.get_channel_contributions_forward_pass_grid(
-                start=0, stop=1.5, num=grid_size
-            )
+        contributions = mmm_fitted.get_channel_contributions_forward_pass_grid(
+            start=0, stop=1.5, num=grid_size
         )
         assert contributions.shape == (
             grid_size,
-            draws * chains,
+            chains,
+            draws,
             data_range,
             n_channels,
         )
