@@ -38,7 +38,7 @@ def cost_function(
     This function calculates the total collaboration of budget allocations for each channel based on a quadratic curve fitted to the channel data.
     The total collaboration is computed as the sum of the polynomial evaluation at the allocation for each channel.
     """
-    total_collaboration = 0
+    total_contribution = 0
     for i, allocation in enumerate(budget_allocations):
         # Retrieve the data for this channel
         channel = df.loc[i, "channel"]
@@ -49,9 +49,9 @@ def cost_function(
         calculator = CurveCalculator(x, y)
         polynomial = calculator.polynomial
 
-        # Calculate the collaboration for this channel based on its quadratic curve
-        total_collaboration -= polynomial(allocation)
-    return total_collaboration
+        # Calculate the contribution for this channel based on its quadratic curve
+        total_contribution -= polynomial(allocation)
+    return total_contribution
 
 
 def budget_constraint(budget_allocations: List[float], total_budget: float) -> float:
