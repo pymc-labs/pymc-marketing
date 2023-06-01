@@ -348,7 +348,12 @@ class DelayedSaturatedMMM(
         )
 
     def plot_channel_contributions_grid(
-        self, start: float, stop: float, num: int, **plt_kwargs: Any
+        self,
+        start: float,
+        stop: float,
+        num: int,
+        absolute_xrange: bool = False,
+        **plt_kwargs: Any,
     ) -> plt.Figure:
         """Plots a grid of scaled channel contributions for a given grid of share values.
 
@@ -360,6 +365,9 @@ class DelayedSaturatedMMM(
             End of the grid. It must be greater than start.
         num : int
             Number of points in the grid.
+        absolute_xrange : bool, optional
+            If True, the x-axis is in absolute values (input units), otherwise it is in
+            relative percentage values, by default False.
 
         Returns
         -------
@@ -373,34 +381,51 @@ class DelayedSaturatedMMM(
 
         fig, ax = plt.subplots(**plt_kwargs)
 
-        for i, x in enumerate(self.channel_columns):
-            channel_contribution_total = contributions.sel(channel=x).sum(dim="date")
+        for i, channel in enumerate(self.channel_columns):
+            channel_contribution_total = contributions.sel(channel=channel).sum(
+                dim="date"
+            )
 
             hdi_contribution = az.hdi(ary=channel_contribution_total).x
 
+            total_channel_input = self.data[channel].sum()
+            x_range = (
+                total_channel_input * share_grid if absolute_xrange else share_grid
+            )
+
             ax.fill_between(
-                x=share_grid,
+                x=x_range,
                 y1=hdi_contribution[:, 0],
                 y2=hdi_contribution[:, 1],
                 color=f"C{i}",
-                label=f"{x} $94%$ HDI contribution",
+                label=f"{channel} $94%$ HDI contribution",
                 alpha=0.4,
             )
 
             sns.lineplot(
-                x=share_grid,
+                x=x_range,
                 y=channel_contribution_total.mean(dim=("chain", "draw")),
                 color=f"C{i}",
                 marker="o",
-                label=f"{x} contribution mean",
+                label=f"{channel} contribution mean",
                 ax=ax,
             )
+            if absolute_xrange:
+                ax.axvline(
+                    x=total_channel_input,
+                    color=f"C{i}",
+                    linestyle="--",
+                    label=f"{channel} current total input",
+                )
 
-        ax.axvline(x=1, color="black", linestyle="--", label=r"$\delta = 1$")
+        if not absolute_xrange:
+            ax.axvline(x=1, color="black", linestyle="--", label=r"$\delta = 1$")
+
         ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+        x_label = "input" if absolute_xrange else r"$\delta$"
         ax.set(
             title="Channel contribution as a function of cost share",
-            xlabel=r"$\delta$",
-            ylabel="contribution (sales)",
+            xlabel=x_label,
+            ylabel="contribution",
         )
         return fig

@@ -329,8 +329,13 @@ class TestMMM:
                 start=-0.5, stop=1.5, num=2
             )
 
+    @pytest.mark.parametrize(
+        argnames="absolute_xrange",
+        argvalues=[False, True],
+        ids=["relative_xrange", "absolute_xrange"],
+    )
     def test_plot_channel_contributions_grid(
-        self, mmm_fitted: DelayedSaturatedMMM
+        self, mmm_fitted: DelayedSaturatedMMM, absolute_xrange: bool
     ) -> None:
         fig = mmm_fitted.plot_channel_contributions_grid(start=0, stop=1.5, num=2)
         assert isinstance(fig, plt.Figure)
