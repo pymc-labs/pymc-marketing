@@ -233,4 +233,11 @@ class TestMMM:
         kwargs_plot,
     ) -> None:
         func = plotting_mmm.__getattribute__(func_plot_name)
-        assert isinstance(func(**kwargs_plot), plt.Figure)
+        result = func(**kwargs_plot)
+
+        if func_plot_name == 'plot_contribution_curves':
+            assert isinstance(result, tuple)
+            assert isinstance(result[0], plt.Figure)
+            assert isinstance(result[1], pd.DataFrame)
+        else:
+            assert isinstance(result, plt.Figure)
