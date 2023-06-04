@@ -126,6 +126,10 @@ class BaseMMM(ModelBuilder):
         for method in validation_methods:
             method(self, data)
 
+    def validate(self, data: pd.DataFrame):
+        for method in self.validation_methods:
+            method(self, data)
+
     @property
     def preprocessing_methods(
         self,
@@ -208,6 +212,11 @@ class BaseMMM(ModelBuilder):
                 data = method(self, data)
         else:
             raise ValueError("Target must be either 'X' or 'y'")
+        return data
+
+    def preprocess(self, data: pd.DataFrame) -> pd.DataFrame:
+        for method in self.preprocessing_methods:
+            data = method(self, data)
         return data
 
     def get_target_transformer(self) -> Pipeline:
