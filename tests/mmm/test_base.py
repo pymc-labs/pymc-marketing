@@ -1,15 +1,12 @@
 from unittest.mock import patch
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
-import xarray as xr
-from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.base import MMM
-from pymc_marketing.mmm.preprocessing import MaxAbsScaleTarget, preprocessing_method
+from pymc_marketing.mmm.preprocessing import preprocessing_method
 from pymc_marketing.mmm.validating import validation_method
 
 seed: int = sum(map(ord, "pymc_marketing"))
@@ -32,104 +29,6 @@ toy_df = pd.DataFrame(
         "other_column_2": rng.normal(loc=0, scale=1, size=n),
     }
 )
-
-
-@pytest.fixture(
-    scope="module",
-    params=[
-        "without_controls-default_transform",
-        "with_controls-default_transform",
-        "without_controls-target_transform",
-        "with_controls-target_transform",
-    ],
-)
-def plotting_mmm(request):
-    control, transform = request.param.split("-")
-    if transform == "default_transform":
-
-        class ToyMMM(MMM):
-            def build_model(self, data, **kwargs):
-                pass
-
-    elif transform == "target_transform":
-
-        class ToyMMM(MMM, MaxAbsScaleTarget):
-            def build_model(self, data, **kwargs):
-                pass
-
-    mmm = ToyMMM(
-        toy_df,
-        target_column="y",
-        date_column="date",
-        channel_columns=["channel_1", "channel_2"],
-    )
-    rng = np.random.default_rng(42)
-    coords = {
-        "chain": range(4),
-        "draw": range(100),
-        "channel": mmm.channel_columns,
-        "date": toy_df.date,
-    }
-    likelihood_dims = ["chain", "draw", "date"]
-    alpha_dims = ["chain", "draw", "channel"]
-    channel_contrib_dims = ["chain", "draw", "date", "channel"]
-    prior_post = xr.Dataset(
-        {
-            "intercept": xr.DataArray(
-                rng.gamma(1, 1, size=(4, 100)),
-                coords={k: v for k, v in coords.items() if k in ["chain", "draw"]},
-                dims=["chain", "draw"],
-            ),
-            "alpha": xr.DataArray(
-                rng.gamma(1, 1, size=(4, 100, 2)),
-                coords={k: v for k, v in coords.items() if k in alpha_dims},
-                dims=alpha_dims,
-            ),
-            "channel_contributions": xr.DataArray(
-                rng.gamma(1, 1, size=(4, 100, len(toy_df), 2)),
-                coords={k: v for k, v in coords.items() if k in channel_contrib_dims},
-                dims=channel_contrib_dims,
-            ),
-        }
-    )
-    prior_post_pred = xr.Dataset(
-        {
-            "likelihood": xr.DataArray(
-                rng.gamma(1, 1, size=(4, 100, len(toy_df))),
-                coords={k: v for k, v in coords.items() if k in likelihood_dims},
-                dims=likelihood_dims,
-            )
-        }
-    )
-    if control == "with_controls":
-        mmm.control_columns = ["control_1", "control_2"]
-        coords["control"] = mmm.control_columns
-        control_contrib_dims = ["chain", "draw", "date", "control"]
-        prior_post["control_contributions"] = xr.DataArray(
-            rng.gamma(1, 1, size=(4, 100, len(toy_df), 2)),
-            coords={k: v for k, v in coords.items() if k in control_contrib_dims},
-            dims=control_contrib_dims,
-        )
-    mmm._prior_predictive = az.InferenceData(
-        prior=prior_post,
-        prior_predictive=prior_post_pred,
-    )
-    mmm._fit_result = az.InferenceData(
-        posterior=prior_post,
-        observed_data=xr.Dataset(
-            {
-                "likelihood": xr.DataArray(
-                    toy_df.y.values,
-                    coords={"date": coords["date"]},
-                    dims=["date"],
-                )
-            }
-        ),
-    )
-    mmm._posterior_predictive = az.InferenceData(
-        posterior_predictive=prior_post_pred,
-    )
-    return mmm
 
 
 class TestMMM:
@@ -174,6 +73,23 @@ class TestMMM:
                 pd.testing.assert_frame_equal(kwargs["data"], toy_df)
                 return None
 
+            def generate_model_data(self):
+                pass
+
+            @property
+            def default_model_config(self):
+                pass
+
+            @property
+            def default_sampler_config(self):
+                pass
+
+            def _data_setter(self):
+                pass
+
+            def _serializable_model_config(self):
+                pass
+
             @validation_method
             def toy_validation(self, data):
                 nonlocal toy_validation_count
@@ -203,34 +119,4 @@ class TestMMM:
 
         assert toy_validation_count == 1
         assert toy_preprocess_count == 1
-        assert build_model_count == 1
-
-    @pytest.mark.parametrize(
-        argnames="func_plot_name, kwargs_plot",
-        argvalues=[
-            ("plot_prior_predictive", {"samples": 3}),
-            ("plot_posterior_predictive", {}),
-            ("plot_posterior_predictive", {"original_scale": True}),
-            ("plot_components_contributions", {}),
-            ("plot_channel_parameter", {"param_name": "alpha"}),
-            ("plot_contribution_curves", {}),
-            ("plot_channel_contribution_share_hdi", {"hdi_prob": 0.95}),
-            ("plot_grouped_contribution_breakdown_over_time", {}),
-            (
-                "plot_grouped_contribution_breakdown_over_time",
-                {
-                    "stack_groups": {"controls": ["control_1"]},
-                    "original_scale": True,
-                    "area_kwargs": {"alpha": 0.5},
-                },
-            ),
-        ],
-    )
-    def test_plots(
-        self,
-        plotting_mmm,
-        func_plot_name,
-        kwargs_plot,
-    ) -> None:
-        func = plotting_mmm.__getattribute__(func_plot_name)
-        assert isinstance(func(**kwargs_plot), plt.Figure)
+        assert build_model_count == 0

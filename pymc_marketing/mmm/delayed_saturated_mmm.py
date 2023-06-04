@@ -36,14 +36,18 @@ class BaseDelayedSaturatedMMM(MMM):
 
         Parameters
         ----------
-        data : pd.DataFrame
-            Training data.
         target_column : str
             Column name of the target variable.
         date_column : str
             Column name of the date variable.
         channel_columns : List[str]
             Column names of the media channel variables.
+        data : pd.DataFrame
+            Training data.
+        model_config : Dictionary, optional
+            dictionary of parameters that initialise model configuration. Class-default defined by the user default_model_config method.
+        sampler_config : Dictionary, optional
+            dictionary of parameters that initialise sampler configuration. Class-default defined by the user default_sampler_config method.
         channel_prior : Optional[TensorVariable], optional
             Prior distribution for the channel coefficients, by default None which
             corresponds to a HalfNormal distribution with sigma=2 (so that all
@@ -84,7 +88,7 @@ class BaseDelayedSaturatedMMM(MMM):
     def default_sampler_config(self) -> Dict:
         return {"progressbar": True, "random_seed": 1234}
 
-    def generate_model_data(self, data=None) -> pd.DataFrame:
+    def generate_model_data(self, data=None, validate: bool = True) -> pd.DataFrame:
         if data is None:
             seed: int = sum(map(ord, "pymc_marketing"))
             rng: np.random.Generator = np.random.default_rng(seed=seed)
@@ -108,35 +112,34 @@ class BaseDelayedSaturatedMMM(MMM):
                     "other_column_2": rng.normal(loc=0, scale=1, size=n),
                 }
             )
-        data = self.data  # add this line
-
+            data = self.data
         date_data = data[self.date_column]
         target_data = data[self.target_column]
         channel_data = data[self.channel_columns]
         coords: Dict[str, Any] = {
             "date": date_data,
-            "channels": channel_data.columns,
+            "channel": self.channel_columns,
         }
         control_data: Optional[pd.DataFrame] = None
         if self.control_columns is not None:
             control_data = data[self.control_columns]
-            coords["control"] = data[self.control_columns].columns
+            coords["control"] = self.control_columns
         fourier_features: Optional[pd.DataFrame] = None
         if self.yearly_seasonality is not None:
             fourier_features = self._get_fourier_models_data()
             coords["fourier_mode"] = fourier_features.columns.to_numpy()
-
         model_data_dict = {
             "channel_data_": {
                 "type": "MutableData",
                 "value": channel_data,
                 "dims": ("date", "channel"),
             },
-            "target_data_": {
+            self.target_column: {
                 "type": "MutableData",
                 "value": target_data,
                 "dims": "date",
             },
+            "date": {"value": date_data},
         }
         self.model_coords = coords
 
@@ -154,6 +157,7 @@ class BaseDelayedSaturatedMMM(MMM):
         model_data = pd.DataFrame.from_dict(
             model_data_dict
         )  # change how DataFrame is created
+        self.preprocessed_data = self.preprocess(model_data.copy())
         return model_data
 
     def _preprocess_channel_prior(self) -> TensorVariable:
@@ -172,7 +176,10 @@ class BaseDelayedSaturatedMMM(MMM):
         **kwargs,
     ) -> None:
         self.output_var = "target"
-        self.data = self.generate_model_data(data=data)
+        if data is not None:
+            self.data = self.generate_model_data(data=data)
+        else:
+            self.data = self.generate_model_data(data=self.data)
 
         if not model_config:
             model_config = self.default_model_config
@@ -185,8 +192,8 @@ class BaseDelayedSaturatedMMM(MMM):
 
             target_ = pm.MutableData(
                 name="target",
-                value=self.data["target_data_"]["value"],
-                dims=self.data["target_data_"]["dims"],
+                value=self.data[self.target_column]["value"],
+                dims=self.data[self.target_column]["dims"],
             )
 
             intercept = pm.Normal(

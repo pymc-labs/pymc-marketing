@@ -25,11 +25,17 @@ class MaxAbsScaleTarget:
 
     @preprocessing_method
     def max_abs_scale_target_data(self, data: pd.DataFrame) -> pd.DataFrame:
-        target_vector = data[self.target_column].to_numpy().reshape(-1, 1)
+        if (
+            "type" in data[self.target_column]
+            and data[self.target_column].type == "MutableData"
+        ):
+            target_vector = data[self.target_column].value.to_numpy().reshape(-1, 1)
+        else:
+            target_vector = data[self.target_column].to_numpy().reshape(-1, 1)
         transformers = [("scaler", MaxAbsScaler())]
         pipeline = Pipeline(steps=transformers)
         self.target_transformer: Pipeline = pipeline.fit(X=target_vector)
-        data[self.target_column] = self.target_transformer.transform(
+        data[self.target_column].value = self.target_transformer.transform(
             X=target_vector
         ).flatten()
         return data
@@ -40,7 +46,9 @@ class MaxAbsScaleChannels:
 
     @preprocessing_method
     def max_abs_scale_channel_data(self, data: pd.DataFrame) -> pd.DataFrame:
-        channel_data: Union[pd.DataFrame, pd.Series[Any]] = data[self.channel_columns]
+        channel_data: Union[pd.DataFrame, pd.Series[Any]] = data.channel_data_[
+            self.channel_columns
+        ]
         transformers = [("scaler", MaxAbsScaler())]
         pipeline: Pipeline = Pipeline(steps=transformers)
         self.channel_transformer: Pipeline = pipeline.fit(X=channel_data.to_numpy())

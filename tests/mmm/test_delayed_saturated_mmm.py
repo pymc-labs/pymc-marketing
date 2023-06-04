@@ -54,7 +54,7 @@ def mmm_fitted(mmm: BaseDelayedSaturatedMMM) -> BaseDelayedSaturatedMMM:
     return mmm
 
 
-class TestMMM:
+class TestDelayedSaturatedMMM:
     @pytest.mark.parametrize(
         argnames="adstock_max_lag",
         argvalues=[1, 4],

@@ -52,11 +52,10 @@ class BaseMMM(ModelBuilder):
         self.n_channel: int = len(channel_columns)
         self._fit_result: Optional[az.InferenceData] = None
         self._posterior_predictive: Optional[az.InferenceData] = None
-        if data is not None:
-            if type(self.data) == pd.DataFrame:
-                if validate_data:
-                    self.validate(self.data)
-                self.preprocessed_data = self.preprocess(self.data.copy())
+        if self.data is not None:
+            if validate_data:
+                self.validate(self.data)
+            self.preprocessed_data = self.preprocess(self.data.copy())
         super().__init__(
             data=data, model_config=model_config, sampler_config=sampler_config
         )
@@ -84,6 +83,10 @@ class BaseMMM(ModelBuilder):
             if getattr(method, "_tags", {}).get("validation", False)
         ]
 
+    def validate(self, data: pd.DataFrame):
+        for method in self.validation_methods:
+            method(self, data)
+
     @property
     def preprocessing_methods(
         self,
@@ -94,6 +97,11 @@ class BaseMMM(ModelBuilder):
             if getattr(method, "_tags", {}).get("preprocessing", False)
         ]
 
+    def preprocess(self, data: pd.DataFrame) -> pd.DataFrame:
+        for method in self.preprocessing_methods:
+            data = method(self, data)
+        return data
+
     def get_target_transformer(self) -> Pipeline:
         try:
             return self.target_transformer  # type: ignore
@@ -101,24 +109,11 @@ class BaseMMM(ModelBuilder):
             identity_transformer = FunctionTransformer()
             return Pipeline(steps=[("scaler", identity_transformer)])
 
-    def validate(self, data: pd.DataFrame):
-        for method in self.validation_methods:
-            method(self, data)
-
-    def preprocess(self, data: pd.DataFrame) -> pd.DataFrame:
-        for method in self.preprocessing_methods:
-            data = method(self, data)
-        return data
-
-    def get_prior_predictive_data(self, *args, **kwargs) -> az.InferenceData:
-        try:
-            return self._prior_predictive
-        except AttributeError:
-            with self.model:
-                self._prior_predictive: az.InferenceData = pm.sample_prior_predictive(
-                    *args, **kwargs
-                )
-            return self._prior_predictive
+    @property
+    def prior_predictive(self) -> az.InferenceData:
+        if self.idata is None or "prior_predictive" not in self.idata:
+            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
+        return self.idata["prior_predictive"]
 
     @property
     # requesting discussion, is it something that we want to keep? Should I put on the deprecation warning to phase it out in later versions?
@@ -137,21 +132,19 @@ class BaseMMM(ModelBuilder):
     def plot_prior_predictive(
         self, samples: int = 1_000, **plt_kwargs: Any
     ) -> plt.Figure:
-        prior_predictive_data: az.InferenceData = self.get_prior_predictive_data(
-            samples=samples
-        )
+        prior_predictive_data: az.InferenceData = self.prior_predictive
 
-        likelihood_hdi_94: DataArray = az.hdi(
-            ary=prior_predictive_data["prior_predictive"], hdi_prob=0.94
-        )["likelihood"]
-        likelihood_hdi_50: DataArray = az.hdi(
-            ary=prior_predictive_data["prior_predictive"], hdi_prob=0.50
-        )["likelihood"]
+        likelihood_hdi_94: DataArray = az.hdi(ary=prior_predictive_data, hdi_prob=0.94)[
+            "likelihood"
+        ]
+        likelihood_hdi_50: DataArray = az.hdi(ary=prior_predictive_data, hdi_prob=0.50)[
+            "likelihood"
+        ]
 
         fig, ax = plt.subplots(**plt_kwargs)
         if self.data is not None:
             ax.fill_between(
-                x=np.asarray(self.data[self.date_column]),
+                x=np.asarray(self.data[self.date_column].value),
                 y1=likelihood_hdi_94[:, 0],
                 y2=likelihood_hdi_94[:, 1],
                 color="C0",
@@ -160,7 +153,7 @@ class BaseMMM(ModelBuilder):
             )
 
             ax.fill_between(
-                x=np.asarray(self.data[self.date_column]),
+                x=np.asarray(self.data[self.date_column].value),
                 y1=likelihood_hdi_50[:, 0],
                 y2=likelihood_hdi_50[:, 1],
                 color="C0",
@@ -169,8 +162,8 @@ class BaseMMM(ModelBuilder):
             )
 
             ax.plot(
-                np.asarray(self.data[self.date_column]),
-                np.asarray(self.preprocessed_data[self.target_column]),
+                np.asarray(self.data[self.date_column].value.values),
+                np.asarray(self.preprocessed_data[self.target_column].value),
                 color="black",
             )
             ax.set(
@@ -182,12 +175,11 @@ class BaseMMM(ModelBuilder):
         self, original_scale: bool = False, **plt_kwargs: Any
     ) -> plt.Figure:
         posterior_predictive_data: Dataset = self.posterior_predictive
-
         likelihood_hdi_94: DataArray = az.hdi(
-            ary=posterior_predictive_data["posterior_predictive"], hdi_prob=0.94
+            ary=posterior_predictive_data, hdi_prob=0.94
         )["likelihood"]
         likelihood_hdi_50: DataArray = az.hdi(
-            ary=posterior_predictive_data["posterior_predictive"], hdi_prob=0.50
+            ary=posterior_predictive_data, hdi_prob=0.50
         )["likelihood"]
 
         if original_scale:
@@ -201,7 +193,7 @@ class BaseMMM(ModelBuilder):
         fig, ax = plt.subplots(**plt_kwargs)
         if self.data is not None:
             ax.fill_between(
-                x=self.data[self.date_column],
+                x=self.data[self.date_column].value,
                 y1=likelihood_hdi_94[:, 0],
                 y2=likelihood_hdi_94[:, 1],
                 color="C0",
@@ -210,7 +202,7 @@ class BaseMMM(ModelBuilder):
             )
 
             ax.fill_between(
-                x=self.data[self.date_column],
+                x=self.data[self.date_column].value,
                 y1=likelihood_hdi_50[:, 0],
                 y2=likelihood_hdi_50[:, 1],
                 color="C0",
@@ -219,12 +211,14 @@ class BaseMMM(ModelBuilder):
             )
 
             target_to_plot: np.ndarray = np.asarray(
-                self.data[self.target_column]
+                self.data[self.target_column].value
                 if original_scale
-                else self.preprocessed_data[self.target_column]
+                else self.preprocessed_data[self.target_column].value
             )
             ax.plot(
-                np.asarray(self.data[self.date_column]), target_to_plot, color="black"
+                np.asarray(self.data[self.date_column].value.values),
+                target_to_plot,
+                color="black",
             )
             ax.set(
                 title="Posterior Predictive Check",
@@ -281,7 +275,7 @@ class BaseMMM(ModelBuilder):
         ):
             if self.data is not None:
                 ax.fill_between(
-                    x=self.data[self.date_column],
+                    x=self.data[self.date_column].value,
                     y1=hdi.isel(hdi=0),
                     y2=hdi.isel(hdi=1),
                     color=f"C{i}",
@@ -289,7 +283,7 @@ class BaseMMM(ModelBuilder):
                     label=f"$94 %$ HDI ({var_contribution})",
                 )
                 ax.plot(
-                    np.asarray(self.data[self.date_column]),
+                    np.asarray(self.data[self.date_column].value),
                     np.asarray(mean),
                     color=f"C{i}",
                 )
@@ -299,16 +293,16 @@ class BaseMMM(ModelBuilder):
             )
             intercept_hdi = np.repeat(
                 a=az.hdi(intercept).intercept.data[None, ...],
-                repeats=self.data.shape[0],
+                repeats=self.data[self.date_column].value.shape[0],
                 axis=0,
             )
             ax.plot(
-                np.asarray(self.data[self.date_column]),
-                np.full(len(self.data), intercept.mean().data),
+                np.asarray(self.data[self.date_column].value),
+                np.full(len(self.data[self.date_column].value), intercept.mean().data),
                 color=f"C{i + 1}",
             )
             ax.fill_between(
-                x=self.data[self.date_column],
+                x=self.data[self.date_column].value,
                 y1=intercept_hdi[:, 0],
                 y2=intercept_hdi[:, 1],
                 color=f"C{i + 1}",
@@ -316,8 +310,8 @@ class BaseMMM(ModelBuilder):
                 label="$94 %$ HDI (intercept)",
             )
             ax.plot(
-                np.asarray(self.data[self.date_column]),
-                np.asarray(self.preprocessed_data[self.target_column]),
+                np.asarray(self.data[self.date_column].value),
+                np.asarray(self.preprocessed_data[self.target_column].value),
                 color="black",
             )
             ax.legend(title="components", loc="center left", bbox_to_anchor=(1, 0.5))
@@ -384,7 +378,9 @@ class BaseMMM(ModelBuilder):
             ax = axes[i]
             if self.data is not None:
                 sns.regplot(
-                    x=self.data[self.channel_columns].to_numpy()[:, i],
+                    x=self.data.channel_data_.value[self.channel_columns].to_numpy()[
+                        :, i
+                    ],
                     y=channel_contributions.sel(channel=channel),
                     color=f"C{i}",
                     order=2,
