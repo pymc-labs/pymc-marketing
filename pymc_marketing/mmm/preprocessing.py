@@ -46,15 +46,15 @@ class MaxAbsScaleChannels:
 
     @preprocessing_method
     def max_abs_scale_channel_data(self, data: pd.DataFrame) -> pd.DataFrame:
-        channel_data: Union[pd.DataFrame, pd.Series[Any]] = data.channel_data_[
+        channel_data: Union[pd.DataFrame, pd.Series[Any]] = data.channel_data_.value[
             self.channel_columns
         ]
         transformers = [("scaler", MaxAbsScaler())]
         pipeline: Pipeline = Pipeline(steps=transformers)
         self.channel_transformer: Pipeline = pipeline.fit(X=channel_data.to_numpy())
-        data[self.channel_columns] = self.channel_transformer.transform(
-            channel_data.to_numpy()
-        )
+        data.channel_data_.value[
+            self.channel_columns
+        ] = self.channel_transformer.transform(channel_data.to_numpy())
         return data
 
 
@@ -63,11 +63,11 @@ class StandardizeControls:
 
     @preprocessing_method
     def standardize_control_data(self, data: pd.DataFrame) -> pd.DataFrame:
-        control_data: pd.DataFrame = data[self.control_columns]
+        control_data: pd.DataFrame = data.control_data_.value[self.control_columns]
         transformers = [("scaler", StandardScaler())]
         pipeline: Pipeline = Pipeline(steps=transformers)
         self.control_transformer: Pipeline = pipeline.fit(X=control_data.to_numpy())
-        data[self.control_columns] = self.control_transformer.transform(
-            control_data.to_numpy()
-        )
+        data.control_data_.value[
+            self.control_columns
+        ] = self.control_transformer.transform(control_data.to_numpy())
         return data

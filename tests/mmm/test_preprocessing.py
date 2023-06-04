@@ -18,7 +18,6 @@ n: int = date_data.size
 
 toy_df = pd.DataFrame(
     data={
-        "date": date_data,
         "y": rng.integers(low=0, high=100, size=n),
         "channel_1": rng.integers(low=0, high=400, size=n),
         "channel_2": rng.integers(low=0, high=50, size=n),
@@ -28,6 +27,30 @@ toy_df = pd.DataFrame(
         "other_column_2": rng.normal(loc=0, scale=1, size=n),
     }
 )
+
+model_builder_dict = {
+    "date": {
+        "value": date_data,
+        "dims": None,
+        "type": None,
+    },
+    "channel_data_": {
+        "value": toy_df[["channel_1", "channel_2"]],
+        "dims": None,
+        "type": None,
+    },
+    "y": {
+        "type": "MutableData",
+        "value": toy_df["y"],
+        "dims": None,
+    },
+    "control_data_": {
+        "value": toy_df[["control_1", "control_2"]],
+        "dims": None,
+        "type": None,
+    },
+}
+model_builder_df = pd.DataFrame.from_dict(model_builder_dict)
 
 
 def test_preprocessing_method():
@@ -64,27 +87,31 @@ def test_preprocessing_method():
 def test_max_abs_scale_target():
     obj = MaxAbsScaleTarget()
     obj.target_column = "y"
-    out = obj.max_abs_scale_target_data(toy_df)["y"]
-    temp = toy_df["y"]
+    out = obj.max_abs_scale_target_data(model_builder_df)[obj.target_column].value
+    temp = model_builder_df[obj.target_column].value
     assert out.min() == temp.min() / temp.max()
     assert out.max() == 1
-    pd.testing.assert_index_equal(out.index, toy_df.index)
+    # out and temp are both series, therefore the index comparison makes no longer sense
 
 
 def test_max_abs_scale_channels():
     obj = MaxAbsScaleChannels()
     obj.channel_columns = ["channel_1", "channel_2"]
-    out = obj.max_abs_scale_channel_data(toy_df)[obj.channel_columns]
-    temp = toy_df[obj.channel_columns]
+    out = obj.max_abs_scale_channel_data(model_builder_df).channel_data_.value[
+        obj.channel_columns
+    ]
+    temp = model_builder_df.channel_data_.value[obj.channel_columns]
     assert (out.max(axis=0) == 1).all()
     assert np.allclose(out.min(axis=0), temp.min(axis=0) / temp.max(axis=0))
-    pd.testing.assert_index_equal(out.index, toy_df.index)
+    pd.testing.assert_index_equal(out.index, model_builder_df.channel_data_.value.index)
 
 
 def test_standardize_controls():
     obj = StandardizeControls()
     obj.control_columns = ["control_1", "control_2"]
-    out = obj.standardize_control_data(toy_df)[obj.control_columns]
+    out = obj.standardize_control_data(model_builder_df).control_data_.value[
+        obj.control_columns
+    ]
     assert np.allclose(out.mean(axis=0), 0)
     assert np.allclose(out.std(axis=0), 1, atol=5e-3)
-    pd.testing.assert_index_equal(out.index, toy_df.index)
+    pd.testing.assert_index_equal(out.index, model_builder_df.control_data_.value.index)
