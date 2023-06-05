@@ -14,7 +14,7 @@ rng: np.random.Generator = np.random.default_rng(seed=seed)
 
 
 @pytest.fixture(scope="class")
-def toy_df() -> pd.DataFrame:
+def toy_X() -> pd.DataFrame:
     date_data: pd.DatetimeIndex = pd.date_range(
         start="2019-06-01", end="2021-12-31", freq="W-MON"
     )
@@ -24,7 +24,6 @@ def toy_df() -> pd.DataFrame:
     return pd.DataFrame(
         data={
             "date": date_data,
-            "y": rng.integers(low=0, high=100, size=n),
             "channel_1": rng.integers(low=0, high=400, size=n),
             "channel_2": rng.integers(low=0, high=50, size=n),
             "control_1": rng.gamma(shape=1000, scale=500, size=n),
@@ -36,10 +35,13 @@ def toy_df() -> pd.DataFrame:
 
 
 @pytest.fixture(scope="class")
-def mmm(toy_df: pd.DataFrame) -> BaseDelayedSaturatedMMM:
+def toy_y(toy_X: pd.DataFrame) -> pd.Series:
+    return pd.Series(data=rng.integers(low=0, high=100, size=toy_X.shape[0]))
+
+
+@pytest.fixture(scope="class")
+def mmm() -> BaseDelayedSaturatedMMM:
     return BaseDelayedSaturatedMMM(
-        data=toy_df,
-        target_column="y",
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
         control_columns=["control_1", "control_2"],
@@ -47,10 +49,10 @@ def mmm(toy_df: pd.DataFrame) -> BaseDelayedSaturatedMMM:
 
 
 @pytest.fixture(scope="class")
-def mmm_fitted(mmm: BaseDelayedSaturatedMMM) -> BaseDelayedSaturatedMMM:
-    X = mmm.data[[col for col in mmm.data.columns if col != mmm.target_column]]
-    y = mmm.data[mmm.target_column]
-    mmm.fit(X=X, y=y, target_accept=0.8, draws=3, chains=2)
+def mmm_fitted(
+    mmm: BaseDelayedSaturatedMMM, toy_X: pd.DataFrame, toy_y: pd.Series
+) -> BaseDelayedSaturatedMMM:
+    mmm.fit(X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2)
     return mmm
 
 
@@ -88,7 +90,8 @@ class TestDelayedSaturatedMMM:
     )
     def test_init(
         self,
-        toy_df: pd.DataFrame,
+        toy_X: pd.DataFrame,
+        toy_y: pd.Series,
         yearly_seasonality: Optional[int],
         channel_columns: List[str],
         channel_prior: Optional[TensorVariable],
@@ -96,8 +99,6 @@ class TestDelayedSaturatedMMM:
         adstock_max_lag: int,
     ) -> None:
         mmm = BaseDelayedSaturatedMMM(
-            data=toy_df,
-            target_column="y",
             date_column="date",
             channel_columns=channel_columns,
             channel_prior=channel_prior,
@@ -105,7 +106,7 @@ class TestDelayedSaturatedMMM:
             adstock_max_lag=adstock_max_lag,
             yearly_seasonality=yearly_seasonality,
         )
-        mmm.build_model(data=mmm.data)
+        mmm.build_model(X=toy_X, y=toy_y)
         n_channel: int = len(mmm.channel_columns)
         samples: int = 3
         with mmm.model:
@@ -178,18 +179,17 @@ class TestDelayedSaturatedMMM:
     )
     def test_custom_channel_prior(
         self,
-        toy_df: pd.DataFrame,
+        toy_X: pd.DataFrame,
+        toy_y: pd.Series,
         channel_columns: List[str],
         channel_prior: Optional[TensorVariable],
     ) -> None:
         mmm = BaseDelayedSaturatedMMM(
-            data=toy_df,
-            target_column="y",
             date_column="date",
             channel_columns=channel_columns,
             channel_prior=channel_prior,
         )
-        mmm.build_model(data=mmm.data, model_config=mmm.model_config)
+        mmm.build_model(X=toy_X, y=toy_y, model_config=mmm.model_config)
         n_channel: int = len(mmm.channel_columns)
         samples: int = 3
 
@@ -208,13 +208,11 @@ class TestDelayedSaturatedMMM:
             samples,
         )
 
-    def test_fit(self, toy_df: pd.DataFrame) -> None:
+    def test_fit(self, toy_X: pd.DataFrame, toy_y: pd.Series) -> None:
         draws: int = 100
         chains: int = 2
 
         mmm = BaseDelayedSaturatedMMM(
-            data=toy_df,
-            target_column="y",
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
             control_columns=["control_1", "control_2"],
@@ -224,12 +222,14 @@ class TestDelayedSaturatedMMM:
         n_channel: int = len(mmm.channel_columns)
         n_control: int = len(mmm.control_columns)
         fourier_terms: int = 2 * mmm.yearly_seasonality
-        X = mmm.data[[col for col in mmm.data.columns if col != mmm.target_column]]
-        y = mmm.data[mmm.target_column]
         mmm.fit(
-            X=X, y=y, target_accept=0.81, draws=draws, chains=chains, random_seed=rng
+            X=toy_X,
+            y=toy_y,
+            target_accept=0.81,
+            draws=draws,
+            chains=chains,
+            random_seed=rng,
         )
-
         idata: az.InferenceData = mmm.fit_result
         assert (
             az.extract(data=idata, var_names=["intercept"], combined=True)
@@ -257,7 +257,7 @@ class TestDelayedSaturatedMMM:
             original_scale=True
         )
         assert mean_model_contributions_ts.shape == (
-            toy_df.shape[0],
+            toy_X.shape[0],
             n_channel + n_control + fourier_terms + 1,
         )
         assert mean_model_contributions_ts.columns.tolist() == [
@@ -278,26 +278,25 @@ class TestDelayedSaturatedMMM:
         ids=["no_yearly_seasonality", "yearly_seasonality=1", "yearly_seasonality=2"],
     )
     def test_get_fourier_models_data(
-        self, toy_df: pd.DataFrame, yearly_seasonality: Optional[int]
+        self, toy_X: pd.DataFrame, toy_y: pd.Series, yearly_seasonality: Optional[int]
     ) -> None:
         mmm = BaseDelayedSaturatedMMM(
-            data=toy_df,
-            target_column="y",
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
             control_columns=["control_1", "control_2"],
             adstock_max_lag=2,
             yearly_seasonality=yearly_seasonality,
         )
-
         if yearly_seasonality is None:
             with pytest.raises(ValueError):
-                mmm._get_fourier_models_data()
+                mmm._get_fourier_models_data(toy_X)
 
         else:
-            fourier_modes_data: Optional[pd.DataFrame] = mmm._get_fourier_models_data()
+            fourier_modes_data: Optional[pd.DataFrame] = mmm._get_fourier_models_data(
+                toy_X
+            )
             assert fourier_modes_data.shape == (
-                toy_df.shape[0],
+                toy_X.shape[0],
                 2 * yearly_seasonality,
             )
             assert fourier_modes_data.max().max() <= 1

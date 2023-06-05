@@ -11,7 +11,7 @@ rng: np.random.Generator = np.random.default_rng(seed=seed)
 
 
 @pytest.fixture(scope="module")
-def toy_df() -> pd.DataFrame:
+def toy_X() -> pd.DataFrame:
     date_data: pd.DatetimeIndex = pd.date_range(
         start="2019-06-01", end="2021-12-31", freq="W-MON"
     )
@@ -21,7 +21,6 @@ def toy_df() -> pd.DataFrame:
     return pd.DataFrame(
         data={
             "date": date_data,
-            "y": rng.integers(low=0, high=100, size=n),
             "channel_1": rng.integers(low=0, high=400, size=n),
             "channel_2": rng.integers(low=0, high=50, size=n),
             "control_1": rng.gamma(shape=1000, scale=500, size=n),
@@ -30,6 +29,11 @@ def toy_df() -> pd.DataFrame:
             "other_column_2": rng.normal(loc=0, scale=1, size=n),
         }
     )
+
+
+@pytest.fixture(scope="module")
+def toy_y(toy_X) -> pd.Series:
+    return pd.Series(rng.integers(low=0, high=100, size=toy_X.shape[0]))
 
 
 class TestBasePlotting:
@@ -42,7 +46,7 @@ class TestBasePlotting:
             "with_controls-target_transform",
         ],
     )
-    def plotting_mmm(self, request, toy_df):
+    def plotting_mmm(self, request, toy_X, toy_y):
         control, transform = request.param.split("-")
         if transform == "default_transform":
 
@@ -56,24 +60,19 @@ class TestBasePlotting:
 
         if control == "without_controls":
             mmm = ToyMMM(
-                data=toy_df,
-                target_column="y",
                 date_column="date",
                 channel_columns=["channel_1", "channel_2"],
             )
         elif control == "with_controls":
             mmm = ToyMMM(
-                data=toy_df,
-                target_column="y",
                 date_column="date",
                 control_columns=["control_1", "control_2"],
                 channel_columns=["channel_1", "channel_2"],
             )
         # fit the model
         mmm.fit(
-            X=mmm.data.drop(columns=["y"]),
-            y=mmm.data.y,
-            predictor_names=mmm.data.drop(columns=["y"]).columns.tolist(),
+            X=toy_X,
+            y=toy_y,
         )
         mmm._prior_predictive = mmm.prior_predictive
         mmm._fit_result = mmm.fit_result

@@ -34,31 +34,22 @@ class BaseMMM(ModelBuilder):
 
     def __init__(
         self,
-        target_column: str,
         date_column: str,
         channel_columns: Union[List[str], Tuple[str]],
-        data: Optional[pd.DataFrame] = None,
         channel_prior: Optional[TensorVariable] = None,
-        validate_data: bool = True,
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
         **kwargs,
     ) -> None:
-        self.data: Optional[pd.DataFrame] = data
-        self.target_column: str = target_column
+        self.X
+        self.y
         self.date_column: str = date_column
         self.channel_columns: Union[List[str], Tuple[str]] = channel_columns
         self.channel_prior = channel_prior
         self.n_channel: int = len(channel_columns)
         self._fit_result: Optional[az.InferenceData] = None
         self._posterior_predictive: Optional[az.InferenceData] = None
-        if self.data is not None:
-            if validate_data:
-                self.validate(self.data)
-            self.preprocessed_data = self.preprocess(self.data.copy())
-        super().__init__(
-            data=data, model_config=model_config, sampler_config=sampler_config
-        )
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
 
     @property
     def methods(self) -> List[Any]:
@@ -76,30 +67,161 @@ class BaseMMM(ModelBuilder):
         ]
 
     @property
-    def validation_methods(self) -> List[Callable[["BaseMMM", pd.DataFrame], None]]:
-        return [
-            method
-            for method in self.methods
-            if getattr(method, "_tags", {}).get("validation", False)
-        ]
+    def validation_methods(
+        self,
+    ) -> Tuple[
+        List[Callable[["BaseMMM", Union[pd.DataFrame, pd.Series]], None]],
+        List[Callable[["BaseMMM", Union[pd.DataFrame, pd.Series]], None]],
+    ]:
+        """
+        A property that provides validation methods for features ('X') and the target variable ('y').
 
-    def validate(self, data: pd.DataFrame):
-        for method in self.validation_methods:
-            method(self, data)
+        This property scans the methods of the object and returns those marked for validation.
+        The methods are marked by having a _tags dictionary attribute, with either 'validation_X' or 'validation_y' set to True.
+        The 'validation_X' tag indicates a method used for validating features, and 'validation_y' indicates a method used for validating the target variable.
+
+        Returns
+        -------
+        tuple of list of Callable[["BaseMMM", pd.DataFrame], None]
+            A tuple where the first element is a list of methods for 'X' validation, and the second element is a list of methods for 'y' validation.
+
+        Example
+        -------
+        >>> self.validation_methods
+        """
+        return (
+            [
+                method
+                for method in self.methods
+                if getattr(method, "_tags", {}).get("validation_X", False)
+            ],
+            [
+                method
+                for method in self.methods
+                if getattr(method, "_tags", {}).get("validation_y", False)
+            ],
+        )
+
+    def validate(self, target: str, data: Union[pd.DataFrame, pd.Series]):
+        """
+        Validates the input data based on the specified target type.
+
+        This function loops over the validation methods specified for
+        the target type and applies them to the input data.
+
+        Parameters
+        ----------
+        target : str
+            The type of target to be validated.
+            Expected values are 'X' for features and 'y' for the target variable.
+
+        data : pd.DataFrame
+            The input data to be validated.
+
+        Raises
+        ------
+        ValueError
+            If the target type is not 'X' or 'y', a ValueError will be raised.
+
+        Example
+        -------
+        >>> self.validate('X', df_features)
+        """
+        if target == "X":
+            for method in self.validation_methods[0]:
+                method(self, data)
+        elif target == "y":
+            for method in self.validation_methods[1]:
+                method(self, data)
+        else:
+            raise ValueError("Target must be either 'X' or 'y'")
 
     @property
     def preprocessing_methods(
         self,
-    ) -> List[Callable[["BaseMMM", pd.DataFrame], pd.DataFrame]]:
-        return [
-            method
-            for method in self.methods
-            if getattr(method, "_tags", {}).get("preprocessing", False)
-        ]
+    ) -> Tuple[
+        List[
+            Callable[
+                ["BaseMMM", Union[pd.DataFrame, pd.Series]],
+                Union[pd.DataFrame, pd.Series],
+            ]
+        ],
+        List[
+            Callable[
+                ["BaseMMM", Union[pd.DataFrame, pd.Series]],
+                Union[pd.DataFrame, pd.Series],
+            ]
+        ],
+    ]:
+        """
+        A property that provides preprocessing methods for features ('X') and the target variable ('y').
 
-    def preprocess(self, data: pd.DataFrame) -> pd.DataFrame:
-        for method in self.preprocessing_methods:
-            data = method(self, data)
+        This property scans the methods of the object and returns those marked for preprocessing.
+        The methods are marked by having a _tags dictionary attribute, with either 'preprocessing_X' or 'preprocessing_y' set to True.
+        The 'preprocessing_X' tag indicates a method used for preprocessing features, and 'preprocessing_y' indicates a method used for preprocessing the target variable.
+
+        Returns
+        -------
+        tuple of list of Callable[["BaseMMM", pd.DataFrame], pd.DataFrame]
+            A tuple where the first element is a list of methods for 'X' preprocessing, and the second element is a list of methods for 'y' preprocessing.
+
+        Example
+        -------
+        >>> self.preprocessing_methods
+        """
+        return (
+            [
+                method
+                for method in self.methods
+                if getattr(method, "_tags", {}).get("preprocessing_X", False)
+            ],
+            [
+                method
+                for method in self.methods
+                if getattr(method, "_tags", {}).get("preprocessing_y", False)
+            ],
+        )
+
+    def preprocess(
+        self, target: str, data: Union[pd.DataFrame, pd.Series]
+    ) -> Union[pd.DataFrame, pd.Series]:
+        """
+        Preprocess the provided data according to the specified target.
+
+        This method applies preprocessing methods to the data ('X' or 'y'), which are specified in the preprocessing_methods property of this object.
+        It iteratively applies each method in the appropriate list (either for 'X' or 'y') to the data.
+
+        Parameters
+        ----------
+        target : str
+            Indicates whether the data represents features ('X') or the target variable ('y').
+
+        data : pd.DataFrame
+            The data to be preprocessed.
+
+        Returns
+        -------
+        pd.DataFrame
+            The preprocessed data.
+
+        Raises
+        ------
+        ValueError
+            If the target is neither 'X' nor 'y'.
+
+        Example
+        -------
+        >>> data = pd.DataFrame({"x1": [1, 2, 3], "y": [4, 5, 6]})
+        >>> self.preprocess('X', data)
+        """
+        if target == "X":
+            for method in self.preprocessing_methods[0]:
+                data = method(self, data)
+        elif target == "y":
+            for method in self.preprocessing_methods[1]:
+                data = method(self, data)
+        else:
+            raise ValueError("The 'target' argument must be either 'X' or 'y'.")
         return data
 
     def get_target_transformer(self) -> Pipeline:
@@ -142,9 +264,9 @@ class BaseMMM(ModelBuilder):
         ]
 
         fig, ax = plt.subplots(**plt_kwargs)
-        if self.data is not None:
+        if self.X is not None and self.y is not None:
             ax.fill_between(
-                x=np.asarray(self.data[self.date_column].value),
+                x=np.asarray(self.X[self.date_column]),
                 y1=likelihood_hdi_94[:, 0],
                 y2=likelihood_hdi_94[:, 1],
                 color="C0",
@@ -153,7 +275,7 @@ class BaseMMM(ModelBuilder):
             )
 
             ax.fill_between(
-                x=np.asarray(self.data[self.date_column].value),
+                x=np.asarray(self.X[self.date_column]),
                 y1=likelihood_hdi_50[:, 0],
                 y2=likelihood_hdi_50[:, 1],
                 color="C0",
@@ -162,12 +284,16 @@ class BaseMMM(ModelBuilder):
             )
 
             ax.plot(
-                np.asarray(self.data[self.date_column].value.values),
-                np.asarray(self.preprocessed_data[self.target_column].value),
+                np.asarray(self.X[self.date_column]),
+                np.asarray(self.preprocessed_data["y"]),
                 color="black",
             )
             ax.set(
-                title="Prior Predictive Check", xlabel="date", ylabel=self.target_column
+                title="Prior Predictive Check", xlabel="date", ylabel=self.output_var
+            )
+        else:
+            raise RuntimeError(
+                "The model hasn't been fit yet, call .fit() first with X and y data."
             )
         return fig
 
@@ -191,9 +317,9 @@ class BaseMMM(ModelBuilder):
             )
 
         fig, ax = plt.subplots(**plt_kwargs)
-        if self.data is not None:
+        if self.X is not None and self.y is not None:
             ax.fill_between(
-                x=self.data[self.date_column].value,
+                x=self.X[self.date_column],
                 y1=likelihood_hdi_94[:, 0],
                 y2=likelihood_hdi_94[:, 1],
                 color="C0",
@@ -202,7 +328,7 @@ class BaseMMM(ModelBuilder):
             )
 
             ax.fill_between(
-                x=self.data[self.date_column].value,
+                x=self.X[self.date_column],
                 y1=likelihood_hdi_50[:, 0],
                 y2=likelihood_hdi_50[:, 1],
                 color="C0",
@@ -211,20 +337,20 @@ class BaseMMM(ModelBuilder):
             )
 
             target_to_plot: np.ndarray = np.asarray(
-                self.data[self.target_column].value
-                if original_scale
-                else self.preprocessed_data[self.target_column].value
+                self.y if original_scale else self.preprocessed_data["y"]
             )
             ax.plot(
-                np.asarray(self.data[self.date_column].value.values),
+                np.asarray(self.X[self.date_column]),
                 target_to_plot,
                 color="black",
             )
             ax.set(
                 title="Posterior Predictive Check",
                 xlabel="date",
-                ylabel=self.target_column,
+                ylabel=self.output_var,
             )
+        else:
+            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         return fig
 
     def _format_model_contributions(self, var_contribution: str) -> DataArray:
@@ -273,9 +399,9 @@ class BaseMMM(ModelBuilder):
                 ],
             )
         ):
-            if self.data is not None:
+            if self.X is not None:
                 ax.fill_between(
-                    x=self.data[self.date_column].value,
+                    x=self.X[self.date_column],
                     y1=hdi.isel(hdi=0),
                     y2=hdi.isel(hdi=1),
                     color=f"C{i}",
@@ -283,26 +409,26 @@ class BaseMMM(ModelBuilder):
                     label=f"$94 %$ HDI ({var_contribution})",
                 )
                 ax.plot(
-                    np.asarray(self.data[self.date_column].value),
+                    np.asarray(self.X[self.date_column]),
                     np.asarray(mean),
                     color=f"C{i}",
                 )
-        if self.data is not None:
+        if self.X is not None:
             intercept = az.extract(
                 self.fit_result, var_names=["intercept"], combined=False
             )
             intercept_hdi = np.repeat(
                 a=az.hdi(intercept).intercept.data[None, ...],
-                repeats=self.data[self.date_column].value.shape[0],
+                repeats=self.X[self.date_column].shape[0],
                 axis=0,
             )
             ax.plot(
-                np.asarray(self.data[self.date_column].value),
-                np.full(len(self.data[self.date_column].value), intercept.mean().data),
+                np.asarray(self.X[self.date_column]),
+                np.full(len(self.X[self.date_column]), intercept.mean().data),
                 color=f"C{i + 1}",
             )
             ax.fill_between(
-                x=self.data[self.date_column].value,
+                x=self.X[self.date_column],
                 y1=intercept_hdi[:, 0],
                 y2=intercept_hdi[:, 1],
                 color=f"C{i + 1}",
@@ -310,15 +436,15 @@ class BaseMMM(ModelBuilder):
                 label="$94 %$ HDI (intercept)",
             )
             ax.plot(
-                np.asarray(self.data[self.date_column].value),
-                np.asarray(self.preprocessed_data[self.target_column].value),
+                np.asarray(self.X[self.date_column]),
+                np.asarray(self.preprocessed_data["y"]),
                 color="black",
             )
             ax.legend(title="components", loc="center left", bbox_to_anchor=(1, 0.5))
             ax.set(
                 title="Posterior Predictive Model Components",
                 xlabel="date",
-                ylabel=self.target_column,
+                ylabel=self.output_var,
             )
         return fig
 
@@ -364,7 +490,6 @@ class BaseMMM(ModelBuilder):
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
         )
-
         fig, axes = plt.subplots(
             nrows=self.n_channel,
             ncols=1,
@@ -376,11 +501,9 @@ class BaseMMM(ModelBuilder):
 
         for i, channel in enumerate(self.channel_columns):
             ax = axes[i]
-            if self.data is not None:
+            if self.X is not None:
                 sns.regplot(
-                    x=self.data.channel_data_.value[self.channel_columns].to_numpy()[
-                        :, i
-                    ],
+                    x=self.X[self.channel_columns].to_numpy()[:, i],
                     y=channel_contributions.sel(channel=channel),
                     color=f"C{i}",
                     order=2,
