@@ -85,6 +85,10 @@ class BaseDelayedSaturatedMMM(MMM):
     def default_sampler_config(self) -> Dict:
         return {"progressbar": True, "random_seed": 1234}
 
+    @property
+    def output_var(self):
+        return "target"
+
     def generate_and_preprocess_model_data(
         self, X: Union[pd.DataFrame, pd.Series], y: pd.Series
     ) -> None:
@@ -149,7 +153,6 @@ class BaseDelayedSaturatedMMM(MMM):
         **kwargs,
     ) -> None:
         self.generate_and_preprocess_model_data(X, y)
-        self.output_var = "target"
         if self.model_config is None:
             model_config = self.default_model_config
         else:
