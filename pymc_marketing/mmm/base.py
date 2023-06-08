@@ -41,8 +41,8 @@ class BaseMMM(ModelBuilder):
         sampler_config: Optional[Dict] = None,
         **kwargs,
     ) -> None:
-        self.X
-        self.y
+        self.X: Optional[pd.DataFrame] = None
+        self.y: Optional[pd.Series] = None
         self.date_column: str = date_column
         self.channel_columns: Union[List[str], Tuple[str]] = channel_columns
         self.channel_prior = channel_prior

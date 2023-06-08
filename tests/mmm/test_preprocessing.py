@@ -62,7 +62,7 @@ def test_preprocessing_method():
 
 def test_max_abs_scale_target():
     obj = MaxAbsScaleTarget()
-    out = obj.max_abs_scale_target_data(toy_y)
+    out = obj.max_abs_scale_target_data(toy_y.to_numpy())
     temp = toy_y
     assert out.min() == temp.min() / temp.max()
     assert out.max() == 1

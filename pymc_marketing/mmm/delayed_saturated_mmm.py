@@ -134,8 +134,8 @@ class BaseDelayedSaturatedMMM(MMM):
             self.validate("y", y)
         self.preprocessed_data["X"] = self.preprocess("X", X_data.copy())
         self.preprocessed_data["y"] = self.preprocess("y", y.copy())
-        self.X = X_data
-        self.y = y
+        self.X: pd.DataFrame = X_data
+        self.y: pd.Series = y
 
     def _preprocess_channel_prior(self) -> TensorVariable:
         return (
