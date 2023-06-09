@@ -114,27 +114,23 @@ class BaseMMM(ModelBuilder):
         target : str
             The type of target to be validated.
             Expected values are 'X' for features and 'y' for the target variable.
-
-        data : pd.DataFrame
+        data : Union[pd.DataFrame, pd.Series]
             The input data to be validated.
 
         Raises
         ------
         ValueError
             If the target type is not 'X' or 'y', a ValueError will be raised.
-
-        Example
-        -------
-        >>> self.validate('X', df_features)
         """
-        if target == "X":
-            for method in self.validation_methods[0]:
-                method(self, data)
-        elif target == "y":
-            for method in self.validation_methods[1]:
-                method(self, data)
-        else:
+        if target not in ["X", "y"]:
             raise ValueError("Target must be either 'X' or 'y'")
+        if target == "X":
+            validation_methods = self.validation_methods[0]
+        elif target == "y":
+            validation_methods = self.validation_methods[1]
+
+        for method in validation_methods:
+            method(self, data)
 
     @property
     def preprocessing_methods(
@@ -221,7 +217,7 @@ class BaseMMM(ModelBuilder):
             for method in self.preprocessing_methods[1]:
                 data = method(self, data)
         else:
-            raise ValueError("The 'target' argument must be either 'X' or 'y'.")
+            raise ValueError("Target must be either 'X' or 'y'")
         return data
 
     def get_target_transformer(self) -> Pipeline:
@@ -233,9 +229,9 @@ class BaseMMM(ModelBuilder):
 
     @property
     def prior_predictive(self) -> az.InferenceData:
-        if self.idata is None or "prior_predictive" not in self.idata:
+        if self.idata is None or "prior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        return self.idata["prior_predictive"]
+        return self.idata["prior"]
 
     @property
     # requesting discussion, is it something that we want to keep? Should I put on the deprecation warning to phase it out in later versions?

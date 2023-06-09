@@ -1,9 +1,12 @@
-from unittest.mock import patch
+import re
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.pipeline import FunctionTransformer, Pipeline
 
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import (
@@ -14,24 +17,95 @@ from pymc_marketing.mmm.validating import validation_method_X, validation_method
 
 seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
-date_data: pd.DatetimeIndex = pd.date_range(
-    start="2019-06-01", end="2021-12-31", freq="W-MON"
-)
 
-n: int = date_data.size
 
-toy_X = pd.DataFrame(
-    data={
-        "date": date_data,
-        "channel_1": rng.integers(low=0, high=400, size=n),
-        "channel_2": rng.integers(low=0, high=50, size=n),
-        "control_1": rng.gamma(shape=1000, scale=500, size=n),
-        "control_2": rng.gamma(shape=100, scale=5, size=n),
-        "other_column_1": rng.integers(low=0, high=100, size=n),
-        "other_column_2": rng.normal(loc=0, scale=1, size=n),
-    }
-)
-toy_y = pd.Series(data=rng.integers(low=0, high=100, size=n))
+@pytest.fixture(scope="module")
+def toy_X() -> pd.DataFrame:
+    date_data: pd.DatetimeIndex = pd.date_range(
+        start="2019-06-01", end="2021-12-31", freq="W-MON"
+    )
+    n: int = date_data.size
+
+    return pd.DataFrame(
+        data={
+            "date": date_data,
+            "channel_1": rng.integers(low=0, high=400, size=n),
+            "channel_2": rng.integers(low=0, high=50, size=n),
+            "control_1": rng.gamma(shape=1000, scale=500, size=n),
+            "control_2": rng.gamma(shape=100, scale=5, size=n),
+            "other_column_1": rng.integers(low=0, high=100, size=n),
+            "other_column_2": rng.normal(loc=0, scale=1, size=n),
+        }
+    )
+
+
+@pytest.fixture(scope="module")
+def toy_y(toy_X) -> pd.Series:
+    return pd.Series(rng.integers(low=0, high=100, size=toy_X.shape[0]), name="y")
+
+
+@pytest.fixture(scope="module")
+def toy_mmm(request, toy_X, toy_y):
+    channel_columns = request.param["channel_columns"]
+    channel_prior = request.param["channel_prior"]
+
+    class ToyMMM(MMM):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.X = None
+            self.y = None
+            self.preprocessed_data = {"X": None, "y": None}
+
+        def build_model(*args, **kwargs):
+            pass
+
+        def generate_and_preprocess_model_data(self, X, y):
+            self.validate("X", X)
+            self.validate("y", y)
+            self.preprocessed_data["X"] = self.preprocess("X", X)
+            self.preprocessed_data["y"] = self.preprocess("y", y)
+            self.X = X
+            self.y = y
+
+        @property
+        def default_model_config(self):
+            pass
+
+        @property
+        def default_sampler_config(self):
+            pass
+
+        def _data_setter(self, X, y=None):
+            pass
+
+        def _serializable_model_config(self):
+            pass
+
+        @validation_method_X
+        def toy_validation_X(self, data):
+            pd.testing.assert_frame_equal(data, toy_X)
+            return None
+
+        @validation_method_y
+        def toy_validation_y(self, data):
+            pd.testing.assert_series_equal(data, toy_y)
+            return None
+
+        @preprocessing_method_X
+        def toy_preprocessing_X(self, data):
+            pd.testing.assert_frame_equal(data, toy_X)
+            return data
+
+        @preprocessing_method_y
+        def toy_preprocessing_y(self, data):
+            pd.testing.assert_series_equal(data, toy_y)
+            return data
+
+    return ToyMMM(
+        date_column="date",
+        channel_columns=channel_columns,
+        channel_prior=channel_prior,
+    )
 
 
 class TestMMM:
@@ -39,112 +113,168 @@ class TestMMM:
     @patch("pymc_marketing.mmm.base.MMM.validate_date_col")
     @patch("pymc_marketing.mmm.base.MMM.validate_channel_columns")
     @pytest.mark.parametrize(
-        argnames="channel_prior",
-        argvalues=[None, pm.HalfNormal.dist(sigma=5)],
-        ids=["no_channel_prior", "channel_prior"],
-    )
-    @pytest.mark.parametrize(
-        argnames="channel_columns",
-        argvalues=[
-            (["channel_1"]),
-            (["channel_1", "channel_2"]),
+        "toy_mmm",
+        [
+            {"channel_columns": ["channel_1"], "channel_prior": None},
+            {"channel_columns": ["channel_1"], "channel_prior": None},
+            {"channel_columns": ["channel_1", "channel_2"], "channel_prior": None},
+            {
+                "channel_columns": ["channel_1", "channel_2"],
+                "channel_prior": pm.HalfNormal.dist(sigma=5),
+            },
         ],
-        ids=[
-            "single_channel",
-            "multiple_channel",
-        ],
+        indirect=True,
     )
     def test_init(
         self,
         validate_channel_columns,
         validate_date_col,
         validate_target,
-        channel_columns,
-        channel_prior,
+        toy_mmm,
+        toy_X,
+        toy_y,
     ) -> None:
+
         validate_channel_columns.configure_mock(_tags={"validation_X": True})
         validate_date_col.configure_mock(_tags={"validation_X": True})
         validate_target.configure_mock(_tags={"validation_y": True})
-        toy_validation_X_count = 0
-        toy_validation_y_count = 0
-        toy_preprocess_X_count = 0
-        toy_preprocess_y_count = 0
+        toy_mmm.generate_and_preprocess_model_data(toy_X, toy_y)
+        pd.testing.assert_frame_equal(toy_mmm.X, toy_X)
+        pd.testing.assert_frame_equal(toy_mmm.preprocessed_data["X"], toy_X)
+        pd.testing.assert_series_equal(toy_mmm.y, toy_y)
+        pd.testing.assert_series_equal(toy_mmm.preprocessed_data["y"], toy_y)
+        validate_target.assert_called_once_with(toy_mmm, toy_y)
+        validate_date_col.assert_called_once_with(toy_mmm, toy_X)
+        validate_channel_columns.assert_called_once_with(toy_mmm, toy_X)
 
-        class ToyMMM(MMM):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                self.X = None
-                self.y = None
-                self.preprocessed_data = {"X": None, "y": None}
 
-            def build_model(*args, **kwargs):
-                pass
+@pytest.fixture(scope="module")
+def test_mmm():
+    class ToyMMM(MMM):
+        mock_method1 = Mock()
+        mock_method2 = Mock()
+        validation_methods = [(mock_method1,), (mock_method2,)]
 
-            def generate_and_preprocess_model_data(self, X, y):
-                self.validate("X", X)
-                self.validate("y", y)
-                self.preprocessed_data["X"] = self.preprocess("X", X)
-                self.preprocessed_data["y"] = self.preprocess("y", y)
-                self.X = X
-                self.y = y
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.X = None
+            self.y = None
+            self.preprocessed_data = {"X": None, "y": None}
 
-            @property
-            def default_model_config(self):
-                pass
+        def build_model(self, toy_X, *args, **kwargs):
+            with pm.Model() as self.model:
+                intercept = pm.Normal("intercept", mu=0, sigma=1)
+                sigma = pm.HalfNormal("sigma", sigma=1)
+                slope = pm.Normal("slope", mu=0, sigma=1)
+                mu = intercept + slope
+                pm.Normal("y", mu=mu, sigma=sigma)
 
-            @property
-            def default_sampler_config(self):
-                pass
+        def generate_and_preprocess_model_data(self, toy_X, toy_y):
+            self.validate("X", toy_X)
+            self.validate("y", toy_y)
+            self.preprocessed_data["X"] = self.preprocess("X", toy_X)
+            self.preprocessed_data["y"] = self.preprocess("y", toy_y)
+            self.X = toy_X
+            self.y = toy_y
 
-            def _data_setter(self):
-                pass
+        @property
+        def default_model_config(self):
+            return {"model": "model"}
 
-            def _serializable_model_config(self):
-                pass
+        @property
+        def default_sampler_config(self):
+            return {"draws": 1000, "tune": 1000}
 
-            @validation_method_X
-            def toy_validation_X(self, data):
-                nonlocal toy_validation_X_count
-                toy_validation_X_count += 1
-                pd.testing.assert_frame_equal(data, toy_X)
-                return None
+        @property
+        def output_var(self):
+            return "y"
 
-            @validation_method_y
-            def toy_validation_y(self, data):
-                nonlocal toy_validation_y_count
-                toy_validation_y_count += 1
-                pd.testing.assert_series_equal(data, toy_y)
-                return None
+        def _data_setter(self, X, y=None):
+            pass
 
-            @preprocessing_method_X
-            def toy_preprocessing_X(self, data):
-                nonlocal toy_preprocess_X_count
-                toy_preprocess_X_count += 1
-                pd.testing.assert_frame_equal(data, toy_X)
-                return data
+        @property
+        def _serializable_model_config(self):
+            return {"model": "model"}
 
-            @preprocessing_method_y
-            def toy_preprocessing_y(self, data):
-                nonlocal toy_preprocess_y_count
-                toy_preprocess_y_count += 1
-                pd.testing.assert_series_equal(data, toy_y)
-                return data
+    return ToyMMM(date_column="date", channel_columns=["channel_1"], channel_prior=None)
 
-        instance = ToyMMM(
-            date_column="date",
-            channel_columns=channel_columns,
-            channel_prior=channel_prior,
-        )
-        instance.generate_and_preprocess_model_data(toy_X, toy_y)
-        pd.testing.assert_frame_equal(instance.X, toy_X)
-        pd.testing.assert_frame_equal(instance.preprocessed_data["X"], toy_X)
-        pd.testing.assert_series_equal(instance.y, toy_y)
-        pd.testing.assert_series_equal(instance.preprocessed_data["y"], toy_y)
-        validate_target.assert_called_once_with(instance, toy_y)
-        validate_date_col.assert_called_once_with(instance, toy_X)
-        validate_channel_columns.assert_called_once_with(instance, toy_X)
 
-        assert toy_validation_X_count == 1
-        assert toy_validation_y_count == 1
-        assert toy_preprocess_X_count == 1
-        assert toy_preprocess_y_count == 1
+class MyScaler(BaseEstimator, TransformerMixin):
+    def __init__(self, factor=1):
+        self.factor = factor
+
+    def fit(self, X, y=None):
+        return self  # Nothing happens in fit, so just return self
+
+    def transform(self, X):
+        return X * self.factor
+
+
+def test_validate_and_preprocess(toy_X, toy_y, test_mmm):
+
+    test_mmm
+
+    test_mmm.validate("X", toy_X)
+    test_mmm.mock_method1.assert_called_once_with(test_mmm, toy_X)
+
+    test_mmm.validate("y", toy_y)
+    test_mmm.mock_method2.assert_called_once_with(test_mmm, toy_y)
+
+    with pytest.raises(ValueError, match="Target must be either 'X' or 'y'"):
+        test_mmm.validate("invalid", toy_X)
+    with pytest.raises(ValueError, match="Target must be either 'X' or 'y'"):
+        test_mmm.preprocess("invalid", toy_X)
+
+
+def test_get_target_transformer_when_set(test_mmm):
+    # Arrange
+    mmm = test_mmm
+    expected_transformer = Pipeline(steps=[("your_step", MyScaler(10))])
+    mmm.target_transformer = expected_transformer
+
+    # Act
+    actual_transformer = mmm.get_target_transformer()
+
+    # Assert
+    assert actual_transformer == expected_transformer
+
+
+def test_get_target_transformer_when_not_set(test_mmm):
+    # Arrange
+    mmm = test_mmm
+    if hasattr(mmm, "target_transformer"):
+        del mmm.target_transformer
+    # Act
+    actual_transformer = mmm.get_target_transformer()
+
+    # Assert
+    assert isinstance(actual_transformer, Pipeline)
+    assert isinstance(actual_transformer.named_steps["scaler"], FunctionTransformer)
+
+
+def test_calling_prior_predictive_before_fit_raises_error(test_mmm, toy_X, toy_y):
+    # Arrange
+    test_mmm.idata = None
+    with pytest.raises(
+        RuntimeError,
+        match=re.escape("The model hasn't been fit yet, call .fit() first"),
+    ):
+        test_mmm.prior_predictive
+    test_mmm.fit(toy_X, toy_y)
+    test_mmm.prior_predictive
+    assert test_mmm.idata is not None
+    assert "prior" in test_mmm.idata
+
+
+def test_calling_fit_result_before_fit_raises_error(test_mmm, toy_X, toy_y):
+    # Arrange
+    test_mmm.idata = None
+    with pytest.raises(
+        RuntimeError,
+        match=re.escape("The model hasn't been fit yet, call .fit() first"),
+    ):
+        test_mmm.fit_result
+    test_mmm.fit(toy_X, toy_y)
+    test_mmm.fit_result
+    assert test_mmm.idata is not None
+    assert "posterior" in test_mmm.idata
