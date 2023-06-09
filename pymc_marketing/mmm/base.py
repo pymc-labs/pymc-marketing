@@ -607,7 +607,8 @@ class BaseMMM:
             {
                 "estimated_total_budget": np.round(result.x.sum()),
                 "estimated_max_contribution": (-result.fun),
-            }
+            },
+            index=[0],
         )
 
         result_dict = {"allocation": df, "contribution": contributions}
