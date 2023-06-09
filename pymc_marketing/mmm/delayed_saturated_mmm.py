@@ -104,7 +104,6 @@ class BaseDelayedSaturatedMMM(MMM):
         """
         date_data = X[self.date_column]
         channel_data = X[self.channel_columns]
-
         coords: Dict[str, Any] = {
             "date": date_data,
             "channel": self.channel_columns,
@@ -152,12 +151,8 @@ class BaseDelayedSaturatedMMM(MMM):
         y: pd.Series,
         **kwargs,
     ) -> None:
+        model_config = self.model_config
         self.generate_and_preprocess_model_data(X, y)
-        if self.model_config is None:
-            model_config = self.default_model_config
-        else:
-            model_config = self.model_config
-
         with pm.Model(coords=self.model_coords) as self.model:
             channel_data_ = pm.MutableData(
                 name="channel_data",
@@ -373,7 +368,7 @@ class BaseDelayedSaturatedMMM(MMM):
         new_channel_data = None
         if isinstance(X, pd.DataFrame):
             try:
-                new_channel_data = X[self.channel_columns]
+                new_channel_data = X[self.channel_columns].to_numpy()
             except KeyError as e:
                 raise RuntimeError("New data must contain channel_data!", e)
         elif isinstance(X, np.ndarray):

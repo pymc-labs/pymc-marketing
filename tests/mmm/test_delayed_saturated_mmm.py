@@ -219,6 +219,7 @@ class TestDelayedSaturatedMMM:
             adstock_max_lag=2,
             yearly_seasonality=2,
         )
+        assert mmm.model_config is not None
         n_channel: int = len(mmm.channel_columns)
         n_control: int = len(mmm.control_columns)
         fourier_terms: int = 2 * mmm.yearly_seasonality
@@ -301,3 +302,43 @@ class TestDelayedSaturatedMMM:
             )
             assert fourier_modes_data.max().max() <= 1
             assert fourier_modes_data.min().min() >= -1
+
+    def test_data_setter(self, toy_X, toy_y):
+        base_delayed_saturated_mmm = BaseDelayedSaturatedMMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            channel_prior=None,
+        )
+        base_delayed_saturated_mmm.fit(
+            X=toy_X, y=toy_y, target_accept=0.81, draws=100, chains=2, random_seed=rng
+        )
+
+        X_correct_ndarray = np.random.randint(low=0, high=100, size=(135, 2))
+        y_correct_ndarray = np.random.randint(low=0, high=100, size=135)
+
+        X_incorrect = "Incorrect data"
+        y_incorrect = "Incorrect data"
+
+        with pytest.raises(TypeError):
+            base_delayed_saturated_mmm._data_setter(X_incorrect, toy_y)
+
+        with pytest.raises(TypeError):
+            base_delayed_saturated_mmm._data_setter(toy_X, y_incorrect)
+
+        with pytest.raises(RuntimeError):
+            X_wrong_df = pd.DataFrame(
+                {"column1": np.random.rand(135), "column2": np.random.rand(135)}
+            )
+            base_delayed_saturated_mmm._data_setter(X_wrong_df, toy_y)
+
+        try:
+            base_delayed_saturated_mmm._data_setter(toy_X, toy_y)
+        except Exception as e:
+            pytest.fail(f"_data_setter failed with error {e}")
+
+        try:
+            base_delayed_saturated_mmm._data_setter(
+                X_correct_ndarray, y_correct_ndarray
+            )
+        except Exception as e:
+            pytest.fail(f"_data_setter failed with error {e}")
