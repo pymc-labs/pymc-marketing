@@ -21,7 +21,7 @@ dependencies = [
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "xarray",
-    "pymc_experimental >= 0.0.3"
+    "pymc_experimental >= 0.0.6"
 ]
 
 [project.optional-dependencies]
