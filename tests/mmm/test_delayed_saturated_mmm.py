@@ -44,6 +44,7 @@ def mmm() -> BaseDelayedSaturatedMMM:
     return BaseDelayedSaturatedMMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
+        adstock_max_lag=4,
         control_columns=["control_1", "control_2"],
     )
 
@@ -187,6 +188,7 @@ class TestDelayedSaturatedMMM:
         mmm = BaseDelayedSaturatedMMM(
             date_column="date",
             channel_columns=channel_columns,
+            adstock_max_lag=4,
             channel_prior=channel_prior,
         )
         mmm.build_model(X=toy_X, y=toy_y, model_config=mmm.model_config)
@@ -307,6 +309,7 @@ class TestDelayedSaturatedMMM:
         base_delayed_saturated_mmm = BaseDelayedSaturatedMMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
+            adstock_max_lag=4,
             channel_prior=None,
         )
         base_delayed_saturated_mmm.fit(

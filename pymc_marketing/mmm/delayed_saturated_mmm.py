@@ -21,12 +21,12 @@ class BaseDelayedSaturatedMMM(MMM):
         self,
         date_column: str,
         channel_columns: List[str],
+        adstock_max_lag: int,
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
         channel_prior: Optional[TensorVariable] = None,
         validate_data: bool = True,
         control_columns: Optional[List[str]] = None,
-        adstock_max_lag: int = 4,
         yearly_seasonality: Optional[int] = None,
         **kwargs,
     ) -> None:
@@ -203,9 +203,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 var=geometric_adstock(
                     x=channel_data_,
                     alpha=alpha,
-                    l_max=kwargs["adstock_max_lag"]
-                    if "adstock_max_lag" in kwargs
-                    else 4,
+                    l_max=self.adstock_max_lag,
                     normalize=True,
                     axis=0,
                 ),

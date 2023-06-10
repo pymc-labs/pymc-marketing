@@ -62,10 +62,12 @@ class TestBasePlotting:
             mmm = ToyMMM(
                 date_column="date",
                 channel_columns=["channel_1", "channel_2"],
+                adstock_max_lag=4,
             )
         elif control == "with_controls":
             mmm = ToyMMM(
                 date_column="date",
+                adstock_max_lag=4,
                 control_columns=["control_1", "control_2"],
                 channel_columns=["channel_1", "channel_2"],
             )
