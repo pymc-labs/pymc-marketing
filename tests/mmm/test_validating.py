@@ -140,3 +140,9 @@ def test_control_columns():
     ):
         obj.control_columns = ["control_1", "control_1"]
         obj.validate_control_columns(toy_X)
+
+
+def test_y_len_0():
+    obj = ValidateTargetColumn()
+    with pytest.raises(ValueError, match="y must have at least one element"):
+        obj.validate_target(pd.Series())

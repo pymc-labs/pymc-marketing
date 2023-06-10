@@ -30,7 +30,7 @@ class ValidateTargetColumn:
     @validation_method_y
     def validate_target(self, data: pd.Series) -> None:
         if len(data) == 0:
-            raise ValueError("target can't have length 0")
+            raise ValueError("y must have at least one element")
 
 
 class ValidateDateColumn:
