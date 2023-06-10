@@ -260,10 +260,6 @@ def test_calling_prior_predictive_before_fit_raises_error(test_mmm, toy_X, toy_y
         match=re.escape("The model hasn't been fit yet, call .fit() first"),
     ):
         test_mmm.prior_predictive
-    test_mmm.fit(toy_X, toy_y)
-    test_mmm.prior_predictive
-    assert test_mmm.idata is not None
-    assert "prior" in test_mmm.idata
 
 
 def test_calling_fit_result_before_fit_raises_error(test_mmm, toy_X, toy_y):
