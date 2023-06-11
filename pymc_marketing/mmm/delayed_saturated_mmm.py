@@ -110,7 +110,7 @@ class BaseDelayedSaturatedMMM(MMM):
         }
 
         new_X_dict = {
-            "date": date_data,
+            self.date_column: date_data,
         }
         X_data = pd.DataFrame.from_dict(new_X_dict)
         X_data = pd.concat([X_data, channel_data], axis=1)
