@@ -77,7 +77,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
            https://journals.sagepub.com/doi/pdf/10.1002/dir.20074
     """
 
-    _model_name = "Shifted-Beta-Geometric Model (Individual Customers)"
+    _model_type = "Shifted-Beta-Geometric Model (Individual Customers)"
 
     def __init__(
         self,

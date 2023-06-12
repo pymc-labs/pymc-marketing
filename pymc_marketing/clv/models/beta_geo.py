@@ -101,7 +101,7 @@ class BetaGeoModel(CLVModel):
            http://brucehardie.com/notes/027/bgnbd_num_error.pdf.
     """
 
-    _model_name = "BG/NBD"  # Beta-Geometric Negative Binomial Distribution
+    _model_type = "BG/NBD"  # Beta-Geometric Negative Binomial Distribution
 
     def __init__(
         self,

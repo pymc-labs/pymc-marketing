@@ -230,7 +230,7 @@ class GammaGammaModel(BaseGammaGammaModel):
            https://journals.sagepub.com/doi/pdf/10.1509/jmkr.2005.42.4.415
     """
 
-    _model_name = "Gamma-Gamma Model (Mean Transactions)"
+    _model_type = "Gamma-Gamma Model (Mean Transactions)"
 
     def __init__(
         self,
@@ -342,7 +342,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
            https://journals.sagepub.com/doi/pdf/10.1509/jmkr.2005.42.4.415
     """
 
-    _model_name = "Gamma-Gamma Model (Individual Transactions)"
+    _model_type = "Gamma-Gamma Model (Individual Transactions)"
 
     def __init__(
         self,
