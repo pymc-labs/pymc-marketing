@@ -4,8 +4,6 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
-from pymc.distributions.shape_utils import change_dist_size
-from pytensor.tensor import TensorVariable
 
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
@@ -24,7 +22,6 @@ class BaseDelayedSaturatedMMM(MMM):
         adstock_max_lag: int,
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
-        channel_prior: Optional[TensorVariable] = None,
         validate_data: bool = True,
         control_columns: Optional[List[str]] = None,
         yearly_seasonality: Optional[int] = None,
@@ -42,11 +39,6 @@ class BaseDelayedSaturatedMMM(MMM):
             dictionary of parameters that initialise model configuration. Class-default defined by the user default_model_config method.
         sampler_config : Dictionary, optional
             dictionary of parameters that initialise sampler configuration. Class-default defined by the user default_sampler_config method.
-        channel_prior : Optional[TensorVariable], optional
-            Prior distribution for the channel coefficients, by default None which
-            corresponds to a HalfNormal distribution with sigma=2 (so that all
-            contributions are positive). The prior distribution is specified by the
-            `dist` API. For example, if you `pm.HalfNormal.dist(sigma=4, shape=2)`.
         validate_data : bool, optional
             Whether to validate the data before fitting to model, by default True.
         control_columns : Optional[List[str]], optional
@@ -77,7 +69,6 @@ class BaseDelayedSaturatedMMM(MMM):
             channel_columns=channel_columns,
             model_config=model_config,
             sampler_config=sampler_config,
-            channel_prior=channel_prior,
             adstock_max_lag=adstock_max_lag,
         )
 
@@ -136,15 +127,6 @@ class BaseDelayedSaturatedMMM(MMM):
         self.X: pd.DataFrame = X_data
         self.y: pd.Series = y
 
-    def _preprocess_channel_prior(self) -> TensorVariable:
-        return (
-            pm.HalfNormal.dist(sigma=2, shape=len(self.channel_columns))
-            if self.channel_prior is None
-            else change_dist_size(
-                dist=self.channel_prior, new_size=len(self.channel_columns)
-            )
-        )
-
     def build_model(
         self,
         X: pd.DataFrame,
@@ -172,16 +154,11 @@ class BaseDelayedSaturatedMMM(MMM):
                 sigma=model_config["intercept"]["sigma"],
             )
 
-            """beta_channel = pm.HalfNormal(
+            beta_channel = pm.HalfNormal(
                 name="beta_channel",
                 sigma=model_config["beta_channel"]["sigma"],
                 dims=model_config["beta_channel"]["dims"],
-            )  # ? Allow prior depend on channel costs?"""
-            channel_prior = self._preprocess_channel_prior()
-            beta_channel = self.model.register_rv(
-                rv_var=channel_prior, name="beta_channel", dims="channel"
             )
-
             alpha = pm.Beta(
                 name="alpha",
                 alpha=model_config["alpha"]["alpha"],

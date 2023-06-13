@@ -15,7 +15,6 @@ import pandas as pd
 import pymc as pm
 import seaborn as sns
 from pymc_experimental.model_builder import ModelBuilder
-from pytensor.tensor import TensorVariable
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
@@ -36,7 +35,6 @@ class BaseMMM(ModelBuilder):
         self,
         date_column: str,
         channel_columns: Union[List[str], Tuple[str]],
-        channel_prior: Optional[TensorVariable] = None,
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
         **kwargs,
@@ -45,7 +43,6 @@ class BaseMMM(ModelBuilder):
         self.y: Optional[pd.Series] = None
         self.date_column: str = date_column
         self.channel_columns: Union[List[str], Tuple[str]] = channel_columns
-        self.channel_prior = channel_prior
         self.n_channel: int = len(channel_columns)
         self._fit_result: Optional[az.InferenceData] = None
         self._posterior_predictive: Optional[az.InferenceData] = None
@@ -74,20 +71,17 @@ class BaseMMM(ModelBuilder):
         List[Callable[["BaseMMM", Union[pd.DataFrame, pd.Series]], None]],
     ]:
         """
-        A property that provides validation methods for features ('X') and the target variable ('y').
+        A property that provides validation methods for features ("X") and the target variable ("y").
 
         This property scans the methods of the object and returns those marked for validation.
-        The methods are marked by having a _tags dictionary attribute, with either 'validation_X' or 'validation_y' set to True.
-        The 'validation_X' tag indicates a method used for validating features, and 'validation_y' indicates a method used for validating the target variable.
+        The methods are marked by having a _tags dictionary attribute, with either "validation_X" or "validation_y" set to True.
+        The "validation_X" tag indicates a method used for validating features, and "validation_y" indicates a method used for validating the target variable.
 
         Returns
         -------
         tuple of list of Callable[["BaseMMM", pd.DataFrame], None]
-            A tuple where the first element is a list of methods for 'X' validation, and the second element is a list of methods for 'y' validation.
+            A tuple where the first element is a list of methods for "X" validation, and the second element is a list of methods for "y" validation.
 
-        Example
-        -------
-        >>> self.validation_methods
         """
         return (
             [
@@ -102,7 +96,7 @@ class BaseMMM(ModelBuilder):
             ],
         )
 
-    def validate(self, target: str, data: Union[pd.DataFrame, pd.Series]):
+    def validate(self, target: str, data: Union[pd.DataFrame, pd.Series]) -> None:
         """
         Validates the input data based on the specified target type.
 
@@ -113,14 +107,14 @@ class BaseMMM(ModelBuilder):
         ----------
         target : str
             The type of target to be validated.
-            Expected values are 'X' for features and 'y' for the target variable.
+            Expected values are "X" for features and "y" for the target variable.
         data : Union[pd.DataFrame, pd.Series]
             The input data to be validated.
 
         Raises
         ------
         ValueError
-            If the target type is not 'X' or 'y', a ValueError will be raised.
+            If the target type is not "X" or "y", a ValueError will be raised.
         """
         if target not in ["X", "y"]:
             raise ValueError("Target must be either 'X' or 'y'")
@@ -150,20 +144,16 @@ class BaseMMM(ModelBuilder):
         ],
     ]:
         """
-        A property that provides preprocessing methods for features ('X') and the target variable ('y').
+        A property that provides preprocessing methods for features ("X") and the target variable ("y").
 
         This property scans the methods of the object and returns those marked for preprocessing.
-        The methods are marked by having a _tags dictionary attribute, with either 'preprocessing_X' or 'preprocessing_y' set to True.
-        The 'preprocessing_X' tag indicates a method used for preprocessing features, and 'preprocessing_y' indicates a method used for preprocessing the target variable.
+        The methods are marked by having a _tags dictionary attribute, with either "preprocessing_X" or "preprocessing_y" set to True.
+        The "preprocessing_X" tag indicates a method used for preprocessing features, and "preprocessing_y" indicates a method used for preprocessing the target variable.
 
         Returns
         -------
         tuple of list of Callable[["BaseMMM", pd.DataFrame], pd.DataFrame]
-            A tuple where the first element is a list of methods for 'X' preprocessing, and the second element is a list of methods for 'y' preprocessing.
-
-        Example
-        -------
-        >>> self.preprocessing_methods
+            A tuple where the first element is a list of methods for "X" preprocessing, and the second element is a list of methods for "y" preprocessing.
         """
         return (
             [
@@ -184,31 +174,31 @@ class BaseMMM(ModelBuilder):
         """
         Preprocess the provided data according to the specified target.
 
-        This method applies preprocessing methods to the data ('X' or 'y'), which are specified in the preprocessing_methods property of this object.
-        It iteratively applies each method in the appropriate list (either for 'X' or 'y') to the data.
+        This method applies preprocessing methods to the data ("X" or "y"), which are specified in the preprocessing_methods property of this object.
+        It iteratively applies each method in the appropriate list (either for "X" or "y") to the data.
 
         Parameters
         ----------
         target : str
-            Indicates whether the data represents features ('X') or the target variable ('y').
+            Indicates whether the data represents features ("X") or the target variable ("y").
 
         data : pd.DataFrame
             The data to be preprocessed.
 
         Returns
         -------
-        pd.DataFrame
+        Union[pd.DataFrame, pd.Series]
             The preprocessed data.
 
         Raises
         ------
         ValueError
-            If the target is neither 'X' nor 'y'.
+            If the target is neither "X" nor "y".
 
         Example
         -------
         >>> data = pd.DataFrame({"x1": [1, 2, 3], "y": [4, 5, 6]})
-        >>> self.preprocess('X', data)
+        >>> self.preprocess("X", data)
         """
         if target == "X":
             for method in self.preprocessing_methods[0]:

@@ -47,7 +47,6 @@ def toy_y(toy_X) -> pd.Series:
 @pytest.fixture(scope="module")
 def toy_mmm(request, toy_X, toy_y):
     channel_columns = request.param["channel_columns"]
-    channel_prior = request.param["channel_prior"]
 
     class ToyMMM(MMM):
         def __init__(self, *args, **kwargs):
@@ -104,7 +103,6 @@ def toy_mmm(request, toy_X, toy_y):
     return ToyMMM(
         date_column="date",
         channel_columns=channel_columns,
-        channel_prior=channel_prior,
     )
 
 
@@ -115,13 +113,8 @@ class TestMMM:
     @pytest.mark.parametrize(
         "toy_mmm",
         [
-            {"channel_columns": ["channel_1"], "channel_prior": None},
-            {"channel_columns": ["channel_1"], "channel_prior": None},
-            {"channel_columns": ["channel_1", "channel_2"], "channel_prior": None},
-            {
-                "channel_columns": ["channel_1", "channel_2"],
-                "channel_prior": pm.HalfNormal.dist(sigma=5),
-            },
+            {"channel_columns": ["channel_1"]},
+            {"channel_columns": ["channel_1", "channel_2"]},
         ],
         indirect=True,
     )
@@ -196,7 +189,7 @@ def test_mmm():
         def _serializable_model_config(self):
             return {"model": "model"}
 
-    return ToyMMM(date_column="date", channel_columns=["channel_1"], channel_prior=None)
+    return ToyMMM(date_column="date", channel_columns=["channel_1"])
 
 
 class MyScaler(BaseEstimator, TransformerMixin):
