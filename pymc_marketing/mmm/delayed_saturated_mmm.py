@@ -57,12 +57,6 @@ class BaseDelayedSaturatedMMM(MMM):
         self.yearly_seasonality = yearly_seasonality
         self.date_column = date_column
         self.validate_data = validate_data
-        self.preprocessed_data: Dict[
-            str, Union[Optional[pd.DataFrame], Optional[pd.Series]]
-        ] = {
-            "X": None,
-            "y": None,
-        }
 
         super().__init__(
             date_column=date_column,
@@ -78,7 +72,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
     @property
     def output_var(self):
-        return "target"
+        return "y"
 
     def generate_and_preprocess_model_data(
         self, X: Union[pd.DataFrame, pd.Series], y: pd.Series
@@ -122,8 +116,10 @@ class BaseDelayedSaturatedMMM(MMM):
         if self.validate_data:
             self.validate("X", X_data)
             self.validate("y", y)
-        self.preprocessed_data["X"] = self.preprocess("X", X_data.copy())
-        self.preprocessed_data["y"] = self.preprocess("y", y.copy())
+        self.preprocessed_data: Dict[str, Union[pd.DataFrame, pd.Series]] = {
+            "X": self.preprocess("X", X_data.copy()),
+            "y": self.preprocess("y", y.copy()),
+        }
         self.X: pd.DataFrame = X_data
         self.y: pd.Series = y
 
@@ -138,13 +134,13 @@ class BaseDelayedSaturatedMMM(MMM):
         with pm.Model(coords=self.model_coords) as self.model:
             channel_data_ = pm.MutableData(
                 name="channel_data",
-                value=self.X[self.channel_columns].to_numpy(),
+                value=self.preprocessed_data["X"][self.channel_columns].to_numpy(),
                 dims=("date", "channel"),
             )
 
             target_ = pm.MutableData(
                 name="target",
-                value=self.y,
+                value=self.preprocessed_data["y"],
                 dims="date",
             )
 
@@ -201,11 +197,14 @@ class BaseDelayedSaturatedMMM(MMM):
             if (
                 self.control_columns is not None
                 and len(self.control_columns) > 0
-                and all(column in self.X.columns for column in self.control_columns)
+                and all(
+                    column in self.preprocessed_data["X"].columns
+                    for column in self.control_columns
+                )
             ):
                 control_data_ = pm.MutableData(
                     name="control_data",
-                    value=self.X[self.control_columns],
+                    value=self.preprocessed_data["X"][self.control_columns],
                     dims=("date", "control"),
                 )
 
@@ -227,11 +226,14 @@ class BaseDelayedSaturatedMMM(MMM):
                 hasattr(self, "fourier_columns")
                 and self.fourier_columns is not None
                 and len(self.fourier_columns) > 0
-                and all(column in self.X.columns for column in self.fourier_columns)
+                and all(
+                    column in self.preprocessed_data["X"].columns
+                    for column in self.fourier_columns
+                )
             ):
                 fourier_data_ = pm.MutableData(
                     name="fourier_data",
-                    value=self.X[self.fourier_columns],
+                    value=self.preprocessed_data["X"][self.fourier_columns],
                     dims=("date", "fourier_mode"),
                 )
 
