@@ -115,7 +115,7 @@ class BaseMMM(ModelBuilder):
         ------
         ValueError
             If the target type is not "X" or "y", a ValueError will be raised.
-
+        """
         if target not in ["X", "y"]:
             raise ValueError("Target must be either 'X' or 'y'")
         if target == "X":
@@ -125,63 +125,6 @@ class BaseMMM(ModelBuilder):
 
         for method in validation_methods:
             method(self, data)
-
-        This property scans the methods of the object and returns those marked for validation.
-        The methods are marked by having a _tags dictionary attribute, with either "validation_X" or "validation_y" set to True.
-        The "validation_X" tag indicates a method used for validating features, and "validation_y" indicates a method used for validating the target variable.
-
-        Returns
-        -------
-        tuple of list of Callable[["BaseMMM", pd.DataFrame], None]
-            A tuple where the first element is a list of methods for "X" validation, and the second element is a list of methods for "y" validation.
-
-        """
-        return (
-            [
-                method
-                for method in self.methods
-                if getattr(method, "_tags", {}).get("validation_X", False)
-            ],
-            [
-                method
-                for method in self.methods
-                if getattr(method, "_tags", {}).get("validation_y", False)
-            ],
-        )
-
-    def validate(self, target: str, data: Union[pd.DataFrame, pd.Series]) -> None:
-        """
-        Validates the input data based on the specified target type.
-
-        This function loops over the validation methods specified for
-        the target type and applies them to the input data.
-
-        Parameters
-        ----------
-        target : str
-            The type of target to be validated.
-            Expected values are 'X' for features and 'y' for the target variable.
-
-        data : pd.DataFrame
-            The input data to be validated.
-
-        Raises
-        ------
-        ValueError
-            If the target type is not 'X' or 'y', a ValueError will be raised.
-
-        Example
-        -------
-        >>> self.validate('X', df_features)
-        """
-        if target == "X":
-            for method in self.validation_methods[0]:
-                method(self, data)
-        elif target == "y":
-            for method in self.validation_methods[1]:
-                method(self, data)
-        else:
-            raise ValueError("Target must be either 'X' or 'y'")
 
     @property
     def preprocessing_methods(
@@ -256,7 +199,7 @@ class BaseMMM(ModelBuilder):
         -------
         >>> data = pd.DataFrame({"x1": [1, 2, 3], "y": [4, 5, 6]})
         >>> self.preprocess("X", data)
-
+        """
         if target == "X":
             for method in self.preprocessing_methods[0]:
                 data = method(self, data)
@@ -265,70 +208,6 @@ class BaseMMM(ModelBuilder):
                 data = method(self, data)
         else:
             raise ValueError("Target must be either 'X' or 'y'")
-        return data
-
-        This property scans the methods of the object and returns those marked for preprocessing.
-        The methods are marked by having a _tags dictionary attribute, with either "preprocessing_X" or "preprocessing_y" set to True.
-        The "preprocessing_X" tag indicates a method used for preprocessing features, and "preprocessing_y" indicates a method used for preprocessing the target variable.
-
-        Returns
-        -------
-        tuple of list of Callable[["BaseMMM", pd.DataFrame], pd.DataFrame]
-            A tuple where the first element is a list of methods for "X" preprocessing, and the second element is a list of methods for "y" preprocessing.
-        """
-        return (
-            [
-                method
-                for method in self.methods
-                if getattr(method, "_tags", {}).get("preprocessing_X", False)
-            ],
-            [
-                method
-                for method in self.methods
-                if getattr(method, "_tags", {}).get("preprocessing_y", False)
-            ],
-        )
-
-    def preprocess(
-        self, target: str, data: Union[pd.DataFrame, pd.Series]
-    ) -> Union[pd.DataFrame, pd.Series]:
-        """
-        Preprocess the provided data according to the specified target.
-
-        This method applies preprocessing methods to the data ("X" or "y"), which are specified in the preprocessing_methods property of this object.
-        It iteratively applies each method in the appropriate list (either for "X" or "y") to the data.
-
-        Parameters
-        ----------
-        target : str
-            Indicates whether the data represents features ("X") or the target variable ("y").
-
-        data : pd.DataFrame
-            The data to be preprocessed.
-
-        Returns
-        -------
-        Union[pd.DataFrame, pd.Series]
-            The preprocessed data.
-
-        Raises
-        ------
-        ValueError
-            If the target is neither "X" nor "y".
-
-        Example
-        -------
-        >>> data = pd.DataFrame({"x1": [1, 2, 3], "y": [4, 5, 6]})
-        >>> self.preprocess("X", data)
-        """
-        if target == "X":
-            for method in self.preprocessing_methods[0]:
-                data = method(self, data)
-        elif target == "y":
-            for method in self.preprocessing_methods[1]:
-                data = method(self, data)
-        else:
-            raise ValueError("The 'target' argument must be either 'X' or 'y'.")
         return data
 
     def get_target_transformer(self) -> Pipeline:
