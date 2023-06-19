@@ -224,13 +224,11 @@ class BaseMMM(ModelBuilder):
         return self.idata["prior_predictive"]
 
     @property
-    # requesting discussion, is it something that we want to keep? Should I put on the deprecation warning to phase it out in later versions?
     def fit_result(self) -> Dataset:
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         return self.idata["posterior"]
 
-    # requesting discussion, is it something that we want to keep? Should I put on the deprecation warning to phase it out in later versions?
     @property
     def posterior_predictive(self) -> Dataset:
         if self.idata is None or "posterior_predictive" not in self.idata:
