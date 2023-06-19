@@ -38,10 +38,10 @@ class ParetoNBDModel(CLVModel):
     ----------
     customer_id: array_like
         Customer labels; must be unique.
-    recency: array_like
-        Number of time periods between the customer's first and most recent purchase.
     frequency: array_like
         Number of repeat purchases per customer.
+    recency: array_like
+        Number of time periods between the customer's first and most recent purchase.
     T: array_like
         Number of time periods since the customer's first purchase.
         Model assumptions require T >= recency.
@@ -144,8 +144,8 @@ class ParetoNBDModel(CLVModel):
     def __init__(
         self,
         customer_id: Union[np.ndarray, pd.Series],
-        recency: Union[np.ndarray, pd.Series],
         frequency: Union[np.ndarray, pd.Series],
+        recency: Union[np.ndarray, pd.Series],
         T: Union[np.ndarray, pd.Series],
         r_prior: Optional[TensorVariable] = None,
         alpha_prior: Optional[TensorVariable] = None,
@@ -272,8 +272,8 @@ class ParetoNBDModel(CLVModel):
         self,
         future_t: Union[float, np.ndarray, pd.Series],
         customer_id: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
-        recency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
         frequency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
+        recency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
         T: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
     ) -> xarray.DataArray:
         """
@@ -291,10 +291,10 @@ class ParetoNBDModel(CLVModel):
             Number of time periods to predict expected purchases.
         customer_id: array_like, optional
             Customer labels.
-        recency: array_like, optional
-            Number of time periods between the customer's first and most recent purchase.
         frequency: array_like, optional
             Number of repeat purchases per customer.
+        recency: array_like, optional
+            Number of time periods between the customer's first and most recent purchase.
         T: array_like, optional
             Number of time periods since the customer's first purchase.
             Model assumptions require T >= recency.
@@ -379,8 +379,8 @@ class ParetoNBDModel(CLVModel):
         self,
         future_t: Union[int, float] = 0,
         customer_id: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
-        recency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
         frequency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
+        recency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
         T: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
     ) -> xarray.DataArray:
         """
@@ -397,10 +397,10 @@ class ParetoNBDModel(CLVModel):
             Number of time periods in the future to estimate alive probability; defaults to 0.
         customer_id: array_like
             Customer labels.
-        recency: array_like
-            Number of time periods between the customer's first and most recent purchase.
         frequency: array_like
             Number of repeat purchases per customer.
+        recency: array_like
+            Number of time periods between the customer's first and most recent purchase.
         T: array_like
             Number of time periods since the customer's first purchase.
             Model assumptions require T >= recency.
@@ -440,8 +440,8 @@ class ParetoNBDModel(CLVModel):
         n_purchases: Union[int, np.ndarray, pd.Series],
         future_t: Union[float, np.ndarray, pd.Series],
         customer_id: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
-        recency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
         frequency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
+        recency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
         T: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
     ) -> xarray.DataArray:
         """
