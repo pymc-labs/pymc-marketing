@@ -6,6 +6,7 @@ import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
 from pymc.distributions.dist_math import check_parameters
+from pymc.util import RandomState
 from pytensor.tensor import TensorVariable
 from scipy.special import expit, hyp2f1
 
@@ -59,6 +60,7 @@ class BetaGeoModel(CLVModel):
     BG/NBD model for customer
 
     .. code-block:: python
+
         import pymc as pm
         from pymc_marketing.clv import BetaGeoModel
 
@@ -344,3 +346,62 @@ class BetaGeoModel(CLVModel):
         return (left_term * right_term).transpose(
             "chain", "draw", "t", missing_dims="ignore"
         )
+
+    def sample_population_distributions(
+        self,
+        random_seed: Optional[RandomState] = None,
+    ) -> xr.Dataset:
+        """
+        Sample the Beta and Gamma distributions for the population-level parameters.
+
+        Parameters
+        ----------
+        random_seed : RandomState, optional
+            Random state to use for sampling.
+
+        Returns
+        -------
+        xr.Dataset
+            Dataset containing the posterior samples for the population-level parameters.
+
+        Example
+        -------
+        Plot the posterior distributions of the population-level parameters.
+
+        .. code-block:: python
+
+            from pymc_marketing.clv import BetaGeoModel
+
+            from lifetimes.datasets import load_cdnow_summary
+
+            import numpy as np
+            import matplotlib.pyplot as plt
+
+            df = load_cdnow_summary()
+            x = df["frequency"].to_numpy()
+            t_x = df["recency"].to_numpy()
+            T = df["T"].to_numpy()
+
+            model = BetaGeoModel(
+                customer_id=np.arange(len(x)), frequency=x, recency=t_x, T=T
+            )
+            model.fit()
+
+            population_dists = model.sample_population_distributions()
+            population_dists.to_dataframe().hist()
+            plt.show()
+        """
+        with pm.Model():
+            a = pm.HalfFlat("a")
+            b = pm.HalfFlat("b")
+            alpha = pm.HalfFlat("alpha")
+            r = pm.HalfFlat("r")
+
+            pm.Beta("population_dropout", alpha=a, beta=b)
+            pm.Gamma("population_purchase_rate", alpha=r, beta=alpha)
+
+            return pm.sample_posterior_predictive(
+                self.fit_result,
+                var_names=["population_dropout", "population_purchase_rate"],
+                random_seed=random_seed,
+            ).posterior_predictive

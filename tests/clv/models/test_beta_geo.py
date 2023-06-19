@@ -2,6 +2,7 @@ import arviz as az
 import numpy as np
 import pymc as pm
 import pytest
+import xarray as xr
 from lifetimes.fitters.beta_geo_fitter import BetaGeoFitter
 
 from pymc_marketing.clv.distributions import continuous_contractual
@@ -324,3 +325,15 @@ class TestBetaGeoModel:
             "\nr~HalfFlat()"
             "\nlikelihood~Potential(f(r,alpha,b,a))"
         )
+
+    def test_sample_population_distributions(self):
+        model = BetaGeoModel(
+            customer_id=self.customer_id,
+            frequency=self.frequency,
+            recency=self.recency,
+            T=self.T,
+        )
+
+        model.fit()
+        samples = model.sample_population_distributions()
+        assert isinstance(samples, xr.Dataset)
