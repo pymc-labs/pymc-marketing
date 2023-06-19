@@ -397,8 +397,13 @@ class BetaGeoModel(CLVModel):
             alpha = pm.HalfFlat("alpha")
             r = pm.HalfFlat("r")
 
-            pm.Beta("population_dropout", alpha=a, beta=b)
-            pm.Gamma("population_purchase_rate", alpha=r, beta=alpha)
+            if self.fit_result.posterior.dims == {"chain": 1, "draw": 1}:
+                shape_kwargs = {"shape": 1000}
+            else:
+                shape_kwargs = {}
+
+            pm.Beta("population_dropout", alpha=a, beta=b, **shape_kwargs)
+            pm.Gamma("population_purchase_rate", alpha=r, beta=alpha, **shape_kwargs)
 
             return pm.sample_posterior_predictive(
                 self.fit_result,

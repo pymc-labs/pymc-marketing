@@ -326,7 +326,8 @@ class TestBetaGeoModel:
             "\nlikelihood~Potential(f(r,alpha,b,a))"
         )
 
-    def test_sample_population_distributions(self):
+    @pytest.mark.parametrize("fit_method", ["mcmc", "map"])
+    def test_sample_population_distributions(self, fit_method: str):
         model = BetaGeoModel(
             customer_id=self.customer_id,
             frequency=self.frequency,
@@ -334,6 +335,6 @@ class TestBetaGeoModel:
             T=self.T,
         )
 
-        model.fit()
+        model.fit(fit_method=fit_method)
         samples = model.sample_population_distributions()
         assert isinstance(samples, xr.Dataset)
