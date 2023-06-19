@@ -4,15 +4,50 @@ from typing import Any, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pytensor
+import pytensor.tensor as pt
 import xarray
 from numpy import exp, log
+from pytensor.compile import Mode, get_default_mode
+from pytensor.graph import Constant, node_rewriter
+from pytensor.scalar import Grad2F1Loop
 from pytensor.tensor import TensorVariable
+from pytensor.tensor.elemwise import Elemwise
 from scipy.special import betaln, gammaln, hyp2f1
 from xarray_einstats.stats import logsumexp as xr_logsumexp
 
 from pymc_marketing.clv.distributions import ParetoNBD
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
+
+
+@node_rewriter([Elemwise])
+def local_reduce_max_num_iters_hyp2f1_grad(fgraph, node):
+    """Rewrite that reduces the maximum number of iterations in the hyp2f1 grad scalar loop.
+
+    This is critical to get NUTS to converge in the beginning.
+    Otherwise, it can take a long time to get started.
+    """
+    if not isinstance(node.op.scalar_op, Grad2F1Loop):
+        return
+    max_steps, *other_args = node.inputs
+
+    # max_steps = switch(skip_loop, 0, 1e6) by default
+    if max_steps.owner and max_steps.owner.op == pt.switch:
+        cond, zero, max_steps_const = max_steps.owner.inputs
+        if (isinstance(zero, Constant) and np.all(zero.data == 0)) and (
+            isinstance(max_steps_const, Constant)
+            and np.all(max_steps_const.data == 1e6)
+        ):
+            new_max_steps = pt.switch(cond, zero, np.array(int(1e5), dtype="int32"))
+            return node.op.make_node(new_max_steps, *other_args).outputs
+
+
+pytensor.compile.optdb["specialize"].register(
+    "local_reduce_max_num_iters_hyp2f1_grad",
+    local_reduce_max_num_iters_hyp2f1_grad,
+    use_db_name_as_tag=False,  # Not included by default
+)
 
 
 class ParetoNBDModel(CLVModel):
@@ -83,7 +118,7 @@ class ParetoNBDModel(CLVModel):
 
             # Fit model with full posterior estimation for more informative predictions:
             with model.model:
-                model.fit(step=pm.Slice(), draws=2000, tune=1000)
+                model.fit()
 
             print(model.fit_summary())
 
@@ -265,8 +300,29 @@ class ParetoNBDModel(CLVModel):
             T=T.values,
         )
         values = np.vstack((t_x.values, x.values)).T
+        # TODO: Instead of compiling this function everytime this method is called
+        #  we could compile it once (with mutable inputs) and cache it for reuse with new inputs.
         loglike = pm.logp(pareto_dist, values).eval()
         return xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
+
+    def fit(self, fit_method="mcmc", **kwargs):
+        mode = get_default_mode()
+        if fit_method == "mcmc":
+            # Include rewrite in mode
+            opt_qry = mode.provided_optimizer.including(
+                "local_reduce_max_num_iters_hyp2f1_grad"
+            )
+            mode = Mode(linker=mode.linker, optimizer=opt_qry)
+
+        with pytensor.config.change_flags(mode=mode, on_opt_error="raise"):
+            # Suppress annoying warning
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    message="Optimization Warning: The Op hyp2f1 does not provide a C implementation. As well as being potentially slow, this also disables loop fusion.",
+                    action="ignore",
+                    category=UserWarning,
+                )
+                super().fit(fit_method, **kwargs)
 
     def expected_purchases(
         self,

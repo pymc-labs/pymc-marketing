@@ -151,8 +151,6 @@ class TestParetoNBDModel:
                     fit_method=fit_method,
                     random_seed=self.rng,
                     chains=2,
-                    step=pm.Slice(),
-                    draws=2000,
                     progressbar=False,
                 )
         else:
