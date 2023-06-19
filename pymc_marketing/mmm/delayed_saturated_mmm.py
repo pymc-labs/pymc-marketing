@@ -68,7 +68,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
     @property
     def default_sampler_config(self) -> Dict:
-        return {"progressbar": True, "random_seed": 1234}
+        return {}
 
     @property
     def output_var(self):
@@ -117,8 +117,8 @@ class BaseDelayedSaturatedMMM(MMM):
             self.validate("X", X_data)
             self.validate("y", y)
         self.preprocessed_data: Dict[str, Union[pd.DataFrame, pd.Series]] = {
-            "X": self.preprocess("X", X_data.copy()),
-            "y": self.preprocess("y", y.copy()),
+            "X": self.preprocess("X", X_data),
+            "y": self.preprocess("y", y),
         }
         self.X: pd.DataFrame = X_data
         self.y: pd.Series = y
@@ -304,6 +304,10 @@ class BaseDelayedSaturatedMMM(MMM):
     @property
     def _serializable_model_config(self) -> Dict[str, Any]:
         serializable_config = self.model_config.copy()
+        if type(serializable_config["beta_channel"]["sigma"]) == np.ndarray:
+            serializable_config["beta_channel"]["sigma"] = serializable_config[
+                "beta_channel"
+            ]["sigma"].tolist()
         return serializable_config
 
     def _data_setter(
