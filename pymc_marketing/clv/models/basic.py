@@ -3,7 +3,6 @@ import warnings
 from typing import Dict, Optional, Tuple
 
 import arviz as az
-import numpy as np
 import pandas as pd
 import pymc as pm
 from pymc import str_for_dist
@@ -18,19 +17,17 @@ class CLVModel(ModelBuilder):
     _model_type = ""
 
     def __init__(
-        self, model_config: Optional[Dict] = None, sampler_config: Optional[Dict] = None
+        self,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
     ):
-        self.model_config = model_config
-        self.sampler_config = sampler_config
-        super().__init__(self.model_config, self.sampler_config)
+        super().__init__(model_config, sampler_config)
 
     def __repr__(self):
         return f"{self._model_type}\n{self.model.str_repr()}"
 
     def fit(
         self,
-        X: pd.DataFrame,
-        y: Optional[pd.Series] = None,
         fit_method: str = "mcmc",
         **kwargs,
     ) -> az.InferenceData:
@@ -38,10 +35,6 @@ class CLVModel(ModelBuilder):
 
         Parameters
         ----------
-        X : array-like if sklearn is available, otherwise array, shape (n_obs, n_features)
-            The training input samples.
-        y : array-like if sklearn is available, otherwise array, shape (n_obs,)
-            The target values (real numbers).
         fit_method: str
             Method used to fit the model. Options are:
             - "mcmc": Samples from the posterior via `pymc.sample` (default)
@@ -49,14 +42,8 @@ class CLVModel(ModelBuilder):
         kwargs:
             Other keyword arguments passed to the underlying PyMC routines
         """
-        if y is None:
-            y_values = np.zeros(X.shape[0])
-        else:
-            y_values = np.array(y.values)
-        y_df = pd.DataFrame({self.output_var: y_values})
 
-        self.generate_and_preprocess_model_data(X, y_df.values.flatten())
-        self.build_model(self.X, self.y)
+        self.build_model()
 
         if fit_method == "mcmc":
             self._fit_mcmc(**kwargs)
@@ -66,9 +53,14 @@ class CLVModel(ModelBuilder):
             raise ValueError(
                 f"Fit method options are ['mcmc', 'map'], got: {fit_method}"
             )
-
-        X_df = pd.DataFrame(X, columns=X.columns)
-        combined_data = pd.concat([X_df, y_df], axis=1)
+        combined_data = pd.DataFrame(
+            {
+                "customer_id": self.customer_id,
+                "frequency": self.frequency,
+                "recency": self.recency,
+                "T": self.T,
+            }
+        )
         assert all(combined_data.columns), "All columns must have non-empty names"
         self.idata.add_groups(fit_data=combined_data.to_xarray())  # type: ignore
 
@@ -98,6 +90,7 @@ class CLVModel(ModelBuilder):
             sampler_config = self.sampler_config.copy()
         sampler_config.update(**kwargs)
         self.idata = self.sample_model(**sampler_config)
+        return self.idata
 
     def _fit_MAP(self, **kwargs):
         """Find model maximum a posteriori using scipy optimizer"""
@@ -112,8 +105,13 @@ class CLVModel(ModelBuilder):
         map_strace.record(map_res)
         map_strace.close()
         trace = MultiTrace([map_strace])
-        self.idata = pm.to_inference_data(trace, model=model)
-        self.set_idata_attrs()
+        idata = pm.to_inference_data(trace, model=model)
+        self.set_idata_attrs(idata)
+        return idata
+
+    @classmethod
+    def load(cls, fname: str):
+        raise NotImplementedError("load method is not implemented for CLVModel")
 
     @staticmethod
     def _check_prior_ndim(prior, ndim=0):
@@ -145,6 +143,10 @@ class CLVModel(ModelBuilder):
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         return self.idata["posterior"]
+
+    @property
+    def _serializable_model_config(self):
+        return self.default_model_config
 
     # if we include fit_result then this should be added for consistancy
     @property

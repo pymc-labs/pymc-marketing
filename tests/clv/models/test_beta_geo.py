@@ -1,3 +1,7 @@
+import json
+import tempfile
+from pathlib import Path
+
 import arviz as az
 import numpy as np
 import pymc as pm
@@ -45,17 +49,20 @@ class TestBetaGeoModel:
     @pytest.mark.parametrize("alpha_prior", (None, pm.HalfCauchy.dist(2)))
     @pytest.mark.parametrize("r_prior", (None, pm.Gamma.dist(1, 1)))
     def test_model(self, a_prior, b_prior, alpha_prior, r_prior):
+        model_config = {
+            "a_prior": a_prior,
+            "b_prior": b_prior,
+            "alpha_prior": alpha_prior,
+            "r_prior": r_prior,
+        }
         model = BetaGeoModel(
             customer_id=self.customer_id,
             frequency=self.frequency,
             recency=self.recency,
             T=self.T,
-            a_prior=a_prior,
-            b_prior=b_prior,
-            alpha_prior=alpha_prior,
-            r_prior=r_prior,
+            model_config=model_config,
         )
-
+        model.build_model()
         assert isinstance(
             model.model["a"].owner.op,
             pm.HalfFlat if a_prior is None else type(a_prior.owner.op),
@@ -106,16 +113,20 @@ class TestBetaGeoModel:
         """
         See Solution #2 on pages 3 and 4 of http://brucehardie.com/notes/027/bgnbd_num_error.pdf
         """
+        model_config = {
+            "a_prior": pm.Flat.dist(),
+            "b_prior": pm.Flat.dist(),
+            "alpha_prior": pm.Flat.dist(),
+            "r_prior": pm.Flat.dist(),
+        }
         model = BetaGeoModel(
             customer_id=np.asarray([1]),
             frequency=np.asarray([frequency]),
             recency=np.asarray([recency]),
             T=np.asarray([40]),
-            a_prior=pm.Flat.dist(),
-            b_prior=pm.Flat.dist(),
-            alpha_prior=pm.Flat.dist(),
-            r_prior=pm.Flat.dist(),
+            model_config=model_config,
         )
+        model.build_model()
         pymc_model = model.model
         logp = pymc_model.compile_fn(pymc_model.potentiallogp)
 
@@ -180,7 +191,8 @@ class TestBetaGeoModel:
             recency=recency,
             T=T,
         )
-
+        bg_model.build_model()
+        bg_model.fit(fit_method="map")
         fake_fit = az.from_dict(
             {
                 "a": rng.normal(a, 1e-3, size=(2, 25)),
@@ -220,6 +232,8 @@ class TestBetaGeoModel:
             recency=test_recency,
             T=test_T,
         )
+        bg_model.build_model()
+        bg_model.fit("map")
         bg_model._fit_result = az.from_dict(
             {
                 "a": np.full((2, 5), self.a_true),
@@ -274,6 +288,8 @@ class TestBetaGeoModel:
             recency=test_recency,
             T=test_T,
         )
+        bg_model.build_model()
+        bg_model.fit("map")
         bg_model._fit_result = az.from_dict(
             {
                 "a": np.full((2, 5), self.a_true),
@@ -308,14 +324,20 @@ class TestBetaGeoModel:
         )
 
     def test_model_repr(self):
+        model_config = {
+            "alpha_prior": None,
+            "r_prior": None,
+            "a_prior": None,
+            "b_prior": pm.HalfNormal.dist(10),
+        }
         model = BetaGeoModel(
             customer_id=self.customer_id,
             frequency=self.frequency,
             recency=self.recency,
             T=self.T,
-            b_prior=pm.HalfNormal.dist(10),
+            model_config=model_config,
         )
-
+        model.build_model()
         assert model.__repr__().replace(" ", "") == (
             "BG/NBD"
             "\na~HalfFlat()"
@@ -324,3 +346,35 @@ class TestBetaGeoModel:
             "\nr~HalfFlat()"
             "\nlikelihood~Potential(f(r,alpha,b,a))"
         )
+
+    def test_save_load_beta_geo(self):
+        temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
+
+        model = BetaGeoModel(
+            customer_id=self.customer_id,
+            frequency=self.frequency,
+            recency=self.recency,
+            T=self.T,
+        )
+        model.build_model()
+        model.fit("map")
+        model.save(temp)
+        # Testing the valid case.
+
+        model2 = BetaGeoModel.load(temp)
+
+        # Check if the loaded model is indeed an instance of the class
+        assert isinstance(model, BetaGeoModel)
+
+        # Load data from the file to cross verify
+        filepath = Path(str(temp))
+        idata = az.from_netcdf(filepath)
+        dataset = idata.fit_data.to_dataframe()
+        # Check if the loaded data matches with the model data
+        assert np.array_equal(model2.customer_id.values, dataset.customer_id.values)
+        assert np.array_equal(model2.frequency.values, dataset.frequency.values)
+        assert np.array_equal(model2.T.values, dataset["T"])
+        assert np.array_equal(model2.recency.values, dataset.recency.values)
+        assert model.model_config == json.loads(idata.attrs["model_config"])
+        assert model.sampler_config == json.loads(idata.attrs["sampler_config"])
+        assert model.idata == idata

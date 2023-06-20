@@ -1,5 +1,8 @@
-from typing import Optional, Union
+import json
+from pathlib import Path
+from typing import Dict, Optional, Union
 
+import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -41,6 +44,10 @@ class BetaGeoModel(CLVModel):
     T: array_like
         The time of a customer's period under which they are under observation. By
         construction of the model, T > t_x.
+    model_config: dict, optional
+        Dictionary of model prior parameters. Defaults to None.
+    sampler_config: dict, optional
+        Dictionary of sampler parameters. Defaults to None.
     a_prior: scalar PyMC distribution, optional
         PyMC prior distribution, created via `.dist()` API. Defaults to
         `pm.HalfFlat.dist()`
@@ -109,36 +116,60 @@ class BetaGeoModel(CLVModel):
         frequency: Union[np.ndarray, pd.Series, TensorVariable],
         recency: Union[np.ndarray, pd.Series, TensorVariable],
         T: Union[np.ndarray, pd.Series, TensorVariable],
-        a_prior: Optional[TensorVariable] = None,
-        b_prior: Optional[TensorVariable] = None,
-        alpha_prior: Optional[TensorVariable] = None,
-        r_prior: Optional[TensorVariable] = None,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
     ):
-        super().__init__()
 
         self.customer_id = customer_id
         self.frequency = frequency
         self.recency = recency
         self.T = T
-
-        a_prior, b_prior, alpha_prior, r_prior = self._process_priors(
-            a_prior, b_prior, alpha_prior, r_prior
+        super().__init__(
+            model_config=model_config,
+            sampler_config=sampler_config,
         )
 
+        (
+            self.a_prior,
+            self.b_prior,
+            self.alpha_prior,
+            self.r_prior,
+        ) = self._process_priors(
+            self.model_config["a_prior"],
+            self.model_config["b_prior"],
+            self.model_config["alpha_prior"],
+            self.model_config["r_prior"],
+        )
         # each customer's information should be encapsulated by a single data entry
-        if len(np.unique(customer_id)) != len(customer_id):
+        if len(np.unique(self.customer_id)) != len(self.customer_id):
             raise ValueError(
                 "The BetaGeoModel expects exactly one entry per customer. More than"
                 " one entry is currently provided per customer id."
             )
+        self.coords = {"customer_id": self.customer_id}
 
-        coords = {"customer_id": customer_id}
-        with pm.Model(coords=coords) as self.model:
-            a = self.model.register_rv(a_prior, name="a")
-            b = self.model.register_rv(b_prior, name="b")
+    @property
+    def default_model_config(self) -> Dict[str, None]:
+        return {
+            "a_prior": None,
+            "b_prior": None,
+            "alpha_prior": None,
+            "r_prior": None,
+        }
 
-            alpha = self.model.register_rv(alpha_prior, name="alpha")
-            r = self.model.register_rv(r_prior, name="r")
+    @property
+    def default_sampler_config(self) -> Dict:
+        return {}
+
+    def build_model(
+        self,
+    ) -> None:
+        with pm.Model(coords=self.coords) as self.model:
+            a = self.model.register_rv(self.a_prior, name="a")
+            b = self.model.register_rv(self.b_prior, name="b")
+
+            alpha = self.model.register_rv(self.alpha_prior, name="alpha")
+            r = self.model.register_rv(self.r_prior, name="r")
 
             def logp(t_x, x, a, b, r, alpha, T):
                 """
@@ -174,8 +205,66 @@ class BetaGeoModel(CLVModel):
 
             pm.Potential(
                 "likelihood",
-                logp(x=frequency, t_x=recency, a=a, b=b, alpha=alpha, r=r, T=T),
+                logp(
+                    x=self.frequency,
+                    t_x=self.recency,
+                    a=a,
+                    b=b,
+                    alpha=alpha,
+                    r=r,
+                    T=self.T,
+                ),
             )
+
+    @classmethod
+    def load(cls, fname: str):
+        """
+        Creates a ModelBuilder instance from a file,
+        Loads inference data for the model.
+
+        Parameters
+        ----------
+        fname : string
+            This denotes the name with path from where idata should be loaded from.
+
+        Returns
+        -------
+        Returns an instance of ModelBuilder.
+
+        Raises
+        ------
+        ValueError
+            If the inference data that is loaded doesn't match with the model.
+        Examples
+        --------
+        >>> class MyModel(ModelBuilder):
+        >>>     ...
+        >>> name = './mymodel.nc'
+        >>> imported_model = MyModel.load(name)
+        """
+        filepath = Path(str(fname))
+        idata = az.from_netcdf(filepath)
+        dataset = idata.fit_data.to_dataframe()
+
+        model = cls(
+            frequency=dataset["frequency"],
+            recency=dataset["recency"],
+            T=dataset["T"],
+            customer_id=dataset["customer_id"],
+            model_config=json.loads(idata.attrs["model_config"]),
+            sampler_config=json.loads(idata.attrs["sampler_config"]),
+        )
+        model.idata = idata
+
+        model.build_model()
+        # All previously used data is in idata.
+
+        if model.id != idata.attrs["id"]:
+            raise ValueError(
+                f"The file '{fname}' does not contain an inference data of the same model or configuration as '{cls._model_type}'"
+            )
+
+        return model
 
     def _process_priors(self, a_prior, b_prior, alpha_prior, r_prior):
         # hyper priors for the Gamma params
@@ -197,11 +286,10 @@ class BetaGeoModel(CLVModel):
             r_prior = pm.HalfFlat.dist()
         else:
             self._check_prior_ndim(r_prior)
-
         return super()._process_priors(a_prior, b_prior, alpha_prior, r_prior)
 
     def _unload_params(self):
-        trace = self.fit_result.posterior
+        trace = self.fit_result
 
         a = trace["a"]
         b = trace["b"]
