@@ -20,7 +20,6 @@ class BaseGammaGammaModel(CLVModel):
         sampler_config: Optional[Dict] = None,
     ):
         super().__init__(model_config, sampler_config)
-        self._model_type = "Gamma-Gamma"
         self.data = data
         self.p_prior = self.create_distribution_from_prior(
             self.model_config["p_prior"]["dist"],
@@ -86,9 +85,9 @@ class BaseGammaGammaModel(CLVModel):
             customer_id, mean_transaction_value, frequency
         )
 
-        p = self.fit_result.posterior["p"]
-        q = self.fit_result.posterior["q"]
-        v = self.fit_result.posterior["v"]
+        p = self.fit_result["p"]
+        q = self.fit_result["q"]
+        v = self.fit_result["v"]
 
         individual_weight = p * frequency / (p * frequency + q - 1)
         population_mean = v * p / (q - 1)
@@ -118,9 +117,9 @@ class BaseGammaGammaModel(CLVModel):
     def expected_new_customer_spend(self) -> xarray.DataArray:
         """Expected transaction value for a new customer"""
 
-        p_mean = self.fit_result.posterior["p"]
-        q_mean = self.fit_result.posterior["q"]
-        v_mean = self.fit_result.posterior["v"]
+        p_mean = self.fit_result["p"]
+        q_mean = self.fit_result["q"]
+        v_mean = self.fit_result["v"]
 
         # Closed form solution to the posterior of nu
         # Eq 3 from [1], p.3

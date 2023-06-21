@@ -170,6 +170,8 @@ class CLVModel(ModelBuilder):
             return pm.HalfCauchy.dist(**kwargs)
         if name == "halfstudentt":
             return pm.HalfStudentT.dist(**kwargs)
+        if name == "normal":
+            return pm.Normal.dist(**kwargs)
         else:
             raise ValueError(f"Prior distribution {name} not supported")
 

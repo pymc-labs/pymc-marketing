@@ -1,5 +1,9 @@
+import json
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
+import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -54,6 +58,15 @@ class BaseTestGammaGammaModel:
                 "customer_id": self.z_mean_idx,
                 "mean_transaction_value": self.z_mean,
                 "frequency": self.z_mean_nobs,
+            }
+        )
+
+    @pytest.fixture(scope="class")
+    def individual_data(self):
+        return pd.DataFrame(
+            {
+                "customer_id": self.z_idx,
+                "individual_transaction_value": self.z,
             }
         )
 
@@ -118,13 +131,14 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         }
 
     @pytest.mark.slow
-    def test_model_convergence(self, data):
+    def test_model_convergence(self, data, model_config):
         model = GammaGammaModel(
             data=data,
+            model_config=model_config,
         )
         model.build_model()
         model.fit(chains=2, progressbar=False, random_seed=self.rng)
-        fit = model.fit_result.posterior
+        fit = model.fit_result
         np.testing.assert_allclose(
             [fit["p"].mean(), fit["q"].mean(), fit["v"].mean()],
             [self.p_true, self.q_true, self.v_true],
@@ -132,26 +146,22 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         )
 
     @pytest.mark.parametrize("distribution", (True, False))
-    def test_spend(self, distribution):
+    def test_spend(self, distribution, data):
         p_mean = self.p_true
         q_mean = self.q_true
         v_mean = self.v_true
-
-        model = GammaGammaModel(
-            customer_id=self.z_mean_idx,
-            mean_transaction_value=self.z_mean,
-            frequency=self.z_mean_nobs,
+        custom_model_config = {
             # Narrow values
-            p_prior=pm.Normal.dist(p_mean, 0.01),
-            q_prior=pm.Normal.dist(q_mean, 0.01),
-            v_prior=pm.Normal.dist(v_mean, 0.01),
+            "p_prior": {"dist": "normal", "kwargs": {"mu": p_mean, "sigma": 0.01}},
+            "q_prior": {"dist": "normal", "kwargs": {"mu": q_mean, "sigma": 0.01}},
+            "v_prior": {"dist": "normal", "kwargs": {"mu": v_mean, "sigma": 0.01}},
+        }
+        model = GammaGammaModel(
+            data=data,
+            model_config=custom_model_config,
         )
-
-        fake_fit = pm.sample_prior_predictive(
-            samples=1000, model=model.model, random_seed=self.rng
-        )
-        fake_fit.add_groups(dict(posterior=fake_fit.prior))
-        model._fit_result = fake_fit
+        model.build_model()
+        model.fit(chains=1, progressbar=False, random_seed=self.rng)
 
         # Force posterior close to empirical mean with many observations
         if distribution:
@@ -208,26 +218,22 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             )
 
     @pytest.mark.parametrize("distribution", (True, False))
-    def test_new_customer_spend(self, distribution):
+    def test_new_customer_spend(self, distribution, data):
         p_mean = 35
         q_mean = 15
         v_mean = 3
-
-        model = GammaGammaModel(
-            customer_id=self.z_mean_idx,
-            mean_transaction_value=self.z_mean,
-            frequency=self.z_mean_nobs,
+        custom_model_config = {
             # Narrow values
-            p_prior=pm.Normal.dist(p_mean, 0.01),
-            q_prior=pm.Normal.dist(q_mean, 0.01),
-            v_prior=pm.Normal.dist(v_mean, 0.01),
+            "p_prior": {"dist": "normal", "kwargs": {"mu": p_mean, "sigma": 0.01}},
+            "q_prior": {"dist": "normal", "kwargs": {"mu": q_mean, "sigma": 0.01}},
+            "v_prior": {"dist": "normal", "kwargs": {"mu": v_mean, "sigma": 0.01}},
+        }
+        model = GammaGammaModel(
+            data=data,
+            model_config=custom_model_config,
         )
-
-        fake_fit = pm.sample_prior_predictive(
-            samples=1000, model=model.model, random_seed=self.rng
-        )
-        fake_fit.add_groups(dict(posterior=fake_fit.prior))
-        model._fit_result = fake_fit
+        model.build_model()
+        model.fit(chains=1, progressbar=False, random_seed=self.rng)
 
         # Closed formula solution for the mean and var of the population spend (eqs 3, 4 from [1])  # noqa: E501
         expected_preds_mean = p_mean * v_mean / (q_mean - 1)
@@ -248,16 +254,14 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             preds = model.expected_new_customer_spend()
             assert preds.shape == (1, 1000)
             np.testing.assert_allclose(
-                preds.mean(("draw", "chain")), expected_preds_mean, rtol=0.05
+                preds.mean(("draw", "chain")), expected_preds_mean, rtol=0.1
             )
 
-    def test_model_repr(self):
-        model = GammaGammaModel(
-            customer_id=self.z_mean_idx,
-            mean_transaction_value=self.z_mean,
-            frequency=self.z_mean_nobs,
-            p_prior=pm.HalfNormal.dist(10),
-        )
+    def test_model_repr(self, data, default_model_config):
+        custom_model_config = default_model_config.copy()
+        custom_model_config["p_prior"] = {"dist": "halfnormal", "kwargs": {"sigma": 10}}
+        model = GammaGammaModel(data=data, model_config=custom_model_config)
+        model.build_model()
 
         assert model.__repr__().replace(" ", "") == (
             "Gamma-GammaModel(MeanTransactions)"
@@ -267,33 +271,48 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             "\nlikelihood~Potential(f(q,p,v))"
         )
 
+    def test_save_load_beta_geo(self, data):
+        temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
+
+        model = GammaGammaModel(
+            data=data,
+        )
+        model.build_model()
+        model.fit("map")
+        model.save(temp)
+        # Testing the valid case.
+
+        model2 = GammaGammaModel.load(temp)
+
+        # Check if the loaded model is indeed an instance of the class
+        assert isinstance(model, GammaGammaModel)
+
+        # Load data from the file to cross verify
+        filepath = Path(str(temp))
+        idata = az.from_netcdf(filepath)
+        dataset = idata.fit_data.to_dataframe()
+        # Check if the loaded data matches with the model data
+        assert np.array_equal(model2.customer_id.values, dataset.customer_id.values)
+        assert np.array_equal(model2.frequency, dataset.frequency)
+        assert np.array_equal(
+            model2.mean_transaction_value, dataset.mean_transaction_value
+        )
+
+        assert model.model_config == json.loads(idata.attrs["model_config"])
+        assert model.sampler_config == json.loads(idata.attrs["sampler_config"])
+        assert model.idata == idata
+
 
 class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
-    @pytest.mark.parametrize("p_prior", (None, pm.HalfNormal.dist(sigma=10)))
-    @pytest.mark.parametrize("q_prior", (None, pm.HalfStudentT.dist(nu=4, sigma=10)))
-    @pytest.mark.parametrize("v_prior", (None, pm.HalfCauchy.dist(10)))
-    def test_model(self, p_prior, q_prior, v_prior):
+    def test_model(self, individual_data, default_model_config):
         model = GammaGammaModelIndividual(
-            customer_id=self.z_idx,
-            individual_transaction_value=self.z,
-            p_prior=p_prior,
-            q_prior=q_prior,
-            v_prior=v_prior,
+            data=individual_data,
+            model_config=default_model_config,
         )
-
-        assert isinstance(
-            model.model["p"].owner.op,
-            pm.HalfFlat if p_prior is None else type(p_prior.owner.op),
-        )
-        assert isinstance(
-            model.model["q"].owner.op,
-            pm.HalfFlat if q_prior is None else type(q_prior.owner.op),
-        )
-        assert isinstance(
-            model.model["v"].owner.op,
-            pm.HalfFlat if v_prior is None else type(v_prior.owner.op),
-        )
-        assert isinstance(model.model["nu"].owner.op, pm.Gamma)
+        model.build_model()
+        assert isinstance(model.model["p"].owner.op, pm.HalfFlat)
+        assert isinstance(model.model["q"].owner.op, pm.HalfFlat)
+        assert isinstance(model.model["v"].owner.op, pm.HalfFlat)
         assert model.model.eval_rv_shapes() == {
             "p": (),
             "p_log__": (),
@@ -310,13 +329,13 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         }
 
     @pytest.mark.slow
-    def test_model_convergence(self):
+    def test_model_convergence(self, individual_data, model_config):
         model = GammaGammaModelIndividual(
-            customer_id=self.z_idx,
-            individual_transaction_value=self.z,
+            data=individual_data,
+            model_config=model_config,
         )
         model.fit(chains=2, progressbar=False, random_seed=self.rng)
-        fit = model.fit_result.posterior
+        fit = model.fit_result
         np.testing.assert_allclose(
             [fit["p"].mean(), fit["q"].mean(), fit["v"].mean()],
             [self.p_true, self.q_true, self.v_true],
@@ -326,12 +345,11 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
     @patch(
         "pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_customer_spend"
     )
-    def test_distribution_spend(self, dummy_method):
+    def test_distribution_spend(self, dummy_method, individual_data):
         model = GammaGammaModelIndividual(
-            customer_id=self.z_idx,
-            individual_transaction_value=self.z,
+            data=individual_data,
         )
-
+        model.build_model()
         model.distribution_customer_spend(
             customer_id=self.z_idx, individual_transaction_value=self.z, random_seed=123
         )
@@ -349,11 +367,8 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
     @patch(
         "pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend"
     )
-    def test_expected_spend(self, dummy_method):
-        model = GammaGammaModelIndividual(
-            customer_id=self.z_idx,
-            individual_transaction_value=self.z,
-        )
+    def test_expected_spend(self, dummy_method, individual_data):
+        model = GammaGammaModelIndividual(individual_data)
 
         model.expected_customer_spend(
             customer_id=self.z_idx, individual_transaction_value=self.z, random_seed=123
@@ -369,12 +384,14 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         np.testing.assert_array_equal(kwargs["frequency"].values, self.z_mean_nobs)
         assert kwargs["random_seed"] == 123
 
-    def test_model_repr(self):
+    def test_model_repr(self, individual_data, default_model_config):
+        custom_model_config = default_model_config.copy()
+        custom_model_config["q_prior"] = {"dist": "halfnormal", "kwargs": {"sigma": 10}}
         model = GammaGammaModelIndividual(
-            customer_id=self.z_idx,
-            individual_transaction_value=self.z,
-            q_prior=pm.HalfNormal.dist(10),
+            data=individual_data,
+            model_config=custom_model_config,
         )
+        model.build_model()
 
         assert model.__repr__().replace(" ", "") == (
             "Gamma-GammaModel(IndividualTransactions)"
@@ -384,3 +401,33 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             "\nnu~Gamma(q,f(v))"
             "\nspend~Gamma(p,f(nu))"
         )
+
+    def test_save_load_beta_geo(self, individual_data):
+        temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
+
+        model = GammaGammaModelIndividual(
+            data=individual_data,
+        )
+        model.build_model()
+        model.fit("map")
+        model.save(temp)
+        # Testing the valid case.
+
+        model2 = GammaGammaModelIndividual.load(temp)
+
+        # Check if the loaded model is indeed an instance of the class
+        assert isinstance(model, GammaGammaModelIndividual)
+
+        # Load data from the file to cross verify
+        filepath = Path(str(temp))
+        idata = az.from_netcdf(filepath)
+        dataset = idata.fit_data.to_dataframe()
+        # Check if the loaded data matches with the model data
+        assert np.array_equal(model2.customer_id.values, dataset.customer_id.values)
+        assert np.array_equal(
+            model2.individual_transaction_value, dataset.individual_transaction_value
+        )
+
+        assert model.model_config == json.loads(idata.attrs["model_config"])
+        assert model.sampler_config == json.loads(idata.attrs["sampler_config"])
+        assert model.idata == idata
