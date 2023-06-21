@@ -35,31 +35,16 @@ class BetaGeoModel(CLVModel):
 
     Parameters
     ----------
-    customer_id: array_like
-        Customer labels. Must not repeat.
-    frequency: array_like
-        The number of purchases of customers.
-    recency: array_like
-        The time of the last, i.e. xth, purchase.
-    T: array_like
-        The time of a customer's period under which they are under observation. By
-        construction of the model, T > t_x.
+    data: pd.DataFrame
+        DataFrame containing the following columns:
+            * `frequency`: number of repeat purchases (with possible values 0, 1, 2, ...)
+            * `recency`: time between the first and the last purchase (with possible values 0, 1, 2, ...)
+            * `T`: time between the first purchase and the end of the observation period (with possible values 0, 1, 2, ...)
+            * `customer_id`: unique customer identifier
     model_config: dict, optional
-        Dictionary of model prior parameters. Defaults to None.
+        Dictionary of model prior parameters.
     sampler_config: dict, optional
         Dictionary of sampler parameters. Defaults to None.
-    a_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    b_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    alpha_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    r: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
 
     Examples
     --------
@@ -112,34 +97,48 @@ class BetaGeoModel(CLVModel):
 
     def __init__(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        frequency: Union[np.ndarray, pd.Series, TensorVariable],
-        recency: Union[np.ndarray, pd.Series, TensorVariable],
-        T: Union[np.ndarray, pd.Series, TensorVariable],
+        data: pd.DataFrame,
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
     ):
-
-        self.customer_id = customer_id
-        self.frequency = frequency
-        self.recency = recency
-        self.T = T
+        try:
+            self.customer_id = data["customer_id"]
+        except KeyError:
+            raise KeyError("customer_id column is missing from data")
+        try:
+            self.frequency = data["frequency"]
+        except KeyError:
+            raise KeyError("frequency column is missing from data")
+        try:
+            self.recency = data["recency"]
+        except KeyError:
+            raise KeyError("recency column is missing from data")
+        try:
+            self.T = data["T"]
+        except KeyError:
+            raise KeyError("T column is missing from data")
         super().__init__(
             model_config=model_config,
             sampler_config=sampler_config,
         )
-
-        (
-            self.a_prior,
-            self.b_prior,
-            self.alpha_prior,
-            self.r_prior,
-        ) = self._process_priors(
-            self.model_config["a_prior"],
-            self.model_config["b_prior"],
-            self.model_config["alpha_prior"],
-            self.model_config["r_prior"],
+        self.data = data
+        self.a_prior = self.create_distribution_from_prior(
+            self.model_config["a_prior"]["dist"],
+            **self.model_config["a_prior"]["kwargs"],
         )
+        self.b_prior = self.create_distribution_from_prior(
+            self.model_config["b_prior"]["dist"],
+            **self.model_config["b_prior"]["kwargs"],
+        )
+        self.alpha_prior = self.create_distribution_from_prior(
+            self.model_config["alpha_prior"]["dist"],
+            **self.model_config["alpha_prior"]["kwargs"],
+        )
+        self.r_prior = self.create_distribution_from_prior(
+            self.model_config["r_prior"]["dist"],
+            **self.model_config["r_prior"]["kwargs"],
+        )
+        self._process_priors(self.a_prior, self.b_prior, self.alpha_prior, self.r_prior)
         # each customer's information should be encapsulated by a single data entry
         if len(np.unique(self.customer_id)) != len(self.customer_id):
             raise ValueError(
@@ -149,17 +148,21 @@ class BetaGeoModel(CLVModel):
         self.coords = {"customer_id": self.customer_id}
 
     @property
-    def default_model_config(self) -> Dict[str, None]:
+    def default_model_config(self) -> Dict[str, Dict]:
         return {
-            "a_prior": None,
-            "b_prior": None,
-            "alpha_prior": None,
-            "r_prior": None,
+            "a_prior": {"dist": "halfflat", "kwargs": {}},
+            "b_prior": {"dist": "halfflat", "kwargs": {}},
+            "alpha_prior": {"dist": "halfflat", "kwargs": {}},
+            "r_prior": {"dist": "halfflat", "kwargs": {}},
         }
 
     @property
     def default_sampler_config(self) -> Dict:
         return {}
+
+    @property
+    def _serializable_model_config(self) -> Dict:
+        return self.model_config
 
     def build_model(
         self,
@@ -247,10 +250,7 @@ class BetaGeoModel(CLVModel):
         dataset = idata.fit_data.to_dataframe()
 
         model = cls(
-            frequency=dataset["frequency"],
-            recency=dataset["recency"],
-            T=dataset["T"],
-            customer_id=dataset["customer_id"],
+            dataset,
             model_config=json.loads(idata.attrs["model_config"]),
             sampler_config=json.loads(idata.attrs["sampler_config"]),
         )
@@ -266,31 +266,8 @@ class BetaGeoModel(CLVModel):
 
         return model
 
-    def _process_priors(self, a_prior, b_prior, alpha_prior, r_prior):
-        # hyper priors for the Gamma params
-        if a_prior is None:
-            a_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(a_prior)
-        if b_prior is None:
-            b_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(b_prior)
-
-        # hyper priors for the Beta params
-        if alpha_prior is None:
-            alpha_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(alpha_prior)
-        if r_prior is None:
-            r_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(r_prior)
-        return super()._process_priors(a_prior, b_prior, alpha_prior, r_prior)
-
     def _unload_params(self):
-        trace = self.fit_result
-
+        trace = self.fit_result.posterior
         a = trace["a"]
         b = trace["b"]
         alpha = trace["alpha"]

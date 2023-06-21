@@ -3,7 +3,6 @@ import warnings
 from typing import Dict, Optional, Tuple
 
 import arviz as az
-import pandas as pd
 import pymc as pm
 from pymc import str_for_dist
 from pymc.backends import NDArray
@@ -53,16 +52,7 @@ class CLVModel(ModelBuilder):
             raise ValueError(
                 f"Fit method options are ['mcmc', 'map'], got: {fit_method}"
             )
-        combined_data = pd.DataFrame(
-            {
-                "customer_id": self.customer_id,
-                "frequency": self.frequency,
-                "recency": self.recency,
-                "T": self.T,
-            }
-        )
-        assert all(combined_data.columns), "All columns must have non-empty names"
-        self.idata.add_groups(fit_data=combined_data.to_xarray())  # type: ignore
+        self.idata.add_groups(fit_data=self.data.to_xarray())  # type: ignore
 
         return self.idata
 
@@ -120,14 +110,33 @@ class CLVModel(ModelBuilder):
                 f"Prior variable {prior} must be have {ndim} ndims, but it has {prior.ndim} ndims."
             )
 
+    def create_distribution_from_prior(self, name: str, **kwargs) -> TensorVariable:
+        if name == "gamma":
+            return pm.Gamma.dist(**kwargs)
+        if name == "halfflat":
+            return pm.HalfFlat.dist(**kwargs)
+        if name == "flat":
+            return pm.Flat.dist(**kwargs)
+        if name == "normal":
+            return pm.Normal.dist(**kwargs)
+        if name == "halfnormal":
+            return pm.HalfNormal.dist(**kwargs)
+        if name == "halfcauchy":
+            return pm.HalfCauchy.dist(**kwargs)
+        if name == "halfstudentt":
+            return pm.HalfStudentT.dist(**kwargs)
+
     @staticmethod
-    def _process_priors(*priors: TensorVariable) -> Tuple[TensorVariable, ...]:
+    def _process_priors(
+        *priors: TensorVariable, check_ndim: bool = True
+    ) -> Tuple[TensorVariable, ...]:
         """Check that each prior variable is unique and attach `str_repr` method."""
         if len(priors) != len(set(priors)):
             raise ValueError("Prior variables must be unique")
-
         # Related to https://github.com/pymc-devs/pymc/issues/6311
         for prior in priors:
+            if check_ndim:
+                CLVModel._check_prior_ndim(prior)
             prior.str_repr = types.MethodType(str_for_dist, prior)  # type: ignore
         return priors
 
@@ -144,9 +153,11 @@ class CLVModel(ModelBuilder):
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         return self.idata["posterior"]
 
-    @property
-    def _serializable_model_config(self):
-        return self.default_model_config
+    @fit_result.setter
+    def fit_result(self, res: Dataset):
+        if self.idata is not None and "posterior" in self.idata:
+            warnings.warn("Overriding pre-existing fit_result")
+        self.idata.posterior = res
 
     # if we include fit_result then this should be added for consistancy
     @property

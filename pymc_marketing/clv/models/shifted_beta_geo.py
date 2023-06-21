@@ -1,10 +1,9 @@
-from typing import Optional, Sequence, Union
+from typing import Dict, Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
 import pymc as pm
 from pymc.util import RandomState
-from pytensor.tensor import TensorVariable
 from xarray import DataArray, Dataset
 
 from pymc_marketing.clv.models import CLVModel
@@ -81,29 +80,59 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
 
     def __init__(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        t_churn: Union[np.ndarray, pd.Series],
-        T: Union[np.ndarray, pd.Series],
-        alpha_prior: Optional[TensorVariable] = None,
-        beta_prior: Optional[TensorVariable] = None,
+        data: pd.DataFrame,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
     ):
-        super().__init__()
+        try:
+            self.customer_id = data["customer_id"]
+        except KeyError:
+            raise KeyError("data must contain a 'customer_id' column")
+        try:
+            self.t_churn: np.ndarray = np.asarray(data["t_churn"])
+        except KeyError:
+            raise KeyError("data must contain a 't_churn' column")
+        try:
+            self.T: np.ndarray = np.asarray(data["T"])
+        except KeyError:
+            raise KeyError("data must contain a 'T' column")
 
-        t_churn = np.asarray(t_churn)
-        T = np.asarray(T)
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
+        self.data = data
+        self.alpha_prior = self.create_distribution_from_prior(
+            self.model_config["alpha_prior"]["dist"],
+            **self.model_config["alpha_prior"]["kwargs"]
+        )
+        self.beta_prior = self.create_distribution_from_prior(
+            self.model_config["beta_prior"]["dist"],
+            **self.model_config["beta_prior"]["kwargs"]
+        )
+        self._process_priors(self.alpha_prior, self.beta_prior)
 
-        if np.any((t_churn < 0) | (t_churn > T) | np.isnan(t_churn)):
+        if np.any(
+            (self.t_churn < 0) | (self.t_churn > self.T) | np.isnan(self.t_churn)
+        ):
             raise ValueError(
                 "t_churn must respect 0 < t_churn <= T.\n",
                 "Customers that are still alive should have t_churn = T",
             )
+        self.coords = {"customer_id": np.asarray(self.customer_id)}
 
-        alpha_prior, beta_prior = self._process_priors(alpha_prior, beta_prior)
+    def default_model_config(self) -> Dict:
+        return {
+            "alpha_prior": {"dist": "halfflat", "kwargs": {}},
+            "beta_prior": {"dist": "halfflat", "kwargs": {}},
+        }
 
-        coords = {"customer_id": np.asarray(customer_id)}
-        with pm.Model(coords=coords) as self.model:
-            alpha = self.model.register_rv(alpha_prior, name="alpha")
-            beta = self.model.register_rv(beta_prior, name="beta")
+    def default_sampler_config(self) -> Dict:
+        return {}
+
+    def build_model(
+        self,
+    ) -> None:
+        with pm.Model(coords=self.coords) as self.model:
+            alpha = self.model.register_rv(self.alpha_prior, name="alpha")
+            beta = self.model.register_rv(self.beta_prior, name="beta")
 
             theta = pm.Beta("theta", alpha, beta, dims=("customer_id",))
 
@@ -113,22 +142,10 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
                 "churn_censored",
                 churn_raw,
                 lower=None,
-                upper=T,
-                observed=t_churn,
+                upper=self.T,
+                observed=self.t_churn,
                 dims=("customer_id",),
             )
-
-    def _process_priors(self, alpha_prior, beta_prior):
-        if alpha_prior is None:
-            alpha_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(alpha_prior)
-        if beta_prior is None:
-            beta_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(beta_prior)
-
-        return super()._process_priors(alpha_prior, beta_prior)
 
     def distribution_customer_churn_time(
         self, customer_id: Union[np.ndarray, pd.Series], random_seed: RandomState = None
