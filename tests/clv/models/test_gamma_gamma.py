@@ -47,33 +47,43 @@ class BaseTestGammaGammaModel:
         cls.z_mean_idx = list(range(N))
         cls.z_mean_nobs = x
 
+    @pytest.fixture(scope="class")
+    def data(self):
+        return pd.DataFrame(
+            {
+                "customer_id": self.z_mean_idx,
+                "mean_transaction_value": self.z_mean,
+                "frequency": self.z_mean_nobs,
+            }
+        )
+
+    @pytest.fixture(scope="class")
+    def default_model_config(self):
+        return {
+            "p_prior": {"dist": "halfflat", "kwargs": {}},
+            "q_prior": {"dist": "halfflat", "kwargs": {}},
+            "v_prior": {"dist": "halfflat", "kwargs": {}},
+        }
+
+    @pytest.fixture(scope="class")
+    def model_config(self):
+        return {
+            "p_prior": {"dist": "halfnormal", "kwargs": {}},
+            "q_prior": {"dist": "halfstudentt", "kwargs": {"nu": 4}},
+            "v_prior": {"dist": "halfcauchy", "kwargs": {"beta": 2}},
+        }
+
 
 class TestGammaGammaModel(BaseTestGammaGammaModel):
-    @pytest.mark.parametrize("p_prior", (None, pm.HalfNormal.dist()))
-    @pytest.mark.parametrize("q_prior", (None, pm.HalfStudentT.dist(nu=4)))
-    @pytest.mark.parametrize("v_prior", (None, pm.HalfCauchy.dist(2)))
-    def test_model(self, p_prior, q_prior, v_prior):
+    def test_model(self, data, model_config, default_model_config):
         model = GammaGammaModel(
-            customer_id=self.z_mean_idx,
-            mean_transaction_value=self.z_mean,
-            frequency=self.z_mean_nobs,
-            p_prior=p_prior,
-            q_prior=q_prior,
-            v_prior=v_prior,
+            data=data,
+            model_config=default_model_config,
         )
-
-        assert isinstance(
-            model.model["p"].owner.op,
-            pm.HalfFlat if p_prior is None else type(p_prior.owner.op),
-        )
-        assert isinstance(
-            model.model["q"].owner.op,
-            pm.HalfFlat if q_prior is None else type(q_prior.owner.op),
-        )
-        assert isinstance(
-            model.model["v"].owner.op,
-            pm.HalfFlat if v_prior is None else type(v_prior.owner.op),
-        )
+        model.build_model()
+        assert isinstance(model.model["p"].owner.op, pm.HalfFlat)
+        assert isinstance(model.model["q"].owner.op, pm.HalfFlat)
+        assert isinstance(model.model["v"].owner.op, pm.HalfFlat)
         assert model.model.eval_rv_shapes() == {
             "p": (),
             "p_log__": (),
@@ -86,14 +96,33 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         assert model.model.coords == {
             "customer_id": tuple(range(self.N)),
         }
+        model2 = GammaGammaModel(
+            data=data,
+            model_config=model_config,
+        )
+        model2.build_model()
+        assert isinstance(model2.model["p"].owner.op, pm.HalfNormal)
+        assert isinstance(model2.model["q"].owner.op, pm.HalfStudentT)
+        assert isinstance(model2.model["v"].owner.op, pm.HalfCauchy)
+        assert model2.model.eval_rv_shapes() == {
+            "p": (),
+            "p_log__": (),
+            "q": (),
+            "q_log__": (),
+            "v": (),
+            "v_log__": (),
+        }
+        assert len(model2.model.potentials) == 1
+        assert model2.model.coords == {
+            "customer_id": tuple(range(self.N)),
+        }
 
     @pytest.mark.slow
-    def test_model_convergence(self):
+    def test_model_convergence(self, data):
         model = GammaGammaModel(
-            customer_id=self.z_mean_idx,
-            mean_transaction_value=self.z_mean,
-            frequency=self.z_mean_nobs,
+            data=data,
         )
+        model.build_model()
         model.fit(chains=2, progressbar=False, random_seed=self.rng)
         fit = model.fit_result.posterior
         np.testing.assert_allclose(

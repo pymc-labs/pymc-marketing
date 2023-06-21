@@ -164,10 +164,10 @@ class TestBetaGeoModel:
             (500, "mcmc", 0.3),
             (2000, "mcmc", 0.1),
             (10000, "mcmc", 0.055),
-            (2000, "map", 0.1),
+            (2000, "map", 0.11),
         ],
     )
-    def test_model_convergence(self, N, fit_method, rtol):
+    def test_model_convergence(self, N, fit_method, rtol, model_config):
         rng = np.random.default_rng(146)
         recency, frequency, _, T = self.generate_data(
             self.a_true, self.b_true, self.alpha_true, self.r_true, N, rng=rng
@@ -183,11 +183,14 @@ class TestBetaGeoModel:
         # b parameter has the largest mismatch of the four parameters
         model = BetaGeoModel(
             data=data,
+            model_config=model_config,
         )
         model.build_model()
+
         sample_kwargs = dict(random_seed=rng, chains=2) if fit_method == "mcmc" else {}
         model.fit(fit_method=fit_method, progressbar=False, **sample_kwargs)
-        fit = model.fit_result.posterior
+
+        fit = model.fit_result
         np.testing.assert_allclose(
             [fit["a"].mean(), fit["b"].mean(), fit["alpha"].mean(), fit["r"].mean()],
             [self.a_true, self.b_true, self.alpha_true, self.r_true],

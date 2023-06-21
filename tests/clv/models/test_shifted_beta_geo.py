@@ -147,13 +147,14 @@ class TestShiftedBetaGeoModel:
             )
 
     @pytest.mark.slow
-    def test_model_convergence(self, data):
+    def test_model_convergence(self, data, model_config):
         model = ShiftedBetaGeoModelIndividual(
             data=data,
+            model_config=model_config,
         )
         model.build_model()
         model.fit(chains=2, progressbar=False, random_seed=100)
-        fit = model.fit_result.posterior
+        fit = model.fit_result
         np.testing.assert_allclose(
             [fit["alpha"].mean(), fit["beta"].mean()],
             [self.ref_MLE_estimates["alpha"], self.ref_MLE_estimates["beta"]],

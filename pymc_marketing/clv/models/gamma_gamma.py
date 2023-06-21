@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Dict, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -13,21 +13,32 @@ from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
 
 
 class BaseGammaGammaModel(CLVModel):
-    def _process_priors(self, p_prior, q_prior, v_prior):
-        if p_prior is None:
-            p_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(p_prior)
-        if q_prior is None:
-            q_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(q_prior)
-        if v_prior is None:
-            v_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(v_prior)
+    def __init__(
+        self,
+        data: pd.DataFrame,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
+    ):
+        super().__init__(model_config, sampler_config)
+        self._model_type = "Gamma-Gamma"
+        self.data = data
+        self.p_prior = self.create_distribution_from_prior(
+            self.model_config["p_prior"]["dist"],
+            **self.model_config["p_prior"]["kwargs"],
+        )
+        self.q_prior = self.create_distribution_from_prior(
+            self.model_config["q_prior"]["dist"],
+            **self.model_config["q_prior"]["kwargs"],
+        )
+        self.v_prior = self.create_distribution_from_prior(
+            self.model_config["v_prior"]["dist"],
+            **self.model_config["v_prior"]["kwargs"],
+        )
+        self._process_priors(self.p_prior, self.q_prior, self.v_prior)
 
-        return super()._process_priors(p_prior, q_prior, v_prior)
+    @property
+    def _serializable_model_config(self) -> Dict:
+        return self.model_config
 
     def distribution_customer_spend(
         self,
@@ -234,26 +245,51 @@ class GammaGammaModel(BaseGammaGammaModel):
 
     def __init__(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        mean_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
-        frequency: Union[np.ndarray, pd.Series, TensorVariable],
-        p_prior: Optional[TensorVariable] = None,
-        q_prior: Optional[TensorVariable] = None,
-        v_prior: Optional[TensorVariable] = None,
+        data: pd.DataFrame,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
     ):
-        super().__init__()
+        try:
+            self.customer_id: Union[np.ndarray, pd.Series] = data["customer_id"]
+        except KeyError:
+            raise ValueError("data must contain a customer_id column")
+        try:
+            self.mean_transaction_value: Union[
+                np.ndarray, pd.Series, TensorVariable
+            ] = data["mean_transaction_value"]
+        except KeyError:
+            raise ValueError("data must contain a mean_transaction_value column")
+        try:
+            self.frequency: Union[np.ndarray, pd.Series, TensorVariable] = data[
+                "frequency"
+            ]
+        except KeyError:
+            raise ValueError("data must contain a frequency column")
+        super().__init__(
+            data=data, model_config=model_config, sampler_config=sampler_config
+        )
 
-        p_prior, q_prior, v_prior = self._process_priors(p_prior, q_prior, v_prior)
+        self.coords = {"customer_id": np.unique(self.customer_id)}
 
-        z_mean = pt.as_tensor_variable(mean_transaction_value)
-        x = pt.as_tensor_variable(frequency)
+    @property
+    def default_model_config(self) -> Dict:
+        return {
+            "p_prior": {"dist": "halfflat", "kwargs": {}},
+            "q_prior": {"dist": "halfflat", "kwargs": {}},
+            "v_prior": {"dist": "halfflat", "kwargs": {}},
+        }
 
-        coords = {"customer_id": np.unique(customer_id)}
-        with pm.Model(coords=coords) as self.model:
-            p = self.model.register_rv(p_prior, name="p")
-            q = self.model.register_rv(q_prior, name="q")
-            v = self.model.register_rv(v_prior, name="v")
+    @property
+    def default_sampler_config(self) -> Dict:
+        return {}
 
+    def build_model(self):
+        z_mean = pt.as_tensor_variable(self.mean_transaction_value)
+        x = pt.as_tensor_variable(self.frequency)
+        with pm.Model(coords=self.coords) as self.model:
+            p = self.model.register_rv(self.p_prior, name="p")
+            q = self.model.register_rv(self.q_prior, name="q")
+            v = self.model.register_rv(self.v_prior, name="v")
             # Likelihood for mean_spend, marginalizing over nu
             # Eq 1a from [1], p.2
             pm.Potential(
@@ -346,28 +382,52 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
     def __init__(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
-        p_prior: Optional[TensorVariable] = None,
-        q_prior: Optional[TensorVariable] = None,
-        v_prior: Optional[TensorVariable] = None,
+        data: pd.DataFrame,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
     ):
-        super().__init__()
+        try:
+            self.customer_id: Union[np.ndarray, pd.Series] = data["customer_id"]
+        except KeyError:
+            raise ValueError("data must contain a 'customer_id' column")
+        try:
+            self.individual_transaction_value: Union[
+                np.ndarray, pd.Series, TensorVariable
+            ] = data["individual_transaction_value"]
+        except KeyError:
+            raise ValueError(
+                "data must contain a 'individual_transaction_value' column"
+            )
+        super().__init__(
+            data=data, model_config=model_config, sampler_config=sampler_config
+        )
 
-        p_prior, q_prior, v_prior = self._process_priors(p_prior, q_prior, v_prior)
-        z = individual_transaction_value
-
-        coords = {
-            "customer_id": np.unique(customer_id),
-            "obs": range(len(customer_id)),
+    @property
+    def default_model_config(self) -> Dict:
+        return {
+            "p_prior": {"dist": "halfflat", "kwargs": {}},
+            "q_prior": {"dist": "halfflat", "kwargs": {}},
+            "v_prior": {"dist": "halfflat", "kwargs": {}},
         }
-        with pm.Model(coords=coords) as self.model:
-            p = self.model.register_rv(p_prior, name="p")
-            q = self.model.register_rv(q_prior, name="q")
-            v = self.model.register_rv(v_prior, name="v")
+
+    @property
+    def default_sampler_config(self) -> Dict:
+        return {}
+
+    def build_model(self):
+        z = self.individual_transaction_value
+
+        self.coords = {
+            "customer_id": np.unique(self.customer_id),
+            "obs": range(len(self.customer_id)),
+        }
+        with pm.Model(coords=self.coords) as self.model:
+            p = self.model.register_rv(self.p_prior, name="p")
+            q = self.model.register_rv(self.q_prior, name="q")
+            v = self.model.register_rv(self.v_prior, name="v")
 
             nu = pm.Gamma("nu", q, v, dims=("customer_id",))
-            pm.Gamma("spend", p, nu[customer_id], observed=z, dims=("obs",))
+            pm.Gamma("spend", p, nu[self.customer_id], observed=z, dims=("obs",))
 
     def _summarize_mean_data(self, customer_id, individual_transaction_value):
         df = pd.DataFrame(
