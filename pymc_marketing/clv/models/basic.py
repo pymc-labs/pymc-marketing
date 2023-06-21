@@ -1,5 +1,7 @@
+import json
 import types
 import warnings
+from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 import arviz as az
@@ -101,7 +103,50 @@ class CLVModel(ModelBuilder):
 
     @classmethod
     def load(cls, fname: str):
-        raise NotImplementedError("load method is not implemented for CLVModel")
+        """
+        Creates a ModelBuilder instance from a file,
+        Loads inference data for the model.
+
+        Parameters
+        ----------
+        fname : string
+            This denotes the name with path from where idata should be loaded from.
+
+        Returns
+        -------
+        Returns an instance of ModelBuilder.
+
+        Raises
+        ------
+        ValueError
+            If the inference data that is loaded doesn't match with the model.
+        Examples
+        --------
+        >>> class MyModel(ModelBuilder):
+        >>>     ...
+        >>> name = './mymodel.nc'
+        >>> imported_model = MyModel.load(name)
+        """
+        filepath = Path(str(fname))
+        idata = az.from_netcdf(filepath)
+        dataset = idata.fit_data.to_dataframe()
+
+        model = cls(
+            dataset,
+            model_config=json.loads(idata.attrs["model_config"]),  # type: ignore
+            sampler_config=json.loads(idata.attrs["sampler_config"]),
+        )
+        model.idata = idata
+
+        model.build_model()
+        # All previously used data is in idata.
+
+        if model.id != idata.attrs["id"]:
+            raise ValueError(
+                f"The file '{fname}' does not contain an inference data of the same model or configuration as '{cls._model_type}'"
+            )
+
+        return model
 
     @staticmethod
     def _check_prior_ndim(prior, ndim=0):
@@ -125,6 +170,8 @@ class CLVModel(ModelBuilder):
             return pm.HalfCauchy.dist(**kwargs)
         if name == "halfstudentt":
             return pm.HalfStudentT.dist(**kwargs)
+        else:
+            raise ValueError(f"Prior distribution {name} not supported")
 
     @staticmethod
     def _process_priors(

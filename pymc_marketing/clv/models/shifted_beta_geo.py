@@ -96,7 +96,6 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             self.T: np.ndarray = np.asarray(data["T"])
         except KeyError:
             raise KeyError("data must contain a 'T' column")
-
         super().__init__(model_config=model_config, sampler_config=sampler_config)
         self.data = data
         self.alpha_prior = self.create_distribution_from_prior(
@@ -118,12 +117,18 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             )
         self.coords = {"customer_id": np.asarray(self.customer_id)}
 
+    @property
     def default_model_config(self) -> Dict:
         return {
             "alpha_prior": {"dist": "halfflat", "kwargs": {}},
             "beta_prior": {"dist": "halfflat", "kwargs": {}},
         }
 
+    @property
+    def _serializable_model_config(self) -> Dict:
+        return self.model_config
+
+    @property
     def default_sampler_config(self) -> Dict:
         return {}
 
@@ -137,12 +142,11 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             theta = pm.Beta("theta", alpha, beta, dims=("customer_id",))
 
             churn_raw = pm.Geometric.dist(theta)
-
             pm.Censored(
                 "churn_censored",
                 churn_raw,
                 lower=None,
-                upper=self.T,
+                upper=self.T[0],
                 observed=self.t_churn,
                 dims=("customer_id",),
             )
