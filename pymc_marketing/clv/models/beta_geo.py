@@ -217,7 +217,10 @@ class BetaGeoModel(CLVModel):
             )
 
     def _unload_params(self):
-        trace = self.fit_result.posterior
+        try:
+            trace = self.fit_result.posterior
+        except AttributeError:
+            trace = self.fit_result
         a = trace["a"]
         b = trace["b"]
         alpha = trace["alpha"]

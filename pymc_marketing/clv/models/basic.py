@@ -172,6 +172,8 @@ class CLVModel(ModelBuilder):
             return pm.HalfStudentT.dist(**kwargs)
         if name == "normal":
             return pm.Normal.dist(**kwargs)
+        if name == "diracdelta":
+            return pm.DiracDelta.dist(**kwargs)
         else:
             raise ValueError(f"Prior distribution {name} not supported")
 

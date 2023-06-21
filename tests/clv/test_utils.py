@@ -50,24 +50,32 @@ def test_summary_data() -> pd.DataFrame:
 @pytest.fixture(scope="module")
 def fitted_bg(test_summary_data) -> BetaGeoModel:
     rng = np.random.default_rng(13)
-
-    model = BetaGeoModel(
-        customer_id=test_summary_data.index,
-        frequency=test_summary_data["frequency"],
-        recency=test_summary_data["recency"],
-        T=test_summary_data["T"],
-        # Narrow Gaussian centered at MLE params from lifetimes BetaGeoFitter
-        a_prior=pm.DiracDelta.dist(1.85034151),
-        alpha_prior=pm.DiracDelta.dist(1.86428187),
-        b_prior=pm.DiracDelta.dist(3.18105431),
-        r_prior=pm.DiracDelta.dist(0.16385072),
+    data = pd.DataFrame(
+        {
+            "customer_id": test_summary_data.index,
+            "frequency": test_summary_data["frequency"],
+            "recency": test_summary_data["recency"],
+            "T": test_summary_data["T"],
+        }
     )
-
+    model_config = {
+        # Narrow Gaussian centered at MLE params from lifetimes BetaGeoFitter
+        "a_prior": {"dist": "diracdelta", "kwargs": {"c": 1.86428187}},
+        "alpha_prior": {"dist": "diracdelta", "kwargs": {"c": 1.86428187}},
+        "b_prior": {"dist": "diracdelta", "kwargs": {"c": 3.18105431}},
+        "r_prior": {"dist": "diracdelta", "kwargs": {"c": 0.16385072}},
+    }
+    model = BetaGeoModel(
+        data=data,
+        model_config=model_config,
+    )
+    model.build_model()
+    model.fit()
     fake_fit = pm.sample_prior_predictive(
         samples=50, model=model.model, random_seed=rng
     )
     fake_fit.add_groups(dict(posterior=fake_fit.prior))
-    model._fit_result = fake_fit
+    model.fit_result = fake_fit
 
     return model
 
@@ -75,24 +83,31 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
 @pytest.fixture(scope="module")
 def fitted_gg(test_summary_data) -> GammaGammaModel:
     rng = np.random.default_rng(40)
-
     pd.Series({"p": 6.25, "q": 3.74, "v": 15.44})
-
-    model = GammaGammaModel(
-        customer_id=test_summary_data.index,
-        mean_transaction_value=test_summary_data["monetary_value"],
-        frequency=test_summary_data["frequency"],
-        # Params used in lifetimes test
-        p_prior=pm.DiracDelta.dist(6.25),
-        q_prior=pm.DiracDelta.dist(3.74),
-        v_prior=pm.DiracDelta.dist(15.44),
+    data = pd.DataFrame(
+        {
+            "customer_id": test_summary_data.index,
+            "mean_transaction_value": test_summary_data["monetary_value"],
+            "frequency": test_summary_data["frequency"],
+        }
     )
-
+    model_config = {
+        # Params used in lifetimes test
+        "p_prior": {"dist": "diracdelta", "kwargs": {"c": 6.25}},
+        "q_prior": {"dist": "diracdelta", "kwargs": {"c": 3.74}},
+        "v_prior": {"dist": "diracdelta", "kwargs": {"c": 15.44}},
+    }
+    model = GammaGammaModel(
+        data=data,
+        model_config=model_config,
+    )
+    model.build_model()
+    model.fit()
     fake_fit = pm.sample_prior_predictive(
         samples=50, model=model.model, random_seed=rng
     )
     fake_fit.add_groups(dict(posterior=fake_fit.prior))
-    model._fit_result = fake_fit
+    model.fit_result = fake_fit
 
     return model
 
