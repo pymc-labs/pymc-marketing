@@ -67,6 +67,27 @@ class TestShiftedBetaGeoModel:
             }
         )
 
+    def test_missing_customer_id(self, data):
+        # Create a version of the data that's missing the 'customer_id' column
+        data_invalid = data.drop(columns="customer_id")
+
+        with pytest.raises(KeyError, match="data must contain a 'customer_id' column"):
+            ShiftedBetaGeoModelIndividual(data=data_invalid)
+
+    def test_missing_t_churn(self, data):
+        # Create a version of the data that's missing the 'frequency' column
+        data_invalid = data.drop(columns="t_churn")
+
+        with pytest.raises(KeyError, match="data must contain a 't_churn' column"):
+            ShiftedBetaGeoModelIndividual(data=data_invalid)
+
+    def test_missing_T(self, data):
+        # Create a version of the data that's missing the 'recency' column
+        data_invalid = data.drop(columns="T")
+
+        with pytest.raises(KeyError, match="data must contain a 'T' column"):
+            ShiftedBetaGeoModelIndividual(data=data_invalid)
+
     def test_model_repr(self, default_model_config):
         custom_model_config = default_model_config.copy()
         custom_model_config["alpha_prior"] = {
