@@ -463,10 +463,12 @@ class TestBetaGeoModel:
         idata = az.from_netcdf(filepath)
         dataset = idata.fit_data.to_dataframe()
         # Check if the loaded data matches with the model data
-        assert np.array_equal(model2.customer_id.values, dataset.customer_id.values)
-        assert np.array_equal(model2.frequency.values, dataset.frequency.values)
-        assert np.array_equal(model2.T.values, dataset["T"])
-        assert np.array_equal(model2.recency.values, dataset.recency.values)
+        np.testing.assert_array_equal(
+            model2.customer_id.values, dataset.customer_id.values
+        )
+        np.testing.assert_array_equal(model2.frequency.values, dataset.frequency.values)
+        np.testing.assert_array_equal(model2.T.values, dataset["T"])
+        np.testing.assert_array_equal(model2.recency.values, dataset.recency.values)
         assert model.model_config == json.loads(idata.attrs["model_config"])
         assert model.sampler_config == json.loads(idata.attrs["sampler_config"])
         assert model.idata == idata

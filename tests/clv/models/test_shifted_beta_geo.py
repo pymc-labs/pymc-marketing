@@ -269,9 +269,11 @@ class TestShiftedBetaGeoModel:
         idata = az.from_netcdf(filepath)
         dataset = idata.fit_data.to_dataframe()
         # Check if the loaded data matches with the model data
-        assert np.array_equal(model2.customer_id.values, dataset.customer_id.values)
-        assert np.array_equal(model2.t_churn, dataset.t_churn)
-        assert np.array_equal(model2.T, dataset["T"])
+        np.testing.assert_array_equal(
+            model2.customer_id.values, dataset.customer_id.values
+        )
+        np.testing.assert_array_equal(model2.t_churn, dataset.t_churn)
+        np.testing.assert_array_equal(model2.T, dataset["T"])
         assert model.model_config == json.loads(idata.attrs["model_config"])
         assert model.sampler_config == json.loads(idata.attrs["sampler_config"])
         assert model.idata == idata

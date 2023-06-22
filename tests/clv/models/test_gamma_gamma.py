@@ -475,8 +475,10 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         idata = az.from_netcdf(filepath)
         dataset = idata.fit_data.to_dataframe()
         # Check if the loaded data matches with the model data
-        assert np.array_equal(model2.customer_id.values, dataset.customer_id.values)
-        assert np.array_equal(
+        np.testing.assert_array_equal(
+            model2.customer_id.values, dataset.customer_id.values
+        )
+        np.testing.assert_array_equal(
             model2.individual_transaction_value, dataset.individual_transaction_value
         )
 
