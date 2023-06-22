@@ -116,6 +116,34 @@ class TestBetaGeoModel:
                 "r_log__": (),
             }
 
+    def test_missing_customer_id(self, data):
+        # Create a version of the data that's missing the 'customer_id' column
+        data_invalid = data.drop(columns="customer_id")
+
+        with pytest.raises(KeyError, match="customer_id column is missing from data"):
+            BetaGeoModel(data=data_invalid)
+
+    def test_missing_frequency(self, data):
+        # Create a version of the data that's missing the 'frequency' column
+        data_invalid = data.drop(columns="frequency")
+
+        with pytest.raises(KeyError, match="frequency column is missing from data"):
+            BetaGeoModel(data=data_invalid)
+
+    def test_missing_recency(self, data):
+        # Create a version of the data that's missing the 'recency' column
+        data_invalid = data.drop(columns="recency")
+
+        with pytest.raises(KeyError, match="recency column is missing from data"):
+            BetaGeoModel(data=data_invalid)
+
+    def test_missing_T(self, data):
+        # Create a version of the data that's missing the 'T' column
+        data_invalid = data.drop(columns="T")
+
+        with pytest.raises(KeyError, match="T column is missing from data"):
+            BetaGeoModel(data=data_invalid)
+
     def test_customer_id_warning(self):
         with pytest.raises(
             ValueError,
