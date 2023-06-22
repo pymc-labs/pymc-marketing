@@ -59,44 +59,62 @@ class TestBetaGeoModel:
     @pytest.fixture(scope="class")
     def model_config(self):
         return {
-            "a_prior": {"dist": "halfnormal", "kwargs": {}},
-            "b_prior": {"dist": "halfstudentt", "kwargs": {"nu": 4}},
-            "alpha_prior": {"dist": "halfcauchy", "kwargs": {"beta": 2}},
-            "r_prior": {"dist": "gamma", "kwargs": {"alpha": 1, "beta": 1}},
+            "a_prior": {"dist": "HalfNormal", "kwargs": {}},
+            "b_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4}},
+            "alpha_prior": {"dist": "HalfCauchy", "kwargs": {"beta": 2}},
+            "r_prior": {"dist": "Gamma", "kwargs": {"alpha": 1, "beta": 1}},
         }
 
-    def test_model(self, model_config, data):
-        model = BetaGeoModel(
-            data=data,
-            model_config=model_config,
-        )
-        model.build_model()
-        assert isinstance(
-            model.model["a"].owner.op,
-            type(pm.HalfNormal.dist().owner.op),
-        )
-        assert isinstance(
-            model.model["b"].owner.op,
-            type(pm.HalfStudentT.dist(nu=4).owner.op),
-        )
-        assert isinstance(
-            model.model["alpha"].owner.op,
-            type(pm.HalfCauchy.dist(beta=2).owner.op),
-        )
-        assert isinstance(
-            model.model["r"].owner.op,
-            type(pm.Gamma.dist(alpha=1, beta=1).owner.op),
-        )
-        assert model.model.eval_rv_shapes() == {
-            "a": (),
-            "a_log__": (),
-            "b": (),
-            "b_log__": (),
-            "alpha": (),
-            "alpha_log__": (),
-            "r": (),
-            "r_log__": (),
+    @pytest.fixture(scope="class")
+    def default_model_config(self):
+        return {
+            "a_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "b_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "r_prior": {"dist": "HalfFlat", "kwargs": {}},
         }
+
+    def test_model(self, model_config, default_model_config, data):
+        for config in (model_config, default_model_config):
+            model = BetaGeoModel(
+                data=data,
+                model_config=config,
+            )
+            model.build_model()
+            assert isinstance(
+                model.model["a"].owner.op,
+                pm.HalfFlat
+                if config["a_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["a_prior"]["dist"]),
+            )
+            assert isinstance(
+                model.model["b"].owner.op,
+                pm.HalfFlat
+                if config["b_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["b_prior"]["dist"]),
+            )
+            assert isinstance(
+                model.model["alpha"].owner.op,
+                pm.HalfFlat
+                if config["alpha_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["alpha_prior"]["dist"]),
+            )
+            assert isinstance(
+                model.model["r"].owner.op,
+                pm.HalfFlat
+                if config["r_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["r_prior"]["dist"]),
+            )
+            assert model.model.eval_rv_shapes() == {
+                "a": (),
+                "a_log__": (),
+                "b": (),
+                "b_log__": (),
+                "alpha": (),
+                "alpha_log__": (),
+                "r": (),
+                "r_log__": (),
+            }
 
     def test_customer_id_warning(self):
         with pytest.raises(
@@ -130,10 +148,10 @@ class TestBetaGeoModel:
         See Solution #2 on pages 3 and 4 of http://brucehardie.com/notes/027/bgnbd_num_error.pdf
         """
         model_config = {
-            "a_prior": {"dist": "flat", "kwargs": {}},
-            "b_prior": {"dist": "flat", "kwargs": {}},
-            "alpha_prior": {"dist": "flat", "kwargs": {}},
-            "r_prior": {"dist": "flat", "kwargs": {}},
+            "a_prior": {"dist": "Flat", "kwargs": {}},
+            "b_prior": {"dist": "Flat", "kwargs": {}},
+            "alpha_prior": {"dist": "Flat", "kwargs": {}},
+            "r_prior": {"dist": "Flat", "kwargs": {}},
         }
         data = pd.DataFrame(
             {
@@ -226,7 +244,6 @@ class TestBetaGeoModel:
             data=data,
         )
         bg_model.build_model()
-        bg_model.fit(fit_method="map")
         fake_fit = az.from_dict(
             {
                 "a": rng.normal(a, 1e-3, size=(2, 25)),
@@ -286,7 +303,6 @@ class TestBetaGeoModel:
 
         bg_model = BetaGeoModel(data=data)
         bg_model.build_model()
-        bg_model.fit("map")
         bg_model.fit_result = az.from_dict(
             {
                 "a": np.full((2, 5), self.a_true),
@@ -344,7 +360,6 @@ class TestBetaGeoModel:
         )
         bg_model = BetaGeoModel(data=data)
         bg_model.build_model()
-        bg_model.fit("map")
         bg_model.fit_result = az.from_dict(
             {
                 "a": np.full((2, 5), self.a_true),
@@ -380,10 +395,10 @@ class TestBetaGeoModel:
 
     def test_model_repr(self, data):
         model_config = {
-            "alpha_prior": {"dist": "halfflat", "kwargs": {}},
-            "r_prior": {"dist": "halfflat", "kwargs": {}},
-            "a_prior": {"dist": "halfflat", "kwargs": {}},
-            "b_prior": {"dist": "halfnormal", "kwargs": {"sigma": 10}},
+            "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "r_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "a_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "b_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
         }
         model = BetaGeoModel(
             data=data,

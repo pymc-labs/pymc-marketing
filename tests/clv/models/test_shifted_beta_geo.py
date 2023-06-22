@@ -46,15 +46,15 @@ class TestShiftedBetaGeoModel:
     @pytest.fixture(scope="class")
     def model_config(self):
         return {
-            "alpha_prior": {"dist": "halfnormal", "kwargs": {"sigma": 10}},
-            "beta_prior": {"dist": "halfstudentt", "kwargs": {"nu": 4, "sigma": 10}},
+            "alpha_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
+            "beta_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4, "sigma": 10}},
         }
 
     @pytest.fixture(scope="class")
     def default_model_config(self):
         return {
-            "alpha_prior": {"dist": "halfflat", "kwargs": {}},
-            "beta_prior": {"dist": "halfflat", "kwargs": {}},
+            "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "beta_prior": {"dist": "HalfFlat", "kwargs": {}},
         }
 
     @pytest.fixture(scope="class")
@@ -70,7 +70,7 @@ class TestShiftedBetaGeoModel:
     def test_model_repr(self, default_model_config):
         custom_model_config = default_model_config.copy()
         custom_model_config["alpha_prior"] = {
-            "dist": "halfnormal",
+            "dist": "HalfNormal",
             "kwargs": {"sigma": 10},
         }
         dataset = pd.DataFrame(
@@ -89,37 +89,41 @@ class TestShiftedBetaGeoModel:
             f"\nchurn_censored~Censored(Geometric(theta),-inf,{self.T})"
         )
 
-    def test_model(self, model_config, data):
-        model = ShiftedBetaGeoModelIndividual(
-            data=data,
-            model_config=model_config,
-        )
-        model.build_model()
-        assert isinstance(
-            model.model["alpha"].owner.op,
-            pm.HalfNormal,
-        )
-        assert isinstance(
-            model.model["beta"].owner.op,
-            pm.HalfStudentT,
-        )
-
-        assert isinstance(model.model["theta"].owner.op, pm.Beta)
-        assert isinstance(model.model["churn_censored"].owner.op, CensoredRV)
-        assert isinstance(
-            model.model["churn_censored"].owner.inputs[0].owner.op, pm.Geometric
-        )
-        assert model.model.eval_rv_shapes() == {
-            "alpha": (),
-            "alpha_log__": (),
-            "beta": (),
-            "beta_log__": (),
-            "theta": (self.N,),
-            "theta_logodds__": (self.N,),
-        }
-        assert model.model.coords == {
-            "customer_id": tuple(range(self.N)),
-        }
+    def test_model(self, model_config, default_model_config, data):
+        for config in (model_config, default_model_config):
+            model = ShiftedBetaGeoModelIndividual(
+                data=data,
+                model_config=config,
+            )
+            model.build_model()
+            assert isinstance(
+                model.model["alpha"].owner.op,
+                pm.HalfFlat
+                if config["alpha_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["alpha_prior"]["dist"]),
+            )
+            assert isinstance(
+                model.model["beta"].owner.op,
+                pm.HalfFlat
+                if config["beta_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["beta_prior"]["dist"]),
+            )
+            assert isinstance(model.model["theta"].owner.op, pm.Beta)
+            assert isinstance(model.model["churn_censored"].owner.op, CensoredRV)
+            assert isinstance(
+                model.model["churn_censored"].owner.inputs[0].owner.op, pm.Geometric
+            )
+            assert model.model.eval_rv_shapes() == {
+                "alpha": (),
+                "alpha_log__": (),
+                "beta": (),
+                "beta_log__": (),
+                "theta": (self.N,),
+                "theta_logodds__": (self.N,),
+            }
+            assert model.model.coords == {
+                "customer_id": tuple(range(self.N)),
+            }
 
     def test_invalid_t_churn(self, default_model_config):
         match_msg = "t_churn must respect 0 < t_churn <= T"

@@ -49,7 +49,7 @@ class CLVModel(ModelBuilder):
         if fit_method == "mcmc":
             self._fit_mcmc(**kwargs)
         elif fit_method == "map":
-            self.idata = self._fit_MAP(**kwargs)
+            self._fit_MAP(**kwargs)
         else:
             raise ValueError(
                 f"Fit method options are ['mcmc', 'map'], got: {fit_method}"
@@ -58,7 +58,7 @@ class CLVModel(ModelBuilder):
 
         return self.idata
 
-    def _fit_mcmc(self, **kwargs) -> None:
+    def _fit_mcmc(self, **kwargs) -> az.InferenceData:
         """
         Fit a model using the data passed as a parameter.
         Sets attrs to inference data of the model.
@@ -99,7 +99,8 @@ class CLVModel(ModelBuilder):
         trace = MultiTrace([map_strace])
         idata = pm.to_inference_data(trace, model=model)
         self.set_idata_attrs(idata)
-        return idata
+        self.idata = idata
+        return self.idata
 
     @classmethod
     def load(cls, fname: str):
@@ -156,23 +157,23 @@ class CLVModel(ModelBuilder):
             )
 
     def create_distribution_from_prior(self, name: str, **kwargs) -> TensorVariable:
-        if name == "gamma":
+        if name == "Gamma":
             return pm.Gamma.dist(**kwargs)
-        if name == "halfflat":
+        if name == "HalfFlat":
             return pm.HalfFlat.dist(**kwargs)
-        if name == "flat":
+        if name == "Flat":
             return pm.Flat.dist(**kwargs)
-        if name == "normal":
+        if name == "Normal":
             return pm.Normal.dist(**kwargs)
-        if name == "halfnormal":
+        if name == "HalfNormal":
             return pm.HalfNormal.dist(**kwargs)
-        if name == "halfcauchy":
+        if name == "HalfCauchy":
             return pm.HalfCauchy.dist(**kwargs)
-        if name == "halfstudentt":
+        if name == "HalfStudentT":
             return pm.HalfStudentT.dist(**kwargs)
-        if name == "normal":
+        if name == "Normal":
             return pm.Normal.dist(**kwargs)
-        if name == "diracdelta":
+        if name == "DiracDelta":
             return pm.DiracDelta.dist(**kwargs)
         else:
             raise ValueError(f"Prior distribution {name} not supported")
@@ -192,23 +193,28 @@ class CLVModel(ModelBuilder):
         return priors
 
     @property
+    def default_sampler_config(self) -> Dict:
+        return {}
+
+    @property
     def prior_predictive(self) -> az.InferenceData:
         if self.idata is None or "prior_predictive" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         return self.idata["prior_predictive"]
 
     @property
-    # if we include fit_result then this should be added for consistancy
     def fit_result(self) -> Dataset:
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         return self.idata["posterior"]
 
     @fit_result.setter
-    def fit_result(self, res: Dataset):
-        if self.idata is not None and "posterior" in self.idata:
+    def fit_result(self, res: az.InferenceData) -> None:
+        if self.idata is None:
+            self.idata = res
+        elif "posterior" in self.idata:
             warnings.warn("Overriding pre-existing fit_result")
-        self.idata.posterior = res
+            self.idata.posterior = res
 
     # if we include fit_result then this should be added for consistancy
     @property

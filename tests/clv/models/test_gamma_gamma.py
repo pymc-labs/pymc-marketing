@@ -73,62 +73,58 @@ class BaseTestGammaGammaModel:
     @pytest.fixture(scope="class")
     def default_model_config(self):
         return {
-            "p_prior": {"dist": "halfflat", "kwargs": {}},
-            "q_prior": {"dist": "halfflat", "kwargs": {}},
-            "v_prior": {"dist": "halfflat", "kwargs": {}},
+            "p_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "q_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "v_prior": {"dist": "HalfFlat", "kwargs": {}},
         }
 
     @pytest.fixture(scope="class")
     def model_config(self):
         return {
-            "p_prior": {"dist": "halfnormal", "kwargs": {}},
-            "q_prior": {"dist": "halfstudentt", "kwargs": {"nu": 4}},
-            "v_prior": {"dist": "halfcauchy", "kwargs": {"beta": 2}},
+            "p_prior": {"dist": "HalfNormal", "kwargs": {}},
+            "q_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4}},
+            "v_prior": {"dist": "HalfCauchy", "kwargs": {"beta": 2}},
         }
 
 
 class TestGammaGammaModel(BaseTestGammaGammaModel):
-    def test_model(self, data, model_config, default_model_config):
-        model = GammaGammaModel(
-            data=data,
-            model_config=default_model_config,
-        )
-        model.build_model()
-        assert isinstance(model.model["p"].owner.op, pm.HalfFlat)
-        assert isinstance(model.model["q"].owner.op, pm.HalfFlat)
-        assert isinstance(model.model["v"].owner.op, pm.HalfFlat)
-        assert model.model.eval_rv_shapes() == {
-            "p": (),
-            "p_log__": (),
-            "q": (),
-            "q_log__": (),
-            "v": (),
-            "v_log__": (),
-        }
-        assert len(model.model.potentials) == 1
-        assert model.model.coords == {
-            "customer_id": tuple(range(self.N)),
-        }
-        model2 = GammaGammaModel(
-            data=data,
-            model_config=model_config,
-        )
-        model2.build_model()
-        assert isinstance(model2.model["p"].owner.op, pm.HalfNormal)
-        assert isinstance(model2.model["q"].owner.op, pm.HalfStudentT)
-        assert isinstance(model2.model["v"].owner.op, pm.HalfCauchy)
-        assert model2.model.eval_rv_shapes() == {
-            "p": (),
-            "p_log__": (),
-            "q": (),
-            "q_log__": (),
-            "v": (),
-            "v_log__": (),
-        }
-        assert len(model2.model.potentials) == 1
-        assert model2.model.coords == {
-            "customer_id": tuple(range(self.N)),
-        }
+    def test_model(self, model_config, default_model_config, data):
+        for config in (model_config, default_model_config):
+            model = GammaGammaModel(
+                data=data,
+                model_config=config,
+            )
+            model.build_model()
+            assert isinstance(
+                model.model["p"].owner.op,
+                pm.HalfFlat
+                if config["p_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["p_prior"]["dist"]),
+            )
+            assert isinstance(
+                model.model["q"].owner.op,
+                pm.HalfFlat
+                if config["q_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["q_prior"]["dist"]),
+            )
+            assert isinstance(
+                model.model["v"].owner.op,
+                pm.HalfFlat
+                if config["v_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["v_prior"]["dist"]),
+            )
+            assert model.model.eval_rv_shapes() == {
+                "p": (),
+                "p_log__": (),
+                "q": (),
+                "q_log__": (),
+                "v": (),
+                "v_log__": (),
+            }
+            assert len(model.model.potentials) == 1
+            assert model.model.coords == {
+                "customer_id": tuple(range(self.N)),
+            }
 
     @pytest.mark.slow
     def test_model_convergence(self, data, model_config):
@@ -152,9 +148,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         v_mean = self.v_true
         custom_model_config = {
             # Narrow values
-            "p_prior": {"dist": "normal", "kwargs": {"mu": p_mean, "sigma": 0.01}},
-            "q_prior": {"dist": "normal", "kwargs": {"mu": q_mean, "sigma": 0.01}},
-            "v_prior": {"dist": "normal", "kwargs": {"mu": v_mean, "sigma": 0.01}},
+            "p_prior": {"dist": "Normal", "kwargs": {"mu": p_mean, "sigma": 0.01}},
+            "q_prior": {"dist": "Normal", "kwargs": {"mu": q_mean, "sigma": 0.01}},
+            "v_prior": {"dist": "Normal", "kwargs": {"mu": v_mean, "sigma": 0.01}},
         }
         model = GammaGammaModel(
             data=data,
@@ -224,17 +220,20 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         v_mean = 3
         custom_model_config = {
             # Narrow values
-            "p_prior": {"dist": "normal", "kwargs": {"mu": p_mean, "sigma": 0.01}},
-            "q_prior": {"dist": "normal", "kwargs": {"mu": q_mean, "sigma": 0.01}},
-            "v_prior": {"dist": "normal", "kwargs": {"mu": v_mean, "sigma": 0.01}},
+            "p_prior": {"dist": "Normal", "kwargs": {"mu": p_mean, "sigma": 0.01}},
+            "q_prior": {"dist": "Normal", "kwargs": {"mu": q_mean, "sigma": 0.01}},
+            "v_prior": {"dist": "Normal", "kwargs": {"mu": v_mean, "sigma": 0.01}},
         }
         model = GammaGammaModel(
             data=data,
             model_config=custom_model_config,
         )
         model.build_model()
-        model.fit(chains=1, progressbar=False, random_seed=self.rng)
-
+        fake_fit = pm.sample_prior_predictive(
+            samples=1000, model=model.model, random_seed=self.rng
+        )
+        fake_fit.add_groups(dict(posterior=fake_fit.prior))
+        model.fit_result = fake_fit
         # Closed formula solution for the mean and var of the population spend (eqs 3, 4 from [1])  # noqa: E501
         expected_preds_mean = p_mean * v_mean / (q_mean - 1)
         expected_preds_std = np.sqrt(
@@ -259,7 +258,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
 
     def test_model_repr(self, data, default_model_config):
         custom_model_config = default_model_config.copy()
-        custom_model_config["p_prior"] = {"dist": "halfnormal", "kwargs": {"sigma": 10}}
+        custom_model_config["p_prior"] = {"dist": "HalfNormal", "kwargs": {"sigma": 10}}
         model = GammaGammaModel(data=data, model_config=custom_model_config)
         model.build_model()
 
@@ -304,29 +303,45 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
 
 
 class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
-    def test_model(self, individual_data, default_model_config):
-        model = GammaGammaModelIndividual(
-            data=individual_data,
-            model_config=default_model_config,
-        )
-        model.build_model()
-        assert isinstance(model.model["p"].owner.op, pm.HalfFlat)
-        assert isinstance(model.model["q"].owner.op, pm.HalfFlat)
-        assert isinstance(model.model["v"].owner.op, pm.HalfFlat)
-        assert model.model.eval_rv_shapes() == {
-            "p": (),
-            "p_log__": (),
-            "q": (),
-            "q_log__": (),
-            "v": (),
-            "v_log__": (),
-            "nu": (self.N,),
-            "nu_log__": (self.N,),
-        }
-        assert model.model.coords == {
-            "customer_id": tuple(range(self.N)),
-            "obs": tuple(range(len(self.z))),
-        }
+    def test_model(self, model_config, default_model_config, individual_data):
+        for config in (model_config, default_model_config):
+            model = GammaGammaModelIndividual(
+                data=individual_data,
+                model_config=config,
+            )
+            model.build_model()
+            assert isinstance(
+                model.model["p"].owner.op,
+                pm.HalfFlat
+                if config["p_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["p_prior"]["dist"]),
+            )
+            assert isinstance(
+                model.model["q"].owner.op,
+                pm.HalfFlat
+                if config["q_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["q_prior"]["dist"]),
+            )
+            assert isinstance(
+                model.model["v"].owner.op,
+                pm.HalfFlat
+                if config["v_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["v_prior"]["dist"]),
+            )
+            assert model.model.eval_rv_shapes() == {
+                "p": (),
+                "p_log__": (),
+                "q": (),
+                "q_log__": (),
+                "v": (),
+                "v_log__": (),
+                "nu": (self.N,),
+                "nu_log__": (self.N,),
+            }
+            assert model.model.coords == {
+                "customer_id": tuple(range(self.N)),
+                "obs": tuple(range(len(self.z))),
+            }
 
     @pytest.mark.slow
     def test_model_convergence(self, individual_data, model_config):
@@ -386,7 +401,7 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
 
     def test_model_repr(self, individual_data, default_model_config):
         custom_model_config = default_model_config.copy()
-        custom_model_config["q_prior"] = {"dist": "halfnormal", "kwargs": {"sigma": 10}}
+        custom_model_config["q_prior"] = {"dist": "HalfNormal", "kwargs": {"sigma": 10}}
         model = GammaGammaModelIndividual(
             data=individual_data,
             model_config=custom_model_config,

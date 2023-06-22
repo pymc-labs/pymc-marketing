@@ -39,7 +39,7 @@ class BetaGeoModel(CLVModel):
             * `T`: time between the first purchase and the end of the observation period (with possible values 0, 1, 2, ...)
             * `customer_id`: unique customer identifier
     model_config: dict, optional
-        Dictionary of model prior parameters.
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
     sampler_config: dict, optional
         Dictionary of sampler parameters. Defaults to None.
 
@@ -52,13 +52,22 @@ class BetaGeoModel(CLVModel):
         from pymc_marketing.clv import BetaGeoModel
 
         model = BetaGeoFitter(
-            frequency=[4, 0, 6, 3, ...],
-            recency=[30.73, 1.72, 0., 0., ...]
-            p_prior=pm.HalfNormal.dist(10),
-            q_prior=pm.HalfNormal.dist(10),
-            v_prior=pm.HalfNormal.dist(10),
+            data=data,
+            model_config={
+                "r": pm.Gamma.dist(alpha=0.1, beta=0.1),
+                "alpha": pm.Gamma.dist(alpha=0.1, beta=0.1),
+                "a": pm.Gamma.dist(alpha=0.1, beta=0.1),
+                "b": pm.Gamma.dist(alpha=0.1, beta=0.1),
+            },
+            sampler_config={
+                "draws": 1000,
+                "tune": 1000,
+                "chains": 2,
+                "cores": 2,
+                "nuts_kwargs": {"target_accept": 0.95},
+            },
         )
-
+        model.build_model()
         model.fit()
         print(model.fit_summary())
 
@@ -147,15 +156,11 @@ class BetaGeoModel(CLVModel):
     @property
     def default_model_config(self) -> Dict[str, Dict]:
         return {
-            "a_prior": {"dist": "halfflat", "kwargs": {}},
-            "b_prior": {"dist": "halfflat", "kwargs": {}},
-            "alpha_prior": {"dist": "halfflat", "kwargs": {}},
-            "r_prior": {"dist": "halfflat", "kwargs": {}},
+            "a_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "b_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "r_prior": {"dist": "HalfFlat", "kwargs": {}},
         }
-
-    @property
-    def default_sampler_config(self) -> Dict:
-        return {}
 
     @property
     def _serializable_model_config(self) -> Dict:
@@ -217,10 +222,7 @@ class BetaGeoModel(CLVModel):
             )
 
     def _unload_params(self):
-        try:
-            trace = self.fit_result.posterior
-        except AttributeError:
-            trace = self.fit_result
+        trace = self.fit_result
         a = trace["a"]
         b = trace["b"]
         alpha = trace["alpha"]

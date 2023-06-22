@@ -71,7 +71,6 @@ def customer_lifetime_value(
 
     steps = np.arange(1, time + 1)
     factor = {"W": 4.345, "M": 1.0, "D": 30, "H": 30 * 24}[freq]
-
     model_dims = transaction_model.fit_result.dims
     model_coords = transaction_model.fit_result.coords
     clv_coords = {

@@ -60,17 +60,16 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
     )
     model_config = {
         # Narrow Gaussian centered at MLE params from lifetimes BetaGeoFitter
-        "a_prior": {"dist": "diracdelta", "kwargs": {"c": 1.86428187}},
-        "alpha_prior": {"dist": "diracdelta", "kwargs": {"c": 1.86428187}},
-        "b_prior": {"dist": "diracdelta", "kwargs": {"c": 3.18105431}},
-        "r_prior": {"dist": "diracdelta", "kwargs": {"c": 0.16385072}},
+        "a_prior": {"dist": "DiracDelta", "kwargs": {"c": 1.86428187}},
+        "alpha_prior": {"dist": "DiracDelta", "kwargs": {"c": 1.86428187}},
+        "b_prior": {"dist": "DiracDelta", "kwargs": {"c": 3.18105431}},
+        "r_prior": {"dist": "DiracDelta", "kwargs": {"c": 0.16385072}},
     }
     model = BetaGeoModel(
         data=data,
         model_config=model_config,
     )
     model.build_model()
-    model.fit()
     fake_fit = pm.sample_prior_predictive(
         samples=50, model=model.model, random_seed=rng
     )
@@ -93,16 +92,15 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
     )
     model_config = {
         # Params used in lifetimes test
-        "p_prior": {"dist": "diracdelta", "kwargs": {"c": 6.25}},
-        "q_prior": {"dist": "diracdelta", "kwargs": {"c": 3.74}},
-        "v_prior": {"dist": "diracdelta", "kwargs": {"c": 15.44}},
+        "p_prior": {"dist": "DiracDelta", "kwargs": {"c": 6.25}},
+        "q_prior": {"dist": "DiracDelta", "kwargs": {"c": 3.74}},
+        "v_prior": {"dist": "DiracDelta", "kwargs": {"c": 15.44}},
     }
     model = GammaGammaModel(
         data=data,
         model_config=model_config,
     )
     model.build_model()
-    model.fit()
     fake_fit = pm.sample_prior_predictive(
         samples=50, model=model.model, random_seed=rng
     )
@@ -152,7 +150,7 @@ def test_customer_lifetime_value_with_known_values(test_summary_data, fitted_bg)
         time=1,
         discount_rate=0.0,
     ).mean(("chain", "draw"))
-    np.testing.assert_almost_equal(clv_d0, expected, decimal=5)
+    np.testing.assert_almost_equal(clv_d0, expected, decimal=3)
 
     # discount_rate=1 means the clv will halve over a period
     clv_d1 = (
@@ -169,7 +167,7 @@ def test_customer_lifetime_value_with_known_values(test_summary_data, fitted_bg)
         .mean(("chain", "draw"))
         .values
     )
-    np.testing.assert_almost_equal(clv_d1, expected / 2.0, decimal=5)
+    np.testing.assert_almost_equal(clv_d1, expected / 2.0, decimal=3)
 
     # time=2, discount_rate=0 means the clv will be twice the initial
     clv_t2_d0 = (

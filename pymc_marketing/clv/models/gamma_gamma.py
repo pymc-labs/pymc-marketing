@@ -181,21 +181,15 @@ class GammaGammaModel(BaseGammaGammaModel):
 
     Parameters
     ----------
-    customer_id: array_like
-        Customer labels. Must not repeat.
-    mean_transaction_value: array_like
-        Mean transaction value of each customer.
-    frequency: array_like
-        Number of transactions observed for each customer.
-    p_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    q_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    v_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
+    data: pd.DataFrame
+        DataFrame containing the following columns:
+            - customer_id: Customer labels. Must not repeat.
+            - mean_transaction_value: Mean transaction value of each customer.
+            - frequency: Number of transactions observed for each customer.
+    model_config: dict, optional
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+    sampler_config: dict, optional
+        Dictionary of sampler parameters. Defaults to None.
 
     Examples
     --------
@@ -207,14 +201,21 @@ class GammaGammaModel(BaseGammaGammaModel):
             from pymc_marketing.clv import GammaGammaModel
 
             model = GammaGammaModel(
-                customer_id=[0, 1, 2, 3, ...],
-                mean_transactionn_value=[23.5, 19.3, 11.2, 100.5, ...],
-                frequency=[6, 8, 2, 1, ...],
-                p_prior=pm.HalfNormal.dist(10),
-                q_prior=pm.HalfNormal.dist(10),
-                v_prior=pm.HalfNormal.dist(10),
+                data=data,
+                model_config={
+                    "p_prior": {dist: 'HalfNorm', kwargs: {}},
+                    "q_prior": {dist: 'HalfStudentT', kwargs: {}},
+                    "v_prior": {dist: 'HalfCauchy', kwargs: {}},
+                },
+                sampler_config={
+                    "draws": 1000,
+                    "tune": 1000,
+                    "chains": 2,
+                    "cores": 2,
+                    "nuts_kwargs": {"target_accept": 0.95},
+                },
             )
-
+            model.build_model()
             model.fit()
             print(model.fit_summary())
 
@@ -273,14 +274,10 @@ class GammaGammaModel(BaseGammaGammaModel):
     @property
     def default_model_config(self) -> Dict:
         return {
-            "p_prior": {"dist": "halfflat", "kwargs": {}},
-            "q_prior": {"dist": "halfflat", "kwargs": {}},
-            "v_prior": {"dist": "halfflat", "kwargs": {}},
+            "p_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "q_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "v_prior": {"dist": "HalfFlat", "kwargs": {}},
         }
-
-    @property
-    def default_sampler_config(self) -> Dict:
-        return {}
 
     def build_model(self):
         z_mean = pt.as_tensor_variable(self.mean_transaction_value)
@@ -320,20 +317,15 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
     Parameters
     ----------
-    customer_id: array_like
-        Customer labels. The same value should be used for each observation
+    data: pd.DataFrame
+        Dataframe containing the following columns:
+            - customer_id: Customer labels. The same value should be used for each observation
         coming from the same customer.
-    individual_transaction_value: array_like
-        Value of individual transactions.
-    p_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    q_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    v_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
+            - individual_transaction_value: Value of individual transactions.
+    model_config: dict, optional
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+    sampler_config: dict, optional
+        Dictionary of sampler parameters. Defaults to None.
 
 
     Examples
@@ -344,13 +336,24 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         .. code-block:: python
 
             import pymc as pm
-            from pymc_marketing.clv import GammaGammaModel
+            from pymc_marketing.clv import GammaGammaModelIndividual
 
-            model = GammaGammaModel(
-                customer_id=[0, 0, 0, 1, 1, 2, ...],
-                individual_transaction_value=[5.3. 5.7, 6.9, 13.5, 0.3, 19.2 ...],
+            model = GammaGammaModelIndividual(
+                data=data,
+                model_config={
+                    "p_prior": {dist: 'HalfNorm', kwargs: {}},
+                    "q_prior": {dist: 'HalfStudentT', kwargs: {}},
+                    "v_prior": {dist: 'HalfCauchy', kwargs: {}},
+                },
+                sampler_config={
+                    "draws": 1000,
+                    "tune": 1000,
+                    "chains": 2,
+                    "cores": 2,
+                    "nuts_kwargs": {"target_accept": 0.95},
+                },
             )
-
+            model.build_model()
             model.fit()
             print(model.fit_summary())
 
@@ -404,14 +407,10 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     @property
     def default_model_config(self) -> Dict:
         return {
-            "p_prior": {"dist": "halfflat", "kwargs": {}},
-            "q_prior": {"dist": "halfflat", "kwargs": {}},
-            "v_prior": {"dist": "halfflat", "kwargs": {}},
+            "p_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "q_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "v_prior": {"dist": "HalfFlat", "kwargs": {}},
         }
-
-    @property
-    def default_sampler_config(self) -> Dict:
-        return {}
 
     def build_model(self):
         z = self.individual_transaction_value

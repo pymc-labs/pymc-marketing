@@ -23,20 +23,17 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
 
     Parameters
     ----------
-    customer_id: array_like
-        Customer labels. There should be one unique label for each customer
-    t_churn: array_like
-        Time at which the customer cancelled the contract (starting at 0).
+    data: pd.DataFrame
+        DataFrame containing the following columns:
+            * `customer_id`: Customer labels. There should be one unique label for each customer
+            * `t_churn`: Time at which the customer cancelled the contract (starting at 0).
         It should  equal T for users that have not cancelled by the end of the
         observation period
-    T: array_like
-        Maximum observed time period (starting at 0)
-    alpha_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    beta_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
+            * `T`: Maximum observed time period (starting at 0)
+    model_config: dict, optional
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+    sampler_config: dict, optional
+        Dictionary of sampler parameters. Defaults to None.
 
 
     Examples
@@ -47,11 +44,18 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             from pymc_marketing.clv import ShiftedBetaGeoModelIndividual
 
             model = ShiftedBetaGeoModelIndividual(
-                customer_id=[0, 1, 2, 3, ...],
-                t_churn=[1, 2, 8, 4, 8 ...],
-                T=8,  # Can also be an array with one value per customer
-                alpha_prior=pm.HalfNormal.dist(10),
-                beta_prior=pm.HalfNormal.dist(10),
+                data=data,
+                model_config={
+                    "alpha_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
+                    "beta_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4, "sigma": 10}},
+                },
+                sampler_config={
+                    "draws": 1000,
+                    "tune": 1000,
+                    "chains": 2,
+                    "cores": 2,
+                    "nuts_kwargs": {"target_accept": 0.95},
+                },
             )
 
             model.fit()
@@ -120,17 +124,13 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
     @property
     def default_model_config(self) -> Dict:
         return {
-            "alpha_prior": {"dist": "halfflat", "kwargs": {}},
-            "beta_prior": {"dist": "halfflat", "kwargs": {}},
+            "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "beta_prior": {"dist": "HalfFlat", "kwargs": {}},
         }
 
     @property
     def _serializable_model_config(self) -> Dict:
         return self.model_config
-
-    @property
-    def default_sampler_config(self) -> Dict:
-        return {}
 
     def build_model(
         self,
