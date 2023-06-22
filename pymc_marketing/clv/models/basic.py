@@ -78,6 +78,7 @@ class CLVModel(ModelBuilder):
         self : az.InferenceData
             returns inference data of the fitted model.
         """
+        sampler_config = {}
         if self.sampler_config is not None:
             sampler_config = self.sampler_config.copy()
         sampler_config.update(**kwargs)
@@ -142,11 +143,6 @@ class CLVModel(ModelBuilder):
         model.build_model()
         # All previously used data is in idata.
 
-        if model.id != idata.attrs["id"]:
-            raise ValueError(
-                f"The file '{fname}' does not contain an inference data of the same model or configuration as '{cls._model_type}'"
-            )
-
         return model
 
     @staticmethod
@@ -157,26 +153,11 @@ class CLVModel(ModelBuilder):
             )
 
     def create_distribution_from_prior(self, name: str, **kwargs) -> TensorVariable:
-        if name == "Gamma":
-            return pm.Gamma.dist(**kwargs)
-        if name == "HalfFlat":
-            return pm.HalfFlat.dist(**kwargs)
-        if name == "Flat":
-            return pm.Flat.dist(**kwargs)
-        if name == "Normal":
-            return pm.Normal.dist(**kwargs)
-        if name == "HalfNormal":
-            return pm.HalfNormal.dist(**kwargs)
-        if name == "HalfCauchy":
-            return pm.HalfCauchy.dist(**kwargs)
-        if name == "HalfStudentT":
-            return pm.HalfStudentT.dist(**kwargs)
-        if name == "Normal":
-            return pm.Normal.dist(**kwargs)
-        if name == "DiracDelta":
-            return pm.DiracDelta.dist(**kwargs)
-        else:
-            raise ValueError(f"Prior distribution {name} not supported")
+        try:
+            prior = getattr(pm, name).dist(**kwargs)
+        except AttributeError:
+            raise ValueError(f"Distribution {name} does not exist in PyMC")
+        return prior
 
     @staticmethod
     def _process_priors(
@@ -198,7 +179,7 @@ class CLVModel(ModelBuilder):
 
     @property
     def prior_predictive(self) -> az.InferenceData:
-        if self.idata is None or "prior_predictive" not in self.idata:
+        if self.idata is None:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         return self.idata["prior_predictive"]
 
@@ -227,7 +208,7 @@ class CLVModel(ModelBuilder):
         res = self.fit_result
         # Map fitting only gives one value, so we return it. We use arviz
         # just to get it nicely into a DataFrame
-        if res.posterior.chain.size == 1 and res.posterior.draw.size == 1:
+        if res.chain.size == 1 and res.draw.size == 1:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 res = az.summary(self.fit_result, **kwargs, kind="stats")

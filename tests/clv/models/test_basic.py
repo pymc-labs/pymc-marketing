@@ -1,7 +1,8 @@
 import numpy as np
+import pandas as pd
 import pymc as pm
 import pytest
-from arviz import from_dict
+from arviz import InferenceData, from_dict
 
 from pymc_marketing.clv.models.basic import CLVModel
 
@@ -9,16 +10,28 @@ from pymc_marketing.clv.models.basic import CLVModel
 class CLVModelTest(CLVModel):
     _model_type = "CLVModelTest"
 
-    def __init__(self):
+    def __init__(self, dataset=None, model_config=None, sampler_config=None):
         super().__init__()
+        self.data = pd.DataFrame({"y": np.random.randn(100)})
+        self.a = self.create_distribution_from_prior(
+            self.model_config["a"]["dist"], **self.model_config["a"]["kwargs"]
+        )
+        self._process_priors(self.a)
 
     @property
     def default_model_config(self):
-        pass
+        return {
+            "a": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}},
+            "b": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}},
+        }
 
-    @property
-    def default_sampler_config(self):
-        pass
+    def build_model(self):
+        with pm.Model() as self.model:
+            self.a = pm.Normal("a", mu=0, sigma=1)
+            self.b = pm.Normal("b", mu=0, sigma=1)
+            self.y = pm.Normal(
+                "y", mu=self.a + self.b, sigma=1, observed=self.data["y"]
+            )
 
 
 @pytest.fixture(scope="module")
@@ -34,8 +47,13 @@ def posterior():
 
 
 class TestCLVModel:
-
-    # The rest of the tests need to be moved to subclasses, as basic.py is not a standalone class
+    def test_repr(self):
+        model = CLVModelTest()
+        model.build_model()
+        assert (
+            model.__repr__()
+            == "CLVModelTest\na ~ Normal(0, 1)\nb ~ Normal(0, 1)\ny ~ Normal(f(a, b), 1)"
+        )
 
     def test_check_prior_ndim(self):
         prior = pm.Normal.dist(shape=(5,))  # ndim = 1
@@ -63,3 +81,90 @@ class TestCLVModel:
 
         with pytest.raises(ValueError, match="Prior variables must be unique"):
             CLVModel._process_priors(prior1, prior2, prior1)
+
+    def test_create_distribution_from_wrong_prior(self):
+        model = CLVModelTest()
+        with pytest.raises(
+            ValueError,
+            match="Distribution definately_not_PyMC_dist does not exist in PyMC",
+        ):
+            model.create_distribution_from_prior(
+                name="definately_not_PyMC_dist", alpha=1, beta=1
+            )
+
+    def test_fit_mcmc(self):
+        model = CLVModelTest()
+        model.build_model()
+        idata = model.fit(
+            tune=5,
+            chains=2,
+            draws=10,
+            compute_convergence_checks=False,
+        )
+        assert isinstance(idata, InferenceData)
+        assert len(idata.posterior.chain) == 2
+        assert len(idata.posterior.draw) == 10
+        assert model.fit_result is idata.posterior
+
+    def test_fit_map(self):
+        model = CLVModelTest()
+        model.build_model()
+        idata = model.fit(fit_method="map")
+        assert isinstance(idata, InferenceData)
+        assert len(idata.posterior.chain) == 1
+        assert len(idata.posterior.draw) == 1
+        assert model.fit_result is idata.posterior
+        # Check that summary only includes single value
+        summ = model.fit_summary()
+        assert isinstance(summ, pd.Series)
+        assert summ.name == "value"
+
+    def test_wrong_fit_method(self):
+        model = CLVModelTest()
+        with pytest.raises(
+            ValueError,
+            match=r"Fit method options are \['mcmc', 'map'\], got: wrong_method",
+        ):
+
+            model.fit(fit_method="wrong_method")
+
+    def test_fit_no_model(self):
+        model = CLVModelTest()
+        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+            model.fit_result
+
+    def test_load(self):
+        model = CLVModelTest()
+        model.build_model()
+        model.fit(target_accept=0.81, draws=100, chains=2, random_seed=1234)
+        model.save("test_model.pkl")
+        model.load("test_model.pkl")
+        assert model.fit_result is not None
+        assert model.model is not None
+
+    def test_default_sampler_config(self):
+        model = CLVModelTest()
+        assert model.sampler_config == {}
+
+    def test_prior_and_posterior_predictive(self):
+        model = CLVModelTest()
+        model.build_model()
+        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+            model.prior_predictive()
+        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+            model.posterior_predictive()
+        model.fit()
+        model.prior_predictive
+        model.posterior_predictive
+
+    def test_set_fit_result(self):
+        model = CLVModelTest()
+        model.build_model()
+        model.idata = None
+        fake_fit = pm.sample_prior_predictive(
+            samples=1000, model=model.model, random_seed=1234
+        )
+        fake_fit.add_groups(dict(posterior=fake_fit.prior))
+        model.fit_result = fake_fit
+        with pytest.warns(UserWarning, match="Overriding pre-existing fit_result"):
+            model.fit_result = fake_fit
