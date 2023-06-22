@@ -252,19 +252,19 @@ class GammaGammaModel(BaseGammaGammaModel):
         try:
             self.customer_id: Union[np.ndarray, pd.Series] = data["customer_id"]
         except KeyError:
-            raise ValueError("data must contain a customer_id column")
+            raise KeyError("data must contain a customer_id column")
         try:
             self.mean_transaction_value: Union[
                 np.ndarray, pd.Series, TensorVariable
             ] = data["mean_transaction_value"]
         except KeyError:
-            raise ValueError("data must contain a mean_transaction_value column")
+            raise KeyError("data must contain a mean_transaction_value column")
         try:
             self.frequency: Union[np.ndarray, pd.Series, TensorVariable] = data[
                 "frequency"
             ]
         except KeyError:
-            raise ValueError("data must contain a frequency column")
+            raise KeyError("data must contain a frequency column")
         super().__init__(
             data=data, model_config=model_config, sampler_config=sampler_config
         )
@@ -391,15 +391,13 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         try:
             self.customer_id: Union[np.ndarray, pd.Series] = data["customer_id"]
         except KeyError:
-            raise ValueError("data must contain a 'customer_id' column")
+            raise KeyError("data must contain a 'customer_id' column")
         try:
             self.individual_transaction_value: Union[
                 np.ndarray, pd.Series, TensorVariable
             ] = data["individual_transaction_value"]
         except KeyError:
-            raise ValueError(
-                "data must contain a 'individual_transaction_value' column"
-            )
+            raise KeyError("data must contain a 'individual_transaction_value' column")
         super().__init__(
             data=data, model_config=model_config, sampler_config=sampler_config
         )

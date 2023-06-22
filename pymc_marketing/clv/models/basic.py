@@ -179,7 +179,7 @@ class CLVModel(ModelBuilder):
 
     @property
     def prior_predictive(self) -> az.InferenceData:
-        if self.idata is None:
+        if self.idata is None or "prior_predictive" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         return self.idata["prior_predictive"]
 
