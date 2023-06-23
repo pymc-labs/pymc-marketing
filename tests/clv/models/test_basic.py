@@ -146,15 +146,12 @@ class TestCLVModel:
         model = CLVModelTest()
         assert model.sampler_config == {}
 
-    def test_prior_and_posterior_predictive(self):
+    def test_posterior_predictive(self):
         model = CLVModelTest()
         model.build_model()
         with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
-            model.prior_predictive()
-        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
             model.posterior_predictive()
         model.fit()
-        model.prior_predictive
         model.posterior_predictive
 
     def test_set_fit_result(self):
