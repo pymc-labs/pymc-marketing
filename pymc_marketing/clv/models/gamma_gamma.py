@@ -35,10 +35,6 @@ class BaseGammaGammaModel(CLVModel):
         )
         self._process_priors(self.p_prior, self.q_prior, self.v_prior)
 
-    @property
-    def _serializable_model_config(self) -> Dict:
-        return self.model_config
-
     def distribution_customer_spend(
         self,
         customer_id: Union[np.ndarray, pd.Series],
@@ -201,7 +197,11 @@ class GammaGammaModel(BaseGammaGammaModel):
             from pymc_marketing.clv import GammaGammaModel
 
             model = GammaGammaModel(
-                data=data,
+                data=pd.DataFrame({
+                    "customer_id": [0, 1, 2, 3, ...],
+                    "mean_transactionn_value" :[23.5, 19.3, 11.2, 100.5, ...],
+                    "frequency": [6, 8, 2, 1, ...],
+                }),
                 model_config={
                     "p_prior": {dist: 'HalfNorm', kwargs: {}},
                     "q_prior": {dist: 'HalfStudentT', kwargs: {}},
@@ -339,7 +339,10 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             from pymc_marketing.clv import GammaGammaModelIndividual
 
             model = GammaGammaModelIndividual(
-                data=data,
+                data=pd.DataFrame({
+                    "customer_id": [0, 0, 0, 1, 1, 2, ...],
+                    "individual_transaction_value": [5.3. 5.7, 6.9, 13.5, 0.3, 19.2 ...],
+                }),
                 model_config={
                     "p_prior": {dist: 'HalfNorm', kwargs: {}},
                     "q_prior": {dist: 'HalfStudentT', kwargs: {}},

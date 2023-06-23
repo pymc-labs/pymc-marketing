@@ -240,6 +240,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         p_mean = 35
         q_mean = 15
         v_mean = 3
+        test_seed = np.random.default_rng(1234)
         custom_model_config = {
             # Narrow values
             "p_prior": {"dist": "Normal", "kwargs": {"mu": p_mean, "sigma": 0.01}},
@@ -255,7 +256,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             samples=1000, model=model.model, random_seed=self.rng
         )
         fake_fit.add_groups(dict(posterior=fake_fit.prior))
-        model.fit_result = fake_fit
+        model.idata = fake_fit
         # Closed formula solution for the mean and var of the population spend (eqs 3, 4 from [1])  # noqa: E501
         expected_preds_mean = p_mean * v_mean / (q_mean - 1)
         expected_preds_std = np.sqrt(
@@ -263,7 +264,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         )
 
         if distribution:
-            preds = model.distribution_new_customer_spend(n=5, random_seed=self.rng)
+            preds = model.distribution_new_customer_spend(n=5, random_seed=test_seed)
             assert preds.shape == (1, 1000, 5)
             np.testing.assert_allclose(
                 preds.mean(("draw", "chain")), expected_preds_mean, rtol=0.1
@@ -275,7 +276,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             preds = model.expected_new_customer_spend()
             assert preds.shape == (1, 1000)
             np.testing.assert_allclose(
-                preds.mean(("draw", "chain")), expected_preds_mean, rtol=0.1
+                preds.mean(("draw", "chain")), expected_preds_mean, rtol=0.05
             )
 
     def test_model_repr(self, data, default_model_config):

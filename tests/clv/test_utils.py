@@ -74,7 +74,7 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
         samples=50, model=model.model, random_seed=rng
     )
     fake_fit.add_groups(dict(posterior=fake_fit.prior))
-    model.fit_result = fake_fit
+    model.idata = fake_fit
 
     return model
 
@@ -105,7 +105,7 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
         samples=50, model=model.model, random_seed=rng
     )
     fake_fit.add_groups(dict(posterior=fake_fit.prior))
-    model.fit_result = fake_fit
+    model.idata = fake_fit
 
     return model
 
@@ -151,7 +151,6 @@ def test_customer_lifetime_value_with_known_values(test_summary_data, fitted_bg)
         discount_rate=0.0,
     ).mean(("chain", "draw"))
     np.testing.assert_almost_equal(clv_d0, expected, decimal=3)
-
     # discount_rate=1 means the clv will halve over a period
     clv_d1 = (
         customer_lifetime_value(

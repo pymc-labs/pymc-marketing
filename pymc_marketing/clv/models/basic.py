@@ -211,9 +211,40 @@ class CLVModel(ModelBuilder):
         return {}
 
     @property
+    def _serializable_model_config(self) -> Dict:
+        return self.model_config
+
+    def sample_prior_predictive(
+        self,
+        samples: int = 1000,
+        extend_idata: bool = True,
+        combined: bool = True,
+        **kwargs,
+    ):
+        if self.model is not None:
+            with self.model:  # sample with new input data
+                prior_pred: az.InferenceData = pm.sample_prior_predictive(
+                    samples, **kwargs
+                )
+                self.set_idata_attrs(prior_pred)
+                if extend_idata:
+                    if self.idata is not None:
+                        self.idata.extend(prior_pred)
+                    else:
+                        self.idata = prior_pred
+
+        prior_predictive_samples = az.extract(
+            prior_pred, "prior_predictive", combined=combined
+        )
+
+        return prior_predictive_samples
+
+    @property
     def prior_predictive(self) -> az.InferenceData:
         if self.idata is None or "prior_predictive" not in self.idata:
-            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
+            raise RuntimeError(
+                "No prior predictive samples available, call sample_prior_predictive() first"
+            )
         return self.idata["prior_predictive"]
 
     @property
@@ -229,8 +260,9 @@ class CLVModel(ModelBuilder):
         elif "posterior" in self.idata:
             warnings.warn("Overriding pre-existing fit_result")
             self.idata.posterior = res
+        else:
+            self.idata.posterior = res
 
-    # if we include fit_result then this should be added for consistancy
     @property
     def posterior_predictive(self) -> Dataset:
         if self.idata is None or "posterior_predictive" not in self.idata:

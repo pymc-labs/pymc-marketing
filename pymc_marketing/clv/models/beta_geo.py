@@ -52,7 +52,10 @@ class BetaGeoModel(CLVModel):
         from pymc_marketing.clv import BetaGeoModel
 
         model = BetaGeoFitter(
-            data=data,
+            data=pd.DataFrame({
+                "frequency"=[4, 0, 6, 3, ...],
+                "recency":[30.73, 1.72, 0., 0., ...]
+            }),
             model_config={
                 "r": pm.Gamma.dist(alpha=0.1, beta=0.1),
                 "alpha": pm.Gamma.dist(alpha=0.1, beta=0.1),
@@ -161,10 +164,6 @@ class BetaGeoModel(CLVModel):
             "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
             "r_prior": {"dist": "HalfFlat", "kwargs": {}},
         }
-
-    @property
-    def _serializable_model_config(self) -> Dict:
-        return self.model_config
 
     def build_model(
         self,

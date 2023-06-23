@@ -128,6 +128,11 @@ class TestCLVModel:
 
             model.fit(fit_method="wrong_method")
 
+    def test_sample_wihtout_build(self):
+        model = CLVModelTest()
+        with pytest.raises(RuntimeError, match="The model hasn't been built yet"):
+            model.sample_model()
+
     def test_fit_no_model(self):
         model = CLVModelTest()
         with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
@@ -146,6 +151,24 @@ class TestCLVModel:
         model = CLVModelTest()
         assert model.sampler_config == {}
 
+    def test_prior_predictive(self):
+        model = CLVModelTest()
+        model.build_model()
+        with pytest.raises(RuntimeError) as exc_info:
+            model.prior_predictive()
+        assert (
+            str(exc_info.value)
+            == "No prior predictive samples available, call sample_prior_predictive() first"
+        )
+        model.sample_prior_predictive(samples=1000, combined=False)
+        model.prior_predictive
+        model.idata = None
+        model.idata = pm.sample(
+            draws=50, tune=50, chains=2, model=model.model, random_seed=1234
+        )
+        model.sample_prior_predictive(samples=50, extend_idata=True)
+        assert "prior_predictive" in model.idata
+
     def test_posterior_predictive(self):
         model = CLVModelTest()
         model.build_model()
@@ -159,9 +182,25 @@ class TestCLVModel:
         model.build_model()
         model.idata = None
         fake_fit = pm.sample_prior_predictive(
-            samples=1000, model=model.model, random_seed=1234
+            samples=50, model=model.model, random_seed=1234
         )
         fake_fit.add_groups(dict(posterior=fake_fit.prior))
         model.fit_result = fake_fit
         with pytest.warns(UserWarning, match="Overriding pre-existing fit_result"):
             model.fit_result = fake_fit
+        model.idata = None
+        model.sample_prior_predictive(samples=50, extend_idata=True)
+        model.fit_result = fake_fit
+
+    def test_fit_summary_for_mcmc(self):
+        model = CLVModelTest()
+        model.build_model()
+        model.fit()
+        summ = model.fit_summary()
+        assert isinstance(summ, pd.DataFrame)
+
+    def test_serializable_model_config(self):
+        model = CLVModelTest()
+        serializable_config = model._serializable_model_config
+        assert isinstance(serializable_config, dict)
+        assert serializable_config == model.model_config

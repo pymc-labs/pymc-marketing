@@ -107,7 +107,7 @@ class TestShiftedBetaGeoModel:
             "\nalpha~HalfNormal(0,10)"
             "\nbeta~HalfFlat()"
             "\ntheta~Beta(alpha,beta)"
-            f"\nchurn_censored~Censored(Geometric(theta),-inf,{self.T})"
+            "\nchurn_censored~Censored(Geometric(theta),-inf,<constant>)"
         )
 
     def test_model(self, model_config, default_model_config, data):
@@ -200,7 +200,7 @@ class TestShiftedBetaGeoModel:
         model.build_model()
         model.fit(fit_method="map")
         customer_thetas = np.array([0.1, 0.5, 0.9])
-        model.fit_result = az.from_dict(
+        model.idata = az.from_dict(
             {
                 "alpha": np.ones((2, 500)),  # Two chains, 500 draws each
                 "beta": np.ones((2, 500)),
@@ -231,7 +231,7 @@ class TestShiftedBetaGeoModel:
         model.build_model()
         model.fit(fit_method="map")
         # theta ~ beta(7000, 3000) ~ 0.7
-        model.fit_result = az.from_dict(
+        model.idata = az.from_dict(
             {
                 "alpha": np.full((2, 500), 7000),  # Two chains, 500 draws each
                 "beta": np.full((2, 500), 3000),

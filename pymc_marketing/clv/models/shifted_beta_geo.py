@@ -44,7 +44,11 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             from pymc_marketing.clv import ShiftedBetaGeoModelIndividual
 
             model = ShiftedBetaGeoModelIndividual(
-                data=data,
+                data=pd.DataFrame({
+                    customer_id=[0, 1, 2, 3, ...],
+                    t_churn=[1, 2, 8, 4, 8 ...],
+                    T=[8 for x in range(len(customer_id))],
+                }),
                 model_config={
                     "alpha_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
                     "beta_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4, "sigma": 10}},
@@ -128,10 +132,6 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             "beta_prior": {"dist": "HalfFlat", "kwargs": {}},
         }
 
-    @property
-    def _serializable_model_config(self) -> Dict:
-        return self.model_config
-
     def build_model(
         self,
     ) -> None:
@@ -146,7 +146,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
                 "churn_censored",
                 churn_raw,
                 lower=None,
-                upper=self.T[0],
+                upper=self.T,
                 observed=self.t_churn,
                 dims=("customer_id",),
             )

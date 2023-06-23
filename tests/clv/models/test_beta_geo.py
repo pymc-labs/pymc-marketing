@@ -205,15 +205,19 @@ class TestBetaGeoModel:
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
-        "N, fit_method, rtol",
+        "N, fit_method, rtol, seed",
         [
-            (500, "mcmc", 0.3),
+            (
+                500,
+                "mcmc",
+                0.3,
+            ),
             (2000, "mcmc", 0.1),
             (10000, "mcmc", 0.055),
-            (2000, "map", 0.11),
+            (2000, "map", 0.1),
         ],
     )
-    def test_model_convergence(self, N, fit_method, rtol, model_config):
+    def test_model_convergence(self, N, fit_method, rtol, seed, model_config):
         rng = np.random.default_rng(146)
         recency, frequency, _, T = self.generate_data(
             self.a_true, self.b_true, self.alpha_true, self.r_true, N, rng=rng
@@ -280,7 +284,7 @@ class TestBetaGeoModel:
                 "r": rng.normal(r, 1e-3, size=(2, 25)),
             }
         )
-        bg_model.fit_result = fake_fit
+        bg_model.idata = fake_fit
 
         est_prob_alive = bg_model.expected_probability_alive(
             customer_id,
@@ -331,7 +335,7 @@ class TestBetaGeoModel:
 
         bg_model = BetaGeoModel(data=data)
         bg_model.build_model()
-        bg_model.fit_result = az.from_dict(
+        bg_model.idata = az.from_dict(
             {
                 "a": np.full((2, 5), self.a_true),
                 "b": np.full((2, 5), self.b_true),
@@ -388,7 +392,7 @@ class TestBetaGeoModel:
         )
         bg_model = BetaGeoModel(data=data)
         bg_model.build_model()
-        bg_model.fit_result = az.from_dict(
+        bg_model.idata = az.from_dict(
             {
                 "a": np.full((2, 5), self.a_true),
                 "b": np.full((2, 5), self.b_true),
