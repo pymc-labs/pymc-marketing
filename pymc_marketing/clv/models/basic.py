@@ -85,6 +85,39 @@ class CLVModel(ModelBuilder):
         self.idata = self.sample_model(**sampler_config)
         return self.idata
 
+    def sample_model(self, **kwargs):
+        """
+        Sample from the PyMC model.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments to pass to the PyMC sampler.
+
+        Returns
+        -------
+        xarray.Dataset
+            The PyMC samples dataset.
+
+        Raises
+        ------
+        RuntimeError
+            If the PyMC model hasn't been built yet.
+
+        """
+        if self.model is None:
+            raise RuntimeError(
+                "The model hasn't been built yet, call .build_model() first or call .fit() instead."
+            )
+
+        with self.model:
+            sampler_args = {**self.sampler_config, **kwargs}
+            idata = pm.sample(**sampler_args)
+            idata.extend(pm.sample_posterior_predictive(idata))
+
+        self.set_idata_attrs(idata)
+        return idata
+
     def _fit_MAP(self, **kwargs):
         """Find model maximum a posteriori using scipy optimizer"""
         model = self.model
