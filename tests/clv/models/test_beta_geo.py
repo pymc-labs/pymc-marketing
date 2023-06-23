@@ -205,7 +205,7 @@ class TestBetaGeoModel:
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
-        "N, fit_method, rtol, seed",
+        "N, fit_method, rtol",
         [
             (
                 500,
@@ -217,7 +217,7 @@ class TestBetaGeoModel:
             (2000, "map", 0.1),
         ],
     )
-    def test_model_convergence(self, N, fit_method, rtol, seed, model_config):
+    def test_model_convergence(self, N, fit_method, rtol, model_config):
         rng = np.random.default_rng(146)
         recency, frequency, _, T = self.generate_data(
             self.a_true, self.b_true, self.alpha_true, self.r_true, N, rng=rng

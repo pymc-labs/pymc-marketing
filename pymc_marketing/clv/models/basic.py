@@ -54,7 +54,14 @@ class CLVModel(ModelBuilder):
             raise ValueError(
                 f"Fit method options are ['mcmc', 'map'], got: {fit_method}"
             )
-        self.idata.add_groups(fit_data=self.data.to_xarray())  # type: ignore
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=UserWarning,
+                message="The group fit_data is not defined in the InferenceData scheme",
+            )
+            self.idata.add_groups(fit_data=self.data.to_xarray())  # type: ignore
 
         return self.idata
 
