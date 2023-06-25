@@ -4,6 +4,8 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+from pymc.distributions.shape_utils import change_dist_size
+from pytensor.tensor import TensorVariable
 
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
@@ -11,16 +13,17 @@ from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturati
 from pymc_marketing.mmm.utils import generate_fourier_modes
 from pymc_marketing.mmm.validating import ValidateControlColumns
 
+__all__ = ["DelayedSaturatedMMM"]
 
-class DelayedSaturatedMMM(
-    MMM, MaxAbsScaleTarget, MaxAbsScaleChannels, ValidateControlColumns
-):
+
+class BaseDelayedSaturatedMMM(MMM):
     def __init__(
         self,
         data: pd.DataFrame,
         target_column: str,
         date_column: str,
         channel_columns: List[str],
+        channel_prior: Optional[TensorVariable] = None,
         validate_data: bool = True,
         control_columns: Optional[List[str]] = None,
         adstock_max_lag: int = 4,
@@ -39,6 +42,11 @@ class DelayedSaturatedMMM(
             Column name of the date variable.
         channel_columns : List[str]
             Column names of the media channel variables.
+        channel_prior : Optional[TensorVariable], optional
+            Prior distribution for the channel coefficients, by default None which
+            corresponds to a HalfNormal distribution with sigma=2 (so that all
+            contributions are positive). The prior distribution is specified by the
+            `dist` API. For example, if you `pm.HalfNormal.dist(sigma=4, shape=2)`.
         validate_data : bool, optional
             Whether to validate the data upon initialization, by default True.
         control_columns : Optional[List[str]], optional
@@ -60,8 +68,18 @@ class DelayedSaturatedMMM(
             target_column=target_column,
             date_column=date_column,
             channel_columns=channel_columns,
+            channel_prior=channel_prior,
             validate_data=validate_data,
             adstock_max_lag=adstock_max_lag,
+        )
+
+    def _preprocess_channel_prior(self) -> TensorVariable:
+        return (
+            pm.HalfNormal.dist(sigma=2, shape=len(self.channel_columns))
+            if self.channel_prior is None
+            else change_dist_size(
+                dist=self.channel_prior, new_size=len(self.channel_columns)
+            )
         )
 
     def build_model(
@@ -102,9 +120,10 @@ class DelayedSaturatedMMM(
 
             intercept = pm.Normal(name="intercept", mu=0, sigma=2)
 
-            beta_channel = pm.HalfNormal(
-                name="beta_channel", sigma=2, dims="channel"
-            )  # ? Allow prior depend on channel costs?
+            channel_prior = self._preprocess_channel_prior()
+            beta_channel = self.model.register_rv(
+                rv_var=channel_prior, name="beta_channel", dims="channel"
+            )
 
             alpha = pm.Beta(name="alpha", alpha=1, beta=3, dims="channel")
 
@@ -200,3 +219,12 @@ class DelayedSaturatedMMM(
             periods=periods,
             n_order=self.yearly_seasonality,
         )
+
+
+class DelayedSaturatedMMM(
+    MaxAbsScaleTarget,
+    MaxAbsScaleChannels,
+    ValidateControlColumns,
+    BaseDelayedSaturatedMMM,
+):
+    ...

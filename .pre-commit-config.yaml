@@ -1,27 +1,25 @@
 repos:
-  - repo: local
+  - repo: https://github.com/psf/black
+    rev: 22.12.0
     hooks:
       - id: black
-        name: black
-        entry: black
-        language: system
-        types: [python]
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.0.0
+    hooks:
       - id: flake8
-        name: flake8
-        entry: flake8
-        language: system
-        types: [python]
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
       - id: isort
-        name: isort
-        entry: isort --profile black
-        language: system
+        args: [--profile, black]
         types: [python]
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.2.0
+    hooks:
       - id: mypy
-        name: mypy
-        entry: mypy
-        language: system
-        types: [python]
+        args: [--ignore-missing-imports]
         files: ^pymc_marketing/
+        additional_dependencies: [numpy>=1.20, pandas-stubs]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v3.2.0
     hooks:
