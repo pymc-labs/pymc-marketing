@@ -326,15 +326,51 @@ class TestBetaGeoModel:
             "\nlikelihood~Potential(f(r,alpha,b,a))"
         )
 
-    @pytest.mark.parametrize("fit_method", ["mcmc", "map"])
-    def test_sample_population_distributions(self, fit_method: str):
-        model = BetaGeoModel(
+    def test_distribution_new_customer(self) -> None:
+        mock_model = BetaGeoModel(
             customer_id=self.customer_id,
             frequency=self.frequency,
             recency=self.recency,
             T=self.T,
         )
+        mock_model.fit_result = az.from_dict(
+            {
+                "a": [self.a_true],
+                "b": [self.b_true],
+                "alpha": [self.alpha_true],
+                "r": [self.r_true],
+            }
+        )
 
-        model.fit(fit_method=fit_method)
-        samples = model.sample_population_distributions()
-        assert isinstance(samples, xr.Dataset)
+        rng = np.random.default_rng(42)
+        new_customer_dropout = mock_model.distribution_new_customer_dropout(
+            random_seed=rng
+        )
+        new_customer_purchase_rate = mock_model.distribution_new_customer_purchase_rate(
+            random_seed=rng
+        )
+
+        assert isinstance(new_customer_dropout, xr.DataArray)
+        assert isinstance(new_customer_purchase_rate, xr.DataArray)
+
+        N = 1000
+        p = pm.Beta.dist(self.a_true, self.b_true, size=N)
+        lam = pm.Gamma.dist(self.r_true, self.alpha_true, size=N)
+
+        rtol = 0.05
+        np.testing.assert_allclose(
+            new_customer_dropout.mean(), pm.draw(p.mean(), random_seed=rng), rtol=rtol
+        )
+        np.testing.assert_allclose(
+            new_customer_dropout.var(), pm.draw(p.var(), random_seed=rng), rtol=rtol
+        )
+        np.testing.assert_allclose(
+            new_customer_purchase_rate.mean(),
+            pm.draw(lam.mean(), random_seed=rng),
+            rtol=rtol,
+        )
+        np.testing.assert_allclose(
+            new_customer_purchase_rate.var(),
+            pm.draw(lam.var(), random_seed=rng),
+            rtol=rtol,
+        )

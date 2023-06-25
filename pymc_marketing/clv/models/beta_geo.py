@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
@@ -347,56 +347,18 @@ class BetaGeoModel(CLVModel):
             "chain", "draw", "t", missing_dims="ignore"
         )
 
-    def sample_population_distributions(
+    def _distribution_new_customers(
         self,
         random_seed: Optional[RandomState] = None,
+        var_names: Sequence[str] = ("population_dropout", "population_purchase_rate"),
     ) -> xr.Dataset:
-        """
-        Sample the Beta and Gamma distributions for the population-level parameters.
-
-        Parameters
-        ----------
-        random_seed : RandomState, optional
-            Random state to use for sampling.
-
-        Returns
-        -------
-        xr.Dataset
-            Dataset containing the posterior samples for the population-level parameters.
-
-        Example
-        -------
-        Plot the posterior distributions of the population-level parameters.
-
-        .. code-block:: python
-
-            from pymc_marketing.clv import BetaGeoModel
-
-            from lifetimes.datasets import load_cdnow_summary
-
-            import numpy as np
-            import matplotlib.pyplot as plt
-
-            df = load_cdnow_summary()
-            x = df["frequency"].to_numpy()
-            t_x = df["recency"].to_numpy()
-            T = df["T"].to_numpy()
-
-            model = BetaGeoModel(
-                customer_id=np.arange(len(x)), frequency=x, recency=t_x, T=T
-            )
-            model.fit()
-
-            population_dists = model.sample_population_distributions()
-            population_dists.to_dataframe().hist()
-            plt.show()
-        """
         with pm.Model():
             a = pm.HalfFlat("a")
             b = pm.HalfFlat("b")
             alpha = pm.HalfFlat("alpha")
             r = pm.HalfFlat("r")
 
+            # This is the shape with fit_method="map"
             if self.fit_result.posterior.dims == {"chain": 1, "draw": 1}:
                 shape_kwargs = {"shape": 1000}
             else:
@@ -407,6 +369,54 @@ class BetaGeoModel(CLVModel):
 
             return pm.sample_posterior_predictive(
                 self.fit_result,
-                var_names=["population_dropout", "population_purchase_rate"],
+                var_names=var_names,
                 random_seed=random_seed,
             ).posterior_predictive
+
+    def distribution_new_customer_dropout(
+        self,
+        random_seed: Optional[RandomState] = None,
+    ) -> xr.Dataset:
+        """Sample the Beta distribution for the population-level dropout rate.
+
+        This is the probability that a new customer will not make another purchase ("drops out")
+        immediately after any previous purchase.
+
+        Parameters
+        ----------
+        random_seed : RandomState, optional
+            Random state to use for sampling.
+
+        Returns
+        -------
+        xr.Dataset
+            Dataset containing the posterior samples for the population-level dropout rate.
+        """
+        return self._distribution_new_customers(
+            random_seed=random_seed,
+            var_names=["population_dropout"],
+        )["population_dropout"]
+
+    def distribution_new_customer_purchase_rate(
+        self,
+        random_seed: Optional[RandomState] = None,
+    ) -> xr.Dataset:
+        """Sample the Gamma distribution for the population-level purchase rate.
+
+        This is the purchase rate for a new customer and determines the time between
+        purchases for any new customer.
+
+        Parameters
+        ----------
+        random_seed : RandomState, optional
+            Random state to use for sampling.
+
+        Returns
+        -------
+        xr.Dataset
+            Dataset containing the posterior samples for the population-level purchase rate.
+        """
+        return self._distribution_new_customers(
+            random_seed=random_seed,
+            var_names=["population_purchase_rate"],
+        )["population_purchase_rate"]
