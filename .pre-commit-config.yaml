@@ -1,31 +1,33 @@
 repos:
-  - repo: https://github.com/psf/black
-    rev: 22.12.0
+  - repo: local
     hooks:
-      - id: black
-  - repo: https://github.com/pycqa/flake8
-    rev: 6.0.0
-    hooks:
-      - id: flake8
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
-        args: [--profile, black]
-        types: [python]
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.2.0
-    hooks:
-      - id: mypy
-        args: [--ignore-missing-imports]
-        files: ^pymc_marketing/
-        additional_dependencies: [numpy>=1.20, pandas-stubs]
+    - id: black
+      name: black
+      entry: black
+      language: system
+      types: [python]
+    - id: flake8
+      name: flake8
+      entry: flake8
+      language: system
+      types: [python]
+    - id: isort
+      name: isort
+      entry: isort --profile black
+      language: system
+      types: [python]
+    - id: mypy
+      name: mypy
+      entry: mypy
+      language: system
+      types: [python]
+      files: ^pymc_marketing/
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v3.2.0
     hooks:
-      - id: debug-statements
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
-      - id: check-yaml
-      - id: check-added-large-files
-        exclude: ^notebooks/
+     - id: debug-statements
+     - id: trailing-whitespace
+     - id: end-of-file-fixer
+     - id: check-yaml
+     - id: check-added-large-files
+       exclude: ^notebooks/
