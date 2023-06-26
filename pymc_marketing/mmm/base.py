@@ -35,8 +35,6 @@ class BaseMMM(ModelBuilder):
         self,
         date_column: str,
         channel_columns: Union[List[str], Tuple[str]],
-        data: pd.DataFrame = None,
-        validate_data: bool = True,
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
         **kwargs,
