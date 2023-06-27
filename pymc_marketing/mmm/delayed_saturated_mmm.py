@@ -1,11 +1,9 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
-from pymc.distributions.shape_utils import change_dist_size
-from pytensor.tensor import TensorVariable
 
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
@@ -19,14 +17,13 @@ __all__ = ["DelayedSaturatedMMM"]
 class BaseDelayedSaturatedMMM(MMM):
     def __init__(
         self,
-        data: pd.DataFrame,
-        target_column: str,
         date_column: str,
         channel_columns: List[str],
-        channel_prior: Optional[TensorVariable] = None,
+        adstock_max_lag: int,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
         validate_data: bool = True,
         control_columns: Optional[List[str]] = None,
-        adstock_max_lag: int = 4,
         yearly_seasonality: Optional[int] = None,
         **kwargs,
     ) -> None:
@@ -34,21 +31,16 @@ class BaseDelayedSaturatedMMM(MMM):
 
         Parameters
         ----------
-        data : pd.DataFrame
-            Training data.
-        target_column : str
-            Column name of the target variable.
         date_column : str
             Column name of the date variable.
         channel_columns : List[str]
             Column names of the media channel variables.
-        channel_prior : Optional[TensorVariable], optional
-            Prior distribution for the channel coefficients, by default None which
-            corresponds to a HalfNormal distribution with sigma=2 (so that all
-            contributions are positive). The prior distribution is specified by the
-            `dist` API. For example, if you `pm.HalfNormal.dist(sigma=4, shape=2)`.
+        model_config : Dictionary, optional
+            dictionary of parameters that initialise model configuration. Class-default defined by the user default_model_config method.
+        sampler_config : Dictionary, optional
+            dictionary of parameters that initialise sampler configuration. Class-default defined by the user default_sampler_config method.
         validate_data : bool, optional
-            Whether to validate the data upon initialization, by default True.
+            Whether to validate the data before fitting to model, by default True.
         control_columns : Optional[List[str]], optional
             Column names of control variables to be added as additional regressors, by default None
         adstock_max_lag : int, optional
@@ -63,80 +55,128 @@ class BaseDelayedSaturatedMMM(MMM):
         self.control_columns = control_columns
         self.adstock_max_lag = adstock_max_lag
         self.yearly_seasonality = yearly_seasonality
+        self.date_column = date_column
+        self.validate_data = validate_data
+
         super().__init__(
-            data=data,
-            target_column=target_column,
             date_column=date_column,
             channel_columns=channel_columns,
-            channel_prior=channel_prior,
-            validate_data=validate_data,
+            model_config=model_config,
+            sampler_config=sampler_config,
             adstock_max_lag=adstock_max_lag,
         )
 
-    def _preprocess_channel_prior(self) -> TensorVariable:
-        return (
-            pm.HalfNormal.dist(sigma=2, shape=len(self.channel_columns))
-            if self.channel_prior is None
-            else change_dist_size(
-                dist=self.channel_prior, new_size=len(self.channel_columns)
-            )
-        )
+    @property
+    def default_sampler_config(self) -> Dict:
+        return {}
+
+    @property
+    def output_var(self):
+        return "y"
+
+    def generate_and_preprocess_model_data(
+        self, X: Union[pd.DataFrame, pd.Series], y: pd.Series
+    ) -> None:
+        """
+        Applies preprocessing to the data before fitting the model.
+        if validate is True, it will check if the data is valid for the model.
+        sets self.model_coords based on provided dataset
+
+        Parameters
+        ----------
+        X : array, shape (n_obs, n_features)
+        y : array, shape (n_obs,)
+        """
+        date_data = X[self.date_column]
+        channel_data = X[self.channel_columns]
+        coords: Dict[str, Any] = {
+            "date": date_data,
+            "channel": self.channel_columns,
+        }
+
+        new_X_dict = {
+            self.date_column: date_data,
+        }
+        X_data = pd.DataFrame.from_dict(new_X_dict)
+        X_data = pd.concat([X_data, channel_data], axis=1)
+        control_data: Optional[Union[pd.DataFrame, pd.Series]] = None
+        if self.control_columns is not None:
+            control_data = X[self.control_columns]
+            coords["control"] = self.control_columns
+            X_data = pd.concat([X_data, control_data], axis=1)
+
+        fourier_features: Optional[pd.DataFrame] = None
+        if self.yearly_seasonality is not None:
+            fourier_features = self._get_fourier_models_data(X=X)
+            self.fourier_columns = fourier_features.columns
+            coords["fourier_mode"] = fourier_features.columns.to_numpy()
+            X_data = pd.concat([X_data, fourier_features], axis=1)
+
+        self.model_coords = coords
+        if self.validate_data:
+            self.validate("X", X_data)
+            self.validate("y", y)
+        self.preprocessed_data: Dict[str, Union[pd.DataFrame, pd.Series]] = {
+            "X": self.preprocess("X", X_data),
+            "y": self.preprocess("y", y),
+        }
+        self.X: pd.DataFrame = X_data
+        self.y: pd.Series = y
 
     def build_model(
         self,
-        data: pd.DataFrame,
-        adstock_max_lag: int = 4,
+        X: pd.DataFrame,
+        y: pd.Series,
+        **kwargs,
     ) -> None:
-        date_data = data[self.date_column]
-        target_data = data[self.target_column]
-        channel_data = data[self.channel_columns]
-
-        coords: Dict[str, Any] = {
-            "date": date_data,
-            "channel": channel_data.columns,
-        }
-
-        if self.control_columns is not None:
-            control_data: Optional[pd.DataFrame] = data[self.control_columns]
-            coords["control"] = data[self.control_columns].columns
-        else:
-            control_data = None
-
-        if self.yearly_seasonality is not None:
-            fourier_features = self._get_fourier_models_data()
-            coords["fourier_mode"] = fourier_features.columns.to_numpy()
-
-        else:
-            fourier_features = None
-
-        with pm.Model(coords=coords) as self.model:
+        model_config = self.model_config
+        self.generate_and_preprocess_model_data(X, y)
+        with pm.Model(coords=self.model_coords) as self.model:
             channel_data_ = pm.MutableData(
                 name="channel_data",
-                value=channel_data,
+                value=self.preprocessed_data["X"][self.channel_columns].to_numpy(),
                 dims=("date", "channel"),
             )
 
-            target_ = pm.MutableData(name="target", value=target_data, dims="date")
-
-            intercept = pm.Normal(name="intercept", mu=0, sigma=2)
-
-            channel_prior = self._preprocess_channel_prior()
-            beta_channel = self.model.register_rv(
-                rv_var=channel_prior, name="beta_channel", dims="channel"
+            target_ = pm.MutableData(
+                name="target",
+                value=self.preprocessed_data["y"],
+                dims="date",
             )
 
-            alpha = pm.Beta(name="alpha", alpha=1, beta=3, dims="channel")
+            intercept = pm.Normal(
+                name="intercept",
+                mu=model_config["intercept"]["mu"],
+                sigma=model_config["intercept"]["sigma"],
+            )
 
-            lam = pm.Gamma(name="lam", alpha=3, beta=1, dims="channel")
+            beta_channel = pm.HalfNormal(
+                name="beta_channel",
+                sigma=model_config["beta_channel"]["sigma"],
+                dims=model_config["beta_channel"]["dims"],
+            )
+            alpha = pm.Beta(
+                name="alpha",
+                alpha=model_config["alpha"]["alpha"],
+                beta=model_config["alpha"]["beta"],
+                dims=model_config["alpha"]["dims"],
+            )
 
-            sigma = pm.HalfNormal(name="sigma", sigma=2)
+            lam = pm.Gamma(
+                name="lam",
+                alpha=model_config["lam"]["alpha"],
+                beta=model_config["lam"]["beta"],
+                dims=model_config["lam"]["dims"],
+            )
+
+            sigma = pm.HalfNormal(name="sigma", sigma=model_config["sigma"]["sigma"])
 
             channel_adstock = pm.Deterministic(
                 name="channel_adstock",
                 var=geometric_adstock(
                     x=channel_data_,
                     alpha=alpha,
-                    l_max=adstock_max_lag,
+                    l_max=self.adstock_max_lag,
                     normalize=True,
                     axis=0,
                 ),
@@ -154,14 +194,25 @@ class BaseDelayedSaturatedMMM(MMM):
             )
 
             mu_var = intercept + channel_contributions.sum(axis=-1)
-
-            if control_data is not None:
+            if (
+                self.control_columns is not None
+                and len(self.control_columns) > 0
+                and all(
+                    column in self.preprocessed_data["X"].columns
+                    for column in self.control_columns
+                )
+            ):
                 control_data_ = pm.MutableData(
-                    name="control_data", value=control_data, dims=("date", "control")
+                    name="control_data",
+                    value=self.preprocessed_data["X"][self.control_columns],
+                    dims=("date", "control"),
                 )
 
                 gamma_control = pm.Normal(
-                    name="gamma_control", mu=0, sigma=2, dims="control"
+                    name="gamma_control",
+                    mu=model_config["gamma_control"]["mu"],
+                    sigma=model_config["gamma_control"]["sigma"],
+                    dims=model_config["gamma_control"]["dims"],
                 )
 
                 control_contributions = pm.Deterministic(
@@ -171,16 +222,26 @@ class BaseDelayedSaturatedMMM(MMM):
                 )
 
                 mu_var += control_contributions.sum(axis=-1)
-
-            if fourier_features is not None:
+            if (
+                hasattr(self, "fourier_columns")
+                and self.fourier_columns is not None
+                and len(self.fourier_columns) > 0
+                and all(
+                    column in self.preprocessed_data["X"].columns
+                    for column in self.fourier_columns
+                )
+            ):
                 fourier_data_ = pm.MutableData(
                     name="fourier_data",
-                    value=fourier_features,
+                    value=self.preprocessed_data["X"][self.fourier_columns],
                     dims=("date", "fourier_mode"),
                 )
 
                 gamma_fourier = pm.Laplace(
-                    name="gamma_fourier", mu=0, b=1, dims="fourier_mode"
+                    name="gamma_fourier",
+                    mu=model_config["gamma_fourier"]["mu"],
+                    b=model_config["gamma_fourier"]["b"],
+                    dims=model_config["gamma_fourier"]["dims"],
                 )
 
                 fourier_contribution = pm.Deterministic(
@@ -191,17 +252,38 @@ class BaseDelayedSaturatedMMM(MMM):
 
                 mu_var += fourier_contribution.sum(axis=-1)
 
-            mu = pm.Deterministic(name="mu", var=mu_var, dims="date")
+            mu = pm.Deterministic(
+                name="mu", var=mu_var, dims=model_config["mu"]["dims"]
+            )
 
             pm.Normal(
                 name="likelihood",
                 mu=mu,
                 sigma=sigma,
                 observed=target_,
-                dims="date",
+                dims=model_config["likelihood"]["dims"],
             )
 
-    def _get_fourier_models_data(self) -> pd.DataFrame:
+    @property
+    def default_model_config(self) -> Dict:
+        model_config: Dict = {
+            "intercept": {"mu": 0, "sigma": 2},
+            "beta_channel": {"sigma": 2, "dims": ("channel",)},
+            "alpha": {"alpha": 1, "beta": 3, "dims": ("channel",)},
+            "lam": {"alpha": 3, "beta": 1, "dims": ("channel",)},
+            "sigma": {"sigma": 2},
+            "gamma_control": {
+                "mu": 0,
+                "sigma": 2,
+                "dims": ("control",),
+            },
+            "mu": {"dims": ("date",)},
+            "likelihood": {"dims": ("date",)},
+            "gamma_fourier": {"mu": 0, "b": 1, "dims": "fourier_mode"},
+        }
+        return model_config
+
+    def _get_fourier_models_data(self, X) -> pd.DataFrame:
         """Generates fourier modes to model seasonality.
 
         References
@@ -210,15 +292,87 @@ class BaseDelayedSaturatedMMM(MMM):
         """
         if self.yearly_seasonality is None:
             raise ValueError("yearly_seasonality must be specified.")
-
         date_data: pd.Series = pd.to_datetime(
-            arg=self.data[self.date_column], format="%Y-%m-%d"
+            arg=X[self.date_column], format="%Y-%m-%d"
         )
         periods: npt.NDArray[np.float_] = date_data.dt.dayofyear.to_numpy() / 365.25
         return generate_fourier_modes(
             periods=periods,
             n_order=self.yearly_seasonality,
         )
+
+    @property
+    def _serializable_model_config(self) -> Dict[str, Any]:
+        serializable_config = self.model_config.copy()
+        if type(serializable_config["beta_channel"]["sigma"]) == np.ndarray:
+            serializable_config["beta_channel"]["sigma"] = serializable_config[
+                "beta_channel"
+            ]["sigma"].tolist()
+        return serializable_config
+
+    def _data_setter(
+        self,
+        X: Union[np.ndarray, pd.DataFrame],
+        y: Optional[Union[np.ndarray, pd.Series]] = None,
+    ) -> None:
+        """
+        Sets new data in the model.
+
+        This function accepts data in various formats and sets them into the
+        model using the PyMC's `set_data` method. The data corresponds to the
+        channel data and the target.
+
+        Parameters
+        ----------
+        X : Union[np.ndarray, pd.DataFrame]
+            Data for the channel. It can be a numpy array or pandas DataFrame.
+            If it's a DataFrame, the columns corresponding to self.channel_columns
+            are used. If it's an ndarray, it's used directly.
+        y : Union[np.ndarray, pd.Series], optional
+            Target data. It can be a numpy array or a pandas Series.
+            If it's a Series, its values are used. If it's an ndarray, it's used
+            directly. The default is None.
+
+        Raises
+        ------
+        RuntimeError
+            If the data for the channel is not provided in `X`.
+        TypeError
+            If `X` is not a pandas DataFrame or a numpy array, or
+            if `y` is not a pandas Series or a numpy array and is not None.
+
+        Returns
+        -------
+        None
+        """
+
+        new_channel_data = None
+        if isinstance(X, pd.DataFrame):
+            try:
+                new_channel_data = X[self.channel_columns].to_numpy()
+            except KeyError as e:
+                raise RuntimeError("New data must contain channel_data!", e)
+        elif isinstance(X, np.ndarray):
+            new_channel_data = X  # type: ignore
+        else:
+            raise TypeError("X must be either a pandas DataFrame or a numpy array")
+
+        target = None
+        if y is not None:
+            if isinstance(y, pd.Series):
+                target = y.values
+            elif isinstance(y, np.ndarray):
+                target = y
+            else:
+                raise TypeError("y must be either a pandas Series or a numpy array")
+
+        with self.model:
+            pm.set_data(
+                {
+                    "channel_data": new_channel_data,
+                    "target": target,
+                }
+            )
 
 
 class DelayedSaturatedMMM(

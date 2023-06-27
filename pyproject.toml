@@ -82,4 +82,7 @@ addopts = [
     "--cov-report=term-missing",
     "--color=yes",
 ]
+filterwarnings = [
+    "ignore::DeprecationWarning:bokeh.core.property.primitive:37"
+]
 testpaths = "tests"
