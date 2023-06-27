@@ -106,10 +106,10 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             raise KeyError("data must contain a 'T' column")
         super().__init__(model_config=model_config, sampler_config=sampler_config)
         self.data = data
-        self.alpha_prior = self.create_distribution_and_check_dim(
+        self.alpha_prior = self.create_distribution_from_dict(
             self.model_config["alpha_prior"]
         )
-        self.beta_prior = self.create_distribution_and_check_dim(
+        self.beta_prior = self.create_distribution_from_dict(
             self.model_config["beta_prior"]
         )
         self._process_priors(self.alpha_prior, self.beta_prior)

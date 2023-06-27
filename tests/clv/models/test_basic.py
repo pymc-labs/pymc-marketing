@@ -13,7 +13,7 @@ class CLVModelTest(CLVModel):
     def __init__(self, dataset=None, model_config=None, sampler_config=None):
         super().__init__()
         self.data = pd.DataFrame({"y": np.random.randn(100)})
-        self.a = self.create_distribution_and_check_dim(self.model_config["a"])
+        self.a = self.create_distribution_from_dict(self.model_config["a"])
         self._process_priors(self.a)
 
     @property
@@ -86,7 +86,7 @@ class TestCLVModel:
             ValueError,
             match="Distribution definately_not_PyMC_dist does not exist in PyMC",
         ):
-            model.create_distribution_and_check_dim(
+            model.create_distribution_from_dict(
                 {"dist": "definately_not_PyMC_dist", "kwargs": {"alpha": 1, "beta": 1}}
             )
 
