@@ -192,7 +192,7 @@ class CLVModel(ModelBuilder):
             )
 
     @staticmethod
-    def create_distribution_from_dict(dist: Dict, ndim: int = 0) -> TensorVariable:
+    def _create_distribution(dist: Dict, ndim: int = 0) -> TensorVariable:
         try:
             prior_distribution = getattr(pm, dist["dist"]).dist(**dist["kwargs"])
             CLVModel._check_prior_ndim(prior_distribution, ndim)

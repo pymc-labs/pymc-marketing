@@ -21,9 +21,9 @@ class BaseGammaGammaModel(CLVModel):
     ):
         super().__init__(model_config, sampler_config)
         self.data = data
-        self.p_prior = self.create_distribution_from_dict(self.model_config["p_prior"])
-        self.q_prior = self.create_distribution_from_dict(self.model_config["q_prior"])
-        self.v_prior = self.create_distribution_from_dict(self.model_config["v_prior"])
+        self.p_prior = self._create_distribution(self.model_config["p_prior"])
+        self.q_prior = self._create_distribution(self.model_config["q_prior"])
+        self.v_prior = self._create_distribution(self.model_config["v_prior"])
         self._process_priors(self.p_prior, self.q_prior, self.v_prior)
 
     def distribution_customer_spend(
