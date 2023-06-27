@@ -120,7 +120,6 @@ class CLVModel(ModelBuilder):
         with self.model:
             sampler_args = {**self.sampler_config, **kwargs}
             idata = pm.sample(**sampler_args)
-            idata.extend(pm.sample_posterior_predictive(idata))
 
         self.set_idata_attrs(idata)
         return idata
@@ -195,6 +194,7 @@ class CLVModel(ModelBuilder):
     def create_distribution_from_prior(self, name: str, **kwargs) -> TensorVariable:
         try:
             prior = getattr(pm, name).dist(**kwargs)
+            CLVModel._check_prior_ndim(prior)
         except AttributeError:
             raise ValueError(f"Distribution {name} does not exist in PyMC")
         return prior
@@ -208,8 +208,6 @@ class CLVModel(ModelBuilder):
             raise ValueError("Prior variables must be unique")
         # Related to https://github.com/pymc-devs/pymc/issues/6311
         for prior in priors:
-            if check_ndim:
-                CLVModel._check_prior_ndim(prior)
             prior.str_repr = types.MethodType(str_for_dist, prior)  # type: ignore
         return priors
 
