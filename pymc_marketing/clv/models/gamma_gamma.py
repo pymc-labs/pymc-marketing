@@ -21,17 +21,14 @@ class BaseGammaGammaModel(CLVModel):
     ):
         super().__init__(model_config, sampler_config)
         self.data = data
-        self.p_prior = self.create_distribution_from_prior(
-            self.model_config["p_prior"]["dist"],
-            **self.model_config["p_prior"]["kwargs"],
+        self.p_prior = self.create_distribution_and_check_dim(
+            self.model_config["p_prior"]
         )
-        self.q_prior = self.create_distribution_from_prior(
-            self.model_config["q_prior"]["dist"],
-            **self.model_config["q_prior"]["kwargs"],
+        self.q_prior = self.create_distribution_and_check_dim(
+            self.model_config["q_prior"]
         )
-        self.v_prior = self.create_distribution_from_prior(
-            self.model_config["v_prior"]["dist"],
-            **self.model_config["v_prior"]["kwargs"],
+        self.v_prior = self.create_distribution_and_check_dim(
+            self.model_config["v_prior"]
         )
         self._process_priors(self.p_prior, self.q_prior, self.v_prior)
 

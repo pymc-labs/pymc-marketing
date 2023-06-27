@@ -131,21 +131,17 @@ class BetaGeoModel(CLVModel):
             sampler_config=sampler_config,
         )
         self.data = data
-        self.a_prior = self.create_distribution_from_prior(
-            self.model_config["a_prior"]["dist"],
-            **self.model_config["a_prior"]["kwargs"],
+        self.a_prior = self.create_distribution_and_check_dim(
+            self.model_config["a_prior"]
         )
-        self.b_prior = self.create_distribution_from_prior(
-            self.model_config["b_prior"]["dist"],
-            **self.model_config["b_prior"]["kwargs"],
+        self.b_prior = self.create_distribution_and_check_dim(
+            self.model_config["b_prior"]
         )
-        self.alpha_prior = self.create_distribution_from_prior(
-            self.model_config["alpha_prior"]["dist"],
-            **self.model_config["alpha_prior"]["kwargs"],
+        self.alpha_prior = self.create_distribution_and_check_dim(
+            self.model_config["alpha_prior"]
         )
-        self.r_prior = self.create_distribution_from_prior(
-            self.model_config["r_prior"]["dist"],
-            **self.model_config["r_prior"]["kwargs"],
+        self.r_prior = self.create_distribution_and_check_dim(
+            self.model_config["r_prior"]
         )
         self._process_priors(self.a_prior, self.b_prior, self.alpha_prior, self.r_prior)
         # each customer's information should be encapsulated by a single data entry

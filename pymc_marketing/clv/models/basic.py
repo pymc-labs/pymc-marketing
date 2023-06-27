@@ -191,13 +191,15 @@ class CLVModel(ModelBuilder):
                 f"Prior variable {prior} must be have {ndim} ndims, but it has {prior.ndim} ndims."
             )
 
-    def create_distribution_from_prior(self, name: str, **kwargs) -> TensorVariable:
+    def create_distribution_and_check_dim(
+        self, prior: Dict, dim: Optional[int] = 0
+    ) -> TensorVariable:
         try:
-            prior = getattr(pm, name).dist(**kwargs)
-            CLVModel._check_prior_ndim(prior)
+            prior_distribution = getattr(pm, prior["dist"]).dist(**prior["kwargs"])
+            CLVModel._check_prior_ndim(prior_distribution, dim)
         except AttributeError:
-            raise ValueError(f"Distribution {name} does not exist in PyMC")
-        return prior
+            raise ValueError(f"Distribution {prior['dist']} does not exist in PyMC")
+        return prior_distribution
 
     @staticmethod
     def _process_priors(
