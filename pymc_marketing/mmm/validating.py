@@ -3,7 +3,8 @@ from typing import Callable, List, Optional, Tuple, Union
 import pandas as pd
 
 __all__ = [
-    "validation_method",
+    "validation_method_X",
+    "validation_method_y",
     "ValidateControlColumns",
     "ValidateTargetColumn",
     "ValidateDateColumn",
@@ -11,26 +12,31 @@ __all__ = [
 ]
 
 
-def validation_method(method: Callable) -> Callable:
+def validation_method_y(method: Callable) -> Callable:
     if not hasattr(method, "_tags"):
         method._tags = {}  # type: ignore
-    method._tags["validation"] = True  # type: ignore
+    method._tags["validation_y"] = True  # type: ignore
+    return method
+
+
+def validation_method_X(method: Callable) -> Callable:
+    if not hasattr(method, "_tags"):
+        method._tags = {}  # type: ignore
+    method._tags["validation_X"] = True  # type: ignore
     return method
 
 
 class ValidateTargetColumn:
-    target_column: str
-
-    @validation_method
-    def validate_target(self, data: pd.DataFrame) -> None:
-        if self.target_column not in data.columns:
-            raise ValueError(f"target {self.target_column} not in data")
+    @validation_method_y
+    def validate_target(self, data: pd.Series) -> None:
+        if len(data) == 0:
+            raise ValueError("y must have at least one element")
 
 
 class ValidateDateColumn:
     date_column: str
 
-    @validation_method
+    @validation_method_X
     def validate_date_col(self, data: pd.DataFrame) -> None:
         if self.date_column not in data.columns:
             raise ValueError(f"date_col {self.date_column} not in data")
@@ -41,7 +47,7 @@ class ValidateDateColumn:
 class ValidateChannelColumns:
     channel_columns: Union[List[str], Tuple[str]]
 
-    @validation_method
+    @validation_method_X
     def validate_channel_columns(self, data: pd.DataFrame) -> None:
         if not isinstance(self.channel_columns, (list, tuple)):
             raise ValueError("channel_columns must be a list or tuple")
@@ -62,7 +68,7 @@ class ValidateChannelColumns:
 class ValidateControlColumns:
     control_columns: Optional[List[str]]
 
-    @validation_method
+    @validation_method_X
     def validate_control_columns(self, data: pd.DataFrame) -> None:
         if self.control_columns is None:
             return None
