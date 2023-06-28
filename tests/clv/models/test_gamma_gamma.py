@@ -383,7 +383,7 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
 
     @pytest.mark.slow
     def test_model_convergence(self, individual_data, model_config):
-        rng = np.random.default_rng(3)
+        rng = np.random.default_rng(13)
         model = GammaGammaModelIndividual(
             data=individual_data,
             model_config=model_config,

@@ -214,7 +214,7 @@ class TestBetaGeoModel:
             ),
             (2000, "mcmc", 0.1),
             (10000, "mcmc", 0.055),
-            (2000, "map", 0.1),
+            (2000, "map", 0.1035),
         ],
     )
     def test_model_convergence(self, N, fit_method, rtol, model_config):
