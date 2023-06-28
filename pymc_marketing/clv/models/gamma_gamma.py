@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Dict, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -13,21 +13,18 @@ from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
 
 
 class BaseGammaGammaModel(CLVModel):
-    def _process_priors(self, p_prior, q_prior, v_prior):
-        if p_prior is None:
-            p_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(p_prior)
-        if q_prior is None:
-            q_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(q_prior)
-        if v_prior is None:
-            v_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(v_prior)
-
-        return super()._process_priors(p_prior, q_prior, v_prior)
+    def __init__(
+        self,
+        data: pd.DataFrame,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
+    ):
+        super().__init__(model_config, sampler_config)
+        self.data = data
+        self.p_prior = self._create_distribution(self.model_config["p_prior"])
+        self.q_prior = self._create_distribution(self.model_config["q_prior"])
+        self.v_prior = self._create_distribution(self.model_config["v_prior"])
+        self._process_priors(self.p_prior, self.q_prior, self.v_prior)
 
     def distribution_customer_spend(
         self,
@@ -53,7 +50,7 @@ class BaseGammaGammaModel(CLVModel):
             pm.Deterministic("mean_spend", p / nu, dims=("customer_id",))
 
             return pm.sample_posterior_predictive(
-                self.fit_result,
+                self.idata,
                 var_names=["nu", "mean_spend"],
                 random_seed=random_seed,
             ).posterior_predictive["mean_spend"]
@@ -75,9 +72,9 @@ class BaseGammaGammaModel(CLVModel):
             customer_id, mean_transaction_value, frequency
         )
 
-        p = self.fit_result.posterior["p"]
-        q = self.fit_result.posterior["q"]
-        v = self.fit_result.posterior["v"]
+        p = self.idata.posterior["p"]
+        q = self.idata.posterior["q"]
+        v = self.idata.posterior["v"]
 
         individual_weight = p * frequency / (p * frequency + q - 1)
         population_mean = v * p / (q - 1)
@@ -99,7 +96,7 @@ class BaseGammaGammaModel(CLVModel):
             pm.Deterministic("mean_spend", p / nu, dims=("new_customer_id",))
 
             return pm.sample_posterior_predictive(
-                self.fit_result,
+                self.idata,
                 var_names=["nu", "mean_spend"],
                 random_seed=random_seed,
             ).posterior_predictive["mean_spend"]
@@ -107,9 +104,9 @@ class BaseGammaGammaModel(CLVModel):
     def expected_new_customer_spend(self) -> xarray.DataArray:
         """Expected transaction value for a new customer"""
 
-        p_mean = self.fit_result.posterior["p"]
-        q_mean = self.fit_result.posterior["q"]
-        v_mean = self.fit_result.posterior["v"]
+        p_mean = self.idata.posterior["p"]
+        q_mean = self.idata.posterior["q"]
+        v_mean = self.idata.posterior["v"]
 
         # Closed form solution to the posterior of nu
         # Eq 3 from [1], p.3
@@ -171,21 +168,15 @@ class GammaGammaModel(BaseGammaGammaModel):
 
     Parameters
     ----------
-    customer_id: array_like
-        Customer labels. Must not repeat.
-    mean_transaction_value: array_like
-        Mean transaction value of each customer.
-    frequency: array_like
-        Number of transactions observed for each customer.
-    p_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    q_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    v_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
+    data: pd.DataFrame
+        DataFrame containing the following columns:
+            - customer_id: Customer labels. Must not repeat.
+            - mean_transaction_value: Mean transaction value of each customer.
+            - frequency: Number of transactions observed for each customer.
+    model_config: dict, optional
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+    sampler_config: dict, optional
+        Dictionary of sampler parameters. Defaults to None.
 
     Examples
     --------
@@ -197,14 +188,25 @@ class GammaGammaModel(BaseGammaGammaModel):
             from pymc_marketing.clv import GammaGammaModel
 
             model = GammaGammaModel(
-                customer_id=[0, 1, 2, 3, ...],
-                mean_transactionn_value=[23.5, 19.3, 11.2, 100.5, ...],
-                frequency=[6, 8, 2, 1, ...],
-                p_prior=pm.HalfNormal.dist(10),
-                q_prior=pm.HalfNormal.dist(10),
-                v_prior=pm.HalfNormal.dist(10),
+                data=pd.DataFrame({
+                    "customer_id": [0, 1, 2, 3, ...],
+                    "mean_transactionn_value" :[23.5, 19.3, 11.2, 100.5, ...],
+                    "frequency": [6, 8, 2, 1, ...],
+                }),
+                model_config={
+                    "p_prior": {dist: 'HalfNorm', kwargs: {}},
+                    "q_prior": {dist: 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
+                    "v_prior": {dist: 'HalfCauchy', kwargs: {}},
+                },
+                sampler_config={
+                    "draws": 1000,
+                    "tune": 1000,
+                    "chains": 2,
+                    "cores": 2,
+                    "nuts_kwargs": {"target_accept": 0.95},
+                },
             )
-
+            model.build_model()
             model.fit()
             print(model.fit_summary())
 
@@ -230,30 +232,51 @@ class GammaGammaModel(BaseGammaGammaModel):
            https://journals.sagepub.com/doi/pdf/10.1509/jmkr.2005.42.4.415
     """
 
-    _model_name = "Gamma-Gamma Model (Mean Transactions)"
+    _model_type = "Gamma-Gamma Model (Mean Transactions)"
 
     def __init__(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        mean_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
-        frequency: Union[np.ndarray, pd.Series, TensorVariable],
-        p_prior: Optional[TensorVariable] = None,
-        q_prior: Optional[TensorVariable] = None,
-        v_prior: Optional[TensorVariable] = None,
+        data: pd.DataFrame,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
     ):
-        super().__init__()
+        try:
+            self.customer_id: Union[np.ndarray, pd.Series] = data["customer_id"]
+        except KeyError:
+            raise KeyError("data must contain a customer_id column")
+        try:
+            self.mean_transaction_value: Union[
+                np.ndarray, pd.Series, TensorVariable
+            ] = data["mean_transaction_value"]
+        except KeyError:
+            raise KeyError("data must contain a mean_transaction_value column")
+        try:
+            self.frequency: Union[np.ndarray, pd.Series, TensorVariable] = data[
+                "frequency"
+            ]
+        except KeyError:
+            raise KeyError("data must contain a frequency column")
+        super().__init__(
+            data=data, model_config=model_config, sampler_config=sampler_config
+        )
 
-        p_prior, q_prior, v_prior = self._process_priors(p_prior, q_prior, v_prior)
+        self.coords = {"customer_id": np.unique(self.customer_id)}
 
-        z_mean = pt.as_tensor_variable(mean_transaction_value)
-        x = pt.as_tensor_variable(frequency)
+    @property
+    def default_model_config(self) -> Dict:
+        return {
+            "p_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "q_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "v_prior": {"dist": "HalfFlat", "kwargs": {}},
+        }
 
-        coords = {"customer_id": np.unique(customer_id)}
-        with pm.Model(coords=coords) as self.model:
-            p = self.model.register_rv(p_prior, name="p")
-            q = self.model.register_rv(q_prior, name="q")
-            v = self.model.register_rv(v_prior, name="v")
-
+    def build_model(self):
+        z_mean = pt.as_tensor_variable(self.mean_transaction_value)
+        x = pt.as_tensor_variable(self.frequency)
+        with pm.Model(coords=self.coords) as self.model:
+            p = self.model.register_rv(self.p_prior, name="p")
+            q = self.model.register_rv(self.q_prior, name="q")
+            v = self.model.register_rv(self.v_prior, name="v")
             # Likelihood for mean_spend, marginalizing over nu
             # Eq 1a from [1], p.2
             pm.Potential(
@@ -285,20 +308,15 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
     Parameters
     ----------
-    customer_id: array_like
-        Customer labels. The same value should be used for each observation
+    data: pd.DataFrame
+        Dataframe containing the following columns:
+            - customer_id: Customer labels. The same value should be used for each observation
         coming from the same customer.
-    individual_transaction_value: array_like
-        Value of individual transactions.
-    p_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    q_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    v_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
+            - individual_transaction_value: Value of individual transactions.
+    model_config: dict, optional
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+    sampler_config: dict, optional
+        Dictionary of sampler parameters. Defaults to None.
 
 
     Examples
@@ -309,13 +327,27 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         .. code-block:: python
 
             import pymc as pm
-            from pymc_marketing.clv import GammaGammaModel
+            from pymc_marketing.clv import GammaGammaModelIndividual
 
-            model = GammaGammaModel(
-                customer_id=[0, 0, 0, 1, 1, 2, ...],
-                individual_transaction_value=[5.3. 5.7, 6.9, 13.5, 0.3, 19.2 ...],
+            model = GammaGammaModelIndividual(
+                data=pd.DataFrame({
+                    "customer_id": [0, 0, 0, 1, 1, 2, ...],
+                    "individual_transaction_value": [5.3. 5.7, 6.9, 13.5, 0.3, 19.2 ...],
+                }),
+                model_config={
+                    "p_prior": {dist: 'HalfNorm', kwargs: {}},
+                    "q_prior": {dist: 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
+                    "v_prior": {dist: 'HalfCauchy', kwargs: {}},
+                },
+                sampler_config={
+                    "draws": 1000,
+                    "tune": 1000,
+                    "chains": 2,
+                    "cores": 2,
+                    "nuts_kwargs": {"target_accept": 0.95},
+                },
             )
-
+            model.build_model()
             model.fit()
             print(model.fit_summary())
 
@@ -342,32 +374,50 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
            https://journals.sagepub.com/doi/pdf/10.1509/jmkr.2005.42.4.415
     """
 
-    _model_name = "Gamma-Gamma Model (Individual Transactions)"
+    _model_type = "Gamma-Gamma Model (Individual Transactions)"
 
     def __init__(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
-        p_prior: Optional[TensorVariable] = None,
-        q_prior: Optional[TensorVariable] = None,
-        v_prior: Optional[TensorVariable] = None,
+        data: pd.DataFrame,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
     ):
-        super().__init__()
+        try:
+            self.customer_id: Union[np.ndarray, pd.Series] = data["customer_id"]
+        except KeyError:
+            raise KeyError("data must contain a 'customer_id' column")
+        try:
+            self.individual_transaction_value: Union[
+                np.ndarray, pd.Series, TensorVariable
+            ] = data["individual_transaction_value"]
+        except KeyError:
+            raise KeyError("data must contain a 'individual_transaction_value' column")
+        super().__init__(
+            data=data, model_config=model_config, sampler_config=sampler_config
+        )
 
-        p_prior, q_prior, v_prior = self._process_priors(p_prior, q_prior, v_prior)
-        z = individual_transaction_value
-
-        coords = {
-            "customer_id": np.unique(customer_id),
-            "obs": range(len(customer_id)),
+    @property
+    def default_model_config(self) -> Dict:
+        return {
+            "p_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "q_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "v_prior": {"dist": "HalfFlat", "kwargs": {}},
         }
-        with pm.Model(coords=coords) as self.model:
-            p = self.model.register_rv(p_prior, name="p")
-            q = self.model.register_rv(q_prior, name="q")
-            v = self.model.register_rv(v_prior, name="v")
+
+    def build_model(self):
+        z = self.individual_transaction_value
+
+        self.coords = {
+            "customer_id": np.unique(self.customer_id),
+            "obs": range(len(self.customer_id)),
+        }
+        with pm.Model(coords=self.coords) as self.model:
+            p = self.model.register_rv(self.p_prior, name="p")
+            q = self.model.register_rv(self.q_prior, name="q")
+            v = self.model.register_rv(self.v_prior, name="v")
 
             nu = pm.Gamma("nu", q, v, dims=("customer_id",))
-            pm.Gamma("spend", p, nu[customer_id], observed=z, dims=("obs",))
+            pm.Gamma("spend", p, nu[self.customer_id], observed=z, dims=("obs",))
 
     def _summarize_mean_data(self, customer_id, individual_transaction_value):
         df = pd.DataFrame(

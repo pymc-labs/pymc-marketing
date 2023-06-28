@@ -1,10 +1,9 @@
-from typing import Optional, Sequence, Union
+from typing import Dict, Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
 import pymc as pm
 from pymc.util import RandomState
-from pytensor.tensor import TensorVariable
 from xarray import DataArray, Dataset
 
 from pymc_marketing.clv.models import CLVModel
@@ -24,20 +23,17 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
 
     Parameters
     ----------
-    customer_id: array_like
-        Customer labels. There should be one unique label for each customer
-    t_churn: array_like
-        Time at which the customer cancelled the contract (starting at 0).
+    data: pd.DataFrame
+        DataFrame containing the following columns:
+            * `customer_id`: Customer labels. There should be one unique label for each customer
+            * `t_churn`: Time at which the customer cancelled the contract (starting at 0).
         It should  equal T for users that have not cancelled by the end of the
         observation period
-    T: array_like
-        Maximum observed time period (starting at 0)
-    alpha_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    beta_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
+            * `T`: Maximum observed time period (starting at 0)
+    model_config: dict, optional
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+    sampler_config: dict, optional
+        Dictionary of sampler parameters. Defaults to None.
 
 
     Examples
@@ -48,11 +44,22 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             from pymc_marketing.clv import ShiftedBetaGeoModelIndividual
 
             model = ShiftedBetaGeoModelIndividual(
-                customer_id=[0, 1, 2, 3, ...],
-                t_churn=[1, 2, 8, 4, 8 ...],
-                T=8,  # Can also be an array with one value per customer
-                alpha_prior=pm.HalfNormal.dist(10),
-                beta_prior=pm.HalfNormal.dist(10),
+                data=pd.DataFrame({
+                    customer_id=[0, 1, 2, 3, ...],
+                    t_churn=[1, 2, 8, 4, 8 ...],
+                    T=[8 for x in range(len(customer_id))],
+                }),
+                model_config={
+                    "alpha_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
+                    "beta_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4, "sigma": 10}},
+                },
+                sampler_config={
+                    "draws": 1000,
+                    "tune": 1000,
+                    "chains": 2,
+                    "cores": 2,
+                    "nuts_kwargs": {"target_accept": 0.95},
+                },
             )
 
             model.fit()
@@ -77,58 +84,66 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
            https://journals.sagepub.com/doi/pdf/10.1002/dir.20074
     """
 
-    _model_name = "Shifted-Beta-Geometric Model (Individual Customers)"
+    _model_type = "Shifted-Beta-Geometric Model (Individual Customers)"
 
     def __init__(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        t_churn: Union[np.ndarray, pd.Series],
-        T: Union[np.ndarray, pd.Series],
-        alpha_prior: Optional[TensorVariable] = None,
-        beta_prior: Optional[TensorVariable] = None,
+        data: pd.DataFrame,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
     ):
-        super().__init__()
+        try:
+            self.customer_id = data["customer_id"]
+        except KeyError:
+            raise KeyError("data must contain a 'customer_id' column")
+        try:
+            self.t_churn: np.ndarray = np.asarray(data["t_churn"])
+        except KeyError:
+            raise KeyError("data must contain a 't_churn' column")
+        try:
+            self.T: np.ndarray = np.asarray(data["T"])
+        except KeyError:
+            raise KeyError("data must contain a 'T' column")
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
+        self.data = data
+        self.alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
+        self.beta_prior = self._create_distribution(self.model_config["beta_prior"])
+        self._process_priors(self.alpha_prior, self.beta_prior)
 
-        t_churn = np.asarray(t_churn)
-        T = np.asarray(T)
-
-        if np.any((t_churn < 0) | (t_churn > T) | np.isnan(t_churn)):
+        if np.any(
+            (self.t_churn < 0) | (self.t_churn > self.T) | np.isnan(self.t_churn)
+        ):
             raise ValueError(
                 "t_churn must respect 0 < t_churn <= T.\n",
                 "Customers that are still alive should have t_churn = T",
             )
+        self.coords = {"customer_id": np.asarray(self.customer_id)}
 
-        alpha_prior, beta_prior = self._process_priors(alpha_prior, beta_prior)
+    @property
+    def default_model_config(self) -> Dict:
+        return {
+            "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "beta_prior": {"dist": "HalfFlat", "kwargs": {}},
+        }
 
-        coords = {"customer_id": np.asarray(customer_id)}
-        with pm.Model(coords=coords) as self.model:
-            alpha = self.model.register_rv(alpha_prior, name="alpha")
-            beta = self.model.register_rv(beta_prior, name="beta")
+    def build_model(
+        self,
+    ) -> None:
+        with pm.Model(coords=self.coords) as self.model:
+            alpha = self.model.register_rv(self.alpha_prior, name="alpha")
+            beta = self.model.register_rv(self.beta_prior, name="beta")
 
             theta = pm.Beta("theta", alpha, beta, dims=("customer_id",))
 
             churn_raw = pm.Geometric.dist(theta)
-
             pm.Censored(
                 "churn_censored",
                 churn_raw,
                 lower=None,
-                upper=T,
-                observed=t_churn,
+                upper=self.T,
+                observed=self.t_churn,
                 dims=("customer_id",),
             )
-
-    def _process_priors(self, alpha_prior, beta_prior):
-        if alpha_prior is None:
-            alpha_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(alpha_prior)
-        if beta_prior is None:
-            beta_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(beta_prior)
-
-        return super()._process_priors(alpha_prior, beta_prior)
 
     def distribution_customer_churn_time(
         self, customer_id: Union[np.ndarray, pd.Series], random_seed: RandomState = None
@@ -150,7 +165,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             pm.Geometric("churn", theta, dims=("customer_id",))
 
             return pm.sample_posterior_predictive(
-                self.fit_result,
+                self.idata,
                 var_names=["churn"],
                 random_seed=random_seed,
             ).posterior_predictive["churn"]
@@ -170,7 +185,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             pm.Geometric("churn", theta, dims=("new_customer_id",))
 
             return pm.sample_posterior_predictive(
-                self.fit_result,
+                self.idata,
                 var_names=var_names,
                 random_seed=random_seed,
             ).posterior_predictive
