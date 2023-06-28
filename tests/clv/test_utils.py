@@ -60,7 +60,7 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
     )
     model_config = {
         # Narrow Gaussian centered at MLE params from lifetimes BetaGeoFitter
-        "a_prior": {"dist": "DiracDelta", "kwargs": {"c": 1.86428187}},
+        "a_prior": {"dist": "DiracDelta", "kwargs": {"c": 1.85034151}},
         "alpha_prior": {"dist": "DiracDelta", "kwargs": {"c": 1.86428187}},
         "b_prior": {"dist": "DiracDelta", "kwargs": {"c": 3.18105431}},
         "r_prior": {"dist": "DiracDelta", "kwargs": {"c": 0.16385072}},
@@ -150,7 +150,7 @@ def test_customer_lifetime_value_with_known_values(test_summary_data, fitted_bg)
         time=1,
         discount_rate=0.0,
     ).mean(("chain", "draw"))
-    np.testing.assert_almost_equal(clv_d0, expected, decimal=3)
+    np.testing.assert_almost_equal(clv_d0, expected, decimal=5)
     # discount_rate=1 means the clv will halve over a period
     clv_d1 = (
         customer_lifetime_value(
@@ -166,7 +166,7 @@ def test_customer_lifetime_value_with_known_values(test_summary_data, fitted_bg)
         .mean(("chain", "draw"))
         .values
     )
-    np.testing.assert_almost_equal(clv_d1, expected / 2.0, decimal=3)
+    np.testing.assert_almost_equal(clv_d1, expected / 2.0, decimal=5)
 
     # time=2, discount_rate=0 means the clv will be twice the initial
     clv_t2_d0 = (

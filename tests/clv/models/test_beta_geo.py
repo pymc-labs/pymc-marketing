@@ -240,7 +240,7 @@ class TestBetaGeoModel:
         sample_kwargs = dict(random_seed=rng, chains=2) if fit_method == "mcmc" else {}
         model.fit(fit_method=fit_method, progressbar=False, **sample_kwargs)
 
-        fit = model.fit_result
+        fit = model.idata.posterior
         np.testing.assert_allclose(
             [fit["a"].mean(), fit["b"].mean(), fit["alpha"].mean(), fit["r"].mean()],
             [self.a_true, self.b_true, self.alpha_true, self.r_true],

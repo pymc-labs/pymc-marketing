@@ -179,7 +179,7 @@ class TestShiftedBetaGeoModel:
         )
         model.build_model()
         model.fit(chains=2, progressbar=False, random_seed=100)
-        fit = model.fit_result
+        fit = model.idata.posterior
         np.testing.assert_allclose(
             [fit["alpha"].mean(), fit["beta"].mean()],
             [self.ref_MLE_estimates["alpha"], self.ref_MLE_estimates["beta"]],

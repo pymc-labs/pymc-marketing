@@ -50,7 +50,7 @@ class BaseGammaGammaModel(CLVModel):
             pm.Deterministic("mean_spend", p / nu, dims=("customer_id",))
 
             return pm.sample_posterior_predictive(
-                self.fit_result,
+                self.idata,
                 var_names=["nu", "mean_spend"],
                 random_seed=random_seed,
             ).posterior_predictive["mean_spend"]
@@ -72,9 +72,9 @@ class BaseGammaGammaModel(CLVModel):
             customer_id, mean_transaction_value, frequency
         )
 
-        p = self.fit_result["p"]
-        q = self.fit_result["q"]
-        v = self.fit_result["v"]
+        p = self.idata.posterior["p"]
+        q = self.idata.posterior["q"]
+        v = self.idata.posterior["v"]
 
         individual_weight = p * frequency / (p * frequency + q - 1)
         population_mean = v * p / (q - 1)
@@ -96,7 +96,7 @@ class BaseGammaGammaModel(CLVModel):
             pm.Deterministic("mean_spend", p / nu, dims=("new_customer_id",))
 
             return pm.sample_posterior_predictive(
-                self.fit_result,
+                self.idata,
                 var_names=["nu", "mean_spend"],
                 random_seed=random_seed,
             ).posterior_predictive["mean_spend"]
@@ -104,9 +104,9 @@ class BaseGammaGammaModel(CLVModel):
     def expected_new_customer_spend(self) -> xarray.DataArray:
         """Expected transaction value for a new customer"""
 
-        p_mean = self.fit_result["p"]
-        q_mean = self.fit_result["q"]
-        v_mean = self.fit_result["v"]
+        p_mean = self.idata.posterior["p"]
+        q_mean = self.idata.posterior["q"]
+        v_mean = self.idata.posterior["v"]
 
         # Closed form solution to the posterior of nu
         # Eq 3 from [1], p.3

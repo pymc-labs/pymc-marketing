@@ -150,13 +150,13 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
 
     @pytest.mark.slow
     def test_model_convergence(self, data, model_config):
+        rng = np.random.default_rng(13)
         model = GammaGammaModel(
             data=data,
             model_config=model_config,
         )
-        model.build_model()
-        model.fit(chains=2, progressbar=False, random_seed=self.rng)
-        fit = model.fit_result
+        model.fit(chains=2, progressbar=False, random_seed=rng)
+        fit = model.idata.posterior
         np.testing.assert_allclose(
             [fit["p"].mean(), fit["q"].mean(), fit["v"].mean()],
             [self.p_true, self.q_true, self.v_true],
@@ -383,12 +383,13 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
 
     @pytest.mark.slow
     def test_model_convergence(self, individual_data, model_config):
+        rng = np.random.default_rng(3)
         model = GammaGammaModelIndividual(
             data=individual_data,
             model_config=model_config,
         )
-        model.fit(chains=2, progressbar=False, random_seed=self.rng)
-        fit = model.fit_result
+        model.fit(chains=2, progressbar=False, random_seed=rng)
+        fit = model.idata.posterior
         np.testing.assert_allclose(
             [fit["p"].mean(), fit["q"].mean(), fit["v"].mean()],
             [self.p_true, self.q_true, self.v_true],

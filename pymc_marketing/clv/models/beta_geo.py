@@ -134,7 +134,7 @@ class BetaGeoModel(CLVModel):
         self.a_prior = self._create_distribution(self.model_config["a_prior"])
         self.b_prior = self._create_distribution(self.model_config["b_prior"])
         self.alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
-        self.r_prior = self.create_distribution_from_dict(self.model_config["r_prior"])
+        self.r_prior = self._create_distribution(self.model_config["r_prior"])
         self._process_priors(self.a_prior, self.b_prior, self.alpha_prior, self.r_prior)
         # each customer's information should be encapsulated by a single data entry
         if len(np.unique(self.customer_id)) != len(self.customer_id):
@@ -209,7 +209,7 @@ class BetaGeoModel(CLVModel):
             )
 
     def _unload_params(self):
-        trace = self.fit_result
+        trace = self.idata.posterior
         a = trace["a"]
         b = trace["b"]
         alpha = trace["alpha"]

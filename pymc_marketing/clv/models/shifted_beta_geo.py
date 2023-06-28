@@ -165,7 +165,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             pm.Geometric("churn", theta, dims=("customer_id",))
 
             return pm.sample_posterior_predictive(
-                self.fit_result,
+                self.idata,
                 var_names=["churn"],
                 random_seed=random_seed,
             ).posterior_predictive["churn"]
@@ -185,7 +185,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             pm.Geometric("churn", theta, dims=("new_customer_id",))
 
             return pm.sample_posterior_predictive(
-                self.fit_result,
+                self.idata,
                 var_names=var_names,
                 random_seed=random_seed,
             ).posterior_predictive
