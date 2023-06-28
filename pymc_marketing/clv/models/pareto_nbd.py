@@ -1,5 +1,5 @@
 import warnings
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -11,7 +11,6 @@ from numpy import exp, log
 from pytensor.compile import Mode, get_default_mode
 from pytensor.graph import Constant, node_rewriter
 from pytensor.scalar import Grad2F1Loop
-from pytensor.tensor import TensorVariable
 from pytensor.tensor.elemwise import Elemwise
 from scipy.special import betaln, gammaln, hyp2f1
 from xarray_einstats.stats import logsumexp as xr_logsumexp
@@ -71,27 +70,21 @@ class ParetoNBDModel(CLVModel):
 
     Parameters
     ----------
-    customer_id: array_like
-        Customer labels; must be unique.
-    frequency: array_like
-        Number of repeat purchases per customer.
-    recency: array_like
-        Number of time periods between the customer's first and most recent purchase.
-    T: array_like
-        Number of time periods since the customer's first purchase.
-        Model assumptions require T >= recency.
-    r_prior: scalar PyMC distribution, optional
-        Shape parameter of time between purchases for customer population;
-        defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
-    alpha_prior: scalar PyMC distribution, optional
-        Scale parameter of time between purchases for customer population;
-        defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
-    s_prior: scalar PyMC distribution, optional
-        Shape parameter of time until churn for customer population;
-        defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
-    beta_prior: scalar PyMC distribution, optional
-        Scale parameter of time until churn for customer population;
-        defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
+    data: pd.DataFrame
+        DataFrame containing the following columns:
+            * `frequency`: number of repeat purchases
+            * `recency`: time between the first and the last purchase
+            * `T`: time between the first purchase and the end of the observation period; model assumptions require T >= recency
+            * `customer_id`: unique customer identifier
+    model_config: dict, optional
+        Dictionary containing model parameters:
+            * `r`: Shape parameter of time between purchases for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
+            * `alpha`: Scale parameter of time between purchases for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
+            * `s`: Shape parameter of time until churn for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
+            * `beta`: Scale parameter of time until churn for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
+        If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+    sampler_config: dict, optional
+        Dictionary of sampler parameters. Defaults to None.
 
     Examples
     --------
@@ -103,22 +96,29 @@ class ParetoNBDModel(CLVModel):
             rfm_df = rfm_summary(raw_data,'id_col_name','date_col_name')
 
             model = ParetoNBDModel(
-                customer_id=rfm_df['id_col'],
-                frequency=rfm_df['frequency']
-                recency=[rfm_df['recency'],
-                T=rfm_df['T'],
-                r_prior=pm.Weibull.dist(alpha=2,beta=1),
-                alpha_prior=pm.Weibull.dist(alpha=2,beta=10),
-                s_prior=pm.Weibull.dist(alpha=2,beta=1),
-                beta_prior=pm.Weibull.dist(alpha=2,beta=10),,
+                data=rfm_df,
+                model_config={
+                r=pm.Weibull.dist(alpha=2,beta=1),
+                alpha=pm.Weibull.dist(alpha=2,beta=10),
+                s=pm.Weibull.dist(alpha=2,beta=1),
+                beta=pm.Weibull.dist(alpha=2,beta=10),
+                },
+                sampler_config={
+                    "draws": 1000,
+                    "tune": 1000,
+                    "chains": 2,
+                    "cores": 2,
+                    "nuts_kwargs": {"target_accept": 0.95},
+                },
             )
+
+            model.build_model()
 
             # Fit model quickly to large datasets via Maximum a Posteriori:
             model.fit(fit_method='map')
 
             # Fit model with full posterior estimation for more informative predictions:
-            with model.model:
-                model.fit()
+            model.fit()
 
             print(model.fit_summary())
 
@@ -173,48 +173,75 @@ class ParetoNBDModel(CLVModel):
            https://www.brucehardie.com/notes/028/pareto_nbd_conditional_pmf.pdf
     """
 
-    _model_name = "Pareto/NBD"  # Pareto Negative-Binomial Distribution
+    _model_type = "Pareto/NBD"  # Pareto Negative-Binomial Distribution
     _params = ["r", "alpha", "s", "beta"]
 
     def __init__(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        frequency: Union[np.ndarray, pd.Series],
-        recency: Union[np.ndarray, pd.Series],
-        T: Union[np.ndarray, pd.Series],
-        r_prior: Optional[TensorVariable] = None,
-        alpha_prior: Optional[TensorVariable] = None,
-        s_prior: Optional[TensorVariable] = None,
-        beta_prior: Optional[TensorVariable] = None,
+        data: pd.DataFrame,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
     ):
         warnings.warn(
             "The Pareto/NBD model is still experimental. Please see code examples in documentation if model fitting issues are encountered.",
             UserWarning,
         )
+        # Assign inputs to attributes and perform validation checks
+        try:
+            self.customer_id = data["customer_id"]
+            if len(np.unique(self.customer_id)) != len(self.customer_id):
+                raise ValueError("Customers must have unique ID labels.")
+            self.coords = {"customer_id": self.customer_id}
+        except KeyError:
+            raise KeyError("customer_id column is missing from data")
+        try:
+            self.frequency = data["frequency"]
+        except KeyError:
+            raise KeyError("frequency column is missing from data")
+        try:
+            self.recency = data["recency"]
+        except KeyError:
+            raise KeyError("recency column is missing from data")
+        try:
+            self.T = data["T"]
+        except KeyError:
+            raise KeyError("T column is missing from data")
 
-        if len(np.unique(customer_id)) != len(customer_id):
-            raise ValueError("Customers must have unique ID labels.")
-
-        super().__init__()
-
-        self._customer_id = customer_id
-        self._frequency = frequency
-        self._recency = recency
-        self._T = T
-
-        r_prior, alpha_prior, s_prior, beta_prior = self._process_priors(
-            r_prior, alpha_prior, s_prior, beta_prior
+        super().__init__(
+            model_config=model_config,
+            sampler_config=sampler_config,
         )
-        # TODO: rename hyperpriors to purchase_shape, purchase_scale, churn_shape, churn_scale?
-        coords = {"customer_id": self._customer_id}
-        with pm.Model(coords=coords) as self.model:
+
+        self.data = data
+
+        self.r_prior = self._create_distribution(self.model_config["r_prior"])
+        self.alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
+        self.s_prior = self._create_distribution(self.model_config["s_prior"])
+        self.beta_prior = self._create_distribution(self.model_config["beta_prior"])
+        self._process_priors(
+            self.r_prior, self.alpha_prior, self.s_prior, self.beta_prior
+        )
+
+    @property
+    def default_model_config(self) -> Dict[str, Dict]:
+        return {
+            "r_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 1}},
+            "alpha_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+            "s_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 1}},
+            "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+        }
+
+    def build_model(
+        self,
+    ) -> None:
+        with pm.Model(coords=self.coords) as self.model:
             # purchase rate priors
-            r = self.model.register_rv(r_prior, name="r")
-            alpha = self.model.register_rv(alpha_prior, name="alpha")
+            r = self.model.register_rv(self.r_prior, name="r")
+            alpha = self.model.register_rv(self.alpha_prior, name="alpha")
 
             # churn priors
-            s = self.model.register_rv(s_prior, name="s")
-            beta = self.model.register_rv(beta_prior, name="beta")
+            s = self.model.register_rv(self.s_prior, name="s")
+            beta = self.model.register_rv(self.beta_prior, name="beta")
 
             ParetoNBD(
                 name="likelihood",
@@ -222,39 +249,16 @@ class ParetoNBDModel(CLVModel):
                 alpha=alpha,
                 s=s,
                 beta=beta,
-                T=self._T,
-                observed=np.stack((self._recency, self._frequency), axis=1),
+                T=self.T,
+                observed=np.stack((self.recency, self.frequency), axis=1),
                 dims="customer_id",
             )
-
-    def _process_priors(self, r_prior, alpha_prior, s_prior, beta_prior):
-        # priors for purchase rate
-        if r_prior is None:
-            r_prior = pm.Weibull.dist(alpha=2, beta=1)
-        else:
-            self._check_prior_ndim(r_prior)
-        if alpha_prior is None:
-            alpha_prior = pm.Weibull.dist(alpha=2, beta=10)
-        else:
-            self._check_prior_ndim(alpha_prior)
-
-        # hyper priors for churn rate
-        if s_prior is None:
-            s_prior = pm.Weibull.dist(alpha=2, beta=1)
-        else:
-            self._check_prior_ndim(s_prior)
-        if beta_prior is None:
-            beta_prior = pm.Weibull.dist(alpha=2, beta=10)
-        else:
-            self._check_prior_ndim(beta_prior)
-
-        return super()._process_priors(r_prior, alpha_prior, s_prior, beta_prior)
 
     def _unload_params(
         self,
     ) -> Tuple[Any, ...]:
         """Utility function retrieving posterior parameters for predictive methods"""
-        return tuple([self.fit_result.posterior[param] for param in self._params])
+        return tuple([self.idata.posterior[param] for param in self._params])
 
     # TODO: Convert to list comprehension to support covariates?
     def _process_customers(
@@ -268,13 +272,13 @@ class ParetoNBDModel(CLVModel):
         for predictive methods and converting to xarrays.
         """
         if customer_id is None:
-            customer_id = self._customer_id
+            customer_id = self.customer_id
         if frequency is None:
-            frequency = self._frequency
+            frequency = self.frequency
         if recency is None:
-            recency = self._recency
+            recency = self.recency
         if T is None:
-            T = self._T
+            T = self.T
 
         return to_xarray(customer_id, frequency, recency, T)
 

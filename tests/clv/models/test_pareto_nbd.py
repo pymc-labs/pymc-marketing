@@ -20,21 +20,18 @@ class TestParetoNBDModel:
         cls.s_true = 0.6061
         cls.beta_true = 11.6562
 
-        # Quickstart dataset is the CDNOW_sample research dataset
+        # Use Quickstart dataset (the CDNOW_sample research data) for testing
         test_data = pd.read_csv("datasets/clv_quickstart.csv")
+        test_data["customer_id"] = test_data.index
 
-        cls.customer_id = test_data.index
+        cls.data = test_data
+        cls.customer_id = test_data["customer_id"]
         cls.frequency = test_data["frequency"]
         cls.recency = test_data["recency"]
         cls.T = test_data["T"]
 
         # Instantiate model with CDNOW data for testing
-        cls.model = ParetoNBDModel(
-            customer_id=cls.customer_id,
-            frequency=cls.frequency,
-            recency=cls.recency,
-            T=cls.T,
-        )
+        cls.model = ParetoNBDModel(cls.data).build_model()
 
         # Also instantiate lifetimes model for comparison
         cls.lifetimes_model = ParetoNBDFitter()
@@ -45,78 +42,118 @@ class TestParetoNBDModel:
             "beta": cls.beta_true,
         }
 
+    @pytest.fixture(scope="class")
+    def model_config(self):
+        return {
+            "r_prior": {"dist": "HalfNormal", "kwargs": {}},
+            "alpha_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4}},
+            "s_prior": {"dist": "HalfCauchy", "kwargs": {"beta": 2}},
+            "beta_prior": {"dist": "Gamma", "kwargs": {"alpha": 1, "beta": 1}},
+        }
+
+    @pytest.fixture(scope="class")
+    def default_model_config(self):
+        return {
+            "r_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 1}},
+            "alpha_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+            "s_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 1}},
+            "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+        }
+
     def test_experimental(self):
         with pytest.warns(
             UserWarning,
             match="The Pareto/NBD model is still experimental. Please see code examples in documentation if model fitting issues are encountered.",
         ):
-            ParetoNBDModel(
-                customer_id=np.array([1, 2, 3]),
-                frequency=np.array([3, 4, 7]),
-                recency=np.array([10, 20, 30]),
-                T=np.array([20, 30, 40]),
+            test_data = pd.DataFrame(
+                {
+                    "customer_id": np.array([1, 2, 3]),
+                    "frequency": np.array([3, 4, 7]),
+                    "recency": np.array([10, 20, 30]),
+                    "T": np.array([20, 30, 40]),
+                }
+            )
+            ParetoNBDModel(test_data)
+
+    def test_model(self, model_config, default_model_config):
+        for config in (model_config, default_model_config):
+            model = ParetoNBDModel(self.data, config).build_model()
+
+            assert isinstance(
+                model.model["r"].owner.op,
+                pm.Weibull
+                if config["r_prior"]["dist"] == "Weibull"
+                else getattr(pm, config["r_prior"]["dist"]),
+            )
+            assert isinstance(
+                model.model["alpha"].owner.op,
+                pm.Weibull
+                if config["alpha_prior"]["dist"] == "Weibull"
+                else getattr(pm, config["alpha_prior"]["dist"]),
+            )
+            assert isinstance(
+                model.model["s"].owner.op,
+                pm.Weibull
+                if config["s_prior"]["dist"] == "Weibull"
+                else getattr(pm, config["s_prior"]["dist"]),
+            )
+            assert isinstance(
+                model.model["beta"].owner.op,
+                pm.Weibull
+                if config["beta_prior"]["dist"] == "Weibull"
+                else getattr(pm, config["beta_prior"]["dist"]),
             )
 
-    def test_inputs(self):
+            assert model.model.eval_rv_shapes() == {
+                "alpha": (),
+                "alpha_log__": (),
+                "beta": (),
+                "beta_log__": (),
+                "r": (),
+                "r_log__": (),
+                "s": (),
+                "s_log__": (),
+            }
+
+    def test_missing_customer_id(self, data):
+        # Create a version of the data that's missing the 'customer_id' column
+        data_invalid = data.drop(columns="customer_id")
+
+        with pytest.raises(KeyError, match="customer_id column is missing from data"):
+            ParetoNBDModel(data=data_invalid)
+
+    def test_missing_frequency(self):
+        # Create a version of the data that's missing the 'frequency' column
+        data_invalid = self.data.drop(columns="frequency")
+
+        with pytest.raises(KeyError, match="frequency column is missing from data"):
+            ParetoNBDModel(data=data_invalid)
+
+    def test_missing_recency(self):
+        # Create a version of the data that's missing the 'recency' column
+        data_invalid = self.data.drop(columns="recency")
+
+        with pytest.raises(KeyError, match="recency column is missing from data"):
+            ParetoNBDModel(data=data_invalid)
+
+    def test_missing_T(self):
+        # Create a version of the data that's missing the 'T' column
+        data_invalid = self.data.drop(columns="T")
+
+        with pytest.raises(KeyError, match="T column is missing from data"):
+            ParetoNBDModel(data=data_invalid)
+
+    def test_customer_id_warning(self):
         with pytest.raises(ValueError, match="Customers must have unique ID labels."):
-            ParetoNBDModel(
-                customer_id=np.array([1, 2, 2]),
-                frequency=np.array([3, 4, 7]),
-                recency=np.array([10, 20, 30]),
-                T=np.array([20, 30, 40]),
+            test_data = pd.DataFrame(
+                {
+                    "customer_id": np.array([1, 2, 2]),
+                    "frequency": np.array([3, 4, 7]),
+                    "recency": np.array([10, 20, 30]),
+                    "T": np.array([20, 30, 40]),
+                }
             )
-
-    @pytest.mark.parametrize(
-        "r_prior, alpha_prior, s_prior, beta_prior",
-        [
-            (None, None, None, None),
-            (
-                pm.Gamma.dist(1, 1),
-                pm.Gamma.dist(10, 1),
-                pm.Weibull.dist(5, 1),
-                pm.Gamma.dist(10, 10),
-            ),
-        ],
-    )
-    def test_model(self, r_prior, alpha_prior, s_prior, beta_prior):
-        model = ParetoNBDModel(
-            customer_id=self.customer_id,
-            frequency=self.frequency,
-            recency=self.recency,
-            T=self.T,
-            r_prior=r_prior,
-            alpha_prior=alpha_prior,
-            s_prior=s_prior,
-            beta_prior=beta_prior,
-        )
-
-        assert isinstance(
-            model.model["r"].owner.op,
-            pm.Weibull if r_prior is None else type(r_prior.owner.op),
-        )
-        assert isinstance(
-            model.model["alpha"].owner.op,
-            pm.Weibull if alpha_prior is None else type(alpha_prior.owner.op),
-        )
-        assert isinstance(
-            model.model["s"].owner.op,
-            pm.Weibull if s_prior is None else type(s_prior.owner.op),
-        )
-        assert isinstance(
-            model.model["beta"].owner.op,
-            pm.Weibull if beta_prior is None else type(beta_prior.owner.op),
-        )
-
-        assert model.model.eval_rv_shapes() == {
-            "alpha": (),
-            "alpha_log__": (),
-            "beta": (),
-            "beta_log__": (),
-            "r": (),
-            "r_log__": (),
-            "s": (),
-            "s_log__": (),
-        }
+            ParetoNBDModel(test_data)
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
@@ -129,20 +166,8 @@ class TestParetoNBDModel:
     def test_model_convergence(self, fit_method, rtol):
         # Edit priors here for convergence testing
         # Note that None/pm.HalfFlat is extremely slow to converge
-        r_prior = pm.Weibull.dist(alpha=2, beta=1)
-        alpha_prior = pm.Weibull.dist(alpha=2, beta=10)
-        s_prior = pm.Weibull.dist(alpha=2, beta=1)
-        beta_prior = pm.Weibull.dist(alpha=2, beta=10)
-
         model = ParetoNBDModel(
-            customer_id=self.customer_id,
-            frequency=self.frequency,
-            recency=self.recency,
-            T=self.T,
-            r_prior=r_prior,
-            alpha_prior=alpha_prior,
-            s_prior=s_prior,
-            beta_prior=beta_prior,
+            data=self.data,
         )
 
         if fit_method == "mcmc":
@@ -178,9 +203,9 @@ class TestParetoNBDModel:
         true_purchases = (
             self.lifetimes_model.conditional_expected_number_of_purchases_up_to_time(
                 t=test_t,
-                frequency=self.frequency.values,
-                recency=self.recency.values,
-                T=self.T.values,
+                frequency=self.data.frequency.values,
+                recency=self.data.recency.values,
+                T=self.data.T.values,
             )
         )
 
@@ -195,7 +220,7 @@ class TestParetoNBDModel:
                 "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
             }
         )
-        self.model._fit_result = fake_fit
+        self.model.idata = fake_fit
 
         est_num_purchases = self.model.expected_purchases(test_t)
 
@@ -226,7 +251,7 @@ class TestParetoNBDModel:
                 "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
             }
         )
-        self.model._fit_result = fake_fit
+        self.model.idata = fake_fit
 
         est_purchases_new = self.model.expected_purchases_new_customer(test_t)
 
@@ -257,7 +282,7 @@ class TestParetoNBDModel:
                 "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
             }
         )
-        self.model._fit_result = fake_fit
+        self.model.idata = fake_fit
 
         est_prob_alive = self.model.expected_probability_alive()
 
@@ -295,7 +320,7 @@ class TestParetoNBDModel:
                 "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
             }
         )
-        self.model._fit_result = fake_fit
+        self.model.idata = fake_fit
 
         est_purchases_new_customer = self.model.expected_purchase_probability(
             test_n, test_t
