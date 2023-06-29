@@ -43,8 +43,8 @@ def toy_y(toy_X: pd.DataFrame) -> pd.Series:
 
 
 @pytest.fixture(scope="class")
-def mmm() -> BaseDelayedSaturatedMMM:
-    return BaseDelayedSaturatedMMM(
+def mmm() -> DelayedSaturatedMMM:
+    return DelayedSaturatedMMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
         adstock_max_lag=4,
@@ -54,8 +54,8 @@ def mmm() -> BaseDelayedSaturatedMMM:
 
 @pytest.fixture(scope="class")
 def mmm_fitted(
-    mmm: BaseDelayedSaturatedMMM, toy_X: pd.DataFrame, toy_y: pd.Series
-) -> BaseDelayedSaturatedMMM:
+    mmm: DelayedSaturatedMMM, toy_X: pd.DataFrame, toy_y: pd.Series
+) -> DelayedSaturatedMMM:
     mmm.fit(X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2)
     return mmm
 
@@ -262,7 +262,7 @@ class TestDelayedSaturatedMMM:
         self, mmm_fitted: DelayedSaturatedMMM
     ) -> None:
         n_channels = len(mmm_fitted.channel_columns)
-        data_range = mmm_fitted.data.shape[0]
+        data_range = mmm_fitted.X.shape[0]
         draws = 3
         chains = 2
         grid_size = 2
@@ -296,7 +296,9 @@ class TestDelayedSaturatedMMM:
     def test_plot_channel_contributions_grid(
         self, mmm_fitted: DelayedSaturatedMMM, absolute_xrange: bool
     ) -> None:
-        fig = mmm_fitted.plot_channel_contributions_grid(start=0, stop=1.5, num=2)
+        fig = mmm_fitted.plot_channel_contributions_grid(
+            start=0, stop=1.5, num=2, absolute_xrange=absolute_xrange
+        )
         assert isinstance(fig, plt.Figure)
 
     def test_data_setter(self, toy_X, toy_y):
