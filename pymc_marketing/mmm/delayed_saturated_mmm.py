@@ -309,7 +309,6 @@ class BaseDelayedSaturatedMMM(MMM):
         self, channel_data: Union[pd.DataFrame, pd.Series, npt.NDArray[np.float_]]
     ) -> npt.NDArray[np.float_]:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
-        We return the contribution in the original scale of the target variable.
         Parameters
         ----------
         channel_data : array-like
@@ -319,140 +318,33 @@ class BaseDelayedSaturatedMMM(MMM):
         array-like
             Transformed channel data.
         """
-        channel_contribution_forward_pass = super().channel_contributions_forward_pass(
-            channel_data=channel_data
-        )
-        target_transformed_vectorized = np.vectorize(
-            self.target_transformer.inverse_transform,
-            excluded=[1, 2],
-            signature="(m, n) -> (m, n)",
-        )
-        return target_transformed_vectorized(channel_contribution_forward_pass)
+        alpha_posterior = self.fit_result["alpha"].to_numpy()
 
-    def get_channel_contributions_forward_pass_grid(
-        self, start: float, stop: float, num: int
-    ) -> DataArray:
-        """Generate a grid of scaled channel contributions for a given grid of share values.
-        Parameters
-        ----------
-        start : float
-            Start of the grid. It must be equal or greater than 0.
-        stop : float
-            End of the grid. It must be greater than start.
-        num : int
-            Number of points in the grid.
-        Returns
-        -------
-        DataArray
-            Grid of channel contributions.
-        """
-        if start < 0:
-            raise ValueError("start must be greater than or equal to 0.")
+        lam_posterior = self.fit_result["lam"].to_numpy()
+        lam_posterior_expanded = np.expand_dims(a=lam_posterior, axis=2)
 
-        share_grid = np.linspace(start=start, stop=stop, num=num)
-
-        channel_contributions = []
-        for delta in share_grid:
-            channel_data = (
-                delta
-                * self.max_abs_scale_channel_data(data=self.data)[
-                    self.channel_columns
-                ].to_numpy()
-            )
-            channel_contribution_forward_pass = self.channel_contributions_forward_pass(
-                channel_data=channel_data
-            )
-            channel_contributions.append(channel_contribution_forward_pass)
-        return DataArray(
-            data=np.array(channel_contributions),
-            dims=("delta", "chain", "draw", "date", "channel"),
-            coords={
-                "delta": share_grid,
-                "date": self.data[self.date_column],
-                "channel": self.channel_columns,
-            },
+        beta_channel_posterior = self.fit_result["beta_channel"].to_numpy()
+        beta_channel_posterior_expanded = np.expand_dims(
+            a=beta_channel_posterior, axis=2
         )
 
-    def plot_channel_contributions_grid(
-        self,
-        start: float,
-        stop: float,
-        num: int,
-        absolute_xrange: bool = False,
-        **plt_kwargs: Any,
-    ) -> plt.Figure:
-        """Plots a grid of scaled channel contributions for a given grid of share values.
-        Parameters
-        ----------
-        start : float
-            Start of the grid. It must be equal or greater than 0.
-        stop : float
-            End of the grid. It must be greater than start.
-        num : int
-            Number of points in the grid.
-        absolute_xrange : bool, optional
-            If True, the x-axis is in absolute values (input units), otherwise it is in
-            relative percentage values, by default False.
-        Returns
-        -------
-        plt.Figure
-            Plot of grid of channel contributions.
-        """
-        share_grid = np.linspace(start=start, stop=stop, num=num)
-        contributions = self.get_channel_contributions_forward_pass_grid(
-            start=start, stop=stop, num=num
+        geometric_adstock_posterior = geometric_adstock(
+            x=channel_data,
+            alpha=alpha_posterior,
+            l_max=self.adstock_max_lag,
+            normalize=True,
+            axis=0,
         )
 
-        fig, ax = plt.subplots(**plt_kwargs)
-
-        for i, channel in enumerate(self.channel_columns):
-            channel_contribution_total = contributions.sel(channel=channel).sum(
-                dim="date"
-            )
-
-            hdi_contribution = az.hdi(ary=channel_contribution_total).x
-
-            total_channel_input = self.data[channel].sum()
-            x_range = (
-                total_channel_input * share_grid if absolute_xrange else share_grid
-            )
-
-            ax.fill_between(
-                x=x_range,
-                y1=hdi_contribution[:, 0],
-                y2=hdi_contribution[:, 1],
-                color=f"C{i}",
-                label=f"{channel} $94%$ HDI contribution",
-                alpha=0.4,
-            )
-
-            sns.lineplot(
-                x=x_range,
-                y=channel_contribution_total.mean(dim=("chain", "draw")),
-                color=f"C{i}",
-                marker="o",
-                label=f"{channel} contribution mean",
-                ax=ax,
-            )
-            if absolute_xrange:
-                ax.axvline(
-                    x=total_channel_input,
-                    color=f"C{i}",
-                    linestyle="--",
-                    label=f"{channel} current total input",
-                )
-
-        if not absolute_xrange:
-            ax.axvline(x=1, color="black", linestyle="--", label=r"$\delta = 1$")
-
-        ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-        x_label = "input" if absolute_xrange else r"$\delta$"
-        ax.set(
-            title="Channel contribution as a function of cost share",
-            xlabel=x_label,
-            ylabel="contribution",
+        logistic_saturation_posterior = logistic_saturation(
+            x=geometric_adstock_posterior,
+            lam=lam_posterior_expanded,
         )
-        return fig
+
+        channel_contribution_forward_pass = (
+            beta_channel_posterior_expanded * logistic_saturation_posterior
+        )
+        return channel_contribution_forward_pass.eval()
 
     @property
     def _serializable_model_config(self) -> Dict[str, Any]:
@@ -535,3 +427,152 @@ class DelayedSaturatedMMM(
     BaseDelayedSaturatedMMM,
 ):
     ...
+
+    def channel_contributions_forward_pass(
+        self, channel_data: Union[pd.DataFrame, pd.Series, npt.NDArray[np.float_]]
+    ) -> npt.NDArray[np.float_]:
+        """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
+        We return the contribution in the original scale of the target variable.
+        Parameters
+        ----------
+        channel_data : array-like
+            Input channel data.
+        Returns
+        -------
+        array-like
+            Transformed channel data.
+        """
+        channel_contribution_forward_pass = super().channel_contributions_forward_pass(
+            channel_data=channel_data
+        )
+        target_transformed_vectorized = np.vectorize(
+            self.target_transformer.inverse_transform,
+            excluded=[1, 2],
+            signature="(m, n) -> (m, n)",
+        )
+        return target_transformed_vectorized(channel_contribution_forward_pass)
+
+    def get_channel_contributions_forward_pass_grid(
+        self, start: float, stop: float, num: int
+    ) -> DataArray:
+        """Generate a grid of scaled channel contributions for a given grid of share values.
+        Parameters
+        ----------
+        start : float
+            Start of the grid. It must be equal or greater than 0.
+        stop : float
+            End of the grid. It must be greater than start.
+        num : int
+            Number of points in the grid.
+        Returns
+        -------
+        DataArray
+            Grid of channel contributions.
+        """
+        if start < 0:
+            raise ValueError("start must be greater than or equal to 0.")
+
+        share_grid = np.linspace(start=start, stop=stop, num=num)
+
+        channel_contributions = []
+        for delta in share_grid:
+            channel_data = (
+                delta
+                * self.max_abs_scale_channel_data(data=self.X)[
+                    self.channel_columns
+                ].to_numpy()
+            )
+            channel_contribution_forward_pass = self.channel_contributions_forward_pass(
+                channel_data=channel_data
+            )
+            channel_contributions.append(channel_contribution_forward_pass)
+        return DataArray(
+            data=np.array(channel_contributions),
+            dims=("delta", "chain", "draw", "date", "channel"),
+            coords={
+                "delta": share_grid,
+                "date": self.X[self.date_column],
+                "channel": self.channel_columns,
+            },
+        )
+
+    def plot_channel_contributions_grid(
+        self,
+        start: float,
+        stop: float,
+        num: int,
+        absolute_xrange: bool = False,
+        **plt_kwargs: Any,
+    ) -> plt.Figure:
+        """Plots a grid of scaled channel contributions for a given grid of share values.
+        Parameters
+        ----------
+        start : float
+            Start of the grid. It must be equal or greater than 0.
+        stop : float
+            End of the grid. It must be greater than start.
+        num : int
+            Number of points in the grid.
+        absolute_xrange : bool, optional
+            If True, the x-axis is in absolute values (input units), otherwise it is in
+            relative percentage values, by default False.
+        Returns
+        -------
+        plt.Figure
+            Plot of grid of channel contributions.
+        """
+        share_grid = np.linspace(start=start, stop=stop, num=num)
+        contributions = self.get_channel_contributions_forward_pass_grid(
+            start=start, stop=stop, num=num
+        )
+
+        fig, ax = plt.subplots(**plt_kwargs)
+
+        for i, channel in enumerate(self.channel_columns):
+            channel_contribution_total = contributions.sel(channel=channel).sum(
+                dim="date"
+            )
+
+            hdi_contribution = az.hdi(ary=channel_contribution_total).x
+
+            total_channel_input = self.X[channel].sum()
+            x_range = (
+                total_channel_input * share_grid if absolute_xrange else share_grid
+            )
+
+            ax.fill_between(
+                x=x_range,
+                y1=hdi_contribution[:, 0],
+                y2=hdi_contribution[:, 1],
+                color=f"C{i}",
+                label=f"{channel} $94%$ HDI contribution",
+                alpha=0.4,
+            )
+
+            sns.lineplot(
+                x=x_range,
+                y=channel_contribution_total.mean(dim=("chain", "draw")),
+                color=f"C{i}",
+                marker="o",
+                label=f"{channel} contribution mean",
+                ax=ax,
+            )
+            if absolute_xrange:
+                ax.axvline(
+                    x=total_channel_input,
+                    color=f"C{i}",
+                    linestyle="--",
+                    label=f"{channel} current total input",
+                )
+
+        if not absolute_xrange:
+            ax.axvline(x=1, color="black", linestyle="--", label=r"$\delta = 1$")
+
+        ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+        x_label = "input" if absolute_xrange else r"$\delta$"
+        ax.set(
+            title="Channel contribution as a function of cost share",
+            xlabel=x_label,
+            ylabel="contribution",
+        )
+        return fig
