@@ -5,8 +5,12 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+from matplotlib import pyplot as plt
 
-from pymc_marketing.mmm.delayed_saturated_mmm import BaseDelayedSaturatedMMM
+from pymc_marketing.mmm.delayed_saturated_mmm import (
+    BaseDelayedSaturatedMMM,
+    DelayedSaturatedMMM,
+)
 
 seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
@@ -253,6 +257,47 @@ class TestDelayedSaturatedMMM:
             )
             assert fourier_modes_data.max().max() <= 1
             assert fourier_modes_data.min().min() >= -1
+
+    def test_get_channel_contributions_forward_pass_grid(
+        self, mmm_fitted: DelayedSaturatedMMM
+    ) -> None:
+        n_channels = len(mmm_fitted.channel_columns)
+        data_range = mmm_fitted.data.shape[0]
+        draws = 3
+        chains = 2
+        grid_size = 2
+        contributions = mmm_fitted.get_channel_contributions_forward_pass_grid(
+            start=0, stop=1.5, num=grid_size
+        )
+        assert contributions.shape == (
+            grid_size,
+            chains,
+            draws,
+            data_range,
+            n_channels,
+        )
+
+    def test_bad_start_get_channel_contributions_forward_pass_grid(
+        self, mmm_fitted: DelayedSaturatedMMM
+    ) -> None:
+        with pytest.raises(
+            expected_exception=ValueError,
+            match="start must be greater than or equal to 0.",
+        ):
+            mmm_fitted.get_channel_contributions_forward_pass_grid(
+                start=-0.5, stop=1.5, num=2
+            )
+
+    @pytest.mark.parametrize(
+        argnames="absolute_xrange",
+        argvalues=[False, True],
+        ids=["relative_xrange", "absolute_xrange"],
+    )
+    def test_plot_channel_contributions_grid(
+        self, mmm_fitted: DelayedSaturatedMMM, absolute_xrange: bool
+    ) -> None:
+        fig = mmm_fitted.plot_channel_contributions_grid(start=0, stop=1.5, num=2)
+        assert isinstance(fig, plt.Figure)
 
     def test_data_setter(self, toy_X, toy_y):
         base_delayed_saturated_mmm = BaseDelayedSaturatedMMM(
