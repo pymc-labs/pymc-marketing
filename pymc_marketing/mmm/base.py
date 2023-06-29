@@ -470,7 +470,16 @@ class BaseMMM(ModelBuilder):
             coords=channel_contribution.coords,
         )
 
-    def plot_contribution_curves(self) -> plt.Figure:
+    def plot_direct_contribution_curves(self) -> plt.Figure:
+        """Plots the direct contribution curves. The term "direct" refers to the fact
+        we plots costs vs immediate returns and we do not take into account the lagged
+        effects of the channels e.g. adstock transformations.
+
+        Returns
+        -------
+        plt.Figure
+            Direct contribution curves.
+        """
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
         )
