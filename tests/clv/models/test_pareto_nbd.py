@@ -31,7 +31,8 @@ class TestParetoNBDModel:
         cls.T = test_data["T"]
 
         # Instantiate model with CDNOW data for testing
-        cls.model = ParetoNBDModel(cls.data).build_model()
+        cls.model = ParetoNBDModel(cls.data)
+        cls.model.build_model()
 
         # Also instantiate lifetimes model for comparison
         cls.lifetimes_model = ParetoNBDFitter()
@@ -77,7 +78,8 @@ class TestParetoNBDModel:
 
     def test_model(self, model_config, default_model_config):
         for config in (model_config, default_model_config):
-            model = ParetoNBDModel(self.data, config).build_model()
+            model = ParetoNBDModel(self.data, config)
+            model.build_model()
 
             assert isinstance(
                 model.model["r"].owner.op,
@@ -115,9 +117,9 @@ class TestParetoNBDModel:
                 "s_log__": (),
             }
 
-    def test_missing_customer_id(self, data):
+    def test_missing_customer_id(self):
         # Create a version of the data that's missing the 'customer_id' column
-        data_invalid = data.drop(columns="customer_id")
+        data_invalid = self.data.drop(columns="customer_id")
 
         with pytest.raises(KeyError, match="customer_id column is missing from data"):
             ParetoNBDModel(data=data_invalid)
@@ -169,19 +171,14 @@ class TestParetoNBDModel:
         model = ParetoNBDModel(
             data=self.data,
         )
+        model.build_model()
 
-        if fit_method == "mcmc":
-            with model.model:
-                model.fit(
-                    fit_method=fit_method,
-                    random_seed=self.rng,
-                    chains=2,
-                    progressbar=False,
-                )
-        else:
-            model.fit(fit_method=fit_method)
+        sample_kwargs = (
+            dict(random_seed=self.rng, chains=2) if fit_method == "mcmc" else {}
+        )
+        model.fit(fit_method=fit_method, progressbar=False, **sample_kwargs)
 
-        fit = model.fit_result.posterior
+        fit = model.idata.posterior
         np.testing.assert_allclose(
             [fit["r"].mean(), fit["alpha"].mean(), fit["s"].mean(), fit["beta"].mean()],
             [self.r_true, self.alpha_true, self.s_true, self.beta_true],
@@ -203,9 +200,9 @@ class TestParetoNBDModel:
         true_purchases = (
             self.lifetimes_model.conditional_expected_number_of_purchases_up_to_time(
                 t=test_t,
-                frequency=self.data.frequency.values,
-                recency=self.data.recency.values,
-                T=self.data.T.values,
+                frequency=self.frequency,
+                recency=self.recency,
+                T=self.T,
             )
         )
 
