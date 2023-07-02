@@ -25,7 +25,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
 
-from pymc_marketing.mmm.budget_optimizer import budget_constraint, cost_function
+from pymc_marketing.mmm.budget_optimizer import budget_constraint, compute_optimal_contribution_based_budget_allocation
 from pymc_marketing.mmm.utils import CurveCalculator, find_elbow
 from pymc_marketing.mmm.validating import (
     ValidateChannelColumns,
@@ -477,29 +477,80 @@ class BaseMMM(ModelBuilder):
             dims=channel_contribution.dims,
             coords=channel_contribution.coords,
         )
+    
+    def _plot_estimations(self, x: np.ndarray, y: np.ndarray, channel: str, i: int) -> plt.Figure:
+        fig_estimations, ax_estimations = plt.subplots(figsize=(8, 6))
 
-    def plot_contribution_curves(
-        self, estimators: Optional[bool] = True
-    ) -> Tuple[plt.Figure, pd.DataFrame]:
+        calculator = CurveCalculator(x, y)
+        polynomial = calculator.polynomial
+        x_space_actual = calculator.x_space_actual
+        y_space_actual = calculator.y_space_actual
+        x_space_projected = calculator.x_space_projected
+        y_space_projected = calculator.y_space_projected
+        roots = calculator.real_roots
+
+        ax_estimations.plot(
+            x_space_actual,
+            y_space_actual,
+            label=f"{channel} fit",
+            color=f"C{i}",
+            linestyle="-",
+        )
+        ax_estimations.plot(
+            x_space_projected, y_space_projected, linestyle="--", color=f"C{i}"
+        )
+
+        for root in roots:
+            if root >= x.min() and root <= x.max():
+                ax_estimations.plot(
+                    root, polynomial(root), "ro", label="Plateau Effect"
+                )
+            else:
+                ax_estimations.plot(
+                    root,
+                    polynomial(root),
+                    marker="o",
+                    markersize=8,
+                    markeredgecolor=f"C{i}",
+                    markerfacecolor="white",
+                    label="Projected Plateau Effect",
+                )
+
+        idx_elbow = find_elbow(x_space_projected, y_space_projected)
+        elbow_x = x_space_projected[idx_elbow]
+        elbow_y = y_space_projected[idx_elbow]
+
+        ax_estimations.plot(
+            elbow_x,
+            elbow_y,
+            marker="s",
+            markersize=8,
+            markeredgecolor=f"C{i}",
+            markerfacecolor="white",
+            label="Optimal Point",
+        )
+
+        ax_estimations.set(xlabel="Spent", ylabel="Contribution")
+        ax_estimations.legend()
+
+        return fig_estimations
+
+    def plot_contribution_curves(self, show_estimations: bool = False) -> plt.Figure:
         """
-        Plot the direct contribution curves for each channel and optionally estimate optimal and plateau points.
+        Plot the direct contribution curves for each channel and optionally show the estimated points.
 
         Parameters
         ----------
-        estimators : bool, optional
-            Whether to estimate and plot optimal and plateau points, whichs would be returned on a DataFrame. Defaults to True.
+        show_estimations : bool, optional
+            Whether to show the estimated points (plateau and elbow), defaults to False.
 
         Returns
         -------
-        Tuple[plt.Figure, pd.DataFrame]
-            A tuple containing the matplotlib Figure object representing the plot and a DataFrame with the estimated points.
+        plt.Figure
+            The matplotlib Figure object representing the plot.
         """
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
-        )
-
-        df_estimations = pd.DataFrame(
-            columns=["channel", "optimal_point", "plateau_point"]
         )
 
         fig, axes = plt.subplots(
@@ -531,94 +582,84 @@ class BaseMMM(ModelBuilder):
                     ax=ax,
                 )
             ax.legend(loc="upper left")
-
-            if estimators:
-                # Call the new function
-                calculator = CurveCalculator(x, y)
-
-                polynomial = calculator.polynomial
-                x_space_actual = calculator.x_space_actual
-                y_space_actual = calculator.y_space_actual
-                x_space_projected = calculator.x_space_projected
-                y_space_projected = calculator.y_space_projected
-                roots = calculator.real_roots
-
-                # Plot the polynomial for the actual data and the projected data
-                ax.plot(
-                    x_space_actual,
-                    y_space_actual,
-                    label=f"{channel} fit",
-                    color=f"C{i}",
-                    linestyle="-",
-                )
-                ax.plot(
-                    x_space_projected, y_space_projected, linestyle="--", color=f"C{i}"
-                )
-
-                # Find the elbow point of the projected curve
-                idx_elbow = find_elbow(x_space_projected, y_space_projected)
-
-                # Get x- and y-values of elbow point
-                elbow_x = x_space_projected[idx_elbow]
-                elbow_y = y_space_projected[idx_elbow]
-
-                for root in roots:
-
-                    if root >= x.min() and root <= x.max():
-                        ax.plot(root, polynomial(root), "ro", label="Plateau Effect")
-                    else:
-                        ax.plot(
-                            root,
-                            polynomial(root),
-                            marker="o",
-                            markersize=8,
-                            markeredgecolor=f"C{i}",
-                            markerfacecolor="white",
-                            label="Projected Plateau Effect",
-                        )
-
-                # Plot the elbow point
-                ax.plot(
-                    elbow_x,
-                    elbow_y,
-                    marker="s",
-                    markersize=8,
-                    markeredgecolor=f"C{i}",
-                    markerfacecolor="white",
-                    label="Optimal Point",
-                )
-
-                # Create a DataFrame for this iteration
-                temp_df = pd.DataFrame(
-                    {
-                        "channel": [channel],
-                        "optimal_point": [elbow_x],
-                        "plateau_point": [root],
-                    }
-                )
-
-                # Use concat to add the new data to the results DataFrame
-                df_estimations = pd.concat([df_estimations, temp_df], ignore_index=True)
-
             ax.legend(
                 loc="upper left",
                 facecolor="white",
                 title=f"{channel} Legend",
                 fontsize="small",
             )
-
             ax.set(xlabel="Spent", ylabel="Contribution")
+
+            if show_estimations:
+                fig_estimations = self._plot_estimations(x, y, channel, i)
+                fig.append(fig_estimations)
+
         fig.suptitle("Immediate response curves", fontsize=16)
-        return fig, df_estimations
+        return fig
+
+    def compute_channel_estimate_points_original_scale(self) -> pd.DataFrame:
+        """
+        Estimate optimal and plateau points for each channel.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame with the estimated points.
+        """
+        channel_contributions = self.compute_channel_contribution_original_scale().mean(
+            ["chain", "draw"]
+        )
+
+        df_estimations = pd.DataFrame(
+            columns=["channel", "spent_optimal_point", "optimal_contribution_point", "maximum_spent_point"]
+        )
+
+        for i, channel in enumerate(self.channel_columns):
+            x = self.X[self.channel_columns].to_numpy()[:, i]
+            y = channel_contributions.sel(channel=channel)
+
+            calculator = CurveCalculator(x, y)
+
+            x_space_projected = calculator.x_space_projected
+            y_space_projected = calculator.y_space_projected
+            roots = calculator.real_roots
+
+            idx_elbow = find_elbow(x_space_projected, y_space_projected)
+            elbow_x = x_space_projected[idx_elbow]
+            elbow_y = y_space_projected[idx_elbow]
+
+            for root in roots:
+                # Create a DataFrame for this iteration
+                temp_df = pd.DataFrame(
+                    {
+                        "channel": [channel],
+                        "spent_optimal_point": [elbow_x],
+                        "optimal_contribution_point": [elbow_y],
+                        "maximum_spent_point": [root],
+                    }
+                )
+
+            # Use concat to add the new data to the results DataFrame
+            df_estimations = pd.concat([df_estimations, temp_df], ignore_index=True)
+
+        return df_estimations.reset_index(drop=True)
 
     def budget_allocator(
         self,
-        total_budget: Optional[float] = None,
-        df_estimations: Optional[pd.DataFrame] = None,
-        budget_bounds: Optional[Dict] = None,
+        total_budget: float,
+        df_estimations: pd.DataFrame,
+        budget_bounds: Optional[Dict[str, Tuple[float, float]]] = None,
     ) -> Dict:
         """
         Allocate the budget optimally among different channels based on estimations and budget constraints.
+        
+        - The function allocates the budget optimally among different channels based on the provided estimations and budget constraints.
+        - It performs validation checks on the input parameters to ensure they are of the correct type and not None.
+        - The channel contributions are computed using the `compute_channel_contribution_original_scale` method.
+        - The lower and upper bounds for the budget allocation are determined based on the provided `budget_bounds` or default values.
+        - Optimization is performed to find the optimal budget allocation that maximizes contribution while satisfying the budget constraint.
+        - The results are stored in a dictionary containing the allocated budget and contribution information.
+        - The updated DataFrame with the allocated budget and contribution information is returned as part of the dictionary.
 
         Parameters
         ----------
@@ -638,25 +679,12 @@ class BaseMMM(ModelBuilder):
         ------
         ValueError
             If any of the required parameters are not provided or have an incorrect type.
-
-        Notes
-        -----
-        - The function allocates the budget optimally among different channels based on the provided estimations and budget constraints.
-        - It performs validation checks on the input parameters to ensure they are of the correct type and not None.
-        - The channel contributions are computed using the `compute_channel_contribution_original_scale` method.
-        - The lower and upper bounds for the budget allocation are determined based on the provided `budget_bounds` or default values.
-        - Optimization is performed to find the optimal budget allocation that maximizes contribution while satisfying the budget constraint.
-        - The results are stored in a dictionary containing the allocated budget and contribution information.
-        - The updated DataFrame with the allocated budget and contribution information is returned as part of the dictionary.
         """
 
         if total_budget is None or df_estimations is None:
             raise ValueError(
                 "Total Budget and Estimations dataframe parameters must be provided."
             )
-
-        if total_budget is None:
-            total_budget = {}
 
         if not isinstance(total_budget, (int, float)):
             raise ValueError(
@@ -694,7 +722,7 @@ class BaseMMM(ModelBuilder):
 
         initial_guess = lower_bounds  # Start with minimum allocation for all channels
         result = minimize(
-            cost_function,
+            compute_optimal_contribution_based_budget_allocation,
             initial_guess,
             args=(df, self.data, channel_contributions),
             bounds=bounds,
@@ -712,10 +740,8 @@ class BaseMMM(ModelBuilder):
             index=[0],
         )
 
-        result_dict = {"allocation": df, "contribution": contributions}
-
         # Return the updated results
-        return result_dict
+        return {"allocation": df, "contribution": contributions}
 
     def compute_mean_contributions_over_time(
         self, original_scale: bool = False

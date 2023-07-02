@@ -8,14 +8,17 @@ from xarray import DataArray
 from pymc_marketing.mmm.utils import CurveCalculator
 
 
-def cost_function(
+def compute_optimal_contribution_based_budget_allocation(
     budget_allocations: List[float],
     df: DataFrame,
     data: DataFrame,
     channel_contributions: DataArray,
 ) -> float:
     """
-    Compute the total collaboration of budget allocation across various channels.
+    Compute the total contribution of budget allocation across various channels.
+
+    This function calculates the total contribution of budget allocations for each channel based on a quadratic curve fitted to the channel data.
+    The total contribution is computed as the sum of the polynomial evaluation at the allocation for each channel.
 
     Parameters
     ----------
@@ -31,12 +34,7 @@ def cost_function(
     Returns
     -------
     float
-        The total collaboration of the budget allocations.
-
-    Notes
-    -----
-    This function calculates the total collaboration of budget allocations for each channel based on a quadratic curve fitted to the channel data.
-    The total collaboration is computed as the sum of the polynomial evaluation at the allocation for each channel.
+        The total contribution of the budget allocations.
     """
     total_contribution = 0
     for i, allocation in enumerate(budget_allocations):
@@ -57,6 +55,9 @@ def cost_function(
 def budget_constraint(budget_allocations: List[float], total_budget: float) -> float:
     """
     Compute the budget constraint for the optimization problem.
+    
+    This function calculates the difference between the total allocated budget and the total available budget.
+    This difference should be zero in the optimization problem.
 
     Parameters
     ----------
@@ -69,11 +70,6 @@ def budget_constraint(budget_allocations: List[float], total_budget: float) -> f
     -------
     float
         The difference between the total allocated budget and the total available budget.
-
-    Notes
-    -----
-    This function calculates the difference between the total allocated budget and the total available budget.
-    This difference should be zero in the optimization problem.
     """
     total_budget_allocated = np.sum(budget_allocations)
-    return total_budget_allocated - total_budget  # this should be zero
+    return total_budget_allocated - total_budget
