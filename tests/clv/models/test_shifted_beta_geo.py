@@ -1,5 +1,10 @@
+import json
+import tempfile
+from pathlib import Path
+
 import arviz as az
 import numpy as np
+import pandas as pd
 import pymc as pm
 import pytest
 from pymc.distributions.censored import CensoredRV
@@ -38,94 +43,143 @@ class TestShiftedBetaGeoModel:
         )
         cls.ref_MLE_estimates = {"alpha": 0.688, "beta": 1.182}
 
-    @pytest.mark.parametrize("alpha_prior", (None, pm.HalfNormal.dist(sigma=10)))
-    @pytest.mark.parametrize("beta_prior", (None, pm.HalfStudentT.dist(nu=4, sigma=10)))
-    def test_model(self, alpha_prior, beta_prior):
-        model = ShiftedBetaGeoModelIndividual(
-            customer_id=self.customer_id,
-            t_churn=self.churn_time,
-            T=self.T,
-            alpha_prior=alpha_prior,
-            beta_prior=beta_prior,
-        )
-
-        assert isinstance(
-            model.model["alpha"].owner.op,
-            pm.HalfFlat if alpha_prior is None else pm.HalfNormal,
-        )
-        assert isinstance(
-            model.model["beta"].owner.op,
-            pm.HalfFlat if beta_prior is None else pm.HalfStudentT,
-        )
-
-        assert isinstance(model.model["theta"].owner.op, pm.Beta)
-        assert isinstance(model.model["churn_censored"].owner.op, CensoredRV)
-        assert isinstance(
-            model.model["churn_censored"].owner.inputs[0].owner.op, pm.Geometric
-        )
-
-        assert model.model.eval_rv_shapes() == {
-            "alpha": (),
-            "alpha_log__": (),
-            "beta": (),
-            "beta_log__": (),
-            "theta": (self.N,),
-            "theta_logodds__": (self.N,),
-        }
-        assert model.model.coords == {
-            "customer_id": tuple(range(self.N)),
+    @pytest.fixture(scope="class")
+    def model_config(self):
+        return {
+            "alpha_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
+            "beta_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4, "sigma": 10}},
         }
 
-    def test_invalid_t_churn(self):
-        match_msg = "t_churn must respect 0 < t_churn <= T"
-        customer_id = range(3)
+    @pytest.fixture(scope="class")
+    def default_model_config(self):
+        return {
+            "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "beta_prior": {"dist": "HalfFlat", "kwargs": {}},
+        }
 
-        with pytest.raises(ValueError, match=match_msg):
-            ShiftedBetaGeoModelIndividual(
-                customer_id=customer_id,
-                t_churn=[10, 10, np.nan],
-                T=10,
-            )
-
-        with pytest.raises(ValueError, match=match_msg):
-            ShiftedBetaGeoModelIndividual(
-                customer_id=customer_id,
-                t_churn=[10, 10, 11],
-                T=10,
-            )
-
-        with pytest.raises(ValueError, match=match_msg):
-            ShiftedBetaGeoModelIndividual(
-                customer_id=customer_id,
-                t_churn=[-1, 8, 9],
-                T=[8, 9, 10],
-            )
-
-    def test_model_repr(self):
-        model = ShiftedBetaGeoModelIndividual(
-            customer_id=self.customer_id,
-            t_churn=self.churn_time,
-            T=self.T,
-            alpha_prior=pm.HalfNormal.dist(10),
+    @pytest.fixture(scope="class")
+    def data(self):
+        return pd.DataFrame(
+            {
+                "customer_id": self.customer_id,
+                "t_churn": self.churn_time,
+                "T": self.T,
+            }
         )
 
+    def test_missing_customer_id(self, data):
+        # Create a version of the data that's missing the 'customer_id' column
+        data_invalid = data.drop(columns="customer_id")
+
+        with pytest.raises(KeyError, match="data must contain a 'customer_id' column"):
+            ShiftedBetaGeoModelIndividual(data=data_invalid)
+
+    def test_missing_t_churn(self, data):
+        # Create a version of the data that's missing the 'frequency' column
+        data_invalid = data.drop(columns="t_churn")
+
+        with pytest.raises(KeyError, match="data must contain a 't_churn' column"):
+            ShiftedBetaGeoModelIndividual(data=data_invalid)
+
+    def test_missing_T(self, data):
+        # Create a version of the data that's missing the 'recency' column
+        data_invalid = data.drop(columns="T")
+
+        with pytest.raises(KeyError, match="data must contain a 'T' column"):
+            ShiftedBetaGeoModelIndividual(data=data_invalid)
+
+    def test_model_repr(self, default_model_config):
+        custom_model_config = default_model_config.copy()
+        custom_model_config["alpha_prior"] = {
+            "dist": "HalfNormal",
+            "kwargs": {"sigma": 10},
+        }
+        dataset = pd.DataFrame(
+            {"customer_id": self.customer_id, "t_churn": self.churn_time, "T": self.T}
+        )
+        model = ShiftedBetaGeoModelIndividual(
+            data=dataset,
+            model_config=custom_model_config,
+        )
+        model.build_model()
         assert model.__repr__().replace(" ", "") == (
             "Shifted-Beta-GeometricModel(IndividualCustomers)"
             "\nalpha~HalfNormal(0,10)"
             "\nbeta~HalfFlat()"
             "\ntheta~Beta(alpha,beta)"
-            f"\nchurn_censored~Censored(Geometric(theta),-inf,{self.T})"
+            "\nchurn_censored~Censored(Geometric(theta),-inf,<constant>)"
         )
 
+    def test_model(self, model_config, default_model_config, data):
+        for config in (model_config, default_model_config):
+            model = ShiftedBetaGeoModelIndividual(
+                data=data,
+                model_config=config,
+            )
+            model.build_model()
+            assert isinstance(
+                model.model["alpha"].owner.op,
+                pm.HalfFlat
+                if config["alpha_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["alpha_prior"]["dist"]),
+            )
+            assert isinstance(
+                model.model["beta"].owner.op,
+                pm.HalfFlat
+                if config["beta_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["beta_prior"]["dist"]),
+            )
+            assert isinstance(model.model["theta"].owner.op, pm.Beta)
+            assert isinstance(model.model["churn_censored"].owner.op, CensoredRV)
+            assert isinstance(
+                model.model["churn_censored"].owner.inputs[0].owner.op, pm.Geometric
+            )
+            assert model.model.eval_rv_shapes() == {
+                "alpha": (),
+                "alpha_log__": (),
+                "beta": (),
+                "beta_log__": (),
+                "theta": (self.N,),
+                "theta_logodds__": (self.N,),
+            }
+            assert model.model.coords == {
+                "customer_id": tuple(range(self.N)),
+            }
+
+    def test_invalid_t_churn(self, default_model_config):
+        match_msg = "t_churn must respect 0 < t_churn <= T"
+        dataset = {
+            "customer_id": range(3),
+            "t_churn": [10, 10, np.nan],
+            "T": 10,
+        }
+
+        dataset["t_churn"] = [10, 10, np.nan]
+        with pytest.raises(ValueError, match=match_msg):
+            ShiftedBetaGeoModelIndividual(
+                data=pd.DataFrame(dataset), model_config=default_model_config
+            )
+        dataset["t_churn"] = [10, 10, 11]
+        with pytest.raises(ValueError, match=match_msg):
+            ShiftedBetaGeoModelIndividual(
+                data=pd.DataFrame(dataset), model_config=default_model_config
+            )
+        dataset["t_churn"] = [-1, 8, 9]
+        dataset["T"] = [8, 9, 10]
+        with pytest.raises(ValueError, match=match_msg):
+            ShiftedBetaGeoModelIndividual(
+                data=pd.DataFrame(dataset),
+            )
+
     @pytest.mark.slow
-    def test_model_convergence(self):
+    def test_model_convergence(self, data, model_config):
         model = ShiftedBetaGeoModelIndividual(
-            customer_id=self.customer_id,
-            t_churn=self.churn_time,
-            T=self.T,
+            data=data,
+            model_config=model_config,
         )
+        model.build_model()
         model.fit(chains=2, progressbar=False, random_seed=100)
-        fit = model.fit_result.posterior
+        fit = model.idata.posterior
         np.testing.assert_allclose(
             [fit["alpha"].mean(), fit["beta"].mean()],
             [self.ref_MLE_estimates["alpha"], self.ref_MLE_estimates["beta"]],
@@ -133,14 +187,20 @@ class TestShiftedBetaGeoModel:
         )
 
     def test_distribution_customer_churn_time(self):
-        model = ShiftedBetaGeoModelIndividual(
-            customer_id=[1, 2, 3],
-            t_churn=np.array([10, 10, 10]),
-            T=10,
+        dataset = pd.DataFrame(
+            {
+                "customer_id": [1, 2, 3],
+                "t_churn": [10, 10, 10],
+                "T": 10,
+            }
         )
-
+        model = ShiftedBetaGeoModelIndividual(
+            data=dataset,
+        )
+        model.build_model()
+        model.fit(fit_method="map")
         customer_thetas = np.array([0.1, 0.5, 0.9])
-        model._fit_result = az.from_dict(
+        model.idata = az.from_dict(
             {
                 "alpha": np.ones((2, 500)),  # Two chains, 500 draws each
                 "beta": np.ones((2, 500)),
@@ -158,14 +218,20 @@ class TestShiftedBetaGeoModel:
         )
 
     def test_distribution_new_customer(self):
-        model = ShiftedBetaGeoModelIndividual(
-            customer_id=[1],
-            t_churn=np.array([10]),
-            T=10,
+        dataset = pd.DataFrame(
+            {
+                "customer_id": [1],
+                "t_churn": [10],
+                "T": [10],
+            }
         )
-
+        model = ShiftedBetaGeoModelIndividual(
+            data=dataset,
+        )
+        model.build_model()
+        model.fit(fit_method="map")
         # theta ~ beta(7000, 3000) ~ 0.7
-        model._fit_result = az.from_dict(
+        model.idata = az.from_dict(
             {
                 "alpha": np.full((2, 500), 7000),  # Two chains, 500 draws each
                 "beta": np.full((2, 500), 3000),
@@ -181,3 +247,33 @@ class TestShiftedBetaGeoModel:
             stats.geom(0.7).mean(),
             rtol=0.05,
         )
+
+    def test_save_load_beta_geo(self, data):
+        temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
+
+        model = ShiftedBetaGeoModelIndividual(
+            data=data,
+        )
+        model.build_model()
+        model.fit("map")
+        model.save(temp)
+        # Testing the valid case.
+
+        model2 = ShiftedBetaGeoModelIndividual.load(temp)
+
+        # Check if the loaded model is indeed an instance of the class
+        assert isinstance(model, ShiftedBetaGeoModelIndividual)
+
+        # Load data from the file to cross verify
+        filepath = Path(str(temp))
+        idata = az.from_netcdf(filepath)
+        dataset = idata.fit_data.to_dataframe()
+        # Check if the loaded data matches with the model data
+        np.testing.assert_array_equal(
+            model2.customer_id.values, dataset.customer_id.values
+        )
+        np.testing.assert_array_equal(model2.t_churn, dataset.t_churn)
+        np.testing.assert_array_equal(model2.T, dataset["T"])
+        assert model.model_config == json.loads(idata.attrs["model_config"])
+        assert model.sampler_config == json.loads(idata.attrs["sampler_config"])
+        assert model.idata == idata

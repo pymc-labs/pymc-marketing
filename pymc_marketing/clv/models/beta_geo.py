@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, Union
+from typing import Dict, Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
@@ -33,27 +33,16 @@ class BetaGeoModel(CLVModel):
 
     Parameters
     ----------
-    customer_id: array_like
-        Customer labels. Must not repeat.
-    frequency: array_like
-        The number of purchases of customers.
-    recency: array_like
-        The time of the last, i.e. xth, purchase.
-    T: array_like
-        The time of a customer's period under which they are under observation. By
-        construction of the model, T > t_x.
-    a_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    b_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    alpha_prior: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
-    r: scalar PyMC distribution, optional
-        PyMC prior distribution, created via `.dist()` API. Defaults to
-        `pm.HalfFlat.dist()`
+    data: pd.DataFrame
+        DataFrame containing the following columns:
+            * `frequency`: number of repeat purchases (with possible values 0, 1, 2, ...)
+            * `recency`: time between the first and the last purchase (with possible values 0, 1, 2, ...)
+            * `T`: time between the first purchase and the end of the observation period (with possible values 0, 1, 2, ...)
+            * `customer_id`: unique customer identifier
+    model_config: dict, optional
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+    sampler_config: dict, optional
+        Dictionary of sampler parameters. Defaults to None.
 
     Examples
     --------
@@ -65,13 +54,25 @@ class BetaGeoModel(CLVModel):
         from pymc_marketing.clv import BetaGeoModel
 
         model = BetaGeoFitter(
-            frequency=[4, 0, 6, 3, ...],
-            recency=[30.73, 1.72, 0., 0., ...]
-            p_prior=pm.HalfNormal.dist(10),
-            q_prior=pm.HalfNormal.dist(10),
-            v_prior=pm.HalfNormal.dist(10),
+            data=pd.DataFrame({
+                "frequency"=[4, 0, 6, 3, ...],
+                "recency":[30.73, 1.72, 0., 0., ...]
+            }),
+            model_config={
+                "r": pm.Gamma.dist(alpha=0.1, beta=0.1),
+                "alpha": pm.Gamma.dist(alpha=0.1, beta=0.1),
+                "a": pm.Gamma.dist(alpha=0.1, beta=0.1),
+                "b": pm.Gamma.dist(alpha=0.1, beta=0.1),
+            },
+            sampler_config={
+                "draws": 1000,
+                "tune": 1000,
+                "chains": 2,
+                "cores": 2,
+                "nuts_kwargs": {"target_accept": 0.95},
+            },
         )
-
+        model.build_model()
         model.fit()
         print(model.fit_summary())
 
@@ -103,44 +104,66 @@ class BetaGeoModel(CLVModel):
            http://brucehardie.com/notes/027/bgnbd_num_error.pdf.
     """
 
-    _model_name = "BG/NBD"  # Beta-Geometric Negative Binomial Distribution
+    _model_type = "BG/NBD"  # Beta-Geometric Negative Binomial Distribution
 
     def __init__(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        frequency: Union[np.ndarray, pd.Series, TensorVariable],
-        recency: Union[np.ndarray, pd.Series, TensorVariable],
-        T: Union[np.ndarray, pd.Series, TensorVariable],
-        a_prior: Optional[TensorVariable] = None,
-        b_prior: Optional[TensorVariable] = None,
-        alpha_prior: Optional[TensorVariable] = None,
-        r_prior: Optional[TensorVariable] = None,
+        data: pd.DataFrame,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
     ):
-        super().__init__()
-
-        self.customer_id = customer_id
-        self.frequency = frequency
-        self.recency = recency
-        self.T = T
-
-        a_prior, b_prior, alpha_prior, r_prior = self._process_priors(
-            a_prior, b_prior, alpha_prior, r_prior
+        try:
+            self.customer_id = data["customer_id"]
+        except KeyError:
+            raise KeyError("customer_id column is missing from data")
+        try:
+            self.frequency = data["frequency"]
+        except KeyError:
+            raise KeyError("frequency column is missing from data")
+        try:
+            self.recency = data["recency"]
+        except KeyError:
+            raise KeyError("recency column is missing from data")
+        try:
+            self.T = data["T"]
+        except KeyError:
+            raise KeyError("T column is missing from data")
+        super().__init__(
+            model_config=model_config,
+            sampler_config=sampler_config,
         )
-
+        self.data = data
+        self.a_prior = self._create_distribution(self.model_config["a_prior"])
+        self.b_prior = self._create_distribution(self.model_config["b_prior"])
+        self.alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
+        self.r_prior = self._create_distribution(self.model_config["r_prior"])
+        self._process_priors(self.a_prior, self.b_prior, self.alpha_prior, self.r_prior)
         # each customer's information should be encapsulated by a single data entry
-        if len(np.unique(customer_id)) != len(customer_id):
+        if len(np.unique(self.customer_id)) != len(self.customer_id):
             raise ValueError(
                 "The BetaGeoModel expects exactly one entry per customer. More than"
                 " one entry is currently provided per customer id."
             )
+        self.coords = {"customer_id": self.customer_id}
 
-        coords = {"customer_id": customer_id}
-        with pm.Model(coords=coords) as self.model:
-            a = self.model.register_rv(a_prior, name="a")
-            b = self.model.register_rv(b_prior, name="b")
+    @property
+    def default_model_config(self) -> Dict[str, Dict]:
+        return {
+            "a_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "b_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "r_prior": {"dist": "HalfFlat", "kwargs": {}},
+        }
 
-            alpha = self.model.register_rv(alpha_prior, name="alpha")
-            r = self.model.register_rv(r_prior, name="r")
+    def build_model(
+        self,
+    ) -> None:
+        with pm.Model(coords=self.coords) as self.model:
+            a = self.model.register_rv(self.a_prior, name="a")
+            b = self.model.register_rv(self.b_prior, name="b")
+
+            alpha = self.model.register_rv(self.alpha_prior, name="alpha")
+            r = self.model.register_rv(self.r_prior, name="r")
 
             def logp(t_x, x, a, b, r, alpha, T):
                 """
@@ -176,35 +199,19 @@ class BetaGeoModel(CLVModel):
 
             pm.Potential(
                 "likelihood",
-                logp(x=frequency, t_x=recency, a=a, b=b, alpha=alpha, r=r, T=T),
+                logp(
+                    x=self.frequency,
+                    t_x=self.recency,
+                    a=a,
+                    b=b,
+                    alpha=alpha,
+                    r=r,
+                    T=self.T,
+                ),
             )
 
-    def _process_priors(self, a_prior, b_prior, alpha_prior, r_prior):
-        # hyper priors for the Gamma params
-        if a_prior is None:
-            a_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(a_prior)
-        if b_prior is None:
-            b_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(b_prior)
-
-        # hyper priors for the Beta params
-        if alpha_prior is None:
-            alpha_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(alpha_prior)
-        if r_prior is None:
-            r_prior = pm.HalfFlat.dist()
-        else:
-            self._check_prior_ndim(r_prior)
-
-        return super()._process_priors(a_prior, b_prior, alpha_prior, r_prior)
-
     def _unload_params(self):
-        trace = self.fit_result.posterior
-
+        trace = self.idata.posterior
         a = trace["a"]
         b = trace["b"]
         alpha = trace["alpha"]

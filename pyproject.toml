@@ -17,10 +17,11 @@ dependencies = [
     "numpy>=1.17",
     "pandas",
     # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
-    "pymc>=5.3.0",
+    "pymc>=5.5.0",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
-    "xarray"
+    "xarray",
+    "pymc-experimental>=0.0.7",
 ]
 
 [project.optional-dependencies]
@@ -80,5 +81,8 @@ addopts = [
     "--cov=pymc_marketing",
     "--cov-report=term-missing",
     "--color=yes",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:bokeh.core.property.primitive:37"
 ]
 testpaths = "tests"

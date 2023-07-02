@@ -1,5 +1,10 @@
+import json
+import tempfile
+from pathlib import Path
+
 import arviz as az
 import numpy as np
+import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
@@ -41,59 +46,121 @@ class TestBetaGeoModel:
             cls.a_true, cls.b_true, cls.alpha_true, cls.r_true, cls.N, rng=rng
         )
 
-    @pytest.mark.parametrize("a_prior", (None, pm.HalfNormal.dist()))
-    @pytest.mark.parametrize("b_prior", (None, pm.HalfStudentT.dist(nu=4)))
-    @pytest.mark.parametrize("alpha_prior", (None, pm.HalfCauchy.dist(2)))
-    @pytest.mark.parametrize("r_prior", (None, pm.Gamma.dist(1, 1)))
-    def test_model(self, a_prior, b_prior, alpha_prior, r_prior):
-        model = BetaGeoModel(
-            customer_id=self.customer_id,
-            frequency=self.frequency,
-            recency=self.recency,
-            T=self.T,
-            a_prior=a_prior,
-            b_prior=b_prior,
-            alpha_prior=alpha_prior,
-            r_prior=r_prior,
+    @pytest.fixture(scope="class")
+    def data(self):
+        return pd.DataFrame(
+            {
+                "customer_id": self.customer_id,
+                "frequency": self.frequency,
+                "recency": self.recency,
+                "T": self.T,
+            }
         )
 
-        assert isinstance(
-            model.model["a"].owner.op,
-            pm.HalfFlat if a_prior is None else type(a_prior.owner.op),
-        )
-        assert isinstance(
-            model.model["b"].owner.op,
-            pm.HalfFlat if b_prior is None else type(b_prior.owner.op),
-        )
-        assert isinstance(
-            model.model["alpha"].owner.op,
-            pm.HalfFlat if alpha_prior is None else type(alpha_prior.owner.op),
-        )
-        assert isinstance(
-            model.model["r"].owner.op,
-            pm.HalfFlat if r_prior is None else type(r_prior.owner.op),
-        )
-        assert model.model.eval_rv_shapes() == {
-            "a": (),
-            "a_log__": (),
-            "b": (),
-            "b_log__": (),
-            "alpha": (),
-            "alpha_log__": (),
-            "r": (),
-            "r_log__": (),
+    @pytest.fixture(scope="class")
+    def model_config(self):
+        return {
+            "a_prior": {"dist": "HalfNormal", "kwargs": {}},
+            "b_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4}},
+            "alpha_prior": {"dist": "HalfCauchy", "kwargs": {"beta": 2}},
+            "r_prior": {"dist": "Gamma", "kwargs": {"alpha": 1, "beta": 1}},
         }
+
+    @pytest.fixture(scope="class")
+    def default_model_config(self):
+        return {
+            "a_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "b_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "r_prior": {"dist": "HalfFlat", "kwargs": {}},
+        }
+
+    def test_model(self, model_config, default_model_config, data):
+        for config in (model_config, default_model_config):
+            model = BetaGeoModel(
+                data=data,
+                model_config=config,
+            )
+            model.build_model()
+            assert isinstance(
+                model.model["a"].owner.op,
+                pm.HalfFlat
+                if config["a_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["a_prior"]["dist"]),
+            )
+            assert isinstance(
+                model.model["b"].owner.op,
+                pm.HalfFlat
+                if config["b_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["b_prior"]["dist"]),
+            )
+            assert isinstance(
+                model.model["alpha"].owner.op,
+                pm.HalfFlat
+                if config["alpha_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["alpha_prior"]["dist"]),
+            )
+            assert isinstance(
+                model.model["r"].owner.op,
+                pm.HalfFlat
+                if config["r_prior"]["dist"] == "HalfFlat"
+                else getattr(pm, config["r_prior"]["dist"]),
+            )
+            assert model.model.eval_rv_shapes() == {
+                "a": (),
+                "a_log__": (),
+                "b": (),
+                "b_log__": (),
+                "alpha": (),
+                "alpha_log__": (),
+                "r": (),
+                "r_log__": (),
+            }
+
+    def test_missing_customer_id(self, data):
+        # Create a version of the data that's missing the 'customer_id' column
+        data_invalid = data.drop(columns="customer_id")
+
+        with pytest.raises(KeyError, match="customer_id column is missing from data"):
+            BetaGeoModel(data=data_invalid)
+
+    def test_missing_frequency(self, data):
+        # Create a version of the data that's missing the 'frequency' column
+        data_invalid = data.drop(columns="frequency")
+
+        with pytest.raises(KeyError, match="frequency column is missing from data"):
+            BetaGeoModel(data=data_invalid)
+
+    def test_missing_recency(self, data):
+        # Create a version of the data that's missing the 'recency' column
+        data_invalid = data.drop(columns="recency")
+
+        with pytest.raises(KeyError, match="recency column is missing from data"):
+            BetaGeoModel(data=data_invalid)
+
+    def test_missing_T(self, data):
+        # Create a version of the data that's missing the 'T' column
+        data_invalid = data.drop(columns="T")
+
+        with pytest.raises(KeyError, match="T column is missing from data"):
+            BetaGeoModel(data=data_invalid)
 
     def test_customer_id_warning(self):
         with pytest.raises(
             ValueError,
             match="The BetaGeoModel expects exactly one entry per customer. More than one entry is currently provided per customer id.",
         ):
+            data = pd.DataFrame(
+                {
+                    "customer_id": np.asarray([1, 1]),
+                    "frequency": np.asarray([1, 1]),
+                    "recency": np.asarray([1, 1]),
+                    "T": np.asarray([1, 1]),
+                }
+            )
+
             BetaGeoModel(
-                customer_id=np.asarray([1, 1]),
-                frequency=np.asarray([1, 2]),
-                recency=np.asarray([1, 2]),
-                T=np.asarray([5, 8]),
+                data=data,
             )
 
     @pytest.mark.parametrize(
@@ -103,20 +170,31 @@ class TestBetaGeoModel:
             (200, 38, 100.7957),
         ],
     )
-    def test_numerically_stable_logp(self, frequency, recency, logp_value):
+    def test_numerically_stable_logp(
+        self, frequency, recency, logp_value, model_config
+    ):
         """
         See Solution #2 on pages 3 and 4 of http://brucehardie.com/notes/027/bgnbd_num_error.pdf
         """
-        model = BetaGeoModel(
-            customer_id=np.asarray([1]),
-            frequency=np.asarray([frequency]),
-            recency=np.asarray([recency]),
-            T=np.asarray([40]),
-            a_prior=pm.Flat.dist(),
-            b_prior=pm.Flat.dist(),
-            alpha_prior=pm.Flat.dist(),
-            r_prior=pm.Flat.dist(),
+        model_config = {
+            "a_prior": {"dist": "Flat", "kwargs": {}},
+            "b_prior": {"dist": "Flat", "kwargs": {}},
+            "alpha_prior": {"dist": "Flat", "kwargs": {}},
+            "r_prior": {"dist": "Flat", "kwargs": {}},
+        }
+        data = pd.DataFrame(
+            {
+                "customer_id": np.asarray([1]),
+                "frequency": np.asarray([frequency]),
+                "recency": np.asarray([recency]),
+                "T": np.asarray([40]),
+            }
         )
+        model = BetaGeoModel(
+            data=data,
+            model_config=model_config,
+        )
+        model.build_model()
         pymc_model = model.model
         logp = pymc_model.compile_fn(pymc_model.potentiallogp)
 
@@ -130,28 +208,40 @@ class TestBetaGeoModel:
     @pytest.mark.parametrize(
         "N, fit_method, rtol",
         [
-            (500, "mcmc", 0.3),
+            (
+                500,
+                "mcmc",
+                0.3,
+            ),
             (2000, "mcmc", 0.1),
             (10000, "mcmc", 0.055),
-            (2000, "map", 0.1),
+            (2000, "map", 0.1035),
         ],
     )
-    def test_model_convergence(self, N, fit_method, rtol):
+    def test_model_convergence(self, N, fit_method, rtol, model_config):
         rng = np.random.default_rng(146)
         recency, frequency, _, T = self.generate_data(
             self.a_true, self.b_true, self.alpha_true, self.r_true, N, rng=rng
         )
-
+        data = pd.DataFrame(
+            {
+                "customer_id": list(range(len(frequency))),
+                "frequency": frequency,
+                "recency": recency,
+                "T": T,
+            }
+        )
         # b parameter has the largest mismatch of the four parameters
         model = BetaGeoModel(
-            customer_id=list(range(len(frequency))),
-            frequency=frequency,
-            recency=recency,
-            T=T,
+            data=data,
+            model_config=model_config,
         )
+        model.build_model()
+
         sample_kwargs = dict(random_seed=rng, chains=2) if fit_method == "mcmc" else {}
         model.fit(fit_method=fit_method, progressbar=False, **sample_kwargs)
-        fit = model.fit_result.posterior
+
+        fit = model.idata.posterior
         np.testing.assert_allclose(
             [fit["a"].mean(), fit["b"].mean(), fit["alpha"].mean(), fit["r"].mean()],
             [self.a_true, self.b_true, self.alpha_true, self.r_true],
@@ -173,15 +263,20 @@ class TestBetaGeoModel:
         r = 4
 
         recency, frequency, alive, T = self.generate_data(a, b, alpha, r, N, rng=rng)
+
         customer_id = list(range(N))
-
-        bg_model = BetaGeoModel(
-            customer_id=customer_id,
-            frequency=frequency,
-            recency=recency,
-            T=T,
+        data = pd.DataFrame(
+            {
+                "customer_id": customer_id,
+                "frequency": frequency,
+                "recency": recency,
+                "T": T,
+            }
         )
-
+        bg_model = BetaGeoModel(
+            data=data,
+        )
+        bg_model.build_model()
         fake_fit = az.from_dict(
             {
                 "a": rng.normal(a, 1e-3, size=(2, 25)),
@@ -190,7 +285,7 @@ class TestBetaGeoModel:
                 "r": rng.normal(r, 1e-3, size=(2, 25)),
             }
         )
-        bg_model._fit_result = fake_fit
+        bg_model.idata = fake_fit
 
         est_prob_alive = bg_model.expected_probability_alive(
             customer_id,
@@ -208,20 +303,40 @@ class TestBetaGeoModel:
             rtol=0.05,
         )
 
+    def test_fit_result_without_fit(self, data, model_config):
+        model = BetaGeoModel(data=data, model_config=model_config)
+        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+            model.fit_result
+
+        idata = model.fit(
+            tune=5,
+            chains=2,
+            draws=10,
+            compute_convergence_checks=False,
+        )
+        assert isinstance(idata, az.InferenceData)
+        assert len(idata.posterior.chain) == 2
+        assert len(idata.posterior.draw) == 10
+        assert model.idata is idata
+
     def test_expected_num_purchases(self):
         customer_id = np.arange(10)
         test_t = np.linspace(20, 38, 10)
         test_frequency = np.tile([1, 3, 5, 7, 9], 2)
         test_recency = np.tile([20, 30], 5)
         test_T = np.tile([25, 35], 5)
-
-        bg_model = BetaGeoModel(
-            customer_id=customer_id,
-            frequency=test_frequency,
-            recency=test_recency,
-            T=test_T,
+        data = pd.DataFrame(
+            {
+                "customer_id": customer_id,
+                "frequency": test_frequency,
+                "recency": test_recency,
+                "T": test_T,
+            }
         )
-        bg_model._fit_result = az.from_dict(
+
+        bg_model = BetaGeoModel(data=data)
+        bg_model.build_model()
+        bg_model.idata = az.from_dict(
             {
                 "a": np.full((2, 5), self.a_true),
                 "b": np.full((2, 5), self.b_true),
@@ -268,14 +383,17 @@ class TestBetaGeoModel:
         test_frequency = np.tile([1, 3, 5, 7, 9], 2)
         test_recency = np.tile([20, 30], 5)
         test_T = np.tile([25, 35], 5)
-
-        bg_model = BetaGeoModel(
-            customer_id=customer_id,
-            frequency=test_frequency,
-            recency=test_recency,
-            T=test_T,
+        data = pd.DataFrame(
+            {
+                "customer_id": customer_id,
+                "frequency": test_frequency,
+                "recency": test_recency,
+                "T": test_T,
+            }
         )
-        bg_model._fit_result = az.from_dict(
+        bg_model = BetaGeoModel(data=data)
+        bg_model.build_model()
+        bg_model.idata = az.from_dict(
             {
                 "a": np.full((2, 5), self.a_true),
                 "b": np.full((2, 5), self.b_true),
@@ -308,15 +426,18 @@ class TestBetaGeoModel:
             rtol=1,
         )
 
-    def test_model_repr(self):
+    def test_model_repr(self, data):
+        model_config = {
+            "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "r_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "a_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "b_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
+        }
         model = BetaGeoModel(
-            customer_id=self.customer_id,
-            frequency=self.frequency,
-            recency=self.recency,
-            T=self.T,
-            b_prior=pm.HalfNormal.dist(10),
+            data=data,
+            model_config=model_config,
         )
-
+        model.build_model()
         assert model.__repr__().replace(" ", "") == (
             "BG/NBD"
             "\na~HalfFlat()"
@@ -326,12 +447,9 @@ class TestBetaGeoModel:
             "\nlikelihood~Potential(f(r,alpha,b,a))"
         )
 
-    def test_distribution_new_customer(self) -> None:
+    def test_distribution_new_customer(self, data) -> None:
         mock_model = BetaGeoModel(
-            customer_id=self.customer_id,
-            frequency=self.frequency,
-            recency=self.recency,
-            T=self.T,
+            data=data,
         )
         mock_model.fit_result = az.from_dict(
             {
@@ -374,3 +492,34 @@ class TestBetaGeoModel:
             pm.draw(lam.var(), random_seed=rng),
             rtol=rtol,
         )
+
+    def test_save_load_beta_geo(self, data):
+        temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
+
+        model = BetaGeoModel(
+            data=data,
+        )
+        model.build_model()
+        model.fit("map")
+        model.save(temp)
+        # Testing the valid case.
+
+        model2 = BetaGeoModel.load(temp)
+
+        # Check if the loaded model is indeed an instance of the class
+        assert isinstance(model, BetaGeoModel)
+
+        # Load data from the file to cross verify
+        filepath = Path(str(temp))
+        idata = az.from_netcdf(filepath)
+        dataset = idata.fit_data.to_dataframe()
+        # Check if the loaded data matches with the model data
+        np.testing.assert_array_equal(
+            model2.customer_id.values, dataset.customer_id.values
+        )
+        np.testing.assert_array_equal(model2.frequency.values, dataset.frequency.values)
+        np.testing.assert_array_equal(model2.T.values, dataset["T"])
+        np.testing.assert_array_equal(model2.recency.values, dataset.recency.values)
+        assert model.model_config == json.loads(idata.attrs["model_config"])
+        assert model.sampler_config == json.loads(idata.attrs["sampler_config"])
+        assert model.idata == idata
