@@ -321,7 +321,7 @@ class ParetoNBDModel(CLVModel):
     def expected_purchases(
         self,
         future_t: Union[float, np.ndarray, pd.Series],
-        data: Union[pd.DataFrame, None] = None,
+        data: Optional[pd.DataFrame] = None,
     ) -> xarray.DataArray:
         """
         Given *recency*, *frequency*, and *T* for an individual customer, this method predicts the
@@ -477,7 +477,7 @@ class ParetoNBDModel(CLVModel):
         self,
         n_purchases: Union[int, np.ndarray, pd.Series],
         future_t: Union[float, np.ndarray, pd.Series],
-        data: Union[pd.DataFrame, None] = None,
+        data: Optional[pd.DataFrame] = None,
     ) -> xarray.DataArray:
         """
         Estimate probability of *n_purchases* over *future_t* time periods,
