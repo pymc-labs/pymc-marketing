@@ -320,7 +320,7 @@ class TestParetoNBDModel:
         self.model.idata = fake_fit
 
         est_purchases_new_customer = self.model.expected_purchase_probability(
-            test_n, test_t
+            test_n, test_t, self.data
         )
 
         assert est_purchases_new_customer.shape == (chains, draws, N)

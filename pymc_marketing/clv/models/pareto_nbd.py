@@ -63,10 +63,9 @@ class ParetoNBDModel(CLVModel):
 
     **recency**: Number of time periods between the customer's first and most recent purchases.
     **frequency**: Number of repeat purchases per customer.
-
     **T**: Number of time periods since the customer's first purchase. Model assumptions require T >= recency.
 
-    Please note this model is still experimental. See code examples in documentation if encountering fitting issues.
+    Please note this model is still experimental. See code examples in documentation if fitting issue arise.
 
     Parameters
     ----------
@@ -95,6 +94,7 @@ class ParetoNBDModel(CLVModel):
 
             rfm_df = rfm_summary(raw_data,'id_col_name','date_col_name')
 
+            # Initialize model with customer data; `model_config` parameter is optional
             model = ParetoNBDModel(
                 data=rfm_df,
                 model_config={
@@ -107,42 +107,39 @@ class ParetoNBDModel(CLVModel):
 
             model.build_model()
 
-            # Fit model quickly to large datasets via Maximum a Posteriori:
+            # Fit model quickly to large datasets via Maximum a Posteriori
             model.fit(fit_method='map')
 
-            # Fit model with full posterior estimation for more informative predictions:
+            # Fit model with full posterior estimation for more informative predictions
             model.fit()
-
             print(model.fit_summary())
 
-            # Predict number of purchases for customers for the next 10 time periods,
-            # given customer_id and current frequency, recency, T.
-            # Customer parameters optional if running predictions on original dataset
+            # Predict number of purchases for customers over the next 10 time periods
             expected_purchases = model.expected_purchases(
+                data=rfm_df,
                 future_t=10,
-                customer_id=rfm_df['id_col'],
-                frequency=rfm_df['frequency']
-                recency=rfm_df['recency'],
-                T=rfm_df['T'],
             )
 
-            # Predict probability a customer will still be active in 'future_t' time periods,
-            # given customer_id and current frequency, recency, T.
-            # Customer parameters optional if running predictions on original dataset.
-            probability_alive = model.expected_probability_alive(
-                future_t=[0, 3, 6, 9],
-                customer_id=[0,1,2,3],
-                frequency=[5, 2, 1, 8],
-                recency=[7, 4, 2.5, 11],
-                T=[10, 8, 10, 22],
-            )
-
-            # Predict probability of customer making 'n' purchases over 't' time periods,
-            # given customer_id and current frequency, recency, T.
-            # Customer parameters optional if running predictions on original dataset.
+            # Predict probability of customer making 'n' purchases over 't' time periods
+            # Data parameter is omitted here because predictions are ran on original dataset
             expected_num_purchases = model.expected_purchase_probability(
                 n=[0, 1, 2, 3],
                 future_t=[10,20,30,40],
+            )
+
+            new_data = pd.DataFrame(
+                data = {
+                "customer_id": [0, 1, 2, 3],
+                "frequency": [5, 2, 1, 8],
+                "recency": [7, 4, 2.5, 11],
+                "T": [10, 8, 10, 22]
+                }
+            )
+
+            # Predict probability customers will still be active in 'future_t' time periods
+            probability_alive = model.expected_probability_alive(
+                data=new_data,
+                future_t=[0, 3, 6, 9],
             )
 
             # Predict number of purchases for a new customer over 't' time periods.
@@ -256,22 +253,22 @@ class ParetoNBDModel(CLVModel):
     # TODO: Convert to list comprehension to support covariates?
     def _process_customers(
         self,
-        customer_id: Union[np.ndarray, pd.Series, xarray.DataArray, None],
-        frequency: Union[np.ndarray, pd.Series, xarray.DataArray, None],
-        recency: Union[np.ndarray, pd.Series, xarray.DataArray, None],
-        T: Union[np.ndarray, pd.Series, xarray.DataArray, None],
+        data: Union[pd.DataFrame, None],
     ) -> Tuple[xarray.DataArray, ...]:
         """Utility function assigning default customer arguments
         for predictive methods and converting to xarrays.
         """
-        if customer_id is None:
+        if data is None:
             customer_id = self.customer_id
-        if frequency is None:
             frequency = self.frequency
-        if recency is None:
             recency = self.recency
-        if T is None:
             T = self.T
+        else:
+            data.columns = data.columns.str.upper()
+            customer_id = data["CUSTOMER_ID"]
+            frequency = data["FREQUENCY"]
+            recency = data["RECENCY"]
+            T = data["T"]
 
         return to_xarray(customer_id, frequency, recency, T)
 
@@ -324,16 +321,13 @@ class ParetoNBDModel(CLVModel):
     def expected_purchases(
         self,
         future_t: Union[float, np.ndarray, pd.Series],
-        customer_id: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
-        frequency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
-        recency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
-        T: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
+        data: Union[pd.DataFrame, None] = None,
     ) -> xarray.DataArray:
         """
         Given *recency*, *frequency*, and *T* for an individual customer, this method predicts the
         expected number of future purchases across *future_t* time periods.
 
-        If no customer data is provided, probabilities for all customers in model fit dataset are returned.
+        `data` parameter is not required if estimating probabilities for customers in model fit dataset.
 
         Adapted from equation (41) In Bruce Hardie's notes [2]_, and `lifetimes` package:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/pareto_nbd_fitter.py#L242
@@ -342,15 +336,12 @@ class ParetoNBDModel(CLVModel):
         ----------
         future_t: array_like
             Number of time periods to predict expected purchases.
-        customer_id: array_like, optional
-            Customer labels.
-        frequency: array_like, optional
-            Number of repeat purchases per customer.
-        recency: array_like, optional
-            Number of time periods between the customer's first and most recent purchase.
-        T: array_like, optional
-            Number of time periods since the customer's first purchase.
-            Model assumptions require T >= recency.
+        data: pd.DataFrame
+            Optional dataframe containing the following columns:
+                * `frequency`: number of repeat purchases
+                * `recency`: time between the first and the last purchase
+                * `T`: time between the first purchase and the end of the observation period, model assumptions require T >= recency
+                * `customer_id`: unique customer identifier
 
         References
         ----------
@@ -366,7 +357,7 @@ class ParetoNBDModel(CLVModel):
         s: xarray.DataArray
         beta: xarray.DataArray
 
-        x, t_x, T = self._process_customers(customer_id, frequency, recency, T)
+        x, t_x, T = self._process_customers(data)
 
         r, alpha, s, beta = self._unload_params()
 
@@ -431,16 +422,13 @@ class ParetoNBDModel(CLVModel):
     def expected_probability_alive(
         self,
         future_t: Union[int, float] = 0,
-        customer_id: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
-        frequency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
-        recency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
-        T: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
+        data: Optional[pd.DataFrame] = None,
     ) -> xarray.DataArray:
         """
         Compute the probability that a customer with history *frequency*, *recency*, and *T*
         is currently active. Can also estimate alive probability for *future_t* periods into the future.
 
-        If no customer data is provided, probabilities for all customers in model fit dataset are returned.
+        `data` parameter is not required if estimating probabilities for customers in model fit dataset.
 
         Adapted from equation (18) in Bruce Hardie's notes [3]_.
 
@@ -448,15 +436,12 @@ class ParetoNBDModel(CLVModel):
         ----------
         future_t: scalar
             Number of time periods in the future to estimate alive probability; defaults to 0.
-        customer_id: array_like
-            Customer labels.
-        frequency: array_like
-            Number of repeat purchases per customer.
-        recency: array_like
-            Number of time periods between the customer's first and most recent purchase.
-        T: array_like
-            Number of time periods since the customer's first purchase.
-            Model assumptions require T >= recency.
+        data: pd.DataFrame
+            Optional dataframe containing the following columns:
+                * `frequency`: number of repeat purchases
+                * `recency`: time between the first and the last purchase
+                * `T`: time between the first purchase and the end of the observation period, model assumptions require T >= recency
+                * `customer_id`: unique customer identifier
 
         References
         ----------
@@ -472,7 +457,7 @@ class ParetoNBDModel(CLVModel):
         s: xarray.DataArray
         beta: xarray.DataArray
 
-        x, t_x, T = self._process_customers(customer_id, frequency, recency, T)
+        x, t_x, T = self._process_customers(data)
 
         r, alpha, s, beta = self._unload_params()
         loglike = self._logp(r, alpha, s, beta, x, t_x, T)
@@ -492,15 +477,13 @@ class ParetoNBDModel(CLVModel):
         self,
         n_purchases: Union[int, np.ndarray, pd.Series],
         future_t: Union[float, np.ndarray, pd.Series],
-        customer_id: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
-        frequency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
-        recency: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
-        T: Union[np.ndarray, pd.Series, xarray.DataArray, None] = None,
+        data: Union[pd.DataFrame, None] = None,
     ) -> xarray.DataArray:
         """
         Estimate probability of *n_purchases* over *future_t* time periods,
         given an individual customer's current *frequency*, *recency*, and *T*.
-        If no customer data is provided, probabilities for all customers in model fit dataset are returned.
+
+        `data` parameter is not required if estimating probabilities for customers in model fit dataset.
 
         Adapted from equation (16) in Bruce Hardie's notes [4]_, and `lifetimes` package:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/pareto_nbd_fitter.py#L388
@@ -511,15 +494,12 @@ class ParetoNBDModel(CLVModel):
             Number of purchases predicted.
         future_t: scalar
             Time periods over which the probability should be estimated.
-        customer_id: array_like, optional
-            Customer labels.
-        recency: array_like, optional
-            Number of time periods between the customer's first and most recent purchase.
-        frequency: array_like, optional
-            Number of repeat purchases per customer.
-        T: array_like, optional
-            Number of time periods since the customer's first purchase.
-            Model assumptions require T >= recency.
+        data: pd.DataFrame
+            Optional dataframe containing the following columns:
+                * `frequency`: number of repeat purchases
+                * `recency`: time between the first and the last purchase
+                * `T`: time between the first purchase and the end of the observation period, model assumptions require T >= recency
+                * `customer_id`: unique customer identifier
 
         References
         ----------
@@ -535,7 +515,7 @@ class ParetoNBDModel(CLVModel):
         s: xarray.DataArray
         beta: xarray.DataArray
 
-        x, t_x, T = self._process_customers(customer_id, frequency, recency, T)
+        x, t_x, T = self._process_customers(data)
 
         r, alpha, s, beta = self._unload_params()
         loglike = self._logp(r, alpha, s, beta, x, t_x, T)
