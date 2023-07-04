@@ -154,7 +154,6 @@ def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
     ----------
     x : tensor
         Input tensor.
-    lam : float, optional, by default 0.5
     lam : float or array-like, optional, by default 0.5
         Saturation parameter.
 
