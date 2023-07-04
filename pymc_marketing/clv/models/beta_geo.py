@@ -366,7 +366,7 @@ class BetaGeoModel(CLVModel):
             r = pm.HalfFlat("r")
 
             # This is the shape with fit_method="map"
-            if self.fit_result.posterior.dims == {"chain": 1, "draw": 1}:
+            if self.idata.posterior.dims == {"chain": 1, "draw": 1}:
                 shape_kwargs = {"shape": 1000}
             else:
                 shape_kwargs = {}

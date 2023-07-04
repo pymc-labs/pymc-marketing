@@ -451,7 +451,7 @@ class TestBetaGeoModel:
         mock_model = BetaGeoModel(
             data=data,
         )
-        mock_model.fit_result = az.from_dict(
+        mock_model.idata = az.from_dict(
             {
                 "a": [self.a_true],
                 "b": [self.b_true],
