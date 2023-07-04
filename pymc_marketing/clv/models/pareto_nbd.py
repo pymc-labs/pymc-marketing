@@ -98,10 +98,10 @@ class ParetoNBDModel(CLVModel):
             model = ParetoNBDModel(
                 data=rfm_df,
                 model_config={
-                "r": pm.Weibull.dist(alpha=2,beta=1),
-                "alpha": pm.Weibull.dist(alpha=2,beta=10),
-                "s": pm.Weibull.dist(alpha=2,beta=1),
-                "beta": pm.Weibull.dist(alpha=2,beta=10),
+                    "r": pm.Weibull.dist(alpha=2,beta=1),
+                    "alpha": pm.Weibull.dist(alpha=2,beta=10),
+                    "s": pm.Weibull.dist(alpha=2,beta=1),
+                    "beta": pm.Weibull.dist(alpha=2,beta=10),
                 },
             )
 
