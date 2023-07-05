@@ -30,6 +30,8 @@ __all__ = ("BaseMMM", "MMM")
 
 class BaseMMM(ModelBuilder):
     model: pm.Model
+    _model_type = "baseMMM"
+    version = "0.0.2"
 
     def __init__(
         self,

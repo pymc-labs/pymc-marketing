@@ -293,3 +293,17 @@ class TestDelayedSaturatedMMM:
             )
         except Exception as e:
             pytest.fail(f"_data_setter failed with error {e}")
+
+    def test_save_load(self, mmm_fitted):
+        model = mmm_fitted
+
+        model.save("test_save_load")
+        model2 = BaseDelayedSaturatedMMM.load("test_save_load")
+        assert model.date_column == model2.date_column
+        assert model.control_columns == model2.control_columns
+        assert model.channel_columns == model2.channel_columns
+        assert model.adstock_max_lag == model2.adstock_max_lag
+        assert model.validate_data == model2.validate_data
+        assert model.yearly_seasonality == model2.yearly_seasonality
+        assert model.model_config == model2.model_config
+        assert model.sampler_config == model2.sampler_config

@@ -1,5 +1,8 @@
+import json
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+import arviz as az
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -15,6 +18,9 @@ __all__ = ["DelayedSaturatedMMM"]
 
 
 class BaseDelayedSaturatedMMM(MMM):
+    _model_type = "DelayedSaturatedMMM"
+    version = "0.0.2"
+
     def __init__(
         self,
         date_column: str,
@@ -122,6 +128,15 @@ class BaseDelayedSaturatedMMM(MMM):
         }
         self.X: pd.DataFrame = X_data
         self.y: pd.Series = y
+
+    def _save_input_params(self, idata) -> None:
+        """Saves input parameters to the attrs of idata."""
+        idata.attrs["date_column"] = json.dumps(self.date_column)
+        idata.attrs["control_columns"] = json.dumps(self.control_columns)
+        idata.attrs["channel_columns"] = json.dumps(self.channel_columns)
+        idata.attrs["adstock_max_lag"] = json.dumps(self.adstock_max_lag)
+        idata.attrs["validate_data"] = json.dumps(self.validate_data)
+        idata.attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
 
     def build_model(
         self,
@@ -309,6 +324,57 @@ class BaseDelayedSaturatedMMM(MMM):
                 "beta_channel"
             ]["sigma"].tolist()
         return serializable_config
+
+    @classmethod
+    def load(cls, fname: str):
+        """
+        Creates a DelayedSaturatedMMM instance from a file,
+        instantiating the model with the saved original input parameters.
+        Loads inference data for the model.
+
+        Parameters
+        ----------
+        fname : string
+            This denotes the name with path from where idata should be loaded from.
+
+        Returns
+        -------
+        Returns an instance of DelayedSaturatedMMM.
+
+        Raises
+        ------
+        ValueError
+            If the inference data that is loaded doesn't match with the model.
+        """
+
+        filepath = Path(str(fname))
+        idata = az.from_netcdf(filepath)
+        # needs to be converted, because json.loads was changing tuple to list
+        model_config = cls._convert_dims_to_tuple(
+            json.loads(idata.attrs["model_config"])
+        )
+        model = cls(
+            date_column=json.loads(idata.attrs["date_column"]),
+            control_columns=json.loads(idata.attrs["control_columns"]),
+            channel_columns=json.loads(idata.attrs["channel_columns"]),
+            adstock_max_lag=json.loads(idata.attrs["adstock_max_lag"]),
+            validate_data=json.loads(idata.attrs["validate_data"]),
+            yearly_seasonality=json.loads(idata.attrs["yearly_seasonality"]),
+            model_config=model_config,
+            sampler_config=json.loads(idata.attrs["sampler_config"]),
+        )
+        model.idata = idata
+        dataset = idata.fit_data.to_dataframe()
+        X = dataset.drop(columns=[model.output_var])
+        y = dataset[model.output_var].values
+        model.build_model(X, y)
+        # All previously used data is in idata.
+        if model.id != idata.attrs["id"]:
+            raise ValueError(
+                f"The file '{fname}' does not contain an inference data of the same model or configuration as '{cls._model_type}'"
+            )
+
+        return model
 
     def _data_setter(
         self,
