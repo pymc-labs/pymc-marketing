@@ -258,7 +258,29 @@ class TestDelayedSaturatedMMM:
             assert fourier_modes_data.max().max() <= 1
             assert fourier_modes_data.min().min() >= -1
 
-    def test_get_channel_contributions_forward_pass_grid(
+    def test_channel_contributions_forward_pass_is_consistent(
+        self, mmm_fitted: DelayedSaturatedMMM
+    ) -> None:
+        channel_data = mmm_fitted.X[mmm_fitted.channel_columns].to_numpy()
+        channel_contributions_forward_pass = (
+            mmm_fitted.channel_contributions_forward_pass(channel_data=channel_data)
+        )
+        channel_contributions_forward_pass_grid = (
+            mmm_fitted.get_channel_contributions_forward_pass_grid(
+                start=0, stop=2, num=3
+            )
+        )
+        assert channel_contributions_forward_pass_grid[0].sum().item() == 0
+        assert (
+            channel_contributions_forward_pass_grid[1].to_numpy()
+            == channel_contributions_forward_pass
+        ).all()
+        assert (
+            channel_contributions_forward_pass_grid[2].to_numpy()
+            >= channel_contributions_forward_pass
+        ).all()
+
+    def test_get_channel_contributions_forward_pass_grid_shapes(
         self, mmm_fitted: DelayedSaturatedMMM
     ) -> None:
         n_channels = len(mmm_fitted.channel_columns)
