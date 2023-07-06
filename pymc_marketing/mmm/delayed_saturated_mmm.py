@@ -306,7 +306,7 @@ class BaseDelayedSaturatedMMM(MMM):
         )
 
     def channel_contributions_forward_pass(
-        self, channel_data: Union[pd.DataFrame, pd.Series, npt.NDArray[np.float_]]
+        self, channel_data: npt.NDArray[np.float_]
     ) -> npt.NDArray[np.float_]:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
         Parameters
@@ -429,7 +429,7 @@ class DelayedSaturatedMMM(
     ...
 
     def channel_contributions_forward_pass(
-        self, channel_data: Union[pd.DataFrame, pd.Series, npt.NDArray[np.float_]]
+        self, channel_data: npt.NDArray[np.float_]
     ) -> npt.NDArray[np.float_]:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
         We return the contribution in the original scale of the target variable.
