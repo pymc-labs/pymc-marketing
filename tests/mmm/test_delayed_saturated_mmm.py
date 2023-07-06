@@ -1,3 +1,4 @@
+import os
 from typing import List, Optional
 
 import arviz as az
@@ -307,3 +308,4 @@ class TestDelayedSaturatedMMM:
         assert model.yearly_seasonality == model2.yearly_seasonality
         assert model.model_config == model2.model_config
         assert model.sampler_config == model2.sampler_config
+        os.remove("test_save_load")
