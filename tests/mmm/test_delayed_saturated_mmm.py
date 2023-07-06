@@ -268,9 +268,9 @@ class TestDelayedSaturatedMMM:
         channel_contributions_forward_pass_mean = (
             channel_contributions_forward_pass.mean(axis=(0, 1))
         )
-        channel_contributions_mean = mmm.fit_result["channel_contributions"].mean(
-            dim=["draw", "chain"]
-        )
+        channel_contributions_mean = mmm_fitted.fit_result[
+            "channel_contributions"
+        ].mean(dim=["draw", "chain"])
         assert (
             channel_contributions_forward_pass_mean.shape
             == channel_contributions_mean.shape
