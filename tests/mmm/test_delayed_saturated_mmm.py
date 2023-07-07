@@ -275,6 +275,9 @@ class TestDelayedSaturatedMMM:
             channel_contributions_forward_pass_mean.shape
             == channel_contributions_mean.shape
         )
+        # The forward pass results should be in the original scale of the target variable.
+        # The trace fits the model with scaled data, so when scaling back, they should match.
+        # Since we are using a `MaxAbsScaler`, the scaling factor is the maximum absolute, i.e y.max()
         np.testing.assert_array_almost_equal(
             x=channel_contributions_forward_pass_mean / channel_contributions_mean,
             y=mmm_fitted.y.max(),
@@ -287,16 +290,20 @@ class TestDelayedSaturatedMMM:
         channel_contributions_forward_pass = (
             mmm_fitted.channel_contributions_forward_pass(channel_data=channel_data)
         )
+        # use a grid [0, 1, 2] which corresponds to
+        # - no-spend -> forward pass should be zero
+        # - spend input for the model -> should match the forward pass
+        # - doubling the spend -> should be higher than the forward pass with the original spend
         channel_contributions_forward_pass_grid = (
             mmm_fitted.get_channel_contributions_forward_pass_grid(
                 start=0, stop=2, num=3
             )
         )
         assert channel_contributions_forward_pass_grid[0].sum().item() == 0
-        assert (
-            channel_contributions_forward_pass_grid[1].to_numpy()
-            == channel_contributions_forward_pass
-        ).all()
+        np.testing.assert_equal(
+            actual=channel_contributions_forward_pass,
+            desired=channel_contributions_forward_pass_grid[1].to_numpy(),
+        )
         assert (
             channel_contributions_forward_pass_grid[2].to_numpy()
             >= channel_contributions_forward_pass
