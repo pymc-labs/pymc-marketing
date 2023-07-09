@@ -1,6 +1,4 @@
-import json
-import tempfile
-from pathlib import Path
+import os
 
 import arviz as az
 import numpy as np
@@ -447,32 +445,26 @@ class TestBetaGeoModel:
         )
 
     def test_save_load_beta_geo(self, data):
-        temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
-
         model = BetaGeoModel(
             data=data,
         )
         model.build_model()
         model.fit("map")
-        model.save(temp)
+        model.save("test_model")
         # Testing the valid case.
 
-        model2 = BetaGeoModel.load(temp)
+        model2 = BetaGeoModel.load("test_model")
 
         # Check if the loaded model is indeed an instance of the class
         assert isinstance(model, BetaGeoModel)
-
-        # Load data from the file to cross verify
-        filepath = Path(str(temp))
-        idata = az.from_netcdf(filepath)
-        dataset = idata.fit_data.to_dataframe()
         # Check if the loaded data matches with the model data
         np.testing.assert_array_equal(
-            model2.customer_id.values, dataset.customer_id.values
+            model2.customer_id.values, model.customer_id.values
         )
-        np.testing.assert_array_equal(model2.frequency.values, dataset.frequency.values)
-        np.testing.assert_array_equal(model2.T.values, dataset["T"])
-        np.testing.assert_array_equal(model2.recency.values, dataset.recency.values)
-        assert model.model_config == json.loads(idata.attrs["model_config"])
-        assert model.sampler_config == json.loads(idata.attrs["sampler_config"])
-        assert model.idata == idata
+        np.testing.assert_array_equal(model2.frequency.values, model.frequency.values)
+        np.testing.assert_array_equal(model2.T.values, model.T.values)
+        np.testing.assert_array_equal(model2.recency.values, model.recency.values)
+        assert model.model_config == model2.model_config
+        assert model.sampler_config == model2.sampler_config
+        assert model.idata == model2.idata
+        os.remove("test_model")

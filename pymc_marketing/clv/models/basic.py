@@ -180,6 +180,11 @@ class CLVModel(ModelBuilder):
         model.idata = idata
 
         model.build_model()
+
+        if model.id != idata.attrs["id"]:
+            raise ValueError(
+                f"The file '{fname}' does not contain an inference data of the same model or configuration as '{cls._model_type}'"
+            )
         # All previously used data is in idata.
 
         return model

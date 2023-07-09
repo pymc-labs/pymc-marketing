@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -140,10 +142,11 @@ class TestCLVModel:
         model = CLVModelTest()
         model.build_model()
         model.fit(target_accept=0.81, draws=100, chains=2, random_seed=1234)
-        model.save("test_model.pkl")
-        model.load("test_model.pkl")
-        assert model.fit_result is not None
-        assert model.model is not None
+        model.save("test_model")
+        model2 = model.load("test_model")
+        assert model2.fit_result is not None
+        assert model2.model is not None
+        os.remove("test_model")
 
     def test_default_sampler_config(self):
         model = CLVModelTest()
