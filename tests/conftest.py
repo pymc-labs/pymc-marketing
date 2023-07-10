@@ -25,7 +25,7 @@ def pytest_collection_modifyitems(config, items):
 @pytest.fixture(scope="module")
 def cdnow_trans() -> pd.DataFrame:
     """
-    Load CDNOW sample transaction data into a Pandas dataframe.
+    Load CDNOW_sample transaction data into a Pandas dataframe.
 
     Data source: https://www.brucehardie.com/datasets/
     """
