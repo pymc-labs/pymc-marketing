@@ -205,3 +205,11 @@ class TestCLVModel:
         serializable_config = model._serializable_model_config
         assert isinstance(serializable_config, dict)
         assert serializable_config == model.model_config
+
+    def test_step_selection_in_sample_config(self):
+        sampler_config = {
+            "step": pm.Slice,
+        }
+        model = CLVModelTest(sampler_config=sampler_config)
+        model.fit()
+        assert model.idata is not None

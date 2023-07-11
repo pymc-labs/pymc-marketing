@@ -119,6 +119,8 @@ class CLVModel(ModelBuilder):
 
         with self.model:
             sampler_args = {**self.sampler_config, **kwargs}
+            if "step" in sampler_args:
+                sampler_args["step"] = sampler_args["step"]()
             idata = pm.sample(**sampler_args)
 
         self.set_idata_attrs(idata)
