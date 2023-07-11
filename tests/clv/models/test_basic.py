@@ -208,7 +208,7 @@ class TestCLVModel:
 
     def test_step_selection_in_sample_config(self):
         sampler_config = {
-            "step": pm.Slice,
+            "step": "Slice",
         }
         model = CLVModelTest(sampler_config=sampler_config)
         model.fit()

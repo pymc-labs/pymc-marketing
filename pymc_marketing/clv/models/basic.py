@@ -116,12 +116,16 @@ class CLVModel(ModelBuilder):
             raise RuntimeError(
                 "The model hasn't been built yet, call .build_model() first or call .fit() instead."
             )
-
         with self.model:
             sampler_args = {**self.sampler_config, **kwargs}
             if "step" in sampler_args:
-                sampler_args["step"] = sampler_args["step"]()
-            idata = pm.sample(**sampler_args)
+                step_function_name = sampler_args["step"]
+                step_function = getattr(pm, step_function_name)
+                sampler_args["step"] = step_function()
+                idata = pm.sample(**sampler_args)
+                sampler_args["step"] = step_function_name
+            else:
+                idata = pm.sample(**sampler_args)
 
         self.set_idata_attrs(idata)
         return idata
