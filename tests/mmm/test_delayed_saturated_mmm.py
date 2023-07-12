@@ -409,3 +409,29 @@ class TestDelayedSaturatedMMM:
         assert model.model_config == model2.model_config
         assert model.sampler_config == model2.sampler_config
         os.remove("test_save_load")
+
+    def test_fail_id_after_load(self, monkeypatch, toy_X, toy_y):
+        # This is the new behavior for the property
+        def mock_property(self):
+            return "for sure not correct id"
+
+        # Now create an instance of MyClass
+        DSMMM = DelayedSaturatedMMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock_max_lag=4,
+        )
+
+        # Check that the property returns the new value
+        DSMMM.fit(
+            toy_X, toy_y, target_accept=0.81, draws=100, chains=2, random_seed=rng
+        )
+        DSMMM.save("test_model")
+        # Apply the monkeypatch for the property
+        monkeypatch.setattr(DelayedSaturatedMMM, "id", property(mock_property))
+        with pytest.raises(
+            ValueError,
+            match="The file 'test_model' does not contain an inference data of the same model or configuration as 'DelayedSaturatedMMM'",
+        ):
+            DelayedSaturatedMMM.load("test_model")
+        os.remove("test_model")

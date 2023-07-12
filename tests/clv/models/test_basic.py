@@ -208,3 +208,23 @@ class TestCLVModel:
         serializable_config = model._serializable_model_config
         assert isinstance(serializable_config, dict)
         assert serializable_config == model.model_config
+
+    def test_fail_id_after_load(self, monkeypatch):
+        # This is the new behavior for the property
+        def mock_property(self):
+            return "for sure not correct id"
+
+        # Now create an instance of MyClass
+        mock_basic = CLVModelTest()
+
+        # Check that the property returns the new value
+        mock_basic.fit()
+        mock_basic.save("test_model")
+        # Apply the monkeypatch for the property
+        monkeypatch.setattr(CLVModelTest, "id", property(mock_property))
+        with pytest.raises(
+            ValueError,
+            match="The file 'test_model' does not contain an inference data of the same model or configuration as 'CLVModelTest'",
+        ):
+            CLVModelTest.load("test_model")
+        os.remove("test_model")
