@@ -274,12 +274,6 @@ class CLVModel(ModelBuilder):
         else:
             self.idata.posterior = res
 
-    @property
-    def posterior_predictive(self) -> Dataset:
-        if self.idata is None or "posterior_predictive" not in self.idata:
-            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        return self.idata["posterior_predictive"]
-
     def fit_summary(self, **kwargs):
         res = self.fit_result
         # Map fitting only gives one value, so we return it. We use arviz

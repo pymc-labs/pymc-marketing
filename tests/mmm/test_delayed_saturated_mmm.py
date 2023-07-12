@@ -175,6 +175,8 @@ class TestDelayedSaturatedMMM:
             adstock_max_lag=2,
             yearly_seasonality=2,
         )
+        assert mmm.version == "0.0.2"
+        assert mmm._model_type == "DelayedSaturatedMMM"
         assert mmm.model_config is not None
         n_channel: int = len(mmm.channel_columns)
         n_control: int = len(mmm.control_columns)
