@@ -68,12 +68,6 @@ mamba activate marketing_env
 
 See the official [PyMC installation guide](https://www.pymc.io/projects/docs/en/latest/installation.html) if more detail is needed.
 
-For testing purposes, if you wish to install the `main` branch directly from GitHub:
-
-```bash
-pip install git+https://github.com/pymc-labs/pymc-marketing.git
-```
-
 ## Quickstart
 
 Create a new Jupyter notebook with either JupyterLab or VS Code.
