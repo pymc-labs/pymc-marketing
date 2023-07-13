@@ -1,3 +1,4 @@
+import os
 from typing import List, Optional
 
 import arviz as az
@@ -174,6 +175,8 @@ class TestDelayedSaturatedMMM:
             adstock_max_lag=2,
             yearly_seasonality=2,
         )
+        assert mmm.version == "0.0.2"
+        assert mmm._model_type == "DelayedSaturatedMMM"
         assert mmm.model_config is not None
         n_channel: int = len(mmm.channel_columns)
         n_control: int = len(mmm.control_columns)
@@ -391,3 +394,44 @@ class TestDelayedSaturatedMMM:
             )
         except Exception as e:
             pytest.fail(f"_data_setter failed with error {e}")
+
+    def test_save_load(self, mmm_fitted):
+        model = mmm_fitted
+
+        model.save("test_save_load")
+        model2 = BaseDelayedSaturatedMMM.load("test_save_load")
+        assert model.date_column == model2.date_column
+        assert model.control_columns == model2.control_columns
+        assert model.channel_columns == model2.channel_columns
+        assert model.adstock_max_lag == model2.adstock_max_lag
+        assert model.validate_data == model2.validate_data
+        assert model.yearly_seasonality == model2.yearly_seasonality
+        assert model.model_config == model2.model_config
+        assert model.sampler_config == model2.sampler_config
+        os.remove("test_save_load")
+
+    def test_fail_id_after_load(self, monkeypatch, toy_X, toy_y):
+        # This is the new behavior for the property
+        def mock_property(self):
+            return "for sure not correct id"
+
+        # Now create an instance of MyClass
+        DSMMM = DelayedSaturatedMMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock_max_lag=4,
+        )
+
+        # Check that the property returns the new value
+        DSMMM.fit(
+            toy_X, toy_y, target_accept=0.81, draws=100, chains=2, random_seed=rng
+        )
+        DSMMM.save("test_model")
+        # Apply the monkeypatch for the property
+        monkeypatch.setattr(DelayedSaturatedMMM, "id", property(mock_property))
+        with pytest.raises(
+            ValueError,
+            match="The file 'test_model' does not contain an inference data of the same model or configuration as 'DelayedSaturatedMMM'",
+        ):
+            DelayedSaturatedMMM.load("test_model")
+        os.remove("test_model")
