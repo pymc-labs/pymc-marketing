@@ -344,15 +344,12 @@ class TestParetoNBDModel:
         )
         model.build_model()
 
-        N = len(self.customer_id)
-        chains = 2
-        draws = 50
         mock_fit = az.from_dict(
             {
-                "r": self.rng.normal(self.r_true, 1e-3, size=(chains, draws)),
-                "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(chains, draws)),
-                "s": self.rng.normal(self.s_true, 1e-3, size=(chains, draws)),
-                "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
+                "r": [self.r_true],
+                "alpha": [self.alpha_true],
+                "s": [self.s_true],
+                "beta": [self.beta_true],
             }
         )
         model.idata = mock_fit
@@ -402,7 +399,7 @@ class TestParetoNBDModel:
         loaded_model = ParetoNBDModel.load("test_model")
 
         # Check if the loaded model is indeed an instance of the class
-        assert isinstance(model, ParetoNBDModel)
+        assert isinstance(loaded_model, ParetoNBDModel)
         # Check if the loaded data matches with the model data
         np.testing.assert_array_equal(
             loaded_model.customer_id.values, model.customer_id.values
