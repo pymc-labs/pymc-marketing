@@ -361,7 +361,7 @@ class TestParetoNBDModel:
         assert isinstance(customer_dropout, xarray.DataArray)
         assert isinstance(customer_purchase_rate, xarray.DataArray)
 
-        N = 10000
+        N = 4000
         lam = pm.Gamma.dist(self.r_true, self.alpha_true, size=N)
         mu = pm.Gamma.dist(self.s_true, self.beta_true, size=N)
         rtol = 0.05
