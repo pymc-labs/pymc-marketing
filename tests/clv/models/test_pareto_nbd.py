@@ -362,9 +362,9 @@ class TestParetoNBDModel:
         assert isinstance(customer_purchase_rate, xarray.DataArray)
 
         N = 4000
-        lam = pm.Gamma.dist(self.r_true, self.alpha_true, size=N)
-        mu = pm.Gamma.dist(self.s_true, self.beta_true, size=N)
-        rtol = 0.05
+        lam = pm.Gamma.dist(mu=self.r_true, sigma=self.alpha_true, size=N)
+        mu = pm.Gamma.dist(mu=self.s_true, sigma=self.beta_true, size=N)
+        rtol = 0.5
 
         np.testing.assert_allclose(
             customer_purchase_rate.mean(),

@@ -637,8 +637,8 @@ class ParetoNBDModel(CLVModel):
             else:
                 shape_kwargs = {}
 
-            pm.Gamma("population_purchase_rate", alpha=r, beta=alpha, **shape_kwargs)
-            pm.Gamma("population_dropout", alpha=s, beta=beta, **shape_kwargs)
+            pm.Gamma("population_purchase_rate", mu=r, sigma=alpha, **shape_kwargs)
+            pm.Gamma("population_dropout", mu=s, sigma=beta, **shape_kwargs)
 
             return pm.sample_posterior_predictive(
                 self.fit_result,
