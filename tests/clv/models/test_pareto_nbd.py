@@ -355,16 +355,18 @@ class TestParetoNBDModel:
         model.idata = mock_fit
 
         rng = np.random.default_rng(42)
-        customer_dropout = model.distribution_dropout(random_seed=rng)
-        customer_purchase_rate = model.distribution_purchase_rate(random_seed=rng)
+        customer_dropout = model.distribution_new_customer_dropout(random_seed=rng)
+        customer_purchase_rate = model.distribution_new_customer_purchase_rate(
+            random_seed=rng
+        )
 
         assert isinstance(customer_dropout, xarray.DataArray)
         assert isinstance(customer_purchase_rate, xarray.DataArray)
 
         N = 4000
-        lam = pm.Gamma.dist(mu=self.r_true, sigma=self.alpha_true, size=N)
-        mu = pm.Gamma.dist(mu=self.s_true, sigma=self.beta_true, size=N)
-        rtol = 0.5
+        lam = pm.Gamma.dist(alpha=self.r_true, beta=1 / self.alpha_true, size=N)
+        mu = pm.Gamma.dist(alpha=self.s_true, beta=1 / self.beta_true, size=N)
+        rtol = 0.05
 
         np.testing.assert_allclose(
             customer_purchase_rate.mean(),

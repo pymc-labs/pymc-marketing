@@ -616,7 +616,7 @@ class ParetoNBDModel(CLVModel):
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
-    def _population_distributions(
+    def _distribution_new_customers(
         self,
         random_seed: Optional[RandomState] = None,
         var_names: Sequence[str] = ("population_dropout", "population_purchase_rate"),
@@ -637,8 +637,10 @@ class ParetoNBDModel(CLVModel):
             else:
                 shape_kwargs = {}
 
-            pm.Gamma("population_purchase_rate", mu=r, sigma=alpha, **shape_kwargs)
-            pm.Gamma("population_dropout", mu=s, sigma=beta, **shape_kwargs)
+            pm.Gamma(
+                "population_purchase_rate", alpha=r, beta=1 / alpha, **shape_kwargs
+            )
+            pm.Gamma("population_dropout", alpha=s, beta=1 / beta, **shape_kwargs)
 
             return pm.sample_posterior_predictive(
                 self.fit_result,
@@ -646,13 +648,13 @@ class ParetoNBDModel(CLVModel):
                 random_seed=random_seed,
             ).posterior_predictive
 
-    def distribution_dropout(
+    def distribution_new_customer_dropout(
         self,
         random_seed: Optional[RandomState] = None,
     ) -> xarray.Dataset:
-        """Sample from the Gamma distribution representing dropout rates for the customer population.
+        """Sample from the Gamma distribution representing dropout times for new customers.
 
-        This is the duration of time a customer is active before churning, or dropping out.
+        This is the duration of time a new customer is active before churning, or dropping out.
 
         Parameters
         ----------
@@ -664,18 +666,19 @@ class ParetoNBDModel(CLVModel):
         xr.Dataset
             Dataset containing the posterior samples for the population-level dropout rate.
         """
-        return self._population_distributions(
+        return self._distribution_new_customers(
             random_seed=random_seed,
             var_names=["population_dropout"],
         )["population_dropout"]
 
-    def distribution_purchase_rate(
+    def distribution_new_customer_purchase_rate(
         self,
         random_seed: Optional[RandomState] = None,
     ) -> xarray.Dataset:
-        """Sample from the Gamma distribution representing purchase rates for the customer population.
+        """Sample from the Gamma distribution representing purchase rates for new customers.
 
-        This is the time between purchases for any given customer.
+        This is the purchase rate for a new customer and determines the time between
+        purchases for any new customer.
 
         Parameters
         ----------
@@ -687,7 +690,7 @@ class ParetoNBDModel(CLVModel):
         xr.Dataset
             Dataset containing the posterior samples for the population-level purchase rate.
         """
-        return self._population_distributions(
+        return self._distribution_new_customers(
             random_seed=random_seed,
             var_names=["population_purchase_rate"],
         )["population_purchase_rate"]
