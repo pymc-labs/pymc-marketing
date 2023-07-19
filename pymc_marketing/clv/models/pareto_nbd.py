@@ -633,7 +633,7 @@ class ParetoNBDModel(CLVModel):
 
             # This is the shape if using fit_method="map"
             if self.fit_result.dims == {"chain": 1, "draw": 1}:
-                shape_kwargs = {"shape": 4000}
+                shape_kwargs = {"shape": 1000}
             else:
                 shape_kwargs = {}
 

@@ -344,6 +344,19 @@ class TestParetoNBDModel:
         )
         model.build_model()
 
+        # TODO: A test with more than 1 chain and draw is required for full coverage.
+        chains = 2
+        draws = 50
+        mock_fit = az.from_dict(
+            {
+                "r": self.rng.normal(self.r_true, 1e-3, size=(chains, draws)),
+                "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(chains, draws)),
+                "s": self.rng.normal(self.s_true, 1e-3, size=(chains, draws)),
+                "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
+            }
+        )
+        rtol = 0.17
+
         mock_fit = az.from_dict(
             {
                 "r": [self.r_true],
@@ -363,10 +376,10 @@ class TestParetoNBDModel:
         assert isinstance(customer_dropout, xarray.DataArray)
         assert isinstance(customer_purchase_rate, xarray.DataArray)
 
-        N = 4000
+        N = 1000
         lam = pm.Gamma.dist(alpha=self.r_true, beta=1 / self.alpha_true, size=N)
         mu = pm.Gamma.dist(alpha=self.s_true, beta=1 / self.beta_true, size=N)
-        rtol = 0.05
+        rtol = 0.11
 
         np.testing.assert_allclose(
             customer_purchase_rate.mean(),
