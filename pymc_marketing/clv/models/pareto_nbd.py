@@ -650,6 +650,7 @@ class ParetoNBDModel(CLVModel):
 
     def distribution_new_customer_dropout(
         self,
+        ppc: str = "posterior",
         random_seed: Optional[RandomState] = None,
     ) -> xarray.Dataset:
         """Sample from the Gamma distribution representing dropout times for new customers.
@@ -658,7 +659,10 @@ class ParetoNBDModel(CLVModel):
 
         Parameters
         ----------
-        random_seed : RandomState, optional
+        ppc: str
+            Specify 'prior' for a prior predictive check,
+            or 'posterior' for a posterior predictive check on the fitted model.
+        random_seed: RandomState, optional
             Random state to use for sampling.
 
         Returns
@@ -666,10 +670,26 @@ class ParetoNBDModel(CLVModel):
         xr.Dataset
             Dataset containing the posterior samples for the population-level dropout rate.
         """
-        return self._distribution_new_customers(
+
+        if ppc not in ["prior", "posterior"]:
+            raise ValueError("ppc must be either 'prior' or 'posterior'.")
+        elif ppc == "prior":
+            params = self.idata.prior
+        elif ppc == "posterior":
+            params = self.idata.posterior
+
+        return pm.draw(
+            pm.Gamma.dist(
+                alpha=params["s"].values[..., None][0][0],
+                beta=1 / params["beta"].values[..., None][0][0],
+                shape=1000,
+            ),
             random_seed=random_seed,
-            var_names=["population_dropout"],
-        )["population_dropout"]
+        )
+        # return self._distribution_new_customers(
+        #     random_seed=random_seed,
+        #     var_names=["population_dropout"],
+        # )["population_dropout"]
 
     def distribution_new_customer_purchase_rate(
         self,

@@ -373,7 +373,7 @@ class TestParetoNBDModel:
             random_seed=rng
         )
 
-        assert isinstance(customer_dropout, xarray.DataArray)
+        assert isinstance(customer_dropout, np.ndarray)
         assert isinstance(customer_purchase_rate, xarray.DataArray)
 
         N = 1000
