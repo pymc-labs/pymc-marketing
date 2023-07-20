@@ -373,7 +373,7 @@ class TestParetoNBDModel:
             random_seed=rng
         )
 
-        assert isinstance(customer_dropout, np.ndarray)
+        assert isinstance(customer_dropout, xarray.DataArray)
         assert isinstance(customer_purchase_rate, xarray.DataArray)
 
         N = 1000
@@ -396,6 +396,32 @@ class TestParetoNBDModel:
         )
         np.testing.assert_allclose(
             customer_dropout.var(), pm.draw(mu.var(), random_seed=rng), rtol=rtol
+        )
+
+    def test_distribution_num_purchases(self):
+        # TODO: Why isn't self.data working here?
+        test_data = pd.read_csv("datasets/clv_quickstart.csv")
+        test_data["customer_id"] = test_data.index
+        model = ParetoNBDModel(
+            data=test_data,
+        )
+        model.build_model()
+
+        mock_fit = az.from_dict(
+            {
+                "r": [self.r_true],
+                "alpha": [self.alpha_true],
+                "s": [self.s_true],
+                "beta": [self.beta_true],
+            }
+        )
+        model.idata = mock_fit
+
+        rng = np.random.default_rng(42)
+        customer_recency_frequency = model.distribution_num_purchases(random_seed=rng)
+
+        assert isinstance(
+            customer_recency_frequency, az.data.inference_data.InferenceData
         )
 
     def test_save_load_pareto_nbd(self):
