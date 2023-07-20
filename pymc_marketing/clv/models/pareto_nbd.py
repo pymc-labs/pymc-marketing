@@ -694,26 +694,3 @@ class ParetoNBDModel(CLVModel):
             random_seed=random_seed,
             var_names=["population_purchase_rate"],
         )["population_purchase_rate"]
-
-    def distribution_num_purchases(
-        self,
-        random_seed: Optional[RandomState] = None,
-    ) -> xarray.Dataset:
-        """Sample from the posterior PMF of purchase frequencies for the customer population.
-
-        Parameters
-        ----------
-        random_seed : RandomState, optional
-            Random state to use for sampling.
-
-        Returns
-        -------
-        xr.Dataset
-            Dataset containing the posterior samples for the population-level purchase rate.
-        """
-
-        with self.model:
-            post_pmf = pm.sample_posterior_predictive(
-                self.idata, random_seed=random_seed
-            )
-        return post_pmf
