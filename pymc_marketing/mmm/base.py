@@ -38,6 +38,8 @@ __all__ = ("BaseMMM", "MMM")
 
 class BaseMMM(ModelBuilder):
     model: pm.Model
+    _model_type = "BaseMMM"
+    version = "0.0.2"
 
     def __init__(
         self,
@@ -535,9 +537,10 @@ class BaseMMM(ModelBuilder):
 
         return fig_estimations
 
-    def plot_contribution_curves(self, show_estimations: bool = False) -> plt.Figure:
-        """
-        Plot the direct contribution curves for each channel and optionally show the estimated points.
+    def plot_direct_contribution_curves(self, show_estimations: bool = False) -> plt.Figure:
+        """Plots the direct contribution curves. The term "direct" refers to the fact
+        we plots costs vs immediate returns and we do not take into account the lagged
+        effects of the channels e.g. adstock transformations.
 
         Parameters
         ----------
@@ -546,8 +549,8 @@ class BaseMMM(ModelBuilder):
 
         Returns
         -------
-        plt.Figure
-            The matplotlib Figure object representing the plot.
+        plt.Figure :
+            Direct contribution curves.
         """
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]

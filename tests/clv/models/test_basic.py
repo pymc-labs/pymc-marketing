@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -140,10 +142,11 @@ class TestCLVModel:
         model = CLVModelTest()
         model.build_model()
         model.fit(target_accept=0.81, draws=100, chains=2, random_seed=1234)
-        model.save("test_model.pkl")
-        model.load("test_model.pkl")
-        assert model.fit_result is not None
-        assert model.model is not None
+        model.save("test_model")
+        model2 = model.load("test_model")
+        assert model2.fit_result is not None
+        assert model2.model is not None
+        os.remove("test_model")
 
     def test_default_sampler_config(self):
         model = CLVModelTest()
@@ -205,3 +208,23 @@ class TestCLVModel:
         serializable_config = model._serializable_model_config
         assert isinstance(serializable_config, dict)
         assert serializable_config == model.model_config
+
+    def test_fail_id_after_load(self, monkeypatch):
+        # This is the new behavior for the property
+        def mock_property(self):
+            return "for sure not correct id"
+
+        # Now create an instance of MyClass
+        mock_basic = CLVModelTest()
+
+        # Check that the property returns the new value
+        mock_basic.fit()
+        mock_basic.save("test_model")
+        # Apply the monkeypatch for the property
+        monkeypatch.setattr(CLVModelTest, "id", property(mock_property))
+        with pytest.raises(
+            ValueError,
+            match="The file 'test_model' does not contain an inference data of the same model or configuration as 'CLVModelTest'",
+        ):
+            CLVModelTest.load("test_model")
+        os.remove("test_model")

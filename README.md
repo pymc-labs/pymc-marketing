@@ -26,12 +26,6 @@ mamba activate marketing_env
 
 See the official [PyMC installation guide](https://www.pymc.io/projects/docs/en/latest/installation.html) if more detail is needed.
 
-For testing purposes, if you wish to install the `main` branch directly from GitHub:
-
-```bash
-pip install git+https://github.com/pymc-labs/pymc-marketing.git
-```
-
 ## Bayesian Media Mix Models (MMMs) in PyMC
 
 In this package we provide an API for a Bayesian media mix model (MMM) specification following [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).](https://research.google/pubs/pub46001/) Concretely, given a time series target variable $y_{t}$ (e.g. sales on conversions), media variables $x_{m, t}$ (e.g. impressions, clicks or costs) and a set of control covariates $z_{c, t}$ (e.g. holidays, special events) we consider a linear model of the form

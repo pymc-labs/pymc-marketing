@@ -180,6 +180,11 @@ class CLVModel(ModelBuilder):
         model.idata = idata
 
         model.build_model()
+
+        if model.id != idata.attrs["id"]:
+            raise ValueError(
+                f"The file '{fname}' does not contain an inference data of the same model or configuration as '{cls._model_type}'"
+            )
         # All previously used data is in idata.
 
         return model
@@ -268,12 +273,6 @@ class CLVModel(ModelBuilder):
             self.idata.posterior = res
         else:
             self.idata.posterior = res
-
-    @property
-    def posterior_predictive(self) -> Dataset:
-        if self.idata is None or "posterior_predictive" not in self.idata:
-            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        return self.idata["posterior_predictive"]
 
     def fit_summary(self, **kwargs):
         res = self.fit_result

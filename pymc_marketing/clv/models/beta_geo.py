@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
@@ -6,6 +6,7 @@ import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
 from pymc.distributions.dist_math import check_parameters
+from pymc.util import RandomState
 from pytensor.tensor import TensorVariable
 from scipy.special import expit, hyp2f1
 
@@ -48,6 +49,7 @@ class BetaGeoModel(CLVModel):
     BG/NBD model for customer
 
     .. code-block:: python
+
         import pymc as pm
         from pymc_marketing.clv import BetaGeoModel
 
@@ -351,3 +353,77 @@ class BetaGeoModel(CLVModel):
         return (left_term * right_term).transpose(
             "chain", "draw", "t", missing_dims="ignore"
         )
+
+    def _distribution_new_customers(
+        self,
+        random_seed: Optional[RandomState] = None,
+        var_names: Sequence[str] = ("population_dropout", "population_purchase_rate"),
+    ) -> xr.Dataset:
+        with pm.Model():
+            a = pm.HalfFlat("a")
+            b = pm.HalfFlat("b")
+            alpha = pm.HalfFlat("alpha")
+            r = pm.HalfFlat("r")
+
+            # This is the shape with fit_method="map"
+            if self.fit_result.dims == {"chain": 1, "draw": 1}:
+                shape_kwargs = {"shape": 1000}
+            else:
+                shape_kwargs = {}
+
+            pm.Beta("population_dropout", alpha=a, beta=b, **shape_kwargs)
+            pm.Gamma("population_purchase_rate", alpha=r, beta=alpha, **shape_kwargs)
+
+            return pm.sample_posterior_predictive(
+                self.fit_result,
+                var_names=var_names,
+                random_seed=random_seed,
+            ).posterior_predictive
+
+    def distribution_new_customer_dropout(
+        self,
+        random_seed: Optional[RandomState] = None,
+    ) -> xr.Dataset:
+        """Sample the Beta distribution for the population-level dropout rate.
+
+        This is the probability that a new customer will not make another purchase ("drops out")
+        immediately after any previous purchase.
+
+        Parameters
+        ----------
+        random_seed : RandomState, optional
+            Random state to use for sampling.
+
+        Returns
+        -------
+        xr.Dataset
+            Dataset containing the posterior samples for the population-level dropout rate.
+        """
+        return self._distribution_new_customers(
+            random_seed=random_seed,
+            var_names=["population_dropout"],
+        )["population_dropout"]
+
+    def distribution_new_customer_purchase_rate(
+        self,
+        random_seed: Optional[RandomState] = None,
+    ) -> xr.Dataset:
+        """Sample the Gamma distribution for the population-level purchase rate.
+
+        This is the purchase rate for a new customer and determines the time between
+        purchases for any new customer.
+
+        Parameters
+        ----------
+        random_seed : RandomState, optional
+            Random state to use for sampling.
+
+        Returns
+        -------
+        xr.Dataset
+            Dataset containing the posterior samples for the population-level purchase rate.
+        """
+        return self._distribution_new_customers(
+            random_seed=random_seed,
+            var_names=["population_purchase_rate"],
+        )["population_purchase_rate"]
