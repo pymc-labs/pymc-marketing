@@ -19,6 +19,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
 
+from pymc_marketing.mmm.budget_optimizer import budget_allocator
+from pymc_marketing.mmm.utils import estimate_menten_parameters, michaelis_menten
 from pymc_marketing.mmm.validating import (
     ValidateChannelColumns,
     ValidateDateColumn,
@@ -472,8 +474,76 @@ class BaseMMM(ModelBuilder):
             coords=channel_contribution.coords,
         )
 
-    def plot_direct_contribution_curves(self) -> plt.Figure:
-        """Plots the direct contribution curves. The term "direct" refers to the fact
+    def _plot_estimations(self, x: np.ndarray, channel: str, i: int) -> plt.Figure:
+
+        channel_contributions = self.compute_channel_contribution_original_scale().mean(
+            ["chain", "draw"]
+        )
+
+        fig_estimations, ax_estimations = plt.subplots(figsize=(8, 6))
+
+        L, k = estimate_menten_parameters(channel, self.X, channel_contributions)
+        plateau_x = k * (0.99 * L / (L * 0.01))
+        elbow_y = michaelis_menten(k, L, k)
+
+        x_fit = np.linspace(0, plateau_x - (max(x) * 2), 1000)
+        y_fit = michaelis_menten(x_fit, L, k)
+
+        ax_estimations.plot(x_fit, y_fit, color=f"C{i}", label="Fit Curve", alpha=0.6)
+
+        ax_estimations.plot(
+            k,
+            elbow_y,
+            "go",
+            color=f"C{i}",
+            markerfacecolor="white",
+        )
+
+        ax_estimations.set(xlabel="Spent", ylabel="Contribution")
+        ax_estimations.legend()
+
+        return fig_estimations
+
+    def budget_allocation(
+        self,
+        total_budget: int,
+        parameters: Optional[Dict[str, Tuple[float, float]]],
+        budget_bounds: Optional[Dict[str, Tuple[float, float]]],
+    ) -> pd.DataFrame:
+
+        return budget_allocator(
+            total_budget=total_budget,
+            channels=self.channel_columns,
+            parameters=parameters,
+            budget_ranges=budget_bounds,
+        )
+
+    def compute_channel_estimate_points_original_scale(self) -> Dict:
+        """
+        Estimate optimal and plateau points for each channel.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame with the estimated points.
+        """
+        parameters = {}
+        channel_contributions = self.compute_channel_contribution_original_scale().mean(
+            ["chain", "draw"]
+        )
+
+        for channel in self.channel_columns:
+            parameters[channel] = estimate_menten_parameters(
+                channel, self.X, channel_contributions
+            )
+
+        return parameters
+
+    def plot_direct_contribution_curves(
+        self, show_estimations: bool = False
+    ) -> plt.Figure:
+        """
+        Plots the direct contribution curves. The term "direct" refers to the fact
         we plots costs vs immediate returns and we do not take into account the lagged
         effects of the channels e.g. adstock transformations.
 
@@ -485,6 +555,7 @@ class BaseMMM(ModelBuilder):
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
         )
+
         fig, axes = plt.subplots(
             nrows=self.n_channel,
             ncols=1,
@@ -496,24 +567,27 @@ class BaseMMM(ModelBuilder):
 
         for i, channel in enumerate(self.channel_columns):
             ax = axes[i]
-            if self.X is not None:
-                sns.regplot(
-                    x=self.X[self.channel_columns].to_numpy()[:, i],
-                    y=channel_contributions.sel(channel=channel),
-                    color=f"C{i}",
-                    order=2,
-                    ci=None,
-                    line_kws={
-                        "linestyle": "--",
-                        "alpha": 0.5,
-                        "label": "quadratic fit",
-                    },
-                    ax=ax,
-                )
-            ax.legend(loc="upper left")
-            ax.set(title=f"{channel}", xlabel="total_cost_eur")
 
-        fig.suptitle("Contribution Plots", fontsize=16)
+            if self.X is not None:
+                x = self.X[self.channel_columns].to_numpy()[:, i]
+                y = channel_contributions.sel(channel=channel).to_numpy()
+
+                ax.scatter(x, y, label=f"{channel}", color=f"C{i}")
+
+                if show_estimations:
+                    fig_estimations = self._plot_estimations(x, channel, i)
+                    fig.append(fig_estimations)
+
+            ax.legend(
+                loc="upper left",
+                facecolor="white",
+                title=f"{channel} Legend",
+                fontsize="small",
+            )
+
+            ax.set(xlabel="Spent", ylabel="Contribution")
+
+        fig.suptitle("Direct response curves", fontsize=16)
         return fig
 
     def compute_mean_contributions_over_time(

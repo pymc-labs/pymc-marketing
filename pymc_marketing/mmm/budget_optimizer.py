@@ -1,5 +1,5 @@
 # optimization_utils.py
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from pandas import DataFrame
@@ -92,9 +92,9 @@ def optimize_budget_distribution(total_budget, budget_ranges, parameters, channe
 
 def budget_allocator(
     total_budget: int = 1000,
-    channels: List = [],
-    parameters: Dict = {},
-    budget_ranges: Dict = {},
+    channels: Union[List[str], Tuple[str]] = [],
+    parameters: Optional[Dict[str, Tuple[float, float]]] = {},
+    budget_ranges: Optional[Dict[str, Tuple[float, float]]] = {},
 ) -> DataFrame:
 
     optimal_budget = optimize_budget_distribution(
