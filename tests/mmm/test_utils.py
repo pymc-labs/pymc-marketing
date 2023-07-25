@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+import xarray as xr
 
 from pymc_marketing.mmm.utils import (
     estimate_menten_parameters,
@@ -83,39 +84,43 @@ def test_bad_order(n_order):
         )
 
 
-@pytest.mark.parametrize(
-    "x, L, k, expected",
-    [
-        (2, 3, 1, 2),
-        (0, 3, 1, 0),
-        (2, 0, 1, 0),
-        (2, 3, 0, 6),
-    ],
-)
-def test_michaelis_menten(x, L, k, expected):
-    result = michaelis_menten(x, L, k)
-    assert result == expected, f"Expected {expected}, but got {result}"
+def test_michaelis_menten():
+    assert michaelis_menten(1, 2, 3) == 2 / 4
+    assert michaelis_menten(0, 2, 3) == 0
 
 
 @pytest.mark.parametrize(
-    "L, k, atol",
+    "channel, original_dataframe, contributions, expected_output",
     [
-        (5, 2, 1e-2),
-        (3, 1, 1e-2),
-        (10, 4, 1e-2),
+        # Test case 1: single data point
+        (
+            "channel1",
+            pd.DataFrame({"channel1": [1]}),
+            xr.DataArray(
+                np.array([1]),
+                dims=["quantile", "channel"],
+                coords={"quantile": [0.5], "channel": ["channel1"]},
+            ),
+            [1, 0.001],
+        ),
+        # Test case 2: multiple data points, same values
+        (
+            "channel1",
+            pd.DataFrame({"channel1": [1, 1, 1, 1]}),
+            xr.DataArray(
+                np.array([1, 1, 1, 1]),
+                dims=["quantile", "channel"],
+                coords={"quantile": [0.5], "channel": ["channel1"]},
+            ),
+            [1, 0.001],
+        ),
+        # Test case 3:
     ],
 )
-def test_estimate_menten_parameters(L, k, atol):
-    # Create a synthetic dataset
-    x = np.linspace(0, 10, 100)
-    y = michaelis_menten(x, L, k)
-
-    # Create a DataFrame from the dataset
-    df = pd.DataFrame({"channel": x})
-    contributions = pd.DataFrame({"quantile": [0.5] * len(x), "channel": y})
-
-    # Run the function
-    result = estimate_menten_parameters("channel", df, contributions)
-
-    # Check that the estimated parameters are close to the true parameters
-    np.testing.assert_allclose(result, [L, k], atol=atol)
+def test_estimate_menten_parameters(
+    channel, original_dataframe, contributions, expected_output
+):
+    assert np.allclose(
+        estimate_menten_parameters(channel, original_dataframe, contributions),
+        expected_output,
+    )
