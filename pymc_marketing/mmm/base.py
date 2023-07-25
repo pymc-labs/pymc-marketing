@@ -510,6 +510,35 @@ class BaseMMM(ModelBuilder):
         parameters: Optional[Dict[str, Tuple[float, float]]],
         budget_bounds: Optional[Dict[str, Tuple[float, float]]],
     ) -> pd.DataFrame:
+        """
+        Allocate the budget optimally among different channels based on estimations and budget constraints.
+
+        Parameters
+        ----------
+        total_budget : int, requiere
+            The total budget available for allocation.
+        parameters : dict, requiere
+            A DataFrame containing estimations and information about different channels.
+        budget_bounds : dict, optional
+            A dictionary specifying the budget bounds for each channel.
+
+        Returns
+        -------
+        Dict
+            A dictionary containing the allocated budget and contribution information.
+
+        Raises
+        ------
+        ValueError
+            If any of the required parameters are not provided or have an incorrect type.
+        """
+        if not isinstance(budget_bounds, dict):
+            raise ValueError("The 'budget_bounds' parameter must be a dictionary.")
+
+        if not isinstance(total_budget, (int, float)):
+            raise ValueError(
+                "The 'total_budget' parameter must be an integer or float."
+            )
 
         return budget_allocator(
             total_budget=total_budget,
