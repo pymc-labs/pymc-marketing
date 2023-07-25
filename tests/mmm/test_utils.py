@@ -1,7 +1,12 @@
 import numpy as np
+import pandas as pd
 import pytest
 
-from pymc_marketing.mmm.utils import generate_fourier_modes
+from pymc_marketing.mmm.utils import (
+    estimate_menten_parameters,
+    generate_fourier_modes,
+    michaelis_menten,
+)
 
 
 @pytest.mark.parametrize(
@@ -76,3 +81,41 @@ def test_bad_order(n_order):
         generate_fourier_modes(
             periods=np.linspace(start=0.0, stop=1.0, num=50), n_order=n_order
         )
+
+
+@pytest.mark.parametrize(
+    "x, L, k, expected",
+    [
+        (2, 3, 1, 2),
+        (0, 3, 1, 0),
+        (2, 0, 1, 0),
+        (2, 3, 0, 6),
+    ],
+)
+def test_michaelis_menten(x, L, k, expected):
+    result = michaelis_menten(x, L, k)
+    assert result == expected, f"Expected {expected}, but got {result}"
+
+
+@pytest.mark.parametrize(
+    "L, k, atol",
+    [
+        (5, 2, 1e-2),
+        (3, 1, 1e-2),
+        (10, 4, 1e-2),
+    ],
+)
+def test_estimate_menten_parameters(L, k, atol):
+    # Create a synthetic dataset
+    x = np.linspace(0, 10, 100)
+    y = michaelis_menten(x, L, k)
+
+    # Create a DataFrame from the dataset
+    df = pd.DataFrame({"channel": x})
+    contributions = pd.DataFrame({"quantile": [0.5] * len(x), "channel": y})
+
+    # Run the function
+    result = estimate_menten_parameters("channel", df, contributions)
+
+    # Check that the estimated parameters are close to the true parameters
+    np.testing.assert_allclose(result, [L, k], atol=atol)

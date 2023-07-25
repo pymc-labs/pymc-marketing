@@ -1,6 +1,9 @@
+from typing import List
+
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from scipy.optimize import curve_fit
 
 
 def generate_fourier_modes(
@@ -33,3 +36,43 @@ def generate_fourier_modes(
             for func in ("sin", "cos")
         }
     )
+
+
+def michaelis_menten(x, L, k) -> float:
+    """
+    Calculate the Michaelis-Menten function value.
+
+    Parameters
+    ----------
+    x : float
+        The spent on a channel.
+    L : float
+        The maximum contribution a channel can make (also known as the plateau point).
+    k : float
+        The elbow on the function in `x` (Point where the curve change their direction)
+
+    Returns
+    -------
+    float
+        The value of the Michaelis-Menten function given the parameters.
+    """
+
+    return L * x / (k + x)
+
+
+def estimate_menten_parameters(
+    channel: str,
+    original_dataframe,
+    contributions,
+) -> List[float]:
+
+    x = original_dataframe[channel].to_numpy()
+    y = contributions.sel(quantile=0.5).sel(channel=channel).to_numpy()
+
+    # Initial guess for L and k
+    initial_guess = [max(y), 0.001]
+    # Curve fitting
+    popt, pcov = curve_fit(michaelis_menten, x, y, p0=initial_guess)
+
+    # Save the parameters
+    return popt
