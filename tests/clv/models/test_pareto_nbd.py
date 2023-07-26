@@ -24,6 +24,7 @@ class TestParetoNBDModel:
         cls.beta_true = 11.6562
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
+        # TODO: Create a pytest fixture for this
         test_data = pd.read_csv("datasets/clv_quickstart.csv")
         test_data["customer_id"] = test_data.index
 
@@ -336,7 +337,7 @@ class TestParetoNBDModel:
         )
 
     def test_dropout_purchase_distributions(self) -> None:
-        # TODO: Why isn't self.data working here?
+        # TODO: Create a pytest fixture for this
         test_data = pd.read_csv("datasets/clv_quickstart.csv")
         test_data["customer_id"] = test_data.index
         model = ParetoNBDModel(
@@ -399,7 +400,7 @@ class TestParetoNBDModel:
         )
 
     def test_save_load_pareto_nbd(self):
-        # TODO: Why isn't self.data working here?
+        # TODO: Create a pytest fixture for this
         test_data = pd.read_csv("datasets/clv_quickstart.csv")
         test_data["customer_id"] = test_data.index
         model = ParetoNBDModel(
