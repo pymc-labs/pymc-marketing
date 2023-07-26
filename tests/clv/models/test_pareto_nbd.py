@@ -1,8 +1,11 @@
+import os
+
 import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+import xarray
 from lifetimes import ParetoNBDFitter
 
 from pymc_marketing.clv import ParetoNBDModel
@@ -21,6 +24,7 @@ class TestParetoNBDModel:
         cls.beta_true = 11.6562
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
+        # TODO: Create a pytest fixture for this
         test_data = pd.read_csv("datasets/clv_quickstart.csv")
         test_data["customer_id"] = test_data.index
 
@@ -331,3 +335,97 @@ class TestParetoNBDModel:
             est_purchases_new_customer.mean(("chain", "draw")),
             rtol=0.001,
         )
+
+    def test_dropout_purchase_distributions(self) -> None:
+        # TODO: Create a pytest fixture for this
+        test_data = pd.read_csv("datasets/clv_quickstart.csv")
+        test_data["customer_id"] = test_data.index
+        model = ParetoNBDModel(
+            data=test_data,
+        )
+        model.build_model()
+
+        # TODO: A test with more than 1 chain and draw is required for full coverage.
+        chains = 2
+        draws = 50
+        mock_fit = az.from_dict(
+            {
+                "r": self.rng.normal(self.r_true, 1e-3, size=(chains, draws)),
+                "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(chains, draws)),
+                "s": self.rng.normal(self.s_true, 1e-3, size=(chains, draws)),
+                "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
+            }
+        )
+        rtol = 0.17
+
+        mock_fit = az.from_dict(
+            {
+                "r": [self.r_true],
+                "alpha": [self.alpha_true],
+                "s": [self.s_true],
+                "beta": [self.beta_true],
+            }
+        )
+        model.idata = mock_fit
+
+        rng = np.random.default_rng(42)
+        customer_dropout = model.distribution_new_customer_dropout(random_seed=rng)
+        customer_purchase_rate = model.distribution_new_customer_purchase_rate(
+            random_seed=rng
+        )
+
+        assert isinstance(customer_dropout, xarray.DataArray)
+        assert isinstance(customer_purchase_rate, xarray.DataArray)
+
+        N = 1000
+        lam = pm.Gamma.dist(alpha=self.r_true, beta=1 / self.alpha_true, size=N)
+        mu = pm.Gamma.dist(alpha=self.s_true, beta=1 / self.beta_true, size=N)
+        rtol = 0.11
+
+        np.testing.assert_allclose(
+            customer_purchase_rate.mean(),
+            pm.draw(lam.mean(), random_seed=rng),
+            rtol=rtol,
+        )
+        np.testing.assert_allclose(
+            customer_purchase_rate.var(),
+            pm.draw(lam.var(), random_seed=rng),
+            rtol=rtol,
+        )
+        np.testing.assert_allclose(
+            customer_dropout.mean(), pm.draw(mu.mean(), random_seed=rng), rtol=rtol
+        )
+        np.testing.assert_allclose(
+            customer_dropout.var(), pm.draw(mu.var(), random_seed=rng), rtol=rtol
+        )
+
+    def test_save_load_pareto_nbd(self):
+        # TODO: Create a pytest fixture for this
+        test_data = pd.read_csv("datasets/clv_quickstart.csv")
+        test_data["customer_id"] = test_data.index
+        model = ParetoNBDModel(
+            data=test_data,
+        )
+        model.build_model()
+
+        model.fit("map")
+        model.save("test_model")
+        # Testing the valid case.
+
+        loaded_model = ParetoNBDModel.load("test_model")
+
+        # Check if the loaded model is indeed an instance of the class
+        assert isinstance(loaded_model, ParetoNBDModel)
+        # Check if the loaded data matches with the model data
+        np.testing.assert_array_equal(
+            loaded_model.customer_id.values, model.customer_id.values
+        )
+        np.testing.assert_array_equal(
+            loaded_model.frequency.values, model.frequency.values
+        )
+        np.testing.assert_array_equal(loaded_model.T.values, model.T.values)
+        np.testing.assert_array_equal(loaded_model.recency.values, model.recency.values)
+        assert model.model_config == loaded_model.model_config
+        assert model.sampler_config == loaded_model.sampler_config
+        assert model.idata == loaded_model.idata
+        os.remove("test_model")
