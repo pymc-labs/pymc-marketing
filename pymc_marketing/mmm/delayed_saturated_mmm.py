@@ -393,8 +393,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
         filepath = Path(str(fname))
         idata = az.from_netcdf(filepath)
-        # needs to be converted, because json.loads was changing tuple to list
-        model_config = cls._convert_dims_to_tuple(
+        model_config = cls._model_config_formatting(
             json.loads(idata.attrs["model_config"])
         )
         model = cls(
