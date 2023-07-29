@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.8", "3.11"]
+        python-version: ["3.9", "3.11"]
         oldest-pymc: [false, true]
     steps:
       - uses: actions/checkout@v3
@@ -29,15 +29,16 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        config: [ {python-version: "3.8", oldest-pymc: false}, {python-version: "3.11", oldest-pymc: true}]
+        python-version: ["3.9", "3.11"]
+        oldest-pymc: [false, true]
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v3
         with:
-          python-version: ${{ matrix.config.python-version }}
+          python-version: ${{ matrix.python-version }}
       - name: Install oldest version of PyMC
-        if: ${{ matrix.config.oldest-pymc }}
+        if: ${{ matrix.oldest-pymc }}
         run: pip install pymc==${{ env.OLDEST_PYMC_VERSION }}
       - name: Run tests
         run: |
@@ -45,7 +46,7 @@ jobs:
           pytest --cov-report=xml --no-cov-on-fail
       - name: Check oldest version of PyMC
         if: ${{ matrix.oldest-pymc }}
-        run: python -c "import pymc; assert pymc.__version__ == '${{  env.OLDEST_PYMC_VERSION }}'"
+        run: python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}'"
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
