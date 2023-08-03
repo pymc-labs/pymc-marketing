@@ -7,6 +7,7 @@
 benefits/why_pymc_marketing
 benefits/why_bayesian
 benefits/why_open_source
+benefits/model_deployment
 :::
 
 :::{toctree}
