@@ -1,3 +1,5 @@
+exclude: ^pymc_marketing/vendored/.*$
+
 repos:
   - repo: https://github.com/psf/black
     rev: 22.12.0

@@ -9,9 +9,10 @@ import pymc as pm
 from pymc import str_for_dist
 from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
-from pymc_experimental.model_builder import ModelBuilder
 from pytensor.tensor import TensorVariable
 from xarray import Dataset
+
+from pymc_marketing.vendored.pymc_experimental.model_builder import ModelBuilder
 
 
 class CLVModel(ModelBuilder):

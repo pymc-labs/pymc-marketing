@@ -14,7 +14,6 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import seaborn as sns
-from pymc_experimental.model_builder import ModelBuilder
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
@@ -24,6 +23,7 @@ from pymc_marketing.mmm.validating import (
     ValidateDateColumn,
     ValidateTargetColumn,
 )
+from pymc_marketing.vendored.pymc_experimental.model_builder import ModelBuilder
 
 __all__ = ("BaseMMM", "MMM")
 
