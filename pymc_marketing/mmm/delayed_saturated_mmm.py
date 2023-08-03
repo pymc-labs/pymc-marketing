@@ -454,34 +454,32 @@ class BaseDelayedSaturatedMMM(MMM):
         -------
         None
         """
+        new_channel_data: Optional[np.ndarray] = None
 
-        new_channel_data = None
         if isinstance(X, pd.DataFrame):
             try:
                 new_channel_data = X[self.channel_columns].to_numpy()
             except KeyError as e:
                 raise RuntimeError("New data must contain channel_data!", e)
         elif isinstance(X, np.ndarray):
-            new_channel_data = X  # type: ignore
+            new_channel_data = X
         else:
             raise TypeError("X must be either a pandas DataFrame or a numpy array")
 
-        target = None
+        data: Dict[str, Union[np.ndarray, Any]] = {"channel_data": new_channel_data}
+
         if y is not None:
             if isinstance(y, pd.Series):
-                target = y.values
+                data[
+                    "target"
+                ] = y.to_numpy()  # convert Series to numpy array explicitly
             elif isinstance(y, np.ndarray):
-                target = y
+                data["target"] = y
             else:
                 raise TypeError("y must be either a pandas Series or a numpy array")
 
         with self.model:
-            pm.set_data(
-                {
-                    "channel_data": new_channel_data,
-                    "target": target,
-                }
-            )
+            pm.set_data(data)
 
 
 class DelayedSaturatedMMM(
