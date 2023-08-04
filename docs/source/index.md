@@ -101,9 +101,8 @@ from pymc_marketing import mmm
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/datasets/mmm_example.csv"
 data = pd.read_csv(data_url, parse_dates=['date_week'])
 
-model = mmm.DelayedSaturatedMMM(
-    data=data,
-    target_column="y",
+)
+mmm = DelayedSaturatedMMM(
     date_column="date_week",
     channel_columns=["x1", "x2"],
     control_columns=[
@@ -116,13 +115,16 @@ model = mmm.DelayedSaturatedMMM(
         "cos_order_2",
     ],
     adstock_max_lag=8,
+    yearly_seasonality=2,
 )
 ```
 
 Initiate fitting and get a visualization of some of the outputs with:
 
 ```python
-model.fit()
+X = data.drop('y',axis=1)
+y = data['y']
+model.fit(X,y)
 model.plot_components_contributions();
 ```
 
@@ -141,10 +143,7 @@ data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data
 data = pd.read_csv(data_url)
 
 beta_geo_model = clv.BetaGeoModel(
-    customer_id=data.index,
-    frequency=data["frequency"],
-    recency=data["recency"],
-    T=data["T"],
+    data = data
 )
 
 beta_geo_model.fit()
