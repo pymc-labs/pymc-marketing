@@ -57,7 +57,8 @@ packages = [
     "pymc_marketing",
     "pymc_marketing.mmm",
     "pymc_marketing.clv",
-    "pymc_marketing.clv.models"
+    "pymc_marketing.clv.models",
+    "pymc_marketing.vendored"
 ]
 
 [tool.setuptools.dynamic]
