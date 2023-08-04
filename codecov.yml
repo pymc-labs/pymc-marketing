@@ -7,7 +7,7 @@ coverage:
         threshold: 2%
         base: auto
         paths:
-          - "pymc-marketing/"
+          - "pymc_marketing"
        # advanced settings
         branches:
           - main
@@ -15,4 +15,4 @@ coverage:
         informational: false
         only_pulls: false
 ignore:
-  - "pymc-marketing/vendored/**"
+  - "pymc_marketing/vendored/**"
