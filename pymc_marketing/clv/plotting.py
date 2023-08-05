@@ -131,7 +131,7 @@ def plot_probability_alive_matrix(
         A matplotlib axes instance. Creates new axes instance by default.
     kwargs
         Passed into the matplotlib.imshow command.
-        
+
     Returns
     -------
     axes: matplotlib.AxesSubplot
