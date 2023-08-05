@@ -41,7 +41,7 @@ def plot_frequency_recency_matrix(
     ylabel: str, optional
         Figure ylabel
     ax: plt.Axes, optional
-        A matplotlib axes object. Creates new axes object by default.
+        A matplotlib axes instance. Creates new axes instance by default.
     kwargs
         Passed into the matplotlib.imshow command.
     Returns
@@ -125,7 +125,7 @@ def plot_probability_alive_matrix(
     ylabel: str, optional
         Figure ylabel
     ax: plt.Axes, optional
-        A matplotlib axes object. Creates new axes object by default.
+        A matplotlib axes instance. Creates new axes instance by default.
     kwargs
         Passed into the matplotlib.imshow command.
     Returns
