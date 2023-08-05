@@ -20,8 +20,7 @@ def plot_customer_exposure(
     padding: float = 0.25,
     ax: Optional[plt.Axes] = None,
 ) -> plt.Axes:
-    """
-
+    """Plot the recency and T of DataFrame of customers.
 
     Parameters
     ----------
