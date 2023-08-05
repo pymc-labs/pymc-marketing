@@ -23,6 +23,7 @@ def plot_frequency_recency_matrix(
     """
     Plot recency frequency matrix as heatmap.
     Plot a figure of expected transactions in T next units of time by a customer's frequency and recency.
+
     Parameters
     ----------
     model: lifetimes model
@@ -44,6 +45,7 @@ def plot_frequency_recency_matrix(
         A matplotlib axes instance. Creates new axes instance by default.
     kwargs
         Passed into the matplotlib.imshow command.
+
     Returns
     -------
     axes: matplotlib.AxesSubplot
@@ -109,6 +111,7 @@ def plot_probability_alive_matrix(
     Plot probability alive matrix as heatmap.
     Plot a figure of the probability a customer is alive based on their
     frequency and recency.
+
     Parameters
     ----------
     model: lifetimes model
@@ -128,6 +131,7 @@ def plot_probability_alive_matrix(
         A matplotlib axes instance. Creates new axes instance by default.
     kwargs
         Passed into the matplotlib.imshow command.
+        
     Returns
     -------
     axes: matplotlib.AxesSubplot
