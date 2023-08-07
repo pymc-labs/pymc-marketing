@@ -17,10 +17,16 @@ def plot_customer_exposure(
     linewidth: Optional[float] = None,
     size: Optional[float] = None,
     labels: Optional[Sequence[str]] = None,
+    colors: Optional[Sequence[str]] = None,
     padding: float = 0.25,
     ax: Optional[plt.Axes] = None,
 ) -> plt.Axes:
     """Plot the recency and T of DataFrame of customers.
+
+    Plots customers as horizontal lines with markers representing their recency and T starting.
+    Order is the same as the DataFrame and plotted from the bottom up.
+
+    The lines are colored by recency and T.
 
     Parameters
     ----------
@@ -32,6 +38,8 @@ def plot_customer_exposure(
         The size of the markers in the plot. Default is 10.
     labels: Sequence[str], optional
         A sequence of labels for the legend. Default is ["Recency", "T"].
+    colors: Sequence[str], optional
+        A sequence of colors for the legend. Default is ["C0", "C1"].
     padding: float, optional
         The padding around the plot. Default is 0.25.
     ax: plt.Axes, optional
@@ -48,11 +56,31 @@ def plot_customer_exposure(
     .. code-block:: python
 
         df = pd.DataFrame({
-            "recency": [1, 2, 3, 4, 5],
+            "recency": [0, 1, 2, 3, 4],
             "T": [5, 5, 5, 5, 5]
         })
 
         plot_customer_exposure(df)
+
+    Plot customer exposure ordered by recency and T
+
+    .. code-block:: python
+
+        (
+            df
+            .sort_values(["recency", "T"])
+            .pipe(plot_customer_exposure)
+        )
+
+    Plot exposure for only those with time until last purchase is less than 3
+
+    .. code-block:: python
+
+        (
+            df
+            .query("T - recency < 3")
+            .pipe(plot_customer_exposure)
+        )
 
     """
     if ax is None:
@@ -64,11 +92,18 @@ def plot_customer_exposure(
     recency = df["recency"].to_numpy()
     T = df["T"].to_numpy()
 
-    ax.hlines(y=customer_idx, xmin=0, xmax=recency, linewidth=linewidth, color="C0")
-    ax.hlines(y=customer_idx, xmin=recency, xmax=T, linewidth=linewidth, color="C1")
+    if colors is None:
+        recency_color, T_color = ["C0", "C1"]
+    else:
+        recency_color, T_color = colors
 
-    ax.scatter(x=recency, y=customer_idx, c="C0", linewidth=linewidth, s=size)
-    ax.scatter(x=T, y=customer_idx, c="C1", linewidth=linewidth, s=size)
+    ax.hlines(
+        y=customer_idx, xmin=0, xmax=recency, linewidth=linewidth, color=recency_color
+    )
+    ax.hlines(y=customer_idx, xmin=recency, xmax=T, linewidth=linewidth, color=T_color)
+
+    ax.scatter(x=recency, y=customer_idx, linewidth=linewidth, s=size, c=recency_color)
+    ax.scatter(x=T, y=customer_idx, linewidth=linewidth, s=size, c=T_color)
 
     ax.set(
         xlabel="Time since first purchase",
@@ -82,8 +117,8 @@ def plot_customer_exposure(
         labels = ["Recency", "T"]
 
     legend_elements = [
-        Line2D([0], [0], color="C0", label=labels[0]),
-        Line2D([0], [0], color="C1", label=labels[1]),
+        Line2D([0], [0], color=recency_color, label=labels[0]),
+        Line2D([0], [0], color=T_color, label=labels[1]),
     ]
 
     ax.legend(handles=legend_elements, loc="best")
@@ -245,3 +280,17 @@ def force_aspect(ax, aspect=1):
     im = ax.get_images()
     extent = im[0].get_extent()
     ax.set_aspect(abs((extent[1] - extent[0]) / (extent[3] - extent[2])) / aspect)
+
+
+if __name__ == "__main__":
+    file = "./datasets/clv_quickstart.csv"
+
+    df = pd.read_csv(file)
+
+    (
+        df.query("T - recency < 5")
+        .sample(n=100)
+        .sort_values(["recency", "T"])
+        .pipe(plot_customer_exposure)
+    )
+    plt.show()
