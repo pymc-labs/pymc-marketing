@@ -280,17 +280,3 @@ def force_aspect(ax, aspect=1):
     im = ax.get_images()
     extent = im[0].get_extent()
     ax.set_aspect(abs((extent[1] - extent[0]) / (extent[3] - extent[2])) / aspect)
-
-
-if __name__ == "__main__":
-    file = "./datasets/clv_quickstart.csv"
-
-    df = pd.read_csv(file)
-
-    (
-        df.query("T - recency < 5")
-        .sample(n=100)
-        .sort_values(["recency", "T"])
-        .pipe(plot_customer_exposure)
-    )
-    plt.show()
