@@ -30,24 +30,25 @@ def plot_customer_exposure(
 
     Parameters
     ----------
-    df: pd.DataFrame
+    df : pd.DataFrame
         A DataFrame with columns "recency" and "T" representing the recency and age of customers.
-    linewidth: float, optional
-        The width of the horizontal lines in the plot. Default is 0.1.
-    size: float, optional
-        The size of the markers in the plot. Default is 10.
-    labels: Sequence[str], optional
+    linewidth : float, optional
+        The width of the horizontal lines in the plot.
+    size : float, optional
+        The size of the markers in the plot.
+    labels : Sequence[str], optional
         A sequence of labels for the legend. Default is ["Recency", "T"].
-    colors: Sequence[str], optional
+    colors : Sequence[str], optional
         A sequence of colors for the legend. Default is ["C0", "C1"].
-    padding: float, optional
+    padding : float, optional
         The padding around the plot. Default is 0.25.
-    ax: plt.Axes, optional
-        A matplotlib axes object to plot on. If None, a new figure and axes is created.
+    ax : plt.Axes, optional
+        A matplotlib axes instance to plot on. If None, a new figure and axes is created.
 
     Returns
     -------
-    ax: plt.Axes
+    plt.Axes
+        The matplotlib axes instance.
 
     Examples
     --------
