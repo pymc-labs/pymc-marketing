@@ -1,0 +1,40 @@
+name: Jupyter Notebook CI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Build the custom Docker image
+        run: docker build -t tutorial_env .
+
+      - name: Execute Jupyter Notebook inside the custom Docker container
+        run: |
+          docker run --rm \
+            -v "$(pwd):/notebooks" \
+            tutorial_env \
+            jupyter nbconvert --to notebook --execute /notebooks/docs/source/notebooks/model_deployment.ipynb
+
+      - name: Check for errors
+        run: |
+          if [ -f "docs/source/notebooks/model_deployment.nbconvert.ipynb" ]; then
+            grep -q "error" docs/source/notebooks/model_deployment.nbconvert.ipynb
+            if [ $? -eq 0 ]; then
+              echo "Jupyter Notebook cells have errors."
+              exit 1
+            fi
+          else
+            echo "Notebook conversion failed."
+            exit 1
+          fi
