@@ -12,7 +12,7 @@ from pymc.backends.base import MultiTrace
 from pytensor.tensor import TensorVariable
 from xarray import Dataset
 
-from pymc_marketing.vendored.pymc_experimental.model_builder import ModelBuilder
+from pymc_marketing.model_builder import ModelBuilder
 
 
 class CLVModel(ModelBuilder):

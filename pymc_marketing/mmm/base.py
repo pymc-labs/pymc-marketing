@@ -23,7 +23,7 @@ from pymc_marketing.mmm.validating import (
     ValidateDateColumn,
     ValidateTargetColumn,
 )
-from pymc_marketing.vendored.pymc_experimental.model_builder import ModelBuilder
+from pymc_marketing.model_builder import ModelBuilder
 
 __all__ = ("BaseMMM", "MMM")
 
