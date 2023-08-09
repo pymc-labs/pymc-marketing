@@ -67,7 +67,7 @@ def estimate_menten_parameters(
 ) -> List[float]:
 
     x = original_dataframe[channel].to_numpy()
-    y = contributions.sel(quantile=0.5).sel(channel=channel).to_numpy()
+    y = contributions.quantile(q=0.5).sel(channel=channel).to_numpy()
 
     # Initial guess for L and k
     initial_guess = [max(y), 0.001]
