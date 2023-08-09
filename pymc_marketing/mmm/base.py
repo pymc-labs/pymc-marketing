@@ -474,13 +474,13 @@ class BaseMMM(ModelBuilder):
             coords=channel_contribution.coords,
         )
 
-    def _plot_estimations(self, x: np.ndarray, channel: str, i: int) -> plt.Figure:
+    def _plot_estimations(
+        self, x: np.ndarray, ax: plt.Axes, channel: str, i: int
+    ) -> None:
 
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
         )
-
-        fig_estimations, ax_estimations = plt.subplots(figsize=(8, 6))
 
         L, k = estimate_menten_parameters(channel, self.X, channel_contributions)
         plateau_x = k * (0.99 * L / (L * 0.01))
@@ -489,9 +489,8 @@ class BaseMMM(ModelBuilder):
         x_fit = np.linspace(0, plateau_x - (max(x) * 2), 1000)
         y_fit = michaelis_menten(x_fit, L, k)
 
-        ax_estimations.plot(x_fit, y_fit, color=f"C{i}", label="Fit Curve", alpha=0.6)
-
-        ax_estimations.plot(
+        ax.plot(x_fit, y_fit, color=f"C{i}", label="Fit Curve", alpha=0.6)
+        ax.plot(
             k,
             elbow_y,
             "go",
@@ -499,10 +498,8 @@ class BaseMMM(ModelBuilder):
             markerfacecolor="white",
         )
 
-        ax_estimations.set(xlabel="Spent", ylabel="Contribution")
-        ax_estimations.legend()
-
-        return fig_estimations
+        ax.set(xlabel="Spent", ylabel="Contribution")
+        ax.legend()
 
     def budget_allocation(
         self,
@@ -604,17 +601,16 @@ class BaseMMM(ModelBuilder):
                 ax.scatter(x, y, label=f"{channel}", color=f"C{i}")
 
                 if show_estimations:
-                    fig_estimations = self._plot_estimations(x, channel, i)
-                    fig.append(fig_estimations)
+                    self._plot_estimations(x, ax, channel, i)
 
-            ax.legend(
-                loc="upper left",
-                facecolor="white",
-                title=f"{channel} Legend",
-                fontsize="small",
-            )
+                ax.legend(
+                    loc="upper left",
+                    facecolor="white",
+                    title=f"{channel} Legend",
+                    fontsize="small",
+                )
 
-            ax.set(xlabel="Spent", ylabel="Contribution")
+                ax.set(xlabel="Spent", ylabel="Contribution")
 
         fig.suptitle("Direct response curves", fontsize=16)
         return fig
