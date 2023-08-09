@@ -66,6 +66,10 @@ def optimize_budget_distribution(total_budget, budget_ranges, parameters, channe
         A dictionary with channels as keys and the optimal budget for each channel as values.
     """
 
+    # Check if budget_ranges is the correct type
+    if not isinstance(budget_ranges, (dict, type(None))):
+        raise TypeError("`budget_ranges` should be a dictionary or None.")
+
     if budget_ranges is None:
         budget_ranges = {
             channel: [0, min(total_budget, parameters[channel][0])]
@@ -98,13 +102,13 @@ def budget_allocator(
 ) -> DataFrame:
 
     optimal_budget = optimize_budget_distribution(
-        total_budget, channels, parameters, budget_ranges
+        total_budget, budget_ranges, parameters, channels
     )
 
     return DataFrame(
         {
             "estimated_contribution": calculate_expected_contribution(
-                optimal_budget, parameters
+                parameters, optimal_budget
             ),
             "optimal_budget": optimal_budget,
         }
