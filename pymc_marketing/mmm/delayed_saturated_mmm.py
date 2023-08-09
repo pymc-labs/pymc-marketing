@@ -362,12 +362,17 @@ class BaseDelayedSaturatedMMM(MMM):
 
     @property
     def _serializable_model_config(self) -> Dict[str, Any]:
+        def ndarray_to_list(d: Dict) -> Dict:
+            new_d = d.copy()  # Copy the dictionary to avoid mutating the original one
+            for key, value in new_d.items():
+                if isinstance(value, np.ndarray):
+                    new_d[key] = value.tolist()
+                elif isinstance(value, dict):
+                    new_d[key] = ndarray_to_list(value)
+            return new_d
+
         serializable_config = self.model_config.copy()
-        if type(serializable_config["beta_channel"]["sigma"]) == np.ndarray:
-            serializable_config["beta_channel"]["sigma"] = serializable_config[
-                "beta_channel"
-            ]["sigma"].tolist()
-        return serializable_config
+        return ndarray_to_list(serializable_config)
 
     @classmethod
     def load(cls, fname: str):
@@ -480,6 +485,30 @@ class BaseDelayedSaturatedMMM(MMM):
 
         with self.model:
             pm.set_data(data)
+
+    @classmethod
+    def _model_config_formatting(cls, model_config: Dict) -> Dict:
+        """
+        Because of json serialization, model_config values that were originally tuples or numpy are being encoded as lists.
+        This function converts them back to tuples and numpy arrays to ensure correct id encoding.
+        """
+        for key in model_config:
+            if isinstance(model_config[key], dict):
+                for sub_key in model_config[key]:
+                    if isinstance(model_config[key][sub_key], list):
+                        # Check if "dims" key to convert it to tuple
+                        if sub_key == "dims":
+                            model_config[key][sub_key] = tuple(
+                                model_config[key][sub_key]
+                            )
+                        # Convert all other lists to numpy arrays
+                        else:
+                            model_config[key][sub_key] = np.array(
+                                model_config[key][sub_key]
+                            )
+            elif isinstance(model_config[key], list):
+                model_config[key] = np.array(model_config[key])
+        return model_config
 
 
 class DelayedSaturatedMMM(
