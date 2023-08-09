@@ -553,7 +553,7 @@ class BaseMMM(ModelBuilder):
 
         Returns
         -------
-        pd.DataFrame
+        Dict
             A DataFrame with the estimated points.
         """
         parameters = {}
