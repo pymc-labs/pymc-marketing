@@ -28,7 +28,7 @@ class CLVModel(ModelBuilder):
     def __repr__(self):
         return f"{self._model_type}\n{self.model.str_repr()}"
 
-    def fit(
+    def fit(  # type: ignore
         self,
         fit_method: str = "mcmc",
         **kwargs,
@@ -45,7 +45,7 @@ class CLVModel(ModelBuilder):
             Other keyword arguments passed to the underlying PyMC routines
         """
 
-        self.build_model()
+        self.build_model()  # type: ignore
 
         if fit_method == "mcmc":
             self._fit_mcmc(**kwargs)
@@ -180,7 +180,7 @@ class CLVModel(ModelBuilder):
         )
         model.idata = idata
 
-        model.build_model()
+        model.build_model()  # type: ignore
 
         if model.id != idata.attrs["id"]:
             raise ValueError(
@@ -226,7 +226,7 @@ class CLVModel(ModelBuilder):
     def _serializable_model_config(self) -> Dict:
         return self.model_config
 
-    def sample_prior_predictive(
+    def sample_prior_predictive(  # type: ignore
         self,
         samples: int = 1000,
         extend_idata: bool = True,

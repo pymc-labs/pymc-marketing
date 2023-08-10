@@ -16,7 +16,7 @@
 import hashlib
 import json
 import warnings
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -40,7 +40,7 @@ except ImportError:
         return X
 
 
-class ModelBuilder:
+class ModelBuilder(ABC):
     """
     ModelBuilder can be used to provide an easy-to-use API (similar to scikit-learn) for models
     and help with deployment.
@@ -50,7 +50,7 @@ class ModelBuilder:
     version = "None"
 
     X: Optional[pd.DataFrame] = None
-    y: Optional[np.ndarray] = None
+    y: Optional[pd.Series] = None
 
     def __init__(
         self,
@@ -80,7 +80,7 @@ class ModelBuilder:
             model_config = self.default_model_config
         self.sampler_config = sampler_config
         self.model_config = model_config  # parameters for priors etc.
-        self.model = None  # Set by build_model
+        self.model: Optional[pm.Model] = None  # Set by build_model
         self.idata: Optional[
             az.InferenceData
         ] = None  # idata is generated during fitting
@@ -98,7 +98,7 @@ class ModelBuilder:
     def _data_setter(
         self,
         X: Union[np.ndarray, pd.DataFrame],
-        y: Union[np.ndarray, pd.DataFrame, List, None] = None,
+        y: Optional[Union[np.ndarray, pd.Series]] = None,
     ) -> None:
         """
         Sets new data in the model.
@@ -196,7 +196,7 @@ class ModelBuilder:
 
     @abstractmethod
     def generate_and_preprocess_model_data(
-        self, X: Union[pd.DataFrame, pd.Series], y: Union[pd.Series, np.ndarray]
+        self, X: Union[pd.DataFrame, pd.Series], y: pd.Series
     ) -> None:
         """
         Applies preprocessing to the data before fitting the model.
@@ -463,7 +463,7 @@ class ModelBuilder:
     def fit(
         self,
         X: pd.DataFrame,
-        y: Union[pd.Series, np.ndarray, None] = None,
+        y: Optional[Union[pd.Series, np.ndarray]] = None,
         progressbar: bool = True,
         predictor_names: Optional[List[str]] = None,
         random_seed: RandomState = None,
@@ -505,9 +505,9 @@ class ModelBuilder:
             predictor_names = []
         if y is None:
             y = np.zeros(X.shape[0])
-        y_df = pd.DataFrame({self.output_var: y})
-        self.generate_and_preprocess_model_data(X, y_df.values.flatten())
-        self.build_model(self.X, self.y)
+        y = pd.Series({self.output_var: y})
+        self.generate_and_preprocess_model_data(X, y)
+        self.build_model(self.X, self.y)  # type: ignore
 
         sampler_config = self.sampler_config.copy()
         sampler_config["progressbar"] = progressbar
@@ -516,7 +516,7 @@ class ModelBuilder:
         self.idata = self.sample_model(**sampler_config)
 
         X_df = pd.DataFrame(X, columns=X.columns)
-        combined_data = pd.concat([X_df, y_df], axis=1)
+        combined_data = pd.concat([X_df, y], axis=1)
         assert all(combined_data.columns), "All columns must have non-empty names"
         with warnings.catch_warnings():
             warnings.filterwarnings(

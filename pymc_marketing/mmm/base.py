@@ -271,7 +271,7 @@ class BaseMMM(ModelBuilder):
 
             ax.plot(
                 np.asarray(self.X[self.date_column]),
-                np.asarray(self.preprocessed_data["y"]),
+                np.asarray(self.preprocessed_data["y"]),  # type: ignore
                 color="black",
             )
             ax.set(
@@ -323,7 +323,7 @@ class BaseMMM(ModelBuilder):
             )
 
             target_to_plot: np.ndarray = np.asarray(
-                self.y if original_scale else self.preprocessed_data["y"]
+                self.y if original_scale else self.preprocessed_data["y"]  # type: ignore
             )
             ax.plot(
                 np.asarray(self.X[self.date_column]),
@@ -423,7 +423,7 @@ class BaseMMM(ModelBuilder):
             )
             ax.plot(
                 np.asarray(self.X[self.date_column]),
-                np.asarray(self.preprocessed_data["y"]),
+                np.asarray(self.preprocessed_data["y"]),  # type: ignore
                 color="black",
             )
             ax.legend(title="components", loc="center left", bbox_to_anchor=(1, 0.5))

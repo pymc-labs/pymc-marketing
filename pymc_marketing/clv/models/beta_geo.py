@@ -155,7 +155,7 @@ class BetaGeoModel(CLVModel):
             "r_prior": {"dist": "HalfFlat", "kwargs": {}},
         }
 
-    def build_model(
+    def build_model(  # type: ignore
         self,
     ) -> None:
         with pm.Model(coords=self.coords) as self.model:
