@@ -49,10 +49,13 @@ class ModelBuilder:
     _model_type = "BaseClass"
     version = "None"
 
+    X: Optional[pd.DataFrame] = None
+    y: Optional[np.ndarray] = None
+
     def __init__(
         self,
-        model_config: Dict = None,
-        sampler_config: Dict = None,
+        model_config: Optional[Dict] = None,
+        sampler_config: Optional[Dict] = None,
     ):
         """
         Initializes model configuration and sampler configuration for the model
@@ -71,14 +74,11 @@ class ModelBuilder:
         >>>     ...
         >>> model = MyModel(model_config, sampler_config)
         """
-        sampler_config = (
-            self.default_sampler_config if sampler_config is None else sampler_config
-        )
+        if sampler_config is None:
+            sampler_config = self.default_sampler_config
+        if model_config is None:
+            model_config = self.default_model_config
         self.sampler_config = sampler_config
-        model_config = (
-            self.default_model_config if model_config is None else model_config
-        )
-
         self.model_config = model_config  # parameters for priors etc.
         self.model = None  # Set by build_model
         self.idata: Optional[
@@ -98,7 +98,7 @@ class ModelBuilder:
     def _data_setter(
         self,
         X: Union[np.ndarray, pd.DataFrame],
-        y: Union[np.ndarray, pd.DataFrame, List] = None,
+        y: Union[np.ndarray, pd.DataFrame, List, None] = None,
     ) -> None:
         """
         Sets new data in the model.
@@ -196,7 +196,7 @@ class ModelBuilder:
 
     @abstractmethod
     def generate_and_preprocess_model_data(
-        self, X: Union[pd.DataFrame, pd.Series], y: pd.Series
+        self, X: Union[pd.DataFrame, pd.Series], y: Union[pd.Series, np.ndarray]
     ) -> None:
         """
         Applies preprocessing to the data before fitting the model.
@@ -463,9 +463,9 @@ class ModelBuilder:
     def fit(
         self,
         X: pd.DataFrame,
-        y: Optional[pd.Series] = None,
+        y: Union[pd.Series, np.ndarray, None] = None,
         progressbar: bool = True,
-        predictor_names: List[str] = None,
+        predictor_names: Optional[List[str]] = None,
         random_seed: RandomState = None,
         **kwargs: Any,
     ) -> az.InferenceData:
@@ -505,8 +505,8 @@ class ModelBuilder:
             predictor_names = []
         if y is None:
             y = np.zeros(X.shape[0])
-        y = pd.DataFrame({self.output_var: y})
-        self.generate_and_preprocess_model_data(X, y.values.flatten())
+        y_df = pd.DataFrame({self.output_var: y})
+        self.generate_and_preprocess_model_data(X, y_df.values.flatten())
         self.build_model(self.X, self.y)
 
         sampler_config = self.sampler_config.copy()
@@ -516,7 +516,7 @@ class ModelBuilder:
         self.idata = self.sample_model(**sampler_config)
 
         X_df = pd.DataFrame(X, columns=X.columns)
-        combined_data = pd.concat([X_df, y], axis=1)
+        combined_data = pd.concat([X_df, y_df], axis=1)
         assert all(combined_data.columns), "All columns must have non-empty names"
         with warnings.catch_warnings():
             warnings.filterwarnings(
