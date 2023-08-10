@@ -32,7 +32,9 @@ def test_plot_cumstomer_exposure_with_ax(test_summary_data) -> None:
     ax = plt.subplot()
     plot_customer_exposure(test_summary_data, ax=ax)
 
-    assert isinstance(ax, plt.Axes)
+    assert ax.get_title() == "Customer Exposure"
+    assert ax.get_xlabel() == "Time since first purchase"
+    assert ax.get_ylabel() == "Customer"
 
 
 @pytest.mark.parametrize(
