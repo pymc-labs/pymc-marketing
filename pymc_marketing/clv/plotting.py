@@ -84,6 +84,15 @@ def plot_customer_exposure(
         )
 
     """
+    if padding < 0:
+        raise ValueError("padding must be non-negative")
+
+    if size is not None and size < 0:
+        raise ValueError("size must be non-negative")
+
+    if linewidth is not None and linewidth < 0:
+        raise ValueError("linewidth must be non-negative")
+
     if ax is None:
         ax = plt.gca()
 
@@ -94,9 +103,12 @@ def plot_customer_exposure(
     T = df["T"].to_numpy()
 
     if colors is None:
-        recency_color, T_color = ["C0", "C1"]
-    else:
-        recency_color, T_color = colors
+        colors = ["C0", "C1"]
+
+    if len(colors) != 2:
+        raise ValueError("colors must be a sequence of length 2")
+
+    recency_color, T_color = colors
 
     ax.hlines(
         y=customer_idx, xmin=0, xmax=recency, linewidth=linewidth, color=recency_color
@@ -117,9 +129,14 @@ def plot_customer_exposure(
     if labels is None:
         labels = ["Recency", "T"]
 
+    if len(labels) != 2:
+        raise ValueError("labels must be a sequence of length 2")
+
+    recency_label, T_label = labels
+
     legend_elements = [
-        Line2D([0], [0], color=recency_color, label=labels[0]),
-        Line2D([0], [0], color=T_color, label=labels[1]),
+        Line2D([0], [0], color=recency_color, label=recency_label),
+        Line2D([0], [0], color=T_color, label=T_label),
     ]
 
     ax.legend(handles=legend_elements, loc="best")
