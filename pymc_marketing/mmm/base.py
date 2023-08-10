@@ -475,54 +475,86 @@ class BaseMMM(ModelBuilder):
         )
 
     def _plot_estimations(
-        self, x: np.ndarray, ax: plt.Axes, channel: str, i: int
+        self, x: np.ndarray, ax: plt.Axes, channel: str, color_index: int, x_stop: int
     ) -> None:
+        """
+        Plot the Michaelis-Menten curve fit for the given channel based on the estimation of the Menten parameters.
 
+        The function computes the mean channel contributions, estimates the Michaelis-Menten parameters, and plots
+        the curve fit. An elbow point on the curve is also highlighted.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            The x-axis data, usually representing the amount of input (e.g., substrate concentration in enzymology terms).
+        ax : plt.Axes
+            The matplotlib axes object where the plot should be drawn.
+        channel : str
+            The name of the channel for which the curve fit is being plotted.
+        color_index : int
+            An index used for color selection to ensure distinct colors for multiple plots.
+
+        Returns
+        -------
+        None
+            The function modifies the given axes object in-place and doesn't return any object.
+        """
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
         )
 
         L, k = estimate_menten_parameters(channel, self.X, channel_contributions)
-        plateau_x = k * (0.99 * L / (L * 0.01))
         elbow_y = michaelis_menten(k, L, k)
 
-        x_fit = np.linspace(0, plateau_x - (max(x) * 2), 1000)
+        if x_stop is not None:
+            x_limit = x_stop
+        else:
+            x_limit = k * (0.99 * L / (L * 0.01))
+
+        x_fit = np.linspace(0, x_limit, 1000)
         y_fit = michaelis_menten(x_fit, L, k)
 
-        ax.plot(x_fit, y_fit, color=f"C{i}", label="Fit Curve", alpha=0.6)
+        ax.plot(x_fit, y_fit, color=f"C{color_index}", label="Fit Curve", alpha=0.6)
         ax.plot(
             k,
             elbow_y,
             "go",
-            color=f"C{i}",
+            color=f"C{color_index}",
             markerfacecolor="white",
         )
 
         ax.set(xlabel="Spent", ylabel="Contribution")
         ax.legend()
 
-    def budget_allocation(
+    def optimize_channel_budget_for_maximum_contribution(
         self,
         total_budget: int,
-        parameters: Optional[Dict[str, Tuple[float, float]]],
+        *,
+        parameters: Dict[str, Tuple[float, float]],
         budget_bounds: Optional[Dict[str, Tuple[float, float]]],
     ) -> pd.DataFrame:
         """
-        Allocate the budget optimally among different channels based on estimations and budget constraints.
+        Optimize the allocation of a given total budget across multiple channels to maximize the expected contribution.
+
+        The optimization is based on the Michaelis-Menten equation, where each channel's contribution
+        follows a saturating function of its allocated budget. The function seeks the budget allocation
+        that maximizes the total expected contribution across all channels.
 
         Parameters
         ----------
         total_budget : int, requiere
-            The total budget available for allocation.
+            The total budget to be distributed across channels.
         parameters : dict, requiere
-            A DataFrame containing estimations and information about different channels.
+            A dictionary where keys are channel names and values are tuples (L, k) representing the
+            Michaelis-Menten parameters for each channel.
         budget_bounds : dict, optional
-            A dictionary specifying the budget bounds for each channel.
+            An optional dictionary defining the minimum and maximum budget for each channel.
+            If not provided, the budget for each channel is constrained between 0 and its L value.
 
         Returns
         -------
-        Dict
-            A dictionary containing the allocated budget and contribution information.
+        DataFrame
+            A pandas DataFrame containing the allocated budget and contribution information.
 
         Raises
         ------
@@ -537,9 +569,14 @@ class BaseMMM(ModelBuilder):
                 "The 'total_budget' parameter must be an integer or float."
             )
 
+        if not parameters:
+            raise ValueError(
+                "The 'parameters' argument (keyword-only) must be provided and non-empty."
+            )
+
         return budget_allocator(
             total_budget=total_budget,
-            channels=self.channel_columns,
+            channels=list(self.channel_columns),
             parameters=parameters,
             budget_ranges=budget_bounds,
         )
@@ -553,20 +590,17 @@ class BaseMMM(ModelBuilder):
         Dict
             A DataFrame with the estimated points.
         """
-        parameters = {}
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
         )
 
-        for channel in self.channel_columns:
-            parameters[channel] = estimate_menten_parameters(
-                channel, self.X, channel_contributions
-            )
-
-        return parameters
+        return {
+            channel: estimate_menten_parameters(channel, self.X, channel_contributions)
+            for channel in self.channel_columns
+        }
 
     def plot_direct_contribution_curves(
-        self, show_estimations: bool = False
+        self, show_estimations: bool = False, x_stop=None
     ) -> plt.Figure:
         """
         Plots the direct contribution curves. The term "direct" refers to the fact
@@ -601,7 +635,9 @@ class BaseMMM(ModelBuilder):
                 ax.scatter(x, y, label=f"{channel}", color=f"C{i}")
 
                 if show_estimations:
-                    self._plot_estimations(x, ax, channel, i)
+                    self._plot_estimations(
+                        x=x, ax=ax, channel=channel, color_index=i, x_stop=x_stop
+                    )
 
                 ax.legend(
                     loc="upper left",
