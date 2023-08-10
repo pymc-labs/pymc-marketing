@@ -2,11 +2,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
-from pymc_marketing.clv.plotting import (
-    plot_customer_exposure,
-    plot_frequency_recency_matrix,
-    plot_probability_alive_matrix,
-)
+from pymc_marketing.clv.plotting import plot_customer_exposure
 
 
 @pytest.fixture
