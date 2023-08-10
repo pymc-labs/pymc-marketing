@@ -130,16 +130,18 @@ def plot_customer_exposure(
 def plot_frequency_recency_matrix(
     model,
     t=1,
-    max_frequency=None,
-    max_recency=None,
-    title=None,
-    xlabel="Historical Frequency",
-    ylabel="Recency",
+    max_frequency: Optional[int] = None,
+    max_recency: Optional[int] = None,
+    title: Optional[str] = None,
+    xlabel: str = "Customer's Historical Frequency",
+    ylabel: str = "Customer's Recency",
+    ax: Optional[plt.Axes] = None,
     **kwargs,
 ) -> plt.Axes:
     """
     Plot recency frequency matrix as heatmap.
     Plot a figure of expected transactions in T next units of time by a customer's frequency and recency.
+
     Parameters
     ----------
     model: lifetimes model
@@ -157,8 +159,11 @@ def plot_frequency_recency_matrix(
         Figure xlabel
     ylabel: str, optional
         Figure ylabel
+    ax: plt.Axes, optional
+        A matplotlib axes instance. Creates new axes instance by default.
     kwargs
         Passed into the matplotlib.imshow command.
+
     Returns
     -------
     axes: matplotlib.AxesSubplot
@@ -184,11 +189,10 @@ def plot_frequency_recency_matrix(
         .mean(("draw", "chain"))
         .values.reshape(mesh_recency.shape)
     )
+    if ax is None:
+        ax = plt.subplot(111)
 
-    ax = plt.subplot(111)
     pcm = ax.imshow(Z, **kwargs)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
     if title is None:
         title = (
             "Expected Number of Future Purchases for {} Unit{} of Time,".format(
@@ -196,7 +200,12 @@ def plot_frequency_recency_matrix(
             )
             + "\nby Frequency and Recency of a Customer"
         )
-    plt.title(title)
+
+    ax.set(
+        xlabel=xlabel,
+        ylabel=ylabel,
+        title=title,
+    )
 
     force_aspect(ax)
 
@@ -208,17 +217,19 @@ def plot_frequency_recency_matrix(
 
 def plot_probability_alive_matrix(
     model,
-    max_frequency=None,
-    max_recency=None,
-    title="Probability Customer is Alive,\nby Frequency and Recency of a Customer",
-    xlabel="Customer's Historical Frequency",
-    ylabel="Customer's Recency",
+    max_frequency: Optional[int] = None,
+    max_recency: Optional[int] = None,
+    title: str = "Probability Customer is Alive,\nby Frequency and Recency of a Customer",
+    xlabel: str = "Customer's Historical Frequency",
+    ylabel: str = "Customer's Recency",
+    ax: Optional[plt.Axes] = None,
     **kwargs,
 ) -> plt.Axes:
     """
     Plot probability alive matrix as heatmap.
     Plot a figure of the probability a customer is alive based on their
     frequency and recency.
+
     Parameters
     ----------
     model: lifetimes model
@@ -234,8 +245,11 @@ def plot_probability_alive_matrix(
         Figure xlabel
     ylabel: str, optional
         Figure ylabel
+    ax: plt.Axes, optional
+        A matplotlib axes instance. Creates new axes instance by default.
     kwargs
         Passed into the matplotlib.imshow command.
+
     Returns
     -------
     axes: matplotlib.AxesSubplot
@@ -263,12 +277,16 @@ def plot_probability_alive_matrix(
 
     interpolation = kwargs.pop("interpolation", "none")
 
-    ax = plt.subplot(111)
-    pcm = ax.imshow(Z, interpolation=interpolation, **kwargs)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.title(title)
+    if ax is None:
+        ax = plt.subplot(111)
 
+    pcm = ax.imshow(Z, interpolation=interpolation, **kwargs)
+
+    ax.set(
+        xlabel=xlabel,
+        ylabel=ylabel,
+        title=title,
+    )
     force_aspect(ax)
 
     # plot colorbar beside matrix
