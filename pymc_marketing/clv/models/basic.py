@@ -2,9 +2,11 @@ import json
 import types
 import warnings
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 
 import arviz as az
+import numpy as np
+import pandas as pd
 import pymc as pm
 from pymc import str_for_dist
 from pymc.backends import NDArray
@@ -286,3 +288,17 @@ class CLVModel(ModelBuilder):
             return res["mean"].rename("value")
         else:
             return az.summary(self.fit_result, **kwargs)
+
+    @property
+    def output_var(self):
+        pass
+
+    def generate_and_preprocess_model_data(
+        self,
+        X: Union[pd.DataFrame, pd.Series],
+        y: Union[pd.Series, np.ndarray[Any, Any]],
+    ) -> None:
+        pass
+
+    def _data_setter(self):
+        pass

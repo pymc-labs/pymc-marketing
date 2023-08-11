@@ -83,7 +83,7 @@ class BaseDelayedSaturatedMMM(MMM):
     def output_var(self):
         return "y"
 
-    def generate_and_preprocess_model_data(
+    def generate_and_preprocess_model_data(  # type: ignore
         self, X: Union[pd.DataFrame, pd.Series], y: pd.Series
     ) -> None:
         """
