@@ -55,7 +55,9 @@ def fitted_model_instance(toy_X, toy_y):
         "obs_error": 2,
     }
     model = test_ModelBuilder(
-        model_config=model_config, sampler_config=sampler_config, test_parameter="test_paramter"
+        model_config=model_config,
+        sampler_config=sampler_config,
+        test_parameter="test_paramter",
     )
     model.fit(toy_X)
     return model
@@ -91,7 +93,7 @@ class test_ModelBuilder(ModelBuilder):
             obs_error = pm.HalfNormal("σ_model_fmc", obs_error)
 
             # observed data
-            output = pm.Normal("output", a + b * x, obs_error, shape=x.shape, observed=y_data)
+            pm.Normal("output", a + b * x, obs_error, shape=x.shape, observed=y_data)
 
     def _save_input_params(self, idata):
         idata.attrs["test_paramter"] = json.dumps(self.test_parameter)
@@ -171,8 +173,10 @@ def test_empty_sampler_config_fit(toy_X, toy_y):
 
 
 def test_fit(fitted_model_instance):
-    prediction_data = pd.DataFrame({"input": np.random.uniform(low=0, high=1, size=100)})
-    pred = fitted_model_instance.predict(prediction_data["input"])
+    prediction_data = pd.DataFrame(
+        {"input": np.random.uniform(low=0, high=1, size=100)}
+    )
+    fitted_model_instance.predict(prediction_data["input"])
     post_pred = fitted_model_instance.sample_posterior_predictive(
         prediction_data["input"], extend_idata=True, combined=True
     )
@@ -188,7 +192,8 @@ def test_fit_no_y(toy_X):
 
 
 @pytest.mark.skipif(
-    sys.platform == "win32", reason="Permissions for temp files not granted on windows CI."
+    sys.platform == "win32",
+    reason="Permissions for temp files not granted on windows CI.",
 )
 def test_predict(fitted_model_instance):
     x_pred = np.random.uniform(low=0, high=1, size=100)
