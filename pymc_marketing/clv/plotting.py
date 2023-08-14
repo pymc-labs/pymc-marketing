@@ -197,10 +197,10 @@ def plot_frequency_recency_matrix(
     axes: matplotlib.AxesSubplot
     """
     if max_frequency is None:
-        max_frequency = model.frequency.max()
+        max_frequency = int(model.frequency.max())
 
     if max_recency is None:
-        max_recency = model.recency.max()
+        max_recency = int(model.recency.max())
 
     mesh_frequency, mesh_recency = _create_frequency_recency_meshes(
         max_frequency=max_frequency,
@@ -285,10 +285,10 @@ def plot_probability_alive_matrix(
     """
 
     if max_frequency is None:
-        max_frequency = model.frequency.max()
+        max_frequency = int(model.frequency.max())
 
     if max_recency is None:
-        max_recency = model.recency.max()
+        max_recency = int(model.recency.max())
 
     mesh_frequency, mesh_recency = _create_frequency_recency_meshes(
         max_frequency=max_frequency,
