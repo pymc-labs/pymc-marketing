@@ -144,6 +144,17 @@ def plot_customer_exposure(
     return ax
 
 
+def _create_recency_frequency_meshes(
+    max_frequency: int,
+    max_recency: int,
+) -> np.ndarray:
+    frequency = np.arange(max_frequency + 1)
+    recency = np.arange(max_recency + 1)
+    mesh_frequency, mesh_recency = np.meshgrid(frequency, recency)
+
+    return mesh_frequency, mesh_recency
+
+
 def plot_frequency_recency_matrix(
     model,
     t=1,
@@ -185,16 +196,17 @@ def plot_frequency_recency_matrix(
     -------
     axes: matplotlib.AxesSubplot
     """
-
     if max_frequency is None:
-        max_frequency = int(model.frequency.max())
+        max_frequency = model.frequency.max()
 
     if max_recency is None:
-        max_recency = int(model.recency.max())
+        max_recency = model.recency.max()
 
-    frequency = np.arange(max_frequency + 1)
-    recency = np.arange(max_recency + 1)
-    mesh_frequency, mesh_recency = np.meshgrid(frequency, recency)
+    mesh_frequency, mesh_recency = _create_recency_frequency_meshes(
+        max_frequency=max_frequency,
+        max_recency=max_recency,
+    )
+
     Z = (
         model.expected_num_purchases(
             customer_id=np.arange(mesh_recency.size),  # placeholder
@@ -273,14 +285,16 @@ def plot_probability_alive_matrix(
     """
 
     if max_frequency is None:
-        max_frequency = int(model.frequency.max())
+        max_frequency = model.frequency.max()
 
     if max_recency is None:
-        max_recency = int(model.recency.max())
+        max_recency = model.recency.max()
 
-    frequency = np.arange(max_frequency + 1)
-    recency = np.arange(max_recency + 1)
-    mesh_frequency, mesh_recency = np.meshgrid(frequency, recency)
+    mesh_frequency, mesh_recency = _create_recency_frequency_meshes(
+        max_frequency=max_frequency,
+        max_recency=max_recency,
+    )
+
     Z = (
         model.expected_probability_alive(
             customer_id=np.arange(mesh_recency.size),  # placeholder
