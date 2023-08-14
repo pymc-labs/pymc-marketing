@@ -1,4 +1,4 @@
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -147,7 +147,7 @@ def plot_customer_exposure(
 def _create_recency_frequency_meshes(
     max_frequency: int,
     max_recency: int,
-) -> np.ndarray:
+) -> Tuple[np.ndarray, np.ndarray]:
     frequency = np.arange(max_frequency + 1)
     recency = np.arange(max_recency + 1)
     mesh_frequency, mesh_recency = np.meshgrid(frequency, recency)
