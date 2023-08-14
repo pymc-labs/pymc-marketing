@@ -144,7 +144,7 @@ def plot_customer_exposure(
     return ax
 
 
-def _create_recency_frequency_meshes(
+def _create_frequency_recency_meshes(
     max_frequency: int,
     max_recency: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -202,7 +202,7 @@ def plot_frequency_recency_matrix(
     if max_recency is None:
         max_recency = model.recency.max()
 
-    mesh_frequency, mesh_recency = _create_recency_frequency_meshes(
+    mesh_frequency, mesh_recency = _create_frequency_recency_meshes(
         max_frequency=max_frequency,
         max_recency=max_recency,
     )
@@ -290,7 +290,7 @@ def plot_probability_alive_matrix(
     if max_recency is None:
         max_recency = model.recency.max()
 
-    mesh_frequency, mesh_recency = _create_recency_frequency_meshes(
+    mesh_frequency, mesh_recency = _create_frequency_recency_meshes(
         max_frequency=max_frequency,
         max_recency=max_recency,
     )
