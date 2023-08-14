@@ -14,7 +14,7 @@ from pymc_marketing.clv.plotting import (
 )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def test_summary_data() -> pd.DataFrame:
     return pd.read_csv("tests/clv/datasets/test_summary_data.csv", index_col=0)
 
