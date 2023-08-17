@@ -7,7 +7,7 @@ coverage:
         threshold: 2%
         base: auto
         paths:
-          - "pymc-marketing/"
+          - "pymc_marketing"
        # advanced settings
         branches:
           - main

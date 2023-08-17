@@ -218,7 +218,7 @@ class ParetoNBDModel(CLVModel):
             "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
         }
 
-    def build_model(
+    def build_model(  # type: ignore
         self,
     ) -> None:
         with pm.Model(coords=self.coords) as self.model:
@@ -245,6 +245,7 @@ class ParetoNBDModel(CLVModel):
         self,
     ) -> Tuple[Any, ...]:
         """Utility function retrieving posterior parameters for predictive methods"""
+        assert self.idata is not None, "Model must be fit first."
         return tuple([self.idata.posterior[param] for param in self._params])
 
     # TODO: Convert to list comprehension to support covariates?

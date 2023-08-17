@@ -22,7 +22,6 @@ dependencies = [
     "seaborn>=0.12.2",
     "xarray",
     "xarray-einstats>=0.5.1",
-    "pymc-experimental==0.0.9",
 ]
 
 [project.optional-dependencies]
@@ -58,7 +57,7 @@ packages = [
     "pymc_marketing",
     "pymc_marketing.mmm",
     "pymc_marketing.clv",
-    "pymc_marketing.clv.models"
+    "pymc_marketing.clv.models",
 ]
 
 [tool.setuptools.dynamic]
