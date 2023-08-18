@@ -13,7 +13,7 @@ rng: np.random.Generator = np.random.default_rng(seed=seed)
 @pytest.fixture(scope="module")
 def toy_X() -> pd.DataFrame:
     date_data: pd.DatetimeIndex = pd.date_range(
-        start="2019-06-01", end="2021-12-31", freq="W-MON"
+        start="2020-06-01", end="2021-12-31", freq="W-MON"
     )
 
     n: int = date_data.size
@@ -62,12 +62,12 @@ class TestBasePlotting:
             mmm = ToyMMM(
                 date_column="date",
                 channel_columns=["channel_1", "channel_2"],
-                adstock_max_lag=4,
+                adstock_max_lag=2,
             )
         elif control == "with_controls":
             mmm = ToyMMM(
                 date_column="date",
-                adstock_max_lag=4,
+                adstock_max_lag=2,
                 control_columns=["control_1", "control_2"],
                 channel_columns=["channel_1", "channel_2"],
             )
@@ -75,6 +75,8 @@ class TestBasePlotting:
         mmm.fit(
             X=toy_X,
             y=toy_y,
+            chains=2,
+            draws=20,
         )
         mmm._prior_predictive = mmm.prior_predictive
         mmm._fit_result = mmm.fit_result
