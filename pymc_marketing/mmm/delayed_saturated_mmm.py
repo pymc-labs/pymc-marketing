@@ -492,23 +492,21 @@ class BaseDelayedSaturatedMMM(MMM):
         Because of json serialization, model_config values that were originally tuples or numpy are being encoded as lists.
         This function converts them back to tuples and numpy arrays to ensure correct id encoding.
         """
-        for key in model_config:
-            if isinstance(model_config[key], dict):
-                for sub_key in model_config[key]:
-                    if isinstance(model_config[key][sub_key], list):
-                        # Check if "dims" key to convert it to tuple
-                        if sub_key == "dims":
-                            model_config[key][sub_key] = tuple(
-                                model_config[key][sub_key]
-                            )
-                        # Convert all other lists to numpy arrays
-                        else:
-                            model_config[key][sub_key] = np.array(
-                                model_config[key][sub_key]
-                            )
-            elif isinstance(model_config[key], list):
-                model_config[key] = np.array(model_config[key])
-        return model_config
+
+        def format_nested_dict(d: Dict) -> Dict:
+            for key, value in d.items():
+                if isinstance(value, dict):
+                    d[key] = format_nested_dict(value)
+                elif isinstance(value, list):
+                    # Check if the key is "dims" to convert it to tuple
+                    if key == "dims":
+                        d[key] = tuple(value)
+                    # Convert all other lists to numpy arrays
+                    else:
+                        d[key] = np.array(value)
+            return d
+
+        return format_nested_dict(model_config.copy())
 
 
 class DelayedSaturatedMMM(
