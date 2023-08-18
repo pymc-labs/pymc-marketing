@@ -75,6 +75,7 @@ class TestBasePlotting:
         mmm.fit(
             X=toy_X,
             y=toy_y,
+            tune=10,
             chains=2,
             draws=20,
         )
