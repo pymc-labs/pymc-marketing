@@ -362,12 +362,17 @@ class BaseDelayedSaturatedMMM(MMM):
 
     @property
     def _serializable_model_config(self) -> Dict[str, Any]:
+        def ndarray_to_list(d: Dict) -> Dict:
+            new_d = d.copy()  # Copy the dictionary to avoid mutating the original one
+            for key, value in new_d.items():
+                if isinstance(value, np.ndarray):
+                    new_d[key] = value.tolist()
+                elif isinstance(value, dict):
+                    new_d[key] = ndarray_to_list(value)
+            return new_d
+
         serializable_config = self.model_config.copy()
-        if type(serializable_config["beta_channel"]["sigma"]) == np.ndarray:
-            serializable_config["beta_channel"]["sigma"] = serializable_config[
-                "beta_channel"
-            ]["sigma"].tolist()
-        return serializable_config
+        return ndarray_to_list(serializable_config)
 
     @classmethod
     def load(cls, fname: str):
@@ -480,6 +485,28 @@ class BaseDelayedSaturatedMMM(MMM):
 
         with self.model:
             pm.set_data(data)
+
+    @classmethod
+    def _model_config_formatting(cls, model_config: Dict) -> Dict:
+        """
+        Because of json serialization, model_config values that were originally tuples or numpy are being encoded as lists.
+        This function converts them back to tuples and numpy arrays to ensure correct id encoding.
+        """
+
+        def format_nested_dict(d: Dict) -> Dict:
+            for key, value in d.items():
+                if isinstance(value, dict):
+                    d[key] = format_nested_dict(value)
+                elif isinstance(value, list):
+                    # Check if the key is "dims" to convert it to tuple
+                    if key == "dims":
+                        d[key] = tuple(value)
+                    # Convert all other lists to numpy arrays
+                    else:
+                        d[key] = np.array(value)
+            return d
+
+        return format_nested_dict(model_config.copy())
 
 
 class DelayedSaturatedMMM(
