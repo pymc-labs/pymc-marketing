@@ -270,8 +270,8 @@ class ModelBuilder(ABC):
 
     def sample_model(
         self,
-        prior_predictive: bool = False,
-        posterior_predictive: bool = False,
+        prior_kwargs: Optional[Dict] = None,
+        posterior_kwargs: Optional[Dict] = None,
         **kwargs,
     ):
         """
@@ -279,17 +279,19 @@ class ModelBuilder(ABC):
 
         Parameters
         ----------
-        prior_predictive : bool, optional
-            If True, the inference data will be extended with samples drawn from the prior predictive distribution.
-            Defaults to False.
-
-        posterior_predictive : bool, optional
-            If True, the inference data will be extended with samples drawn from the posterior predictive distribution.
-            Defaults to False.
-
+        prior_kwargs : dict, optional
+            keyword arguments to pass to the PyMC prior predictive sampler.
+        posterior_kwargs : dict, optional
+            keyword arguments to pass to the PyMC posterior predictive sampler.
         **kwargs : dict
             Additional keyword arguments to pass to the PyMC sampler.
+            - prior_predictive : bool, optional
+                If True, the inference data will be extended with samples drawn from the prior predictive distribution.
+                Defaults to False.
 
+            - posterior_predictive : bool, optional
+                If True, the inference data will be extended with samples drawn from the posterior predictive distribution.
+                Defaults to False.
         Returns
         -------
         xarray.Dataset
@@ -309,14 +311,22 @@ class ModelBuilder(ABC):
             raise RuntimeError(
                 "The model hasn't been built yet, call .build_model() first or call .fit() instead."
             )
-
+        prior_predictive = kwargs.pop("prior_predictive", False)
+        posterior_predictive = kwargs.pop("posterior_predictive", False)
         with self.model:
             sampler_args = {**self.sampler_config, **kwargs}
             idata = pm.sample(**sampler_args)
             if prior_predictive:
-                idata.extend(pm.sample_prior_predictive(**sampler_args))
+                if prior_kwargs is not None:
+                    idata.extend(pm.sample_prior_predictive(**prior_kwargs))
+                else:
+                    idata.extend(pm.sample_prior_predictive())
             if posterior_predictive:
-                idata.extend(pm.sample_posterior_predictive(idata, **sampler_args))
+                if prior_kwargs is not None:
+                    idata.extend(
+                        pm.sample_posterior_predictive(idata, **posterior_kwargs)
+                    )
+                idata.extend(pm.sample_posterior_predictive(idata))
 
         idata = self.set_idata_attrs(idata)
         return idata
@@ -474,6 +484,7 @@ class ModelBuilder(ABC):
         progressbar: bool = True,
         predictor_names: Optional[List[str]] = None,
         random_seed: RandomState = None,
+        sample_kwargs: Optional[Dict] = None,
         **kwargs: Any,
     ) -> az.InferenceData:
         """
