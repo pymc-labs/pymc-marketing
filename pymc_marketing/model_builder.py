@@ -50,7 +50,7 @@ class ModelBuilder(ABC):
     version = "None"
 
     X: Optional[pd.DataFrame] = None
-    y: Optional[pd.Series] = None
+    y: Optional[Union[pd.Series, np.ndarray]] = None
 
     def __init__(
         self,
@@ -195,15 +195,16 @@ class ModelBuilder(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def generate_and_preprocess_model_data(
-        self,
-        X: Union[pd.DataFrame, pd.Series],
-        y: Union[pd.Series, np.ndarray[Any, Any]],
+    def _generate_and_preprocess_model_data(
+        self, X: Union[pd.DataFrame, pd.Series], y: np.ndarray
     ) -> None:
         """
         Applies preprocessing to the data before fitting the model.
         if validate is True, it will check if the data is valid for the model.
         sets self.model_coords based on provided dataset
+
+        In case of optional parameters being passed into the model, this method should implement the conditional
+        logic responsible for correct handling of the optional parameters, and including them into the dataset.
 
         Parameters:
         X : array, shape (n_obs, n_features)
@@ -212,11 +213,10 @@ class ModelBuilder(ABC):
         Examples
         --------
         >>>     @classmethod
-        >>>     def generate_and_preprocess_model_data(self, X, y):
-        >>>         x = np.linspace(start=1, stop=50, num=100)
-        >>>         y = 5 * x + 3 + np.random.normal(0, 1, len(x)) * np.random.rand(100)*10 +  np.random.rand(100)*6.4
-        >>>         X = pd.DataFrame(x, columns=['x'])
-        >>>         y = pd.Series(y, name='y')
+        >>>     def _generate_and_preprocess_model_data(self, X, y):
+                    coords = {
+                        'x_dim': X.dim_variable,
+                    } #only include if applicable for your model
         >>>         self.X = X
         >>>         self.y = y
 
@@ -231,7 +231,7 @@ class ModelBuilder(ABC):
     def build_model(
         self,
         X: pd.DataFrame,
-        y: pd.Series,
+        y: Union[pd.Series, np.ndarray],
         **kwargs,
     ) -> None:
         """
@@ -246,7 +246,7 @@ class ModelBuilder(ABC):
             only contain the necessary data columns, not the entire available dataset, as this
             will be encoded into the data used to recreate the model.
 
-        y : pd.Series
+        y : Union[pd.Series, np.ndarray]
             The target data for the model. This should be a Series representing the output
             or dependent variable for the model.
 
@@ -268,12 +268,25 @@ class ModelBuilder(ABC):
         """
         raise NotImplementedError
 
-    def sample_model(self, **kwargs):
+    def sample_model(
+        self,
+        prior_predictive: bool = False,
+        posterior_predictive: bool = False,
+        **kwargs,
+    ):
         """
         Sample from the PyMC model.
 
         Parameters
         ----------
+        prior_predictive : bool, optional
+            If True, the inference data will be extended with samples drawn from the prior predictive distribution.
+            Defaults to False.
+
+        posterior_predictive : bool, optional
+            If True, the inference data will be extended with samples drawn from the posterior predictive distribution.
+            Defaults to False.
+
         **kwargs : dict
             Additional keyword arguments to pass to the PyMC sampler.
 
@@ -291,11 +304,6 @@ class ModelBuilder(ABC):
         --------
         >>> self.build_model()
         >>> idata = self.sample_model(draws=100, tune=10)
-        >>> assert isinstance(idata, xr.Dataset)
-        >>> assert "posterior" in idata
-        >>> assert "prior" in idata
-        >>> assert "observed_data" in idata
-        >>> assert "log_likelihood" in idata
         """
         if self.model is None:
             raise RuntimeError(
@@ -305,8 +313,10 @@ class ModelBuilder(ABC):
         with self.model:
             sampler_args = {**self.sampler_config, **kwargs}
             idata = pm.sample(**sampler_args)
-            idata.extend(pm.sample_prior_predictive())
-            idata.extend(pm.sample_posterior_predictive(idata))
+            if prior_predictive:
+                idata.extend(pm.sample_prior_predictive(**sampler_args))
+            if posterior_predictive:
+                idata.extend(pm.sample_posterior_predictive(idata, **sampler_args))
 
         idata = self.set_idata_attrs(idata)
         return idata
@@ -334,11 +344,6 @@ class ModelBuilder(ABC):
         >>> model = MyModel(ModelBuilder)
         >>> idata = az.InferenceData(your_dataset)
         >>> model.set_idata_attrs(idata=idata)
-        >>> assert "id" in idata.attrs #this and the following lines are part of doctest, not user manual
-        >>> assert "model_type" in idata.attrs
-        >>> assert "version" in idata.attrs
-        >>> assert "sampler_config" in idata.attrs
-        >>> assert "model_config" in idata.attrs
         """
         if idata is None:
             idata = self.idata
@@ -381,7 +386,7 @@ class ModelBuilder(ABC):
         >>>     def __init__(self):
         >>>         super().__init__()
         >>> model = MyModel()
-        >>> model.fit(data)
+        >>> model.fit(X,y)
         >>> model.save('model_results.nc')  # This will call the overridden method in MyModel
         """
         if self.idata is not None and "posterior" in self.idata:
@@ -499,7 +504,7 @@ class ModelBuilder(ABC):
         Examples
         --------
         >>> model = MyModel()
-        >>> idata = model.fit(data)
+        >>> idata = model.fit(X,y)
         Auto-assigning NUTS sampler...
         Initializing NUTS using jitter+adapt_diag...
         """
@@ -508,7 +513,7 @@ class ModelBuilder(ABC):
         if y is None:
             y = np.zeros(X.shape[0])
         y_df = pd.DataFrame({self.output_var: y})
-        self.generate_and_preprocess_model_data(X, y_df.values.flatten())
+        self._generate_and_preprocess_model_data(X, y_df.values.flatten())
         if self.X is None or self.y is None:
             raise ValueError("X and y must be set before calling build_model!")
         self.build_model(self.X, self.y)
@@ -558,7 +563,7 @@ class ModelBuilder(ABC):
         Examples
         --------
         >>> model = MyModel()
-        >>> idata = model.fit(data)
+        >>> idata = model.fit(X,y)
         >>> x_pred = []
         >>> prediction_data = pd.DataFrame({'input':x_pred})
         >>> pred_mean = model.predict(prediction_data)

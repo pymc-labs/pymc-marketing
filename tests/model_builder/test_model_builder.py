@@ -73,7 +73,7 @@ class test_ModelBuilder(ModelBuilder):
 
     def build_model(self, X: pd.DataFrame, y: pd.Series, model_config=None):
         coords = {"numbers": np.arange(len(X))}
-        self.generate_and_preprocess_model_data(X, y)
+        self._generate_and_preprocess_model_data(X, y)
         with pm.Model(coords=coords) as self.model:
             if model_config is None:
                 model_config = self.default_model_config
@@ -112,7 +112,7 @@ class test_ModelBuilder(ModelBuilder):
     def _serializable_model_config(self):
         return self.model_config
 
-    def generate_and_preprocess_model_data(self, X: pd.DataFrame, y: pd.Series):
+    def _generate_and_preprocess_model_data(self, X: pd.DataFrame, y: pd.Series):
         self.X = X
         self.y = y
 
