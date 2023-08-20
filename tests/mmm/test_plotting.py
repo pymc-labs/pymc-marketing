@@ -75,8 +75,11 @@ class TestBasePlotting:
         mmm.fit(
             X=toy_X,
             y=toy_y,
-            prior_predictive=True,
-            posterior_predictive=True,
+            sample_kwargs={
+                "prior_kwargs": {"samples": 100},
+                "prior_predictive": True,
+                "posterior_predictive": True,
+            },
         )
         mmm._prior_predictive = mmm.prior_predictive
         mmm._fit_result = mmm.fit_result
