@@ -63,6 +63,27 @@ def fitted_model_instance(toy_X, toy_y):
     return model
 
 
+@pytest.fixture(scope="module")
+def not_fitted_model_instance(toy_X, toy_y):
+    sampler_config = {
+        "draws": 100,
+        "tune": 100,
+        "chains": 2,
+        "target_accept": 0.95,
+    }
+    model_config = {
+        "a": {"loc": 0, "scale": 10, "dims": ("numbers",)},
+        "b": {"loc": 0, "scale": 10},
+        "obs_error": 2,
+    }
+    model = test_ModelBuilder(
+        model_config=model_config,
+        sampler_config=sampler_config,
+        test_parameter="test_paramter",
+    )
+    return model
+
+
 class test_ModelBuilder(ModelBuilder):
     def __init__(self, model_config=None, sampler_config=None, test_parameter=None):
         self.test_parameter = test_parameter
@@ -233,6 +254,11 @@ def test_model_config_formatting():
     converted_model_config = model_builder._model_config_formatting(model_config)
     np.testing.assert_equal(converted_model_config["a"]["dims"], ("x",))
     np.testing.assert_equal(converted_model_config["a"]["loc"], np.array([0, 0]))
+
+
+def test_not_build_model_raises_runtime_error(not_fitted_model_instance):
+    with pytest.raises(RuntimeError):
+        not_fitted_model_instance.sample_model()
 
 
 def test_id():
