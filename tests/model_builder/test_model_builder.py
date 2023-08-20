@@ -59,18 +59,21 @@ def fitted_model_instance(toy_X, toy_y):
         sampler_config=sampler_config,
         test_parameter="test_paramter",
     )
-    model.fit(toy_X)
+    model.fit(
+        toy_X,
+        sample_kwargs={
+            "prior_kwargs": {"samples": 100},
+            "posterior_kwargs": {"predictions": True},
+            "prior_predictive": True,
+            "posterior_predictive": True,
+        },
+    )
     return model
 
 
 @pytest.fixture(scope="module")
 def not_fitted_model_instance(toy_X, toy_y):
-    sampler_config = {
-        "draws": 100,
-        "tune": 100,
-        "chains": 2,
-        "target_accept": 0.95,
-    }
+    sampler_config = {"draws": 100, "tune": 100, "chains": 2, "target_accept": 0.95}
     model_config = {
         "a": {"loc": 0, "scale": 10, "dims": ("numbers",)},
         "b": {"loc": 0, "scale": 10},
@@ -185,6 +188,7 @@ def test_save_without_fit_raises_runtime_error():
         model_builder.save("saved_model")
 
 
+@pytest.mark.slow
 def test_empty_sampler_config_fit(toy_X, toy_y):
     sampler_config = {}
     model_builder = test_ModelBuilder(sampler_config=sampler_config)
@@ -194,6 +198,12 @@ def test_empty_sampler_config_fit(toy_X, toy_y):
 
 
 def test_fit(fitted_model_instance):
+    assert fitted_model_instance.idata is not None
+    assert "posterior" in fitted_model_instance.idata.groups()
+    assert "predictions" in fitted_model_instance.idata.groups()
+    assert "prior" in fitted_model_instance.idata.groups()
+    assert fitted_model_instance.idata.prior.dims["draw"] == 100
+
     prediction_data = pd.DataFrame(
         {"input": np.random.uniform(low=0, high=1, size=100)}
     )
@@ -204,6 +214,7 @@ def test_fit(fitted_model_instance):
     post_pred[fitted_model_instance.output_var].shape[0] == prediction_data.input.shape
 
 
+@pytest.mark.slow
 def test_fit_no_y(toy_X):
     model_builder = test_ModelBuilder()
     model_builder.idata = model_builder.fit(X=toy_X)

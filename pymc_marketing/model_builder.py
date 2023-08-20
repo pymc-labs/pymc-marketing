@@ -326,7 +326,8 @@ class ModelBuilder(ABC):
                     idata.extend(
                         pm.sample_posterior_predictive(idata, **posterior_kwargs)
                     )
-                idata.extend(pm.sample_posterior_predictive(idata))
+                else:
+                    idata.extend(pm.sample_posterior_predictive(idata))
 
         idata = self.set_idata_attrs(idata)
         return idata
@@ -483,7 +484,7 @@ class ModelBuilder(ABC):
         y: Optional[Union[pd.Series, np.ndarray]] = None,
         progressbar: bool = True,
         predictor_names: Optional[List[str]] = None,
-        random_seed: RandomState = None,
+        random_seed: Optional[RandomState] = None,
         sample_kwargs: Optional[Dict] = None,
         **kwargs: Any,
     ) -> az.InferenceData:
@@ -500,11 +501,24 @@ class ModelBuilder(ABC):
             The target values (real numbers).
         progressbar : bool
             Specifies whether the fit progressbar should be displayed
-        predictor_names: List[str] = None,
+        predictor_names: Optional[List[str]] = None,
             Allows for custom naming of predictors given in a form of 2dArray
             allows for naming of predictors when given in a form of np.ndarray, if not provided the predictors will be named like predictor1, predictor2...
-        random_seed : RandomState
+        random_seed : Optional[RandomState]
             Provides sampler with initial random seed for obtaining reproducible samples
+        sample_kwargs : Optional[Dict]
+            Allows for passing additional keyword arguments to the sample_model method
+            possible arguments are:
+            - prior_kwargs : dict, optional
+                keyword arguments to pass to the PyMC prior predictive sampler.
+            - posterior_kwargs : dict, optional
+                keyword arguments to pass to the PyMC posterior predictive sampler.
+            - prior_predictive : bool, optional
+                If True, the inference data will be extended with samples drawn from the prior predictive distribution.
+                Defaults to False.
+            - posterior_predictive : bool, optional
+                If True, the inference data will be extended with samples drawn from the posterior predictive distribution.
+                Defaults to False.
         **kwargs : Any
             Custom sampler settings can be provided in form of keyword arguments.
 
@@ -533,7 +547,29 @@ class ModelBuilder(ABC):
         sampler_config["progressbar"] = progressbar
         sampler_config["random_seed"] = random_seed
         sampler_config.update(**kwargs)
-        self.idata = self.sample_model(**sampler_config)
+
+        prior_kwargs = {}
+        posterior_kwargs = {}
+        prior_predictive = False
+        posterior_predictive = False
+        if sample_kwargs is not None:
+            if "prior_kwargs" in sample_kwargs:
+                prior_kwargs = sample_kwargs.pop("prior_kwargs")
+            if "posterior_kwargs" in sample_kwargs:
+                posterior_kwargs = sample_kwargs.pop("posterior_kwargs")
+            if "prior_predictive" in sample_kwargs:
+                prior_predictive = sample_kwargs.pop("prior_predictive")
+            if "posterior_predictive" in sample_kwargs:
+                posterior_predictive = sample_kwargs.pop("posterior_predictive")
+
+        # Merge all arguments and pass to sample_model
+        self.idata = self.sample_model(
+            prior_kwargs=prior_kwargs,
+            posterior_kwargs=posterior_kwargs,
+            prior_predictive=prior_predictive,
+            posterior_predictive=posterior_predictive,
+            **sampler_config,
+        )
 
         X_df = pd.DataFrame(X, columns=X.columns)
         combined_data = pd.concat([X_df, y_df], axis=1)
