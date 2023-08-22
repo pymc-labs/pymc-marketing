@@ -76,7 +76,7 @@ class TestBasePlotting:
             X=toy_X,
             y=toy_y,
             sample_kwargs={
-                "prior_kwargs": {"samples": 100},
+                "prior_predictive_kwargs": {"samples": 100},
                 "prior_predictive": True,
                 "posterior_predictive": True,
             },
