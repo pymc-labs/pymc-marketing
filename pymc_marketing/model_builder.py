@@ -565,7 +565,8 @@ class ModelBuilder(ABC):
                 prior_predictive = sample_kwargs.pop("prior_predictive")
             if "posterior_predictive" in sample_kwargs:
                 posterior_predictive = sample_kwargs.pop("posterior_predictive")
-
+        if sample_kwargs is not None and len(sample_kwargs) > 0:
+            sampler_config.update(**sample_kwargs)
         # Merge all arguments and pass to sample_model
         self.idata = self.sample_model(
             prior_predictive_kwargs=prior_predictive_kwargs,
