@@ -98,9 +98,7 @@ def objective_distribution(
             sum_contributions += extense_sigmoid(budget, alpha, lam)
 
         else:
-            raise ValueError(
-                "`saturation_model` must be either 'michaelis-menten' or 'sigmoid'."
-            )
+            raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")
 
     return -1 * sum_contributions
 

@@ -677,7 +677,7 @@ class BaseMMM(ModelBuilder):
             ["chain", "draw"]
         )
 
-        if method == "michaelis-mente":
+        if method == "michaelis-menten":
             fit_function = estimate_menten_parameters
         elif method == "sigmoid":
             fit_function = estimate_sigmoid_parameters
