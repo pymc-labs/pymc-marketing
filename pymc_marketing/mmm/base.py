@@ -20,7 +20,13 @@ from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.budget_optimizer import budget_allocator
-from pymc_marketing.mmm.utils import estimate_menten_parameters, michaelis_menten
+from pymc_marketing.mmm.utils import (
+    estimate_menten_parameters,
+    estimate_sigmoid_parameters,
+    extense_sigmoid,
+    find_sigmoid_inflection_point,
+    michaelis_menten,
+)
 from pymc_marketing.mmm.validating import (
     ValidateChannelColumns,
     ValidateDateColumn,
@@ -474,14 +480,20 @@ class BaseMMM(ModelBuilder):
             coords=channel_contribution.coords,
         )
 
-    def _plot_estimations(
-        self, x: np.ndarray, ax: plt.Axes, channel: str, color_index: int, x_stop: int
+    def _plot_response_curve_fit(
+        self,
+        x: np.ndarray,
+        ax: plt.Axes,
+        channel: str,
+        color_index: int,
+        xlim_max: int,
+        method: str = "sigmoid",
     ) -> None:
         """
-        Plot the Michaelis-Menten curve fit for the given channel based on the estimation of the Menten parameters.
+        Plot the curve fit for the given channel based on the estimation of the parameters.
 
-        The function computes the mean channel contributions, estimates the Michaelis-Menten parameters, and plots
-        the curve fit. An elbow point on the curve is also highlighted.
+        The function computes the mean channel contributions, estimates the parameters based on the specified method (either 'sigmoid' or 'michaelis-menten'), and plots
+        the curve fit. An inflection point on the curve is also highlighted.
 
         Parameters
         ----------
@@ -493,6 +505,10 @@ class BaseMMM(ModelBuilder):
             The name of the channel for which the curve fit is being plotted.
         color_index : int
             An index used for color selection to ensure distinct colors for multiple plots.
+        xlim_max: int
+            The maximum value to be plot on the X-axis
+        method: str
+            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
 
         Returns
         -------
@@ -503,24 +519,78 @@ class BaseMMM(ModelBuilder):
             ["chain", "draw"]
         )
 
-        L, k = estimate_menten_parameters(channel, self.X, channel_contributions)
-        elbow_y = michaelis_menten(k, L, k)
+        channel_contributions_quantiles = (
+            self.compute_channel_contribution_original_scale().quantile(
+                q=[0.05, 0.95], dim=["chain", "draw"]
+            )
+        )
 
-        if x_stop is not None:
-            x_limit = x_stop
+        if self.X is not None:
+            x_mean = np.max(self.X[channel])
+
+        # Estimate parameters based on the method
+        if method == "sigmoid":
+            alpha_limit, lam_constant = estimate_sigmoid_parameters(
+                channel, self.X, channel_contributions
+            )
+            alpha_limit_upper, lam_constant_upper = estimate_sigmoid_parameters(
+                channel, self.X, channel_contributions_quantiles.sel(quantile=0.95)
+            )
+            alpha_limit_lower, lam_constant_lower = estimate_sigmoid_parameters(
+                channel, self.X, channel_contributions_quantiles.sel(quantile=0.05)
+            )
+
+            x_inflection, y_inflection = find_sigmoid_inflection_point(
+                alpha=alpha_limit, lam=lam_constant
+            )
+            fit_function = extense_sigmoid
+        elif method == "michaelis-menten":
+            alpha_limit, lam_constant = estimate_menten_parameters(
+                channel, self.X, channel_contributions
+            )
+            alpha_limit_upper, lam_constant_upper = estimate_menten_parameters(
+                channel, self.X, channel_contributions_quantiles.sel(quantile=0.95)
+            )
+            alpha_limit_lower, lam_constant_lower = estimate_menten_parameters(
+                channel, self.X, channel_contributions_quantiles.sel(quantile=0.05)
+            )
+
+            y_inflection = michaelis_menten(lam_constant, alpha_limit, lam_constant)
+            x_inflection = lam_constant
+            fit_function = michaelis_menten
         else:
-            x_limit = k * (0.99 * L / (L * 0.01))
+            raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")
 
+        # Set x_limit based on the method or xlim_max
+        if xlim_max is not None:
+            x_limit = xlim_max
+        else:
+            x_limit = x_mean
+
+        # Generate x_fit and y_fit
         x_fit = np.linspace(0, x_limit, 1000)
-        y_fit = michaelis_menten(x_fit, L, k)
+        y_fit = fit_function(x_fit, alpha_limit, lam_constant)
+        y_fit_lower = fit_function(x_fit, alpha_limit_lower, lam_constant_lower)
+        y_fit_upper = fit_function(x_fit, alpha_limit_upper, lam_constant_upper)
 
+        ax.fill_between(
+            x_fit, y_fit_lower, y_fit_upper, color=f"C{color_index}", alpha=0.25
+        )
         ax.plot(x_fit, y_fit, color=f"C{color_index}", label="Fit Curve", alpha=0.6)
         ax.plot(
-            k,
-            elbow_y,
+            x_inflection,
+            y_inflection,
             "go",
             color=f"C{color_index}",
             markerfacecolor="white",
+        )
+
+        ax.text(
+            x_mean,
+            ax.get_ylim()[1] / 1.25,
+            f"α: {alpha_limit:.5f}",
+            fontsize=9,
+            bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.5"),
         )
 
         ax.set(xlabel="Spent", ylabel="Contribution")
@@ -528,6 +598,7 @@ class BaseMMM(ModelBuilder):
 
     def optimize_channel_budget_for_maximum_contribution(
         self,
+        method: str,
         total_budget: int,
         *,
         parameters: Dict[str, Tuple[float, float]],
@@ -536,18 +607,20 @@ class BaseMMM(ModelBuilder):
         """
         Optimize the allocation of a given total budget across multiple channels to maximize the expected contribution.
 
-        The optimization is based on the Michaelis-Menten equation, where each channel's contribution
+        The optimization is based on the method provided, where each channel's contribution
         follows a saturating function of its allocated budget. The function seeks the budget allocation
-        that maximizes the total expected contribution across all channels.
+        that maximizes the total expected contribution across all channels. The method can be either 'sigmoid' or 'michaelis-menten'.
 
         Parameters
         ----------
-        total_budget : int, requiere
+        total_budget : int, required
             The total budget to be distributed across channels.
-        parameters : dict, requiere
+        method : str, required
+            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
+        parameters : Dict, required
             A dictionary where keys are channel names and values are tuples (L, k) representing the
-            Michaelis-Menten parameters for each channel.
-        budget_bounds : dict, optional
+            parameters for each channel based on the method used.
+        budget_bounds : Dict, optional
             An optional dictionary defining the minimum and maximum budget for each channel.
             If not provided, the budget for each channel is constrained between 0 and its L value.
 
@@ -561,8 +634,8 @@ class BaseMMM(ModelBuilder):
         ValueError
             If any of the required parameters are not provided or have an incorrect type.
         """
-        if not isinstance(budget_bounds, dict):
-            raise ValueError("The 'budget_bounds' parameter must be a dictionary.")
+        if not isinstance(budget_bounds, (dict, type(None))):
+            raise TypeError("`budget_ranges` should be a dictionary or None.")
 
         if not isinstance(total_budget, (int, float)):
             raise ValueError(
@@ -575,42 +648,68 @@ class BaseMMM(ModelBuilder):
             )
 
         return budget_allocator(
+            method=method,
             total_budget=total_budget,
             channels=list(self.channel_columns),
             parameters=parameters,
             budget_ranges=budget_bounds,
         )
 
-    def compute_channel_estimate_points_original_scale(self) -> Dict:
+    def compute_channel_curve_parameters_original_scale(self, method: str) -> Dict:
         """
-        Estimate optimal and plateau points for each channel.
+        Estimate the parameters for the saturating function of each channel's contribution.
+
+        The function estimates the parameters (alpha, constant) for each channel based on the specified method (either 'sigmoid' or 'michaelis-menten').
+        These parameters represent the maximum possible contribution (alpha) and the constant parameter which vary their definition based on the function (constant) for each channel.
+
+        Parameters
+        ----------
+        method : str, required
+            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
 
         Returns
         -------
         Dict
-            A DataFrame with the estimated points.
+            A dictionary where keys are channel names and values are tuples (L, k) representing the
+            parameters for each channel based on the method used.
         """
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
         )
 
+        if method == "michaelis-mente":
+            fit_function = estimate_menten_parameters
+        elif method == "sigmoid":
+            fit_function = estimate_sigmoid_parameters
+        else:
+            raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")
+
         return {
-            channel: estimate_menten_parameters(channel, self.X, channel_contributions)
+            channel: fit_function(channel, self.X, channel_contributions)
             for channel in self.channel_columns
         }
 
     def plot_direct_contribution_curves(
-        self, show_estimations: bool = False, x_stop=None
+        self, show_fit: bool = False, xlim_max=None, method: str = "sigmoid"
     ) -> plt.Figure:
         """
-        Plots the direct contribution curves. The term "direct" refers to the fact
-        we plots costs vs immediate returns and we do not take into account the lagged
+        Plots the direct contribution curves for each marketing channel. The term "direct" refers to the fact
+        we plot costs vs immediate returns and we do not take into account the lagged
         effects of the channels e.g. adstock transformations.
+
+        Parameters
+        ----------
+        show_fit : bool, optional
+            If True, the function will also plot the curve fit based on the specified method. Defaults to False.
+        xlim_max : int, optional
+            The maximum value to be plot on the X-axis. If not provided, the maximum value in the data will be used.
+        method : str, optional
+            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'. Defaults to 'sigmoid'.
 
         Returns
         -------
         plt.Figure
-            Direct contribution curves.
+            A matplotlib Figure object with the direct contribution curves.
         """
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
@@ -634,9 +733,14 @@ class BaseMMM(ModelBuilder):
 
                 ax.scatter(x, y, label=f"{channel}", color=f"C{i}")
 
-                if show_estimations:
-                    self._plot_estimations(
-                        x=x, ax=ax, channel=channel, color_index=i, x_stop=x_stop
+                if show_fit:
+                    self._plot_response_curve_fit(
+                        x=x,
+                        ax=ax,
+                        channel=channel,
+                        color_index=i,
+                        xlim_max=xlim_max,
+                        method=method,
                     )
 
                 ax.legend(

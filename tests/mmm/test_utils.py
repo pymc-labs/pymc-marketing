@@ -5,6 +5,7 @@ import xarray as xr
 
 from pymc_marketing.mmm.utils import (
     estimate_menten_parameters,
+    extended_sigmoid,
     generate_fourier_modes,
     michaelis_menten,
 )
@@ -84,9 +85,15 @@ def test_bad_order(n_order):
         )
 
 
-def test_michaelis_menten():
-    assert michaelis_menten(1, 2, 3) == 2 / 4
-    assert michaelis_menten(0, 2, 3) == 0
+@pytest.mark.parametrize(
+    "L, k, s, expected",
+    [
+        (1, 2, 3, 0.6),
+        (0, 2, 3, 0),
+    ],
+)
+def test_michaelis_menten(L, k, s, expected):
+    assert michaelis_menten(L, k, s) == expected
 
 
 @pytest.mark.parametrize(
@@ -114,7 +121,6 @@ def test_michaelis_menten():
             ),
             [1, 0.001],
         ),
-        # Test case 3:
     ],
 )
 def test_estimate_menten_parameters(
@@ -124,3 +130,38 @@ def test_estimate_menten_parameters(
         estimate_menten_parameters(channel, original_dataframe, contributions),
         expected_output,
     )
+
+
+@pytest.mark.parametrize(
+    "x, alpha, lam, expected",
+    [
+        # Test case 1: Test with x=0, alpha=1, lam=1, expected output is 0.5
+        (0, 1, 1, 0.5),
+        # Test case 2: Test with x=1, alpha=1, lam=1, expected output is approximately 0.731
+        (1, 1, 1, 0.731),
+        # Test case 3: Test with x=-1, alpha=1, lam=1, expected output is approximately 0.269
+        (-1, 1, 1, 0.269),
+        # Test case 4: Test with x=0, alpha=2, lam=1, expected output is 1
+        (0, 2, 1, 1),
+        # Test case 5: Test with x=0, alpha=1, lam=2, expected output is 0.5
+        (0, 1, 2, 0.5),
+    ],
+)
+def test_extended_sigmoid(x, alpha, lam, expected):
+    assert np.isclose(extended_sigmoid(x, alpha, lam), expected, atol=0.01)
+
+
+@pytest.mark.parametrize(
+    "x, alpha, lam",
+    [
+        # Test case 1: Test with x=0, alpha=0, lam=0, expected output is a ValueError
+        (0, 0, 0),
+        # Test case 2: Test with x=1, alpha=-1, lam=1, expected output is a ValueError
+        (1, -1, 1),
+        # Test case 3: Test with x=-1, alpha=1, lam=-1, expected output is a ValueError
+        (-1, 1, -1),
+    ],
+)
+def test_extended_sigmoid_value_errors(x, alpha, lam):
+    with pytest.raises(ValueError):
+        extended_sigmoid(x, alpha, lam)

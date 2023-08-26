@@ -5,11 +5,13 @@ import numpy as np
 from pandas import DataFrame
 from scipy.optimize import minimize
 
-from pymc_marketing.mmm.utils import michaelis_menten
+from pymc_marketing.mmm.utils import extense_sigmoid, michaelis_menten
 
 
 def calculate_expected_contribution(
-    parameters: Dict[str, Tuple[float, float]], optimal_budget: Dict[str, float]
+    method: str,
+    parameters: Dict[str, Tuple[float, float]],
+    optimal_budget: Dict[str, float],
 ) -> Dict[str, float]:
     """
     Calculate expected contributions using the Michaelis-Menten model.
@@ -38,8 +40,17 @@ def calculate_expected_contribution(
     contributions = {}
 
     for channel, budget in optimal_budget.items():
-        L, k = parameters[channel]
-        contributions[channel] = michaelis_menten(budget, L, k)
+        if method == "michaelis-menten":
+            L, k = parameters[channel]
+            contributions[channel] = michaelis_menten(budget, L, k)
+
+        elif method == "sigmoid":
+            alpha, lam = parameters[channel]
+            contributions[channel] = extense_sigmoid(budget, alpha, lam)
+
+        else:
+            raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")
+
         total_expected_contribution += contributions[channel]
 
     contributions["total"] = total_expected_contribution
@@ -48,7 +59,10 @@ def calculate_expected_contribution(
 
 
 def objective_distribution(
-    x: List[float], channels: List[str], parameters: Dict[str, Tuple[float, float]]
+    method: str,
+    x: List[float],
+    channels: List[str],
+    parameters: Dict[str, Tuple[float, float]],
 ) -> float:
     """
     Compute the total contribution for a given budget distribution.
@@ -75,13 +89,24 @@ def objective_distribution(
     sum_contributions = 0.0
 
     for channel, budget in zip(channels, x):
-        L, k = parameters[channel]
-        sum_contributions += michaelis_menten(budget, L, k)
+        if method == "michaelis-menten":
+            L, k = parameters[channel]
+            sum_contributions += michaelis_menten(budget, L, k)
+
+        elif method == "sigmoid":
+            alpha, lam = parameters[channel]
+            sum_contributions += extense_sigmoid(budget, alpha, lam)
+
+        else:
+            raise ValueError(
+                "`saturation_model` must be either 'michaelis-menten' or 'sigmoid'."
+            )
 
     return -1 * sum_contributions
 
 
 def optimize_budget_distribution(
+    method: str,
     total_budget: int,
     budget_ranges: Optional[Dict[str, Tuple[float, float]]],
     parameters: Dict[str, Tuple[float, float]],
@@ -90,12 +115,12 @@ def optimize_budget_distribution(
     """
     Optimize the budget allocation across channels to maximize total contribution.
 
-    Using the Michaelis-Menten model, this function seeks the best budget distribution across
+    Using the Michaelis-Menten or Sigmoid function, this function seeks the best budget distribution across
     channels that maximizes the total expected contribution.
 
     This function leverages the Sequential Least Squares Quadratic Programming (SLSQP) optimization
     algorithm to find the best budget distribution across channels that maximizes the total
-    expected contribution based on the Michaelis-Menten model.
+    expected contribution based on the Michaelis-Menten or Sigmoid functions.
 
     The optimization is constrained such that:
     1. The sum of budgets across all channels equals the total available budget.
@@ -141,7 +166,7 @@ def optimize_budget_distribution(
     result = minimize(
         objective_distribution,
         initial_guess,
-        args=(channels, parameters),
+        args=(method, channels, parameters),
         method="SLSQP",
         bounds=bounds,
         constraints=constraints,
@@ -151,6 +176,7 @@ def optimize_budget_distribution(
 
 
 def budget_allocator(
+    method: str,
     total_budget: int,
     channels: List[str],
     parameters: Dict[str, Tuple[float, float]],
@@ -158,13 +184,17 @@ def budget_allocator(
 ) -> DataFrame:
 
     optimal_budget = optimize_budget_distribution(
-        total_budget, budget_ranges, parameters, channels
+        method=method,
+        total_budget=total_budget,
+        budget_ranges=budget_ranges,
+        parameters=parameters,
+        channels=channels,
     )
 
     return DataFrame(
         {
             "estimated_contribution": calculate_expected_contribution(
-                parameters, optimal_budget
+                method, parameters, optimal_budget
             ),
             "optimal_budget": optimal_budget,
         }
