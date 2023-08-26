@@ -155,6 +155,14 @@ def optimize_budget_distribution(
             for channel in channels
         }
 
+    if method == "michaelis-menten":
+        method = "michaelis-menten"
+    elif method == "sigmoid":
+        method = "sigmoid"
+    else:
+        print(f"Debug `optimize_budget_distribution` : The method passed is {method}")
+        raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")
+
     initial_guess = [total_budget // len(channels)] * len(channels)
 
     bounds = [budget_ranges[channel] for channel in channels]
@@ -179,6 +187,8 @@ def budget_allocator(
     parameters: Dict[str, Tuple[float, float]],
     budget_ranges: Optional[Dict[str, Tuple[float, float]]],
 ) -> DataFrame:
+
+    print(f"Debug `budget_allocator` : The method passed is {method}")
 
     optimal_budget = optimize_budget_distribution(
         method=method,
