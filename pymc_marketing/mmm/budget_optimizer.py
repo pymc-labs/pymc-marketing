@@ -192,7 +192,7 @@ def budget_allocator(
     return DataFrame(
         {
             "estimated_contribution": calculate_expected_contribution(
-                method, parameters, optimal_budget
+                method=method, parameters=parameters, optimal_budget=optimal_budget
             ),
             "optimal_budget": optimal_budget,
         }
