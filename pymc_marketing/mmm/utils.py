@@ -78,7 +78,26 @@ def estimate_menten_parameters(
     original_dataframe,
     contributions,
 ) -> List[float]:
+    """
+    Estimate the parameters for the michaelis-menten function.
 
+    This function uses the scipy.optimize.curve_fit method to estimate the parameters
+    of the extended sigmoid function. The parameters are estimated by minimizing the
+    least squares error between the observed data and the values predicted by the
+    extended sigmoid function.
+
+    Parameters
+    ----------
+    x : array-like
+        The input data for which the parameters are to be estimated.
+    y : array-like
+        The observed data for which the parameters are to be estimated.
+
+    Returns
+    -------
+    List[float]
+        The estimated parameters of the extended sigmoid function.
+    """
     x = original_dataframe[channel].to_numpy()
     y = contributions.sel(channel=channel).to_numpy()
 
