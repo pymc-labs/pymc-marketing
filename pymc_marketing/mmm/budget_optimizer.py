@@ -180,8 +180,6 @@ def budget_allocator(
     budget_ranges: Optional[Dict[str, Tuple[float, float]]],
 ) -> DataFrame:
 
-    print(f"Debug `budget_allocator` : The method passed is {method}")
-
     optimal_budget = optimize_budget_distribution(
         method=method,
         total_budget=total_budget,
