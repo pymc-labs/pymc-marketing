@@ -11,7 +11,7 @@ from pymc_marketing.mmm.utils import extense_sigmoid, michaelis_menten
 def calculate_expected_contribution(
     method: str,
     parameters: Dict[str, Tuple[float, float]],
-    optimal_budget: Dict[str, float],
+    budget: Dict[str, float],
 ) -> Dict[str, float]:
     """
     Calculate expected contributions using the Michaelis-Menten model.
@@ -39,14 +39,14 @@ def calculate_expected_contribution(
     total_expected_contribution = 0.0
     contributions = {}
 
-    for channel, budget in optimal_budget.items():
+    for channel, channe_budget in budget.items():
         if method == "michaelis-menten":
             L, k = parameters[channel]
-            contributions[channel] = michaelis_menten(budget, L, k)
+            contributions[channel] = michaelis_menten(channe_budget, L, k)
 
         elif method == "sigmoid":
             alpha, lam = parameters[channel]
-            contributions[channel] = extense_sigmoid(budget, alpha, lam)
+            contributions[channel] = extense_sigmoid(channe_budget, alpha, lam)
 
         else:
             raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")
@@ -189,7 +189,7 @@ def budget_allocator(
     )
 
     expected_contribution = calculate_expected_contribution(
-        method=method, parameters=parameters, optimal_budget=optimal_budget
+        method=method, parameters=parameters, budget=optimal_budget
     )
 
     optimal_budget.update({"total": sum(optimal_budget.values())})
