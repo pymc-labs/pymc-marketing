@@ -59,8 +59,8 @@ def calculate_expected_contribution(
 
 
 def objective_distribution(
-    method: str,
     x: List[float],
+    method: str,
     channels: List[str],
     parameters: Dict[str, Tuple[float, float]],
 ) -> float:
@@ -162,9 +162,8 @@ def optimize_budget_distribution(
     constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
 
     result = minimize(
-        objective_distribution,
+        lambda x: objective_distribution(x, method, channels, parameters),
         initial_guess,
-        args=(method, channels, parameters),
         method="SLSQP",
         bounds=bounds,
         constraints=constraints,
@@ -189,11 +188,15 @@ def budget_allocator(
         channels=channels,
     )
 
+    expected_contribution = calculate_expected_contribution(
+        method=method, parameters=parameters, optimal_budget=optimal_budget
+    )
+
+    optimal_budget.update({"total": sum(optimal_budget.values())})
+
     return DataFrame(
         {
-            "estimated_contribution": calculate_expected_contribution(
-                method=method, parameters=parameters, optimal_budget=optimal_budget
-            ),
+            "estimated_contribution": expected_contribution,
             "optimal_budget": optimal_budget,
         }
     )
