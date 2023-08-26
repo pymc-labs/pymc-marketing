@@ -81,7 +81,7 @@ In the documentation, we provide some examples on how to use the CLV API. We use
 ---
 
 ## 📞 Schedule a Consultation
-Unlock your potential with a free 30-minute strategy session with our PyMC experts. Discover how open source solutions and pymc-marketing can elevate your media-mix models and customer lifetime value analyses. Boost your career and organization by making smarter, data-driven decisions. Don't wait—[claim your complimentary session](https://calendly.com/benjamin-vincent/pymc-marketing) today and lead the way in marketing and data science innovation.
+Unlock your potential with a free 30-minute strategy session with our PyMC experts. Discover how open source solutions and pymc-marketing can elevate your media-mix models and customer lifetime value analyses. Boost your career and organization by making smarter, data-driven decisions. Don't wait—[claim your complimentary session](https://calendly.com/niall-oulton) today and lead the way in marketing and data science innovation.
 
 ## Using PyMC-Marketing and how PyMC Labs can help you
 PyMC-Marketing uses the [Apache 2.0 licence](LICENSE) which permits commercial use, amongst other things.

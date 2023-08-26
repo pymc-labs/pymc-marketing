@@ -83,7 +83,7 @@ class BaseDelayedSaturatedMMM(MMM):
     def output_var(self):
         return "y"
 
-    def generate_and_preprocess_model_data(
+    def generate_and_preprocess_model_data(  # type: ignore
         self, X: Union[pd.DataFrame, pd.Series], y: pd.Series
     ) -> None:
         """
@@ -362,12 +362,17 @@ class BaseDelayedSaturatedMMM(MMM):
 
     @property
     def _serializable_model_config(self) -> Dict[str, Any]:
+        def ndarray_to_list(d: Dict) -> Dict:
+            new_d = d.copy()  # Copy the dictionary to avoid mutating the original one
+            for key, value in new_d.items():
+                if isinstance(value, np.ndarray):
+                    new_d[key] = value.tolist()
+                elif isinstance(value, dict):
+                    new_d[key] = ndarray_to_list(value)
+            return new_d
+
         serializable_config = self.model_config.copy()
-        if type(serializable_config["beta_channel"]["sigma"]) == np.ndarray:
-            serializable_config["beta_channel"]["sigma"] = serializable_config[
-                "beta_channel"
-            ]["sigma"].tolist()
-        return serializable_config
+        return ndarray_to_list(serializable_config)
 
     @classmethod
     def load(cls, fname: str):
@@ -393,8 +398,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
         filepath = Path(str(fname))
         idata = az.from_netcdf(filepath)
-        # needs to be converted, because json.loads was changing tuple to list
-        model_config = cls._convert_dims_to_tuple(
+        model_config = cls._model_config_formatting(
             json.loads(idata.attrs["model_config"])
         )
         model = cls(
@@ -455,34 +459,54 @@ class BaseDelayedSaturatedMMM(MMM):
         -------
         None
         """
+        new_channel_data: Optional[np.ndarray] = None
 
-        new_channel_data = None
         if isinstance(X, pd.DataFrame):
             try:
                 new_channel_data = X[self.channel_columns].to_numpy()
             except KeyError as e:
                 raise RuntimeError("New data must contain channel_data!", e)
         elif isinstance(X, np.ndarray):
-            new_channel_data = X  # type: ignore
+            new_channel_data = X
         else:
             raise TypeError("X must be either a pandas DataFrame or a numpy array")
 
-        target = None
+        data: Dict[str, Union[np.ndarray, Any]] = {"channel_data": new_channel_data}
+
         if y is not None:
             if isinstance(y, pd.Series):
-                target = y.values
+                data[
+                    "target"
+                ] = y.to_numpy()  # convert Series to numpy array explicitly
             elif isinstance(y, np.ndarray):
-                target = y
+                data["target"] = y
             else:
                 raise TypeError("y must be either a pandas Series or a numpy array")
 
         with self.model:
-            pm.set_data(
-                {
-                    "channel_data": new_channel_data,
-                    "target": target,
-                }
-            )
+            pm.set_data(data)
+
+    @classmethod
+    def _model_config_formatting(cls, model_config: Dict) -> Dict:
+        """
+        Because of json serialization, model_config values that were originally tuples or numpy are being encoded as lists.
+        This function converts them back to tuples and numpy arrays to ensure correct id encoding.
+        """
+
+        def format_nested_dict(d: Dict) -> Dict:
+            for key, value in d.items():
+                if isinstance(value, dict):
+                    d[key] = format_nested_dict(value)
+                elif isinstance(value, list):
+                    # Check if the key is "dims" to convert it to tuple
+                    if key == "dims":
+                        d[key] = tuple(value)
+                    # Convert all other lists to numpy arrays
+                    else:
+                        d[key] = np.array(value)
+            return d
+
+        return format_nested_dict(model_config.copy())
 
 
 class DelayedSaturatedMMM(

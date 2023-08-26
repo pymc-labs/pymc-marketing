@@ -74,6 +74,10 @@ def toy_mmm(request, toy_X, toy_y):
         def default_sampler_config(self):
             pass
 
+        @property
+        def output_var(self):
+            pass
+
         def _data_setter(self, X, y=None):
             pass
 

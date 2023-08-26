@@ -155,7 +155,7 @@ class BetaGeoModel(CLVModel):
             "r_prior": {"dist": "HalfFlat", "kwargs": {}},
         }
 
-    def build_model(
+    def build_model(  # type: ignore
         self,
     ) -> None:
         with pm.Model(coords=self.coords) as self.model:
@@ -294,13 +294,13 @@ class BetaGeoModel(CLVModel):
         derivation of the closed form solution is available in [2].
 
         .. math::
-            P\left\text{alive} \mid x, t_x, T, r, \alpha, a, b\right)
+            P\left( \text{alive} \mid x, t_x, T, r, \alpha, a, b \right)
             = 1 \Big/
                 \left\{
                     1 + \delta_{x>0} \frac{a}{b + x - 1}
                         \left(
-                            \frac{\alpha + T}{\alpha + t_x}^{r + x}
-                        \right)^{r x}
+                            \frac{\alpha + T}{\alpha + t_x}
+                        \right)^{r + x}
                 \right\}
         """
         T = np.asarray(T)

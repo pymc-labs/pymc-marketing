@@ -101,9 +101,8 @@ from pymc_marketing import mmm
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/datasets/mmm_example.csv"
 data = pd.read_csv(data_url, parse_dates=['date_week'])
 
-model = mmm.DelayedSaturatedMMM(
-    data=data,
-    target_column="y",
+)
+mmm = DelayedSaturatedMMM(
     date_column="date_week",
     channel_columns=["x1", "x2"],
     control_columns=[
@@ -116,13 +115,16 @@ model = mmm.DelayedSaturatedMMM(
         "cos_order_2",
     ],
     adstock_max_lag=8,
+    yearly_seasonality=2,
 )
 ```
 
 Initiate fitting and get a visualization of some of the outputs with:
 
 ```python
-model.fit()
+X = data.drop('y',axis=1)
+y = data['y']
+model.fit(X,y)
 model.plot_components_contributions();
 ```
 
@@ -141,10 +143,7 @@ data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data
 data = pd.read_csv(data_url)
 
 beta_geo_model = clv.BetaGeoModel(
-    customer_id=data.index,
-    frequency=data["frequency"],
-    recency=data["recency"],
-    T=data["T"],
+    data = data
 )
 
 beta_geo_model.fit()
@@ -152,7 +151,7 @@ beta_geo_model.fit()
 Once fitted, we can use the model to predict the number of future purchases for known customers, the probability that they are still alive, and get various visualizations plotted. See the Examples section for more on this.
 
 ## 📞 Schedule a Consultation
-Unlock your potential with a free 30-minute strategy session with our PyMC experts. Discover how open source solutions and pymc-marketing can elevate your media-mix models and customer lifetime value analyses. Boost your career and organization by making smarter, data-driven decisions. Don't wait—[claim your complimentary session](https://calendly.com/benjamin-vincent/pymc-marketing) today and lead the way in marketing and data science innovation.
+Unlock your potential with a free 30-minute strategy session with our PyMC experts. Discover how open source solutions and pymc-marketing can elevate your media-mix models and customer lifetime value analyses. Boost your career and organization by making smarter, data-driven decisions. Don't wait—[claim your complimentary session](https://calendly.com/niall-oulton) today and lead the way in marketing and data science innovation.
 
 ## Support
 

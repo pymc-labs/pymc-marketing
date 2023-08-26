@@ -14,7 +14,6 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import seaborn as sns
-from pymc_experimental.model_builder import ModelBuilder
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
@@ -32,6 +31,7 @@ from pymc_marketing.mmm.validating import (
     ValidateDateColumn,
     ValidateTargetColumn,
 )
+from pymc_marketing.model_builder import ModelBuilder
 
 __all__ = ("BaseMMM", "MMM")
 
@@ -279,7 +279,7 @@ class BaseMMM(ModelBuilder):
 
             ax.plot(
                 np.asarray(self.X[self.date_column]),
-                np.asarray(self.preprocessed_data["y"]),
+                np.asarray(self.preprocessed_data["y"]),  # type: ignore
                 color="black",
             )
             ax.set(
@@ -331,7 +331,7 @@ class BaseMMM(ModelBuilder):
             )
 
             target_to_plot: np.ndarray = np.asarray(
-                self.y if original_scale else self.preprocessed_data["y"]
+                self.y if original_scale else self.preprocessed_data["y"]  # type: ignore
             )
             ax.plot(
                 np.asarray(self.X[self.date_column]),
@@ -431,7 +431,7 @@ class BaseMMM(ModelBuilder):
             )
             ax.plot(
                 np.asarray(self.X[self.date_column]),
-                np.asarray(self.preprocessed_data["y"]),
+                np.asarray(self.preprocessed_data["y"]),  # type: ignore
                 color="black",
             )
             ax.legend(title="components", loc="center left", bbox_to_anchor=(1, 0.5))
