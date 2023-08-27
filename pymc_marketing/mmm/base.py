@@ -571,10 +571,10 @@ class BaseMMM(ModelBuilder):
                 upper_values = [upper_bound[k] for k in keys]
                 lower_values = [lower_bound[k] for k in keys]
                 ax.barh(
-                    positions, upper_values, height=bar_width, alpha=0.5, color=color
+                    positions, upper_values, height=bar_width, alpha=0.25, color=color
                 )
                 ax.barh(
-                    positions, lower_values, height=bar_width, alpha=0.5, color=color
+                    positions, lower_values, height=bar_width, alpha=0.35, color=color
                 )
 
             ax.barh(
