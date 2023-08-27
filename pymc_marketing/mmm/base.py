@@ -1,3 +1,4 @@
+import re
 from inspect import (
     getattr_static,
     isdatadescriptor,
@@ -479,6 +480,159 @@ class BaseMMM(ModelBuilder):
             dims=channel_contribution.dims,
             coords=channel_contribution.coords,
         )
+
+    def _estimate_budget_contribution_fit(
+        self, method: str, channel: str, budget: float
+    ) -> Tuple:
+
+        channel_contributions_quantiles = (
+            self.compute_channel_contribution_original_scale().quantile(
+                q=[0.05, 0.95], dim=["chain", "draw"]
+            )
+        )
+
+        # Estimate parameters based on the method
+        if method == "sigmoid":
+
+            alpha_limit_upper, lam_constant_upper = estimate_sigmoid_parameters(
+                channel, self.X, channel_contributions_quantiles.sel(quantile=0.95)
+            )
+            alpha_limit_lower, lam_constant_lower = estimate_sigmoid_parameters(
+                channel, self.X, channel_contributions_quantiles.sel(quantile=0.05)
+            )
+
+            fit_function = extense_sigmoid
+        elif method == "michaelis-menten":
+
+            alpha_limit_upper, lam_constant_upper = estimate_menten_parameters(
+                channel, self.X, channel_contributions_quantiles.sel(quantile=0.95)
+            )
+            alpha_limit_lower, lam_constant_lower = estimate_menten_parameters(
+                channel, self.X, channel_contributions_quantiles.sel(quantile=0.05)
+            )
+
+            fit_function = michaelis_menten
+        else:
+            raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")
+
+        y_fit_lower = fit_function(budget, alpha_limit_lower, lam_constant_lower)
+        y_fit_upper = fit_function(budget, alpha_limit_upper, lam_constant_upper)
+
+        return y_fit_lower, y_fit_upper
+
+    def plot_budget_scenearios(
+        self, *, base_data: Dict, method: str, **kwargs
+    ) -> plt.Figure:
+        """
+        Plots the budget and contribution bars side by side for multiple scenarios.
+
+        :param base_data: Base dictionary containing 'budget' and 'contribution'.
+        :param method: The method to use for estimating contribution fit ('sigmoid' or 'michaelis-menten').
+        :param scenarios_data: Additional dictionaries containing other scenarios.
+        """
+
+        scenarios_data = kwargs.get("scenarios_data", [])
+
+        fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(15, 6))
+        scenarios = [base_data] + list(scenarios_data)
+        num_scenarios = len(scenarios)
+        num_channels = len(base_data["contribution"]) - 1  # Excluding the 'total'
+        bar_width = (
+            0.8 / num_scenarios
+        )  # bar width calculated based on the number of scenarios
+
+        for keyword in ["contribution", "budget"]:
+            for key in list(
+                base_data.keys()
+            ):  # use list() to make a copy of keys for iteration
+                if re.search(keyword, key, re.IGNORECASE):
+                    base_data[keyword] = base_data.pop(key)
+                    break
+
+        num_channels = len(base_data["contribution"]) - 1
+
+        # Function to plot a single scenario
+        def plot_scenario(
+            ax,
+            data,
+            label,
+            color,
+            offset,
+            upper_bound=None,
+            lower_bound=None,
+            contribution=False,
+        ):
+            keys = sorted(k for k in data.keys() if k != "total")
+            positions = [i + offset for i in range(len(keys))]
+            values = [data[k] for k in keys]
+
+            if contribution:
+                upper_values = [upper_bound[k] for k in keys]
+                lower_values = [lower_bound[k] for k in keys]
+                ax.barh(
+                    positions, upper_values, height=bar_width, alpha=0.5, color=color
+                )
+                ax.barh(
+                    positions, lower_values, height=bar_width, alpha=0.5, color=color
+                )
+
+            ax.barh(
+                positions, values, height=bar_width, label=label, color=color, alpha=0.8
+            )
+
+        # Generate upper_bound and lower_bound dictionaries for each scenario
+        upper_bounds, lower_bounds = [], []
+        for scenario in scenarios:
+            upper_bound, lower_bound = {}, {}
+            for channel, budget in scenario["budget"].items():
+                if channel != "total":
+                    y_fit_lower, y_fit_upper = self._estimate_budget_contribution_fit(
+                        method, channel, budget
+                    )
+                    upper_bound[channel] = y_fit_upper
+                    lower_bound[channel] = y_fit_lower
+            upper_bounds.append(upper_bound)
+            lower_bounds.append(lower_bound)
+
+        # Plot all scenarios
+        for i, (scenario, upper_bound, lower_bound) in enumerate(
+            zip(scenarios, upper_bounds, lower_bounds)
+        ):
+            color = f"C{i}"
+            offset = i * bar_width - 0.4 + bar_width / 2
+            label = f"Scenario {i+1}" if i else "Initial"
+            plot_scenario(axes[0], scenario["budget"], label, color, offset)
+            plot_scenario(
+                axes[1],
+                scenario["contribution"],
+                label,
+                color,
+                offset,
+                upper_bound,
+                lower_bound,
+                True,
+            )
+
+        axes[0].set_title("Budget Optimization")
+        axes[0].set_xlabel("Budget")
+        axes[0].set_yticks(range(num_channels))
+        axes[0].set_yticklabels(
+            [k for k in sorted(base_data["budget"].keys()) if k != "total"]
+        )
+
+        axes[1].set_title("Contribution Optimization")
+        axes[1].set_xlabel("Contribution")
+        axes[1].set_yticks(range(num_channels))
+        axes[1].set_yticklabels(
+            [k for k in sorted(base_data["contribution"].keys()) if k != "total"]
+        )
+
+        axes[0].legend()
+        axes[1].legend()
+
+        plt.tight_layout()
+
+        return fig
 
     def _plot_response_curve_fit(
         self,
