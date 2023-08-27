@@ -520,6 +520,13 @@ class BaseMMM(ModelBuilder):
 
         return y_fit_lower, y_fit_upper
 
+    def _standardize_scenarios_dict_keys(self, d: Dict, keywords: list):
+        for keyword in keywords:
+            for key in list(d.keys()):
+                if re.search(keyword, key, re.IGNORECASE):
+                    d[keyword] = d.pop(key)
+                    break
+
     def plot_budget_scenearios(
         self, *, base_data: Dict, method: str, **kwargs
     ) -> plt.Figure:
@@ -532,23 +539,17 @@ class BaseMMM(ModelBuilder):
         """
 
         scenarios_data = kwargs.get("scenarios_data", [])
+        for scenario in scenarios_data:
+            self._standardize_scenarios_dict_keys(scenario, ["contribution", "budget"])
+
+        self._standardize_scenarios_dict_keys(base_data, ["contribution", "budget"])
 
         fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(15, 6))
         scenarios = [base_data] + list(scenarios_data)
         num_scenarios = len(scenarios)
-        num_channels = len(base_data["contribution"]) - 1  # Excluding the 'total'
         bar_width = (
             0.8 / num_scenarios
         )  # bar width calculated based on the number of scenarios
-
-        for keyword in ["contribution", "budget"]:
-            for key in list(
-                base_data.keys()
-            ):  # use list() to make a copy of keys for iteration
-                if re.search(keyword, key, re.IGNORECASE):
-                    base_data[keyword] = base_data.pop(key)
-                    break
-
         num_channels = len(base_data["contribution"]) - 1
 
         # Function to plot a single scenario
