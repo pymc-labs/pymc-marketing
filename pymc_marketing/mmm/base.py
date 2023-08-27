@@ -570,16 +570,32 @@ class BaseMMM(ModelBuilder):
             if contribution:
                 upper_values = [upper_bound[k] for k in keys]
                 lower_values = [lower_bound[k] for k in keys]
+
                 ax.barh(
                     positions, upper_values, height=bar_width, alpha=0.25, color=color
                 )
+
+                ax.barh(
+                    positions,
+                    values,
+                    height=bar_width,
+                    label=label,
+                    color=color,
+                    alpha=0.8,
+                )
+
                 ax.barh(
                     positions, lower_values, height=bar_width, alpha=0.35, color=color
                 )
-
-            ax.barh(
-                positions, values, height=bar_width, label=label, color=color, alpha=0.8
-            )
+            else:
+                ax.barh(
+                    positions,
+                    values,
+                    height=bar_width,
+                    label=label,
+                    color=color,
+                    alpha=0.8,
+                )
 
         # Generate upper_bound and lower_bound dictionaries for each scenario
         upper_bounds, lower_bounds = [], []
