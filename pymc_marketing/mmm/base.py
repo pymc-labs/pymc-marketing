@@ -581,7 +581,7 @@ class BaseMMM(ModelBuilder):
                     height=bar_width,
                     label=label,
                     color=color,
-                    alpha=0.8,
+                    alpha=0.5,
                 )
 
                 ax.barh(
@@ -594,7 +594,7 @@ class BaseMMM(ModelBuilder):
                     height=bar_width,
                     label=label,
                     color=color,
-                    alpha=0.8,
+                    alpha=0.5,
                 )
 
         # Generate upper_bound and lower_bound dictionaries for each scenario
