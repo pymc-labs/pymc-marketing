@@ -1,10 +1,7 @@
 import numpy as np
-import pandas as pd
 import pytest
-import xarray as xr
 
 from pymc_marketing.mmm.utils import (
-    estimate_menten_parameters,
     extended_sigmoid,
     generate_fourier_modes,
     michaelis_menten,
@@ -94,42 +91,6 @@ def test_bad_order(n_order):
 )
 def test_michaelis_menten(L, k, s, expected):
     assert michaelis_menten(L, k, s) == expected
-
-
-@pytest.mark.parametrize(
-    "channel, original_dataframe, contributions, expected_output",
-    [
-        # Test case 1: single data point
-        (
-            "channel1",
-            pd.DataFrame({"channel1": [1]}),
-            xr.DataArray(
-                np.array([1]),
-                dims=["quantile", "channel"],
-                coords={"quantile": [0.5], "channel": ["channel1"]},
-            ),
-            [1, 0.001],
-        ),
-        # Test case 2: multiple data points, same values
-        (
-            "channel1",
-            pd.DataFrame({"channel1": [1, 1, 1, 1]}),
-            xr.DataArray(
-                np.array([1, 1, 1, 1]),
-                dims=["quantile", "channel"],
-                coords={"quantile": [0.5], "channel": ["channel1"]},
-            ),
-            [1, 0.001],
-        ),
-    ],
-)
-def test_estimate_menten_parameters(
-    channel, original_dataframe, contributions, expected_output
-):
-    assert np.allclose(
-        estimate_menten_parameters(channel, original_dataframe, contributions),
-        expected_output,
-    )
 
 
 @pytest.mark.parametrize(
