@@ -579,7 +579,6 @@ class BaseMMM(ModelBuilder):
                     positions,
                     values,
                     height=bar_width,
-                    label=label,
                     color=color,
                     alpha=0.25,
                 )
@@ -644,10 +643,10 @@ class BaseMMM(ModelBuilder):
             [k for k in sorted(base_data["contribution"].keys()) if k != "total"]
         )
 
-        axes[0].legend()
-        axes[1].legend()
+        fig.suptitle("Budget and Contribution Optimization", fontsize=16, y=1.18)
+        fig.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=4)
 
-        plt.tight_layout()
+        plt.tight_layout(rect=[0, 0, 1, 0.98])
 
         return fig
 
