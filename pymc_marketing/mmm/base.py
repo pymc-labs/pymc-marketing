@@ -770,9 +770,9 @@ class BaseMMM(ModelBuilder):
         self,
         method: str,
         total_budget: int,
+        budget_bounds: Optional[Dict[str, Tuple[float, float]]] = None,
         *,
         parameters: Dict[str, Tuple[float, float]],
-        budget_bounds: Optional[Dict[str, Tuple[float, float]]],
     ) -> pd.DataFrame:
         """
         Optimize the allocation of a given total budget across multiple channels to maximize the expected contribution.
