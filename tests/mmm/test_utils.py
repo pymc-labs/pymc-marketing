@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from pymc_marketing.mmm.utils import (
-    extended_sigmoid,
+    extense_sigmoid,
     generate_fourier_modes,
     michaelis_menten,
 )
@@ -108,8 +108,8 @@ def test_michaelis_menten(L, k, s, expected):
         (0, 1, 2, 0.5),
     ],
 )
-def test_extended_sigmoid(x, alpha, lam, expected):
-    assert np.isclose(extended_sigmoid(x, alpha, lam), expected, atol=0.01)
+def test_extense_sigmoid(x, alpha, lam, expected):
+    assert np.isclose(extense_sigmoid(x, alpha, lam), expected, atol=0.01)
 
 
 @pytest.mark.parametrize(
@@ -123,6 +123,6 @@ def test_extended_sigmoid(x, alpha, lam, expected):
         (-1, 1, -1),
     ],
 )
-def test_extended_sigmoid_value_errors(x, alpha, lam):
+def test_extense_sigmoid_value_errors(x, alpha, lam):
     with pytest.raises(ValueError):
-        extended_sigmoid(x, alpha, lam)
+        extense_sigmoid(x, alpha, lam)
