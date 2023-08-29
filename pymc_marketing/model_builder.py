@@ -268,72 +268,6 @@ class ModelBuilder(ABC):
         """
         raise NotImplementedError
 
-    def sample_model(
-        self,
-        prior_predictive: bool = False,
-        posterior_predictive: bool = False,
-        prior_predictive_kwargs: Optional[Dict] = None,
-        posterior_predictive_kwargs: Optional[Dict] = None,
-        **sample_kwargs,
-    ) -> az.InferenceData:
-        """
-        Sample from the PyMC model.
-
-        Parameters
-        ----------
-        prior_predictive : bool, optional
-            If True, the inference data will be extended with samples drawn from the prior predictive distribution.
-            Defaults to False.
-        posterior_predictive : bool, optional
-            If True, the inference data will be extended with samples drawn from the posterior predictive distribution.
-            Defaults to False.
-        prior_predictive_kwargs : dict, optional
-            keyword arguments to pass to the PyMC prior predictive sampler.
-        posterior_predictive_kwargs : dict, optional
-            keyword arguments to pass to the PyMC posterior predictive sampler.
-
-        **kwargs : dict
-            Additional keyword arguments to pass to the PyMC sampler.
-        -------
-        xarray.Dataset
-            The PyMC samples dataset.
-
-        Raises
-        ------
-        RuntimeError
-            If the PyMC model hasn't been built yet.
-
-        Examples
-        --------
-        >>> self.build_model()
-        >>> idata = self.sample_model(draws=100, tune=10)
-
-        Returns
-        -------
-        idata : az.InferenceData
-            InferenceData object containing the samples.
-        """
-        if self.model is None:
-            raise RuntimeError(
-                "The model hasn't been built yet, call .build_model() first or call .fit() instead."
-            )
-        if prior_predictive_kwargs is None:
-            prior_predictive_kwargs = {}
-        if posterior_predictive_kwargs is None:
-            posterior_predictive_kwargs = {}
-        with self.model:
-            sampler_args = {**self.sampler_config, **sample_kwargs}
-            idata = pm.sample(**sampler_args)
-            if prior_predictive:
-                idata.extend(pm.sample_prior_predictive(**prior_predictive_kwargs))
-            if posterior_predictive:
-                idata.extend(
-                    pm.sample_posterior_predictive(idata, **posterior_predictive_kwargs)
-                )
-
-        idata = self.set_idata_attrs(idata)
-        return idata
-
     def set_idata_attrs(self, idata=None):
         """
         Set attributes on an InferenceData object.
@@ -487,7 +421,6 @@ class ModelBuilder(ABC):
         progressbar: bool = True,
         predictor_names: Optional[List[str]] = None,
         random_seed: Optional[RandomState] = None,
-        sample_kwargs: Optional[Dict] = None,
         **kwargs: Any,
     ) -> az.InferenceData:
         """
@@ -508,19 +441,6 @@ class ModelBuilder(ABC):
             allows for naming of predictors when given in a form of np.ndarray, if not provided the predictors will be named like predictor1, predictor2...
         random_seed : Optional[RandomState]
             Provides sampler with initial random seed for obtaining reproducible samples
-        sample_kwargs : Optional[Dict]
-            Allows for passing additional keyword arguments to the sample_model method
-            possible arguments are:
-            - prior_predictive_kwargs : dict, optional
-                keyword arguments to pass to the PyMC prior predictive sampler.
-            - posterior_predictive_kwargs : dict, optional
-                keyword arguments to pass to the PyMC posterior predictive sampler.
-            - prior_predictive : bool, optional
-                If True, the inference data will be extended with samples drawn from the prior predictive distribution.
-                Defaults to False.
-            - posterior_predictive : bool, optional
-                If True, the inference data will be extended with samples drawn from the posterior predictive distribution.
-                Defaults to False.
         **kwargs : Any
             Custom sampler settings can be provided in form of keyword arguments.
 
@@ -550,31 +470,11 @@ class ModelBuilder(ABC):
         sampler_config["random_seed"] = random_seed
         sampler_config.update(**kwargs)
 
-        prior_predictive_kwargs = {}
-        posterior_predictive_kwargs = {}
-        prior_predictive = False
-        posterior_predictive = False
-        if sample_kwargs is not None:
-            if "prior_predictive_kwargs" in sample_kwargs:
-                prior_predictive_kwargs = sample_kwargs.pop("prior_predictive_kwargs")
-            if "posterior_predictive_kwargs" in sample_kwargs:
-                posterior_predictive_kwargs = sample_kwargs.pop(
-                    "posterior_predictive_kwargs"
-                )
-            if "prior_predictive" in sample_kwargs:
-                prior_predictive = sample_kwargs.pop("prior_predictive")
-            if "posterior_predictive" in sample_kwargs:
-                posterior_predictive = sample_kwargs.pop("posterior_predictive")
-        if sample_kwargs is not None and len(sample_kwargs) > 0:
-            sampler_config.update(**sample_kwargs)
-        # Merge all arguments and pass to sample_model
-        self.idata = self.sample_model(
-            prior_predictive_kwargs=prior_predictive_kwargs,
-            posterior_predictive_kwargs=posterior_predictive_kwargs,
-            prior_predictive=prior_predictive,
-            posterior_predictive=posterior_predictive,
-            **sampler_config,
-        )
+        sampler_config.update(**kwargs)
+        if self.model is not None:
+            with self.model:
+                sampler_args = {**self.sampler_config, **kwargs}
+                self.idata = pm.sample(**sampler_args)
 
         X_df = pd.DataFrame(X, columns=X.columns)
         combined_data = pd.concat([X_df, y_df], axis=1)
@@ -586,7 +486,7 @@ class ModelBuilder(ABC):
                 message="The group fit_data is not defined in the InferenceData scheme",
             )
             self.idata.add_groups(fit_data=combined_data.to_xarray())  # type: ignore
-
+        self.set_idata_attrs(self.idata)
         return self.idata  # type: ignore
 
     def predict(

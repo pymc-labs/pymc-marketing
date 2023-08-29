@@ -61,15 +61,9 @@ def fitted_model_instance(toy_X, toy_y):
     )
     model.fit(
         toy_X,
-        sample_kwargs={
-            "prior_predictive_kwargs": {"samples": 100},
-            "posterior_predictive_kwargs": {"predictions": True},
-            "prior_predictive": True,
-            "posterior_predictive": True,
-            "chains": 1,
-            "draws": 100,
-            "tune": 100,
-        },
+        chains=1,
+        draws=100,
+        tune=100,
     )
     return model
 
@@ -195,7 +189,7 @@ def test_empty_sampler_config_fit(toy_X, toy_y):
     sampler_config = {}
     model_builder = test_ModelBuilder(sampler_config=sampler_config)
     model_builder.idata = model_builder.fit(
-        X=toy_X, y=toy_y, sample_kwargs={"chains": 1, "draws": 100, "tune": 100}
+        X=toy_X, y=toy_y, chains=1, draws=100, tune=100
     )
     assert model_builder.idata is not None
     assert "posterior" in model_builder.idata.groups()
@@ -204,9 +198,7 @@ def test_empty_sampler_config_fit(toy_X, toy_y):
 def test_fit(fitted_model_instance):
     assert fitted_model_instance.idata is not None
     assert "posterior" in fitted_model_instance.idata.groups()
-    assert "predictions" in fitted_model_instance.idata.groups()
-    assert "prior" in fitted_model_instance.idata.groups()
-    assert fitted_model_instance.idata.prior.dims["draw"] == 100
+    assert fitted_model_instance.idata.posterior.dims["draw"] == 100
 
     prediction_data = pd.DataFrame(
         {"input": np.random.uniform(low=0, high=1, size=100)}
@@ -220,9 +212,7 @@ def test_fit(fitted_model_instance):
 
 def test_fit_no_y(toy_X):
     model_builder = test_ModelBuilder()
-    model_builder.idata = model_builder.fit(
-        X=toy_X, sample_kwargs={"chains": 1, "draws": 100, "tune": 100}
-    )
+    model_builder.idata = model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
     assert model_builder.model is not None
     assert model_builder.idata is not None
     assert "posterior" in model_builder.idata.groups()
@@ -270,11 +260,6 @@ def test_model_config_formatting():
     converted_model_config = model_builder._model_config_formatting(model_config)
     np.testing.assert_equal(converted_model_config["a"]["dims"], ("x",))
     np.testing.assert_equal(converted_model_config["a"]["loc"], np.array([0, 0]))
-
-
-def test_not_build_model_raises_runtime_error(not_fitted_model_instance):
-    with pytest.raises(RuntimeError):
-        not_fitted_model_instance.sample_model()
 
 
 def test_id():
