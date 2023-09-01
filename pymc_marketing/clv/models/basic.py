@@ -293,7 +293,7 @@ class CLVModel(ModelBuilder):
     def output_var(self):
         pass
 
-    def generate_and_preprocess_model_data(
+    def _generate_and_preprocess_model_data(
         self,
         X: Union[pd.DataFrame, pd.Series],
         y: Union[pd.Series, np.ndarray[Any, Any]],

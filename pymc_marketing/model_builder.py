@@ -50,7 +50,7 @@ class ModelBuilder(ABC):
     version = "None"
 
     X: Optional[pd.DataFrame] = None
-    y: Optional[pd.Series] = None
+    y: Optional[Union[pd.Series, np.ndarray]] = None
 
     def __init__(
         self,
@@ -195,15 +195,16 @@ class ModelBuilder(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def generate_and_preprocess_model_data(
-        self,
-        X: Union[pd.DataFrame, pd.Series],
-        y: Union[pd.Series, np.ndarray[Any, Any]],
+    def _generate_and_preprocess_model_data(
+        self, X: Union[pd.DataFrame, pd.Series], y: np.ndarray
     ) -> None:
         """
         Applies preprocessing to the data before fitting the model.
         if validate is True, it will check if the data is valid for the model.
         sets self.model_coords based on provided dataset
+
+        In case of optional parameters being passed into the model, this method should implement the conditional
+        logic responsible for correct handling of the optional parameters, and including them into the dataset.
 
         Parameters:
         X : array, shape (n_obs, n_features)
@@ -212,11 +213,10 @@ class ModelBuilder(ABC):
         Examples
         --------
         >>>     @classmethod
-        >>>     def generate_and_preprocess_model_data(self, X, y):
-        >>>         x = np.linspace(start=1, stop=50, num=100)
-        >>>         y = 5 * x + 3 + np.random.normal(0, 1, len(x)) * np.random.rand(100)*10 +  np.random.rand(100)*6.4
-        >>>         X = pd.DataFrame(x, columns=['x'])
-        >>>         y = pd.Series(y, name='y')
+        >>>     def _generate_and_preprocess_model_data(self, X, y):
+                    coords = {
+                        'x_dim': X.dim_variable,
+                    } #only include if applicable for your model
         >>>         self.X = X
         >>>         self.y = y
 
@@ -231,7 +231,7 @@ class ModelBuilder(ABC):
     def build_model(
         self,
         X: pd.DataFrame,
-        y: pd.Series,
+        y: Union[pd.Series, np.ndarray],
         **kwargs,
     ) -> None:
         """
@@ -246,7 +246,7 @@ class ModelBuilder(ABC):
             only contain the necessary data columns, not the entire available dataset, as this
             will be encoded into the data used to recreate the model.
 
-        y : pd.Series
+        y : Union[pd.Series, np.ndarray]
             The target data for the model. This should be a Series representing the output
             or dependent variable for the model.
 
@@ -267,49 +267,6 @@ class ModelBuilder(ABC):
             This is an abstract method and must be implemented in a subclass.
         """
         raise NotImplementedError
-
-    def sample_model(self, **kwargs):
-        """
-        Sample from the PyMC model.
-
-        Parameters
-        ----------
-        **kwargs : dict
-            Additional keyword arguments to pass to the PyMC sampler.
-
-        Returns
-        -------
-        xarray.Dataset
-            The PyMC samples dataset.
-
-        Raises
-        ------
-        RuntimeError
-            If the PyMC model hasn't been built yet.
-
-        Examples
-        --------
-        >>> self.build_model()
-        >>> idata = self.sample_model(draws=100, tune=10)
-        >>> assert isinstance(idata, xr.Dataset)
-        >>> assert "posterior" in idata
-        >>> assert "prior" in idata
-        >>> assert "observed_data" in idata
-        >>> assert "log_likelihood" in idata
-        """
-        if self.model is None:
-            raise RuntimeError(
-                "The model hasn't been built yet, call .build_model() first or call .fit() instead."
-            )
-
-        with self.model:
-            sampler_args = {**self.sampler_config, **kwargs}
-            idata = pm.sample(**sampler_args)
-            idata.extend(pm.sample_prior_predictive())
-            idata.extend(pm.sample_posterior_predictive(idata))
-
-        idata = self.set_idata_attrs(idata)
-        return idata
 
     def set_idata_attrs(self, idata=None):
         """
@@ -334,11 +291,6 @@ class ModelBuilder(ABC):
         >>> model = MyModel(ModelBuilder)
         >>> idata = az.InferenceData(your_dataset)
         >>> model.set_idata_attrs(idata=idata)
-        >>> assert "id" in idata.attrs #this and the following lines are part of doctest, not user manual
-        >>> assert "model_type" in idata.attrs
-        >>> assert "version" in idata.attrs
-        >>> assert "sampler_config" in idata.attrs
-        >>> assert "model_config" in idata.attrs
         """
         if idata is None:
             idata = self.idata
@@ -381,7 +333,7 @@ class ModelBuilder(ABC):
         >>>     def __init__(self):
         >>>         super().__init__()
         >>> model = MyModel()
-        >>> model.fit(data)
+        >>> model.fit(X,y)
         >>> model.save('model_results.nc')  # This will call the overridden method in MyModel
         """
         if self.idata is not None and "posterior" in self.idata:
@@ -468,7 +420,7 @@ class ModelBuilder(ABC):
         y: Optional[Union[pd.Series, np.ndarray]] = None,
         progressbar: bool = True,
         predictor_names: Optional[List[str]] = None,
-        random_seed: RandomState = None,
+        random_seed: Optional[RandomState] = None,
         **kwargs: Any,
     ) -> az.InferenceData:
         """
@@ -484,10 +436,10 @@ class ModelBuilder(ABC):
             The target values (real numbers).
         progressbar : bool
             Specifies whether the fit progressbar should be displayed
-        predictor_names: List[str] = None,
+        predictor_names: Optional[List[str]] = None,
             Allows for custom naming of predictors given in a form of 2dArray
             allows for naming of predictors when given in a form of np.ndarray, if not provided the predictors will be named like predictor1, predictor2...
-        random_seed : RandomState
+        random_seed : Optional[RandomState]
             Provides sampler with initial random seed for obtaining reproducible samples
         **kwargs : Any
             Custom sampler settings can be provided in form of keyword arguments.
@@ -499,7 +451,7 @@ class ModelBuilder(ABC):
         Examples
         --------
         >>> model = MyModel()
-        >>> idata = model.fit(data)
+        >>> idata = model.fit(X,y)
         Auto-assigning NUTS sampler...
         Initializing NUTS using jitter+adapt_diag...
         """
@@ -508,7 +460,7 @@ class ModelBuilder(ABC):
         if y is None:
             y = np.zeros(X.shape[0])
         y_df = pd.DataFrame({self.output_var: y})
-        self.generate_and_preprocess_model_data(X, y_df.values.flatten())
+        self._generate_and_preprocess_model_data(X, y_df.values.flatten())
         if self.X is None or self.y is None:
             raise ValueError("X and y must be set before calling build_model!")
         self.build_model(self.X, self.y)
@@ -517,7 +469,12 @@ class ModelBuilder(ABC):
         sampler_config["progressbar"] = progressbar
         sampler_config["random_seed"] = random_seed
         sampler_config.update(**kwargs)
-        self.idata = self.sample_model(**sampler_config)
+
+        sampler_config.update(**kwargs)
+        if self.model is not None:
+            with self.model:
+                sampler_args = {**self.sampler_config, **kwargs}
+                self.idata = pm.sample(**sampler_args)
 
         X_df = pd.DataFrame(X, columns=X.columns)
         combined_data = pd.concat([X_df, y_df], axis=1)
@@ -529,7 +486,7 @@ class ModelBuilder(ABC):
                 message="The group fit_data is not defined in the InferenceData scheme",
             )
             self.idata.add_groups(fit_data=combined_data.to_xarray())  # type: ignore
-
+        self.set_idata_attrs(self.idata)
         return self.idata  # type: ignore
 
     def predict(
@@ -558,7 +515,7 @@ class ModelBuilder(ABC):
         Examples
         --------
         >>> model = MyModel()
-        >>> idata = model.fit(data)
+        >>> idata = model.fit(X,y)
         >>> x_pred = []
         >>> prediction_data = pd.DataFrame({'input':x_pred})
         >>> pred_mean = model.predict(prediction_data)
