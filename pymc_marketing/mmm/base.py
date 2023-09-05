@@ -484,7 +484,31 @@ class BaseMMM(ModelBuilder):
     def _estimate_budget_contribution_fit(
         self, method: str, channel: str, budget: float
     ) -> Tuple:
+        """
+        Estimate the lower and upper bounds of the contribution fit for a given channel and budget.
+        This function computes the quantiles (0.05 & 0.95) of the channel contributions, estimates the parameters of the fit function based on the specified method (either 'sigmoid' or 'michaelis-menten'), and calculates the lower and upper bounds of the contribution fit.
+        The function is used in the `plot_budget_scenearios` function to estimate the contribution fit for each channel and budget scenario.
+        The estimated fit is then used to plot the contribution optimization bounds for each scenario.
 
+        Parameters
+        ----------
+        method : str
+            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
+        channel : str
+            The name of the channel for which the contribution fit is being estimated.
+        budget : float
+            The budget for the channel.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the lower and upper bounds of the contribution fit.
+
+        Raises
+        ------
+        ValueError
+            If the method is not 'sigmoid' or 'michaelis-menten'.
+        """
         channel_contributions_quantiles = (
             self.compute_channel_contribution_original_scale().quantile(
                 q=[0.05, 0.95], dim=["chain", "draw"]
@@ -521,11 +545,99 @@ class BaseMMM(ModelBuilder):
         return y_fit_lower, y_fit_upper
 
     def _standardize_scenarios_dict_keys(self, d: Dict, keywords: list):
+        """
+        Standardize the keys in a dictionary based on a list of keywords.
+
+        This function iterates over the keys in the dictionary and the keywords. If a keyword is found in a key (case-insensitive),
+        the key is replaced with the keyword.
+
+        Parameters
+        ----------
+        d : dict
+            The dictionary whose keys are to be standardized.
+        keywords : list
+            The list of keywords to standardize the keys to.
+
+        Returns
+        -------
+        None
+            The function modifies the given dictionary in-place and doesn't return any object.
+        """
         for keyword in keywords:
             for key in list(d.keys()):
                 if re.search(keyword, key, re.IGNORECASE):
                     d[keyword] = d.pop(key)
                     break
+
+    def _plot_scenario(
+        self,
+        ax,
+        data,
+        label,
+        color,
+        offset,
+        bar_width,
+        upper_bound=None,
+        lower_bound=None,
+        contribution=False,
+    ):
+        """
+        Plot a single scenario (bar-plot) on a given axes.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            The axes on which to plot the scenario.
+        data : dict
+            Dictionary containing the data for the scenario. Keys are the names of the channels and values are the corresponding values.
+        label : str
+            Label for the scenario.
+        color : str
+            Color to use for the bars in the plot.
+        offset : float
+            Offset to apply to the positions of the bars in the plot.
+        bar_width: float
+            Bar width.
+        upper_bound : dict, optional
+            Dictionary containing the upper bounds for the data. Keys should match those in the `data` dictionary. Only used if `contribution` is True.
+        lower_bound : dict, optional
+            Dictionary containing the lower bounds for the data. Keys should match those in the `data` dictionary. Only used if `contribution` is True.
+        contribution : bool, optional
+            If True, plot the upper and lower bounds for the data. Default is False.
+
+        Returns
+        -------
+        None
+            The function adds a plot to the provided axes object in-place and doesn't return any object.
+        """
+        keys = sorted(k for k in data.keys() if k != "total")
+        positions = [i + offset for i in range(len(keys))]
+        values = [data[k] for k in keys]
+
+        if contribution:
+            upper_values = [upper_bound[k] for k in keys]
+            lower_values = [lower_bound[k] for k in keys]
+
+            ax.barh(positions, upper_values, height=bar_width, alpha=0.25, color=color)
+
+            ax.barh(
+                positions,
+                values,
+                height=bar_width,
+                color=color,
+                alpha=0.25,
+            )
+
+            ax.barh(positions, lower_values, height=bar_width, alpha=0.35, color=color)
+        else:
+            ax.barh(
+                positions,
+                values,
+                height=bar_width,
+                label=label,
+                color=color,
+                alpha=0.85,
+            )
 
     def plot_budget_scenearios(
         self, *, base_data: Dict, method: str, **kwargs
@@ -533,9 +645,20 @@ class BaseMMM(ModelBuilder):
         """
         Plots the budget and contribution bars side by side for multiple scenarios.
 
-        :param base_data: Base dictionary containing 'budget' and 'contribution'.
-        :param method: The method to use for estimating contribution fit ('sigmoid' or 'michaelis-menten').
-        :param scenarios_data: Additional dictionaries containing other scenarios.
+        Parameters
+        ----------
+        base_data : dict
+            Base dictionary containing 'budget' and 'contribution'.
+        method : str
+            The method to use for estimating contribution fit ('sigmoid' or 'michaelis-menten').
+        scenarios_data : list of dict, optional
+            Additional dictionaries containing other scenarios.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+            The resulting figure object.
+
         """
 
         scenarios_data = kwargs.get("scenarios_data", [])
@@ -551,50 +674,6 @@ class BaseMMM(ModelBuilder):
             0.8 / num_scenarios
         )  # bar width calculated based on the number of scenarios
         num_channels = len(base_data["contribution"]) - 1
-
-        # Function to plot a single scenario
-        def plot_scenario(
-            ax,
-            data,
-            label,
-            color,
-            offset,
-            upper_bound=None,
-            lower_bound=None,
-            contribution=False,
-        ):
-            keys = sorted(k for k in data.keys() if k != "total")
-            positions = [i + offset for i in range(len(keys))]
-            values = [data[k] for k in keys]
-
-            if contribution:
-                upper_values = [upper_bound[k] for k in keys]
-                lower_values = [lower_bound[k] for k in keys]
-
-                ax.barh(
-                    positions, upper_values, height=bar_width, alpha=0.25, color=color
-                )
-
-                ax.barh(
-                    positions,
-                    values,
-                    height=bar_width,
-                    color=color,
-                    alpha=0.25,
-                )
-
-                ax.barh(
-                    positions, lower_values, height=bar_width, alpha=0.35, color=color
-                )
-            else:
-                ax.barh(
-                    positions,
-                    values,
-                    height=bar_width,
-                    label=label,
-                    color=color,
-                    alpha=0.35,
-                )
 
         # Generate upper_bound and lower_bound dictionaries for each scenario
         upper_bounds, lower_bounds = [], []
@@ -617,13 +696,16 @@ class BaseMMM(ModelBuilder):
             color = f"C{i}"
             offset = i * bar_width - 0.4 + bar_width / 2
             label = f"Scenario {i+1}" if i else "Initial"
-            plot_scenario(axes[0], scenario["budget"], label, color, offset)
-            plot_scenario(
+            self._plot_scenario(
+                axes[0], scenario["budget"], label, color, offset, bar_width
+            )
+            self._plot_scenario(
                 axes[1],
                 scenario["contribution"],
                 label,
                 color,
                 offset,
+                bar_width,
                 upper_bound,
                 lower_bound,
                 True,

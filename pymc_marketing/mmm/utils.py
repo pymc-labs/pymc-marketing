@@ -70,6 +70,10 @@ def extense_sigmoid(x, alpha, lam) -> float:
         λ (lambda): affects how quickly the function approaches its upper and lower asymptotes. A higher value of
         lam makes the curve steeper, while a lower value makes it more gradual.
     """
+
+    if alpha <= 0 or lam <= 0:
+        raise ValueError("alpha and lam must be greater than 0")
+
     return (alpha - alpha * np.exp(-lam * x)) / (1 + np.exp(-lam * x))
 
 
