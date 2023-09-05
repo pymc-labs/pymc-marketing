@@ -832,7 +832,6 @@ class BaseMMM(ModelBuilder):
         ax.plot(
             x_inflection,
             y_inflection,
-            "go",
             color=f"C{color_index}",
             markerfacecolor="white",
         )
@@ -983,7 +982,7 @@ class BaseMMM(ModelBuilder):
                 x = self.X[self.channel_columns].to_numpy()[:, i]
                 y = channel_contributions.sel(channel=channel).to_numpy()
 
-                ax.scatter(x, y, label=f"{channel}", color=f"C{i}")
+                ax.scatter(x, y, label="Data Points", color=f"C{i}")
 
                 if show_fit:
                     self._plot_response_curve_fit(
