@@ -1,4 +1,3 @@
-import re
 from inspect import (
     getattr_static,
     isdatadescriptor,
@@ -26,6 +25,7 @@ from pymc_marketing.mmm.utils import (
     extense_sigmoid,
     find_sigmoid_inflection_point,
     michaelis_menten,
+    standardize_scenarios_dict_keys,
 )
 from pymc_marketing.mmm.validating import (
     ValidateChannelColumns,
@@ -486,9 +486,12 @@ class BaseMMM(ModelBuilder):
     ) -> Tuple:
         """
         Estimate the lower and upper bounds of the contribution fit for a given channel and budget.
-        This function computes the quantiles (0.05 & 0.95) of the channel contributions, estimates the parameters of the fit function based on the specified method (either 'sigmoid' or 'michaelis-menten'), and calculates the lower and upper bounds of the contribution fit.
-        The function is used in the `plot_budget_scenearios` function to estimate the contribution fit for each channel and budget scenario.
-        The estimated fit is then used to plot the contribution optimization bounds for each scenario.
+        This function computes the quantiles (0.05 & 0.95) of the channel contributions, estimates
+        the parameters of the fit function based on the specified method (either 'sigmoid' or 'michaelis-menten'),
+        and calculates the lower and upper bounds of the contribution fit.
+
+        The function is used in the `plot_budget_scenearios` function to estimate the contribution fit for each channel
+        and budget scenario. The estimated fit is then used to plot the contribution optimization bounds for each scenario.
 
         Parameters
         ----------
@@ -517,57 +520,25 @@ class BaseMMM(ModelBuilder):
 
         # Estimate parameters based on the method
         if method == "sigmoid":
-
-            alpha_limit_upper, lam_constant_upper = estimate_sigmoid_parameters(
-                channel, self.X, channel_contributions_quantiles.sel(quantile=0.95)
-            )
-            alpha_limit_lower, lam_constant_lower = estimate_sigmoid_parameters(
-                channel, self.X, channel_contributions_quantiles.sel(quantile=0.05)
-            )
-
+            estimate_function = estimate_menten_parameters
             fit_function = extense_sigmoid
         elif method == "michaelis-menten":
-
-            alpha_limit_upper, lam_constant_upper = estimate_menten_parameters(
-                channel, self.X, channel_contributions_quantiles.sel(quantile=0.95)
-            )
-            alpha_limit_lower, lam_constant_lower = estimate_menten_parameters(
-                channel, self.X, channel_contributions_quantiles.sel(quantile=0.05)
-            )
-
+            estimate_function = estimate_sigmoid_parameters
             fit_function = michaelis_menten
         else:
             raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")
+
+        alpha_limit_upper, lam_constant_upper = estimate_function(
+            channel, self.X, channel_contributions_quantiles.sel(quantile=0.95)
+        )
+        alpha_limit_lower, lam_constant_lower = estimate_function(
+            channel, self.X, channel_contributions_quantiles.sel(quantile=0.05)
+        )
 
         y_fit_lower = fit_function(budget, alpha_limit_lower, lam_constant_lower)
         y_fit_upper = fit_function(budget, alpha_limit_upper, lam_constant_upper)
 
         return y_fit_lower, y_fit_upper
-
-    def _standardize_scenarios_dict_keys(self, d: Dict, keywords: list):
-        """
-        Standardize the keys in a dictionary based on a list of keywords.
-
-        This function iterates over the keys in the dictionary and the keywords. If a keyword is found in a key (case-insensitive),
-        the key is replaced with the keyword.
-
-        Parameters
-        ----------
-        d : dict
-            The dictionary whose keys are to be standardized.
-        keywords : list
-            The list of keywords to standardize the keys to.
-
-        Returns
-        -------
-        None
-            The function modifies the given dictionary in-place and doesn't return any object.
-        """
-        for keyword in keywords:
-            for key in list(d.keys()):
-                if re.search(keyword, key, re.IGNORECASE):
-                    d[keyword] = d.pop(key)
-                    break
 
     def _plot_scenario(
         self,
@@ -663,9 +634,9 @@ class BaseMMM(ModelBuilder):
 
         scenarios_data = kwargs.get("scenarios_data", [])
         for scenario in scenarios_data:
-            self._standardize_scenarios_dict_keys(scenario, ["contribution", "budget"])
+            standardize_scenarios_dict_keys(scenario, ["contribution", "budget"])
 
-        self._standardize_scenarios_dict_keys(base_data, ["contribution", "budget"])
+        standardize_scenarios_dict_keys(base_data, ["contribution", "budget"])
 
         fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(15, 6))
         scenarios = [base_data] + list(scenarios_data)
@@ -906,7 +877,9 @@ class BaseMMM(ModelBuilder):
             budget_ranges=budget_bounds,
         )
 
-    def compute_channel_curve_parameters_original_scale(self, method: str) -> Dict:
+    def compute_channel_curve_optimization_parameters_original_scale(
+        self, method: str
+    ) -> Dict:
         """
         Estimate the parameters for the saturating function of each channel's contribution.
 

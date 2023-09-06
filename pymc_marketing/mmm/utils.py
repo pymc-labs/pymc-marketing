@@ -1,4 +1,5 @@
-from typing import Any, List, Tuple
+import re
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -217,3 +218,29 @@ def find_sigmoid_inflection_point(alpha, lam) -> Tuple[Any, float]:
     y_inflection = extense_sigmoid(x_inflection, alpha, lam)
 
     return x_inflection, y_inflection
+
+
+def standardize_scenarios_dict_keys(d: Dict, keywords: List[str]):
+    """
+    Standardize the keys in a dictionary based on a list of keywords.
+
+    This function iterates over the keys in the dictionary and the keywords. If a keyword is found in a key (case-insensitive),
+    the key is replaced with the keyword.
+
+    Parameters
+    ----------
+    d : dict
+        The dictionary whose keys are to be standardized.
+    keywords : list
+        The list of keywords to standardize the keys to.
+
+    Returns
+    -------
+    None
+        The function modifies the given dictionary in-place and doesn't return any object.
+    """
+    for keyword in keywords:
+        for key in list(d.keys()):
+            if re.search(keyword, key, re.IGNORECASE):
+                d[keyword] = d.pop(key)
+                break
