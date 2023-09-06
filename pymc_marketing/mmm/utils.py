@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -39,7 +39,11 @@ def generate_fourier_modes(
     )
 
 
-def michaelis_menten(x, alpha, lam) -> float:
+def michaelis_menten(
+    x: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
+) -> Union[float, Any]:
     """
     Calculate the Michaelis-Menten function value.
 
@@ -61,7 +65,11 @@ def michaelis_menten(x, alpha, lam) -> float:
     return alpha * x / (lam + x)
 
 
-def extense_sigmoid(x, alpha, lam) -> float:
+def extense_sigmoid(
+    x: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
+) -> Union[float, Any]:
     """
     Parameters
     ----------
