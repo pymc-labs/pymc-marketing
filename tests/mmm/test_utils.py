@@ -83,29 +83,21 @@ def test_bad_order(n_order):
 
 
 @pytest.mark.parametrize(
-    "L, k, s, expected",
+    "x, alpha, lam, expected",
     [
-        (1, 2, 3, 0.6),
-        (0, 2, 3, 0),
+        (10, 100, 5, 66.67),
+        (20, 100, 5, 80),
     ],
 )
-def test_michaelis_menten(L, k, s, expected):
-    assert michaelis_menten(L, k, s) == expected
+def test_michaelis_menten(x, alpha, lam, expected):
+    assert np.isclose(michaelis_menten(x, alpha, lam), expected, atol=0.01)
 
 
 @pytest.mark.parametrize(
     "x, alpha, lam, expected",
     [
-        # Test case 1: Test with x=0, alpha=1, lam=1, expected output is 0.5
-        (0, 1, 1, 0.5),
-        # Test case 2: Test with x=1, alpha=1, lam=1, expected output is approximately 0.731
-        (1, 1, 1, 0.731),
-        # Test case 3: Test with x=-1, alpha=1, lam=1, expected output is approximately 0.269
-        (-1, 1, 1, 0.269),
-        # Test case 4: Test with x=0, alpha=2, lam=1, expected output is 1
-        (0, 2, 1, 1),
-        # Test case 5: Test with x=0, alpha=1, lam=2, expected output is 0.5
-        (0, 1, 2, 0.5),
+        (0, 1, 1, 0),
+        (1, 1, 1, 0.4621),
     ],
 )
 def test_extense_sigmoid(x, alpha, lam, expected):
@@ -115,12 +107,9 @@ def test_extense_sigmoid(x, alpha, lam, expected):
 @pytest.mark.parametrize(
     "x, alpha, lam",
     [
-        # Test case 1: Test with x=0, alpha=0, lam=0, expected output is a ValueError
-        (0, 0, 0),
-        # Test case 2: Test with x=1, alpha=-1, lam=1, expected output is a ValueError
+        (0, 0, 1),
         (1, -1, 1),
-        # Test case 3: Test with x=-1, alpha=1, lam=-1, expected output is a ValueError
-        (-1, 1, -1),
+        (1, 1, 0),
     ],
 )
 def test_extense_sigmoid_value_errors(x, alpha, lam):
