@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Tuple, Union
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import xarray as xr
 from scipy.optimize import curve_fit, minimize_scalar
 
 
@@ -45,16 +46,24 @@ def michaelis_menten(
     lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
 ) -> Union[float, Any]:
     """
-    Calculate the Michaelis-Menten function value.
+    Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
+
+    The Michaelis-Menten function is a type of mathematical saturation function commonly used in
+    enzyme kinetics, but it's also applicable in marketing mix models to describe
+    how different channels contribute to a certain outcome (e.g., sales or conversions)
+    as the spending on that channel increases and the contribution saturates.
+
+    Mathematically, it is described as:
+    α * x / (λ + x)
 
     Parameters
     ----------
     x : float
         The spent on a channel.
     alpha (Limit/Vmax) : float
-        The maximum contribution a channel can make (also known as the plateau point).
+        The maximum contribution a channel can make.
     lam (k) : float
-        The elbow on the function in `x` (Point where the curve change their direction)
+        The elbow on the function in `x` (Point where the curve change their direction).
 
     Returns
     -------
@@ -88,23 +97,26 @@ def extense_sigmoid(
 
 def estimate_menten_parameters(
     channel: str,
-    original_dataframe,
-    contributions,
+    original_dataframe: Union[pd.DataFrame, Any],
+    contributions: xr.DataArray,
 ) -> List[float]:
     """
-    Estimate the parameters for the michaelis-menten function.
+    Estimate the parameters for the Michaelis-Menten function using curve fitting.
 
-    This function uses the scipy.optimize.curve_fit method to estimate the parameters
-    of the extended sigmoid function. The parameters are estimated by minimizing the
-    least squares error between the observed data and the values predicted by the
-    extended sigmoid function.
+    This function extracts the relevant data for the specified channel from both
+    the original_dataframe and contributions DataArray resulting from the model.
+    It then utilizes scipy's curve_fit method to find the optimal parameters for
+    an Menten function, aiming to minimize the least squares difference between
+    the observed and predicted data.
 
     Parameters
     ----------
-    x : array-like
-        The input data for which the parameters are to be estimated.
-    y : array-like
-        The observed data for which the parameters are to be estimated.
+    channel : str
+        The name of the marketing channel for which parameters are to be estimated.
+    original_dataframe : Union[pd.DataFrame, Any]
+        The original DataFrame containing the channel data.
+    contributions : xr.DataArray
+        An xarray DataArray containing the contributions data, indexed by channel.
 
     Returns
     -------
@@ -124,22 +136,28 @@ def estimate_menten_parameters(
 
 
 def estimate_sigmoid_parameters(
-    channel: str, original_dataframe, contributions, **kwargs
+    channel: str,
+    original_dataframe: Union[pd.DataFrame, Any],
+    contributions: xr.DataArray,
+    **kwargs,
 ) -> List[float]:
     """
-    Estimate the parameters for the extended sigmoid function.
+    Estimate the parameters for the sigmoid function using curve fitting.
 
-    This function uses the scipy.optimize.curve_fit method to estimate the parameters
-    of the extended sigmoid function. The parameters are estimated by minimizing the
-    least squares error between the observed data and the values predicted by the
-    extended sigmoid function.
+    This function extracts the relevant data for the specified channel from both
+    the original_dataframe and contributions DataArray resulting from the model.
+    It then utilizes scipy's curve_fit method to find the optimal parameters for
+    an sigmoid function, aiming to minimize the least squares difference between
+    the observed and predicted data.
 
     Parameters
     ----------
-    x : array-like
-        The input data for which the parameters are to be estimated.
-    y : array-like
-        The observed data for which the parameters are to be estimated.
+    channel : str
+        The name of the marketing channel for which parameters are to be estimated.
+    original_dataframe : Union[pd.DataFrame, Any]
+        The original DataFrame containing the channel data.
+    contributions : xr.DataArray
+        An xarray DataArray containing the contributions data, indexed by channel.
 
     Returns
     -------
@@ -163,7 +181,11 @@ def estimate_sigmoid_parameters(
     return popt
 
 
-def compute_sigmoid_second_derivative(x, alpha, lam) -> float:
+def compute_sigmoid_second_derivative(
+    x: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
+) -> Union[float, Any]:
     """
     Compute the second derivative of the extended sigmoid function.
 
@@ -185,7 +207,7 @@ def compute_sigmoid_second_derivative(x, alpha, lam) -> float:
     float
         The second derivative of the sigmoid function at the input value.
     """
-    # Compute the second derivative
+
     return (
         -alpha
         * lam**2
@@ -195,7 +217,10 @@ def compute_sigmoid_second_derivative(x, alpha, lam) -> float:
     )
 
 
-def find_sigmoid_inflection_point(alpha, lam) -> Tuple[Any, float]:
+def find_sigmoid_inflection_point(
+    alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
+) -> Tuple[Any, float]:
     """
     Find the inflection point of the extended sigmoid function.
 
