@@ -204,15 +204,16 @@ class BaseMMM(ModelBuilder):
         >>> data = pd.DataFrame({"x1": [1, 2, 3], "y": [4, 5, 6]})
         >>> self.preprocess("X", data)
         """
+        data_cp = data.copy()
         if target == "X":
             for method in self.preprocessing_methods[0]:
-                data = method(self, data)
+                data_cp = method(self, data_cp)
         elif target == "y":
             for method in self.preprocessing_methods[1]:
-                data = method(self, data)
+                data_cp = method(self, data_cp)
         else:
             raise ValueError("Target must be either 'X' or 'y'")
-        return data
+        return data_cp
 
     def get_target_transformer(self) -> Pipeline:
         try:
