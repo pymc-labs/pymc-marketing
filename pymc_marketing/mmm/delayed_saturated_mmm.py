@@ -173,6 +173,7 @@ class BaseDelayedSaturatedMMM(MMM):
             The PyMC model object containing all the defined stochastic and deterministic variables.
         """
         model_config = self.model_config
+        self._generate_and_preprocess_model_data(X, y)
         with pm.Model(coords=self.model_coords) as self.model:
             channel_data_ = pm.MutableData(
                 name="channel_data",
