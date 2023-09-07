@@ -331,7 +331,9 @@ class TestDelayedSaturatedMMM:
     def test_channel_contributions_forward_pass_recovers_contribution(
         self, mmm_fitted: DelayedSaturatedMMM
     ) -> None:
-        channel_data = mmm_fitted.X[mmm_fitted.channel_columns].to_numpy()
+        channel_data = mmm_fitted.preprocessed_data["X"][
+            mmm_fitted.channel_columns
+        ].to_numpy()
         channel_contributions_forward_pass = (
             mmm_fitted.channel_contributions_forward_pass(channel_data=channel_data)
         )
@@ -356,7 +358,9 @@ class TestDelayedSaturatedMMM:
     def test_channel_contributions_forward_pass_is_consistent(
         self, mmm_fitted: DelayedSaturatedMMM
     ) -> None:
-        channel_data = mmm_fitted.X[mmm_fitted.channel_columns].to_numpy()
+        channel_data = mmm_fitted.preprocessed_data["X"][
+            mmm_fitted.channel_columns
+        ].to_numpy()
         channel_contributions_forward_pass = (
             mmm_fitted.channel_contributions_forward_pass(channel_data=channel_data)
         )
