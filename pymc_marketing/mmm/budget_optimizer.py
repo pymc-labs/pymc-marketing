@@ -14,26 +14,39 @@ def calculate_expected_contribution(
     budget: Dict[str, float],
 ) -> Dict[str, float]:
     """
-    Calculate expected contributions using the Michaelis-Menten model.
+    Calculate expected contributions using the specified model.
 
-    The Michaelis-Menten model describes the relationship between the allocated budget and
-    its expected contribution. As the budget increases, the contribution initially rises quickly
-    but eventually plateaus, highlighting diminishing returns on investment.
+    This function calculates the expected contributions for each channel
+    based on the chosen model. The selected model can be either the Michaelis-Menten
+    model or the sigmoid model, each described by specific parameters.
+    As the allocated budget varies, the expected contribution is computed according
+    to the chosen model.
 
     Parameters
     ----------
+    method : str
+        The model to use for contribution estimation. Choose from 'michaelis-menten' or 'sigmoid'.
     parameters : Dict
-        The Michaelis-Menten parameters for each channel. Each entry is a tuple (L, k) where:
+        Model-specific parameters for each channel. For 'michaelis-menten', each entry is a tuple (L, k) where:
         - L is the maximum potential contribution.
         - k is the budget at which the contribution is half of its maximum.
-    optimal_budget : Dict
-        The optimized budget allocations for each channel.
+
+        For 'sigmoid', each entry is a tuple (alpha, lam) where:
+        - alpha controls the slope of the curve.
+        - lam is the budget at which the curve transitions.
+    budget : Dict
+        The total budget.
 
     Returns
     -------
     Dict
         A dictionary with channels as keys and their respective contributions as values.
-        The key 'total' contains the total expected contribution.
+        The key 'total' contains the total expected contribution across all channels.
+
+    Raises
+    ------
+    ValueError
+        If the specified `method` is not recognized.
     """
 
     total_expected_contribution = 0.0
