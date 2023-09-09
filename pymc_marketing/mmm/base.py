@@ -520,10 +520,10 @@ class BaseMMM(ModelBuilder):
 
         # Estimate parameters based on the method
         if method == "sigmoid":
-            estimate_function = estimate_menten_parameters
+            estimate_function = estimate_sigmoid_parameters
             fit_function = extense_sigmoid
         elif method == "michaelis-menten":
-            estimate_function = estimate_sigmoid_parameters
+            estimate_function = estimate_menten_parameters
             fit_function = michaelis_menten
         else:
             raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")

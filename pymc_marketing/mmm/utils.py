@@ -99,6 +99,7 @@ def estimate_menten_parameters(
     channel: str,
     original_dataframe: Union[pd.DataFrame, Any],
     contributions: xr.DataArray,
+    **kwargs,
 ) -> List[float]:
     """
     Estimate the parameters for the Michaelis-Menten function using curve fitting.
