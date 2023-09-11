@@ -34,13 +34,13 @@ $$
 y_{t} = \alpha + \sum_{m=1}^{M}\beta_{m}f(x_{m, t}) +  \sum_{c=1}^{C}\gamma_{c}z_{c, t} + \varepsilon_{t},
 $$
 
-where $\alpha$ is the intercept, $f$ is a media transformation function and $\varepsilon_{t}$ is the error therm which we assume is normally distributed. The function $f$ encodes the contribution of media on the target variable. Typically we consider two types of transformation: adstock (carry-over) and saturation effects.
+where $\alpha$ is the intercept, $f$ is a media transformation function and $\varepsilon_{t}$ is the error therm which we assume is normally distributed. The function $f$ encodes the contribution of media on the target variable. Typically, we consider two types of transformation: adstock (carry-over) and saturation effects.
 
 [Here](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) you can find a simulated example:
 
-1. First, we describe the data genaration process of a simulated dataset.
+1. First, we describe the data generation process of a simulated dataset.
 2. Next, we describe how to specify and fit a media mix model (as described above) using the `pymc-marketing` MMM's API.
-3. Finally, we describe the model results: channel constribution and ROAS estimation. We also show how the model recovers the parameters from the data generation process step.
+3. Finally, we describe the model results: channel contribution and ROAS estimation. We also show how the model recovers the parameters from the data generation process step.
 
 ### References:
 
@@ -68,7 +68,7 @@ To explain further:
 
 - **Non-contractual:** In non-contractual settings, there is no ongoing contract that a customer has with a company. Instead, purchases can be ad hoc and churn events are unobserved.
 
-- **Discrete:** Here, purchases are made at discrete points in time. This obviously depends upon the timescale that we are working on, but typically a relevant time period would be a month or year. However it could be more granualar than this - think of taking the 2nd of 4 inter-city train journeys offered per day.
+- **Discrete:** Here, purchases are made at discrete points in time. This obviously depends upon the timescale that we are working on, but typically a relevant time period would be a month or year. However it could be more granular than this - think of taking the 2nd of 4 inter-city train journeys offered per day.
 
 - **Continuous:** In the continuous-time domain, purchases can be made at any point within a firms opening hours. For online ordering, this could be any point within a 24 hour cycle, or purchases in physical stores could be made at any point during the trading day.
 
