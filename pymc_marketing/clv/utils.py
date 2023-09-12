@@ -168,6 +168,8 @@ def _find_first_transactions(
 
     if isinstance(observation_period_end, pd.Period):
         observation_period_end = observation_period_end.to_timestamp()
+    if isinstance(observation_period_end, str):
+        observation_period_end = pd.to_datetime(observation_period_end)
 
     if monetary_value_col:
         select_columns.append(monetary_value_col)
@@ -182,7 +184,7 @@ def _find_first_transactions(
         transactions.set_index(datetime_col).to_period(time_unit).to_timestamp()
     )
 
-    mask = pd.DatetimeIndex(transactions.index) <= observation_period_end
+    mask = pd.to_datetime(transactions.index) <= pd.to_datetime(observation_period_end)
 
     transactions = transactions.loc[mask].reset_index()
 

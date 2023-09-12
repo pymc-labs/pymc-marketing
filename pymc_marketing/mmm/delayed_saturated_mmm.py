@@ -351,7 +351,7 @@ class BaseDelayedSaturatedMMM(MMM):
         Parameters
         ----------
         channel_data : array-like
-            Input channel data.
+            Input channel data. Result of all the preprocessing steps.
         Returns
         -------
         array-like
@@ -550,7 +550,7 @@ class DelayedSaturatedMMM(
         Parameters
         ----------
         channel_data : array-like
-            Input channel data.
+            Input channel data. Result of all the preprocessing steps.
         Returns
         -------
         array-like
@@ -591,10 +591,7 @@ class DelayedSaturatedMMM(
         channel_contributions = []
         for delta in share_grid:
             channel_data = (
-                delta
-                * self.max_abs_scale_channel_data(data=self.X)[
-                    self.channel_columns
-                ].to_numpy()
+                delta * self.preprocessed_data["X"][self.channel_columns].to_numpy()
             )
             channel_contribution_forward_pass = self.channel_contributions_forward_pass(
                 channel_data=channel_data
