@@ -59,10 +59,10 @@ class BetaGeoModel(CLVModel):
                 "recency":[30.73, 1.72, 0., 0., ...]
             }),
             model_config={
-                "r_prior": pm.Gamma.dist(alpha=0.1, beta=0.1),
-                "alpha_prior": pm.Gamma.dist(alpha=0.1, beta=0.1),
-                "a_prior": pm.Gamma.dist(alpha=0.1, beta=0.1),
-                "b_prior": pm.Gamma.dist(alpha=0.1, beta=0.1),
+                "r": pm.Gamma.dist(alpha=0.1, beta=0.1),
+                "alpha": pm.Gamma.dist(alpha=0.1, beta=0.1),
+                "a": pm.Gamma.dist(alpha=0.1, beta=0.1),
+                "b": pm.Gamma.dist(alpha=0.1, beta=0.1),
             },
             sampler_config={
                 "draws": 1000,
