@@ -128,9 +128,9 @@ def estimate_menten_parameters(
     y = contributions.sel(channel=channel).to_numpy()
 
     # Initial guess for L and k
-    initial_guess = [max(y), 0.001]
+    initial_guess = [max(y), 0.0001]
     # Curve fitting
-    popt, pcov = curve_fit(michaelis_menten, x, y, p0=initial_guess)
+    popt, pcov = curve_fit(michaelis_menten, x, y, p0=initial_guess, maxfev=5000)
 
     # Save the parameters
     return popt
