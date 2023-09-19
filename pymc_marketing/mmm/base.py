@@ -757,13 +757,19 @@ class BaseMMM(ModelBuilder):
         # Estimate parameters based on the method
         if method == "sigmoid":
             alpha_limit, lam_constant = estimate_sigmoid_parameters(
-                channel, self.X, channel_contributions
+                channel=channel,
+                original_dataframe=self.X,
+                contributions=channel_contributions,
             )
             alpha_limit_upper, lam_constant_upper = estimate_sigmoid_parameters(
-                channel, self.X, channel_contributions_quantiles.sel(quantile=0.95)
+                channel=channel,
+                original_dataframe=self.X,
+                contributions=channel_contributions_quantiles.sel(quantile=0.95),
             )
             alpha_limit_lower, lam_constant_lower = estimate_sigmoid_parameters(
-                channel, self.X, channel_contributions_quantiles.sel(quantile=0.05)
+                channel=channel,
+                original_dataframe=self.X,
+                contributions=channel_contributions_quantiles.sel(quantile=0.05),
             )
 
             x_inflection, y_inflection = find_sigmoid_inflection_point(
@@ -772,13 +778,19 @@ class BaseMMM(ModelBuilder):
             fit_function = extense_sigmoid
         elif method == "michaelis-menten":
             alpha_limit, lam_constant = estimate_menten_parameters(
-                channel, self.X, channel_contributions
+                channel=channel,
+                original_dataframe=self.X,
+                contributions=channel_contributions,
             )
             alpha_limit_upper, lam_constant_upper = estimate_menten_parameters(
-                channel, self.X, channel_contributions_quantiles.sel(quantile=0.95)
+                channel=channel,
+                original_dataframe=self.X,
+                contributions=channel_contributions_quantiles.sel(quantile=0.95),
             )
             alpha_limit_lower, lam_constant_lower = estimate_menten_parameters(
-                channel, self.X, channel_contributions_quantiles.sel(quantile=0.05)
+                channel=channel,
+                original_dataframe=self.X,
+                contributions=channel_contributions_quantiles.sel(quantile=0.05),
             )
 
             y_inflection = michaelis_menten(lam_constant, alpha_limit, lam_constant)
