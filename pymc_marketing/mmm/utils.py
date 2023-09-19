@@ -96,9 +96,9 @@ def extense_sigmoid(
 
 
 def estimate_menten_parameters(
-    channel: str,
+    channel: Union[str, Any],
     original_dataframe: Union[pd.DataFrame, Any],
-    contributions: xr.DataArray,
+    contributions: Union[xr.DataArray, Any],
     **kwargs,
 ) -> List[float]:
     """
@@ -124,22 +124,27 @@ def estimate_menten_parameters(
     List[float]
         The estimated parameters of the extended sigmoid function.
     """
-    x = original_dataframe[channel].to_numpy()
-    y = contributions.sel(channel=channel).to_numpy()
+    maxfev = kwargs.get("maxfev", 5000)
+    lam_initial_estimate = kwargs.get("lam_initial_estimate", 0.001)
+
+    x = kwargs.get("x", original_dataframe[channel].to_numpy())
+    y = kwargs.get("y", contributions.sel(channel=channel).to_numpy())
+
+    alpha_initial_estimate = kwargs.get("alpha_initial_estimate", max(y))
 
     # Initial guess for L and k
-    initial_guess = [max(y), 0.0001]
+    initial_guess = [alpha_initial_estimate, lam_initial_estimate]
     # Curve fitting
-    popt, pcov = curve_fit(michaelis_menten, x, y, p0=initial_guess, maxfev=5000)
+    popt, pcov = curve_fit(michaelis_menten, x, y, p0=initial_guess, maxfev=maxfev)
 
     # Save the parameters
     return popt
 
 
 def estimate_sigmoid_parameters(
-    channel: str,
+    channel: Union[str, Any],
     original_dataframe: Union[pd.DataFrame, Any],
-    contributions: xr.DataArray,
+    contributions: Union[xr.DataArray, Any],
     **kwargs,
 ) -> List[float]:
     """
@@ -165,18 +170,22 @@ def estimate_sigmoid_parameters(
     List[float]
         The estimated parameters of the extended sigmoid function.
     """
-    x = original_dataframe[channel].to_numpy()
-    y = contributions.sel(channel=channel).to_numpy()
+    maxfev = kwargs.get("maxfev", 5000)
+    lam_initial_estimate = kwargs.get("lam_initial_estimate", 0.00001)
 
-    alpha_initial_estimate = 3 * max(y)
+    x = kwargs.get("x", original_dataframe[channel].to_numpy())
+    y = kwargs.get("y", contributions.sel(channel=channel).to_numpy())
+
+    alpha_initial_estimate = kwargs.get("alpha_initial_estimate", 3 * max(y))
 
     parameter_bounds_modified = ([0, 0], [alpha_initial_estimate, np.inf])
     popt, _ = curve_fit(
         extense_sigmoid,
         x,
         y,
-        p0=[alpha_initial_estimate, 0.001],
+        p0=[alpha_initial_estimate, lam_initial_estimate],
         bounds=parameter_bounds_modified,
+        maxfev=maxfev,
     )
 
     return popt
