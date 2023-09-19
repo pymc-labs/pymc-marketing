@@ -76,6 +76,8 @@ class TestBasePlotting:
             X=toy_X,
             y=toy_y,
         )
+        mmm.sample_prior_predictive(toy_X, toy_y, extend_idata=True, combined=True)
+        mmm.sample_posterior_predictive(toy_X, extend_idata=True, combined=True)
         mmm._prior_predictive = mmm.prior_predictive
         mmm._fit_result = mmm.fit_result
         mmm._posterior_predictive = mmm.posterior_predictive

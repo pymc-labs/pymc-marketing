@@ -42,7 +42,7 @@ class BaseMMM(ModelBuilder):
         **kwargs,
     ) -> None:
         self.X: Optional[pd.DataFrame] = None
-        self.y: Optional[pd.Series] = None
+        self.y: Optional[Union[pd.Series, np.ndarray]] = None
         self.date_column: str = date_column
         self.channel_columns: Union[List[str], Tuple[str]] = channel_columns
         self.n_channel: int = len(channel_columns)
@@ -69,8 +69,8 @@ class BaseMMM(ModelBuilder):
     def validation_methods(
         self,
     ) -> Tuple[
-        List[Callable[["BaseMMM", Union[pd.DataFrame, pd.Series]], None]],
-        List[Callable[["BaseMMM", Union[pd.DataFrame, pd.Series]], None]],
+        List[Callable[["BaseMMM", Union[pd.DataFrame, pd.Series, np.ndarray]], None]],
+        List[Callable[["BaseMMM", Union[pd.DataFrame, pd.Series, np.ndarray]], None]],
     ]:
         """
         A property that provides validation methods for features ("X") and the target variable ("y").
@@ -98,7 +98,9 @@ class BaseMMM(ModelBuilder):
             ],
         )
 
-    def validate(self, target: str, data: Union[pd.DataFrame, pd.Series]) -> None:
+    def validate(
+        self, target: str, data: Union[pd.DataFrame, pd.Series, np.ndarray]
+    ) -> None:
         """
         Validates the input data based on the specified target type.
 
@@ -110,7 +112,7 @@ class BaseMMM(ModelBuilder):
         target : str
             The type of target to be validated.
             Expected values are "X" for features and "y" for the target variable.
-        data : Union[pd.DataFrame, pd.Series]
+        data : Union[pd.DataFrame, pd.Series, np.ndarray]
             The input data to be validated.
 
         Raises
@@ -134,14 +136,14 @@ class BaseMMM(ModelBuilder):
     ) -> Tuple[
         List[
             Callable[
-                ["BaseMMM", Union[pd.DataFrame, pd.Series]],
-                Union[pd.DataFrame, pd.Series],
+                ["BaseMMM", Union[pd.DataFrame, pd.Series, np.ndarray]],
+                Union[pd.DataFrame, pd.Series, np.ndarray],
             ]
         ],
         List[
             Callable[
-                ["BaseMMM", Union[pd.DataFrame, pd.Series]],
-                Union[pd.DataFrame, pd.Series],
+                ["BaseMMM", Union[pd.DataFrame, pd.Series, np.ndarray]],
+                Union[pd.DataFrame, pd.Series, np.ndarray],
             ]
         ],
     ]:
@@ -171,8 +173,8 @@ class BaseMMM(ModelBuilder):
         )
 
     def preprocess(
-        self, target: str, data: Union[pd.DataFrame, pd.Series]
-    ) -> Union[pd.DataFrame, pd.Series]:
+        self, target: str, data: Union[pd.DataFrame, pd.Series, np.ndarray]
+    ) -> Union[pd.DataFrame, pd.Series, np.ndarray]:
         """
         Preprocess the provided data according to the specified target.
 
@@ -184,12 +186,12 @@ class BaseMMM(ModelBuilder):
         target : str
             Indicates whether the data represents features ("X") or the target variable ("y").
 
-        data : pd.DataFrame
+        data : Union[pd.DataFrame, pd.Series, np.ndarray]
             The data to be preprocessed.
 
         Returns
         -------
-        Union[pd.DataFrame, pd.Series]
+        Union[pd.DataFrame, pd.Series, np.ndarray]
             The preprocessed data.
 
         Raises
@@ -202,15 +204,16 @@ class BaseMMM(ModelBuilder):
         >>> data = pd.DataFrame({"x1": [1, 2, 3], "y": [4, 5, 6]})
         >>> self.preprocess("X", data)
         """
+        data_cp = data.copy()
         if target == "X":
             for method in self.preprocessing_methods[0]:
-                data = method(self, data)
+                data_cp = method(self, data_cp)
         elif target == "y":
             for method in self.preprocessing_methods[1]:
-                data = method(self, data)
+                data_cp = method(self, data_cp)
         else:
             raise ValueError("Target must be either 'X' or 'y'")
-        return data
+        return data_cp
 
     def get_target_transformer(self) -> Pipeline:
         try:
