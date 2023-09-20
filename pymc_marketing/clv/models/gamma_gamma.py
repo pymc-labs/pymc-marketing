@@ -195,9 +195,9 @@ class GammaGammaModel(BaseGammaGammaModel):
                     "frequency": [6, 8, 2, 1, ...],
                 }),
                 model_config={
-                    "p_prior": {dist: 'HalfNorm', kwargs: {}},
-                    "q_prior": {dist: 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
-                    "v_prior": {dist: 'HalfCauchy', kwargs: {}},
+                    "p_prior": {'dist': 'HalfNormal', kwargs: {}},
+                    "q_prior": {'dist': 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
+                    "v_prior": {'dist': 'HalfCauchy', kwargs: {"beta":1}},
                 },
                 sampler_config={
                     "draws": 1000,
