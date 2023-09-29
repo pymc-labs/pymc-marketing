@@ -617,7 +617,7 @@ class BaseMMM(ModelBuilder):
         self, *, base_data: Dict, method: str, **kwargs
     ) -> plt.Figure:
         """
-        Plots the budget and contribution bars side by side for multiple scenarios.
+        Experimental: Plots the budget and contribution bars side by side for multiple scenarios.
 
         Parameters
         ----------
@@ -842,7 +842,7 @@ class BaseMMM(ModelBuilder):
         parameters: Dict[str, Tuple[float, float]],
     ) -> pd.DataFrame:
         """
-        Optimize the allocation of a given total budget across multiple channels to maximize the expected contribution.
+        Experimental: Optimize the allocation of a given total budget across multiple channels to maximize the expected contribution.
 
         The optimization is based on the method provided, where each channel's contribution
         follows a saturating function of its allocated budget. The function seeks the budget allocation
@@ -896,7 +896,7 @@ class BaseMMM(ModelBuilder):
         self, method: str
     ) -> Dict:
         """
-        Estimate the parameters for the saturating function of each channel's contribution.
+        Experimental: Estimate the parameters for the saturating function of each channel's contribution.
 
         The function estimates the parameters (alpha, constant) for each channel based on the specified method (either 'sigmoid' or 'michaelis-menten').
         These parameters represent the maximum possible contribution (alpha) and the constant parameter which vary their definition based on the function (constant) for each channel.
