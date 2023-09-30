@@ -1,3 +1,4 @@
+import warnings
 from inspect import (
     getattr_static,
     isdatadescriptor,
@@ -485,7 +486,7 @@ class BaseMMM(ModelBuilder):
         )
 
     def _estimate_budget_contribution_fit(
-        self, method: str, channel: str, budget: float
+        self, channel: str, budget: float, method: str = "sigmoid"
     ) -> Tuple:
         """
         Estimate the lower and upper bounds of the contribution fit for a given channel and budget.
@@ -614,7 +615,7 @@ class BaseMMM(ModelBuilder):
             )
 
     def plot_budget_scenearios(
-        self, *, base_data: Dict, method: str, **kwargs
+        self, *, base_data: Dict, method: str = "sigmoid", **kwargs
     ) -> plt.Figure:
         """
         Experimental: Plots the budget and contribution bars side by side for multiple scenarios.
@@ -884,6 +885,8 @@ class BaseMMM(ModelBuilder):
                 "The 'parameters' argument (keyword-only) must be provided and non-empty."
             )
 
+        warnings.warn("This budget allocator method is experimental", UserWarning)
+
         return budget_allocator(
             method=method,
             total_budget=total_budget,
@@ -893,7 +896,7 @@ class BaseMMM(ModelBuilder):
         )
 
     def compute_channel_curve_optimization_parameters_original_scale(
-        self, method: str
+        self, method: str = "sigmoid"
     ) -> Dict:
         """
         Experimental: Estimate the parameters for the saturating function of each channel's contribution.
@@ -912,6 +915,10 @@ class BaseMMM(ModelBuilder):
             A dictionary where keys are channel names and values are tuples (L, k) representing the
             parameters for each channel based on the method used.
         """
+        warnings.warn(
+            "The curve optimization parameters method is experimental", UserWarning
+        )
+
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
         )
