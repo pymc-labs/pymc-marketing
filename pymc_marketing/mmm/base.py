@@ -486,7 +486,7 @@ class BaseMMM(ModelBuilder):
         )
 
     def _estimate_budget_contribution_fit(
-        self, channel: str, budget: float, method: str = "sigmoid"
+        self, channel: str, budget: float, method: str
     ) -> Tuple:
         """
         Estimate the lower and upper bounds of the contribution fit for a given channel and budget.
@@ -615,7 +615,7 @@ class BaseMMM(ModelBuilder):
             )
 
     def plot_budget_scenearios(
-        self, *, base_data: Dict, method: str = "sigmoid", **kwargs
+        self, *, base_data: Dict, method: str, **kwargs
     ) -> plt.Figure:
         """
         Experimental: Plots the budget and contribution bars side by side for multiple scenarios.
