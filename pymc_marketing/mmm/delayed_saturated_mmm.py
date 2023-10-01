@@ -383,7 +383,7 @@ class BaseDelayedSaturatedMMM(MMM):
         channel_contribution_forward_pass = (
             beta_channel_posterior_expanded * logistic_saturation_posterior
         )
-        return channel_contribution_forward_pass.eval()
+        return channel_contribution_forward_pass
 
     @property
     def _serializable_model_config(self) -> Dict[str, Any]:
@@ -564,7 +564,7 @@ class DelayedSaturatedMMM(
             excluded=[1, 2],
             signature="(m, n) -> (m, n)",
         )
-        return target_transformed_vectorized(channel_contribution_forward_pass)
+        return target_transformed_vectorized(channel_contribution_forward_pass).eval()
 
     def get_channel_contributions_forward_pass_grid(
         self, start: float, stop: float, num: int
@@ -596,7 +596,7 @@ class DelayedSaturatedMMM(
             channel_contribution_forward_pass = self.channel_contributions_forward_pass(
                 channel_data=channel_data
             )
-            channel_contributions.append(channel_contribution_forward_pass)
+            channel_contributions.append(channel_contribution_forward_pass.eval())
         return DataArray(
             data=np.array(channel_contributions),
             dims=("delta", "chain", "draw", "date", "channel"),
