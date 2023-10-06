@@ -7,6 +7,10 @@ The video below is a discussion, recorded in 2022, about the state of the art of
 
 [![Youtube video thumbnail image](https://img.youtube.com/vi/xVx91prC81g/maxresdefault.jpg)](https://www.youtube.com/watch?v=xVx91prC81g)
 
+### Bolt's Evolution towards MMM with PyMC with Carlos Agostini
+The video below is a discussion highlighting Bolt's adoption of PyMC for building Marketing Mix Models (MMM) and more. This webinar will take you through the various approaches Bolt initially considered for its MMM before ultimately deciding on PyMC. Click through the video thumbnail below to [watch the video](https://youtu.be/djXoPq60bRM?si=fitQK_GrQcoSNWJq)
+
+[![Youtube video thumbnail image](https://img.youtube.com/vi/djXoPq60bRM/maxresdefault.jpg)](https://youtu.be/djXoPq60bRM?si=fitQK_GrQcoSNWJq)
 
 ## Blogposts
 
@@ -18,3 +22,4 @@ The video below is a discussion, recorded in 2022, about the state of the art of
 * Juan Orduz: [Media Effect Estimation with Orbit's KTR Model](https://juanitorduz.github.io/orbit_mmm/)
 * Juan Orduz: [Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns](https://juanitorduz.github.io/pymc_mmm/)
 * Dr. Robert Kübler: [Convenient Bayesian Marketing Mix Modeling with PyMC Marketing](https://towardsdatascience.com/convenient-bayesian-marketing-mix-modeling-with-pymc-marketing-8b02a9a9c4aa)
+* Carlos Eduardo Trujillo Agostini: [Better budgeting with Bayesian models: Bolt’s story with PyMC-Marketing](https://bolt.eu/en/blog/budgeting-with-bayesian-models-pymc-marketing/)
