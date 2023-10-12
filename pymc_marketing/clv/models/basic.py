@@ -2,13 +2,11 @@ import json
 import types
 import warnings
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, cast
 
 import arviz as az
-import numpy as np
-import pandas as pd
 import pymc as pm
-from pymc import str_for_dist
+from pymc import Model, str_for_dist
 from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
 from pytensor.tensor import TensorVariable
@@ -50,13 +48,16 @@ class CLVModel(ModelBuilder):
         self.build_model()  # type: ignore
 
         if fit_method == "mcmc":
-            self._fit_mcmc(**kwargs)
+            idata = self._fit_mcmc(**kwargs)
         elif fit_method == "map":
-            self._fit_MAP(**kwargs)
+            idata = self._fit_MAP(**kwargs)
         else:
             raise ValueError(
                 f"Fit method options are ['mcmc', 'map'], got: {fit_method}"
             )
+
+        self.set_idata_attrs(idata)
+        self.idata = idata
 
         with warnings.catch_warnings():
             warnings.filterwarnings(
@@ -92,47 +93,14 @@ class CLVModel(ModelBuilder):
         if self.sampler_config is not None:
             sampler_config = self.sampler_config.copy()
         sampler_config.update(**kwargs)
-        self.idata = self.sample_model(**sampler_config)
-        return self.idata
+        return pm.sample(**sampler_config, model=self.model)
 
-    def sample_model(self, **kwargs):
-        """
-        Sample from the PyMC model.
-
-        Parameters
-        ----------
-        **kwargs : dict
-            Additional keyword arguments to pass to the PyMC sampler.
-
-        Returns
-        -------
-        xarray.Dataset
-            The PyMC samples dataset.
-
-        Raises
-        ------
-        RuntimeError
-            If the PyMC model hasn't been built yet.
-
-        """
-        if self.model is None:
-            raise RuntimeError(
-                "The model hasn't been built yet, call .build_model() first or call .fit() instead."
-            )
-
-        with self.model:
-            sampler_args = {**self.sampler_config, **kwargs}
-            idata = pm.sample(**sampler_args)
-
-        self.set_idata_attrs(idata)
-        return idata
-
-    def _fit_MAP(self, **kwargs):
+    def _fit_MAP(self, **kwargs) -> az.InferenceData:
         """Find model maximum a posteriori using scipy optimizer"""
         model = self.model
         map_res = pm.find_MAP(model=model, **kwargs)
         # Filter non-value variables
-        value_vars_names = set(v.name for v in model.value_vars)
+        value_vars_names = set(v.name for v in cast(Model, model).value_vars)
         map_res = {k: v for k, v in map_res.items() if k in value_vars_names}
         # Convert map result to InferenceData
         map_strace = NDArray(model=model)
@@ -140,10 +108,7 @@ class CLVModel(ModelBuilder):
         map_strace.record(map_res)
         map_strace.close()
         trace = MultiTrace([map_strace])
-        idata = pm.to_inference_data(trace, model=model)
-        self.set_idata_attrs(idata)
-        self.idata = idata
-        return self.idata
+        return pm.to_inference_data(trace, model=model)
 
     @classmethod
     def load(cls, fname: str):
@@ -228,39 +193,6 @@ class CLVModel(ModelBuilder):
     def _serializable_model_config(self) -> Dict:
         return self.model_config
 
-    def sample_prior_predictive(  # type: ignore
-        self,
-        samples: int = 1000,
-        extend_idata: bool = True,
-        combined: bool = True,
-        **kwargs,
-    ):
-        if self.model is not None:
-            with self.model:  # sample with new input data
-                prior_pred: az.InferenceData = pm.sample_prior_predictive(
-                    samples, **kwargs
-                )
-                self.set_idata_attrs(prior_pred)
-                if extend_idata:
-                    if self.idata is not None:
-                        self.idata.extend(prior_pred)
-                    else:
-                        self.idata = prior_pred
-
-        prior_predictive_samples = az.extract(
-            prior_pred, "prior_predictive", combined=combined
-        )
-
-        return prior_predictive_samples
-
-    @property
-    def prior_predictive(self) -> az.InferenceData:
-        if self.idata is None or "prior_predictive" not in self.idata:
-            raise RuntimeError(
-                "No prior predictive samples available, call sample_prior_predictive() first"
-            )
-        return self.idata["prior_predictive"]
-
     @property
     def fit_result(self) -> Dataset:
         if self.idata is None or "posterior" not in self.idata:
@@ -293,11 +225,7 @@ class CLVModel(ModelBuilder):
     def output_var(self):
         pass
 
-    def _generate_and_preprocess_model_data(
-        self,
-        X: Union[pd.DataFrame, pd.Series],
-        y: Union[pd.Series, np.ndarray[Any, Any]],
-    ) -> None:
+    def _generate_and_preprocess_model_data(self, *args, **kwargs):
         pass
 
     def _data_setter(self):
