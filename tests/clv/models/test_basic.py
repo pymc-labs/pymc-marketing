@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
-from arviz import InferenceData, from_dict
+from arviz import InferenceData
 
 from pymc_marketing.clv.models.basic import CLVModel
 
@@ -32,18 +32,6 @@ class CLVModelTest(CLVModel):
             self.y = pm.Normal(
                 "y", mu=self.a + self.b, sigma=1, observed=self.data["y"]
             )
-
-
-@pytest.fixture(scope="module")
-def posterior():
-    # Create a random numpy array for posterior samples
-    posterior_samples = np.random.randn(
-        4, 100, 2
-    )  # shape convention: (chain, draw, *shape)
-
-    # Create a dictionary for posterior
-    posterior_dict = {"theta": posterior_samples}
-    return from_dict(posterior=posterior_dict)
 
 
 class TestCLVModel:
@@ -127,12 +115,7 @@ class TestCLVModel:
         ):
             model.fit(fit_method="wrong_method")
 
-    def test_sample_wihtout_build(self):
-        model = CLVModelTest()
-        with pytest.raises(RuntimeError, match="The model hasn't been built yet"):
-            model.sample_model()
-
-    def test_fit_no_model(self):
+    def test_fit_result_error(self):
         model = CLVModelTest()
         with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
             model.fit_result
@@ -140,45 +123,18 @@ class TestCLVModel:
     def test_load(self):
         model = CLVModelTest()
         model.build_model()
-        model.fit(target_accept=0.81, draws=100, chains=2, random_seed=1234)
+        model.fit(draws=100, chains=2, random_seed=1234)
         model.save("test_model")
-        model2 = model.load("test_model")
-        assert model2.fit_result is not None
-        assert model2.model is not None
-        os.remove("test_model")
+        try:
+            model2 = model.load("test_model")
+            assert model2.fit_result is not None
+            assert model2.model is not None
+        finally:
+            os.remove("test_model")
 
     def test_default_sampler_config(self):
         model = CLVModelTest()
         assert model.sampler_config == {}
-
-    def test_prior_predictive(self):
-        model = CLVModelTest()
-        model.build_model()
-        with pytest.raises(RuntimeError) as exc_info:
-            model.prior_predictive()
-        assert (
-            str(exc_info.value)
-            == "No prior predictive samples available, call sample_prior_predictive() first"
-        )
-        model.sample_prior_predictive(samples=1000, combined=False)
-        model.prior_predictive
-        model.idata = None
-        model.idata = pm.sample(
-            draws=50, tune=50, chains=2, model=model.model, random_seed=1234
-        )
-        model.sample_prior_predictive(samples=50, extend_idata=True)
-        assert "prior_predictive" in model.idata
-
-    @pytest.mark.skip(
-        reason="TODO: Still not decided whether posterior_predictive will stay"
-    )
-    def test_posterior_predictive(self):
-        model = CLVModelTest()
-        model.build_model()
-        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
-            model.posterior_predictive()
-        model.fit()
-        model.posterior_predictive
 
     def test_set_fit_result(self):
         model = CLVModelTest()
@@ -219,11 +175,13 @@ class TestCLVModel:
         # Check that the property returns the new value
         mock_basic.fit()
         mock_basic.save("test_model")
-        # Apply the monkeypatch for the property
-        monkeypatch.setattr(CLVModelTest, "id", property(mock_property))
-        with pytest.raises(
-            ValueError,
-            match="The file 'test_model' does not contain an inference data of the same model or configuration as 'CLVModelTest'",
-        ):
-            CLVModelTest.load("test_model")
-        os.remove("test_model")
+        try:
+            # Apply the monkeypatch for the property
+            monkeypatch.setattr(CLVModelTest, "id", property(mock_property))
+            with pytest.raises(
+                ValueError,
+                match="The file 'test_model' does not contain an inference data of the same model or configuration as 'CLVModelTest'",
+            ):
+                CLVModelTest.load("test_model")
+        finally:
+            os.remove("test_model")
