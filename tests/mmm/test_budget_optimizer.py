@@ -80,7 +80,7 @@ def test_objective_distribution_invalid_method():
             {"channel1": (0, 50), "channel2": (0, 50)},
             {"channel1": (10, 5), "channel2": (20, 10)},
             ["channel1", "channel2"],
-            {'channel1': 50.0, 'channel2': 50.0},
+            {"channel1": 50.0, "channel2": 50.0},
         ),
         (
             "sigmoid",
@@ -88,7 +88,7 @@ def test_objective_distribution_invalid_method():
             None,
             {"channel1": (1, 0.5), "channel2": (1, 0.5)},
             ["channel1", "channel2"],
-            {'channel1': 5.0, 'channel2': 5.0},
+            {"channel1": 5.0, "channel2": 5.0},
         ),
     ],
 )
