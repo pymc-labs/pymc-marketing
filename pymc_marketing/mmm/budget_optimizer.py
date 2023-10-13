@@ -52,14 +52,14 @@ def calculate_expected_contribution(
     total_expected_contribution = 0.0
     contributions = {}
 
-    for channel, channe_budget in budget.items():
+    for channel, channel_budget in budget.items():
         if method == "michaelis-menten":
             L, k = parameters[channel]
-            contributions[channel] = michaelis_menten(channe_budget, L, k)
+            contributions[channel] = michaelis_menten(channel_budget, L, k)
 
         elif method == "sigmoid":
             alpha, lam = parameters[channel]
-            contributions[channel] = extense_sigmoid(channe_budget, alpha, lam)
+            contributions[channel] = extense_sigmoid(channel_budget, alpha, lam)
 
         else:
             raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")
@@ -164,7 +164,15 @@ def optimize_budget_distribution(
 
     if budget_ranges is None:
         budget_ranges = {
-            channel: (0, min(total_budget, parameters[channel][0]))
+            channel: (
+                0,
+                min(
+                    total_budget,
+                    9 * parameters[channel][1]
+                    if method == "michaelis-menten"
+                    else -np.log(0.1 / 1.9) / parameters[channel][1],
+                ),
+            )
             for channel in channels
         }
 
