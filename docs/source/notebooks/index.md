@@ -7,6 +7,7 @@
 :maxdepth: 1
 
 mmm/mmm_example
+mmm/mmm_budget_allocation_example
 :::
 
 :::{toctree}
