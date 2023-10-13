@@ -72,7 +72,7 @@ def test_objective_distribution_invalid_method():
 
 # Testing optimize_budget_distribution with valid inputs
 @pytest.mark.parametrize(
-    "method,total_budget,budget_ranges,parameters,channels,expected_sum",
+    "method,total_budget,budget_ranges,parameters,channels,expected_result",
     [
         (
             "michaelis-menten",
@@ -80,7 +80,7 @@ def test_objective_distribution_invalid_method():
             {"channel1": (0, 50), "channel2": (0, 50)},
             {"channel1": (10, 5), "channel2": (20, 10)},
             ["channel1", "channel2"],
-            100,
+            {'channel1': 50.0, 'channel2': 50.0},
         ),
         (
             "sigmoid",
@@ -88,19 +88,18 @@ def test_objective_distribution_invalid_method():
             None,
             {"channel1": (1, 0.5), "channel2": (1, 0.5)},
             ["channel1", "channel2"],
-            2.0,
-        ),  # Updated this line
-        # Add more cases
+            {'channel1': 5.0, 'channel2': 5.0},
+        ),
     ],
 )
 def test_optimize_budget_distribution_valid(
-    method, total_budget, budget_ranges, parameters, channels, expected_sum
+    method, total_budget, budget_ranges, parameters, channels, expected_result
 ):
     result = optimize_budget_distribution(
         method, total_budget, budget_ranges, parameters, channels
     )
-    # Check if sum of budgets equals expected_sum
-    assert sum(result.values()) == pytest.approx(expected_sum, 0.001)
+    # Check if sum of budgets equals total_budget
+    assert sum(result.values()) == pytest.approx(total_budget, 0.001)
     # Check if budgets are within their ranges
     if budget_ranges:
         for channel in channels:
@@ -109,3 +108,6 @@ def test_optimize_budget_distribution_valid(
                 <= result[channel]
                 <= budget_ranges[channel][1]
             )
+    # Check if budgets are close to the expected values
+    for channel in channels:
+        assert result[channel] == pytest.approx(expected_result[channel], 0.001)

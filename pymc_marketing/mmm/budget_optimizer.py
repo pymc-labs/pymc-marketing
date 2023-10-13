@@ -166,12 +166,7 @@ def optimize_budget_distribution(
         budget_ranges = {
             channel: (
                 0,
-                min(
-                    total_budget,
-                    9 * parameters[channel][1]
-                    if method == "michaelis-menten"
-                    else -np.log(0.1 / 1.9) / parameters[channel][1],
-                ),
+                total_budget,
             )
             for channel in channels
         }
