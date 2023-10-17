@@ -320,7 +320,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 mu_var += fourier_contribution.sum(axis=-1)
 
             mu = pm.Deterministic(
-                name="mu", var=mu_var, dims=model_config["mu"]["dims"]
+                name="mu", var=mu_var, dims=("date",)
             )
 
             pm.Normal(
@@ -328,7 +328,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 mu=mu,
                 sigma=sigma,
                 observed=target_,
-                dims=model_config["likelihood"]["dims"],
+                dims=("date",),
             )
 
     @property
