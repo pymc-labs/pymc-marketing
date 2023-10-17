@@ -173,6 +173,17 @@ class BaseDelayedSaturatedMMM(MMM):
             The PyMC model object containing all the defined stochastic and deterministic variables.
         """
         model_config = self.model_config
+        self.intercept = self._create_distribution(self.model_config["intercept"])
+        self.beta_channel = self._create_distribution(self.model_config["beta_channel"])
+        self.lam = self._create_distribution(self.model_config["lam"])
+        self.alpha = self._create_distribution(self.model_config["alpha"])
+        self.sigma = self._create_distribution(self.model_config["sigma"])
+        self.gamma_control = self._create_distribution(
+            self.model_config["gamma_control"]
+        )
+        self.gamma_fourier = self._create_distribution(
+            self.model_config["gamma_fourier"]
+        )
         self._generate_and_preprocess_model_data(X, y)
         with pm.Model(coords=self.model_coords) as self.model:
             channel_data_ = pm.MutableData(
@@ -187,32 +198,39 @@ class BaseDelayedSaturatedMMM(MMM):
                 dims="date",
             )
 
-            intercept = pm.Normal(
-                name="intercept",
-                mu=model_config["intercept"]["mu"],
-                sigma=model_config["intercept"]["sigma"],
-            )
+            intercept = self.model.register_rv(self.intercept, name="intercept")
+            # pm.Normal(
+            #     name="intercept",
+            #     mu=model_config["intercept"]["mu"],
+            #     sigma=model_config["intercept"]["sigma"],
+            # )
 
-            beta_channel = pm.HalfNormal(
-                name="beta_channel",
-                sigma=model_config["beta_channel"]["sigma"],
-                dims=model_config["beta_channel"]["dims"],
+            beta_channel = self.model.register_rv(
+                self.intercept, name="beta_channel", dims=("channel",)
             )
-            alpha = pm.Beta(
-                name="alpha",
-                alpha=model_config["alpha"]["alpha"],
-                beta=model_config["alpha"]["beta"],
-                dims=model_config["alpha"]["dims"],
-            )
+            # pm.HalfNormal(
+            #     name="beta_channel",
+            #     sigma=model_config["beta_channel"]["sigma"],
+            #     dims=model_config["beta_channel"]["dims"],
+            # )
+            alpha = self.model.register_rv(self.alpha, name="alpha", dims=("channel",))
+            # pm.Beta(
+            #     name="alpha",
+            #     alpha=model_config["alpha"]["alpha"],
+            #     beta=model_config["alpha"]["beta"],
+            #     dims=model_config["alpha"]["dims"],
+            # )
 
-            lam = pm.Gamma(
-                name="lam",
-                alpha=model_config["lam"]["alpha"],
-                beta=model_config["lam"]["beta"],
-                dims=model_config["lam"]["dims"],
-            )
+            lam = self.model.register_rv(self.lam, name="lam", dims=("channel",))
+            # pm.Gamma(
+            #     name="lam",
+            #     alpha=model_config["lam"]["alpha"],
+            #     beta=model_config["lam"]["beta"],
+            #     dims=model_config["lam"]["dims"],
+            # )
 
-            sigma = pm.HalfNormal(name="sigma", sigma=model_config["sigma"]["sigma"])
+            sigma = self.model.register_rv(self.sigma, name="sigma")
+            # pm.HalfNormal(name="sigma", sigma=model_config["sigma"]["sigma"])
 
             channel_adstock = pm.Deterministic(
                 name="channel_adstock",
@@ -251,12 +269,15 @@ class BaseDelayedSaturatedMMM(MMM):
                     dims=("date", "control"),
                 )
 
-                gamma_control = pm.Normal(
-                    name="gamma_control",
-                    mu=model_config["gamma_control"]["mu"],
-                    sigma=model_config["gamma_control"]["sigma"],
-                    dims=model_config["gamma_control"]["dims"],
+                gamma_control = self.model.register_rv(
+                    self.gamma_control, name="gamma_control", dims=("control",)
                 )
+                # pm.Normal(
+                #     name="gamma_control",
+                #     mu=model_config["gamma_control"]["mu"],
+                #     sigma=model_config["gamma_control"]["sigma"],
+                #     dims=model_config["gamma_control"]["dims"],
+                # )
 
                 control_contributions = pm.Deterministic(
                     name="control_contributions",
@@ -280,12 +301,15 @@ class BaseDelayedSaturatedMMM(MMM):
                     dims=("date", "fourier_mode"),
                 )
 
-                gamma_fourier = pm.Laplace(
-                    name="gamma_fourier",
-                    mu=model_config["gamma_fourier"]["mu"],
-                    b=model_config["gamma_fourier"]["b"],
-                    dims=model_config["gamma_fourier"]["dims"],
+                gamma_fourier = self.model.register_rv(
+                    self.gamma_fourier, name="gamma_fourier", dims=("fourier_mode",)
                 )
+                # pm.Laplace(
+                #     name="gamma_fourier",
+                #     mu=model_config["gamma_fourier"]["mu"],
+                #     b=model_config["gamma_fourier"]["b"],
+                #     dims=model_config["gamma_fourier"]["dims"],
+                # )
 
                 fourier_contribution = pm.Deterministic(
                     name="fourier_contributions",
@@ -309,22 +333,33 @@ class BaseDelayedSaturatedMMM(MMM):
 
     @property
     def default_model_config(self) -> Dict:
-        model_config: Dict = {
-            "intercept": {"mu": 0, "sigma": 2},
-            "beta_channel": {"sigma": 2, "dims": ("channel",)},
-            "alpha": {"alpha": 1, "beta": 3, "dims": ("channel",)},
-            "lam": {"alpha": 3, "beta": 1, "dims": ("channel",)},
-            "sigma": {"sigma": 2},
-            "gamma_control": {
-                "mu": 0,
-                "sigma": 2,
-                "dims": ("control",),
+        # model_config: Dict = {
+        #     "intercept": {"mu": 0, "sigma": 2},
+        #     "beta_channel": {"sigma": 2, "dims": ("channel",)},
+        #     "alpha": {"alpha": 1, "beta": 3, "dims": ("channel",)},
+        #     "lam": {"alpha": 3, "beta": 1, "dims": ("channel",)},
+        #     "sigma": {"sigma": 2},
+        #     "gamma_control": {
+        #         "mu": 0,
+        #         "sigma": 2,
+        #         "dims": ("control",),
+        #     },
+        #     "mu": {"dims": ("date",)},
+        #     "likelihood": {"dims": ("date",)},
+        #     "gamma_fourier": {"mu": 0, "b": 1, "dims": "fourier_mode"},
+        # }
+        return {
+            "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
+            "beta_channel": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+            "alpha": {"dist": "Beta", "kwargs": {"alpha": 1, "beta": 3}},
+            "lam": {"dist": "Gamma", "kwargs": {"alpha": 3, "beta": 1}},
+            "sigma": {
+                "dist": "HalfNormal",
+                "kwargs": {"sigma": 2},
             },
-            "mu": {"dims": ("date",)},
-            "likelihood": {"dims": ("date",)},
-            "gamma_fourier": {"mu": 0, "b": 1, "dims": "fourier_mode"},
+            "gamma_control": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
+            "gamma_fourier": {"dist": "Laplace", "kwargs": {"mu": 0, "b": 1}},
         }
-        return model_config
 
     def _get_fourier_models_data(self, X) -> pd.DataFrame:
         """Generates fourier modes to model seasonality.
