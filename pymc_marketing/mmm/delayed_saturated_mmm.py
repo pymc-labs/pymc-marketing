@@ -172,7 +172,7 @@ class BaseDelayedSaturatedMMM(MMM):
         model : pm.Model
             The PyMC model object containing all the defined stochastic and deterministic variables.
         """
-        model_config = self.model_config
+        # model_config = self.model_config
         self.intercept = self._create_distribution(self.model_config["intercept"])
         self.beta_channel = self._create_distribution(self.model_config["beta_channel"])
         self.lam = self._create_distribution(self.model_config["lam"])
