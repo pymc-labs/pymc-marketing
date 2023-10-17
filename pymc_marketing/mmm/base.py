@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import seaborn as sns
+from pytensor.tensor import TensorVariable
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
@@ -107,6 +108,22 @@ class BaseMMM(ModelBuilder):
                 if getattr(method, "_tags", {}).get("validation_y", False)
             ],
         )
+
+    @staticmethod
+    def _check_prior_ndim(prior, ndim: int = 0):
+        if prior.ndim != ndim:
+            raise ValueError(
+                f"Prior variable {prior} must be have {ndim} ndims, but it has {prior.ndim} ndims."
+            )
+
+    @staticmethod
+    def _create_distribution(dist: Dict, ndim: int = 0) -> TensorVariable:
+        try:
+            prior_distribution = getattr(pm, dist["dist"]).dist(**dist["kwargs"])
+            BaseMMM._check_prior_ndim(prior_distribution, ndim)
+        except AttributeError:
+            raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
+        return prior_distribution
 
     def validate(
         self, target: str, data: Union[pd.DataFrame, pd.Series, np.ndarray]
