@@ -191,13 +191,13 @@ class GammaGammaModel(BaseGammaGammaModel):
             model = GammaGammaModel(
                 data=pd.DataFrame({
                     "customer_id": [0, 1, 2, 3, ...],
-                    "mean_transactionn_value" :[23.5, 19.3, 11.2, 100.5, ...],
+                    "mean_transaction_value" :[23.5, 19.3, 11.2, 100.5, ...],
                     "frequency": [6, 8, 2, 1, ...],
                 }),
                 model_config={
-                    "p_prior": {dist: 'HalfNorm', kwargs: {}},
-                    "q_prior": {dist: 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
-                    "v_prior": {dist: 'HalfCauchy', kwargs: {}},
+                    "p_prior": {'dist': 'HalfNormal', kwargs: {}},
+                    "q_prior": {'dist': 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
+                    "v_prior": {'dist': 'HalfCauchy', kwargs: {"beta":1}},
                 },
                 sampler_config={
                     "draws": 1000,
@@ -214,7 +214,7 @@ class GammaGammaModel(BaseGammaGammaModel):
             # Predict spend of customers for which we know transaction history, conditioned on data.
             expected_customer_spend = model.expected_customer_spend(
                 customer_id=[0, 1, 2, 3, ...],
-                mean_transactionn_value=[23.5, 19.3, 11.2, 100.5, ...],
+                mean_transaction_value=[23.5, 19.3, 11.2, 100.5, ...],
                 frequency=[6, 8, 2, 1, ...],
             )
             print(expected_customer_spend.mean("customer_id"))
