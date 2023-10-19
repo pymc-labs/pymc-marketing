@@ -9,8 +9,9 @@ import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import seaborn as sns
-from xarray import DataArray
 from pytensor.tensor.variable import TensorVariable
+from xarray import DataArray
+
 
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
@@ -557,8 +558,10 @@ class DelayedSaturatedMMM(
         array-like
             Transformed channel data.
         """
-        channel_contribution_forward_pass = super().channel_contributions_forward_pass_untransformed(
-            channel_data=channel_data
+        channel_contribution_forward_pass = (
+            super().channel_contributions_forward_pass_untransformed(
+                channel_data=channel_data
+            )
         )
         target_transformed_vectorized = np.vectorize(
             self.target_transformer.inverse_transform,
