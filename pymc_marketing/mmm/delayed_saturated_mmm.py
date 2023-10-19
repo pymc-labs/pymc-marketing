@@ -10,6 +10,7 @@ import pandas as pd
 import pymc as pm
 import seaborn as sns
 from xarray import DataArray
+from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
@@ -344,9 +345,9 @@ class BaseDelayedSaturatedMMM(MMM):
             n_order=self.yearly_seasonality,
         )
 
-    def channel_contributions_forward_pass(
+    def channel_contributions_forward_pass_untransformed(
         self, channel_data: npt.NDArray[np.float_]
-    ) -> npt.NDArray[np.float_]:
+    ) -> TensorVariable:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
         Parameters
         ----------
@@ -556,7 +557,7 @@ class DelayedSaturatedMMM(
         array-like
             Transformed channel data.
         """
-        channel_contribution_forward_pass = super().channel_contributions_forward_pass(
+        channel_contribution_forward_pass = super().channel_contributions_forward_pass_untransformed(
             channel_data=channel_data
         )
         target_transformed_vectorized = np.vectorize(
@@ -564,7 +565,7 @@ class DelayedSaturatedMMM(
             excluded=[1, 2],
             signature="(m, n) -> (m, n)",
         )
-        return target_transformed_vectorized(channel_contribution_forward_pass).eval()
+        return target_transformed_vectorized(channel_contribution_forward_pass.eval())
 
     def get_channel_contributions_forward_pass_grid(
         self, start: float, stop: float, num: int
