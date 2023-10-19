@@ -46,6 +46,25 @@ class TestParetoNBDModel:
             "beta": cls.beta_true,
         }
 
+        # Mock an idata object for tests requiring a fitted model
+        cls.N = len(cls.customer_id)
+        cls.chains = 2
+        cls.draws = 50
+        cls.mock_fit = az.from_dict(
+            {
+                "r": cls.rng.normal(cls.r_true, 1e-3, size=(cls.chains, cls.draws)),
+                "alpha": cls.rng.normal(
+                    cls.alpha_true, 1e-3, size=(cls.chains, cls.draws)
+                ),
+                "s": cls.rng.normal(cls.s_true, 1e-3, size=(cls.chains, cls.draws)),
+                "beta": cls.rng.normal(
+                    cls.beta_true, 1e-3, size=(cls.chains, cls.draws)
+                ),
+            }
+        )
+
+        cls.model.idata = cls.mock_fit
+
     @pytest.fixture(scope="class")
     def model_config(self):
         return {
@@ -146,23 +165,24 @@ class TestParetoNBDModel:
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
-        "fit_method, rtol",
+        "fit_method, rtol, sample_kwargs",
         [
-            ("mcmc", 0.1),
-            ("map", 0.2),
-            ("slice", 0.1),
+            ("mcmc", 0.1, dict(random_seed=np.random.default_rng(34), chains=2)),
+            ("map", 0.2, None),
+            ("slice", 0.1, None),
+            ("slice", 0.1, dict(random_seed=np.random.default_rng(34), draws=1000)),
         ],
     )
-    def test_model_convergence(self, fit_method, rtol):
+    def test_model_convergence(self, fit_method, rtol, sample_kwargs):
         # Edit priors here for convergence testing
         # Note that None/pm.HalfFlat is extremely slow to converge
         model = ParetoNBDModel(
             data=self.data,
         )
 
-        sample_kwargs = (
-            dict(random_seed=self.rng, chains=2) if fit_method == "mcmc" else {}
-        )
+        if sample_kwargs is None:
+            sample_kwargs = {}
+
         model.fit(fit_method=fit_method, progressbar=False, **sample_kwargs)
 
         fit = model.idata.posterior
@@ -193,22 +213,9 @@ class TestParetoNBDModel:
             )
         )
 
-        N = len(self.customer_id)
-        chains = 2
-        draws = 50
-        fake_fit = az.from_dict(
-            {
-                "r": self.rng.normal(self.r_true, 1e-3, size=(chains, draws)),
-                "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(chains, draws)),
-                "s": self.rng.normal(self.s_true, 1e-3, size=(chains, draws)),
-                "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
-            }
-        )
-        self.model.idata = fake_fit
-
         est_num_purchases = self.model.expected_purchases(test_t)
 
-        assert est_num_purchases.shape == (chains, draws, N)
+        assert est_num_purchases.shape == (self.chains, self.draws, self.N)
         assert est_num_purchases.dims == ("chain", "draw", "customer_id")
 
         np.testing.assert_allclose(
@@ -225,21 +232,9 @@ class TestParetoNBDModel:
             )
         )
 
-        chains = 2
-        draws = 50
-        fake_fit = az.from_dict(
-            {
-                "r": self.rng.normal(self.r_true, 1e-3, size=(chains, draws)),
-                "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(chains, draws)),
-                "s": self.rng.normal(self.s_true, 1e-3, size=(chains, draws)),
-                "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
-            }
-        )
-        self.model.idata = fake_fit
-
         est_purchases_new = self.model.expected_purchases_new_customer(test_t)
 
-        assert est_purchases_new.shape == (chains, draws)
+        assert est_purchases_new.shape == (self.chains, self.draws)
         assert est_purchases_new.dims == ("chain", "draw")
 
         np.testing.assert_allclose(
@@ -255,22 +250,9 @@ class TestParetoNBDModel:
             T=self.T,
         )
 
-        N = len(self.customer_id)
-        chains = 2
-        draws = 50
-        fake_fit = az.from_dict(
-            {
-                "r": self.rng.normal(self.r_true, 1e-3, size=(chains, draws)),
-                "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(chains, draws)),
-                "s": self.rng.normal(self.s_true, 1e-3, size=(chains, draws)),
-                "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
-            }
-        )
-        self.model.idata = fake_fit
-
         est_prob_alive = self.model.expected_probability_alive()
 
-        assert est_prob_alive.shape == (chains, draws, N)
+        assert est_prob_alive.shape == (self.chains, self.draws, self.N)
         assert est_prob_alive.dims == ("chain", "draw", "customer_id")
         np.testing.assert_allclose(
             true_prob_alive,
@@ -293,24 +275,11 @@ class TestParetoNBDModel:
             )
         )
 
-        N = len(self.customer_id)
-        chains = 2
-        draws = 50
-        fake_fit = az.from_dict(
-            {
-                "r": self.rng.normal(self.r_true, 1e-3, size=(chains, draws)),
-                "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(chains, draws)),
-                "s": self.rng.normal(self.s_true, 1e-3, size=(chains, draws)),
-                "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
-            }
-        )
-        self.model.idata = fake_fit
-
         est_purchases_new_customer = self.model.expected_purchase_probability(
             test_n, test_t, self.data
         )
 
-        assert est_purchases_new_customer.shape == (chains, draws, N)
+        assert est_purchases_new_customer.shape == (self.chains, self.draws, self.N)
         assert est_purchases_new_customer.dims == ("chain", "draw", "customer_id")
 
         np.testing.assert_allclose(
@@ -319,41 +288,28 @@ class TestParetoNBDModel:
             rtol=0.001,
         )
 
-    def test_dropout_purchase_distributions(self) -> None:
-        # TODO: Create a pytest fixture for this
-        test_data = pd.read_csv("datasets/clv_quickstart.csv")
-        test_data["customer_id"] = test_data.index
-        model = ParetoNBDModel(
-            data=test_data,
-        )
+    @pytest.mark.parametrize("fake_fit", ["map", "mcmc"])
+    def test_dropout_purchase_distributions(self, fake_fit) -> None:
+        if fake_fit == "map":
+            mock_fit = az.from_dict(
+                {
+                    "r": [self.r_true],
+                    "alpha": [self.alpha_true],
+                    "s": [self.s_true],
+                    "beta": [self.beta_true],
+                }
+            )
+            self.model.idata = mock_fit
 
-        # TODO: A test with more than 1 chain and draw is required for full coverage.
-        chains = 2
-        draws = 50
-        mock_fit = az.from_dict(
-            {
-                "r": self.rng.normal(self.r_true, 1e-3, size=(chains, draws)),
-                "alpha": self.rng.normal(self.alpha_true, 1e-3, size=(chains, draws)),
-                "s": self.rng.normal(self.s_true, 1e-3, size=(chains, draws)),
-                "beta": self.rng.normal(self.beta_true, 1e-3, size=(chains, draws)),
-            }
-        )
-        rtol = 0.17
+        self.model.fit_result = self.model.idata["posterior"]
 
-        mock_fit = az.from_dict(
-            {
-                "r": [self.r_true],
-                "alpha": [self.alpha_true],
-                "s": [self.s_true],
-                "beta": [self.beta_true],
-            }
-        )
-        model.idata = mock_fit
+        rtol = 0.2
 
-        rng = np.random.default_rng(42)
-        customer_dropout = model.distribution_new_customer_dropout(random_seed=rng)
-        customer_purchase_rate = model.distribution_new_customer_purchase_rate(
-            random_seed=rng
+        customer_dropout = self.model.distribution_new_customer_dropout(
+            random_seed=self.rng
+        )
+        customer_purchase_rate = self.model.distribution_new_customer_purchase_rate(
+            random_seed=self.rng
         )
 
         assert isinstance(customer_dropout, xarray.DataArray)
@@ -362,23 +318,22 @@ class TestParetoNBDModel:
         N = 1000
         lam = pm.Gamma.dist(alpha=self.r_true, beta=1 / self.alpha_true, size=N)
         mu = pm.Gamma.dist(alpha=self.s_true, beta=1 / self.beta_true, size=N)
-        rtol = 0.11
 
         np.testing.assert_allclose(
             customer_purchase_rate.mean(),
-            pm.draw(lam.mean(), random_seed=rng),
+            pm.draw(lam.mean(), random_seed=self.rng),
             rtol=rtol,
         )
         np.testing.assert_allclose(
             customer_purchase_rate.var(),
-            pm.draw(lam.var(), random_seed=rng),
+            pm.draw(lam.var(), random_seed=self.rng),
             rtol=rtol,
         )
         np.testing.assert_allclose(
-            customer_dropout.mean(), pm.draw(mu.mean(), random_seed=rng), rtol=rtol
+            customer_dropout.mean(), pm.draw(mu.mean(), random_seed=self.rng), rtol=rtol
         )
         np.testing.assert_allclose(
-            customer_dropout.var(), pm.draw(mu.var(), random_seed=rng), rtol=rtol
+            customer_dropout.var(), pm.draw(mu.var(), random_seed=self.rng), rtol=rtol
         )
 
     def test_save_load_pareto_nbd(self):

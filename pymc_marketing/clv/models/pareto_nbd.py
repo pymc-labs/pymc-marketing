@@ -311,7 +311,7 @@ class ParetoNBDModel(CLVModel):
                 )
                 if fit_method == "slice":
                     with self.model:
-                        if kwargs is None:
+                        if kwargs is {}:
                             kwargs = {
                                 "draws": 3000,
                                 "tune": 2500,
