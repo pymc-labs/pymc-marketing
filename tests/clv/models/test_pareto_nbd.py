@@ -301,8 +301,6 @@ class TestParetoNBDModel:
             )
             self.model.idata = mock_fit
 
-        self.model.fit_result = self.model.idata["posterior"]
-
         rtol = 0.2
 
         customer_dropout = self.model.distribution_new_customer_dropout(
@@ -335,6 +333,32 @@ class TestParetoNBDModel:
         np.testing.assert_allclose(
             customer_dropout.var(), pm.draw(mu.var(), random_seed=self.rng), rtol=rtol
         )
+
+    def test_distribution_customer_population(self):
+        # TODO: Why isn't self.data working here?
+        test_data = pd.read_csv("datasets/clv_quickstart.csv")
+        test_data["customer_id"] = test_data.index
+        model = ParetoNBDModel(
+            data=test_data,
+        )
+        model.build_model()
+
+        mock_fit = az.from_dict(
+            {
+                "r": [self.r_true],
+                "alpha": [self.alpha_true],
+                "s": [self.s_true],
+                "beta": [self.beta_true],
+            }
+        )
+        model.idata = mock_fit
+
+        rng = np.random.default_rng(42)
+        customer_recency_frequency = model.distribution_customer_population(
+            random_seed=rng
+        )
+
+        assert isinstance(customer_recency_frequency, xarray.DataArray)
 
     def test_save_load_pareto_nbd(self):
         # TODO: Create a pytest fixture for this
