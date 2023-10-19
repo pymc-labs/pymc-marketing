@@ -297,7 +297,7 @@ class ParetoNBDModel(CLVModel):
         loglike = pm.logp(pareto_dist, values).eval()
         return xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
 
-    def fit(self, fit_method="mcmc", **kwargs):
+    def fit(self, fit_method="map", **kwargs):
 
         mode = get_default_mode()
         if fit_method == "mcmc":
@@ -315,7 +315,27 @@ class ParetoNBDModel(CLVModel):
                     action="ignore",
                     category=UserWarning,
                 )
-                super().fit(fit_method, **kwargs)
+                if fit_method == "slice":
+                    with self.model:
+                        if kwargs is None:
+                            kwargs = {
+                                "draws": 3000,
+                                "tune": 2500,
+                            }
+                        self.idata = pm.sample(step=pm.Slice(), **kwargs)
+
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings(
+                            "ignore",
+                            category=UserWarning,
+                            message="The group fit_data is not defined in the InferenceData scheme",
+                        )
+                        self.idata.add_groups(fit_data=self.data.to_xarray())  # type: ignore
+
+                        return self.idata
+
+                else:
+                    super().fit(fit_method, **kwargs)
 
     def expected_purchases(
         self,
