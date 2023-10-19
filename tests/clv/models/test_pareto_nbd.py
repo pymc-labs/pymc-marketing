@@ -64,21 +64,6 @@ class TestParetoNBDModel:
             "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
         }
 
-    def test_experimental(self):
-        with pytest.warns(
-            UserWarning,
-            match="The Pareto/NBD model is still experimental. Please see code examples in documentation if model fitting issues are encountered.",
-        ):
-            test_data = pd.DataFrame(
-                {
-                    "customer_id": np.array([1, 2, 3]),
-                    "frequency": np.array([3, 4, 7]),
-                    "recency": np.array([10, 20, 30]),
-                    "T": np.array([20, 30, 40]),
-                }
-            )
-            ParetoNBDModel(test_data)
-
     def test_model(self, model_config, default_model_config):
         for config in (model_config, default_model_config):
             model = ParetoNBDModel(self.data, config)
@@ -165,6 +150,7 @@ class TestParetoNBDModel:
         [
             ("mcmc", 0.1),
             ("map", 0.2),
+            ("slice", 0.1),
         ],
     )
     def test_model_convergence(self, fit_method, rtol):

@@ -52,110 +52,108 @@ pytensor.compile.optdb["specialize"].register(
 
 class ParetoNBDModel(CLVModel):
     """Pareto Negative Binomial Distribution (Pareto/NBD) model for continuous, non-contractual customer populations,
-     first introduced by Schmittlein, et al. [1]_, with additional derivations and predictive methods by
-     Hardie & Fader [2]_ [3]_ [4]_.
+    first introduced by Schmittlein, et al. [1]_, with additional derivations and predictive methods by
+    Hardie & Fader [2]_ [3]_ [4]_.
 
-     The Pareto/NBD model assumes churn times for the customer population (i.e., amount of time a customer is active)
-     follows a Gamma distribution,
-     and time between purchases is also Gamma-distributed while the customer is still active.
+    The Pareto/NBD model assumes churn times for the customer population (i.e., amount of time a customer is active)
+    follows a Gamma distribution,
+    and time between purchases is also Gamma-distributed while the customer is still active.
 
-     This model requires data to be summarized by recency, frequency, and T for each customer,
-     using `clv.rfm_summary()` or equivalent.
+    This model requires data to be summarized by recency, frequency, and T for each customer,
+    using `clv.rfm_summary()` or equivalent.
 
-    Please note this model is still experimental. See code examples in documentation if fitting issue arise.
+    Parameters
+    ----------
+    data: pd.DataFrame
+        DataFrame containing the following columns:
+            * `frequency`: number of repeat purchases
+            * `recency`: time between the first and the last purchase
+            * `T`: time between the first purchase and the end of the observation period; model assumptions require T >= recency
+            * `customer_id`: unique customer identifier
+    model_config: dict, optional
+        Dictionary containing model parameters:
+            * `r_prior`: Shape parameter of time between purchases for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
+            * `alpha_prior`: Scale parameter of time between purchases for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
+            * `s_prior`: Shape parameter of time until churn for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
+            * `beta_prior`: Scale parameter of time until churn for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
+        If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+    sampler_config: dict, optional
+        Dictionary of sampler parameters. Defaults to None.
 
-     Parameters
-     ----------
-     data: pd.DataFrame
-         DataFrame containing the following columns:
-             * `frequency`: number of repeat purchases
-             * `recency`: time between the first and the last purchase
-             * `T`: time between the first purchase and the end of the observation period; model assumptions require T >= recency
-             * `customer_id`: unique customer identifier
-     model_config: dict, optional
-         Dictionary containing model parameters:
-             * `r_prior`: Shape parameter of time between purchases for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
-             * `alpha_prior`: Scale parameter of time between purchases for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
-             * `s_prior`: Shape parameter of time until churn for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
-             * `beta_prior`: Scale parameter of time until churn for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
-         If not provided, the model will use default priors specified in the `default_model_config` class attribute.
-     sampler_config: dict, optional
-         Dictionary of sampler parameters. Defaults to None.
+    Examples
+    --------
+        .. code-block:: python
 
-     Examples
-     --------
-         .. code-block:: python
+            import pymc as pm
+            from pymc_marketing.clv import ParetoNBDModel, rfm_summary
 
-             import pymc as pm
-             from pymc_marketing.clv import ParetoNBDModel, rfm_summary
+            rfm_df = rfm_summary(raw_data,'id_col_name','date_col_name')
 
-             rfm_df = rfm_summary(raw_data,'id_col_name','date_col_name')
+            # Initialize model with customer data; `model_config` parameter is optional
+            model = ParetoNBDModel(
+                data=rfm_df,
+                model_config={
+                    "r_prior": pm.Weibull.dist(alpha=2,beta=1),
+                    "alpha_prior": pm.Weibull.dist(alpha=2,beta=10),
+                    "s_prior": pm.Weibull.dist(alpha=2,beta=1),
+                    "beta_prior": pm.Weibull.dist(alpha=2,beta=10),
+                },
+            )
 
-             # Initialize model with customer data; `model_config` parameter is optional
-             model = ParetoNBDModel(
-                 data=rfm_df,
-                 model_config={
-                     "r_prior": pm.Weibull.dist(alpha=2,beta=1),
-                     "alpha_prior": pm.Weibull.dist(alpha=2,beta=10),
-                     "s_prior": pm.Weibull.dist(alpha=2,beta=1),
-                     "beta_prior": pm.Weibull.dist(alpha=2,beta=10),
-                 },
-             )
+            # Fit model quickly to large datasets via Maximum a Posteriori
+            model.fit(fit_method='map')
 
-             # Fit model quickly to large datasets via Maximum a Posteriori
-             model.fit(fit_method='map')
+            # Fit model with full posterior estimation for more informative predictions
+            model.fit()
+            print(model.fit_summary())
 
-             # Fit model with full posterior estimation for more informative predictions
-             model.fit()
-             print(model.fit_summary())
+            # Predict number of purchases for customers over the next 10 time periods
+            expected_purchases = model.expected_purchases(
+                data=rfm_df,
+                future_t=10,
+            )
 
-             # Predict number of purchases for customers over the next 10 time periods
-             expected_purchases = model.expected_purchases(
-                 data=rfm_df,
-                 future_t=10,
-             )
+            # Predict probability of customer making 'n' purchases over 't' time periods
+            # Data parameter is omitted here because predictions are ran on original dataset
+            expected_num_purchases = model.expected_purchase_probability(
+                n=[0, 1, 2, 3],
+                future_t=[10,20,30,40],
+            )
 
-             # Predict probability of customer making 'n' purchases over 't' time periods
-             # Data parameter is omitted here because predictions are ran on original dataset
-             expected_num_purchases = model.expected_purchase_probability(
-                 n=[0, 1, 2, 3],
-                 future_t=[10,20,30,40],
-             )
+            new_data = pd.DataFrame(
+                data = {
+                "customer_id": [0, 1, 2, 3],
+                "frequency": [5, 2, 1, 8],
+                "recency": [7, 4, 2.5, 11],
+                "T": [10, 8, 10, 22]
+                }
+            )
 
-             new_data = pd.DataFrame(
-                 data = {
-                 "customer_id": [0, 1, 2, 3],
-                 "frequency": [5, 2, 1, 8],
-                 "recency": [7, 4, 2.5, 11],
-                 "T": [10, 8, 10, 22]
-                 }
-             )
+            # Predict probability customers will still be active in 'future_t' time periods
+            probability_alive = model.expected_probability_alive(
+                data=new_data,
+                future_t=[0, 3, 6, 9],
+            )
 
-             # Predict probability customers will still be active in 'future_t' time periods
-             probability_alive = model.expected_probability_alive(
-                 data=new_data,
-                 future_t=[0, 3, 6, 9],
-             )
+            # Predict number of purchases for a new customer over 't' time periods.
+            expected_purchases_new_customer = model.expected_purchases_new_customer(
+                t=[2, 5, 7, 10],
+            )
 
-             # Predict number of purchases for a new customer over 't' time periods.
-             expected_purchases_new_customer = model.expected_purchases_new_customer(
-                 t=[2, 5, 7, 10],
-             )
-
-     References
-     ----------
-     .. [1] David C. Schmittlein, Donald G. Morrison and Richard Colombo.
-            "Counting Your Customers: Who Are They and What Will They Do Next."
-            Management Science,Vol. 33, No. 1 (Jan., 1987), pp. 1-24.
-     .. [2] Fader, Peter & G. S. Hardie, Bruce (2005).
-            "A Note on Deriving the Pareto/NBD Model and Related Expressions."
-            http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
-     .. [3] Fader, Peter & G. S. Hardie, Bruce (2014).
-            "Additional Results for the Pareto/NBD Model."
-            https://www.brucehardie.com/notes/015/additional_pareto_nbd_results.pdf
-     .. [4] Fader, Peter & G. S. Hardie, Bruce (2014).
-            "Deriving the Conditional PMF of the Pareto/NBD Model."
-            https://www.brucehardie.com/notes/028/pareto_nbd_conditional_pmf.pdf
+    References
+    ----------
+    .. [1] David C. Schmittlein, Donald G. Morrison and Richard Colombo.
+           "Counting Your Customers: Who Are They and What Will They Do Next."
+           Management Science,Vol. 33, No. 1 (Jan., 1987), pp. 1-24.
+    .. [2] Fader, Peter & G. S. Hardie, Bruce (2005).
+           "A Note on Deriving the Pareto/NBD Model and Related Expressions."
+           http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
+    .. [3] Fader, Peter & G. S. Hardie, Bruce (2014).
+           "Additional Results for the Pareto/NBD Model."
+           https://www.brucehardie.com/notes/015/additional_pareto_nbd_results.pdf
+    .. [4] Fader, Peter & G. S. Hardie, Bruce (2014).
+           "Deriving the Conditional PMF of the Pareto/NBD Model."
+           https://www.brucehardie.com/notes/028/pareto_nbd_conditional_pmf.pdf
     """
 
     _model_type = "Pareto/NBD"  # Pareto Negative-Binomial Distribution
@@ -167,10 +165,6 @@ class ParetoNBDModel(CLVModel):
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
     ):
-        warnings.warn(
-            "The Pareto/NBD model is still experimental. Please see code examples in documentation if model fitting issues are encountered.",
-            UserWarning,
-        )
         # Assign inputs to attributes and perform validation checks
         try:
             self.customer_id = data["customer_id"]
