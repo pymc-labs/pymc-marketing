@@ -36,7 +36,6 @@ class TestParetoNBDModel:
 
         # Instantiate model with CDNOW data for testing
         cls.model = ParetoNBDModel(cls.data)
-        cls.model.build_model()
 
         # Also instantiate lifetimes model for comparison
         cls.lifetimes_model = ParetoNBDFitter()
@@ -83,7 +82,6 @@ class TestParetoNBDModel:
     def test_model(self, model_config, default_model_config):
         for config in (model_config, default_model_config):
             model = ParetoNBDModel(self.data, config)
-            model.build_model()
 
             assert isinstance(
                 model.model["r"].owner.op,
@@ -175,7 +173,6 @@ class TestParetoNBDModel:
         model = ParetoNBDModel(
             data=self.data,
         )
-        model.build_model()
 
         sample_kwargs = (
             dict(random_seed=self.rng, chains=2) if fit_method == "mcmc" else {}
@@ -343,7 +340,6 @@ class TestParetoNBDModel:
         model = ParetoNBDModel(
             data=test_data,
         )
-        model.build_model()
 
         # TODO: A test with more than 1 chain and draw is required for full coverage.
         chains = 2
@@ -406,7 +402,6 @@ class TestParetoNBDModel:
         model = ParetoNBDModel(
             data=test_data,
         )
-        model.build_model()
 
         model.fit("map")
         model.save("test_model")

@@ -102,8 +102,6 @@ class ParetoNBDModel(CLVModel):
                  },
              )
 
-             model.build_model()
-
              # Fit model quickly to large datasets via Maximum a Posteriori
              model.fit(fit_method='map')
 
@@ -209,6 +207,8 @@ class ParetoNBDModel(CLVModel):
             self.r_prior, self.alpha_prior, self.s_prior, self.beta_prior
         )
 
+        self.build_model()
+
     @property
     def default_model_config(self) -> Dict[str, Dict]:
         return {
@@ -298,6 +298,7 @@ class ParetoNBDModel(CLVModel):
         return xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
 
     def fit(self, fit_method="mcmc", **kwargs):
+
         mode = get_default_mode()
         if fit_method == "mcmc":
             # Include rewrite in mode
