@@ -104,10 +104,8 @@ class ParetoNBDModel(CLVModel):
             model.fit(fit_method='map')
             print(model.fit_summary())
 
-            # For more informative predictions and reliable performance on smaller datasets,
-            # Use 'mcmc' or 'slice' to estimate full posterior distributions.
-            # 'slice' is usually faster than 'mcmc' for this model.
-            model.fit(fit_method='slice')
+            # Use 'mcmc' for more informative predictions and reliable performance on smaller datasets
+            model.fit(fit_method='mcmc')
             print(model.fit_summary())
 
             # Predict number of purchases for customers over the next 10 time periods
@@ -303,7 +301,6 @@ class ParetoNBDModel(CLVModel):
             Method used to fit the model. Options are:
             * "map": Posterior point estimates via Maximum a Posteriori (default)
             * "mcmc": Full posterior distributions via No U-Turn Sampler (NUTS)
-            * "slice": Full posterior distributions via Slice Sampling.
         kwargs:
             Other keyword arguments passed to the underlying PyMC routines
         """
