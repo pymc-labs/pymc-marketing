@@ -1,5 +1,5 @@
 import warnings
-from typing import Any, Dict, Optional, Sequence, Tuple, TypeVar, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -19,8 +19,6 @@ from xarray_einstats.stats import logsumexp as xr_logsumexp
 from pymc_marketing.clv.distributions import ParetoNBD
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
-
-SELF = TypeVar("SELF")
 
 
 @node_rewriter([Elemwise])
@@ -326,7 +324,7 @@ class ParetoNBDModel(CLVModel):
                     action="ignore",
                     category=UserWarning,
                 )
-                super().fit(fit_method, **kwargs)  # type: ignore
+                super().fit(fit_method, **kwargs)
 
         return self
 
