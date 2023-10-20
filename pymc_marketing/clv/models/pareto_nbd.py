@@ -1,7 +1,6 @@
 import warnings
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, TypeVar, Union
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -20,6 +19,8 @@ from xarray_einstats.stats import logsumexp as xr_logsumexp
 from pymc_marketing.clv.distributions import ParetoNBD
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
+
+SELF = TypeVar("SELF")
 
 
 @node_rewriter([Elemwise])
@@ -295,7 +296,7 @@ class ParetoNBDModel(CLVModel):
         loglike = pm.logp(pareto_dist, values).eval()
         return xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
 
-    def fit(self, fit_method: str = "map", **kwargs) -> az.InferenceData:
+    def fit(self, fit_method: str = "map", **kwargs):  # type: ignore
         """Infer posteriors of model parameters to run predictions.
 
         Parameters
@@ -325,28 +326,9 @@ class ParetoNBDModel(CLVModel):
                     action="ignore",
                     category=UserWarning,
                 )
-                if fit_method == "slice":
-                    if self.sampler_config is None:
-                        self.sampler_config = {
-                            "draws": 3000,
-                            "tune": 2500,
-                        }
-                    self.sampler_config.update(**kwargs)
-                    with self.model:
-                        self.idata = pm.sample(step=pm.Slice(), **self.sampler_config)
+                super().fit(fit_method, **kwargs)  # type: ignore
 
-                    with warnings.catch_warnings():
-                        warnings.filterwarnings(
-                            "ignore",
-                            category=UserWarning,
-                            message="The group fit_data is not defined in the InferenceData scheme",
-                        )
-                        self.idata.add_groups(fit_data=self.data.to_xarray())  # type: ignore
-
-                        return self.idata
-
-                else:
-                    super().fit(fit_method, **kwargs)
+        return self
 
     def expected_purchases(
         self,

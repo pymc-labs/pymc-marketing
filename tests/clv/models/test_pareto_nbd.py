@@ -170,8 +170,6 @@ class TestParetoNBDModel:
         [
             ("mcmc", 0.1, dict(random_seed=np.random.default_rng(34), chains=2)),
             ("map", 0.2, None),
-            ("slice", 0.1, None),
-            ("slice", 0.1, dict(random_seed=np.random.default_rng(34), draws=1000)),
         ],
     )
     def test_model_convergence(self, fit_method, rtol, sample_kwargs):
