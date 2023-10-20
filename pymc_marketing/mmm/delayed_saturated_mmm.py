@@ -12,7 +12,6 @@ import seaborn as sns
 from pytensor.tensor.variable import TensorVariable
 from xarray import DataArray
 
-
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
