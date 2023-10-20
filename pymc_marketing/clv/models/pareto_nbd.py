@@ -1,6 +1,7 @@
 import warnings
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
+import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -100,11 +101,14 @@ class ParetoNBDModel(CLVModel):
                 },
             )
 
-            # Fit model quickly to large datasets via Maximum a Posteriori
+            # Fit model quickly to large datasets via the default Maximum a Posteriori method
             model.fit(fit_method='map')
+            print(model.fit_summary())
 
-            # Fit model with full posterior estimation for more informative predictions
-            model.fit()
+            # For more informative predictions and reliable performance on smaller datasets,
+            # Use 'mcmc' or 'slice' to estimate full posterior distributions.
+            # 'slice' is usually faster than 'mcmc' for this model.
+            model.fit(fit_method='slice')
             print(model.fit_summary())
 
             # Predict number of purchases for customers over the next 10 time periods
@@ -291,7 +295,19 @@ class ParetoNBDModel(CLVModel):
         loglike = pm.logp(pareto_dist, values).eval()
         return xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
 
-    def fit(self, fit_method="map", **kwargs):
+    def fit(self, fit_method: str = "map", **kwargs) -> az.InferenceData:
+        """Infer posteriors of model parameters to run predictions.
+
+        Parameters
+        ----------
+        fit_method: str
+            Method used to fit the model. Options are:
+            * "map": Posterior point estimates via Maximum a Posteriori (default)
+            * "mcmc": Full posterior distributions via No U-Turn Sampler (NUTS)
+            * "slice": Full posterior distributions via Slice Sampling.
+        kwargs:
+            Other keyword arguments passed to the underlying PyMC routines
+        """
 
         mode = get_default_mode()
         if fit_method == "mcmc":
@@ -310,13 +326,14 @@ class ParetoNBDModel(CLVModel):
                     category=UserWarning,
                 )
                 if fit_method == "slice":
+                    if self.sampler_config is None:
+                        self.sampler_config = {
+                            "draws": 3000,
+                            "tune": 2500,
+                        }
+                    self.sampler_config.update(**kwargs)
                     with self.model:
-                        if kwargs is {}:
-                            kwargs = {
-                                "draws": 3000,
-                                "tune": 2500,
-                            }
-                        self.idata = pm.sample(step=pm.Slice(), **kwargs)
+                        self.idata = pm.sample(step=pm.Slice(), **self.sampler_config)
 
                     with warnings.catch_warnings():
                         warnings.filterwarnings(

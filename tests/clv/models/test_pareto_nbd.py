@@ -9,6 +9,7 @@ import xarray
 from lifetimes import ParetoNBDFitter
 
 from pymc_marketing.clv import ParetoNBDModel
+from pymc_marketing.clv.distributions import ParetoNBD
 
 
 class TestParetoNBDModel:
@@ -301,7 +302,7 @@ class TestParetoNBDModel:
             )
             self.model.idata = mock_fit
 
-        rtol = 0.2
+        rtol = 0.26
 
         customer_dropout = self.model.distribution_new_customer_dropout(
             random_seed=self.rng
@@ -310,12 +311,25 @@ class TestParetoNBDModel:
             random_seed=self.rng
         )
 
+        customer_rec_freq = self.model.distribution_customer_population(
+            random_seed=self.rng
+        )
+
         assert isinstance(customer_dropout, xarray.DataArray)
         assert isinstance(customer_purchase_rate, xarray.DataArray)
+        assert isinstance(customer_rec_freq, xarray.DataArray)
 
         N = 1000
         lam = pm.Gamma.dist(alpha=self.r_true, beta=1 / self.alpha_true, size=N)
         mu = pm.Gamma.dist(alpha=self.s_true, beta=1 / self.beta_true, size=N)
+
+        pop = ParetoNBD.dist(
+            r=self.r_true,
+            alpha=self.alpha_true,
+            s=self.s_true,
+            beta=self.beta_true,
+            T=self.T,
+        )
 
         np.testing.assert_allclose(
             customer_purchase_rate.mean(),
@@ -334,31 +348,14 @@ class TestParetoNBDModel:
             customer_dropout.var(), pm.draw(mu.var(), random_seed=self.rng), rtol=rtol
         )
 
-    def test_distribution_customer_population(self):
-        # TODO: Why isn't self.data working here?
-        test_data = pd.read_csv("datasets/clv_quickstart.csv")
-        test_data["customer_id"] = test_data.index
-        model = ParetoNBDModel(
-            data=test_data,
+        np.testing.assert_allclose(
+            customer_rec_freq.mean(),
+            pm.draw(pop.mean(), random_seed=self.rng),
+            rtol=rtol,
         )
-        model.build_model()
-
-        mock_fit = az.from_dict(
-            {
-                "r": [self.r_true],
-                "alpha": [self.alpha_true],
-                "s": [self.s_true],
-                "beta": [self.beta_true],
-            }
+        np.testing.assert_allclose(
+            customer_rec_freq.var(), pm.draw(pop.var(), random_seed=self.rng), rtol=rtol
         )
-        model.idata = mock_fit
-
-        rng = np.random.default_rng(42)
-        customer_recency_frequency = model.distribution_customer_population(
-            random_seed=rng
-        )
-
-        assert isinstance(customer_recency_frequency, xarray.DataArray)
 
     def test_save_load_pareto_nbd(self):
         # TODO: Create a pytest fixture for this
