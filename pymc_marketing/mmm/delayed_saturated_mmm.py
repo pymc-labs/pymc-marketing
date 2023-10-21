@@ -1,4 +1,4 @@
-from functools import partial
+from functools import partial, wraps
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -24,6 +24,7 @@ __all__ = ["DelayedSaturatedMMM"]
 
 def deterministic_wrapper(func, name: str, model=None, dims=None): 
     """Same signature as func but creates a Deterministic variable too."""
+    @wraps(func)
     def wrapped_func(*args, **kwargs): 
         return pm.Deterministic(name=name, var=func(*args, **kwargs), dims=dims, model=model)
     
