@@ -1,3 +1,4 @@
+from functools import partial
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -8,6 +9,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+from pytensor import tensor as pt
 import seaborn as sns
 from xarray import DataArray
 
@@ -19,6 +21,144 @@ from pymc_marketing.mmm.validating import ValidateControlColumns
 
 __all__ = ["DelayedSaturatedMMM"]
 
+
+def deterministic_wrapper(func, name: str, model=None, dims=None): 
+    """Same signature as func but creates a Deterministic variable too."""
+    def wrapped_func(*args, **kwargs): 
+        return pm.Deterministic(name=name, var=func(*args, **kwargs), dims=dims, model=model)
+    
+    return wrapped_func
+
+
+def adstock_saturation(
+    X_channel, 
+    alpha: pt.TensorVariable, 
+    lam: pt.TensorVariable,
+    beta_channel: pt.TensorVariable, 
+    adstock_max_lag: int,
+) -> pt.TensorVariable:
+    """Apply adstock transformation then saturation.
+
+    To be applied within a model
+
+    Arguments
+    ---------
+    X_channel : pt.TensorVariable
+        Channel data
+    alpha : pt.TensorVariable   
+        Adstock transformation parameter
+    lam : pt.TensorVariable 
+        Saturation transformation parameter
+    beta_channel : pt.TensorVariable    
+        Channel coefficient
+    adstock_max_lag : int
+        Maximum lag for adstock transformation
+
+    Returns
+    -------
+    pt.TensorVariable
+        Data Channel contribution
+
+    Examples
+    --------
+
+    .. code-block:: python 
+
+        X_channel: np.ndarray = ...
+        adstock_max_lag: int = 7
+
+        coords = {"date": ..., "channel": ...}
+        with pm.Model(coords=coords) as model: 
+            alpha = pm.Beta("alpha", alpha=1, beta=3, dims=("channel",))
+            lam = pm.Gamma("lam", alpha=3, beta=1, dims=("channel",))
+            beta_channel = pm.HalfNormal("beta_channel", sigma=2, dims=("channel",))
+
+            channel_contributions = adstock_saturation(
+                X_channel=X_channel,
+                alpha=alpha,
+                lam=lam,
+                beta_channel=beta_channel,
+                adstock_max_lag=adstock_max_lag
+            )
+
+            intercept = pm.Normal('intercept', mu=0, sigma=2)
+            sigma = pm.HalfNormal("sigma")
+
+            mu = intercept + channel_contributions.sum(axis=-1)
+            obs = pm.Normal("obs", mu=mu, sigma=sigma, observed=y)
+
+            idata = pm.sample()
+    
+    """
+    adstock_func = deterministic_wrapper(
+        func=partial(
+            geometric_adstock,
+            alpha=alpha, 
+            l_max=adstock_max_lag, 
+            normalize=True, 
+            axis=0), 
+        name="channel_adstock",
+        dims=("date", "channel"), 
+    )
+    saturation_func = deterministic_wrapper(
+        func=partial(
+            logistic_saturation,
+            lam=lam,
+        ),
+        name="channel_adstock_saturated",
+        dims=("date", "channel"),
+    )
+
+    channel_adstock_saturated = saturation_func(
+        adstock_func(X_channel)
+    )
+    return pm.Deterministic(
+        name="channel_contributions",
+        var=channel_adstock_saturated * beta_channel,
+        dims=("date", "channel"),
+    )
+
+
+def get_channel_contributions(
+    X_channel: np.ndarray, 
+    beta_channel: Dict[str, Any], 
+    alpha: Dict[str, Any], 
+    lam: Dict[str, Any], 
+    adstock_max_lag: int
+) -> pt.TensorVariable: 
+    """Get channel contributions based on current configs."""
+    channel_data_ = pm.MutableData(
+        name="channel_data",
+        value=X_channel,
+        dims=("date", "channel"),
+    )
+
+    beta_channel = pm.HalfNormal(
+        name="beta_channel",
+        sigma=beta_channel["sigma"],
+        dims=beta_channel["dims"],
+    )
+    alpha = pm.Beta(
+        name="alpha",
+        alpha=alpha["alpha"],
+        beta=alpha["beta"],
+        dims=alpha["dims"],
+    )
+
+    lam = pm.Gamma(
+        name="lam",
+        alpha=lam["alpha"],
+        beta=lam["beta"],
+        dims=lam["dims"],
+    )
+
+    return adstock_saturation(
+        X_channel=channel_data_,
+        alpha=alpha,
+        lam=lam,
+        beta_channel=beta_channel,
+        adstock_max_lag=adstock_max_lag
+    )
 
 class BaseDelayedSaturatedMMM(MMM):
     _model_type = "DelayedSaturatedMMM"
@@ -175,12 +315,6 @@ class BaseDelayedSaturatedMMM(MMM):
         model_config = self.model_config
         self._generate_and_preprocess_model_data(X, y)
         with pm.Model(coords=self.model_coords) as self.model:
-            channel_data_ = pm.MutableData(
-                name="channel_data",
-                value=self.preprocessed_data["X"][self.channel_columns].to_numpy(),
-                dims=("date", "channel"),
-            )
-
             target_ = pm.MutableData(
                 name="target",
                 value=self.preprocessed_data["y"],
@@ -193,47 +327,14 @@ class BaseDelayedSaturatedMMM(MMM):
                 sigma=model_config["intercept"]["sigma"],
             )
 
-            beta_channel = pm.HalfNormal(
-                name="beta_channel",
-                sigma=model_config["beta_channel"]["sigma"],
-                dims=model_config["beta_channel"]["dims"],
-            )
-            alpha = pm.Beta(
-                name="alpha",
-                alpha=model_config["alpha"]["alpha"],
-                beta=model_config["alpha"]["beta"],
-                dims=model_config["alpha"]["dims"],
-            )
-
-            lam = pm.Gamma(
-                name="lam",
-                alpha=model_config["lam"]["alpha"],
-                beta=model_config["lam"]["beta"],
-                dims=model_config["lam"]["dims"],
-            )
-
             sigma = pm.HalfNormal(name="sigma", sigma=model_config["sigma"]["sigma"])
 
-            channel_adstock = pm.Deterministic(
-                name="channel_adstock",
-                var=geometric_adstock(
-                    x=channel_data_,
-                    alpha=alpha,
-                    l_max=self.adstock_max_lag,
-                    normalize=True,
-                    axis=0,
-                ),
-                dims=("date", "channel"),
-            )
-            channel_adstock_saturated = pm.Deterministic(
-                name="channel_adstock_saturated",
-                var=logistic_saturation(x=channel_adstock, lam=lam),
-                dims=("date", "channel"),
-            )
-            channel_contributions = pm.Deterministic(
-                name="channel_contributions",
-                var=channel_adstock_saturated * beta_channel,
-                dims=("date", "channel"),
+            channel_contributions = get_channel_contributions(
+                X_channel=self.preprocessed_data["X"][self.channel_columns].to_numpy(),
+                beta_channel=model_config["beta_channel"],
+                alpha=model_config["alpha"],
+                lam=model_config["lam"],
+                adstock_max_lag=self.adstock_max_lag
             )
 
             mu_var = intercept + channel_contributions.sum(axis=-1)
