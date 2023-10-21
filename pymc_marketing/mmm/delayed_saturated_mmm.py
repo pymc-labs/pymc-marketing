@@ -85,7 +85,7 @@ class BaseDelayedSaturatedMMM(MMM):
         return "y"
 
     def _generate_and_preprocess_model_data(  # type: ignore
-        self, X: Union[pd.DataFrame, pd.Series], y: Union[pd.Series, np.ndarray]
+        self, X: pd.DataFrame, y: Union[pd.Series, np.ndarray]
     ) -> None:
         """
         Applies preprocessing to the data before fitting the model.
@@ -94,7 +94,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
         Parameters
         ----------
-        X : Union[pd.DataFrame, pd.Series], shape (n_obs, n_features)
+        X : pd.DataFrame, shape (n_obs, n_features)
         y : Union[pd.Series, np.ndarray], shape (n_obs,)
         """
         date_data = X[self.date_column]

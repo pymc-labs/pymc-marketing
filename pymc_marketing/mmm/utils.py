@@ -27,7 +27,7 @@ def generate_yearly_fourier_modes(
 
     """
     DAYS_OF_YEAR = 365.25
-    periods = npt.NDArray[np.float_] = dayofyear / DAYS_OF_YEAR
+    periods: npt.NDArray[np.float_] = dayofyear / DAYS_OF_YEAR
     return generate_fourier_modes(
         periods=periods,
         n_order=n_order,

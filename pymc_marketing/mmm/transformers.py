@@ -67,7 +67,7 @@ def batched_convolution(x, w, axis: int = 0):
 
 
 def geometric_adstock(
-    x, alpha: float = 0.0, l_max: int = 12, normalize: bool = False, axis: int = 0
+    x, alpha=0.0, l_max: int = 12, normalize: bool = False, axis: int = 0
 ):
     """Geometric adstock transformation.
 
