@@ -57,6 +57,49 @@ class BaseDelayedSaturatedMMM(MMM):
         yearly_seasonality : Optional[int], optional
             Number of Fourier modes to model yearly seasonality, by default None.
 
+        Examples
+        --------
+            DelayedSaturatedMMM
+
+            .. code-block:: python
+
+                import pymc as pm
+                from pymc_marketing.mmm import DelayedSaturatedMMM
+
+                data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/datasets/mmm_example.csv"
+                data = pd.read_csv(data_url, parse_dates=['date_week'])
+
+                model = DelayedSaturatedMMM(
+                    date_column="date_week",
+                    channel_columns=["x1", "x2"],
+                    control_columns=[
+                        "event_1",
+                        "event_2",
+                        "t",
+                    ],
+                    adstock_max_lag=8,
+                    yearly_seasonality=2,
+                    model_config={
+                        # priors
+                        "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
+                        "beta_channel": {"dist": "HalfNormal", "kwargs": {"sigma": 2}, "dims": ("channel",)},
+                        "alpha": {"dist": "Beta", "kwargs": {"alpha": 1, "beta": 3}, "dims": ("channel",)},
+                        "lam": {"dist": "Gamma", "kwargs": {"alpha": 3, "beta": 1}, "dims": ("channel",)},
+                        "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+                        "gamma_control": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}, "dims": ("control",)},
+                        "gamma_fourier": {"dist": "Laplace", "kwargs": {"mu": 0, "b": 1}, "dims": "fourier_mode"},
+                        # params
+                        "mu": {"dims": ("date",)},
+                        "likelihood": {"dims": ("date",)},
+                    },
+                )
+
+                X = data.drop('y',axis=1)
+                y = data['y']
+
+                model.fit(X,y)
+                model.plot_components_contributions();
+
         References
         ----------
         .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
@@ -174,6 +217,7 @@ class BaseDelayedSaturatedMMM(MMM):
         """
         model_config = self.model_config
         self._generate_and_preprocess_model_data(X, y)
+
         with pm.Model(coords=self.model_coords) as self.model:
             channel_data_ = pm.MutableData(
                 name="channel_data",
@@ -187,33 +231,13 @@ class BaseDelayedSaturatedMMM(MMM):
                 dims="date",
             )
 
-            intercept = pm.Normal(
-                name="intercept",
-                mu=model_config["intercept"]["mu"],
-                sigma=model_config["intercept"]["sigma"],
-            )
+            intercept = self.register_rv(name="intercept")
+            beta_channel = self.register_rv(name="beta_channel")
+            alpha = self.register_rv(name="alpha")
+            lam = self.register_rv(name="lam")
+            sigma = self.register_rv(name="sigma")
 
-            beta_channel = pm.HalfNormal(
-                name="beta_channel",
-                sigma=model_config["beta_channel"]["sigma"],
-                dims=model_config["beta_channel"]["dims"],
-            )
-            alpha = pm.Beta(
-                name="alpha",
-                alpha=model_config["alpha"]["alpha"],
-                beta=model_config["alpha"]["beta"],
-                dims=model_config["alpha"]["dims"],
-            )
-
-            lam = pm.Gamma(
-                name="lam",
-                alpha=model_config["lam"]["alpha"],
-                beta=model_config["lam"]["beta"],
-                dims=model_config["lam"]["dims"],
-            )
-
-            sigma = pm.HalfNormal(name="sigma", sigma=model_config["sigma"]["sigma"])
-
+            # TODO: register the adstock transforms
             channel_adstock = pm.Deterministic(
                 name="channel_adstock",
                 var=geometric_adstock(
@@ -245,17 +269,12 @@ class BaseDelayedSaturatedMMM(MMM):
                     for column in self.control_columns
                 )
             ):
+                gamma_control = self.register_rv(name="gamma_control")
+
                 control_data_ = pm.MutableData(
                     name="control_data",
                     value=self.preprocessed_data["X"][self.control_columns],
                     dims=("date", "control"),
-                )
-
-                gamma_control = pm.Normal(
-                    name="gamma_control",
-                    mu=model_config["gamma_control"]["mu"],
-                    sigma=model_config["gamma_control"]["sigma"],
-                    dims=model_config["gamma_control"]["dims"],
                 )
 
                 control_contributions = pm.Deterministic(
@@ -274,17 +293,12 @@ class BaseDelayedSaturatedMMM(MMM):
                     for column in self.fourier_columns
                 )
             ):
+                gamma_fourier = self.register_rv(name="gamma_fourier")
+
                 fourier_data_ = pm.MutableData(
                     name="fourier_data",
                     value=self.preprocessed_data["X"][self.fourier_columns],
                     dims=("date", "fourier_mode"),
-                )
-
-                gamma_fourier = pm.Laplace(
-                    name="gamma_fourier",
-                    mu=model_config["gamma_fourier"]["mu"],
-                    b=model_config["gamma_fourier"]["b"],
-                    dims=model_config["gamma_fourier"]["dims"],
                 )
 
                 fourier_contribution = pm.Deterministic(
@@ -308,23 +322,41 @@ class BaseDelayedSaturatedMMM(MMM):
             )
 
     @property
-    def default_model_config(self) -> Dict:
-        model_config: Dict = {
-            "intercept": {"mu": 0, "sigma": 2},
-            "beta_channel": {"sigma": 2, "dims": ("channel",)},
-            "alpha": {"alpha": 1, "beta": 3, "dims": ("channel",)},
-            "lam": {"alpha": 3, "beta": 1, "dims": ("channel",)},
-            "sigma": {"sigma": 2},
+    def default_model_config(self) -> Dict[str, Dict]:
+        return {
+            # Prior
+            "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
+            "beta_channel": {
+                "dist": "HalfNormal",
+                "kwargs": {"sigma": 2},
+                "dims": ("channel",),
+            },
+            "alpha": {
+                "dist": "Beta",
+                "kwargs": {"alpha": 1, "beta": 3},
+                "dims": ("channel",),
+            },
+            "lam": {
+                "dist": "Gamma",
+                "kwargs": {"alpha": 3, "beta": 1},
+                "dims": ("channel",),
+            },
+            "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
             "gamma_control": {
-                "mu": 0,
-                "sigma": 2,
+                "dist": "Normal",
+                "kwargs": {"mu": 0, "sigma": 2},
                 "dims": ("control",),
             },
+            "gamma_fourier": {
+                "dist": "Laplace",
+                "kwargs": {"mu": 0, "b": 1},
+                "dims": "fourier_mode",
+            },
+            # Deterministic
             "mu": {"dims": ("date",)},
+            # Likelihood
             "likelihood": {"dims": ("date",)},
-            "gamma_fourier": {"mu": 0, "b": 1, "dims": "fourier_mode"},
         }
-        return model_config
 
     def _get_fourier_models_data(self, X) -> pd.DataFrame:
         """Generates fourier modes to model seasonality.

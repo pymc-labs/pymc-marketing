@@ -41,26 +41,41 @@ def toy_X() -> pd.DataFrame:
 @pytest.fixture(scope="class")
 def model_config_requiring_serialization() -> dict:
     model_config = {
-        "intercept": {"mu": 0, "sigma": 2},
+        "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
         "beta_channel": {
-            "sigma": np.array([0.4533017, 0.25488063]),
+            "dist": "HalfNormal",
+            "kwargs": {"sigma": np.array([0.4533017, 0.25488063])},
             "dims": ("channel",),
         },
         "alpha": {
-            "alpha": np.array([3, 3]),
-            "beta": np.array([3.55001301, 2.87092431]),
+            "dist": "Beta",
+            "kwargs": {
+                "alpha": np.array([3, 3]),
+                "beta": np.array([3.55001301, 2.87092431]),
+            },
             "dims": ("channel",),
         },
         "lam": {
-            "alpha": np.array([3, 3]),
-            "beta": np.array([4.12231653, 5.02896872]),
+            "dist": "Gamma",
+            "kwargs": {
+                "alpha": np.array([3, 3]),
+                "beta": np.array([4.12231653, 5.02896872]),
+            },
             "dims": ("channel",),
         },
-        "sigma": {"sigma": 2},
-        "gamma_control": {"mu": 0, "sigma": 2, "dims": ("control",)},
+        "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+        "gamma_control": {
+            "dist": "Normal",
+            "kwargs": {"mu": 0, "sigma": 2},
+            "dims": ("control",),
+        },
+        "gamma_fourier": {
+            "dist": "Laplace",
+            "kwargs": {"mu": 0, "b": 1},
+            "dims": "fourier_mode",
+        },
         "mu": {"dims": ("date",)},
         "likelihood": {"dims": ("date",)},
-        "gamma_fourier": {"mu": 0, "b": 1, "dims": "fourier_mode"},
     }
     return model_config
 
