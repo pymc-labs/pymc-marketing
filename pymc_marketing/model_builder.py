@@ -15,17 +15,20 @@
 
 import hashlib
 import json
+import types
 import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
 import xarray as xr
+from pymc import str_for_dist
 from pymc.util import RandomState
+from pytensor.tensor import TensorVariable
 
 # If scikit-learn is available, use its data validator
 try:
@@ -46,6 +49,7 @@ class ModelBuilder(ABC):
     and help with deployment.
     """
 
+    model: pm.Model
     _model_type = "BaseClass"
     version = "None"
 
@@ -413,6 +417,52 @@ class ModelBuilder(ABC):
             )
 
         return model
+
+    @staticmethod
+    def _check_prior_ndim(prior, ndim: int = 0):
+        if prior.ndim != ndim:
+            raise ValueError(
+                f"Prior variable {prior} must be have {ndim} ndims, but it has {prior.ndim} ndims."
+            )
+
+    @staticmethod
+    def _create_distribution(dist: Dict, ndim: int = 0) -> TensorVariable:
+        try:
+            prior_distribution = getattr(pm, dist["dist"]).dist(**dist["kwargs"])
+        except AttributeError as e:
+            raise ValueError(
+                f"Distribution {dist['dist']} does not exist in PyMC"
+            ) from e
+        return prior_distribution
+
+    @staticmethod
+    def _process_priors(
+        *priors: TensorVariable, check_ndim: bool = True
+    ) -> Tuple[TensorVariable, ...]:
+        """Check that each prior variable is unique and attach `str_repr` method."""
+        if len(priors) != len(set(priors)):
+            raise ValueError("Prior variables must be unique")
+        # Related to https://github.com/pymc-devs/pymc/issues/6311
+        for prior in priors:
+            prior.str_repr = types.MethodType(str_for_dist, prior)  # type: ignore
+        return priors
+
+    def register_rv(
+        self,
+        name: str,
+        observed: Any | None = None,
+        total_size: Any | None = None,
+        dims: Any | None = None,
+        transform: None = None,
+    ):
+        """Register random variables and priors from model_config to the pm.model object."""
+        rv_var = self._create_distribution(self.model_config[name])
+        self._process_priors(rv_var)
+        setattr(self, name, rv_var)
+
+        dims = self.model_config[name].get("dims")
+        rv = self.model.register_rv(rv_var, name=name, dims=dims)
+        return rv
 
     def fit(
         self,

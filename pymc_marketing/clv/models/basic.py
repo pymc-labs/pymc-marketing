@@ -1,17 +1,14 @@
 import json
-import types
 import warnings
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Union
 
 import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
-from pymc import str_for_dist
 from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
-from pytensor.tensor import TensorVariable
 from xarray import Dataset
 
 from pymc_marketing.model_builder import ModelBuilder
@@ -191,34 +188,6 @@ class CLVModel(ModelBuilder):
         # All previously used data is in idata.
 
         return model
-
-    @staticmethod
-    def _check_prior_ndim(prior, ndim: int = 0):
-        if prior.ndim != ndim:
-            raise ValueError(
-                f"Prior variable {prior} must be have {ndim} ndims, but it has {prior.ndim} ndims."
-            )
-
-    @staticmethod
-    def _create_distribution(dist: Dict, ndim: int = 0) -> TensorVariable:
-        try:
-            prior_distribution = getattr(pm, dist["dist"]).dist(**dist["kwargs"])
-            CLVModel._check_prior_ndim(prior_distribution, ndim)
-        except AttributeError:
-            raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
-        return prior_distribution
-
-    @staticmethod
-    def _process_priors(
-        *priors: TensorVariable, check_ndim: bool = True
-    ) -> Tuple[TensorVariable, ...]:
-        """Check that each prior variable is unique and attach `str_repr` method."""
-        if len(priors) != len(set(priors)):
-            raise ValueError("Prior variables must be unique")
-        # Related to https://github.com/pymc-devs/pymc/issues/6311
-        for prior in priors:
-            prior.str_repr = types.MethodType(str_for_dist, prior)  # type: ignore
-        return priors
 
     @property
     def default_sampler_config(self) -> Dict:
