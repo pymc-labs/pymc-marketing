@@ -8,6 +8,32 @@ import xarray as xr
 from scipy.optimize import curve_fit, minimize_scalar
 
 
+def generate_yearly_fourier_modes(
+    dayofyear: npt.NDArray[np.float_], n_order: int
+) -> pd.DataFrame:
+    """Generate Fourier modes for yearly seasonality.
+
+    Parameters
+    ----------
+    dayofyear : array-like of float
+        Input array denoting the day of year.
+    n_order : int
+        Maximum order of Fourier modes.
+
+    Returns
+    -------
+    pd.DataFrame
+        Fourier modes (sin and cos with different frequencies) as columns in a dataframe.
+
+    """
+    DAYS_OF_YEAR = 365.25
+    periods = npt.NDArray[np.float_] = dayofyear / DAYS_OF_YEAR
+    return generate_fourier_modes(
+        periods=periods,
+        n_order=n_order,
+    )
+
+
 def generate_fourier_modes(
     periods: npt.NDArray[np.float_], n_order: int
 ) -> pd.DataFrame:

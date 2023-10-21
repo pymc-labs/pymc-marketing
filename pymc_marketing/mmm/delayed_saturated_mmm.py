@@ -14,7 +14,7 @@ from xarray import DataArray
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
-from pymc_marketing.mmm.utils import generate_fourier_modes
+from pymc_marketing.mmm.utils import generate_yearly_fourier_modes
 from pymc_marketing.mmm.validating import ValidateControlColumns
 
 __all__ = ["DelayedSaturatedMMM"]
@@ -326,7 +326,7 @@ class BaseDelayedSaturatedMMM(MMM):
         }
         return model_config
 
-    def _get_fourier_models_data(self, X) -> pd.DataFrame:
+    def _get_fourier_models_data(self, X: pd.DataFrame) -> pd.DataFrame:
         """Generates fourier modes to model seasonality.
 
         References
@@ -338,10 +338,9 @@ class BaseDelayedSaturatedMMM(MMM):
         date_data: pd.Series = pd.to_datetime(
             arg=X[self.date_column], format="%Y-%m-%d"
         )
-        periods: npt.NDArray[np.float_] = date_data.dt.dayofyear.to_numpy() / 365.25
-        return generate_fourier_modes(
-            periods=periods,
-            n_order=self.yearly_seasonality,
+
+        return generate_yearly_fourier_modes(
+            dayofyear=date_data.dt.dayofyear.to_numpy(), n_order=self.yearly_seasonality
         )
 
     def channel_contributions_forward_pass(
@@ -486,17 +485,41 @@ class BaseDelayedSaturatedMMM(MMM):
         """
         new_channel_data: Optional[np.ndarray] = None
 
-        if isinstance(X, pd.DataFrame):
-            try:
-                new_channel_data = X[self.channel_columns].to_numpy()
-            except KeyError as e:
-                raise RuntimeError("New data must contain channel_data!", e)
-        elif isinstance(X, np.ndarray):
-            new_channel_data = X
-        else:
-            raise TypeError("X must be either a pandas DataFrame or a numpy array")
+        def from_frame_or_array(
+            X: Union[pd.DataFrame, np.ndarray], columns, handle_frame_func=None
+        ) -> np.ndarray:
+            if not isinstance(X, (pd.DataFrame, np.ndarray)):
+                raise TypeError("X must be either a pandas DataFrame or a numpy array")
 
+            if isinstance(X, np.ndarray):
+                return X
+
+            if handle_frame_func is None:
+
+                def handle_frame_func(X):
+                    raise RuntimeError(f"New data must contain {columns}!")
+
+            try:
+                return X[columns].to_numpy()
+            except KeyError:
+                return handle_frame_func(X)
+
+        new_channel_data = from_frame_or_array(X, columns=self.channel_columns)
         data: Dict[str, Union[np.ndarray, Any]] = {"channel_data": new_channel_data}
+
+        if self.control_columns is not None:
+            new_control_data = from_frame_or_array(X, columns=self.control_columns)
+            data["control_data"] = new_control_data
+
+        if self.yearly_seasonality is not None:
+
+            def handle_frame_func(X):
+                return self._get_fourier_models_data(X)
+
+            new_fourier_data = from_frame_or_array(
+                X, columns=self.fourier_columns, handle_frame_func=handle_frame_func
+            )
+            data["fourier_data"] = new_fourier_data
 
         if y is not None:
             if isinstance(y, pd.Series):
