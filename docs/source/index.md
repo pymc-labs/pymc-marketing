@@ -98,13 +98,12 @@ Start VS Code and ensure that the "Jupyter" extension is installed. Press Ctrl +
 
 ```python
 import pandas as pd
-from pymc_marketing import mmm
+from pymc_marketing.mmm import DelayedSaturatedMMM
 
 
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/datasets/mmm_example.csv"
 data = pd.read_csv(data_url, parse_dates=['date_week'])
 
-)
 mmm = DelayedSaturatedMMM(
     date_column="date_week",
     channel_columns=["x1", "x2"],
@@ -112,10 +111,6 @@ mmm = DelayedSaturatedMMM(
         "event_1",
         "event_2",
         "t",
-        "sin_order_1",
-        "cos_order_1",
-        "sin_order_2",
-        "cos_order_2",
     ],
     adstock_max_lag=8,
     yearly_seasonality=2,
