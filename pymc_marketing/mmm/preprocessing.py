@@ -32,7 +32,7 @@ class MaxAbsScaleTarget:
 
     @preprocessing_method_y
     def max_abs_scale_target_data(self, data: pd.Series) -> pd.Series:
-        target_vector = data.reshape(-1, 1)
+        target_vector = data.to_numpy().reshape(-1, 1)
         transformers = [("scaler", MaxAbsScaler())]
         pipeline = Pipeline(steps=transformers)
         self.target_transformer: Pipeline = pipeline.fit(X=target_vector)
