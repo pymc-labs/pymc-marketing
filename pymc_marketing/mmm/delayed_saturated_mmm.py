@@ -514,7 +514,7 @@ class BaseDelayedSaturatedMMM(MMM):
         if self.yearly_seasonality is not None:
 
             def handle_frame_func(X):
-                return self._get_fourier_models_data(X)
+                return self._get_fourier_models_data(X).to_numpy()
 
             new_fourier_data = from_frame_or_array(
                 X, columns=self.fourier_columns, handle_frame_func=handle_frame_func
