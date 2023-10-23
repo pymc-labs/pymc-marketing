@@ -1,3 +1,4 @@
+import types
 import warnings
 from inspect import (
     getattr_static,
@@ -7,7 +8,6 @@ from inspect import (
     ismethoddescriptor,
 )
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-import types
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -15,8 +15,8 @@ import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
 import pymc as pm
-from pymc import str_for_dist
 import seaborn as sns
+from pymc import str_for_dist
 from pytensor.tensor import TensorVariable
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
@@ -126,7 +126,7 @@ class BaseMMM(ModelBuilder):
         except AttributeError:
             raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
         return prior_distribution
-    
+
     @staticmethod
     def _process_priors(
         *priors: TensorVariable, check_ndim: bool = True
