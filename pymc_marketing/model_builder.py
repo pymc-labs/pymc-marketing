@@ -447,23 +447,6 @@ class ModelBuilder(ABC):
             prior.str_repr = types.MethodType(str_for_dist, prior)  # type: ignore
         return priors
 
-    def register_rv(
-        self,
-        name: str,
-        observed: Any | None = None,
-        total_size: Any | None = None,
-        dims: Any | None = None,
-        transform: None = None,
-    ):
-        """Register random variables and priors from model_config to the pm.model object."""
-        rv_var = self._create_distribution(self.model_config[name])
-        self._process_priors(rv_var)
-        setattr(self, name, rv_var)
-
-        dims = self.model_config[name].get("dims")
-        rv = self.model.register_rv(rv_var, name=name, dims=dims)
-        return rv
-
     def fit(
         self,
         X: pd.DataFrame,

@@ -118,6 +118,28 @@ class BaseDelayedSaturatedMMM(MMM):
             adstock_max_lag=adstock_max_lag,
         )
 
+        # Define custom priors
+        self.intercept = self._create_distribution(self.model_config["intercept"])
+        self.beta_channel = self._create_distribution(self.model_config["beta_channel"])
+        self.alpha = self._create_distribution(self.model_config["alpha"])
+        self.lam = self._create_distribution(self.model_config["lam"])
+        self.sigma = self._create_distribution(self.model_config["sigma"])
+        self.gamma_control = self._create_distribution(
+            self.model_config["gamma_control"]
+        )
+        self.gamma_fourier = self._create_distribution(
+            self.model_config["gamma_fourier"]
+        )
+        self._process_priors(
+            self.intercept,
+            self.beta_channel,
+            self.alpha,
+            self.lam,
+            self.sigma,
+            self.gamma_control,
+            self.gamma_fourier,
+        )
+
     @property
     def default_sampler_config(self) -> Dict:
         return {}
@@ -231,11 +253,14 @@ class BaseDelayedSaturatedMMM(MMM):
                 dims="date",
             )
 
-            intercept = self.register_rv(name="intercept")
-            beta_channel = self.register_rv(name="beta_channel")
-            alpha = self.register_rv(name="alpha")
-            lam = self.register_rv(name="lam")
-            sigma = self.register_rv(name="sigma")
+            # FIXME: Need to add the correct dims to `beta_channel`, `alpha`, `lam`,
+            intercept = self.model.register_rv(self.intercept, name="intercept")
+            beta_channel = self.model.register_rv(
+                self.beta_channel, name="beta_channel"
+            )
+            alpha = self.model.register_rv(self.alpha, name="alpha")
+            lam = self.model.register_rv(self.lam, name="lam")
+            sigma = self.model.register_rv(self.sigma, name="sigma")
 
             # TODO: register the adstock transforms
             channel_adstock = pm.Deterministic(
@@ -269,7 +294,9 @@ class BaseDelayedSaturatedMMM(MMM):
                     for column in self.control_columns
                 )
             ):
-                gamma_control = self.register_rv(name="gamma_control")
+                gamma_control = self.model.register_rv(
+                    self.gamma_control, name="gamma_control"
+                )
 
                 control_data_ = pm.MutableData(
                     name="control_data",
@@ -293,7 +320,9 @@ class BaseDelayedSaturatedMMM(MMM):
                     for column in self.fourier_columns
                 )
             ):
-                gamma_fourier = self.register_rv(name="gamma_fourier")
+                gamma_fourier = self.model.register_rv(
+                    self.gamma_fourier, name="gamma_fourier"
+                )
 
                 fourier_data_ = pm.MutableData(
                     name="fourier_data",
