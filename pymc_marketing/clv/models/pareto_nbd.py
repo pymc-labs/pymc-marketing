@@ -202,7 +202,7 @@ class ParetoNBDModel(CLVModel):
             self.r_prior, self.alpha_prior, self.s_prior, self.beta_prior
         )
 
-        self.build_model()
+        # TODO: Add self.build_model() call here
 
     @property
     def default_model_config(self) -> Dict[str, Dict]:
@@ -323,7 +323,7 @@ class ParetoNBDModel(CLVModel):
                 )
                 super().fit(fit_method, **kwargs)
 
-        return self
+        # TODO: return self or None?
 
     def expected_purchases(
         self,
@@ -646,13 +646,8 @@ class ParetoNBDModel(CLVModel):
             s = pm.HalfFlat("s")
             beta = pm.HalfFlat("beta")
 
-            if shape_kwargs is None:
-                shape_kwargs = {"shape": 1000}
-
-            pm.Gamma(
-                "population_purchase_rate", alpha=r, beta=1 / alpha, **shape_kwargs
-            )
-            pm.Gamma("population_dropout", alpha=s, beta=1 / beta, **shape_kwargs)
+            pm.Gamma("population_purchase_rate", alpha=r, beta=1 / alpha, shape=1000)
+            pm.Gamma("population_dropout", alpha=s, beta=1 / beta, shape=1000)
 
             ParetoNBD(
                 name="customer_population",
@@ -672,7 +667,6 @@ class ParetoNBDModel(CLVModel):
     def distribution_new_customer_dropout(
         self,
         random_seed: Optional[RandomState] = None,
-        shape_kwargs: Optional[Dict] = None,
     ) -> xarray.Dataset:
         """Sample from the Gamma distribution representing dropout times for new customers.
 
@@ -691,13 +685,11 @@ class ParetoNBDModel(CLVModel):
         return self._distribution_new_customers(
             random_seed=random_seed,
             var_names=["population_dropout"],
-            shape_kwargs=shape_kwargs,
         )["population_dropout"]
 
     def distribution_new_customer_purchase_rate(
         self,
         random_seed: Optional[RandomState] = None,
-        shape_kwargs: Optional[Dict] = None,
     ) -> xarray.Dataset:
         """Sample from the Gamma distribution representing purchase rates for new customers.
 
@@ -717,13 +709,11 @@ class ParetoNBDModel(CLVModel):
         return self._distribution_new_customers(
             random_seed=random_seed,
             var_names=["population_purchase_rate"],
-            shape_kwargs=shape_kwargs,
         )["population_purchase_rate"]
 
     def distribution_customer_population(
         self,
         random_seed: Optional[RandomState] = None,
-        shape_kwargs: Optional[Dict] = None,
     ) -> xarray.Dataset:
         """Pareto/NBD process representing purchases across the customer population.
 
@@ -742,5 +732,4 @@ class ParetoNBDModel(CLVModel):
         return self._distribution_new_customers(
             random_seed=random_seed,
             var_names=["customer_population"],
-            shape_kwargs=shape_kwargs,
         )["customer_population"]

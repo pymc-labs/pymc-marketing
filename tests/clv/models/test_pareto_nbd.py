@@ -37,6 +37,8 @@ class TestParetoNBDModel:
 
         # Instantiate model with CDNOW data for testing
         cls.model = ParetoNBDModel(cls.data)
+        # TODO: This can be removed after build_model() is called internally with __init__
+        cls.model.build_model()
 
         # Also instantiate lifetimes model for comparison
         cls.lifetimes_model = ParetoNBDFitter()
@@ -87,6 +89,9 @@ class TestParetoNBDModel:
     def test_model(self, model_config, default_model_config):
         for config in (model_config, default_model_config):
             model = ParetoNBDModel(self.data, config)
+
+            # TODO: This can be removed after build_model() is called internally with __init__
+            model.build_model()
 
             assert isinstance(
                 model.model["r"].owner.op,
@@ -178,6 +183,8 @@ class TestParetoNBDModel:
         model = ParetoNBDModel(
             data=self.data,
         )
+        # TODO: This can be removed after build_model() is called internally with __init__
+        model.build_model()
 
         if sample_kwargs is None:
             sample_kwargs = {}
