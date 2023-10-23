@@ -7,6 +7,7 @@ from inspect import (
     ismethoddescriptor,
 )
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+import types
 
 import arviz as az
 import matplotlib.pyplot as plt

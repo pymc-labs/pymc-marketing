@@ -1,6 +1,5 @@
 import json
 from pathlib import Path
-import types
 from typing import Any, Dict, List, Optional, Union
 
 import arviz as az
