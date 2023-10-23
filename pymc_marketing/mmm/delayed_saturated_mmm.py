@@ -210,39 +210,20 @@ class BaseDelayedSaturatedMMM(MMM):
             )
 
             intercept = self.model.register_rv(self.intercept, name="intercept")
-            # pm.Normal(
-            #     name="intercept",
-            #     mu=model_config["intercept"]["mu"],
-            #     sigma=model_config["intercept"]["sigma"],
-            # )
-
             beta_channel = self.model.register_rv(
-                self.intercept, name="beta_channel", dims=("channel",)
+                self.beta_channel, name="beta_channel",
+                dims=("channel",)
             )
-            # pm.HalfNormal(
-            #     name="beta_channel",
-            #     sigma=model_config["beta_channel"]["sigma"],
-            #     dims=model_config["beta_channel"]["dims"],
-            # )
-            alpha = self.model.register_rv(self.alpha, name="alpha", dims=("channel",))
-            # pm.Beta(
-            #     name="alpha",
-            #     alpha=model_config["alpha"]["alpha"],
-            #     beta=model_config["alpha"]["beta"],
-            #     dims=model_config["alpha"]["dims"],
-            # )
-
-            lam = self.model.register_rv(self.lam, name="lam", dims=("channel",))
-            # pm.Gamma(
-            #     name="lam",
-            #     alpha=model_config["lam"]["alpha"],
-            #     beta=model_config["lam"]["beta"],
-            #     dims=model_config["lam"]["dims"],
-            # )
-
+            alpha = self.model.register_rv(self.alpha, 
+                                           name="alpha",
+                                           dims=("channel",)
+                                           )
+            lam = self.model.register_rv(self.lam, name="lam",
+                                         dims=("channel",)
+                                         )
             sigma = self.model.register_rv(self.sigma, name="sigma")
-            # pm.HalfNormal(name="sigma", sigma=model_config["sigma"]["sigma"])
 
+            # TODO: register the adstock transforms
             channel_adstock = pm.Deterministic(
                 name="channel_adstock",
                 var=geometric_adstock(
@@ -274,21 +255,16 @@ class BaseDelayedSaturatedMMM(MMM):
                     for column in self.control_columns
                 )
             ):
+                gamma_control = self.model.register_rv(
+                    self.gamma_control, name="gamma_control",
+                    dims=("control",)
+                )
+
                 control_data_ = pm.MutableData(
                     name="control_data",
                     value=self.preprocessed_data["X"][self.control_columns],
                     dims=("date", "control"),
                 )
-
-                gamma_control = self.model.register_rv(
-                    self.gamma_control, name="gamma_control", dims=("control",)
-                )
-                # pm.Normal(
-                #     name="gamma_control",
-                #     mu=model_config["gamma_control"]["mu"],
-                #     sigma=model_config["gamma_control"]["sigma"],
-                #     dims=model_config["gamma_control"]["dims"],
-                # )
 
                 control_contributions = pm.Deterministic(
                     name="control_contributions",
@@ -306,21 +282,16 @@ class BaseDelayedSaturatedMMM(MMM):
                     for column in self.fourier_columns
                 )
             ):
+                gamma_fourier = self.model.register_rv(
+                    self.gamma_fourier, name="gamma_fourier",
+                    dims="fourier_mode"
+                )
+
                 fourier_data_ = pm.MutableData(
                     name="fourier_data",
                     value=self.preprocessed_data["X"][self.fourier_columns],
                     dims=("date", "fourier_mode"),
                 )
-
-                gamma_fourier = self.model.register_rv(
-                    self.gamma_fourier, name="gamma_fourier", dims=("fourier_mode",)
-                )
-                # pm.Laplace(
-                #     name="gamma_fourier",
-                #     mu=model_config["gamma_fourier"]["mu"],
-                #     b=model_config["gamma_fourier"]["b"],
-                #     dims=model_config["gamma_fourier"]["dims"],
-                # )
 
                 fourier_contribution = pm.Deterministic(
                     name="fourier_contributions",
