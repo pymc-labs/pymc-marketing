@@ -12,9 +12,8 @@ import seaborn as sns
 from xarray import DataArray
 
 from pymc_marketing.mmm.base import MMM
-from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
+from pymc_marketing.mmm.preprocessing import create_mmm_transformer
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
-from pymc_marketing.mmm.utils import generate_yearly_fourier_modes
 from pymc_marketing.mmm.validating import ValidateControlColumns
 
 __all__ = ["DelayedSaturatedMMM"]
@@ -34,6 +33,7 @@ class BaseDelayedSaturatedMMM(MMM):
         validate_data: bool = True,
         control_columns: Optional[List[str]] = None,
         yearly_seasonality: Optional[int] = None,
+        x_transformer=None,
         **kwargs,
     ) -> None:
         """Media Mix Model with delayed adstock and logistic saturation class (see [1]_).
@@ -56,6 +56,9 @@ class BaseDelayedSaturatedMMM(MMM):
             Number of lags to consider in the adstock transformation, by default 4
         yearly_seasonality : Optional[int], optional
             Number of Fourier modes to model yearly seasonality, by default None.
+        x_transformer : ColumnTransformer, optional
+            Transformer to be used for the channel, control and date columns, by default None.
+            If None, the default transformer is used.
 
         References
         ----------
@@ -66,6 +69,17 @@ class BaseDelayedSaturatedMMM(MMM):
         self.yearly_seasonality = yearly_seasonality
         self.date_column = date_column
         self.validate_data = validate_data
+        self.channel_columns = channel_columns
+
+        if x_transformer is None:
+            x_transformer = create_mmm_transformer(
+                channel_cols=self.channel_columns,
+                control_cols=self.control_columns,
+                date_col=self.date_column,
+                yearly_fourier_order=self.yearly_seasonality,
+            )
+
+        self.x_transformer = x_transformer
 
         super().__init__(
             date_column=date_column,
@@ -97,40 +111,37 @@ class BaseDelayedSaturatedMMM(MMM):
         X : pd.DataFrame, shape (n_obs, n_features)
         y : Union[pd.Series, np.ndarray], shape (n_obs,)
         """
-        date_data = X[self.date_column]
-        channel_data = X[self.channel_columns]
-        coords: Dict[str, Any] = {
+        date_data = X[self.date_column].to_numpy()
+
+        self.mutable_coords: Dict[str, Any] = {
             "date": date_data,
+        }
+        self.model_coords: Dict[str, Any] = {
             "channel": self.channel_columns,
         }
 
-        new_X_dict = {
-            self.date_column: date_data,
-        }
-        X_data = pd.DataFrame.from_dict(new_X_dict)
-        X_data = pd.concat([X_data, channel_data], axis=1)
-        control_data: Optional[Union[pd.DataFrame, pd.Series]] = None
-        if self.control_columns is not None:
-            control_data = X[self.control_columns]
-            coords["control"] = self.control_columns
-            X_data = pd.concat([X_data, control_data], axis=1)
+        X_data = self.x_transformer.fit_transform(X)
 
-        fourier_features: Optional[pd.DataFrame] = None
-        if self.yearly_seasonality is not None:
-            fourier_features = self._get_fourier_models_data(X=X)
-            self.fourier_columns = fourier_features.columns
-            coords["fourier_mode"] = fourier_features.columns.to_numpy()
-            X_data = pd.concat([X_data, fourier_features], axis=1)
+        transformers = self.x_transformer.named_transformers_
 
-        self.model_coords = coords
+        for coord in ["fourier_mode", "control"]:
+            if coord not in transformers:
+                continue
+
+            self.model_coords[coord] = transformers[coord].get_feature_names_out()
+
+        if "fourier_mode" in self.model_coords:
+            self.fourier_columns = self.model_coords["fourier_mode"]
+
         if self.validate_data:
             self.validate("X", X_data)
             self.validate("y", y)
+
         self.preprocessed_data: Dict[str, Union[pd.DataFrame, pd.Series]] = {
-            "X": self.preprocess("X", X_data),  # type: ignore
-            "y": self.preprocess("y", y),  # type: ignore
+            "X": X_data,  # type: ignore
+            "y": self.get_target_transformer().fit_transform(y),  # type: ignore
         }
-        self.X: pd.DataFrame = X_data
+        self.X: pd.DataFrame = X
         self.y: Union[pd.Series, np.ndarray] = y
 
     def _save_input_params(self, idata) -> None:
@@ -174,7 +185,9 @@ class BaseDelayedSaturatedMMM(MMM):
         """
         model_config = self.model_config
         self._generate_and_preprocess_model_data(X, y)
-        with pm.Model(coords=self.model_coords) as self.model:
+        with pm.Model(
+            coords=self.model_coords, coords_mutable=self.mutable_coords
+        ) as self.model:
             channel_data_ = pm.MutableData(
                 name="channel_data",
                 value=self.preprocessed_data["X"][self.channel_columns].to_numpy(),
@@ -326,23 +339,6 @@ class BaseDelayedSaturatedMMM(MMM):
         }
         return model_config
 
-    def _get_fourier_models_data(self, X: pd.DataFrame) -> pd.DataFrame:
-        """Generates fourier modes to model seasonality.
-
-        References
-        ----------
-        https://www.pymc.io/projects/examples/en/latest/time_series/Air_passengers-Prophet_with_Bayesian_workflow.html
-        """
-        if self.yearly_seasonality is None:
-            raise ValueError("yearly_seasonality must be specified.")
-        date_data: pd.Series = pd.to_datetime(
-            arg=X[self.date_column], format="%Y-%m-%d"
-        )
-
-        return generate_yearly_fourier_modes(
-            dayofyear=date_data.dt.dayofyear.to_numpy(), n_order=self.yearly_seasonality
-        )
-
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float_]
     ) -> npt.NDArray[np.float_]:
@@ -483,43 +479,27 @@ class BaseDelayedSaturatedMMM(MMM):
         -------
         None
         """
-        new_channel_data: Optional[np.ndarray] = None
-
-        def from_frame_or_array(
-            X: Union[pd.DataFrame, np.ndarray], columns, handle_frame_func=None
-        ) -> np.ndarray:
-            if not isinstance(X, (pd.DataFrame, np.ndarray)):
-                raise TypeError("X must be either a pandas DataFrame or a numpy array")
-
-            if isinstance(X, np.ndarray):
-                return X
-
-            if handle_frame_func is None:
-
-                def handle_frame_func(X):
-                    raise RuntimeError(f"New data must contain {columns}!")
-
-            try:
-                return X[columns].to_numpy()
-            except KeyError:
-                return handle_frame_func(X)
-
-        new_channel_data = from_frame_or_array(X, columns=self.channel_columns)
-        data: Dict[str, Union[np.ndarray, Any]] = {"channel_data": new_channel_data}
-
-        if self.control_columns is not None:
-            new_control_data = from_frame_or_array(X, columns=self.control_columns)
-            data["control_data"] = new_control_data
-
-        if self.yearly_seasonality is not None:
-
-            def handle_frame_func(X):
-                return self._get_fourier_models_data(X).to_numpy()
-
-            new_fourier_data = from_frame_or_array(
-                X, columns=self.fourier_columns, handle_frame_func=handle_frame_func
+        if not isinstance(X, pd.DataFrame):
+            raise TypeError(
+                "X must be a pandas DataFrame in order to access all the columns."
             )
-            data["fourier_data"] = new_fourier_data
+
+        coords = {"date": X[self.date_column].to_numpy()}
+
+        X_transform = self.x_transformer.transform(X)
+
+        data = {
+            "channel_data": X_transform[self.channel_columns].to_numpy(),
+        }
+
+        for name, coord in zip(
+            ["fourier_data", "control_data"], ["fourier_mode", "control"]
+        ):
+            if coord not in self.model_coords:
+                continue
+
+            columns = self.model_coords[coord]
+            data[name] = X_transform[columns].to_numpy()
 
         if y is not None:
             if isinstance(y, pd.Series):
@@ -530,9 +510,11 @@ class BaseDelayedSaturatedMMM(MMM):
                 data["target"] = y
             else:
                 raise TypeError("y must be either a pandas Series or a numpy array")
+        else:
+            data["target"] = np.zeros(X.shape[0])
 
         with self.model:
-            pm.set_data(data)
+            pm.set_data(data, coords=coords)
 
     @classmethod
     def _model_config_formatting(cls, model_config: Dict) -> Dict:
@@ -558,8 +540,6 @@ class BaseDelayedSaturatedMMM(MMM):
 
 
 class DelayedSaturatedMMM(
-    MaxAbsScaleTarget,
-    MaxAbsScaleChannels,
     ValidateControlColumns,
     BaseDelayedSaturatedMMM,
 ):

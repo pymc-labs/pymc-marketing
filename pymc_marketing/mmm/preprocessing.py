@@ -1,74 +1,70 @@
-from typing import Any, Callable, List, Tuple, Union
+from typing import List, Optional
 
+import numpy as np
 import pandas as pd
-from sklearn.pipeline import Pipeline
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import MaxAbsScaler, StandardScaler
 
-__all__ = [
-    "preprocessing_method_X",
-    "preprocessing_method_y",
-    "MaxAbsScaleTarget",
-    "MaxAbsScaleChannels",
-    "StandardizeControls",
-]
+from pymc_marketing.mmm.utils import generate_yearly_fourier_modes
+
+__all__ = ["FourierTransformer", "create_mmm_transformer"]
 
 
-def preprocessing_method_X(method: Callable) -> Callable:
-    if not hasattr(method, "_tags"):
-        method._tags = {}  # type: ignore
-    method._tags["preprocessing_X"] = True  # type: ignore
-    return method
+class FourierTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, n_order: int) -> None:
+        self.n_order = n_order
+
+    def fit(self, X: pd.Series) -> "FourierTransformer":
+        dummy_value = np.array([0])
+        self.columns = generate_yearly_fourier_modes(
+            dayofyear=dummy_value, n_order=self.n_order
+        ).columns
+        return self
+
+    def transform(self, X: pd.Series) -> pd.DataFrame:
+        return generate_yearly_fourier_modes(X.dt.dayofyear, n_order=self.n_order)
+
+    def get_feature_names_out(self):
+        return self.columns.to_numpy()
 
 
-def preprocessing_method_y(method: Callable) -> Callable:
-    if not hasattr(method, "_tags"):
-        method._tags = {}  # type: ignore
-    method._tags["preprocessing_y"] = True  # type: ignore
-    return method
+def create_mmm_transformer(
+    channel_cols: List[str],
+    date_col: Optional[str] = None,
+    yearly_fourier_order: Optional[int] = None,
+    control_cols: Optional[List[str]] = None,
+) -> ColumnTransformer:
+    """Create the default transformer for the MMM model that will be used in the class
 
+    Parameters
+    ----------
+    channel_cols : List[str]
+        The columns that contain the channel data.
+    date_col : Optional[str]
+        The column that contains the date data.
+    yearly_fourier_order : Optional[int]
+        The order of the Fourier series to use for the yearly seasonality.
+    control_cols : Optional[List[str]]
+        The columns that contain the control data.
 
-class MaxAbsScaleTarget:
-    target_transformer: Pipeline
+    Returns
+    -------
+    ColumnTransformer
+        The transformer that will be used for the MMM model.
 
-    @preprocessing_method_y
-    def max_abs_scale_target_data(self, data: pd.Series) -> pd.Series:
-        target_vector = data.to_numpy().reshape(-1, 1)
-        transformers = [("scaler", MaxAbsScaler())]
-        pipeline = Pipeline(steps=transformers)
-        self.target_transformer: Pipeline = pipeline.fit(X=target_vector)
-        data = self.target_transformer.transform(X=target_vector).flatten()
-        return data
+    """
 
+    transformers = [("channel", MaxAbsScaler(), channel_cols)]
 
-class MaxAbsScaleChannels:
-    channel_columns: Union[List[str], Tuple[str]]
+    if control_cols is not None:
+        transformers.append(("control", StandardScaler(), control_cols))
 
-    @preprocessing_method_X
-    def max_abs_scale_channel_data(self, data: pd.DataFrame) -> pd.DataFrame:
-        data_cp = data.copy()
-        channel_data: Union[
-            pd.DataFrame,
-            pd.Series[Any],
-        ] = data_cp[self.channel_columns]
-        transformers = [("scaler", MaxAbsScaler())]
-        pipeline: Pipeline = Pipeline(steps=transformers)
-        self.channel_transformer: Pipeline = pipeline.fit(X=channel_data.to_numpy())
-        data_cp[self.channel_columns] = self.channel_transformer.transform(
-            channel_data.to_numpy()
+    if date_col is not None and yearly_fourier_order is not None:
+        transformers.append(
+            ("fourier_mode", FourierTransformer(n_order=yearly_fourier_order), date_col)  # type: ignore
         )
-        return data_cp
 
-
-class StandardizeControls:
-    control_columns: List[str]  # TODO: Handle Optional[List[str]]
-
-    @preprocessing_method_X
-    def standardize_control_data(self, data: pd.DataFrame) -> pd.DataFrame:
-        control_data: pd.DataFrame = data[self.control_columns]
-        transformers = [("scaler", StandardScaler())]
-        pipeline: Pipeline = Pipeline(steps=transformers)
-        self.control_transformer: Pipeline = pipeline.fit(X=control_data.to_numpy())
-        data[self.control_columns] = self.control_transformer.transform(
-            control_data.to_numpy()
-        )
-        return data
+    return ColumnTransformer(transformers, verbose_feature_names_out=False).set_output(
+        transform="pandas"
+    )

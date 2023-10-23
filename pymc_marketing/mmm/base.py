@@ -140,97 +140,12 @@ class BaseMMM(ModelBuilder):
         for method in validation_methods:
             method(self, data)
 
-    @property
-    def preprocessing_methods(
-        self,
-    ) -> Tuple[
-        List[
-            Callable[
-                ["BaseMMM", Union[pd.DataFrame, pd.Series, np.ndarray]],
-                Union[pd.DataFrame, pd.Series, np.ndarray],
-            ]
-        ],
-        List[
-            Callable[
-                ["BaseMMM", Union[pd.DataFrame, pd.Series, np.ndarray]],
-                Union[pd.DataFrame, pd.Series, np.ndarray],
-            ]
-        ],
-    ]:
-        """
-        A property that provides preprocessing methods for features ("X") and the target variable ("y").
-
-        This property scans the methods of the object and returns those marked for preprocessing.
-        The methods are marked by having a _tags dictionary attribute, with either "preprocessing_X" or "preprocessing_y" set to True.
-        The "preprocessing_X" tag indicates a method used for preprocessing features, and "preprocessing_y" indicates a method used for preprocessing the target variable.
-
-        Returns
-        -------
-        tuple of list of Callable[["BaseMMM", pd.DataFrame], pd.DataFrame]
-            A tuple where the first element is a list of methods for "X" preprocessing, and the second element is a list of methods for "y" preprocessing.
-        """
-        return (
-            [
-                method
-                for method in self.methods
-                if getattr(method, "_tags", {}).get("preprocessing_X", False)
-            ],
-            [
-                method
-                for method in self.methods
-                if getattr(method, "_tags", {}).get("preprocessing_y", False)
-            ],
-        )
-
-    def preprocess(
-        self, target: str, data: Union[pd.DataFrame, pd.Series, np.ndarray]
-    ) -> Union[pd.DataFrame, pd.Series, np.ndarray]:
-        """
-        Preprocess the provided data according to the specified target.
-
-        This method applies preprocessing methods to the data ("X" or "y"), which are specified in the preprocessing_methods property of this object.
-        It iteratively applies each method in the appropriate list (either for "X" or "y") to the data.
-
-        Parameters
-        ----------
-        target : str
-            Indicates whether the data represents features ("X") or the target variable ("y").
-
-        data : Union[pd.DataFrame, pd.Series, np.ndarray]
-            The data to be preprocessed.
-
-        Returns
-        -------
-        Union[pd.DataFrame, pd.Series, np.ndarray]
-            The preprocessed data.
-
-        Raises
-        ------
-        ValueError
-            If the target is neither "X" nor "y".
-
-        Example
-        -------
-        >>> data = pd.DataFrame({"x1": [1, 2, 3], "y": [4, 5, 6]})
-        >>> self.preprocess("X", data)
-        """
-        data_cp = data.copy()
-        if target == "X":
-            for method in self.preprocessing_methods[0]:
-                data_cp = method(self, data_cp)
-        elif target == "y":
-            for method in self.preprocessing_methods[1]:
-                data_cp = method(self, data_cp)
-        else:
-            raise ValueError("Target must be either 'X' or 'y'")
-        return data_cp
-
     def get_target_transformer(self) -> Pipeline:
-        try:
-            return self.target_transformer  # type: ignore
-        except AttributeError:
+        if not hasattr(self, "target_transformer"):
             identity_transformer = FunctionTransformer()
-            return Pipeline(steps=[("scaler", identity_transformer)])
+            self.target_transformer = Pipeline(steps=[("scaler", identity_transformer)])
+
+        return self.target_transformer
 
     @property
     def prior_predictive(self) -> az.InferenceData:

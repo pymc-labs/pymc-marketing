@@ -9,13 +9,13 @@ from scipy.optimize import curve_fit, minimize_scalar
 
 
 def generate_yearly_fourier_modes(
-    dayofyear: npt.NDArray[np.float_], n_order: int
+    dayofyear: Union[npt.NDArray[np.float_], pd.Series], n_order: int
 ) -> pd.DataFrame:
     """Generate Fourier modes for yearly seasonality.
 
     Parameters
     ----------
-    dayofyear : array-like of float
+    dayofyear : array-like or Series of float
         Input array denoting the day of year.
     n_order : int
         Maximum order of Fourier modes.
@@ -27,7 +27,7 @@ def generate_yearly_fourier_modes(
 
     """
     DAYS_OF_YEAR = 365.25
-    periods: npt.NDArray[np.float_] = dayofyear / DAYS_OF_YEAR
+    periods = dayofyear / DAYS_OF_YEAR
     return generate_fourier_modes(
         periods=periods,
         n_order=n_order,
@@ -35,13 +35,13 @@ def generate_yearly_fourier_modes(
 
 
 def generate_fourier_modes(
-    periods: npt.NDArray[np.float_], n_order: int
+    periods: Union[npt.NDArray[np.float_], pd.Series], n_order: int
 ) -> pd.DataFrame:
     """Generate Fourier modes.
 
     Parameters
     ----------
-    periods : array-like of float
+    periods : array-like or Series of float
         Input array denoting the period range.
     n_order : int
         Maximum order of Fourier modes.
@@ -57,12 +57,16 @@ def generate_fourier_modes(
     """
     if n_order < 1:
         raise ValueError("n_order must be greater than or equal to 1")
+
+    index = periods.index if isinstance(periods, pd.Series) else None
+
     return pd.DataFrame(
         {
             f"{func}_order_{order}": getattr(np, func)(2 * np.pi * periods * order)
             for order in range(1, n_order + 1)
             for func in ("sin", "cos")
-        }
+        },
+        index=index,
     )
 
 
