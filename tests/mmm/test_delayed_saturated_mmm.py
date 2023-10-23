@@ -67,7 +67,7 @@ def model_config_requiring_serialization() -> dict:
 
 @pytest.fixture(scope="class")
 def toy_y(toy_X: pd.DataFrame) -> pd.Series:
-    return pd.Series(data=rng.integers(low=0, high=100, size=toy_X.shape[0]))
+    return pd.Series(data=rng.integers(low=0, high=100, size=toy_X.shape[0]) * 1.0)
 
 
 @pytest.fixture(scope="class")
@@ -506,3 +506,22 @@ class TestDelayedSaturatedMMM:
         ):
             DelayedSaturatedMMM.load("test_model")
         os.remove("test_model")
+
+    @pytest.mark.parametrize("extend_idata", [True, False])
+    @pytest.mark.parametrize("combined", [True, False])
+    def test_new_data(self, mmm_fitted, extend_idata, combined) -> None:
+        X_new = mmm_fitted.X.copy()
+
+        n_samples = 10
+        X_new = X_new.sample(n=n_samples, random_state=rng)
+
+        X_new["new_channel"] = np.random.randint(low=0, high=100, size=n_samples)
+        X_new["new_control"] = np.random.randint(low=0, high=100, size=n_samples)
+
+        pp = mmm_fitted.sample_posterior_predictive(
+            X_new, extend_idata=extend_idata, combined=combined
+        )
+        assert set(pp.coords["date"].to_numpy()) == set(X_new["date"].to_numpy())
+
+        posterior_shape = (n_samples, 6) if combined else (2, 3, n_samples)
+        assert pp.likelihood.shape == posterior_shape
