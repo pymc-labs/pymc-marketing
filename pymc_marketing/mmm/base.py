@@ -15,6 +15,7 @@ import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
 import pymc as pm
+from pymc import str_for_dist
 import seaborn as sns
 from pytensor.tensor import TensorVariable
 from sklearn.pipeline import Pipeline
