@@ -184,6 +184,17 @@ class BaseDelayedSaturatedMMM(MMM):
         self.gamma_fourier = self._create_distribution(
             self.model_config["gamma_fourier"]
         )
+
+        self._process_priors(
+            self.intercept,
+            self.beta_channel,
+            self.alpha,
+            self.lam,
+            self.sigma,
+            self.gamma_control,
+            self.gamma_fourier,
+        )
+        
         self._generate_and_preprocess_model_data(X, y)
         with pm.Model(coords=self.model_coords) as self.model:
             channel_data_ = pm.MutableData(

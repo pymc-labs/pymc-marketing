@@ -124,6 +124,18 @@ class BaseMMM(ModelBuilder):
         except AttributeError:
             raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
         return prior_distribution
+    
+    @staticmethod
+    def _process_priors(
+        *priors: TensorVariable, check_ndim: bool = True
+    ) -> Tuple[TensorVariable, ...]:
+        """Check that each prior variable is unique and attach `str_repr` method."""
+        if len(priors) != len(set(priors)):
+            raise ValueError("Prior variables must be unique")
+        # Related to https://github.com/pymc-devs/pymc/issues/6311
+        for prior in priors:
+            prior.str_repr = types.MethodType(str_for_dist, prior)  # type: ignore
+        return priors
 
     def validate(
         self, target: str, data: Union[pd.DataFrame, pd.Series, np.ndarray]
