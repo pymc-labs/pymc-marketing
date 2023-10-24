@@ -187,7 +187,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 dims="date",
             )
 
-            create_priors_from_config(self.model_config)        
+            self.create_priors_from_config(self.model_config)        
 
             channel_adstock = pm.Deterministic(
                 name="channel_adstock",
@@ -282,7 +282,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 dims=model_config["likelihood"]["dims"],
             )
 
-    def create_priors_from_config(model_config):
+    def create_priors_from_config(self, model_config):
         for param, config in model_config.items():
             prior_type = config.get("type")
             if prior_type:
