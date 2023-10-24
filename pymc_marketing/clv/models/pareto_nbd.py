@@ -629,14 +629,27 @@ class ParetoNBDModel(CLVModel):
     def _distribution_new_customers(
         self,
         random_seed: Optional[RandomState] = None,
+        T: Union[None, np.ndarray, pd.Series] = None,
         var_names: Sequence[str] = (
             "population_dropout",
             "population_purchase_rate",
             "customer_population",
         ),
-        shape_kwargs: Optional[Dict] = None,
     ) -> xarray.Dataset:
         """Utility function for posterior predictive sampling from dropout and purchase rate distributions."""
+        if T is None:
+            T = self.T
+        # This is the shape if using fit_method="map"
+        if self.fit_result.dims == {"chain": 1, "draw": 1}:
+            shape_kwargs = {"shape": 1000}
+            if len(T) == 1:
+                pop_kwargs = {"size": 1000}
+            else:
+                pop_kwargs = {}
+        else:
+            shape_kwargs = {}
+            pop_kwargs = {}
+
         with pm.Model():
             # purchase rate priors
             r = pm.HalfFlat("r")
@@ -646,8 +659,10 @@ class ParetoNBDModel(CLVModel):
             s = pm.HalfFlat("s")
             beta = pm.HalfFlat("beta")
 
-            pm.Gamma("population_purchase_rate", alpha=r, beta=1 / alpha, shape=1000)
-            pm.Gamma("population_dropout", alpha=s, beta=1 / beta, shape=1000)
+            pm.Gamma(
+                "population_purchase_rate", alpha=r, beta=1 / alpha, **shape_kwargs
+            )
+            pm.Gamma("population_dropout", alpha=s, beta=1 / beta, **shape_kwargs)
 
             ParetoNBD(
                 name="customer_population",
@@ -655,7 +670,8 @@ class ParetoNBDModel(CLVModel):
                 alpha=alpha,
                 s=s,
                 beta=beta,
-                T=self.T,
+                T=T,
+                **pop_kwargs,
             )
 
             return pm.sample_posterior_predictive(
@@ -684,6 +700,7 @@ class ParetoNBDModel(CLVModel):
         """
         return self._distribution_new_customers(
             random_seed=random_seed,
+            T=None,
             var_names=["population_dropout"],
         )["population_dropout"]
 
@@ -708,11 +725,13 @@ class ParetoNBDModel(CLVModel):
         """
         return self._distribution_new_customers(
             random_seed=random_seed,
+            T=None,
             var_names=["population_purchase_rate"],
         )["population_purchase_rate"]
 
     def distribution_customer_population(
         self,
+        T: Union[None, np.ndarray, pd.Series] = None,
         random_seed: Optional[RandomState] = None,
     ) -> xarray.Dataset:
         """Pareto/NBD process representing purchases across the customer population.
@@ -721,6 +740,8 @@ class ParetoNBDModel(CLVModel):
 
         Parameters
         ----------
+        T: array_like
+            Number of observation periods for each customer. If not provided, T values from fit dataset will be used.
         random_seed : RandomState, optional
             Random state to use for sampling.
 
@@ -731,5 +752,6 @@ class ParetoNBDModel(CLVModel):
         """
         return self._distribution_new_customers(
             random_seed=random_seed,
+            T=T,
             var_names=["customer_population"],
         )["customer_population"]

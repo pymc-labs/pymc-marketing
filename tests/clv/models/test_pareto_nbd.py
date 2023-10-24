@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
-import xarray
 from lifetimes import ParetoNBDFitter
 
 from pymc_marketing.clv import ParetoNBDModel
@@ -171,10 +170,10 @@ class TestParetoNBDModel:
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
-        "fit_method, rtol, sample_kwargs",
+        "fit_method, rtol",
         [
-            ("mcmc", 0.1, dict(random_seed=np.random.default_rng(34), chains=2)),
-            ("map", 0.2, None),
+            ("mcmc", 0.1),
+            ("map", 0.2),
         ],
     )
     def test_model_convergence(self, fit_method, rtol, sample_kwargs):
@@ -186,10 +185,7 @@ class TestParetoNBDModel:
         # TODO: This can be removed after build_model() is called internally with __init__
         model.build_model()
 
-        if sample_kwargs is None:
-            sample_kwargs = {}
-
-        model.fit(fit_method=fit_method, progressbar=False, **sample_kwargs)
+        model.fit(fit_method=fit_method, progressbar=False)
 
         fit = model.idata.posterior
         np.testing.assert_allclose(
@@ -294,8 +290,29 @@ class TestParetoNBDModel:
             rtol=0.001,
         )
 
-    @pytest.mark.parametrize("fake_fit", ["map", "mcmc"])
-    def test_dropout_purchase_distributions(self, fake_fit) -> None:
+    @pytest.mark.parametrize(
+        "fake_fit, T",
+        [
+            ("map", None),
+            ("mcmc", None),
+            ("map", [100]),
+            ("mcmc", [100]),
+            ("map", [100, 200]),
+            ("mcmc", [100, 200]),
+        ],
+    )
+    def test_posterior_distributions(self, fake_fit, T) -> None:
+
+        rng = np.random.default_rng(42)
+        rtol = 0.2
+
+        if T is None:
+            n_T = 2357
+        elif len(T) == 1:
+            n_T = 1000
+        else:
+            n_T = len(T)
+
         if fake_fit == "map":
             mock_fit = az.from_dict(
                 {
@@ -307,55 +324,60 @@ class TestParetoNBDModel:
             )
             self.model.idata = mock_fit
 
-        rtol = 0.26
-
-        customer_dropout = self.model.distribution_new_customer_dropout(
-            random_seed=self.rng
-        )
+        customer_dropout = self.model.distribution_new_customer_dropout(random_seed=rng)
         customer_purchase_rate = self.model.distribution_new_customer_purchase_rate(
-            random_seed=self.rng
+            random_seed=rng
         )
 
         customer_rec_freq = self.model.distribution_customer_population(
-            random_seed=self.rng
+            random_seed=rng, T=T
         )
 
-        assert isinstance(customer_dropout, xarray.DataArray)
-        assert isinstance(customer_purchase_rate, xarray.DataArray)
-        assert isinstance(customer_rec_freq, xarray.DataArray)
+        assert customer_dropout.shape == (1, 1, 1000)
+        assert customer_purchase_rate.shape == (1, 1, 1000)
+        assert customer_rec_freq.shape == (1, 1, n_T, 2)
 
         N = 1000
         lam = pm.Gamma.dist(alpha=self.r_true, beta=1 / self.alpha_true, size=N)
         mu = pm.Gamma.dist(alpha=self.s_true, beta=1 / self.beta_true, size=N)
+
+        if T is None:
+            T = self.T
+
+        if len(T) == 1:
+            size_dict = {"size": 1000}
+        else:
+            size_dict = {}
 
         pop = ParetoNBD.dist(
             r=self.r_true,
             alpha=self.alpha_true,
             s=self.s_true,
             beta=self.beta_true,
-            T=self.T,
+            T=T,
+            **size_dict,
         )
 
         np.testing.assert_allclose(
             customer_purchase_rate.mean(),
-            pm.draw(lam.mean(), random_seed=self.rng),
+            pm.draw(lam.mean(), random_seed=rng),
             rtol=rtol,
         )
         np.testing.assert_allclose(
             customer_purchase_rate.var(),
-            pm.draw(lam.var(), random_seed=self.rng),
+            pm.draw(lam.var(), random_seed=rng),
             rtol=rtol,
         )
         np.testing.assert_allclose(
-            customer_dropout.mean(), pm.draw(mu.mean(), random_seed=self.rng), rtol=rtol
+            customer_dropout.mean(), pm.draw(mu.mean(), random_seed=rng), rtol=rtol
         )
         np.testing.assert_allclose(
-            customer_dropout.var(), pm.draw(mu.var(), random_seed=self.rng), rtol=rtol
+            customer_dropout.var(), pm.draw(mu.var(), random_seed=rng), rtol=rtol
         )
 
         np.testing.assert_allclose(
             customer_rec_freq.mean(),
-            pm.draw(pop.mean(), random_seed=self.rng),
+            pm.draw(pop.mean(), random_seed=rng),
             rtol=rtol,
         )
         np.testing.assert_allclose(
