@@ -195,7 +195,7 @@ class BaseDelayedSaturatedMMM(MMM):
             beta_channel = priors['beta_channel']
             alpha = priors['alpha']
             lam = priors['lam']
-            sigma = priors['sigma']
+            gamma_control = priors['gamma_control']
 
             channel_adstock = pm.Deterministic(
                 name="channel_adstock",
@@ -232,13 +232,6 @@ class BaseDelayedSaturatedMMM(MMM):
                     name="control_data",
                     value=self.preprocessed_data["X"][self.control_columns],
                     dims=("date", "control"),
-                )
-
-                gamma_control = pm.Normal(
-                    name="gamma_control",
-                    mu=model_config["gamma_control"]["mu"],
-                    sigma=model_config["gamma_control"]["sigma"],
-                    dims=model_config["gamma_control"]["dims"],
                 )
 
                 control_contributions = pm.Deterministic(
@@ -282,13 +275,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 name="mu", var=mu_var, dims=model_config["mu"]["dims"]
             )
 
-            pm.Normal(
-                name="likelihood",
-                mu=mu,
-                sigma=sigma,
-                observed=target_,
-                dims=model_config["likelihood"]["dims"],
-            )
+            likelihood = self.create_likelihood(self.model_config, target_, mu)
 
     def create_priors_from_config(self, model_config):
         priors = {}  # Initialize an empty dictionary to store the priors
@@ -308,6 +295,25 @@ class BaseDelayedSaturatedMMM(MMM):
 
         return priors  # Return the dictionary containing the priors
 
+    def create_likelihood(self, model_config, target_, mu):
+        likelihood_config = model_config.get("likelihood", {})
+        likelihood_type = likelihood_config.get("type")
+        dims = likelihood_config.get("dims")
+
+        if not likelihood_type:
+            raise ValueError("Likelihood type must be specified in the model config.")
+
+        likelihood_func = getattr(pm, likelihood_type, None)
+        if likelihood_func is None:
+            raise ValueError(f"Invalid likelihood type {likelihood_type}")
+
+        # Create sub-priors
+        sub_priors = {}
+        for param, config in likelihood_config.items():
+            if param not in ['type', 'dims']:  # Skip 'type' and 'dims'
+                sub_priors[param] = self.create_priors_from_config({param: config})[param]
+
+        return likelihood_func(name="likelihood", mu=mu, observed=target_, dims=dims, **sub_priors)
 
 
     @property
@@ -317,17 +323,19 @@ class BaseDelayedSaturatedMMM(MMM):
             "beta_channel": {"type": "HalfNormal", "sigma": 2, "dims": ("channel",)},
             "alpha": {"type": "Beta", "alpha": 1, "beta": 3, "dims": ("channel",)},
             "lam": {"type": "Gamma", "alpha": 3, "beta": 1, "dims": ("channel",)},
-            "sigma": {"type": "HalfNormal", "sigma": 2},
-            "gamma_control": {
-                "mu": 0,
-                "sigma": 2,
-                "dims": ("control",),
-            },
+            "gamma_control": {'type': 'Gamma', 'alpha': 2, 'beta': 1, 'dims': ('control',)},
             "mu": {"dims": ("date",)},
-            "likelihood": {"dims": ("date",)},
+            "likelihood": {
+                "type": "Normal",
+                "dims": ("date",),
+                "params": {
+                    "sigma": {"type": "HalfNormal", "sigma": 1},
+                }
+            },
             "gamma_fourier": {"mu": 0, "b": 1, "dims": "fourier_mode"},
         }
         return model_config
+
 
 
     def _get_fourier_models_data(self, X) -> pd.DataFrame:
