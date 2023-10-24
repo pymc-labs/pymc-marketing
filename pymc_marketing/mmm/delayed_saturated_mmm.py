@@ -297,7 +297,6 @@ class BaseDelayedSaturatedMMM(MMM):
 
         return priors  # Return the dictionary containing the priors
 
-
     def create_likelihood(self, model_config, target_, mu):
         likelihood_config = model_config.get("likelihood", {})
         likelihood_type = likelihood_config.get("type")
@@ -314,10 +313,13 @@ class BaseDelayedSaturatedMMM(MMM):
         sub_priors = {}
         for param, config in likelihood_config.items():
             if param not in ['type', 'dims']:  # Skip 'type' and 'dims'
-                sub_priors[param] = self.create_priors_from_config({param: config})[param]
+                if param == 'params':  # Handle nested 'params'
+                    for sub_param, sub_config in config.items():
+                        sub_priors[sub_param] = self.create_priors_from_config({sub_param: sub_config})[sub_param]
+                else:
+                    sub_priors[param] = self.create_priors_from_config({param: config})[param]
 
         return likelihood_func(name="likelihood", mu=mu, observed=target_, dims=dims, **sub_priors)
-
 
     @property
     def default_model_config(self) -> Dict:
