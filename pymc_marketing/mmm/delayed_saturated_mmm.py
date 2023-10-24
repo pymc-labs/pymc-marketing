@@ -187,32 +187,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 dims="date",
             )
 
-            intercept = pm.Normal(
-                name="intercept",
-                mu=model_config["intercept"]["mu"],
-                sigma=model_config["intercept"]["sigma"],
-            )
-
-            beta_channel = pm.HalfNormal(
-                name="beta_channel",
-                sigma=model_config["beta_channel"]["sigma"],
-                dims=model_config["beta_channel"]["dims"],
-            )
-            alpha = pm.Beta(
-                name="alpha",
-                alpha=model_config["alpha"]["alpha"],
-                beta=model_config["alpha"]["beta"],
-                dims=model_config["alpha"]["dims"],
-            )
-
-            lam = pm.Gamma(
-                name="lam",
-                alpha=model_config["lam"]["alpha"],
-                beta=model_config["lam"]["beta"],
-                dims=model_config["lam"]["dims"],
-            )
-
-            sigma = pm.HalfNormal(name="sigma", sigma=model_config["sigma"]["sigma"])
+            create_priors_from_config(self.model_config)        
 
             channel_adstock = pm.Deterministic(
                 name="channel_adstock",
@@ -307,14 +282,29 @@ class BaseDelayedSaturatedMMM(MMM):
                 dims=model_config["likelihood"]["dims"],
             )
 
+    def create_priors_from_config(model_config):
+        for param, config in model_config.items():
+            prior_type = config.get("type")
+            if prior_type:
+                dist_func = getattr(pm, prior_type, None)
+                if dist_func is None:
+                    raise ValueError(f"Invalid distribution type {prior_type}")
+
+                # Make a copy of config so as not to mutate the original dictionary
+                config_copy = config.copy()
+                del config_copy["type"]
+
+                dist = dist_func(name=param, **config_copy)
+
+
     @property
     def default_model_config(self) -> Dict:
         model_config: Dict = {
-            "intercept": {"mu": 0, "sigma": 2},
-            "beta_channel": {"sigma": 2, "dims": ("channel",)},
-            "alpha": {"alpha": 1, "beta": 3, "dims": ("channel",)},
-            "lam": {"alpha": 3, "beta": 1, "dims": ("channel",)},
-            "sigma": {"sigma": 2},
+            "intercept": {"type": "Normal", "mu": 0, "sigma": 2},
+            "beta_channel": {"type": "HalfNormal", "sigma": 2, "dims": ("channel",)},
+            "alpha": {"type": "Beta", "alpha": 1, "beta": 3, "dims": ("channel",)},
+            "lam": {"type": "Gamma", "alpha": 3, "beta": 1, "dims": ("channel",)},
+            "sigma": {"type": "HalfNormal", "sigma": 2},
             "gamma_control": {
                 "mu": 0,
                 "sigma": 2,
@@ -325,6 +315,7 @@ class BaseDelayedSaturatedMMM(MMM):
             "gamma_fourier": {"mu": 0, "b": 1, "dims": "fourier_mode"},
         }
         return model_config
+
 
     def _get_fourier_models_data(self, X) -> pd.DataFrame:
         """Generates fourier modes to model seasonality.
