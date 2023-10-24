@@ -187,7 +187,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 dims="date",
             )
 
-            self.create_priors_from_config(self.model_config)        
+            self.create_priors_from_config(self.model_config)   #The change has been made      
 
             channel_adstock = pm.Deterministic(
                 name="channel_adstock",
