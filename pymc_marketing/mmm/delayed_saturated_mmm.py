@@ -187,7 +187,15 @@ class BaseDelayedSaturatedMMM(MMM):
                 dims="date",
             )
 
-            self.create_priors_from_config(self.model_config)   #The change has been made      
+            #Building the priors
+            priors = self.create_priors_from_config(self.model_config)
+
+            #Specifying the variables
+            intercept = priors['intercept']
+            beta_channel = priors['beta_channel']
+            alpha = priors['alpha']
+            lam = priors['lam']
+            sigma = priors['sigma']
 
             channel_adstock = pm.Deterministic(
                 name="channel_adstock",
@@ -283,6 +291,7 @@ class BaseDelayedSaturatedMMM(MMM):
             )
 
     def create_priors_from_config(self, model_config):
+        priors = {}  # Initialize an empty dictionary to store the priors
         for param, config in model_config.items():
             prior_type = config.get("type")
             if prior_type:
@@ -294,7 +303,11 @@ class BaseDelayedSaturatedMMM(MMM):
                 config_copy = config.copy()
                 del config_copy["type"]
 
-                dist = dist_func(name=param, **config_copy)
+                # Create the distribution and store it in the 'priors' dictionary
+                priors[param] = dist_func(name=param, **config_copy)
+
+        return priors  # Return the dictionary containing the priors
+
 
 
     @property
