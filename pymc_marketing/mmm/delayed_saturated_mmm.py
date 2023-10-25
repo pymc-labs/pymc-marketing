@@ -236,9 +236,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 )
 
                 print("Shape of control_data_:", control_data_.eval().shape)
-                print("Shape of control_data_:", control_data_.eval().shape)
-
-
+                print("Shape of gamma_control:", gamma_control.eval().shape)
 
                 control_contributions = pm.Deterministic(
                     name="control_contributions",
