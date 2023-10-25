@@ -345,7 +345,7 @@ class BaseDelayedSaturatedMMM(MMM):
   
         gp = pm.gp.HSGP(m=[20], c=1.3, cov_func=cov)
         f = gp.prior(f"{name}_tvp_raw", X=X)
-        f_output = pm.Deterministic(f"{name}", f, dims=("dates"))
+        f_output = pm.Deterministic(f"{name}", f, dims=("date"))
 
         return f_output
 
