@@ -282,10 +282,13 @@ class BaseDelayedSaturatedMMM(MMM):
         for param, config in model_config.items():
             if param == "likelihood":  # Skip 'likelihood' or any other special cases
                 continue
-            if param == "tvp":  # Special case for custom HSGP prior
+
+            prior_type = config.get("type")
+        
+            if prior_type == "tvp":  # Special case for custom HSGP prior
                 priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None], **config)
                 continue
-            prior_type = config.get("type")
+
             if prior_type:
                 dist_func = getattr(pm, prior_type, None)
                 if dist_func is None:
@@ -293,10 +296,11 @@ class BaseDelayedSaturatedMMM(MMM):
 
                 config_copy = config.copy()
                 del config_copy["type"]
-            
+        
                 priors[param] = dist_func(name=param, **config_copy)
 
-        return priors  # Return the dictionary containing the priors
+    return priors  # Return the dictionary containing the priors
+
 
     def create_likelihood(self, model_config, target_, mu):
         likelihood_config = model_config.get("likelihood", {})
