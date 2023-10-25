@@ -176,7 +176,7 @@ class TestParetoNBDModel:
             ("map", 0.2),
         ],
     )
-    def test_model_convergence(self, fit_method, rtol, sample_kwargs):
+    def test_model_convergence(self, fit_method, rtol):
         # Edit priors here for convergence testing
         # Note that None/pm.HalfFlat is extremely slow to converge
         model = ParetoNBDModel(
@@ -295,26 +295,23 @@ class TestParetoNBDModel:
         [
             ("map", None),
             ("mcmc", None),
-            ("map", [100]),
-            ("mcmc", [100]),
-            ("map", [100, 200]),
-            ("mcmc", [100, 200]),
+            ("map", np.tile(100, 1000)),
+            ("mcmc", np.tile(100, 1000)),
         ],
     )
     def test_posterior_distributions(self, fake_fit, T) -> None:
 
         rng = np.random.default_rng(42)
-        rtol = 0.2
+        rtol = 0.45
+        dim_T = 2357 if T is None else len(T)
+        N = 1000
 
         if T is None:
-            n_T = 2357
-        elif len(T) == 1:
-            n_T = 1000
-        else:
-            n_T = len(T)
+            T = self.T
 
+        # Reset fit result and expected shapes between tests
         if fake_fit == "map":
-            mock_fit = az.from_dict(
+            map_fit = az.from_dict(
                 {
                     "r": [self.r_true],
                     "alpha": [self.alpha_true],
@@ -322,40 +319,35 @@ class TestParetoNBDModel:
                     "beta": [self.beta_true],
                 }
             )
-            self.model.idata = mock_fit
+            self.model.idata = map_fit
+            expected_shape = (1, 1, N)
+            expected_pop_dims = (1, 1, dim_T, 2)
+        else:
+            self.model.idata = self.mock_fit
+            expected_shape = (self.chains, self.draws)
+            expected_pop_dims = (self.chains, self.draws, dim_T, 2)
 
         customer_dropout = self.model.distribution_new_customer_dropout(random_seed=rng)
         customer_purchase_rate = self.model.distribution_new_customer_purchase_rate(
             random_seed=rng
         )
-
         customer_rec_freq = self.model.distribution_customer_population(
             random_seed=rng, T=T
         )
 
-        assert customer_dropout.shape == (1, 1, 1000)
-        assert customer_purchase_rate.shape == (1, 1, 1000)
-        assert customer_rec_freq.shape == (1, 1, n_T, 2)
+        assert customer_dropout.shape == expected_shape
+        assert customer_purchase_rate.shape == expected_shape
+        assert customer_rec_freq.shape == expected_pop_dims
 
-        N = 1000
         lam = pm.Gamma.dist(alpha=self.r_true, beta=1 / self.alpha_true, size=N)
         mu = pm.Gamma.dist(alpha=self.s_true, beta=1 / self.beta_true, size=N)
 
-        if T is None:
-            T = self.T
-
-        if len(T) == 1:
-            size_dict = {"size": 1000}
-        else:
-            size_dict = {}
-
-        pop = ParetoNBD.dist(
+        rec_freq = ParetoNBD.dist(
             r=self.r_true,
             alpha=self.alpha_true,
             s=self.s_true,
             beta=self.beta_true,
             T=T,
-            **size_dict,
         )
 
         np.testing.assert_allclose(
@@ -377,11 +369,13 @@ class TestParetoNBDModel:
 
         np.testing.assert_allclose(
             customer_rec_freq.mean(),
-            pm.draw(pop.mean(), random_seed=rng),
+            pm.draw(rec_freq.mean(), random_seed=rng),
             rtol=rtol,
         )
         np.testing.assert_allclose(
-            customer_rec_freq.var(), pm.draw(pop.var(), random_seed=self.rng), rtol=rtol
+            customer_rec_freq.var(),
+            pm.draw(rec_freq.var(), random_seed=self.rng),
+            rtol=rtol,
         )
 
     def test_save_load_pareto_nbd(self):

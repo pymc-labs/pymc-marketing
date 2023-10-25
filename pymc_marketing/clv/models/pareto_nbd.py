@@ -639,16 +639,12 @@ class ParetoNBDModel(CLVModel):
         """Utility function for posterior predictive sampling from dropout and purchase rate distributions."""
         if T is None:
             T = self.T
+
         # This is the shape if using fit_method="map"
         if self.fit_result.dims == {"chain": 1, "draw": 1}:
             shape_kwargs = {"shape": 1000}
-            if len(T) == 1:
-                pop_kwargs = {"size": 1000}
-            else:
-                pop_kwargs = {}
         else:
             shape_kwargs = {}
-            pop_kwargs = {}
 
         with pm.Model():
             # purchase rate priors
@@ -671,7 +667,6 @@ class ParetoNBDModel(CLVModel):
                 s=s,
                 beta=beta,
                 T=T,
-                **pop_kwargs,
             )
 
             return pm.sample_posterior_predictive(
