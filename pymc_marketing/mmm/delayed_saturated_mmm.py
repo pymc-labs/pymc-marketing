@@ -346,7 +346,7 @@ class BaseDelayedSaturatedMMM(MMM):
     def gp_wrapper(self, name, X, mean=0, **kwargs):
         return self.gp_coeff(X, name, mean=mean, **kwargs)
 
-    def gp_coeff(self, X, name, dim, mean=0.0):
+    def gp_coeff(self, X, name, mean=0.0):
 
         lower, upper = 0.5, 2
         local_ell_params = pm.find_constrained_prior(
