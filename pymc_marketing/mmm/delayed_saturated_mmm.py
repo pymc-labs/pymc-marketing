@@ -220,7 +220,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
             channel_contributions = pm.Deterministic(
                 name="channel_contributions",
-                var=channel_adstock_saturated * beta_channel,
+                var=channel_adstock_saturated.T * beta_channel,
                 dims=("date", "channel"),
             )
 
