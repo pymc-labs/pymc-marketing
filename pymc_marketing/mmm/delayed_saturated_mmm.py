@@ -281,16 +281,27 @@ class BaseDelayedSaturatedMMM(MMM):
 
             likelihood = self.create_likelihood(self.model_config, target_, mu)
 
-    def create_priors_from_config(self, model_config):
-        priors = {}  # Initialize an empty dictionary to store the priors
+    def create_tvp_priors(self, param, config, length):
+        return [self.gp_wrapper(name=f"{param}_{i}", X=np.arange(len(self.X[self.date_column]))[:, None]) for i in range(length)]
+
+    def create_priors_from_config(self, model_config, idata):
+        priors = {}
+        dimensions = {
+            "channel": len(idata.attrs["channel_columns"]),
+            "control": len(idata.attrs["control_columns"]),
+        }
+        stacked_priors = {"channel": [], "control": []}
+
         for param, config in model_config.items():
-            if param == "likelihood":  # Skip 'likelihood' or any other special cases
+            if param == "likelihood":
                 continue
 
             prior_type = config.get("type")
-        
-            if prior_type == "tvp":  # Special case for custom HSGP prior
-                priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None])
+
+            if prior_type == "tvp":
+                dim = config.get("dims")
+                priors_list = self.create_tvp_priors(param, config, dimensions[dim])
+                stacked_priors[dim].extend(priors_list)
                 continue
 
             if prior_type:
@@ -298,12 +309,14 @@ class BaseDelayedSaturatedMMM(MMM):
                 if dist_func is None:
                     raise ValueError(f"Invalid distribution type {prior_type}")
 
-                config_copy = config.copy()
-                del config_copy["type"]
-        
+                config_copy = {k: v for k, v in config.items() if k != "type"}
                 priors[param] = dist_func(name=param, **config_copy)
 
-        return priors  # Return the dictionary containing the priors
+        for dim, priors_list in stacked_priors.items():
+            if priors_list:
+                priors[f"{dim}_stacked"] = pm.math.stack(priors_list, axis=1)
+
+        return priors
 
 
     def create_likelihood(self, model_config, target_, mu):
@@ -333,7 +346,7 @@ class BaseDelayedSaturatedMMM(MMM):
     def gp_wrapper(self, name, X, mean=0, **kwargs):
         return self.gp_coeff(X, name, mean=mean, **kwargs)
 
-    def gp_coeff(self, X, name, mean=0.0):
+    def gp_coeff(self, X, name, dim, mean=0.0):
 
         lower, upper = 0.5, 2
         local_ell_params = pm.find_constrained_prior(
