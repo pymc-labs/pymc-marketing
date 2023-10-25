@@ -213,14 +213,10 @@ class BaseDelayedSaturatedMMM(MMM):
                 var=logistic_saturation(x=channel_adstock, lam=lam),
                 dims=("date", "channel"),
             )
-
-            #Debug for shape error of channel contributions
-            print("Shape of channel_adstock_saturated:", channel_adstock_saturated.shape.eval())
-            print("Shape of beta_channel:", beta_channel.shape.eval())
-
+ 
             channel_contributions = pm.Deterministic(
                 name="channel_contributions",
-                var=channel_adstock_saturated.T * beta_channel,
+                var=channel_adstock_saturated * beta_channel,
                 dims=("date", "channel"),
             )
 
