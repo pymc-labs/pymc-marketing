@@ -338,9 +338,9 @@ class BaseDelayedSaturatedMMM(MMM):
             init_guess={"alpha": 2, "beta": 1},
             mass=0.95
         )
-        ell = pm.InverseGamma(f"ell{name}", **local_ell_params)
+        ell = pm.InverseGamma(f"ell_{name}", **local_ell_params)
         est_scale = 0.5
-        eta = pm.Exponential(f"_eta{name}", lam=1.0 / est_scale)
+        eta = pm.Exponential(f"_eta_{name}", lam=1.0 / est_scale)
         cov = eta**2 * pm.gp.cov.ExpQuad(input_dim=1, ls=ell)
   
         gp = pm.gp.HSGP(m=[20], c=1.3, cov_func=cov)
