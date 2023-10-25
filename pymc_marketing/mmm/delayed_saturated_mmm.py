@@ -299,10 +299,10 @@ class BaseDelayedSaturatedMMM(MMM):
             prior_type = config.get("type")
 
             if prior_type == "tvp":
-                dim = config.get("dims")
-                priors_list = self.create_tvp_priors(param, config, dimensions[dim])
-                stacked_priors[dim].extend(priors_list)
+                priors_list = self.create_tvp_priors(param, config, dimensions[config.get("dims")[0]])
+                stacked_priors[config.get("dims")[0]].extend(priors_list)
                 continue
+
 
             if prior_type:
                 dist_func = getattr(pm, prior_type, None)
