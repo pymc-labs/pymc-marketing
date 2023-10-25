@@ -286,7 +286,7 @@ class BaseDelayedSaturatedMMM(MMM):
             prior_type = config.get("type")
         
             if prior_type == "tvp":  # Special case for custom HSGP prior
-                priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None], **config)
+                priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None])
                 continue
 
             if prior_type:
