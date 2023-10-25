@@ -188,7 +188,7 @@ class BaseDelayedSaturatedMMM(MMM):
             )
 
             #Building the priors
-            priors = self.create_priors_from_config(self.model_config)
+            priors = self.create_priors_from_config(self.model_config, idata)
 
             #Specifying the variables
             intercept = priors['intercept']
