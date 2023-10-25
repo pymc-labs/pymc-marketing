@@ -299,7 +299,7 @@ class BaseDelayedSaturatedMMM(MMM):
         
                 priors[param] = dist_func(name=param, **config_copy)
 
-    return priors  # Return the dictionary containing the priors
+        return priors  # Return the dictionary containing the priors
 
 
     def create_likelihood(self, model_config, target_, mu):
