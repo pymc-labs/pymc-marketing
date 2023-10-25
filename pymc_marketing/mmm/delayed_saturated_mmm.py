@@ -282,17 +282,18 @@ class BaseDelayedSaturatedMMM(MMM):
         for param, config in model_config.items():
             if param == "likelihood":  # Skip 'likelihood' or any other special cases
                 continue
+            if param == "tvp":  # Special case for custom HSGP prior
+                priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None], **config)
+                continue
             prior_type = config.get("type")
             if prior_type:
                 dist_func = getattr(pm, prior_type, None)
                 if dist_func is None:
                     raise ValueError(f"Invalid distribution type {prior_type}")
 
-                # Make a copy of config so as not to mutate the original dictionary
                 config_copy = config.copy()
                 del config_copy["type"]
-
-                # Create the distribution and store it in the 'priors' dictionary
+            
                 priors[param] = dist_func(name=param, **config_copy)
 
         return priors  # Return the dictionary containing the priors
@@ -320,6 +321,29 @@ class BaseDelayedSaturatedMMM(MMM):
                     sub_priors[param] = self.create_priors_from_config({param: config})[param]
 
         return likelihood_func(name="likelihood", mu=mu, observed=target_, dims=dims, **sub_priors)
+
+    def gp_wrapper(self, name, X, mean=0, **kwargs):
+        return self.gp_coeff(X, name, mean=mean, **kwargs)
+
+     def gp_coeff(self, X, name, mean=0.01, sigma=0.1):
+
+        lower, upper = 0.5, 2
+        local_ell_params = pm.find_constrained_prior(
+            pm.InverseGamma,
+            lower, upper, 
+            init_guess={"alpha": 2, "beta": 1},
+            mass=0.95
+        )
+        ell = pm.InverseGamma(f"ell{name}", **local_ell_params)
+        est_scale = 0.5
+        eta = pm.Exponential(f"_eta{name}", lam=1.0 / est_scale)
+        cov = eta**2 * pm.gp.cov.ExpQuad(input_dim=1, ls=ell)
+        
+        mean = pm.Normal(f"{name}_base", mu=mean, sigma=sigma) 
+        gp = pm.gp.HSGP(m=[20], c=1.3, cov_func=cov)
+        f = gp.prior(f"{name}_tvp_raw", X=X)
+
+        return f
 
     @property
     def default_model_config(self) -> Dict:
