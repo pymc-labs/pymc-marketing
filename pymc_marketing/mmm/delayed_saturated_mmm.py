@@ -314,7 +314,9 @@ class BaseDelayedSaturatedMMM(MMM):
 
         for dim, priors_list in stacked_priors.items():
             if priors_list:
-                priors[f"{dim}_stacked"] = pm.math.stack(priors_list, axis=1)
+                new_key = f"beta_{dim}" if dim == "channel" else f"gamma_{dim}"
+                priors[new_key] = pm.math.stack(priors_list, axis=1)
+
 
         return priors
 
