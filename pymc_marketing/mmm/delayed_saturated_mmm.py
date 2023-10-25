@@ -188,7 +188,7 @@ class BaseDelayedSaturatedMMM(MMM):
             )
 
             #Building the priors
-            priors = self.create_priors_from_config(self.model_config, idata)
+            priors = self.create_priors_from_config(self.model_config)
 
             #Specifying the variables
             intercept = priors['intercept']
@@ -284,11 +284,11 @@ class BaseDelayedSaturatedMMM(MMM):
     def create_tvp_priors(self, param, config, length):
         return [self.gp_wrapper(name=f"{param}_{i}", X=np.arange(len(self.X[self.date_column]))[:, None]) for i in range(length)]
 
-    def create_priors_from_config(self, model_config, idata):
+    def create_priors_from_config(self, model_config):
         priors = {}
         dimensions = {
-            "channel": len(idata.attrs["channel_columns"]),
-            "control": len(idata.attrs["control_columns"]),
+            "channel": len(self.channel_columns),
+            "control": len(self.control_columns),
         }
         stacked_priors = {"channel": [], "control": []}
 
