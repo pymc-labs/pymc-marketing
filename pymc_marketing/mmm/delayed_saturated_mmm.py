@@ -325,7 +325,7 @@ class BaseDelayedSaturatedMMM(MMM):
     def gp_wrapper(self, name, X, mean=0, **kwargs):
         return self.gp_coeff(X, name, mean=mean, **kwargs)
 
-     def gp_coeff(self, X, name, mean=0.01, sigma=0.1):
+    def gp_coeff(self, X, name, mean=0.0):
 
         lower, upper = 0.5, 2
         local_ell_params = pm.find_constrained_prior(
@@ -338,12 +338,12 @@ class BaseDelayedSaturatedMMM(MMM):
         est_scale = 0.5
         eta = pm.Exponential(f"_eta{name}", lam=1.0 / est_scale)
         cov = eta**2 * pm.gp.cov.ExpQuad(input_dim=1, ls=ell)
-        
-        mean = pm.Normal(f"{name}_base", mu=mean, sigma=sigma) 
+  
         gp = pm.gp.HSGP(m=[20], c=1.3, cov_func=cov)
         f = gp.prior(f"{name}_tvp_raw", X=X)
 
         return f
+
 
     @property
     def default_model_config(self) -> Dict:
