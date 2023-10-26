@@ -354,7 +354,7 @@ class BaseDelayedSaturatedMMM(MMM):
         cov = eta ** 2 * pm.gp.cov.ExpQuad(1, ls=ell)
     
         if positive:
-            mean_func = pm.gp.mean.Constant(c=-log(2))
+            mean_func = pm.gp.mean.Constant(c=-pm.math.log(2))
         else:
             mean_func = pm.gp.mean.Constant(c=0)
         
