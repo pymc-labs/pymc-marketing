@@ -284,27 +284,29 @@ class BaseDelayedSaturatedMMM(MMM):
     def create_priors_from_config(self, model_config):
         priors, dimensions = {}, {"channel": len(self.channel_columns), "control": len(self.control_columns)}
         stacked_priors = {}
-
+    
         for param, config in model_config.items():
             if param == "likelihood": continue
-            prior_type = config.get("type")
+            prior_type, dim = config.get("type"), config.get("dims")[0]
+            length = dimensions.get(dim, 1)
         
             if prior_type == "tvp":
-                dim, length = config.get("dims")[0], dimensions.get(config.get("dims")[0], 1)
-                stacked_priors[param] = self.create_tvp_priors(param, config, length)
+                if length > 1:
+                    stacked_priors[param] = self.create_tvp_priors(param, config, length)
+                else:
+                    priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None])
                 continue
-
-            if prior_type:
-                dist_func = getattr(pm, prior_type, None)
-                if not dist_func: raise ValueError(f"Invalid distribution type {prior_type}")
-                config_copy = {k: v for k, v in config.items() if k != "type"}
-                priors[param] = dist_func(name=param, **config_copy)
-
+            
+            dist_func = getattr(pm, prior_type, None)
+            if not dist_func: raise ValueError(f"Invalid distribution type {prior_type}")
+            config_copy = {k: v for k, v in config.items() if k != "type"}
+            priors[param] = dist_func(name=param, **config_copy)
+    
         for param, priors_list in stacked_priors.items():
-            print(param)
             if priors_list: priors[param] = pm.math.stack(priors_list, axis=1)
-
+        
         return priors
+
 
 
 
