@@ -281,44 +281,38 @@ class BaseDelayedSaturatedMMM(MMM):
 
             likelihood = self.create_likelihood(self.model_config, target_, mu)
 
-    def create_tvp_priors(self, param, config, length):
-        return [self.gp_wrapper(name=f"{param}_{i}", X=np.arange(len(self.X[self.date_column]))[:, None]) for i in range(length)]
-
     def create_priors_from_config(self, model_config):
-        priors = {}
-        dimensions = {
-            "channel": len(self.channel_columns),
-            "control": len(self.control_columns),
-        }
+        # Initialize an empty dictionary for storing priors and dimensions.
+        priors, dimensions = {}, {"channel": len(self.channel_columns), "control": len(self.control_columns)}
         stacked_priors = {"channel": [], "control": []}
 
+        # Loop over the model configuration items.
         for param, config in model_config.items():
-            if param == "likelihood":
-                continue
-
+            # Skip the 'likelihood' part.
+            if param == "likelihood": continue
             prior_type = config.get("type")
-
+        
+            # If the prior type is 'tvp' (Time Varying Parameter).
             if prior_type == "tvp":
-                priors_list = self.create_tvp_priors(param, config, dimensions[config.get("dims")[0]])
-                stacked_priors[config.get("dims")[0]].extend(priors_list)
+                # Get the dimension and its length, default length is 1.
+                dim, length = config.get("dims")[0], dimensions.get(config.get("dims")[0], 1)
+                stacked_priors[dim].extend(self.create_tvp_priors(param, config, length))
                 continue
-
 
             if prior_type:
-                dist_func = getattr(pm, prior_type, None)
-                if dist_func is None:
-                    raise ValueError(f"Invalid distribution type {prior_type}")
-
+                dist_func = getattr(pm, prior_type, None).
+                if dist_func is None: raise ValueError(f"Invalid distribution type {prior_type}")
+            
+                # Remove the 'type' key and create a new prior.
                 config_copy = {k: v for k, v in config.items() if k != "type"}
                 priors[param] = dist_func(name=param, **config_copy)
-
-        for dim, priors_list in stacked_priors.items():
-            if priors_list:
-                new_key = f"beta_{dim}" if dim == "channel" else f"gamma_{dim}"
-                priors[new_key] = pm.math.stack(priors_list, axis=1)
-
+    
+        # Loop over the stacked priors and stack them along axis 1.
+        for param, priors_list in stacked_priors.items():
+            if priors_list: priors[param] = pm.math.stack(priors_list, axis=1)
 
         return priors
+
 
 
     def create_likelihood(self, model_config, target_, mu):
@@ -344,6 +338,10 @@ class BaseDelayedSaturatedMMM(MMM):
                     sub_priors[param] = self.create_priors_from_config({param: config})[param]
 
         return likelihood_func(name="likelihood", mu=mu, observed=target_, dims=dims, **sub_priors)
+
+    def create_tvp_priors(self, param, config, length):
+        return [self.gp_wrapper(name=f"{param}_{i}", X=np.arange(len(self.X[self.date_column]))[:, None]) for i in range(length)]
+
 
     def gp_wrapper(self, name, X, mean=0, **kwargs):
         return self.gp_coeff(X, name, mean=mean, **kwargs)
