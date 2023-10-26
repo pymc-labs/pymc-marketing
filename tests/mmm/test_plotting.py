@@ -4,7 +4,7 @@ import pytest
 from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.delayed_saturated_mmm import BaseDelayedSaturatedMMM
-from pymc_marketing.mmm.preprocessing import MaxAbsScaleTarget
+from pymc_marketing.mmm.preprocessing import create_target_transformer
 
 seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
@@ -48,15 +48,12 @@ class TestBasePlotting:
     )
     def plotting_mmm(self, request, toy_X, toy_y):
         control, transform = request.param.split("-")
-        if transform == "default_transform":
 
-            class ToyMMM(BaseDelayedSaturatedMMM):
-                pass
+        class ToyMMM(BaseDelayedSaturatedMMM):
+            pass
 
-        elif transform == "target_transform":
-
-            class ToyMMM(BaseDelayedSaturatedMMM, MaxAbsScaleTarget):
-                pass
+        if transform == "target_transform":
+            ToyMMM.target_transformer = create_target_transformer()
 
         if control == "without_controls":
             mmm = ToyMMM(

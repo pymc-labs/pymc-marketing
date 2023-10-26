@@ -12,7 +12,10 @@ import seaborn as sns
 from xarray import DataArray
 
 from pymc_marketing.mmm.base import MMM
-from pymc_marketing.mmm.preprocessing import create_mmm_transformer
+from pymc_marketing.mmm.preprocessing import (
+    create_mmm_transformer,
+    create_target_transformer,
+)
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.mmm.validating import ValidateControlColumns
 
@@ -34,6 +37,7 @@ class BaseDelayedSaturatedMMM(MMM):
         control_columns: Optional[List[str]] = None,
         yearly_seasonality: Optional[int] = None,
         x_transformer=None,
+        target_transformer=None,
         **kwargs,
     ) -> None:
         """Media Mix Model with delayed adstock and logistic saturation class (see [1]_).
@@ -81,6 +85,11 @@ class BaseDelayedSaturatedMMM(MMM):
 
         self.x_transformer = x_transformer
 
+        if target_transformer is None:
+            target_transformer = create_target_transformer()
+
+        self.target_transformer = target_transformer
+
         super().__init__(
             date_column=date_column,
             channel_columns=channel_columns,
@@ -111,6 +120,10 @@ class BaseDelayedSaturatedMMM(MMM):
         X : pd.DataFrame, shape (n_obs, n_features)
         y : Union[pd.Series, np.ndarray], shape (n_obs,)
         """
+        if self.validate_data:
+            self.validate("X", X)
+            self.validate("y", y)
+
         date_data = X[self.date_column].to_numpy()
 
         self.mutable_coords: Dict[str, Any] = {
@@ -133,16 +146,16 @@ class BaseDelayedSaturatedMMM(MMM):
         if "fourier_mode" in self.model_coords:
             self.fourier_columns = self.model_coords["fourier_mode"]
 
-        if self.validate_data:
-            self.validate("X", X_data)
-            self.validate("y", y)
+        self.y: Union[pd.Series, np.ndarray] = y
+
+        if isinstance(y, pd.Series):
+            y = y.to_numpy()
 
         self.preprocessed_data: Dict[str, Union[pd.DataFrame, pd.Series]] = {
             "X": X_data,  # type: ignore
-            "y": self.get_target_transformer().fit_transform(y),  # type: ignore
+            "y": self.target_transformer.fit_transform(y.reshape(-1, 1)).flatten(),  # type: ignore
         }
         self.X: pd.DataFrame = X
-        self.y: Union[pd.Series, np.ndarray] = y
 
     def _save_input_params(self, idata) -> None:
         """Saves input parameters to the attrs of idata."""

@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler, StandardScaler
 
 from pymc_marketing.mmm.utils import generate_yearly_fourier_modes
@@ -23,6 +24,19 @@ class FourierTransformer(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X: pd.Series) -> pd.DataFrame:
+        """Transform the data into Fourier modes.
+
+        Parameters
+        ----------
+        X : pd.Series
+            The date data to transform. This should be a pandas Series with a datetime
+
+        Returns
+        -------
+        pd.DataFrame
+            The transformed data with the Fourier modes as columns.
+
+        """
         return generate_yearly_fourier_modes(X.dt.dayofyear, n_order=self.n_order)
 
     def get_feature_names_out(self):
@@ -68,3 +82,7 @@ def create_mmm_transformer(
     return ColumnTransformer(transformers, verbose_feature_names_out=False).set_output(
         transform="pandas"
     )
+
+
+def create_target_transformer() -> Pipeline:
+    return Pipeline([("scaler", MaxAbsScaler())])

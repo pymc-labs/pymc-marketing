@@ -9,10 +9,6 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import FunctionTransformer, Pipeline
 
 from pymc_marketing.mmm.base import MMM
-from pymc_marketing.mmm.preprocessing import (
-    preprocessing_method_X,
-    preprocessing_method_y,
-)
 from pymc_marketing.mmm.validating import validation_method_X, validation_method_y
 
 seed: int = sum(map(ord, "pymc_marketing"))
@@ -61,8 +57,6 @@ def toy_mmm(request, toy_X, toy_y):
         def _generate_and_preprocess_model_data(self, X, y):
             self.validate("X", X)
             self.validate("y", y)
-            self.preprocessed_data["X"] = self.preprocess("X", X)
-            self.preprocessed_data["y"] = self.preprocess("y", y)
             self.X = X
             self.y = y
 
@@ -94,16 +88,6 @@ def toy_mmm(request, toy_X, toy_y):
             pd.testing.assert_series_equal(data, toy_y)
             return None
 
-        @preprocessing_method_X
-        def toy_preprocessing_X(self, data):
-            pd.testing.assert_frame_equal(data, toy_X)
-            return data
-
-        @preprocessing_method_y
-        def toy_preprocessing_y(self, data):
-            pd.testing.assert_series_equal(data, toy_y)
-            return data
-
     return ToyMMM(
         date_column="date",
         channel_columns=channel_columns,
@@ -131,15 +115,12 @@ class TestMMM:
         toy_X,
         toy_y,
     ) -> None:
-
         validate_channel_columns.configure_mock(_tags={"validation_X": True})
         validate_date_col.configure_mock(_tags={"validation_X": True})
         validate_target.configure_mock(_tags={"validation_y": True})
         toy_mmm._generate_and_preprocess_model_data(toy_X, toy_y)
         pd.testing.assert_frame_equal(toy_mmm.X, toy_X)
-        pd.testing.assert_frame_equal(toy_mmm.preprocessed_data["X"], toy_X)
         pd.testing.assert_series_equal(toy_mmm.y, toy_y)
-        pd.testing.assert_series_equal(toy_mmm.preprocessed_data["y"], toy_y)
         validate_target.assert_called_once_with(toy_mmm, toy_y)
         validate_date_col.assert_called_once_with(toy_mmm, toy_X)
         validate_channel_columns.assert_called_once_with(toy_mmm, toy_X)
@@ -169,8 +150,6 @@ def test_mmm():
         def _generate_and_preprocess_model_data(self, toy_X, toy_y):
             self.validate("X", toy_X)
             self.validate("y", toy_y)
-            self.preprocessed_data["X"] = self.preprocess("X", toy_X)
-            self.preprocessed_data["y"] = self.preprocess("y", toy_y)
             self.X = toy_X
             self.y = toy_y
 
@@ -208,7 +187,6 @@ class MyScaler(BaseEstimator, TransformerMixin):
 
 
 def test_validate_and_preprocess(toy_X, toy_y, test_mmm):
-
     test_mmm
 
     test_mmm.validate("X", toy_X)
@@ -219,8 +197,6 @@ def test_validate_and_preprocess(toy_X, toy_y, test_mmm):
 
     with pytest.raises(ValueError, match="Target must be either 'X' or 'y'"):
         test_mmm.validate("invalid", toy_X)
-    with pytest.raises(ValueError, match="Target must be either 'X' or 'y'"):
-        test_mmm.preprocess("invalid", toy_X)
 
 
 def test_get_target_transformer_when_set(test_mmm):

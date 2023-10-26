@@ -1069,6 +1069,7 @@ class BaseMMM(ModelBuilder):
         area_params = dict(stacked=True, ax=ax)
         if area_kwargs is not None:
             area_params.update(area_kwargs)
+
         all_contributions_over_time.plot.area(**area_params)
         ax.legend(title="groups", loc="center left", bbox_to_anchor=(1, 0.5))
         return fig

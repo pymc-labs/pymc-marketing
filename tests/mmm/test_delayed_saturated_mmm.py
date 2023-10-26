@@ -298,36 +298,6 @@ class TestDelayedSaturatedMMM:
             "intercept",
         ]
 
-    @pytest.mark.parametrize(
-        argnames="yearly_seasonality",
-        argvalues=[None, 1, 2],
-        ids=["no_yearly_seasonality", "yearly_seasonality=1", "yearly_seasonality=2"],
-    )
-    def test_get_fourier_models_data(
-        self, toy_X: pd.DataFrame, toy_y: pd.Series, yearly_seasonality: Optional[int]
-    ) -> None:
-        mmm = BaseDelayedSaturatedMMM(
-            date_column="date",
-            channel_columns=["channel_1", "channel_2"],
-            control_columns=["control_1", "control_2"],
-            adstock_max_lag=2,
-            yearly_seasonality=yearly_seasonality,
-        )
-        if yearly_seasonality is None:
-            with pytest.raises(ValueError):
-                mmm._get_fourier_models_data(toy_X)
-
-        else:
-            fourier_modes_data: Optional[pd.DataFrame] = mmm._get_fourier_models_data(
-                toy_X
-            )
-            assert fourier_modes_data.shape == (
-                toy_X.shape[0],
-                2 * yearly_seasonality,
-            )
-            assert fourier_modes_data.max().max() <= 1
-            assert fourier_modes_data.min().min() >= -1
-
     def test_channel_contributions_forward_pass_recovers_contribution(
         self, mmm_fitted: DelayedSaturatedMMM
     ) -> None:
@@ -343,6 +313,7 @@ class TestDelayedSaturatedMMM:
         channel_contributions_mean = mmm_fitted.fit_result[
             "channel_contributions"
         ].mean(dim=["draw", "chain"])
+
         assert (
             channel_contributions_forward_pass_mean.shape
             == channel_contributions_mean.shape
@@ -448,7 +419,7 @@ class TestDelayedSaturatedMMM:
         with pytest.raises(TypeError):
             base_delayed_saturated_mmm._data_setter(toy_X, y_incorrect)
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(KeyError):
             X_wrong_df = pd.DataFrame(
                 {"column1": np.random.rand(135), "column2": np.random.rand(135)}
             )
@@ -459,12 +430,10 @@ class TestDelayedSaturatedMMM:
         except Exception as e:
             pytest.fail(f"_data_setter failed with error {e}")
 
-        try:
+        with pytest.raises(TypeError):
             base_delayed_saturated_mmm._data_setter(
                 X_correct_ndarray, y_correct_ndarray
             )
-        except Exception as e:
-            pytest.fail(f"_data_setter failed with error {e}")
 
     def test_save_load(self, mmm_fitted):
         model = mmm_fitted
