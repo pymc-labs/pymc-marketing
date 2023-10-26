@@ -284,30 +284,32 @@ class BaseDelayedSaturatedMMM(MMM):
     def create_priors_from_config(self, model_config):
         priors, dimensions = {}, {"channel": len(self.channel_columns), "control": len(self.control_columns)}
         stacked_priors = {}
-    
+
         for param, config in model_config.items():
             if param == "likelihood": continue
+
             prior_type = config.get("type")
-            dim = config.get("dims")[0]
-            print(prior_type)
-            length = dimensions.get(dim, 1)
-        
-            if prior_type == "tvp":
-                if length > 1:
-                    stacked_priors[param] = self.create_tvp_priors(param, config, length)
-                else:
-                    priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None])
-                continue
-            
-            dist_func = getattr(pm, prior_type, None)
-            if not dist_func: raise ValueError(f"Invalid distribution type {prior_type}")
-            config_copy = {k: v for k, v in config.items() if k != "type"}
-            priors[param] = dist_func(name=param, **config_copy)
-    
+            if (prior_type := config.get("type")) is not None:
+                dim, length = config.get("dims")[0], dimensions.get(config.get("dims")[0], 1)
+
+
+                if prior_type == "tvp":
+                    if length > 1:
+                        stacked_priors[param] = self.create_tvp_priors(param, config, length)
+                    else:
+                        priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None])
+                    continue
+
+                dist_func = getattr(pm, prior_type, None)
+                if not dist_func: raise ValueError(f"Invalid distribution type {prior_type}")
+                config_copy = {k: v for k, v in config.items() if k != "type"}
+                priors[param] = dist_func(name=param, **config_copy)
+
         for param, priors_list in stacked_priors.items():
             if priors_list: priors[param] = pm.math.stack(priors_list, axis=1)
-        
+
         return priors
+
 
 
 
