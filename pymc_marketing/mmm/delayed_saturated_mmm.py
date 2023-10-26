@@ -292,7 +292,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
             prior_type = config.get("type")
             if prior_type is not None:
-                dim, length = config.get("dims")[0], dimensions.get(config.get("dims")[0], 1)
+                length = dimensions.get(config.get("dims", [None])[0], 1)
 
                 # Check if this parameter should be positive
                 is_positive = param in positive_params
