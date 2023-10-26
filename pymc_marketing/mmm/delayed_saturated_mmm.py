@@ -288,6 +288,7 @@ class BaseDelayedSaturatedMMM(MMM):
         for param, config in model_config.items():
             if param == "likelihood": continue
             prior_type, dim = config.get("type"), config.get("dims")[0]
+            print(prior_type)
             length = dimensions.get(dim, 1)
         
             if prior_type == "tvp":
