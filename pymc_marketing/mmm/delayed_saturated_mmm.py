@@ -284,20 +284,24 @@ class BaseDelayedSaturatedMMM(MMM):
     def create_priors_from_config(self, model_config):
         priors, dimensions = {}, {"channel": len(self.channel_columns), "control": len(self.control_columns)}
         stacked_priors = {}
+    
+        positive_params = {"intercept", "beta_channel", "alpha", "lam"}  # Set of params that need positive=True
 
         for param, config in model_config.items():
             if param == "likelihood": continue
 
             prior_type = config.get("type")
-            if (prior_type := config.get("type")) is not None:
+            if prior_type is not None:
                 dim, length = config.get("dims")[0], dimensions.get(config.get("dims")[0], 1)
 
+                # Check if this parameter should be positive
+                is_positive = param in positive_params
 
                 if prior_type == "tvp":
                     if length > 1:
                         stacked_priors[param] = self.create_tvp_priors(param, config, length)
                     else:
-                        priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None])
+                        priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None], positive=is_positive)
                     continue
 
                 dist_func = getattr(pm, prior_type, None)
@@ -309,6 +313,7 @@ class BaseDelayedSaturatedMMM(MMM):
             if priors_list: priors[param] = pm.math.stack(priors_list, axis=1)
 
         return priors
+
 
     def create_likelihood(self, model_config, target_, mu):
         likelihood_config = model_config.get("likelihood", {})
@@ -338,27 +343,26 @@ class BaseDelayedSaturatedMMM(MMM):
         return [self.gp_wrapper(name=f"{param}_{i}", X=np.arange(len(self.X[self.date_column]))[:, None]) for i in range(length)]
 
 
-    def gp_wrapper(self, name, X, mean=0, **kwargs):
-        return self.gp_coeff(X, name, mean=mean, **kwargs)
+    def gp_wrapper(self, name, X, mean=0, positive=False, **kwargs):
+        return self.gp_coeff(X, name, mean=mean, positive=positive, **kwargs)
 
-    def gp_coeff(self, X, name, mean=0.0):
 
-        lower, upper = 0.5, 2
-        local_ell_params = pm.find_constrained_prior(
-            pm.InverseGamma,
-            lower, upper, 
-            init_guess={"alpha": 2, "beta": 1},
-            mass=0.95
-        )
-        ell = pm.InverseGamma(f"ell_{name}", **local_ell_params)
-        est_scale = 0.5
-        eta = pm.Exponential(f"_eta_{name}", lam=1.0 / est_scale)
-        cov = eta**2 * pm.gp.cov.ExpQuad(input_dim=1, ls=ell)
-  
-        gp = pm.gp.HSGP(m=[20], c=1.3, cov_func=cov)
-        f = gp.prior(f"{name}_tvp_raw", X=X)
-        f_output = pm.Deterministic(f"{name}", f, dims=("date"))
-
+    def gp_coeff(self, X, name, mean=0.0, positive=False):
+        params = pm.find_constrained_prior(pm.InverseGamma, 0.5, 2, init_guess={"alpha": 2, "beta": 1}, mass=0.95)
+        ell = pm.InverseGamma(f"ell_{name}", **params)
+        eta = pm.Exponential(f"_eta_{name}", lam=1 / 0.5)
+        cov = eta ** 2 * pm.gp.cov.ExpQuad(1, ls=ell)
+    
+        if positive:
+            mean_func = pm.gp.mean.Constant(c=-log(2))
+        else:
+            mean_func = pm.gp.mean.Constant(c=0)
+        
+        gp = pm.gp.HSGP(m=[20], mean_func=mean_func, c=1.3, cov_func=cov)
+        f_raw = gp.prior(f"{name}_tvp_raw", X=X)
+    
+        f_output = pm.Deterministic(f"{name}", pm.math.log1pexp(f_raw) if positive else f_raw, dims=("date"))
+    
         return f_output
 
 
