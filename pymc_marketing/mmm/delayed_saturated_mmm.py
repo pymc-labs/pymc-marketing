@@ -310,11 +310,6 @@ class BaseDelayedSaturatedMMM(MMM):
 
         return priors
 
-
-
-
-
-
     def create_likelihood(self, model_config, target_, mu):
         likelihood_config = model_config.get("likelihood", {})
         likelihood_type = likelihood_config.get("type")
@@ -380,7 +375,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 "type": "Normal",
                 "dims": ("date",),
                 "params": {
-                    "sigma": {"type": "HalfNormal", "sigma": 1},
+                    "sigma": {"type": "HalfNormal", "sigma": 1, 'dims': ('date',)},
                 }
             },
             "gamma_fourier": {"mu": 0, "b": 1, "dims": "fourier_mode"},
