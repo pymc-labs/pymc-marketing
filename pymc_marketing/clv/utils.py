@@ -69,53 +69,64 @@ def customer_lifetime_value(
         DataArray with the estimated customer lifetime values
     """
 
+    def _squeeze_dims(x: xarray.DataArray):
+        dims_to_squeeze: tuple[str, ...] = ()
+        if "chain" in x.dims and len(x.chain) == 1:
+            dims_to_squeeze += ("chain",)
+        if "draw" in x.dims and len(x.draw) == 1:
+            dims_to_squeeze += ("draw",)
+        if dims_to_squeeze:
+            x = x.squeeze(dims_to_squeeze)
+        return x
+
     steps = np.arange(1, time + 1)
     factor = {"W": 4.345, "M": 1.0, "D": 30, "H": 30 * 24}[freq]
-    model_dims = transaction_model.idata.posterior.dims
-    model_coords = transaction_model.idata.posterior.coords
-    clv_coords = {
-        "chain": model_coords["chain"],
-        "draw": model_coords["draw"],
-        "customer_id": np.asarray(customer_id),
-    }
-    clv = xarray.DataArray(
-        np.zeros((model_dims["chain"], model_dims["draw"], len(customer_id))),
-        dims=("chain", "draw", "customer_id"),
-        coords=clv_coords,
-    )
 
     # Monetary value can be passed as a DataArray, with entries per chain and draw or as a simple vector
     if not isinstance(monetary_value, xarray.DataArray):
         monetary_value = to_xarray(customer_id, monetary_value)
+    monetary_value = _squeeze_dims(monetary_value)
 
     frequency, recency, T = to_xarray(customer_id, frequency, recency, T)
 
+    clv = xarray.DataArray(0.0)
+
     # TODO: Vectorize computation so that we perform a single call to expected_num_purchases
-    prev_expected_num_purchases = transaction_model.expected_num_purchases(
-        customer_id=customer_id,
-        frequency=frequency,
-        recency=recency,
-        T=T,
-        t=0,
-    )
-    for i in steps * factor:
-        # since the prediction of number of transactions is cumulative, we have to subtract off the previous periods
-        new_expected_num_purchases = transaction_model.expected_num_purchases(
+    prev_expected_num_purchases = _squeeze_dims(
+        transaction_model.expected_num_purchases(
             customer_id=customer_id,
             frequency=frequency,
             recency=recency,
             T=T,
-            t=i,
+            t=0,
+        )
+    )
+    for i in steps * factor:
+        # since the prediction of number of transactions is cumulative, we have to subtract off the previous periods
+        new_expected_num_purchases = _squeeze_dims(
+            transaction_model.expected_num_purchases(
+                customer_id=customer_id,
+                frequency=frequency,
+                recency=recency,
+                T=T,
+                t=i,
+            )
         )
         expected_transactions = new_expected_num_purchases - prev_expected_num_purchases
         prev_expected_num_purchases = new_expected_num_purchases
 
         # sum up the CLV estimates of all the periods and apply discounted cash flow
-        clv += (monetary_value * expected_transactions) / (1 + discount_rate) ** (
+        clv = clv + (monetary_value * expected_transactions) / (1 + discount_rate) ** (
             i / factor
         )
 
-    return clv
+    # Add squeezed chain/draw dims
+    if "draw" not in clv.dims:
+        clv = clv.expand_dims({"draw": 1})
+    if "chain" not in clv.dims:
+        clv = clv.expand_dims({"chain": 1})
+
+    return clv.transpose("chain", "draw", "customer_id")
 
 
 def _find_first_transactions(

@@ -130,104 +130,146 @@ def transaction_data() -> pd.DataFrame:
     return pd.DataFrame(d, columns=["id", "date", "monetary_value"])
 
 
-def test_customer_lifetime_value_with_known_values(test_summary_data, fitted_bg):
-    # Test borrowed from
-    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
+class TestCustomerLifetimeValue:
+    def test_customer_lifetime_value_with_known_values(
+        self, test_summary_data, fitted_bg
+    ):
+        # Test borrowed from
+        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
 
-    t = test_summary_data.head()
+        t = test_summary_data.head()
 
-    expected = np.array([0.016053, 0.021171, 0.030461, 0.031686, 0.001607])
-    monetary_value = np.ones_like(expected)
+        expected = np.array([0.016053, 0.021171, 0.030461, 0.031686, 0.001607])
+        monetary_value = np.ones_like(expected)
 
-    # discount_rate=0 means the clv will be the same as the predicted
-    clv_d0 = customer_lifetime_value(
-        fitted_bg,
-        t.index,
-        t["frequency"],
-        t["recency"],
-        t["T"],
-        monetary_value=monetary_value,
-        time=1,
-        discount_rate=0.0,
-    ).mean(("chain", "draw"))
-    np.testing.assert_almost_equal(clv_d0, expected, decimal=5)
-    # discount_rate=1 means the clv will halve over a period
-    clv_d1 = (
-        customer_lifetime_value(
+        # discount_rate=0 means the clv will be the same as the predicted
+        clv_d0 = customer_lifetime_value(
             fitted_bg,
             t.index,
             t["frequency"],
             t["recency"],
             t["T"],
-            monetary_value=pd.Series([1, 1, 1, 1, 1]),
+            monetary_value=monetary_value,
             time=1,
-            discount_rate=1.0,
+            discount_rate=0.0,
+        ).mean(("chain", "draw"))
+        np.testing.assert_almost_equal(clv_d0, expected, decimal=5)
+        # discount_rate=1 means the clv will halve over a period
+        clv_d1 = (
+            customer_lifetime_value(
+                fitted_bg,
+                t.index,
+                t["frequency"],
+                t["recency"],
+                t["T"],
+                monetary_value=pd.Series([1, 1, 1, 1, 1]),
+                time=1,
+                discount_rate=1.0,
+            )
+            .mean(("chain", "draw"))
+            .values
         )
-        .mean(("chain", "draw"))
-        .values
-    )
-    np.testing.assert_almost_equal(clv_d1, expected / 2.0, decimal=5)
+        np.testing.assert_almost_equal(clv_d1, expected / 2.0, decimal=5)
 
-    # time=2, discount_rate=0 means the clv will be twice the initial
-    clv_t2_d0 = (
-        customer_lifetime_value(
-            fitted_bg,
-            t.index,
-            t["frequency"],
-            t["recency"],
-            t["T"],
-            monetary_value=pd.Series([1, 1, 1, 1, 1]),
-            time=2,
-            discount_rate=0,
+        # time=2, discount_rate=0 means the clv will be twice the initial
+        clv_t2_d0 = (
+            customer_lifetime_value(
+                fitted_bg,
+                t.index,
+                t["frequency"],
+                t["recency"],
+                t["T"],
+                monetary_value=pd.Series([1, 1, 1, 1, 1]),
+                time=2,
+                discount_rate=0,
+            )
+            .mean(("chain", "draw"))
+            .values
         )
-        .mean(("chain", "draw"))
-        .values
-    )
-    np.testing.assert_allclose(clv_t2_d0, expected * 2.0, rtol=0.1)
+        np.testing.assert_allclose(clv_t2_d0, expected * 2.0, rtol=0.1)
 
-    # time=2, discount_rate=1 means the clv will be twice the initial
-    clv_t2_d1 = (
-        customer_lifetime_value(
-            fitted_bg,
-            t.index,
-            t["frequency"],
-            t["recency"],
-            t["T"],
-            monetary_value=pd.Series([1, 1, 1, 1, 1]),
-            time=2,
-            discount_rate=1.0,
+        # time=2, discount_rate=1 means the clv will be twice the initial
+        clv_t2_d1 = (
+            customer_lifetime_value(
+                fitted_bg,
+                t.index,
+                t["frequency"],
+                t["recency"],
+                t["T"],
+                monetary_value=pd.Series([1, 1, 1, 1, 1]),
+                time=2,
+                discount_rate=1.0,
+            )
+            .mean(("chain", "draw"))
+            .values
         )
-        .mean(("chain", "draw"))
-        .values
-    )
-    np.testing.assert_allclose(clv_t2_d1, expected / 2.0 + expected / 4.0, rtol=0.1)
+        np.testing.assert_allclose(clv_t2_d1, expected / 2.0 + expected / 4.0, rtol=0.1)
 
+    def test_customer_lifetime_value_gg_with_bgf(
+        self, test_summary_data, fitted_gg, fitted_bg
+    ):
+        t = test_summary_data.head()
 
-def test_customer_lifetime_value_gg_with_bgf(test_summary_data, fitted_gg, fitted_bg):
-    t = test_summary_data.head()
-
-    ggf_clv = fitted_gg.expected_customer_lifetime_value(
-        transaction_model=fitted_bg,
-        customer_id=t.index,
-        frequency=t["frequency"],
-        recency=t["recency"],
-        T=t["T"],
-        mean_transaction_value=t["monetary_value"],
-    )
-
-    utils_clv = customer_lifetime_value(
-        transaction_model=fitted_bg,
-        customer_id=t.index,
-        frequency=t["frequency"],
-        recency=t["recency"],
-        T=t["T"],
-        monetary_value=fitted_gg.expected_customer_spend(
-            t.index,
-            mean_transaction_value=t["monetary_value"],
+        ggf_clv = fitted_gg.expected_customer_lifetime_value(
+            transaction_model=fitted_bg,
+            customer_id=t.index,
             frequency=t["frequency"],
-        ),
-    )
-    np.testing.assert_equal(ggf_clv.values, utils_clv.values)
+            recency=t["recency"],
+            T=t["T"],
+            mean_transaction_value=t["monetary_value"],
+        )
+
+        utils_clv = customer_lifetime_value(
+            transaction_model=fitted_bg,
+            customer_id=t.index,
+            frequency=t["frequency"],
+            recency=t["recency"],
+            T=t["T"],
+            monetary_value=fitted_gg.expected_customer_spend(
+                t.index,
+                mean_transaction_value=t["monetary_value"],
+                frequency=t["frequency"],
+            ),
+        )
+        np.testing.assert_equal(ggf_clv.values, utils_clv.values)
+
+    @pytest.mark.parametrize("bg_map", (True, False))
+    @pytest.mark.parametrize("gg_map", (True, False))
+    def test_map_posterior_mix_fit_types(
+        self, fitted_bg, fitted_gg, test_summary_data, bg_map, gg_map
+    ):
+        """Test we can mix a model that was fit with MAP and one that was fit with sample."""
+        t = test_summary_data.head()
+
+        # Copy model with thinned chain/draw as would be obtained from MAP
+        if bg_map:
+            bg = BetaGeoModel(fitted_bg.data, model_config=fitted_bg.model_config)
+            bg.build_model()
+            bg.idata = fitted_bg.idata.sel(chain=slice(0, 1), draw=slice(0, 1))
+        else:
+            bg = fitted_bg
+
+        if gg_map:
+            gg = GammaGammaModel(fitted_gg.data, model_config=fitted_gg.model_config)
+            gg.build_model()
+            gg.idata = fitted_gg.idata.sel(chain=slice(0, 1), draw=slice(0, 1))
+        else:
+            gg = fitted_gg
+
+        res = customer_lifetime_value(
+            transaction_model=bg,
+            customer_id=t.index,
+            frequency=t["frequency"],
+            recency=t["recency"],
+            T=t["T"],
+            monetary_value=gg.expected_customer_spend(
+                t.index,
+                mean_transaction_value=t["monetary_value"],
+                frequency=t["frequency"],
+            ),
+        )
+
+        assert res.dims == ("chain", "draw", "customer_id")
 
 
 def test_find_first_transactions_observation_period_end_none(transaction_data):
