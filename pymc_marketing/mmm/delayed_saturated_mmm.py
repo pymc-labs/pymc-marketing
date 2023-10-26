@@ -300,7 +300,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 continue
 
             if prior_type:
-                dist_func = getattr(pm, prior_type, None).
+                dist_func = getattr(pm, prior_type, None)
                 if dist_func is None: raise ValueError(f"Invalid distribution type {prior_type}")
             
                 # Remove the 'type' key and create a new prior.
