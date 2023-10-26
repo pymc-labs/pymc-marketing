@@ -309,6 +309,7 @@ class BaseDelayedSaturatedMMM(MMM):
     
         # Loop over the stacked priors and stack them along axis 1.
         for param, priors_list in stacked_priors.items():
+            print(param)
             if priors_list: priors[param] = pm.math.stack(priors_list, axis=1)
 
         return priors
