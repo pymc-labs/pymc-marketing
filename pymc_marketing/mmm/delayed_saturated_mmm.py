@@ -8,6 +8,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+import pytensor.tensor as pt
 import seaborn as sns
 from xarray import DataArray
 
