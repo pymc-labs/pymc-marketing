@@ -358,7 +358,7 @@ class BaseDelayedSaturatedMMM(MMM):
         f_raw = gp.prior(f"{name}_tvp_raw", X=X)
     
         if positive:
-            f_output = pm.Deterministic(f"{name}", pt.exp(pt.log(f_raw), dims=("date"))
+            f_output = pm.Deterministic(f"{name}", pt.exp(pt.log(f_raw), dims=("date")))
         else:
             f_output = pm.Deterministic(f"{name}", f_raw, dims=("date"))
     
