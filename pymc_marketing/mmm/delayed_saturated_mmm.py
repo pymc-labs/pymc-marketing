@@ -296,6 +296,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
                 # Check if this parameter should be positive
                 is_positive = param in positive_params
+                print(is_positive)
 
                 if prior_type == "tvp":
                     if length > 1:
@@ -352,13 +353,8 @@ class BaseDelayedSaturatedMMM(MMM):
         ell = pm.InverseGamma(f"ell_{name}", **params)
         eta = pm.Exponential(f"_eta_{name}", lam=1 / 0.5)
         cov = eta ** 2 * pm.gp.cov.ExpQuad(1, ls=ell)
-    
-        if positive:
-            mean_func = pm.gp.mean.Constant(c=-pm.math.log(2))
-        else:
-            mean_func = pm.gp.mean.Constant(c=0)
         
-        gp = pm.gp.HSGP(m=[20], mean_func=mean_func, c=1.3, cov_func=cov)
+        gp = pm.gp.HSGP(m=[20], c=1.3, cov_func=cov)
         f_raw = gp.prior(f"{name}_tvp_raw", X=X)
     
         f_output = pm.Deterministic(f"{name}", pm.math.log1pexp(f_raw) if positive else f_raw, dims=("date"))
