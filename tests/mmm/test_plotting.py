@@ -36,6 +36,14 @@ def toy_y(toy_X) -> pd.Series:
     return pd.Series(rng.integers(low=0, high=100, size=toy_X.shape[0]))
 
 
+class ToyMMMDefaultTransform(BaseDelayedSaturatedMMM):
+    pass
+
+
+class ToyMMMCustomTransform(BaseDelayedSaturatedMMM, MaxAbsScaleTarget):
+    pass
+
+
 class TestBasePlotting:
     @pytest.fixture(
         scope="module",
@@ -49,38 +57,36 @@ class TestBasePlotting:
     def plotting_mmm(self, request, toy_X, toy_y):
         control, transform = request.param.split("-")
         if transform == "default_transform":
-
-            class ToyMMM(BaseDelayedSaturatedMMM):
-                pass
-
+            mmm_class = ToyMMMDefaultTransform
         elif transform == "target_transform":
-
-            class ToyMMM(BaseDelayedSaturatedMMM, MaxAbsScaleTarget):
-                pass
+            mmm_class = ToyMMMCustomTransform
+        else:
+            raise ValueError(f"Unexpected transform {transform}")
 
         if control == "without_controls":
-            mmm = ToyMMM(
+            mmm = mmm_class(
                 date_column="date",
                 channel_columns=["channel_1", "channel_2"],
                 adstock_max_lag=4,
             )
         elif control == "with_controls":
-            mmm = ToyMMM(
+            mmm = mmm_class(
                 date_column="date",
                 adstock_max_lag=4,
                 control_columns=["control_1", "control_2"],
                 channel_columns=["channel_1", "channel_2"],
             )
-        # fit the model
-        mmm.fit(
-            X=toy_X,
-            y=toy_y,
-        )
+        else:
+            raise ValueError(f"Unexpected control {control}")
+
         mmm.sample_prior_predictive(toy_X, toy_y, extend_idata=True, combined=True)
+
+        # fake-fit the model for speed
+        mmm.idata.add_groups({"posterior": mmm.idata.prior})
+        mmm._add_fit_data_group(toy_X, toy_y)
+        mmm.set_idata_attrs()
+
         mmm.sample_posterior_predictive(toy_X, extend_idata=True, combined=True)
-        mmm._prior_predictive = mmm.prior_predictive
-        mmm._fit_result = mmm.fit_result
-        mmm._posterior_predictive = mmm.posterior_predictive
 
         return mmm
 
@@ -108,4 +114,21 @@ class TestBasePlotting:
     def test_plots(self, plotting_mmm, func_plot_name, kwargs_plot) -> None:
         func = plotting_mmm.__getattribute__(func_plot_name)
         assert isinstance(func(**kwargs_plot), plt.Figure)
+        plt.close("all")
+
+    def test_plot_prior_predictive_without_fit(self, toy_X, toy_y):
+        """Test that plot_prior_predictive works during the workflow"""
+        mmm = ToyMMMDefaultTransform(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock_max_lag=4,
+        )
+        mmm.sample_prior_predictive(toy_X, toy_y)
+        assert isinstance(mmm.plot_prior_predictive(), plt.Figure)
+
+        # We can also plot it after `fit()`
+        mmm.fit(toy_X, toy_y, chains=1, draws=1, tune=10)
+
+        mmm.sample_prior_predictive(toy_X, toy_y)
+        assert isinstance(mmm.plot_prior_predictive(), plt.Figure)
         plt.close("all")

@@ -1,5 +1,6 @@
-from typing import Any, Callable, List, Tuple, Union
+from typing import Any, Callable, List, Tuple, Union, cast
 
+import numpy as np
 import pandas as pd
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler, StandardScaler
@@ -32,7 +33,7 @@ class MaxAbsScaleTarget:
 
     @preprocessing_method_y
     def max_abs_scale_target_data(self, data: pd.Series) -> pd.Series:
-        target_vector = data.reshape(-1, 1)
+        target_vector = cast(np.ndarray, data.values).reshape(-1, 1)
         transformers = [("scaler", MaxAbsScaler())]
         pipeline = Pipeline(steps=transformers)
         self.target_transformer: Pipeline = pipeline.fit(X=target_vector)

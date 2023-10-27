@@ -235,7 +235,7 @@ class BaseMMM(ModelBuilder):
     @property
     def prior_predictive(self) -> az.InferenceData:
         if self.idata is None or "prior_predictive" not in self.idata:
-            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
+            raise RuntimeError("Sample Prior predictive hasn't been called yet")
         return self.idata["prior_predictive"]
 
     @property

@@ -18,7 +18,7 @@ import json
 import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 import arviz as az
 import numpy as np
@@ -414,6 +414,20 @@ class ModelBuilder(ABC):
 
         return model
 
+    def _add_fit_data_group(self, X, y) -> None:
+        y_df = pd.DataFrame({self.output_var: y})
+        X_df = pd.DataFrame(X, columns=X.columns)
+        combined_data = pd.concat([X_df, y_df], axis=1)
+        assert all(combined_data.columns), "All columns must have non-empty names"
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=UserWarning,
+                message="The group fit_data is not defined in the InferenceData scheme",
+            )
+            # What if fit_data was already present?
+            self.idata.add_groups(fit_data=combined_data.to_xarray())  # type: ignore
+
     def fit(
         self,
         X: pd.DataFrame,
@@ -436,9 +450,6 @@ class ModelBuilder(ABC):
             The target values (real numbers).
         progressbar : bool
             Specifies whether the fit progressbar should be displayed
-        predictor_names: Optional[List[str]] = None,
-            Allows for custom naming of predictors given in a form of 2dArray
-            allows for naming of predictors when given in a form of np.ndarray, if not provided the predictors will be named like predictor1, predictor2...
         random_seed : Optional[RandomState]
             Provides sampler with initial random seed for obtaining reproducible samples
         **kwargs : Any
@@ -455,12 +466,10 @@ class ModelBuilder(ABC):
         Auto-assigning NUTS sampler...
         Initializing NUTS using jitter+adapt_diag...
         """
-        if predictor_names is None:
-            predictor_names = []
+
         if y is None:
             y = np.zeros(X.shape[0])
-        y_df = pd.DataFrame({self.output_var: y})
-        self._generate_and_preprocess_model_data(X, y_df.values.flatten())
+        self._generate_and_preprocess_model_data(X, np.asarray(y).flatten())
         if self.X is None or self.y is None:
             raise ValueError("X and y must be set before calling build_model!")
         self.build_model(self.X, self.y)
@@ -474,19 +483,16 @@ class ModelBuilder(ABC):
         if self.model is not None:
             with self.model:
                 sampler_args = {**self.sampler_config, **kwargs}
-                self.idata = pm.sample(**sampler_args)
+                idata = pm.sample(**sampler_args)
 
-        X_df = pd.DataFrame(X, columns=X.columns)
-        combined_data = pd.concat([X_df, y_df], axis=1)
-        assert all(combined_data.columns), "All columns must have non-empty names"
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
-            )
-            self.idata.add_groups(fit_data=combined_data.to_xarray())  # type: ignore
+        if self.idata:
+            self.idata.extend(idata, join="right")
+        else:
+            self.idata = idata
+
+        self._add_fit_data_group(X, y)
         self.set_idata_attrs(self.idata)
+
         return self.idata  # type: ignore
 
     def predict(
@@ -522,8 +528,12 @@ class ModelBuilder(ABC):
         """
 
         posterior_predictive_samples = self.sample_posterior_predictive(
-            X_pred, extend_idata, combined=False, **kwargs
+            X_pred, combined=False, predictions=True, **kwargs
         )
+
+        if extend_idata:
+            assert isinstance(self.idata, az.InferenceData)
+            self.idata.extend(posterior_predictive_samples, join="right")
 
         if self.output_var not in posterior_predictive_samples:
             raise KeyError(
@@ -540,7 +550,7 @@ class ModelBuilder(ABC):
         X_pred,
         y_pred=None,
         samples: Optional[int] = None,
-        extend_idata: bool = False,
+        extend_idata: bool = True,
         combined: bool = True,
         **kwargs,
     ):
@@ -555,7 +565,7 @@ class ModelBuilder(ABC):
             Number of samples from the prior parameter distributions to generate.
             If not set, uses sampler_config['draws'] if that is available, otherwise defaults to 500.
         extend_idata : Boolean determining whether the predictions should be added to inference data object.
-            Defaults to False.
+            Defaults to True.
         combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
         **kwargs: Additional arguments to pass to pymc.sample_prior_predictive
@@ -574,17 +584,16 @@ class ModelBuilder(ABC):
             self.build_model(X_pred, y_pred)
 
         self._data_setter(X_pred, y_pred)
-        if self.model is not None:
-            with self.model:  # sample with new input data
-                prior_pred: az.InferenceData = pm.sample_prior_predictive(
-                    samples, **kwargs
-                )
-                self.set_idata_attrs(prior_pred)
-                if extend_idata:
-                    if self.idata is not None:
-                        self.idata.extend(prior_pred)
-                    else:
-                        self.idata = prior_pred
+
+        with cast(pm.Model, self.model):  # sample with new input data
+            prior_pred: az.InferenceData = pm.sample_prior_predictive(samples, **kwargs)
+            self.set_idata_attrs(prior_pred)
+
+        if extend_idata:
+            if self.idata is not None:
+                self.idata.extend(prior_pred, join="right")
+            else:
+                self.idata = prior_pred
 
         prior_predictive_samples = az.extract(
             prior_pred, "prior_predictive", combined=combined
@@ -592,7 +601,9 @@ class ModelBuilder(ABC):
 
         return prior_predictive_samples
 
-    def sample_posterior_predictive(self, X_pred, extend_idata, combined, **kwargs):
+    def sample_posterior_predictive(
+        self, X_pred, extend_idata: bool = True, combined: bool = True, **kwargs
+    ):
         """
         Sample from the model's posterior predictive distribution.
 
@@ -613,10 +624,12 @@ class ModelBuilder(ABC):
         """
         self._data_setter(X_pred)
 
-        with self.model:  # sample with new input data
+        with cast(pm.Model, self.model):  # sample with new input data
             post_pred = pm.sample_posterior_predictive(self.idata, **kwargs)
-            if extend_idata:
-                self.idata.extend(post_pred)
+
+        if extend_idata:
+            assert isinstance(self.idata, az.InferenceData)
+            self.idata.extend(post_pred, join="right")
 
         posterior_predictive_samples = az.extract(
             post_pred, "posterior_predictive", combined=combined
