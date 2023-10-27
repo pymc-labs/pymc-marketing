@@ -300,7 +300,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
                 if prior_type == "tvp":
                     if length > 1:
-                        stacked_priors[param] = self.create_tvp_priors(param, config, length)
+                        stacked_priors[param] = self.create_tvp_priors(param, config, length, positive=is_positive)
                     else:
                         priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None], positive=is_positive)
                     continue
@@ -340,9 +340,8 @@ class BaseDelayedSaturatedMMM(MMM):
 
         return likelihood_func(name="likelihood", mu=mu, observed=target_, dims=dims, **sub_priors)
 
-    def create_tvp_priors(self, param, config, length):
-        return [self.gp_wrapper(name=f"{param}_{i}", X=np.arange(len(self.X[self.date_column]))[:, None]) for i in range(length)]
-
+    def create_tvp_priors(self, param, config, length, positive=False):
+        return [self.gp_wrapper(name=f"{param}_{i}", X=np.arange(len(self.X[self.date_column]))[:, None], positive=positive) for i in range(length)]
 
     def gp_wrapper(self, name, X, mean=0, positive=False, **kwargs):
         return self.gp_coeff(X, name, mean=mean, positive=positive, **kwargs)
@@ -358,7 +357,7 @@ class BaseDelayedSaturatedMMM(MMM):
         f_raw = gp.prior(f"{name}_tvp_raw", X=X)
     
         if positive:
-            f_output = pm.Deterministic(f"{name}", pt.exp(pt.log(f_raw), dims=("date")))
+            f_output = pm.Deterministic(f"{name}", pt.exp(f_raw), dims=("date"))
         else:
             f_output = pm.Deterministic(f"{name}", f_raw, dims=("date"))
     
