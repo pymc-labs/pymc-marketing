@@ -357,7 +357,10 @@ class BaseDelayedSaturatedMMM(MMM):
         gp = pm.gp.HSGP(m=[20], c=1.3, cov_func=cov)
         f_raw = gp.prior(f"{name}_tvp_raw", X=X)
     
-        f_output = pm.Deterministic(f"{name}", pm.math.exp(f_raw) if positive else f_raw, dims=("date"))
+        if positive:
+            f_output = pm.Deterministic(f"{name}", pt.exp(pt.log(f_raw), dims=("date"))
+        else:
+            f_output = pm.Deterministic(f"{name}", f_raw, dims=("date"))
     
         return f_output
 
