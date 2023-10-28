@@ -343,7 +343,7 @@ class BaseDelayedSaturatedMMM(MMM):
         print(dims)
         gp_list = [self.gp_wrapper(name=f"{param}_{i}", X=np.arange(len(self.X[self.date_column]))[:, None], positive=positive) for i in range(length)]
         stacked_gp = pt.stack(gp_list, axis=1)
-        return pm.Deterministic(f"{param}", stacked_gp, dims=dims)
+        return pm.Deterministic(f"{param}_test", stacked_gp, dims=dims)
 
 
     def gp_wrapper(self, name, X, mean=0, positive=False, **kwargs):
