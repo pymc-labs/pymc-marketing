@@ -303,7 +303,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
                 if prior_type == "tvp":
                     if param in ["intercept", "lam", "alpha", "sigma"]:
-                        priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None], mean=0, positive=is_positive, **kwargs)
+                        priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None], mean=0, positive=is_positive)
                         continue
 
                     length = dimensions.get(config.get("dims", [None, None])[1], 1)
