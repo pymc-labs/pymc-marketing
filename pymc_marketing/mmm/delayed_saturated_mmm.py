@@ -348,11 +348,12 @@ class BaseDelayedSaturatedMMM(MMM):
         
         gp = pm.gp.HSGP(m=[20], c=1.3, cov_func=cov)
         f_raw = gp.prior(f"{param}_tvp_raw", X=np.arange(len(self.X[self.date_column]))[:, None], dims=dims)
+        print(f_raw.shape.eval())
 
         if positive:
             f = np.exp(f_raw)
         else:
-            f = np.exp(f_raw) 
+            f = f_raw 
         return f
 
 
