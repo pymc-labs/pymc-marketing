@@ -172,17 +172,17 @@ class BaseDelayedSaturatedMMM(MMM):
         model : pm.Model
             The PyMC model object containing all the defined stochastic and deterministic variables.
         """
-        # model_config = self.model_config
-        self.intercept = self._create_distribution(self.model_config["intercept"])
-        self.beta_channel = self._create_distribution(self.model_config["beta_channel"])
-        self.lam = self._create_distribution(self.model_config["lam"])
-        self.alpha = self._create_distribution(self.model_config["alpha"])
-        self.sigma = self._create_distribution(self.model_config["sigma"])
+        model_config = self.model_config
+        self.intercept = self._create_distribution(model_config["intercept"])
+        self.beta_channel = self._create_distribution(model_config["beta_channel"])
+        self.lam = self._create_distribution(model_config["lam"])
+        self.alpha = self._create_distribution(model_config["alpha"])
+        self.sigma = self._create_distribution(model_config["sigma"])
         self.gamma_control = self._create_distribution(
-            self.model_config["gamma_control"]
+            model_config["gamma_control"]
         )
         self.gamma_fourier = self._create_distribution(
-            self.model_config["gamma_fourier"]
+            model_config["gamma_fourier"]
         )
 
         self._process_priors(
@@ -274,14 +274,17 @@ class BaseDelayedSaturatedMMM(MMM):
                     for column in self.fourier_columns
                 )
             ):
-                gamma_fourier = self.model.register_rv(
-                    self.gamma_fourier, name="gamma_fourier", dims="fourier_mode"
-                )
 
                 fourier_data_ = pm.MutableData(
                     name="fourier_data",
                     value=self.preprocessed_data["X"][self.fourier_columns],
                     dims=("date", "fourier_mode"),
+                )
+
+                gamma_fourier = self.model.register_rv(
+                    self.gamma_fourier, 
+                    name="gamma_fourier", 
+                    dims="fourier_mode"
                 )
 
                 fourier_contribution = pm.Deterministic(
@@ -299,7 +302,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 mu=mu,
                 sigma=sigma,
                 observed=target_,
-                dims=("date",),
+                dims=("date",)
             )
 
     @property
