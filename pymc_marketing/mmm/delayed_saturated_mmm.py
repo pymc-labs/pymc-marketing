@@ -306,6 +306,7 @@ class BaseDelayedSaturatedMMM(MMM):
                     try:
                         length = dimensions.get(config.get("dims", [None, None])[1], 1)
                     except IndexError:
+                        print("indexerror so building it diffeent way")
                         priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None], mean=0, positive=is_positive, **kwargs)
                         continue
 
