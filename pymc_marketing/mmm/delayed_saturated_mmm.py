@@ -293,20 +293,26 @@ class BaseDelayedSaturatedMMM(MMM):
 
             prior_type = config.get("type")
             if prior_type is not None:
+                length = dimensions.get(config.get("dims", [None])[0], 1)
 
                 # Check if this parameter should be positive
                 is_positive = param in positive_params
                 print(is_positive)
 
                 if prior_type == "tvp":
-                        print("making tvp priors")
-                        priors[param] = self.create_tvp_priors(param, config, positive=is_positive)
-                        continue
+                    if length > 1:
+                        stacked_priors[param] = self.create_tvp_priors(param, config, length, positive=is_positive)
+                    else:
+                        priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None], positive=is_positive)
+                    continue
 
                 dist_func = getattr(pm, prior_type, None)
                 if not dist_func: raise ValueError(f"Invalid distribution type {prior_type}")
                 config_copy = {k: v for k, v in config.items() if k != "type"}
                 priors[param] = dist_func(name=param, **config_copy)
+
+        for param, priors_list in stacked_priors.items():
+            if priors_list: priors[param] = pm.math.stack(priors_list, axis=1)
 
         return priors
 
@@ -335,24 +341,8 @@ class BaseDelayedSaturatedMMM(MMM):
 
         return likelihood_func(name="likelihood", mu=mu, observed=target_, dims=dims, **sub_priors)
 
-    def create_tvp_priors(self, param, config, positive=False):
-        dims = config.get("dims", None)  # Extracting dims from the config
-        print(dims)
-        params = pm.find_constrained_prior(pm.InverseGamma, 0.5, 2, init_guess={"alpha": 2, "beta": 1}, mass=0.95)
-        ell = pm.InverseGamma(f"ell_{param}", **params)
-        eta = pm.Exponential(f"_eta_{param}", lam=1 / 0.5)
-        cov = eta ** 2 * pm.gp.cov.ExpQuad(1, ls=ell)
-        
-        gp = pm.gp.HSGP(m=[20], c=1.3, cov_func=cov)
-        f_raw = gp.prior(f"{param}_tvp_raw", X=np.tile(np.arange(len(self.X[self.date_column])), (5, 1)).T, dims=dims)
-        print(f_raw.shape.eval())
-
-        if positive:
-            f = np.exp(f_raw)
-        else:
-            f = f_raw 
-        return f
-
+    def create_tvp_priors(self, param, config, length, positive=False):
+        return [self.gp_wrapper(name=f"{param}_{i}", X=np.arange(len(self.X[self.date_column]))[:, None], positive=positive) for i in range(length)]
 
     def gp_wrapper(self, name, X, mean=0, positive=False, **kwargs):
         return self.gp_coeff(X, name, mean=mean, positive=positive, **kwargs)
