@@ -340,9 +340,9 @@ class BaseDelayedSaturatedMMM(MMM):
 
     def create_tvp_priors(self, param, config, length, positive=False):
         dims = config.get("dims", None)  # Extracting dims from the config
+        print(dims)
         gp_list = [self.gp_wrapper(name=f"{param}_{i}", X=np.arange(len(self.X[self.date_column]))[:, None], positive=positive) for i in range(length)]
         stacked_gp = pt.stack(gp_list, axis=1)
-        print("stacked shape:", stacked_gp.shape.eval())
         return pm.Deterministic(f"{param}", stacked_gp, dims=dims)
 
 
