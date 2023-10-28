@@ -341,9 +341,19 @@ class BaseDelayedSaturatedMMM(MMM):
     def create_tvp_priors(self, param, config, length, positive=False):
         dims = config.get("dims", None)  # Extracting dims from the config
         print(dims)
-        gp_list = [self.gp_wrapper(name=f"{param}_{i}", X=np.arange(len(self.X[self.date_column]))[:, None], positive=positive) for i in range(length)]
-        stacked_gp = pt.stack(gp_list, axis=1)
-        return pm.Deterministic(f"{param}_test", stacked_gp, dims=dims)
+        params = pm.find_constrained_prior(pm.InverseGamma, 0.5, 2, init_guess={"alpha": 2, "beta": 1}, mass=0.95)
+        ell = pm.InverseGamma(f"ell_{param}", **params)
+        eta = pm.Exponential(f"_eta_{param}", lam=1 / 0.5)
+        cov = eta ** 2 * pm.gp.cov.ExpQuad(1, ls=ell)
+        
+        gp = pm.gp.HSGP(m=[20], c=1.3, cov_func=cov)
+        f_raw = gp.prior(f"{param}_tvp_raw", X=p.arange(len(self.X[self.date_column]))[:, None], dims=dims)
+
+        if positive:
+            f = np.exp(f_raw)
+        else:
+            f = np.exp(f_raw) 
+        return f
 
 
     def gp_wrapper(self, name, X, mean=0, positive=False, **kwargs):
