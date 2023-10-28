@@ -300,11 +300,12 @@ class BaseDelayedSaturatedMMM(MMM):
                 print(is_positive)
 
                 if prior_type == "tvp":
-                    length = dimensions.get(config.get("dims", [None, None])[1], 1)
-                 #   if length > 1:
+                    try:
+                        length = dimensions.get(config.get("dims", [None, None])[1], 1)
+                    except IndexError:
+                        length = 1
+
                     priors[param] = self.create_tvp_priors(param, config, length, positive=is_positive)
-                #    else:
-                 #       priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None], positive=is_positive)
                     continue
 
                 dist_func = getattr(pm, prior_type, None)
