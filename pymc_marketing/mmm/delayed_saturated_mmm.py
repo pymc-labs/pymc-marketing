@@ -301,7 +301,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 if prior_type == "tvp":
                         print("making tvp priors")
                         priors[param] = self.create_tvp_priors(param, config, positive=is_positive)
-                    continue
+                        continue
 
                 dist_func = getattr(pm, prior_type, None)
                 if not dist_func: raise ValueError(f"Invalid distribution type {prior_type}")
