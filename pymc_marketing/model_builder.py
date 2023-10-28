@@ -45,7 +45,7 @@ class ModelBuilder(ABC):
     ModelBuilder can be used to provide an easy-to-use API (similar to scikit-learn) for models
     and help with deployment.
     """
-
+    model: pm.Model
     _model_type = "BaseClass"
     version = "None"
 

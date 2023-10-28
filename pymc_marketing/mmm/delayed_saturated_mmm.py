@@ -75,6 +75,29 @@ class BaseDelayedSaturatedMMM(MMM):
             adstock_max_lag=adstock_max_lag,
         )
 
+        # model_config = self.model_config
+        self.intercept = self._create_distribution(self.model_config["intercept"])
+        self.beta_channel = self._create_distribution(self.model_config["beta_channel"])
+        self.lam = self._create_distribution(self.model_config["lam"])
+        self.alpha = self._create_distribution(self.model_config["alpha"])
+        self.sigma = self._create_distribution(self.model_config["sigma"])
+        self.gamma_control = self._create_distribution(
+            self.model_config["gamma_control"]
+        )
+        self.gamma_fourier = self._create_distribution(
+            self.model_config["gamma_fourier"]
+        )
+
+        self._process_priors(
+            self.intercept,
+            self.beta_channel,
+            self.alpha,
+            self.lam,
+            self.sigma,
+            self.gamma_control,
+            self.gamma_fourier,
+        )
+
     @property
     def default_sampler_config(self) -> Dict:
         return {}
@@ -172,28 +195,6 @@ class BaseDelayedSaturatedMMM(MMM):
         model : pm.Model
             The PyMC model object containing all the defined stochastic and deterministic variables.
         """
-        model_config = self.model_config
-        self.intercept = self._create_distribution(model_config["intercept"])
-        self.beta_channel = self._create_distribution(model_config["beta_channel"])
-        self.lam = self._create_distribution(model_config["lam"])
-        self.alpha = self._create_distribution(model_config["alpha"])
-        self.sigma = self._create_distribution(model_config["sigma"])
-        self.gamma_control = self._create_distribution(
-            model_config["gamma_control"]
-        )
-        self.gamma_fourier = self._create_distribution(
-            model_config["gamma_fourier"]
-        )
-
-        self._process_priors(
-            self.intercept,
-            self.beta_channel,
-            self.alpha,
-            self.lam,
-            self.sigma,
-            self.gamma_control,
-            self.gamma_fourier,
-        )
 
         self._generate_and_preprocess_model_data(X, y)
         with pm.Model(coords=self.model_coords) as self.model:
