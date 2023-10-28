@@ -335,7 +335,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
         return likelihood_func(name="likelihood", mu=mu, observed=target_, dims=dims, **sub_priors)
 
-    def create_tvp_priors(self, param, config, length, positive=False):
+    def create_tvp_priors(self, param, config, positive=False):
         dims = config.get("dims", None)  # Extracting dims from the config
         print(dims)
         params = pm.find_constrained_prior(pm.InverseGamma, 0.5, 2, init_guess={"alpha": 2, "beta": 1}, mass=0.95)
