@@ -315,7 +315,6 @@ class BaseDelayedSaturatedMMM(MMM):
 
         return priors
 
-
     def create_likelihood(self, model_config, target_, mu):
         likelihood_config = model_config.get("likelihood", {})
         likelihood_type = likelihood_config.get("type")
@@ -328,6 +327,10 @@ class BaseDelayedSaturatedMMM(MMM):
         if likelihood_func is None:
             raise ValueError(f"Invalid likelihood type {likelihood_type}")
 
+        # Transform mu if the likelihood type is Lognormal or HurdleLognormal
+        if likelihood_type in ['LogNormal', 'HurdleLogNormal']:
+            mu = pt.log(mu)
+
         # Create sub-priors
         sub_priors = {}
         for param, config in likelihood_config.items():
@@ -337,6 +340,9 @@ class BaseDelayedSaturatedMMM(MMM):
                         sub_priors[sub_param] = self.create_priors_from_config({sub_param: sub_config})[sub_param]
                 else:
                     sub_priors[param] = self.create_priors_from_config({param: config})[param]
+
+        return likelihood_func(name="likelihood", mu=mu, observed=target_, dims=dims, **sub_priors)
+
 
         return likelihood_func(name="likelihood", mu=mu, observed=target_, dims=dims, **sub_priors)
 
