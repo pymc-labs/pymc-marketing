@@ -293,13 +293,14 @@ class BaseDelayedSaturatedMMM(MMM):
 
             prior_type = config.get("type")
             if prior_type is not None:
-                length = dimensions.get(config.get("dims", [None, None])[1], 1)
+               
 
                 # Check if this parameter should be positive
                 is_positive = param in positive_params
                 print(is_positive)
 
                 if prior_type == "tvp":
+                    length = dimensions.get(config.get("dims", [None, None])[1], 1)
                     if length > 1:
                         priors[param] = self.create_tvp_priors(param, config, length, positive=is_positive)
                     else:
