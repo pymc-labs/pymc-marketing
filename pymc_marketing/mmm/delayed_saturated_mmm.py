@@ -341,9 +341,9 @@ class BaseDelayedSaturatedMMM(MMM):
     def create_tvp_priors(self, param, config, length, positive=False):
         dims = config.get("dims", None)  # Extracting dims from the config
         gp_list = [self.gp_wrapper(name=f"{param}_{i}", X=np.arange(len(self.X[self.date_column]))[:, None], positive=positive) for i in range(length)]
-        concatenated_gp = pt.concatenate(gp_list, axis=1)
-        print("Concatenated shape:", concatenated_gp.shape.eval())
-        return pm.Deterministic(f"{param}", concatenated_gp, dims=dims)
+        stacked_gp = pt.stack(gp_list, axis=1)
+        print("stacked shape:", stacked_gp.shape.eval())
+        return pm.Deterministic(f"{param}", stacked_gp, dims=dims)
 
 
     def gp_wrapper(self, name, X, mean=0, positive=False, **kwargs):
