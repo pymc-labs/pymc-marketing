@@ -286,7 +286,7 @@ class BaseDelayedSaturatedMMM(MMM):
         priors, dimensions = {}, {"channel": len(self.channel_columns), "control": len(self.control_columns)}
         stacked_priors = {}
     
-        positive_params = {"intercept", "beta_channel", "alpha", "lam"}  # Set of params that need positive=True
+        positive_params = {"intercept", "beta_channel", "alpha", "lam", "sigma"}  # Set of params that need positive=True
 
         for param, config in model_config.items():
             if param == "likelihood": continue
@@ -294,16 +294,20 @@ class BaseDelayedSaturatedMMM(MMM):
             prior_type = config.get("type")
             if prior_type is not None:
                
-
-                # Check if this parameter should be positive
+                # Initial value based on parameter name
                 is_positive = param in positive_params
-                print(is_positive)
+
+                # Override if the config explicitly sets the 'positive' key
+                if 'positive' in config:
+                    is_positive = config.get('positive')
+
 
                 if prior_type == "tvp":
                     try:
                         length = dimensions.get(config.get("dims", [None, None])[1], 1)
                     except IndexError:
-                        length = 1
+                        priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None], mean=0, positive=is_positive, **kwargs)
+                        continue
 
                     priors[param] = self.create_tvp_priors(param, config, length, positive=is_positive)
                     continue
@@ -330,8 +334,6 @@ class BaseDelayedSaturatedMMM(MMM):
         # Transform mu if the likelihood type is Lognormal or HurdleLognormal
         if likelihood_type in ['LogNormal', 'HurdleLogNormal']:
             mu = pt.log(mu)
-            sigma = pm.HalfNormal(name="sigma", sigma=0.1)
-            u = pm.Uniform("sturtural_noise_part")
 
         # Create sub-priors
         sub_priors = {}
@@ -343,8 +345,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 else:
                     sub_priors[param] = self.create_priors_from_config({param: config})[param]
 
-        return likelihood_func(name="likelihood", mu=mu, observed=target_, sigma=sigma * (1-u) ** .5, dims=dims,  **sub_priors)
-      #  return likelihood_func(name="likelihood", mu=mu, observed=target_, dims=dims,  **sub_priors)
+        return likelihood_func(name="likelihood", mu=mu, observed=target_, dims=dims,  **sub_priors)
 
     def create_tvp_priors(self, param, config, length, positive=False):
         dims = config.get("dims", None)  # Extracting dims from the config
