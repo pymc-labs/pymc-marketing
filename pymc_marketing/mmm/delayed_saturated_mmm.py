@@ -293,7 +293,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
             prior_type = config.get("type")
             if prior_type is not None:
-                length = dimensions.get(config.get("dims", [None])[0], 1)
+                length = dimensions.get(config.get("dims", [None, None])[1], 1)
 
                 # Check if this parameter should be positive
                 is_positive = param in positive_params
@@ -301,7 +301,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
                 if prior_type == "tvp":
                     if length > 1:
-                        stacked_priors[param] = self.create_tvp_priors(param, config, length, positive=is_positive)
+                        priors[param] = self.create_tvp_priors(param, config, length, positive=is_positive)
                     else:
                         priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None], positive=is_positive)
                     continue
@@ -310,9 +310,6 @@ class BaseDelayedSaturatedMMM(MMM):
                 if not dist_func: raise ValueError(f"Invalid distribution type {prior_type}")
                 config_copy = {k: v for k, v in config.items() if k != "type"}
                 priors[param] = dist_func(name=param, **config_copy)
-
-        for param, priors_list in stacked_priors.items():
-            if priors_list: priors[param] = pm.math.stack(priors_list, axis=1)
 
         return priors
 
@@ -342,7 +339,12 @@ class BaseDelayedSaturatedMMM(MMM):
         return likelihood_func(name="likelihood", mu=mu, observed=target_, dims=dims, **sub_priors)
 
     def create_tvp_priors(self, param, config, length, positive=False):
-        return [self.gp_wrapper(name=f"{param}_{i}", X=np.arange(len(self.X[self.date_column]))[:, None], positive=positive) for i in range(length)]
+        dims = config.get("dims", None)  # Extracting dims from the config
+        print(dims)
+        gp_list = [self.gp_wrapper(name=f"{param}_{i}", X=np.arange(len(self.X[self.date_column]))[:, None], positive=positive) for i in range(length)]
+        stacked_gp = pt.stack(gp_list, axis=1)
+        return pm.Deterministic(f"{param}", stacked_gp, dims=dims)
+
 
     def gp_wrapper(self, name, X, mean=0, positive=False, **kwargs):
         return self.gp_coeff(X, name, mean=mean, positive=positive, **kwargs)
