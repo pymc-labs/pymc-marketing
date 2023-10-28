@@ -330,6 +330,8 @@ class BaseDelayedSaturatedMMM(MMM):
         # Transform mu if the likelihood type is Lognormal or HurdleLognormal
         if likelihood_type in ['LogNormal', 'HurdleLogNormal']:
             mu = pt.log(mu)
+            sigma = pm.HalfNormal(name="sigma", sigma=0.1)
+            u = pm.Uniform("sturtural_noise_part")
 
         # Create sub-priors
         sub_priors = {}
@@ -341,10 +343,8 @@ class BaseDelayedSaturatedMMM(MMM):
                 else:
                     sub_priors[param] = self.create_priors_from_config({param: config})[param]
 
-        return likelihood_func(name="likelihood", mu=mu, observed=target_, dims=dims, **sub_priors)
-
-
-        return likelihood_func(name="likelihood", mu=mu, observed=target_, dims=dims, **sub_priors)
+        return likelihood_func(name="likelihood", mu=mu, observed=target_, sigma=sigma * (1-u) ** .5, dims=dims,  **sub_priors)
+      #  return likelihood_func(name="likelihood", mu=mu, observed=target_, dims=dims,  **sub_priors)
 
     def create_tvp_priors(self, param, config, length, positive=False):
         dims = config.get("dims", None)  # Extracting dims from the config
