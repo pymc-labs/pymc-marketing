@@ -374,6 +374,8 @@ class BaseDelayedSaturatedMMM(MMM):
             offset_type = offset_config.get('type')
             offset_params = {k: v for k, v in offset_config.items() if k != 'type'}
             offset_prior = getattr(pm, offset_type)(name=f"{name}_offset", **offset_params)
+        else: 
+            offset_prior = 0
 
         if positive:
             f_output = pm.Deterministic(f"{name}", (pt.exp(f_raw) - 1) + offset_prior, dims=("date"))
