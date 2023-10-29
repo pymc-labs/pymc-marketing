@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  OLDEST_PYMC_VERSION: "5.6.1"
+  OLDEST_PYMC_VERSION: "5.8.2"
 
 jobs:
   lint:
@@ -42,7 +42,7 @@ jobs:
       - name: Run tests
         run: |
           pip install -e .[test]
-          pytest --cov-report=xml --no-cov-on-fail
+          pytest --cov-report=xml --no-cov-on-fail --durations=50
       - name: Check oldest version of PyMC
         if: ${{ matrix.config.oldest-pymc }}
         run: python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}'"

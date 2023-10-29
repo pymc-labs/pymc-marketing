@@ -2,6 +2,9 @@
 
 **Unlock the power of marketing analytics with PyMC-Marketing – the open source solution for smarter decision-making.** Media mix modeling and customer lifetime value modules allow businesses to make data-driven decisions about their marketing campaigns. Optimize your marketing strategy and unlock the full potential of your customer data.
 
+**Checkout the video below to see how Bolt leverages PyMC Marketing to assess the impact of their marketing efforts.**
+<iframe width="560" height="315" src="https://www.youtube.com/embed/djXoPq60bRM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
 ## Quick links
 
 :::::{grid} 1 1 2 2
@@ -95,13 +98,12 @@ Start VS Code and ensure that the "Jupyter" extension is installed. Press Ctrl +
 
 ```python
 import pandas as pd
-from pymc_marketing import mmm
+from pymc_marketing.mmm import DelayedSaturatedMMM
 
 
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/datasets/mmm_example.csv"
 data = pd.read_csv(data_url, parse_dates=['date_week'])
 
-)
 mmm = DelayedSaturatedMMM(
     date_column="date_week",
     channel_columns=["x1", "x2"],
@@ -109,10 +111,6 @@ mmm = DelayedSaturatedMMM(
         "event_1",
         "event_2",
         "t",
-        "sin_order_1",
-        "cos_order_1",
-        "sin_order_2",
-        "cos_order_2",
     ],
     adstock_max_lag=8,
     yearly_seasonality=2,

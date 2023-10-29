@@ -58,7 +58,7 @@ def toy_mmm(request, toy_X, toy_y):
         def build_model(*args, **kwargs):
             pass
 
-        def generate_and_preprocess_model_data(self, X, y):
+        def _generate_and_preprocess_model_data(self, X, y):
             self.validate("X", X)
             self.validate("y", y)
             self.preprocessed_data["X"] = self.preprocess("X", X)
@@ -72,6 +72,10 @@ def toy_mmm(request, toy_X, toy_y):
 
         @property
         def default_sampler_config(self):
+            pass
+
+        @property
+        def output_var(self):
             pass
 
         def _data_setter(self, X, y=None):
@@ -131,7 +135,7 @@ class TestMMM:
         validate_channel_columns.configure_mock(_tags={"validation_X": True})
         validate_date_col.configure_mock(_tags={"validation_X": True})
         validate_target.configure_mock(_tags={"validation_y": True})
-        toy_mmm.generate_and_preprocess_model_data(toy_X, toy_y)
+        toy_mmm._generate_and_preprocess_model_data(toy_X, toy_y)
         pd.testing.assert_frame_equal(toy_mmm.X, toy_X)
         pd.testing.assert_frame_equal(toy_mmm.preprocessed_data["X"], toy_X)
         pd.testing.assert_series_equal(toy_mmm.y, toy_y)
@@ -162,7 +166,7 @@ def test_mmm():
                 mu = intercept + slope
                 pm.Normal("y", mu=mu, sigma=sigma)
 
-        def generate_and_preprocess_model_data(self, toy_X, toy_y):
+        def _generate_and_preprocess_model_data(self, toy_X, toy_y):
             self.validate("X", toy_X)
             self.validate("y", toy_y)
             self.preprocessed_data["X"] = self.preprocess("X", toy_X)

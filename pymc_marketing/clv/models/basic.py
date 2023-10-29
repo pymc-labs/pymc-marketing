@@ -2,16 +2,19 @@ import json
 import types
 import warnings
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 
 import arviz as az
+import numpy as np
+import pandas as pd
 import pymc as pm
 from pymc import str_for_dist
 from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
-from pymc_experimental.model_builder import ModelBuilder
 from pytensor.tensor import TensorVariable
 from xarray import Dataset
+
+from pymc_marketing.model_builder import ModelBuilder
 
 
 class CLVModel(ModelBuilder):
@@ -27,7 +30,7 @@ class CLVModel(ModelBuilder):
     def __repr__(self):
         return f"{self._model_type}\n{self.model.str_repr()}"
 
-    def fit(
+    def fit(  # type: ignore
         self,
         fit_method: str = "mcmc",
         **kwargs,
@@ -44,7 +47,7 @@ class CLVModel(ModelBuilder):
             Other keyword arguments passed to the underlying PyMC routines
         """
 
-        self.build_model()
+        self.build_model()  # type: ignore
 
         if fit_method == "mcmc":
             self._fit_mcmc(**kwargs)
@@ -179,7 +182,7 @@ class CLVModel(ModelBuilder):
         )
         model.idata = idata
 
-        model.build_model()
+        model.build_model()  # type: ignore
 
         if model.id != idata.attrs["id"]:
             raise ValueError(
@@ -225,7 +228,7 @@ class CLVModel(ModelBuilder):
     def _serializable_model_config(self) -> Dict:
         return self.model_config
 
-    def sample_prior_predictive(
+    def sample_prior_predictive(  # type: ignore
         self,
         samples: int = 1000,
         extend_idata: bool = True,
@@ -285,3 +288,17 @@ class CLVModel(ModelBuilder):
             return res["mean"].rename("value")
         else:
             return az.summary(self.fit_result, **kwargs)
+
+    @property
+    def output_var(self):
+        pass
+
+    def _generate_and_preprocess_model_data(
+        self,
+        X: Union[pd.DataFrame, pd.Series],
+        y: Union[pd.Series, np.ndarray[Any, Any]],
+    ) -> None:
+        pass
+
+    def _data_setter(self):
+        pass

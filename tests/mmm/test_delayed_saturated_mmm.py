@@ -39,6 +39,33 @@ def toy_X() -> pd.DataFrame:
 
 
 @pytest.fixture(scope="class")
+def model_config_requiring_serialization() -> dict:
+    model_config = {
+        "intercept": {"mu": 0, "sigma": 2},
+        "beta_channel": {
+            "sigma": np.array([0.4533017, 0.25488063]),
+            "dims": ("channel",),
+        },
+        "alpha": {
+            "alpha": np.array([3, 3]),
+            "beta": np.array([3.55001301, 2.87092431]),
+            "dims": ("channel",),
+        },
+        "lam": {
+            "alpha": np.array([3, 3]),
+            "beta": np.array([4.12231653, 5.02896872]),
+            "dims": ("channel",),
+        },
+        "sigma": {"sigma": 2},
+        "gamma_control": {"mu": 0, "sigma": 2, "dims": ("control",)},
+        "mu": {"dims": ("date",)},
+        "likelihood": {"dims": ("date",)},
+        "gamma_fourier": {"mu": 0, "b": 1, "dims": "fourier_mode"},
+    }
+    return model_config
+
+
+@pytest.fixture(scope="class")
 def toy_y(toy_X: pd.DataFrame) -> pd.Series:
     return pd.Series(data=rng.integers(low=0, high=100, size=toy_X.shape[0]))
 
@@ -62,6 +89,46 @@ def mmm_fitted(
 
 
 class TestDelayedSaturatedMMM:
+    def test_save_load_with_not_serializable_model_config(
+        self, model_config_requiring_serialization, toy_X, toy_y
+    ):
+        def deep_equal(dict1, dict2):
+            for key, value in dict1.items():
+                if key not in dict2:
+                    return False
+                if isinstance(value, dict):
+                    if not deep_equal(value, dict2[key]):
+                        return False
+                elif isinstance(value, np.ndarray):
+                    if not np.array_equal(value, dict2[key]):
+                        return False
+                else:
+                    if value != dict2[key]:
+                        return False
+            return True
+
+        model = DelayedSaturatedMMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock_max_lag=4,
+            model_config=model_config_requiring_serialization,
+        )
+        model.fit(
+            toy_X, toy_y, target_accept=0.81, draws=100, chains=2, random_seed=rng
+        )
+        model.save("test_save_load")
+        model2 = DelayedSaturatedMMM.load("test_save_load")
+        assert model.date_column == model2.date_column
+        assert model.control_columns == model2.control_columns
+        assert model.channel_columns == model2.channel_columns
+        assert model.adstock_max_lag == model2.adstock_max_lag
+        assert model.validate_data == model2.validate_data
+        assert model.yearly_seasonality == model2.yearly_seasonality
+        assert deep_equal(model.model_config, model2.model_config)
+
+        assert model.sampler_config == model2.sampler_config
+        os.remove("test_save_load")
+
     @pytest.mark.parametrize(
         argnames="adstock_max_lag",
         argvalues=[1, 4],
@@ -264,7 +331,9 @@ class TestDelayedSaturatedMMM:
     def test_channel_contributions_forward_pass_recovers_contribution(
         self, mmm_fitted: DelayedSaturatedMMM
     ) -> None:
-        channel_data = mmm_fitted.X[mmm_fitted.channel_columns].to_numpy()
+        channel_data = mmm_fitted.preprocessed_data["X"][
+            mmm_fitted.channel_columns
+        ].to_numpy()
         channel_contributions_forward_pass = (
             mmm_fitted.channel_contributions_forward_pass(channel_data=channel_data)
         )
@@ -289,7 +358,9 @@ class TestDelayedSaturatedMMM:
     def test_channel_contributions_forward_pass_is_consistent(
         self, mmm_fitted: DelayedSaturatedMMM
     ) -> None:
-        channel_data = mmm_fitted.X[mmm_fitted.channel_columns].to_numpy()
+        channel_data = mmm_fitted.preprocessed_data["X"][
+            mmm_fitted.channel_columns
+        ].to_numpy()
         channel_contributions_forward_pass = (
             mmm_fitted.channel_contributions_forward_pass(channel_data=channel_data)
         )

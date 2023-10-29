@@ -14,15 +14,14 @@ maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.io" }]
 dependencies = [
     "arviz>=0.13.0",
     "matplotlib>=3.5.1",
-    "numpy>=1.17",
+    "numpy>=1.17,<1.25",
     "pandas",
     # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
-    "pymc>=5.6.1,<5.7.0",
+    "pymc>=5.8.2",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "xarray",
     "xarray-einstats>=0.5.1",
-    "pymc-experimental==0.0.9",
 ]
 
 [project.optional-dependencies]
@@ -58,7 +57,7 @@ packages = [
     "pymc_marketing",
     "pymc_marketing.mmm",
     "pymc_marketing.clv",
-    "pymc_marketing.clv.models"
+    "pymc_marketing.clv.models",
 ]
 
 [tool.setuptools.dynamic]

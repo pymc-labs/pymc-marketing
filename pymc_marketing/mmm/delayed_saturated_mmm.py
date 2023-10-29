@@ -81,10 +81,11 @@ class BaseDelayedSaturatedMMM(MMM):
 
     @property
     def output_var(self):
+        """Defines target variable for the model"""
         return "y"
 
-    def generate_and_preprocess_model_data(
-        self, X: Union[pd.DataFrame, pd.Series], y: pd.Series
+    def _generate_and_preprocess_model_data(  # type: ignore
+        self, X: Union[pd.DataFrame, pd.Series], y: Union[pd.Series, np.ndarray]
     ) -> None:
         """
         Applies preprocessing to the data before fitting the model.
@@ -93,8 +94,8 @@ class BaseDelayedSaturatedMMM(MMM):
 
         Parameters
         ----------
-        X : array, shape (n_obs, n_features)
-        y : array, shape (n_obs,)
+        X : Union[pd.DataFrame, pd.Series], shape (n_obs, n_features)
+        y : Union[pd.Series, np.ndarray], shape (n_obs,)
         """
         date_data = X[self.date_column]
         channel_data = X[self.channel_columns]
@@ -126,11 +127,11 @@ class BaseDelayedSaturatedMMM(MMM):
             self.validate("X", X_data)
             self.validate("y", y)
         self.preprocessed_data: Dict[str, Union[pd.DataFrame, pd.Series]] = {
-            "X": self.preprocess("X", X_data),
-            "y": self.preprocess("y", y),
+            "X": self.preprocess("X", X_data),  # type: ignore
+            "y": self.preprocess("y", y),  # type: ignore
         }
         self.X: pd.DataFrame = X_data
-        self.y: pd.Series = y
+        self.y: Union[pd.Series, np.ndarray] = y
 
     def _save_input_params(self, idata) -> None:
         """Saves input parameters to the attrs of idata."""
@@ -144,11 +145,35 @@ class BaseDelayedSaturatedMMM(MMM):
     def build_model(
         self,
         X: pd.DataFrame,
-        y: pd.Series,
+        y: Union[pd.Series, np.ndarray],
         **kwargs,
     ) -> None:
+        """
+        Builds a probabilistic model using PyMC for marketing mix modeling.
+
+        The model incorporates channels, control variables, and Fourier components, applying
+        adstock and saturation transformations to the channel data. The final model is
+        constructed with multiple factors contributing to the response variable.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            The input data for the model, which should include columns for channels,
+            control variables (if applicable), and Fourier components (if applicable).
+
+        y : Union[pd.Series, np.ndarray]
+            The target/response variable for the modeling.
+
+        **kwargs : dict
+            Additional keyword arguments that might be required by underlying methods or utilities.
+
+        Attributes Set
+        ---------------
+        model : pm.Model
+            The PyMC model object containing all the defined stochastic and deterministic variables.
+        """
         model_config = self.model_config
-        self.generate_and_preprocess_model_data(X, y)
+        self._generate_and_preprocess_model_data(X, y)
         with pm.Model(coords=self.model_coords) as self.model:
             channel_data_ = pm.MutableData(
                 name="channel_data",
@@ -326,7 +351,7 @@ class BaseDelayedSaturatedMMM(MMM):
         Parameters
         ----------
         channel_data : array-like
-            Input channel data.
+            Input channel data. Result of all the preprocessing steps.
         Returns
         -------
         array-like
@@ -362,12 +387,17 @@ class BaseDelayedSaturatedMMM(MMM):
 
     @property
     def _serializable_model_config(self) -> Dict[str, Any]:
+        def ndarray_to_list(d: Dict) -> Dict:
+            new_d = d.copy()  # Copy the dictionary to avoid mutating the original one
+            for key, value in new_d.items():
+                if isinstance(value, np.ndarray):
+                    new_d[key] = value.tolist()
+                elif isinstance(value, dict):
+                    new_d[key] = ndarray_to_list(value)
+            return new_d
+
         serializable_config = self.model_config.copy()
-        if type(serializable_config["beta_channel"]["sigma"]) == np.ndarray:
-            serializable_config["beta_channel"]["sigma"] = serializable_config[
-                "beta_channel"
-            ]["sigma"].tolist()
-        return serializable_config
+        return ndarray_to_list(serializable_config)
 
     @classmethod
     def load(cls, fname: str):
@@ -481,6 +511,28 @@ class BaseDelayedSaturatedMMM(MMM):
         with self.model:
             pm.set_data(data)
 
+    @classmethod
+    def _model_config_formatting(cls, model_config: Dict) -> Dict:
+        """
+        Because of json serialization, model_config values that were originally tuples or numpy are being encoded as lists.
+        This function converts them back to tuples and numpy arrays to ensure correct id encoding.
+        """
+
+        def format_nested_dict(d: Dict) -> Dict:
+            for key, value in d.items():
+                if isinstance(value, dict):
+                    d[key] = format_nested_dict(value)
+                elif isinstance(value, list):
+                    # Check if the key is "dims" to convert it to tuple
+                    if key == "dims":
+                        d[key] = tuple(value)
+                    # Convert all other lists to numpy arrays
+                    else:
+                        d[key] = np.array(value)
+            return d
+
+        return format_nested_dict(model_config.copy())
+
 
 class DelayedSaturatedMMM(
     MaxAbsScaleTarget,
@@ -498,7 +550,7 @@ class DelayedSaturatedMMM(
         Parameters
         ----------
         channel_data : array-like
-            Input channel data.
+            Input channel data. Result of all the preprocessing steps.
         Returns
         -------
         array-like
@@ -539,10 +591,7 @@ class DelayedSaturatedMMM(
         channel_contributions = []
         for delta in share_grid:
             channel_data = (
-                delta
-                * self.max_abs_scale_channel_data(data=self.X)[
-                    self.channel_columns
-                ].to_numpy()
+                delta * self.preprocessed_data["X"][self.channel_columns].to_numpy()
             )
             channel_contribution_forward_pass = self.channel_contributions_forward_pass(
                 channel_data=channel_data

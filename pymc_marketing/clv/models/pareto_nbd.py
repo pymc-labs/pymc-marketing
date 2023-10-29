@@ -74,10 +74,10 @@ class ParetoNBDModel(CLVModel):
              * `customer_id`: unique customer identifier
      model_config: dict, optional
          Dictionary containing model parameters:
-             * `r`: Shape parameter of time between purchases for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
-             * `alpha`: Scale parameter of time between purchases for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
-             * `s`: Shape parameter of time until churn for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
-             * `beta`: Scale parameter of time until churn for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
+             * `r_prior`: Shape parameter of time between purchases for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
+             * `alpha_prior`: Scale parameter of time between purchases for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
+             * `s_prior`: Shape parameter of time until churn for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
+             * `beta_prior`: Scale parameter of time until churn for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
          If not provided, the model will use default priors specified in the `default_model_config` class attribute.
      sampler_config: dict, optional
          Dictionary of sampler parameters. Defaults to None.
@@ -95,10 +95,10 @@ class ParetoNBDModel(CLVModel):
              model = ParetoNBDModel(
                  data=rfm_df,
                  model_config={
-                     "r": pm.Weibull.dist(alpha=2,beta=1),
-                     "alpha": pm.Weibull.dist(alpha=2,beta=10),
-                     "s": pm.Weibull.dist(alpha=2,beta=1),
-                     "beta": pm.Weibull.dist(alpha=2,beta=10),
+                     "r_prior": pm.Weibull.dist(alpha=2,beta=1),
+                     "alpha_prior": pm.Weibull.dist(alpha=2,beta=10),
+                     "s_prior": pm.Weibull.dist(alpha=2,beta=1),
+                     "beta_prior": pm.Weibull.dist(alpha=2,beta=10),
                  },
              )
 
@@ -218,7 +218,7 @@ class ParetoNBDModel(CLVModel):
             "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
         }
 
-    def build_model(
+    def build_model(  # type: ignore
         self,
     ) -> None:
         with pm.Model(coords=self.coords) as self.model:
@@ -245,6 +245,7 @@ class ParetoNBDModel(CLVModel):
         self,
     ) -> Tuple[Any, ...]:
         """Utility function retrieving posterior parameters for predictive methods"""
+        assert self.idata is not None, "Model must be fit first."
         return tuple([self.idata.posterior[param] for param in self._params])
 
     # TODO: Convert to list comprehension to support covariates?
