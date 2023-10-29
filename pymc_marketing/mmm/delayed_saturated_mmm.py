@@ -303,13 +303,12 @@ class BaseDelayedSaturatedMMM(MMM):
 
                 if prior_type == "tvp":
                     if param in ["intercept", "lam", "alpha", "sigma"]:
-                        priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None], mean=0, positive=is_positive)
+                        priors[param] = self.gp_wrapper(name=param, X=np.arange(len(self.X[self.date_column]))[:, None], config=config, positive=is_positive)
                         continue
 
                     length = dimensions.get(config.get("dims", [None, None])[1], 1)
                     priors[param] = self.create_tvp_priors(param, config, length, positive=is_positive)
                     continue
-
 
                 dist_func = getattr(pm, prior_type, None)
                 if not dist_func: raise ValueError(f"Invalid distribution type {prior_type}")
@@ -349,30 +348,40 @@ class BaseDelayedSaturatedMMM(MMM):
     def create_tvp_priors(self, param, config, length, positive=False):
         dims = config.get("dims", None)  # Extracting dims from the config
         print(dims)
-        gp_list = [self.gp_wrapper(name=f"{param}_{i}", X=np.arange(len(self.X[self.date_column]))[:, None], positive=positive) for i in range(length)]
+        gp_list = [self.gp_wrapper(name=f"{param}_{i}", X=np.arange(len(self.X[self.date_column]))[:, None], config=config, positive=positive) for i in range(length)]
         stacked_gp = pt.stack(gp_list, axis=1)
         return pm.Deterministic(f"{param}", stacked_gp, dims=dims)
 
 
-    def gp_wrapper(self, name, X, mean=0, positive=False, **kwargs):
-        return self.gp_coeff(X, name, mean=mean, positive=positive, **kwargs)
+    def gp_wrapper(self, name, X, config, positive=False, **kwargs):
+        return self.gp_coeff(X, name, config=config, positive=positive, **kwargs)
 
 
-    def gp_coeff(self, X, name, mean=0.0, positive=False):
+    def gp_coeff(self, X, name, mean=0.0, positive=False, config=None):
         params = pm.find_constrained_prior(pm.InverseGamma, 0.5, 2, init_guess={"alpha": 2, "beta": 1}, mass=0.95)
         ell = pm.InverseGamma(f"ell_{name}", **params)
         eta = pm.Exponential(f"_eta_{name}", lam=1 / 0.5)
         cov = eta ** 2 * pm.gp.cov.ExpQuad(1, ls=ell)
-        
+    
         gp = pm.gp.HSGP(m=[20], c=1.3, cov_func=cov)
         f_raw = gp.prior(f"{name}_tvp_raw", X=X)
     
+
+        # Inside your gp_coeff function
+        # Offset
+        offset_config = config.get('offset', None) if config else None
+        if offset_config:
+            offset_type = offset_config.get('type')
+            offset_params = {k: v for k, v in offset_config.items() if k != 'type'}
+            offset_prior = getattr(pm, offset_type)(name=f"{name}_offset", **offset_params)
+
         if positive:
-            f_output = pm.Deterministic(f"{name}", pt.exp(f_raw), dims=("date"))
+            f_output = pm.Deterministic(f"{name}", (pt.exp(f_raw) - 1) + offset_prior, dims=("date"))
         else:
-            f_output = pm.Deterministic(f"{name}", f_raw, dims=("date"))
+            f_output = pm.Deterministic(f"{name}", f_raw + offset_prior, dims=("date"))
     
         return f_output
+
 
 
     @property
