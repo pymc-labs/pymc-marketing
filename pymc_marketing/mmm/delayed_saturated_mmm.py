@@ -299,6 +299,9 @@ class BaseDelayedSaturatedMMM(MMM):
             pm.Normal(
                 name="likelihood", mu=mu, sigma=sigma, observed=target_, dims="date"
             )
+            
+            for var_name, var in self.model.named_vars.items():
+                print(f"Shape of {var_name}: {var.shape.eval()}")
 
     @property
     def default_model_config(self) -> Dict:
