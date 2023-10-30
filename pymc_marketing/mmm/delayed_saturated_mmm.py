@@ -212,10 +212,10 @@ class BaseDelayedSaturatedMMM(MMM):
 
             intercept = self.model.register_rv(self.intercept, name="intercept")
             beta_channel = self.model.register_rv(
-                self.beta_channel, name="beta_channel", dims=("channel",)
+                self.beta_channel, name="beta_channel", dims="channel"
             )
-            alpha = self.model.register_rv(self.alpha, name="alpha", dims=("channel",))
-            lam = self.model.register_rv(self.lam, name="lam", dims=("channel",))
+            alpha = self.model.register_rv(self.alpha, name="alpha", dims="channel")
+            lam = self.model.register_rv(self.lam, name="lam", dims="channel")
             sigma = self.model.register_rv(self.sigma, name="sigma")
 
             channel_adstock = pm.Deterministic(
@@ -250,7 +250,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 )
             ):
                 gamma_control = self.model.register_rv(
-                    self.gamma_control, name="gamma_control", dims=("control",)
+                    self.gamma_control, name="gamma_control", dims="control"
                 )
 
                 control_data_ = pm.MutableData(
@@ -283,9 +283,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 )
 
                 gamma_fourier = self.model.register_rv(
-                    self.gamma_fourier, 
-                    name="gamma_fourier", 
-                    dims="fourier_mode"
+                    self.gamma_fourier, name="gamma_fourier", dims="fourier_mode"
                 )
 
                 fourier_contribution = pm.Deterministic(
@@ -296,14 +294,10 @@ class BaseDelayedSaturatedMMM(MMM):
 
                 mu_var += fourier_contribution.sum(axis=-1)
 
-            mu = pm.Deterministic(name="mu", var=mu_var, dims=("date",))
+            mu = pm.Deterministic(name="mu", var=mu_var, dims="date")
 
             pm.Normal(
-                name="likelihood",
-                mu=mu,
-                sigma=sigma,
-                observed=target_,
-                dims=("date",)
+                name="likelihood", mu=mu, sigma=sigma, observed=target_, dims="date"
             )
 
     @property
