@@ -200,7 +200,7 @@ class BaseDelayedSaturatedMMM(MMM):
         with pm.Model(coords=self.model_coords) as self.model:
             channel_data_ = pm.MutableData(
                 name="channel_data",
-                value=self.preprocessed_data["X"][self.channel_columns].to_numpy(),
+                value=self.preprocessed_data["X"][self.channel_columns],
                 dims=("date", "channel"),
             )
 
