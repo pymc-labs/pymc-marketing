@@ -9,6 +9,7 @@ import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import seaborn as sns
+from pytensor.tensor import TensorVariable
 from xarray import DataArray
 
 from pymc_marketing.mmm.base import MMM
@@ -73,29 +74,6 @@ class BaseDelayedSaturatedMMM(MMM):
             model_config=model_config,
             sampler_config=sampler_config,
             adstock_max_lag=adstock_max_lag,
-        )
-
-        # model_config = self.model_config
-        self.intercept = self._create_distribution(self.model_config["intercept"])
-        self.beta_channel = self._create_distribution(self.model_config["beta_channel"])
-        self.lam = self._create_distribution(self.model_config["lam"])
-        self.alpha = self._create_distribution(self.model_config["alpha"])
-        self.sigma = self._create_distribution(self.model_config["sigma"])
-        self.gamma_control = self._create_distribution(
-            self.model_config["gamma_control"]
-        )
-        self.gamma_fourier = self._create_distribution(
-            self.model_config["gamma_fourier"]
-        )
-
-        self._process_priors(
-            self.intercept,
-            self.beta_channel,
-            self.alpha,
-            self.lam,
-            self.sigma,
-            self.gamma_control,
-            self.gamma_fourier,
         )
 
     @property
@@ -165,6 +143,13 @@ class BaseDelayedSaturatedMMM(MMM):
         idata.attrs["validate_data"] = json.dumps(self.validate_data)
         idata.attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
 
+    def _create_distribution(self, dist: Dict) -> TensorVariable:
+        try:
+            prior_distribution = getattr(pm, dist["dist"])
+        except AttributeError:
+            raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
+        return prior_distribution
+
     def build_model(
         self,
         X: pd.DataFrame,
@@ -196,6 +181,22 @@ class BaseDelayedSaturatedMMM(MMM):
             The PyMC model object containing all the defined stochastic and deterministic variables.
         """
 
+        self.intercept_dist = self._create_distribution(
+            dist=self.model_config["intercept"]
+        )
+        self.beta_channel_dist = self._create_distribution(
+            dist=self.model_config["beta_channel"]
+        )
+        self.lam_dist = self._create_distribution(dist=self.model_config["lam"])
+        self.alpha_dist = self._create_distribution(dist=self.model_config["alpha"])
+        self.sigma_dist = self._create_distribution(dist=self.model_config["sigma"])
+        self.gamma_control_dist = self._create_distribution(
+            dist=self.model_config["gamma_control"]
+        )
+        self.gamma_fourier_dist = self._create_distribution(
+            dist=self.model_config["gamma_fourier"]
+        )
+
         self._generate_and_preprocess_model_data(X, y)
         with pm.Model(coords=self.model_coords) as self.model:
             channel_data_ = pm.MutableData(
@@ -210,13 +211,29 @@ class BaseDelayedSaturatedMMM(MMM):
                 dims="date",
             )
 
-            intercept = self.model.register_rv(self.intercept, name="intercept")
-            beta_channel = self.model.register_rv(
-                self.beta_channel, name="beta_channel", dims="channel"
+            intercept = self.intercept_dist(
+                name="intercept", **self.model_config["intercept"]["kwargs"]
             )
-            alpha = self.model.register_rv(self.alpha, name="alpha", dims="channel")
-            lam = self.model.register_rv(self.lam, name="lam", dims="channel")
-            sigma = self.model.register_rv(self.sigma, name="sigma")
+
+            beta_channel = self.beta_channel_dist(
+                name="beta_channel",
+                **self.model_config["beta_channel"]["kwargs"],
+                dims=("channel",),
+            )
+            alpha = self.alpha_dist(
+                name="alpha",
+                dims="channel",
+                **self.model_config["alpha"]["kwargs"],
+            )
+            lam = self.lam_dist(
+                name="lam",
+                dims="channel",
+                **self.model_config["lam"]["kwargs"],
+            )
+            sigma = self.sigma_dist(
+                name="sigma",
+                **self.model_config["sigma"]["kwargs"],
+            )
 
             channel_adstock = pm.Deterministic(
                 name="channel_adstock",
@@ -249,8 +266,10 @@ class BaseDelayedSaturatedMMM(MMM):
                     for column in self.control_columns
                 )
             ):
-                gamma_control = self.model.register_rv(
-                    self.gamma_control, name="gamma_control", dims="control"
+                gamma_control = self.gamma_control_dist(
+                    name="gamma_control",
+                    dims="control",
+                    **self.model_config["gamma_control"]["kwargs"],
                 )
 
                 control_data_ = pm.MutableData(
@@ -282,8 +301,10 @@ class BaseDelayedSaturatedMMM(MMM):
                     dims=("date", "fourier_mode"),
                 )
 
-                gamma_fourier = self.model.register_rv(
-                    self.gamma_fourier, name="gamma_fourier", dims="fourier_mode"
+                gamma_fourier = self.gamma_fourier_dist(
+                    name="gamma_fourier",
+                    dims="fourier_mode",
+                    **self.model_config["gamma_fourier"]["kwargs"],
                 )
 
                 fourier_contribution = pm.Deterministic(
@@ -299,27 +320,9 @@ class BaseDelayedSaturatedMMM(MMM):
             pm.Normal(
                 name="likelihood", mu=mu, sigma=sigma, observed=target_, dims="date"
             )
-            
-            for var_name, var in self.model.named_vars.items():
-                print(f"Shape of {var_name}: {var.shape.eval()}")
 
     @property
     def default_model_config(self) -> Dict:
-        # model_config: Dict = {
-        #     "intercept": {"mu": 0, "sigma": 2},
-        #     "beta_channel": {"sigma": 2, "dims": ("channel",)},
-        #     "alpha": {"alpha": 1, "beta": 3, "dims": ("channel",)},
-        #     "lam": {"alpha": 3, "beta": 1, "dims": ("channel",)},
-        #     "sigma": {"sigma": 2},
-        #     "gamma_control": {
-        #         "mu": 0,
-        #         "sigma": 2,
-        #         "dims": ("control",),
-        #     },
-        #     "mu": {"dims": ("date",)},
-        #     "likelihood": {"dims": ("date",)},
-        #     "gamma_fourier": {"mu": 0, "b": 1, "dims": "fourier_mode"},
-        # }
         return {
             "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
             "beta_channel": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
