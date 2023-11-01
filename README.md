@@ -34,7 +34,7 @@ $$
 y_{t} = \alpha + \sum_{m=1}^{M}\beta_{m}f(x_{m, t}) +  \sum_{c=1}^{C}\gamma_{c}z_{c, t} + \varepsilon_{t},
 $$
 
-where $\alpha$ is the intercept, $f$ is a media transformation function and $\varepsilon_{t}$ is the error therm which we assume is normally distributed. The function $f$ encodes the contribution of media on the target variable. Typically, we consider two types of transformation: adstock (carry-over) and saturation effects.
+where $\alpha$ is the intercept, $f$ is a media transformation function and $\varepsilon_{t}$ is the error term which we assume is normally distributed. The function $f$ encodes the contribution of media on the target variable. Typically, we consider two types of transformation: adstock (carry-over) and saturation effects.
 
 [Here](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) you can find a simulated example:
 
