@@ -32,6 +32,16 @@ class CLVModel(ModelBuilder):
     def __repr__(self):
         return f"{self._model_type}\n{self.model.str_repr()}"
 
+    def _add_fit_data_group(self, data: pd.DataFrame) -> None:
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=UserWarning,
+                message="The group fit_data is not defined in the InferenceData scheme",
+            )
+            assert self.idata is not None
+            self.idata.add_groups(fit_data=data.to_xarray())
+
     def fit(  # type: ignore
         self,
         fit_method: str = "mcmc",
@@ -60,16 +70,10 @@ class CLVModel(ModelBuilder):
                 f"Fit method options are ['mcmc', 'map'], got: {fit_method}"
             )
 
-        self.set_idata_attrs(idata)
         self.idata = idata
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
-            )
-            self.idata.add_groups(fit_data=self.data.to_xarray())  # type: ignore
+        self.set_idata_attrs(self.idata)
+        if self.data is not None:
+            self._add_fit_data_group(self.data)
 
         return self.idata
 

@@ -75,6 +75,8 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
     )
     fake_fit.add_groups(dict(posterior=fake_fit.prior))
     model.idata = fake_fit
+    model.set_idata_attrs(model.idata)
+    model._add_fit_data_group(model.data)
 
     return model
 
@@ -106,6 +108,8 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
     )
     fake_fit.add_groups(dict(posterior=fake_fit.prior))
     model.idata = fake_fit
+    model.set_idata_attrs(model.idata)
+    model._add_fit_data_group(model.data)
 
     return model
 
@@ -270,6 +274,37 @@ class TestCustomerLifetimeValue:
         )
 
         assert res.dims == ("chain", "draw", "customer_id")
+
+    def test_clv_after_thinning(self, test_summary_data, fitted_gg, fitted_bg):
+        t = test_summary_data.head()
+
+        ggf_clv = fitted_gg.expected_customer_lifetime_value(
+            transaction_model=fitted_bg,
+            customer_id=t.index,
+            frequency=t["frequency"],
+            recency=t["recency"],
+            T=t["T"],
+            mean_transaction_value=t["monetary_value"],
+        )
+
+        fitted_gg_thinned = fitted_gg.thin_fit_result(keep_every=10)
+        fitted_bg_thinned = fitted_bg.thin_fit_result(keep_every=10)
+        ggf_clv_thinned = fitted_gg_thinned.expected_customer_lifetime_value(
+            transaction_model=fitted_bg_thinned,
+            customer_id=t.index,
+            frequency=t["frequency"],
+            recency=t["recency"],
+            T=t["T"],
+            mean_transaction_value=t["monetary_value"],
+        )
+
+        assert ggf_clv.shape == (1, 50, 5)
+        assert ggf_clv_thinned.shape == (1, 5, 5)
+
+        np.testing.assert_equal(
+            ggf_clv.isel(draw=slice(None, None, 10)).values,
+            ggf_clv_thinned.values,
+        )
 
 
 def test_find_first_transactions_observation_period_end_none(transaction_data):
