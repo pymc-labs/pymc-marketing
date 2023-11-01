@@ -227,7 +227,7 @@ class BetaGeoModel(CLVModel):
         frequency: Union[np.ndarray, pd.Series, TensorVariable],
         recency: Union[np.ndarray, pd.Series, TensorVariable],
         T: Union[np.ndarray, pd.Series, TensorVariable],
-    ):
+    ) -> xr.DataArray:
         r"""
         Given a purchase history/profile of :math:`x` and :math:`t_x` for an individual
         customer, this method returns the expected number of future purchases in the
@@ -288,7 +288,7 @@ class BetaGeoModel(CLVModel):
         frequency: Union[np.ndarray, pd.Series],
         recency: Union[np.ndarray, pd.Series],
         T: Union[np.ndarray, pd.Series],
-    ):
+    ) -> xr.DataArray:
         r"""
         Posterior expected value of the probability of being alive at time T. The
         derivation of the closed form solution is available in [2].
