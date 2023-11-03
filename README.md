@@ -15,7 +15,7 @@
 
 # <span style="color:limegreen">PyMC-Marketing</span>: Bayesian Marketing Mix Modeling (MMM) & Customer Lifetime Value (CLV)
 
-## Marketing Analytics Tools from PyMC Labs
+## Marketing Analytics Tools from [PyMC Labs](https://www.pymc-labs.com)
 
 
 Unlock the power of **Marketing Mix Modeling (MMM)** and **Customer Lifetime Value (CLV)** analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
@@ -67,39 +67,23 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 | **Continuous** | Buying groceries    | Audible                         |
 | **Discrete**   | Cinema ticket       | Monthly or yearly subscriptions |
 
-To explain further:
-- **Contractual:** In contractual settings, a customer has a contract which continues to be active until it is explicitly cancelled. Therefore, customer churn events are observed.
-
-- **Non-contractual:** In non-contractual settings, there is no ongoing contract that a customer has with a company. Instead, purchases can be ad hoc and churn events are unobserved.
-
-- **Discrete:** Here, purchases are made at discrete points in time. This obviously depends upon the timescale that we are working on, but typically a relevant time period would be a month or year. However it could be more granular than this - think of taking the 2nd of 4 inter-city train journeys offered per day.
-
-- **Continuous:** In the continuous-time domain, purchases can be made at any point within a firms opening hours. For online ordering, this could be any point within a 24 hour cycle, or purchases in physical stores could be made at any point during the trading day.
-
-
 ---
+
+## Why PyMC-Marketing vs other solutions?
+
+PyMC-Marketing is and will always be free for commercial use, licensed under [Apache 2.0](LICENSE). Developed by core developers behind the popular PyMC package and marketing experts, it provides state-of-the-art measurements and analytics for marketing teams.
+
+Due to its open source nature and active contributor base, new features get added constantly. Missing a feature or want to contribute? Fork our repository and submit a pull request. For any questions, feel free to [open an issue](https://github.com/your-repo/issues).
 
 ## 📞 Schedule a Free Consultation for MMM & CLV Strategy
 
-Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts. Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions. As part of our offering, we provide the following professional services: 
+Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts. Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions. 
+
+For businesses looking to integrate PyMC-Marketing into their operational framework, [PyMC Labs](https://www.pymc-labs.com) offers expert consulting and training. Our team is proficient in state-of-the-art Bayesian modeling techniques, with a focus on Marketing Mix Models (MMMs) and Customer Lifetime Value (CLV). Explore these topics further by watching our video on [Bayesian Marketing Mix Models: State of the Art](https://www.youtube.com/watch?v=xVx91prC81g).
+
+We provide the following professional services: 
 
 - **Custom Models**: We tailor niche marketing anayltics models to fit your organization's unique needs.
 - **Build Within PyMC-Marketing**: Our team are experts leveraging the capabilities of PyMC-Marketing to create robust marketing models for precise insights.
 - **SLA & Coaching**: Get guaranteed support levels and personalized coaching to ensure your team is well-equipped and confident in using our tools and approaches.
 - **SaaS Solutions**: Harness the power of our state-of-the-art software solutions to streamline your data-driven marketing initiatives.
-
-Elevate your organization's strategies with our expert guidance and professional support.
-
----
-
-## How PyMC Labs Can Elevate Your MMM & CLV Strategy
-
-PyMC-Marketing is open for business use, licensed under [Apache 2.0](LICENSE).
-
-### Contribute to Our Project  
-
-Interested in enhancing the package? Fork our repository and submit a pull request. For any questions, feel free to [open an issue](https://github.com/your-repo/issues).
-
-### Commercial Solutions by [PyMC Labs](https://www.pymc-labs.io)  
-
-For businesses looking to integrate PyMC-Marketing into their operational framework, we offer expert consulting and training. Our team is proficient in state-of-the-art Bayesian modeling techniques, with a focus on Marketing Mix Models (MMMs) and Customer Lifetime Value (CLV). Explore these topics further by watching our video on [Bayesian Marketing Mix Models: State of the Art](https://www.youtube.com/watch?v=xVx91prC81g).
