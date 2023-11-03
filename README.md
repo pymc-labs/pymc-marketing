@@ -25,8 +25,8 @@ Unlock the power of **Marketing Mix Modeling (MMM)** and **Customer Lifetime Val
 To dive into MMM and CLV analytics, set up a specialized environment, `marketing_env`, via conda-forge:
 
 ```bash
-mamba create -c conda-forge -n marketing_env pymc-marketing
-mamba activate marketing_env
+conda create -c conda-forge -n marketing_env pymc-marketing
+conda activate marketing_env
 ```
 
 For a comprehensive installation guide, refer to the [official PyMC installation documentation](https://www.pymc.io/projects/docs/en/latest/installation.html).
@@ -81,7 +81,17 @@ To explain further:
 
 ## 📞 Schedule a Free Consultation for MMM & CLV Strategy
 
-Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts. Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions
+Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts. Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions. As part of our offering, we provide the following professional services: 
+
+- **Custom Models**: We tailor niche marketing anayltics models to fit your organization's unique needs.
+
+- **Build Within PyMC-Marketing**: Our team are experts leveraging the capabilities of PyMC-Marketing to create robust marketing models for precise insights.
+
+- **SLA & Coaching**: Get guaranteed support levels and personalized coaching to ensure your team is well-equipped and confident in using our tools and approaches.
+-   
+- **SaaS Solutions**: Harness the power of our state-of-the-art software solutions to streamline your data-driven marketing initiatives.
+
+Elevate your organization's strategies with our expert guidance and professional support.
 
 ---
 
