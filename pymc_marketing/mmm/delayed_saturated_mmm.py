@@ -145,6 +145,27 @@ class BaseDelayedSaturatedMMM(MMM):
         idata.attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
 
     def _get_distribution(self, dist: Dict) -> Callable:
+        """
+        Retrieve a PyMC distribution callable based on the provided dictionary.
+
+        Parameters
+        ----------
+        dist : Dict
+            A dictionary containing the key 'dist' which should correspond to the
+            name of a PyMC distribution.
+
+        Returns
+        -------
+        Callable
+            A PyMC distribution callable that can be used to instantiate a random
+            variable.
+
+        Raises
+        ------
+        ValueError
+            If the specified distribution name in the dictionary does not correspond
+            to any distribution in PyMC.
+        """
         try:
             prior_distribution = getattr(pm, dist["dist"])
         except AttributeError:
@@ -158,7 +179,35 @@ class BaseDelayedSaturatedMMM(MMM):
         observed: Union[np.ndarray, pd.Series],
         dims: str,
     ) -> TensorVariable:
+        """
+        Create and return a likelihood distribution for the model.
 
+        This method prepares the distribution and its parameters as specified in the
+        configuration dictionary, validates them, and constructs the likelihood
+        distribution using PyMC.
+
+        Parameters
+        ----------
+        dist : Dict
+            A configuration dictionary that must contain a 'dist' key with the name of
+            the distribution and a 'kwargs' key with parameters for the distribution.
+        observed : Union[np.ndarray, pd.Series]
+            The observed data to which the likelihood distribution will be fitted.
+        dims : str
+            The dimensions of the data.
+
+        Returns
+        -------
+        TensorVariable
+            The likelihood distribution constructed with PyMC.
+
+        Raises
+        ------
+        ValueError
+            If 'kwargs' key is missing in `dist`, or the parameter configuration does
+            not contain 'dist' and 'kwargs' keys, or if 'mu' is present in the nested
+            'kwargs'.
+        """
         # Validate that 'kwargs' is present and is a dictionary
         if "kwargs" not in dist or not isinstance(dist["kwargs"], dict):
             raise ValueError(
