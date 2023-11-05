@@ -60,7 +60,12 @@ def model_config_requiring_serialization() -> dict:
                 "beta": np.array([4.12231653, 5.02896872]),
             },
         },
-        "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+        "likelihood": {
+            "dist": "Normal",
+            "kwargs": {
+                "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+            },
+        },
         "gamma_control": {"dist": "HalfNormal", "kwargs": {"mu": 0, "sigma": 2}},
         "gamma_fourier": {"dist": "HalfNormal", "kwargs": {"mu": 0, "b": 1}},
     }
