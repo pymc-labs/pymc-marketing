@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -9,6 +9,7 @@ import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import seaborn as sns
+from pytensor.compile.sharedvalue import SharedVariable
 from pytensor.tensor import TensorVariable
 from xarray import DataArray
 
@@ -143,12 +144,62 @@ class BaseDelayedSaturatedMMM(MMM):
         idata.attrs["validate_data"] = json.dumps(self.validate_data)
         idata.attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
 
-    def _create_distribution(self, dist: Dict) -> TensorVariable:
+    def _get_distribution(self, dist: Dict) -> Callable:
         try:
             prior_distribution = getattr(pm, dist["dist"])
         except AttributeError:
             raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
         return prior_distribution
+
+    def _create_likelihood_distribution(
+        self,
+        dist: Dict,
+        mu: SharedVariable,
+        observed: Union[np.ndarray, pd.Series],
+        dims: str,
+    ) -> TensorVariable:
+
+        # Validate that 'kwargs' is present and is a dictionary
+        if "kwargs" not in dist or not isinstance(dist["kwargs"], dict):
+            raise ValueError(
+                "The 'kwargs' key must be present in the 'dist' dictionary and be a dictionary itself."
+            )
+
+        # Validate that each value in 'kwargs' is a dictionary with the required keys
+        for param, param_config in dist["kwargs"].items():
+            if (
+                not isinstance(param_config, dict)
+                or "dist" not in param_config
+                or "kwargs" not in param_config
+            ):
+                raise ValueError(
+                    f"The parameter configuration for '{param}' must be a dictionary containing 'dist' and 'kwargs' keys."
+                )
+
+            if "mu" in param_config["kwargs"]:
+                raise ValueError(
+                    f"The 'mu' key is not allowed within 'kwargs' of parameter '{param}' as it is reserved."
+                )
+
+        # Extract the likelihood distribution name and instantiate it without passing it as a positional argument
+        likelihood_dist_name = dist["dist"]
+        likelihood_dist = self._get_distribution(dist={"dist": likelihood_dist_name})
+
+        # Prepare parameter distributions directly from 'kwargs'
+        parameter_distributions = {
+            param: self._get_distribution(dist=param_config)(
+                **param_config["kwargs"], name=f"likelihood_{param}"
+            )
+            for param, param_config in dist["kwargs"].items()
+        }
+
+        return likelihood_dist(
+            name="likelihood",
+            mu=mu,
+            observed=observed,
+            dims=dims,
+            **parameter_distributions,
+        )
 
     def build_model(
         self,
@@ -179,21 +230,51 @@ class BaseDelayedSaturatedMMM(MMM):
         ---------------
         model : pm.Model
             The PyMC model object containing all the defined stochastic and deterministic variables.
+
+        Examples
+        --------
+        custom_config = {
+            'intercept': {'dist': 'Normal', 'kwargs': {'mu': 0, 'sigma': 2}},
+            'beta_channel': {'dist': 'LogNormal', 'kwargs': {'mu': 1, 'sigma': 3}},
+            'alpha': {'dist': 'Beta', 'kwargs': {'alpha': 1, 'beta': 3}},
+            'lam': {'dist': 'Gamma', 'kwargs': {'alpha': 3, 'beta': 1}},
+            'likelihood': {
+                'dist': 'StudentT',
+                'nu': {
+                    'dist': 'Gamma', 'kwargs': {'alpha': 3, 'beta': 1}},
+                'sigma': {
+                    'dist': 'HalfNormal', 'kwargs': {'sigma': 3}}
+            },
+            'gamma_control': {'dist': 'Normal', 'kwargs': {'mu': 0, 'sigma': 2}},
+            'gamma_fourier': {'dist': 'Laplace', 'kwargs': {'mu': 0, 'b': 1}}
+        }
+
+        model = DelayedSaturatedMMM(
+                    date_column="date_week",
+                    channel_columns=["x1", "x2"],
+                    control_columns=[
+                        "event_1",
+                        "event_2",
+                        "t",
+                    ],
+                    adstock_max_lag=8,
+                    yearly_seasonality=2,
+                    model_config=custom_config,
+                )
         """
 
-        self.intercept_dist = self._create_distribution(
+        self.intercept_dist = self._get_distribution(
             dist=self.model_config["intercept"]
         )
-        self.beta_channel_dist = self._create_distribution(
+        self.beta_channel_dist = self._get_distribution(
             dist=self.model_config["beta_channel"]
         )
-        self.lam_dist = self._create_distribution(dist=self.model_config["lam"])
-        self.alpha_dist = self._create_distribution(dist=self.model_config["alpha"])
-        self.sigma_dist = self._create_distribution(dist=self.model_config["sigma"])
-        self.gamma_control_dist = self._create_distribution(
+        self.lam_dist = self._get_distribution(dist=self.model_config["lam"])
+        self.alpha_dist = self._get_distribution(dist=self.model_config["alpha"])
+        self.gamma_control_dist = self._get_distribution(
             dist=self.model_config["gamma_control"]
         )
-        self.gamma_fourier_dist = self._create_distribution(
+        self.gamma_fourier_dist = self._get_distribution(
             dist=self.model_config["gamma_fourier"]
         )
 
@@ -229,10 +310,6 @@ class BaseDelayedSaturatedMMM(MMM):
                 name="lam",
                 dims="channel",
                 **self.model_config["lam"]["kwargs"],
-            )
-            sigma = self.sigma_dist(
-                name="sigma",
-                **self.model_config["sigma"]["kwargs"],
             )
 
             channel_adstock = pm.Deterministic(
@@ -317,8 +394,11 @@ class BaseDelayedSaturatedMMM(MMM):
 
             mu = pm.Deterministic(name="mu", var=mu_var, dims="date")
 
-            pm.Normal(
-                name="likelihood", mu=mu, sigma=sigma, observed=target_, dims="date"
+            self._create_likelihood_distribution(
+                dist=self.model_config["likelihood"],
+                mu=mu,
+                observed=target_,
+                dims="date",
             )
 
     @property
@@ -328,9 +408,11 @@ class BaseDelayedSaturatedMMM(MMM):
             "beta_channel": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
             "alpha": {"dist": "Beta", "kwargs": {"alpha": 1, "beta": 3}},
             "lam": {"dist": "Gamma", "kwargs": {"alpha": 3, "beta": 1}},
-            "sigma": {
-                "dist": "HalfNormal",
-                "kwargs": {"sigma": 2},
+            "likelihood": {
+                "dist": "Normal",
+                "kwargs": {
+                    "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+                },
             },
             "gamma_control": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
             "gamma_fourier": {"dist": "Laplace", "kwargs": {"mu": 0, "b": 1}},
