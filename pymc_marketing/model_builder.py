@@ -46,7 +46,6 @@ class ModelBuilder(ABC):
     and help with deployment.
     """
 
-    model: pm.Model
     _model_type = "BaseClass"
     version = "None"
 
