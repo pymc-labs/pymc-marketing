@@ -513,3 +513,71 @@ class TestDelayedSaturatedMMM:
         ):
             DelayedSaturatedMMM.load("test_model")
         os.remove("test_model")
+
+
+@pytest.mark.parametrize(
+    "dist, mu, observed, dims, expected_exception",
+    [
+        # This is a placeholder for the actual parameters you want to test with
+        # For example, a test case with an expected exception could be like:
+        (
+            {"dist": "NonExistentDistribution"},
+            np.array([0]),
+            np.array([10, 11, 9]),
+            "obs_dim",
+            ValueError,
+        ),
+        # Add more test cases as needed
+    ],
+)
+def test_create_likelihood_distribution(
+    mmm, dist, mu, observed, dims, expected_exception
+):
+    if expected_exception:
+        with pytest.raises(expected_exception):
+            mmm._create_likelihood_distribution(dist, mu, observed, dims)
+    else:
+        mmm._create_likelihood_distribution(dist, mu, observed, dims)
+
+
+# Test cases for _get_distribution
+def test_get_valid_distribution(mmm):
+    normal_dist = mmm._get_distribution({"dist": "Normal"})
+    assert callable(normal_dist), "The method should return a callable distribution."
+
+
+def test_get_invalid_distribution(mmm):
+    with pytest.raises(ValueError) as excinfo:
+        mmm._get_distribution({"dist": "NonExistentDist"})
+    assert "does not exist in PyMC" in str(
+        excinfo.value
+    ), "A ValueError should be raised for non-existent distributions."
+
+
+def test_create_likelihood_invalid_kwargs_structure(mmm):
+    with pytest.raises(ValueError) as excinfo:
+        mmm._create_likelihood_distribution(
+            dist={"dist": "Normal", "kwargs": {"sigma": "not a dictionary"}},
+            mu=np.array([0]),
+            observed=np.random.randn(100),
+            dims="obs_dim",
+        )
+    assert "must be a dictionary containing 'dist' and 'kwargs' keys" in str(
+        excinfo.value
+    )
+
+
+def test_create_likelihood_mu_in_nested_kwargs(mmm):
+    with pytest.raises(ValueError) as excinfo:
+        mmm._create_likelihood_distribution(
+            dist={
+                "dist": "Normal",
+                "kwargs": {
+                    "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 1, "mu": 0}}
+                },
+            },
+            mu=np.array([0]),
+            observed=np.random.randn(100),
+            dims="obs_dim",
+        )
+    assert "The 'mu' key is not allowed within 'kwargs'" in str(excinfo.value)
