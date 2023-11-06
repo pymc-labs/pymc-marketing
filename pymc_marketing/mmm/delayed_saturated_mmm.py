@@ -420,7 +420,6 @@ class BaseDelayedSaturatedMMM(MMM):
                     for column in self.fourier_columns
                 )
             ):
-
                 fourier_data_ = pm.MutableData(
                     name="fourier_data",
                     value=self.preprocessed_data["X"][self.fourier_columns],
