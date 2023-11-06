@@ -300,7 +300,6 @@ class TestParetoNBDModel:
         ],
     )
     def test_posterior_distributions(self, fake_fit, T) -> None:
-
         rng = np.random.default_rng(42)
         rtol = 0.45
         dim_T = 2357 if T is None else len(T)

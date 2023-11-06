@@ -131,7 +131,6 @@ class TestMMM:
         toy_X,
         toy_y,
     ) -> None:
-
         validate_channel_columns.configure_mock(_tags={"validation_X": True})
         validate_date_col.configure_mock(_tags={"validation_X": True})
         validate_target.configure_mock(_tags={"validation_y": True})
@@ -208,7 +207,6 @@ class MyScaler(BaseEstimator, TransformerMixin):
 
 
 def test_validate_and_preprocess(toy_X, toy_y, test_mmm):
-
     test_mmm
 
     test_mmm.validate("X", toy_X)

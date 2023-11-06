@@ -89,6 +89,7 @@ class ContNonContract(PositiveContinuous):
            the easy way: An alternative to the Pareto/NBD model." Marketing science
            24.2 (2005): 275-284.
     """
+
     rv_op = continuous_non_contractual
 
     @classmethod
@@ -210,6 +211,7 @@ class ContContract(PositiveContinuous):
     ========  ===============================================
 
     """
+
     rv_op = continuous_contractual
 
     @classmethod
@@ -387,6 +389,7 @@ class ParetoNBD(PositiveContinuous):
            "A Note on Deriving the Pareto/NBD Model and Related Expressions."
            http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
     """
+
     rv_op = pareto_nbd
 
     @classmethod

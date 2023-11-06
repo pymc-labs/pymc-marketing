@@ -125,7 +125,6 @@ class TestCLVModel:
             ValueError,
             match=r"Fit method options are \['mcmc', 'map'\], got: wrong_method",
         ):
-
             model.fit(fit_method="wrong_method")
 
     def test_sample_wihtout_build(self):
