@@ -7,7 +7,7 @@ name = "pymc-marketing"
 description = "Marketing Statistical Models in PyMC"
 requires-python = ">=3.9"
 readme = "README.md"
-license = {file = "LICENSE"}
+license = { file = "LICENSE" }
 dynamic = ["version"]
 maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.io" }]
 
@@ -35,22 +35,15 @@ docs = [
     "sphinx-autodoc-typehints",
     "sphinxext-opengraph",
     "sphinx-notfound-page",
-    "sphinx-design"
+    "sphinx-design",
 ]
 lint = [
-    "black>=22.3.0",
-    "flake8>=4.0.1",
-    "isort>=5.10.1",
     "mypy",
     "pandas-stubs",
     "pre-commit>=2.19.0",
-    "pylint"
+    "ruff>=0.1.4",
 ]
-test = [
-    "lifetimes==0.11.3",
-    "pytest==7.0.1",
-    "pytest-cov==3.0.0"
-]
+test = ["lifetimes==0.11.3", "pytest==7.0.1", "pytest-cov==3.0.0"]
 
 [tool.setuptools]
 packages = [
@@ -61,7 +54,7 @@ packages = [
 ]
 
 [tool.setuptools.dynamic]
-version = {file = "pymc_marketing/version.txt"}
+version = { file = "pymc_marketing/version.txt" }
 
 [project.urls]
 repository = "https://github.com/pymc-labs/pymc-marketing"
@@ -69,9 +62,6 @@ repository = "https://github.com/pymc-labs/pymc-marketing"
 #homepage = "https://bambinos.github.io/bambi"
 #documentation = ""
 #changelog = ""
-
-[tool.isort]
-profile = "black"
 
 [tool.pytest.ini_options]
 addopts = [
@@ -82,7 +72,5 @@ addopts = [
     "--cov-report=term-missing",
     "--color=yes",
 ]
-filterwarnings = [
-    "ignore::DeprecationWarning:bokeh.core.property.primitive:37"
-]
+filterwarnings = ["ignore::DeprecationWarning:bokeh.core.property.primitive:37"]
 testpaths = "tests"

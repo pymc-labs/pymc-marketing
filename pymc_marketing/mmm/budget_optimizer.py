@@ -192,7 +192,6 @@ def budget_allocator(
     parameters: Dict[str, Tuple[float, float]],
     budget_ranges: Optional[Dict[str, Tuple[float, float]]],
 ) -> DataFrame:
-
     optimal_budget = optimize_budget_distribution(
         method=method,
         total_budget=total_budget,
