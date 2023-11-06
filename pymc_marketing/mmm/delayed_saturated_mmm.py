@@ -206,7 +206,7 @@ class BaseDelayedSaturatedMMM(MMM):
         ValueError
             If 'kwargs' key is missing in `dist`, or the parameter configuration does
             not contain 'dist' and 'kwargs' keys, or if 'mu' is present in the nested
-            'kwargs'.
+            'kwargs'
         """
         # Validate that 'kwargs' is present and is a dictionary
         if "kwargs" not in dist or not isinstance(dist["kwargs"], dict):
