@@ -1,6 +1,6 @@
-# PyMC Marketing
+# PyMC Marketing: Open Source Marketing Analytics Solution
 
-**Unlock the power of marketing analytics with PyMC-Marketing – the open source solution for smarter decision-making.** Media mix modeling and customer lifetime value modules allow businesses to make data-driven decisions about their marketing campaigns. Optimize your marketing strategy and unlock the full potential of your customer data.
+**Unlock the power of marketing analytics with PyMC-Marketing – the python based open source solution for smarter decision-making.** Marketing mix modeling and customer lifetime value modules allow businesses to make data-driven decisions about their marketing campaigns. Optimize your marketing strategy and unlock the full potential of your customer data.
 
 **Checkout the video below to see how Bolt leverages PyMC Marketing to assess the impact of their marketing efforts.**
 <iframe width="560" height="315" src="https://www.youtube.com/embed/djXoPq60bRM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
@@ -98,13 +98,12 @@ Start VS Code and ensure that the "Jupyter" extension is installed. Press Ctrl +
 
 ```python
 import pandas as pd
-from pymc_marketing import mmm
+from pymc_marketing.mmm import DelayedSaturatedMMM
 
 
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/datasets/mmm_example.csv"
 data = pd.read_csv(data_url, parse_dates=['date_week'])
 
-)
 mmm = DelayedSaturatedMMM(
     date_column="date_week",
     channel_columns=["x1", "x2"],
@@ -112,10 +111,6 @@ mmm = DelayedSaturatedMMM(
         "event_1",
         "event_2",
         "t",
-        "sin_order_1",
-        "cos_order_1",
-        "sin_order_2",
-        "cos_order_2",
     ],
     adstock_max_lag=8,
     yearly_seasonality=2,
@@ -153,8 +148,18 @@ beta_geo_model.fit()
 ```
 Once fitted, we can use the model to predict the number of future purchases for known customers, the probability that they are still alive, and get various visualizations plotted. See the Examples section for more on this.
 
-## 📞 Schedule a Consultation
-Unlock your potential with a free 30-minute strategy session with our PyMC experts. Discover how open source solutions and pymc-marketing can elevate your media-mix models and customer lifetime value analyses. Boost your career and organization by making smarter, data-driven decisions. Don't wait—[claim your complimentary session](https://calendly.com/niall-oulton) today and lead the way in marketing and data science innovation.
+## 📞 Schedule a Free Consultation for MMM & CLV Strategy
+
+Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts. Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions.
+
+For businesses looking to integrate PyMC-Marketing into their operational framework, [PyMC Labs](https://www.pymc-labs.com) offers expert consulting and training. Our team is proficient in state-of-the-art Bayesian modeling techniques, with a focus on Marketing Mix Models (MMMs) and Customer Lifetime Value (CLV). Explore these topics further by watching our video on [Bayesian Marketing Mix Models: State of the Art](https://www.youtube.com/watch?v=xVx91prC81g).
+
+We provide the following professional services:
+
+- **Custom Models**: We tailor niche marketing anayltics models to fit your organization's unique needs.
+- **Build Within PyMC-Marketing**: Our team are experts leveraging the capabilities of PyMC-Marketing to create robust marketing models for precise insights.
+- **SLA & Coaching**: Get guaranteed support levels and personalized coaching to ensure your team is well-equipped and confident in using our tools and approaches.
+- **SaaS Solutions**: Harness the power of our state-of-the-art software solutions to streamline your data-driven marketing initiatives.
 
 ## Support
 
