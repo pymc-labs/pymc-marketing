@@ -656,7 +656,7 @@ class DelayedSaturatedMMM(
                 y1=hdi_contribution[:, 0],
                 y2=hdi_contribution[:, 1],
                 color=f"C{i}",
-                label=f"{channel} $94%$ HDI contribution",
+                label=f"{channel} $94\%$ HDI contribution",
                 alpha=0.4,
             )
 
