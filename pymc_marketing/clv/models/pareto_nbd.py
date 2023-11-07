@@ -1,5 +1,5 @@
 import warnings
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -51,16 +51,15 @@ pytensor.compile.optdb["specialize"].register(
 
 
 class ParetoNBDModel(CLVModel):
-    """Pareto Negative Binomial Distribution (Pareto/NBD) model for continuous, non-contractual customer populations,
+    """Pareto Negative Binomial Distribution (Pareto/NBD) model for continuous, non-contractual customers,
     first introduced by Schmittlein, et al. [1]_, with additional derivations and predictive methods by
     Hardie & Fader [2]_ [3]_ [4]_.
 
-    The Pareto/NBD model assumes churn times for the customer population (i.e., amount of time a customer is active)
-    follows a Gamma distribution,
+    The Pareto/NBD model assumes the time duration a customer is active follows a Gamma distribution,
     and time between purchases is also Gamma-distributed while the customer is still active.
 
     This model requires data to be summarized by recency, frequency, and T for each customer,
-    using `clv.rfm_summary()` or equivalent.
+    using `clv.rfm_summary()` or equivalent. Covariates impacting customer dropouts and transaction rates are optional.
 
     Parameters
     ----------
@@ -70,12 +69,21 @@ class ParetoNBDModel(CLVModel):
             * `recency`: time between the first and the last purchase
             * `T`: time between the first purchase and the end of the observation period; model assumptions require T >= recency
             * `customer_id`: unique customer identifier
+        Along with optional covariate columns.
+    tr_var: list, optional
+        List containing column names of covariates for customer transaction rates.
+    dr_var: list, optional
+        List containing column names of covariates for customer dropouts.
     model_config: dict, optional
         Dictionary containing model parameters:
-            * `r_prior`: Shape parameter of time between purchases for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
-            * `alpha_prior`: Scale parameter of time between purchases for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
-            * `s_prior`: Shape parameter of time until churn for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
-            * `beta_prior`: Scale parameter of time until churn for customer population; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
+            * `r_prior`: Shape parameter of time between purchases; defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
+            * `alpha_prior`: Scale parameter of time between purchases; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
+            * `s_prior`: Shape parameter of time until dropout; defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
+            * `beta_prior`: Scale parameter of time until dropout; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
+            * `alpha0_prior: Scale parameter of time between purchases if using covariates; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
+            * `beta0_prior: Scale parameter of time until dropout if using covariates; ; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
+            * `dr_prior`: Coefficients for dropout covariates; defaults to `pymc.Normal.dist(mu=0, sigma=1, n=len(dr_covar)`
+            * `tr_prior`: Coefficients for transaction rate covariates; defaults to `pymc.Normal.dist(mu=0, sigma=1, n=len(tr_covar)`
         If not provided, the model will use default priors specified in the `default_model_config` class attribute.
     sampler_config: dict, optional
         Dictionary of sampler parameters. Defaults to None.
@@ -144,17 +152,20 @@ class ParetoNBDModel(CLVModel):
     References
     ----------
     .. [1] David C. Schmittlein, Donald G. Morrison and Richard Colombo.
-           "Counting Your Customers: Who Are They and What Will They Do Next."
+           "Counting Your Customers: Who Are They and What Will They Do Next".
            Management Science,Vol. 33, No. 1 (Jan., 1987), pp. 1-24.
     .. [2] Fader, Peter & G. S. Hardie, Bruce (2005).
-           "A Note on Deriving the Pareto/NBD Model and Related Expressions."
+           "A Note on Deriving the Pareto/NBD Model and Related Expressions".
            http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
     .. [3] Fader, Peter & G. S. Hardie, Bruce (2014).
-           "Additional Results for the Pareto/NBD Model."
+           "Additional Results for the Pareto/NBD Model".
            https://www.brucehardie.com/notes/015/additional_pareto_nbd_results.pdf
     .. [4] Fader, Peter & G. S. Hardie, Bruce (2014).
-           "Deriving the Conditional PMF of the Pareto/NBD Model."
+           "Deriving the Conditional PMF of the Pareto/NBD Model".
            https://www.brucehardie.com/notes/028/pareto_nbd_conditional_pmf.pdf
+    .. [5] Fader, Peter & G. S. Hardie, Bruce (2007).
+           "Incorporating Time-Invariant Covariates into the Pareto/NBD and BG/NBD Models".
+           https://www.brucehardie.com/notes/019/time_invariant_covariates.pdf
     """
 
     _model_type = "Pareto/NBD"  # Pareto Negative-Binomial Distribution
@@ -163,9 +174,12 @@ class ParetoNBDModel(CLVModel):
     def __init__(
         self,
         data: pd.DataFrame,
+        dr_var: Optional[List] = None,
+        pr_var: Optional[List] = None,
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
     ):
+        # TODO: Lots of repetition here. Could this be reworked into a utility function?
         # Assign inputs to attributes and perform validation checks
         try:
             self.customer_id = data["customer_id"]
@@ -187,20 +201,59 @@ class ParetoNBDModel(CLVModel):
         except KeyError:
             raise KeyError("T column is missing from data")
 
+        # Assign covariates to attributes and check column names
+        if dr_var is None:
+            self.dr_var = dr_var
+        else:
+            for var in dr_var:
+                if var not in data.columns:
+                    err = f"{var} column is missing from data"
+                    raise KeyError(err)
+            self.dr_var = data[dr_var].values
+        if pr_var is None:
+            self.pr_var = pr_var
+        else:
+            for var in pr_var:
+                if var not in data.columns:
+                    err = f"{var} column is missing from data"
+                    raise KeyError(err)
+            self.pr_var = data[pr_var].values
+
         super().__init__(
             model_config=model_config,
             sampler_config=sampler_config,
         )
 
-        self.data = data
+        # TODO: Is this even needed?
+        # self.data = data
 
         self.r_prior = self._create_distribution(self.model_config["r_prior"])
         self.alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
         self.s_prior = self._create_distribution(self.model_config["s_prior"])
         self.beta_prior = self._create_distribution(self.model_config["beta_prior"])
-        self._process_priors(
-            self.r_prior, self.alpha_prior, self.s_prior, self.beta_prior
-        )
+
+        priors = [self.r_prior, self.alpha_prior, self.s_prior, self.beta_prior]
+
+        if self.pr_var is not None:
+            self.alpha0_prior = self._create_distribution(
+                self.model_config["alpha0_prior"]
+            )
+            self.pr_prior = self._create_distribution(
+                self.model_config["pr_prior"], ndim=len(self.pr_var)
+            )
+            self._params.extend(["alpha0", "pr_coeff"])
+            priors.extend([self.alpha0_prior, self.pr_prior])
+        if self.dr_var is not None:
+            self.beta0_prior = self._create_distribution(
+                self.model_config["beta0_prior"]
+            )
+            self.dr_prior = self._create_distribution(
+                self.model_config["dr_prior"], ndim=len(self.dr_var)
+            )
+            self._params.extend(["beta0", "dr_coeff"])
+            priors.extend([self.beta0_prior, self.dr_prior])
+
+        self._process_priors(*priors)
 
         # TODO: Add self.build_model() call here
 
@@ -211,6 +264,16 @@ class ParetoNBDModel(CLVModel):
             "alpha_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
             "s_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 1}},
             "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+            "alpha0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+            "beta0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+            "dr_prior": {
+                "dist": "Normal",
+                "kwargs": {"mu": 0, "sigma": 1},
+            },
+            "pr_prior": {
+                "dist": "Normal",
+                "kwargs": {"mu": 0, "sigma": 1},
+            },
         }
 
     def build_model(  # type: ignore
@@ -219,11 +282,27 @@ class ParetoNBDModel(CLVModel):
         with pm.Model(coords=self.coords) as self.model:
             # purchase rate priors
             r = self.model.register_rv(self.r_prior, name="r")
-            alpha = self.model.register_rv(self.alpha_prior, name="alpha")
+            if self.pr_var is not None:
+                alpha0 = self.model.register_rv(self.alpha0_prior, name="alpha0")
+                pr_coeff = self.model.register_rv(self.pr_prior, name="pr_coeff")
+                alpha = pm.Deterministic(
+                    alpha0 * pm.math.exp(pm.math.dot(pr_coeff, self.pr_var)),
+                    name="alpha",
+                )
+            else:
+                alpha = self.model.register_rv(self.alpha_prior, name="alpha")
 
-            # churn priors
+            # dropout priors
             s = self.model.register_rv(self.s_prior, name="s")
-            beta = self.model.register_rv(self.beta_prior, name="beta")
+            if self.dr_var is not None:
+                beta0 = self.model.register_rv(self.beta0_prior, name="beta0")
+                dr_coeff = self.model.register_rv(self.dr_prior, name="dr_coeff")
+                beta = pm.Deterministic(
+                    beta0 * pm.math.exp(pm.math.dot(dr_coeff, self.dr_var)),
+                    name="beta",
+                )
+            else:
+                beta = self.model.register_rv(self.beta_prior, name="beta")
 
             ParetoNBD(
                 name="likelihood",
