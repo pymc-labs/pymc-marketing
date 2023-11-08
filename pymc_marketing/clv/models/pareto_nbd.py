@@ -169,7 +169,8 @@ class ParetoNBDModel(CLVModel):
     """
 
     _model_type = "Pareto/NBD"  # Pareto Negative-Binomial Distribution
-    _params = ["r", "alpha", "s", "beta"]
+    # TODO: Is this still needed?
+    # _params = ["r", "alpha", "s", "beta"]
 
     def __init__(
         self,
@@ -179,44 +180,31 @@ class ParetoNBDModel(CLVModel):
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
     ):
-        # TODO: Lots of repetition here. Could this be reworked into a utility function?
-        # Assign inputs to attributes and perform validation checks
-        try:
-            self.customer_id = data["customer_id"]
-            if len(np.unique(self.customer_id)) != len(self.customer_id):
-                raise ValueError("Customers must have unique ID labels.")
-            self.coords = {"customer_id": self.customer_id}
-        except KeyError:
-            raise KeyError("customer_id column is missing from data")
-        try:
-            self.frequency = data["frequency"]
-        except KeyError:
-            raise KeyError("frequency column is missing from data")
-        try:
-            self.recency = data["recency"]
-        except KeyError:
-            raise KeyError("recency column is missing from data")
-        try:
-            self.T = data["T"]
-        except KeyError:
-            raise KeyError("T column is missing from data")
+        # TODO: Add a more comprehensive RFM validation function in a future PR.
+        # Perform validation checks and assign columns as instance attributes
+        self._validate_column_names(data, ["customer_id", "frequency", "recency", "T"])
+        self.customer_id = data["customer_id"]
+        if len(np.unique(self.customer_id)) != len(self.customer_id):
+            raise ValueError("Customers must have unique ID labels.")
+        self.coords = {"customer_id": self.customer_id}
 
-        # Assign covariates to attributes and check column names
+        # TODO: self.data is included persisted idata object.
+        #       Consider making the assignment optional as it can reduce saved model size considerably.
+        self.data = data
+        # TODO: Can these attributes be eliminated and replaced with self.data["name"]?
+        self.frequency = self.data["frequency"]
+        self.recency = self.data["recency"]
+        self.T = self.data["T"]
+
         self.pr_covar_columns = pr_covar_columns
         self.dr_covar_columns = dr_covar_columns
 
         if self.pr_covar_columns is not None:
-            for covar in self.pr_covar_columns:
-                if covar not in data.columns:
-                    err = f"{covar} column is missing from data"
-                    raise KeyError(err)
+            self._validate_column_names(data, self.pr_covar_columns)
             self.coords["purchase_rate_covariates"] = self.pr_covar_columns  # type: ignore
             self.pr_covar = data[self.pr_covar_columns].values
         if self.dr_covar_columns is not None:
-            for covar in self.dr_covar_columns:
-                if covar not in data.columns:
-                    err = f"{covar} column is missing from data"
-                    raise KeyError(err)
+            self._validate_column_names(data, self.dr_covar_columns)
             self.coords["dropout_covariates"] = self.dr_covar_columns  # type: ignore
             self.dr_covar = data[self.dr_covar_columns].values
 
@@ -224,10 +212,6 @@ class ParetoNBDModel(CLVModel):
             model_config=model_config,
             sampler_config=sampler_config,
         )
-
-        # TODO: This is only used to assign fit data to the idata object.
-        #       Consider making the assignment optional as it will increase saved model size considerably.
-        self.data = data
 
         self.r_prior = self._create_distribution(self.model_config["r_prior"])
         self.s_prior = self._create_distribution(self.model_config["s_prior"])
@@ -246,7 +230,7 @@ class ParetoNBDModel(CLVModel):
             self.pr_prior = self._create_distribution(self.model_config["pr_prior"])
             priors.extend([self.alpha0_prior, self.pr_prior])
             # TODO: Is this still needed?
-            self._params.extend(["alpha", "pr_coeff"])
+            # self._params.extend(["alpha", "pr_coeff"])
 
         if self.dr_covar_columns is None:
             self.beta_prior = self._create_distribution(self.model_config["beta_prior"])
@@ -258,7 +242,7 @@ class ParetoNBDModel(CLVModel):
             self.dr_prior = self._create_distribution(self.model_config["dr_prior"])
             priors.extend([self.beta0_prior, self.dr_prior])
             # TODO: Is this still needed?
-            self._params.extend(["beta0", "dr_coeff"])
+            # self._params.extend(["beta0", "dr_coeff"])
 
         self._process_priors(*priors)
 
@@ -325,14 +309,26 @@ class ParetoNBDModel(CLVModel):
                 dims="customer_id",
             )
 
+    @staticmethod
+    def _validate_column_names(data: pd.DataFrame, columns: List[str]):
+        """Utility function to check fit data for required column names."""
+        for name in columns:
+            if name not in data.columns:
+                err = f"{name} column is missing from data"
+                raise KeyError(err)
+
     def _unload_params(
         self,
     ) -> Tuple[Any, ...]:
         """Utility function retrieving posterior parameters for predictive methods"""
-        # TODO: This assert statement will be bypassed in optimized mode. Convert to IF statement.
-        assert self.idata is not None, "Model must be fit first."
-        return tuple([self.idata.posterior[param] for param in self._params])
+        r = self.fit_result["r"]
+        alpha = self.fit_result["alpha"]
+        s = self.fit_result["s"]
+        beta = self.fit_result["beta"]
 
+        return r, alpha, s, beta
+
+    # TODO: Add _validate_column_names and call in __init__
     def _process_customers(
         self,
         data: Union[pd.DataFrame, None],
@@ -341,18 +337,17 @@ class ParetoNBDModel(CLVModel):
         for predictive methods and converting to xarrays.
         """
         if data is None:
-            customer_id = self.customer_id
-            frequency = self.frequency
-            recency = self.recency
-            T = self.T
+            data = self.data
         else:
-            data.columns = data.columns.str.upper()
-            customer_id = data["CUSTOMER_ID"]
-            frequency = data["FREQUENCY"]
-            recency = data["RECENCY"]
-            T = data["T"]
+            # TODO: How beneficial is standardizing column casing given covariate name specifications?
+            # data.columns = data.columns.str.upper()
+            self._validate_column_names(
+                data, ["customer_id", "frequency", "recency", "T"]
+            )
 
-        return to_xarray(customer_id, frequency, recency, T)
+        return to_xarray(
+            data["customer_id"], data["frequency"], data["recency"], data["T"]
+        )
 
     def _process_covariates(
         self,
