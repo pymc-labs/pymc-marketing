@@ -87,7 +87,7 @@ class TestParetoNBDModel:
 
     def test_model(self, model_config, default_model_config):
         for config in (model_config, default_model_config):
-            model = ParetoNBDModel(self.data, config)
+            model = ParetoNBDModel(data=self.data, model_config=config)
 
             # TODO: This can be removed after build_model() is called internally with __init__
             model.build_model()

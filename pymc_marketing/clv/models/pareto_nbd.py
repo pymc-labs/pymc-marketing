@@ -70,9 +70,9 @@ class ParetoNBDModel(CLVModel):
             * `T`: time between the first purchase and the end of the observation period; model assumptions require T >= recency
             * `customer_id`: unique customer identifier
         Along with optional covariate columns.
-    tr_var: list, optional
-        List containing column names of covariates for customer transaction rates.
-    dr_var: list, optional
+    pr_covar_columns: list, optional
+        List containing column names of covariates for customer purchase rates.
+    dr_covar_columns: list, optional
         List containing column names of covariates for customer dropouts.
     model_config: dict, optional
         Dictionary containing model parameters:
@@ -82,8 +82,8 @@ class ParetoNBDModel(CLVModel):
             * `beta_prior`: Scale parameter of time until dropout; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
             * `alpha0_prior: Scale parameter of time between purchases if using covariates; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
             * `beta0_prior: Scale parameter of time until dropout if using covariates; ; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
+            * `pr_prior`: Coefficients for purchase rate covariates; defaults to `pymc.Normal.dist(mu=0, sigma=1, n=len(tr_covar)`
             * `dr_prior`: Coefficients for dropout covariates; defaults to `pymc.Normal.dist(mu=0, sigma=1, n=len(dr_covar)`
-            * `tr_prior`: Coefficients for transaction rate covariates; defaults to `pymc.Normal.dist(mu=0, sigma=1, n=len(tr_covar)`
         If not provided, the model will use default priors specified in the `default_model_config` class attribute.
     sampler_config: dict, optional
         Dictionary of sampler parameters. Defaults to None.
@@ -174,8 +174,8 @@ class ParetoNBDModel(CLVModel):
     def __init__(
         self,
         data: pd.DataFrame,
-        dr_var: Optional[List] = None,
-        pr_var: Optional[List] = None,
+        pr_covar_columns: Optional[List[str]] = None,
+        dr_covar_columns: Optional[List[str]] = None,
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
     ):
@@ -202,61 +202,69 @@ class ParetoNBDModel(CLVModel):
             raise KeyError("T column is missing from data")
 
         # Assign covariates to attributes and check column names
-        if dr_var is None:
-            self.dr_var = dr_var
-        else:
-            for var in dr_var:
-                if var not in data.columns:
-                    err = f"{var} column is missing from data"
+        self.pr_covar_columns = pr_covar_columns
+        self.dr_covar_columns = dr_covar_columns
+
+        if self.pr_covar_columns is not None:
+            for covar in self.pr_covar_columns:
+                if covar not in data.columns:
+                    err = f"{covar} column is missing from data"
                     raise KeyError(err)
-            self.dr_var = data[dr_var].values
-        if pr_var is None:
-            self.pr_var = pr_var
-        else:
-            for var in pr_var:
-                if var not in data.columns:
-                    err = f"{var} column is missing from data"
+            self.coords["purchase_rate_covariates"] = self.pr_covar_columns  # type: ignore
+            self.pr_covar = data[self.pr_covar_columns].values
+        if self.dr_covar_columns is not None:
+            for covar in self.dr_covar_columns:
+                if covar not in data.columns:
+                    err = f"{covar} column is missing from data"
                     raise KeyError(err)
-            self.pr_var = data[pr_var].values
+            self.coords["dropout_covariates"] = self.dr_covar_columns  # type: ignore
+            self.dr_covar = data[self.dr_covar_columns].values
 
         super().__init__(
             model_config=model_config,
             sampler_config=sampler_config,
         )
 
-        # TODO: Is this even needed?
-        # self.data = data
+        # TODO: This is only used to assign fit data to the idata object.
+        #       Consider making the assignment optional as it will increase saved model size considerably.
+        self.data = data
 
         self.r_prior = self._create_distribution(self.model_config["r_prior"])
-        self.alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
         self.s_prior = self._create_distribution(self.model_config["s_prior"])
-        self.beta_prior = self._create_distribution(self.model_config["beta_prior"])
 
-        priors = [self.r_prior, self.alpha_prior, self.s_prior, self.beta_prior]
+        priors = [self.r_prior, self.s_prior]
 
-        if self.pr_var is not None:
+        if self.pr_covar_columns is None:
+            self.alpha_prior = self._create_distribution(
+                self.model_config["alpha_prior"]
+            )
+            priors.extend([self.alpha_prior])
+        else:
             self.alpha0_prior = self._create_distribution(
                 self.model_config["alpha0_prior"]
             )
-            self.pr_prior = self._create_distribution(
-                self.model_config["pr_prior"], ndim=len(self.pr_var)
-            )
-            self._params.extend(["alpha0", "pr_coeff"])
+            self.pr_prior = self._create_distribution(self.model_config["pr_prior"])
             priors.extend([self.alpha0_prior, self.pr_prior])
-        if self.dr_var is not None:
+            # TODO: Is this still needed?
+            self._params.extend(["alpha", "pr_coeff"])
+
+        if self.dr_covar_columns is None:
+            self.beta_prior = self._create_distribution(self.model_config["beta_prior"])
+            priors.extend([self.beta_prior])
+        else:
             self.beta0_prior = self._create_distribution(
                 self.model_config["beta0_prior"]
             )
-            self.dr_prior = self._create_distribution(
-                self.model_config["dr_prior"], ndim=len(self.dr_var)
-            )
-            self._params.extend(["beta0", "dr_coeff"])
+            self.dr_prior = self._create_distribution(self.model_config["dr_prior"])
             priors.extend([self.beta0_prior, self.dr_prior])
+            # TODO: Is this still needed?
+            self._params.extend(["beta0", "dr_coeff"])
 
         self._process_priors(*priors)
 
         # TODO: Add self.build_model() call here
 
+    # TODO: This will cause test_save_load to fail. Conditional logic needed for covariates
     @property
     def default_model_config(self) -> Dict[str, Dict]:
         return {
@@ -264,29 +272,31 @@ class ParetoNBDModel(CLVModel):
             "alpha_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
             "s_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 1}},
             "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
-            "alpha0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
-            "beta0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
-            "dr_prior": {
-                "dist": "Normal",
-                "kwargs": {"mu": 0, "sigma": 1},
-            },
-            "pr_prior": {
-                "dist": "Normal",
-                "kwargs": {"mu": 0, "sigma": 1},
-            },
         }
+        #     "alpha0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+        #     "beta0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+        #     "dr_prior": {
+        #         "dist": "Normal",
+        #         "kwargs": {"mu": 0, "sigma": 1, "dims": ("dropout_covariates",)},
+        #     },
+        #     "pr_prior": {
+        #         "dist": "Normal",
+        #         "kwargs": {"mu": 0, "sigma": 1, "dims": ("purchase_rate_covariates",)},
+        #     },
+        # }
 
+    # TODO: Refer to delayed_saturated_mmm.py. Should all these register_rv calls be replaced by indexing model_config?
     def build_model(  # type: ignore
         self,
     ) -> None:
         with pm.Model(coords=self.coords) as self.model:
             # purchase rate priors
             r = self.model.register_rv(self.r_prior, name="r")
-            if self.pr_var is not None:
+            if self.pr_covar_columns is not None:
                 alpha0 = self.model.register_rv(self.alpha0_prior, name="alpha0")
                 pr_coeff = self.model.register_rv(self.pr_prior, name="pr_coeff")
                 alpha = pm.Deterministic(
-                    alpha0 * pm.math.exp(pm.math.dot(pr_coeff, self.pr_var)),
+                    alpha0 * pm.math.exp(pm.math.dot(pr_coeff, self.pr_covar)),
                     name="alpha",
                 )
             else:
@@ -294,11 +304,11 @@ class ParetoNBDModel(CLVModel):
 
             # dropout priors
             s = self.model.register_rv(self.s_prior, name="s")
-            if self.dr_var is not None:
+            if self.dr_covar_columns is not None:
                 beta0 = self.model.register_rv(self.beta0_prior, name="beta0")
                 dr_coeff = self.model.register_rv(self.dr_prior, name="dr_coeff")
                 beta = pm.Deterministic(
-                    beta0 * pm.math.exp(pm.math.dot(dr_coeff, self.dr_var)),
+                    beta0 * pm.math.exp(pm.math.dot(dr_coeff, self.dr_covar)),
                     name="beta",
                 )
             else:
@@ -319,10 +329,10 @@ class ParetoNBDModel(CLVModel):
         self,
     ) -> Tuple[Any, ...]:
         """Utility function retrieving posterior parameters for predictive methods"""
+        # TODO: This assert statement will be bypassed in optimized mode. Convert to IF statement.
         assert self.idata is not None, "Model must be fit first."
         return tuple([self.idata.posterior[param] for param in self._params])
 
-    # TODO: Convert to list comprehension to support covariates?
     def _process_customers(
         self,
         data: Union[pd.DataFrame, None],
@@ -343,6 +353,17 @@ class ParetoNBDModel(CLVModel):
             T = data["T"]
 
         return to_xarray(customer_id, frequency, recency, T)
+
+    def _process_covariates(
+        self,
+        data: pd.DataFrame,
+        pr_covar: List[str],
+        dr_covar: List[str],
+    ) -> None:  # type: ignore
+        """
+        Utility function to check data for specified covariate columns and convert to xarrays.
+        """
+        pass
 
     @staticmethod
     def _logp(
