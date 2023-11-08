@@ -451,13 +451,6 @@ class ParetoNBDModel(CLVModel):
                "A Note on Deriving the Pareto/NBD Model and Related Expressions."
                http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
         """
-        # mypy requires explicit typing declarations for these variables.
-        # x: xarray.DataArray
-        # t_x: xarray.DataArray
-        # r: xarray.DataArray
-        # alpha: xarray.DataArray
-        # s: xarray.DataArray
-        # beta: xarray.DataArray
 
         x, t_x, T = self._process_customers(data)
 
@@ -505,11 +498,6 @@ class ParetoNBDModel(CLVModel):
                "A Note on Deriving the Pareto/NBD Model and Related Expressions."
                http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
         """
-        # mypy requires explicit typing declarations for these variables.
-        r: xarray.DataArray
-        alpha: xarray.DataArray
-        s: xarray.DataArray
-        beta: xarray.DataArray
 
         t = np.asarray(t)
 
@@ -551,13 +539,6 @@ class ParetoNBDModel(CLVModel):
                "Additional Results for the Pareto/NBD Model."
                https://www.brucehardie.com/notes/015/additional_pareto_nbd_results.pdf
         """
-        # mypy requires explicit typing declarations for these variables.
-        x: xarray.DataArray
-        t_x: xarray.DataArray
-        r: xarray.DataArray
-        alpha: xarray.DataArray
-        s: xarray.DataArray
-        beta: xarray.DataArray
 
         x, t_x, T = self._process_customers(data)
 
@@ -609,13 +590,6 @@ class ParetoNBDModel(CLVModel):
                "Deriving the Conditional PMF of the Pareto/NBD Model."
                https://www.brucehardie.com/notes/028/pareto_nbd_conditional_pmf.pdf
         """
-        # mypy requires explicit typing declarations for these variables.
-        x: xarray.DataArray
-        t_x: xarray.DataArray
-        r: xarray.DataArray
-        alpha: xarray.DataArray
-        s: xarray.DataArray
-        beta: xarray.DataArray
 
         x, t_x, T = self._process_customers(data)
 
