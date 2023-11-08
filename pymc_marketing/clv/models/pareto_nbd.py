@@ -452,12 +452,12 @@ class ParetoNBDModel(CLVModel):
                http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
         """
         # mypy requires explicit typing declarations for these variables.
-        x: xarray.DataArray
-        t_x: xarray.DataArray
-        r: xarray.DataArray
-        alpha: xarray.DataArray
-        s: xarray.DataArray
-        beta: xarray.DataArray
+        # x: xarray.DataArray
+        # t_x: xarray.DataArray
+        # r: xarray.DataArray
+        # alpha: xarray.DataArray
+        # s: xarray.DataArray
+        # beta: xarray.DataArray
 
         x, t_x, T = self._process_customers(data)
 
