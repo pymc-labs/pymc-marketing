@@ -227,8 +227,7 @@ class ParetoNBDModel(CLVModel):
             self.alpha0_prior = self._create_distribution(
                 self.model_config["alpha0_prior"]
             )
-            self.pr_prior = self._create_distribution(self.model_config["pr_prior"])
-            priors.extend([self.alpha0_prior, self.pr_prior])
+            priors.extend([self.alpha0_prior])
             # TODO: Is this still needed?
             # self._params.extend(["alpha", "pr_coeff"])
 
@@ -239,16 +238,15 @@ class ParetoNBDModel(CLVModel):
             self.beta0_prior = self._create_distribution(
                 self.model_config["beta0_prior"]
             )
-            self.dr_prior = self._create_distribution(self.model_config["dr_prior"])
-            priors.extend([self.beta0_prior, self.dr_prior])
+            priors.extend([self.beta0_prior])
             # TODO: Is this still needed?
-            # self._params.extend(["beta0", "dr_coeff"])
+            # self._params.extend(["beta0"])
 
         self._process_priors(*priors)
 
         # TODO: Add self.build_model() call here
 
-    # TODO: This will cause test_save_load to fail. Conditional logic needed for covariates
+    # TODO: dims unsupported with dist API
     @property
     def default_model_config(self) -> Dict[str, Dict]:
         return {
@@ -256,18 +254,11 @@ class ParetoNBDModel(CLVModel):
             "alpha_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
             "s_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 1}},
             "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+            "alpha0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+            "beta0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+            "dr_coeff": {"nu": 1, "dims": ("dropout_covariates",)},
+            "pr_coeff": {"nu": 1, "dims": ("purchase_rate_covariates",)},
         }
-        #     "alpha0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
-        #     "beta0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
-        #     "dr_prior": {
-        #         "dist": "Normal",
-        #         "kwargs": {"mu": 0, "sigma": 1, "dims": ("dropout_covariates",)},
-        #     },
-        #     "pr_prior": {
-        #         "dist": "Normal",
-        #         "kwargs": {"mu": 0, "sigma": 1, "dims": ("purchase_rate_covariates",)},
-        #     },
-        # }
 
     # TODO: Refer to delayed_saturated_mmm.py. Should all these register_rv calls be replaced by indexing model_config?
     def build_model(  # type: ignore
@@ -278,10 +269,15 @@ class ParetoNBDModel(CLVModel):
             r = self.model.register_rv(self.r_prior, name="r")
             if self.pr_covar_columns is not None:
                 alpha0 = self.model.register_rv(self.alpha0_prior, name="alpha0")
-                pr_coeff = self.model.register_rv(self.pr_prior, name="pr_coeff")
+                pr_coeff = pm.StudentT(
+                    name="pr_coeff",
+                    nu=self.model_config["pr_coeff"]["nu"],
+                    dims=self.model_config["pr_coeff"]["dims"],
+                )
                 alpha = pm.Deterministic(
-                    alpha0 * pm.math.exp(pm.math.dot(pr_coeff, self.pr_covar)),
                     name="alpha",
+                    var=alpha0 * pm.math.exp(-pm.math.dot(pr_coeff, self.pr_covar)),
+                    dims=("purchase_rate_covariates",),
                 )
             else:
                 alpha = self.model.register_rv(self.alpha_prior, name="alpha")
@@ -290,10 +286,15 @@ class ParetoNBDModel(CLVModel):
             s = self.model.register_rv(self.s_prior, name="s")
             if self.dr_covar_columns is not None:
                 beta0 = self.model.register_rv(self.beta0_prior, name="beta0")
-                dr_coeff = self.model.register_rv(self.dr_prior, name="dr_coeff")
+                dr_coeff = pm.StudentT(
+                    name="dr_coeff",
+                    nu=self.model_config["dr_coeff"]["nu"],
+                    dims=self.model_config["dr_coeff"]["dims"],
+                )
                 beta = pm.Deterministic(
-                    beta0 * pm.math.exp(pm.math.dot(dr_coeff, self.dr_covar)),
                     name="beta",
+                    var=beta0 * pm.math.exp(-pm.math.dot(dr_coeff, self.dr_covar)),
+                    dims=("dropout_covariates",),
                 )
             else:
                 beta = self.model.register_rv(self.beta_prior, name="beta")

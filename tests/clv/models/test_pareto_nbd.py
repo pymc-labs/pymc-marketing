@@ -18,14 +18,14 @@ class TestParetoNBDModel:
         cls.rng = np.random.default_rng(34)
 
         # Parameters
-        cls.r_true = 0.5534
-        cls.alpha_true = 10.5802
-        cls.s_true = 0.6061
-        cls.beta_true = 11.6562
+        cls.r_true = 0.563
+        cls.alpha_true = 87.917
+        cls.s_true = 0.408
+        cls.beta_true = 73.592
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
         # TODO: Create a pytest fixture for this
-        test_data = pd.read_csv("datasets/clv_quickstart.csv")
+        test_data = pd.read_csv("tests/clv/datasets/test_clv_covar.csv")
         test_data["customer_id"] = test_data.index
 
         cls.data = test_data
@@ -74,6 +74,10 @@ class TestParetoNBDModel:
             "alpha_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4}},
             "s_prior": {"dist": "HalfCauchy", "kwargs": {"beta": 2}},
             "beta_prior": {"dist": "Gamma", "kwargs": {"alpha": 1, "beta": 1}},
+            "alpha0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+            "beta0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+            "dr_coeff": {"nu": 1, "dims": ("dropout_covariates",)},
+            "pr_coeff": {"nu": 1, "dims": ("purchase_rate_covariates",)},
         }
 
     @pytest.fixture(scope="class")
@@ -83,11 +87,23 @@ class TestParetoNBDModel:
             "alpha_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
             "s_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 1}},
             "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+            "alpha0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+            "beta0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+            "dr_coeff": {"nu": 1, "dims": ("dropout_covariates",)},
+            "pr_coeff": {"nu": 1, "dims": ("purchase_rate_covariates",)},
         }
 
-    def test_model(self, model_config, default_model_config):
+    @pytest.mark.parametrize(
+        "pr_covar_columns, dr_covar_columns",
+        [(None, None), (["cds_bought", "spent"], ["cds_bought", "spent"])],
+    )
+    def test_model(
+        self, model_config, default_model_config, pr_covar_columns, dr_covar_columns
+    ):
         for config in (model_config, default_model_config):
-            model = ParetoNBDModel(data=self.data, model_config=config)
+            model = ParetoNBDModel(
+                self.data, pr_covar_columns, dr_covar_columns, config
+            )
 
             # TODO: This can be removed after build_model() is called internally with __init__
             model.build_model()
@@ -167,6 +183,14 @@ class TestParetoNBDModel:
                 }
             )
             ParetoNBDModel(test_data)
+
+    def test_missing_covariates(self):
+        with pytest.raises(KeyError, match="channel column is missing from data"):
+            ParetoNBDModel(
+                data=self.data, pr_covar_columns=["spent", "purchase_channel"]
+            )
+        with pytest.raises(KeyError, match="discounts column is missing from data"):
+            ParetoNBDModel(data=self.data, dr_covar_columns=["spent", "discounts"])
 
     @pytest.mark.slow
     @pytest.mark.parametrize(

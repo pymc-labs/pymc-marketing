@@ -30,13 +30,3 @@ def cdnow_trans() -> pd.DataFrame:
     Data source: https://www.brucehardie.com/datasets/
     """
     return pd.read_csv("tests/clv/datasets/cdnow_transactions.csv")
-
-
-@pytest.fixture(scope="module")
-def clv_covar() -> pd.DataFrame:
-    """
-    Load CDNOW_sample dataset with covariates into a Pandas dataframe.
-
-    Data source: https://www.brucehardie.com/datasets/
-    """
-    return pd.read_csv("tests/clv/datasets/test_clv_covar.csv")
