@@ -192,13 +192,15 @@ class TestParetoNBDModel:
         "fit_method, rtol, covar_columns",
         [
             ("mcmc", 0.1, None),
-            ("map", 0.2, ["cds_bought", "spent"]),
+            ("map", 0.2, None),
             ("map", 0.2, ["cds_bought", "spent"]),
         ],
     )
     def test_model_convergence(self, fit_method, rtol, covar_columns):
         model = ParetoNBDModel(
             data=self.data,
+            pr_covar_columns=covar_columns,
+            dr_covar_columns=covar_columns,
         )
         # TODO: This can be removed after build_model() is called internally with __init__
         model.build_model()

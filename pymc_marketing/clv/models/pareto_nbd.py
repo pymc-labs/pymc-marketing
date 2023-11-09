@@ -169,8 +169,6 @@ class ParetoNBDModel(CLVModel):
     """
 
     _model_type = "Pareto/NBD"  # Pareto Negative-Binomial Distribution
-    # TODO: Is this still needed?
-    # _params = ["r", "alpha", "s", "beta"]
 
     def __init__(
         self,
@@ -180,33 +178,26 @@ class ParetoNBDModel(CLVModel):
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
     ):
-        # TODO: Add a more comprehensive RFM validation function in a future PR.
-        # Perform validation checks and assign columns as instance attributes
+        # TODO: Write a separate, more comprehensive RFM validation method in a future PR.
+        # Perform validation checks on column names and customer identifiers
         self._validate_column_names(data, ["customer_id", "frequency", "recency", "T"])
-        self.customer_id = data["customer_id"]
-        if len(np.unique(self.customer_id)) != len(self.customer_id):
-            raise ValueError("Customers must have unique ID labels.")
-        self.coords = {"customer_id": self.customer_id}
-
         # TODO: self.data is persisted in idata object.
         #       Consider making the assignment optional as it can reduce saved model size considerably.
         self.data = data
-        # TODO: Can these attributes be eliminated and replaced with self.data["name"]?
-        self.frequency = self.data["frequency"]
-        self.recency = self.data["recency"]
-        self.T = self.data["T"]
+        if len(np.unique(self.data["customer_id"])) != len(self.data["customer_id"]):
+            raise ValueError("Customers must have unique ID labels.")
+        self.coords = {"customer_id": self.data["customer_id"]}
 
         self.pr_covar_columns = pr_covar_columns
         self.dr_covar_columns = dr_covar_columns
 
-        if self.pr_covar_columns is not None:
-            self._validate_column_names(data, self.pr_covar_columns)
-            self.coords["purchase_rate_covariates"] = self.pr_covar_columns  # type: ignore
-            self.pr_covar = data[self.pr_covar_columns].values
-        if self.dr_covar_columns is not None:
-            self._validate_column_names(data, self.dr_covar_columns)
-            self.coords["dropout_covariates"] = self.dr_covar_columns  # type: ignore
-            self.dr_covar = data[self.dr_covar_columns].values
+        for _ in zip(
+            [self.pr_covar_columns, self.dr_covar_columns],
+            ["purchase_rate_covariates", "dropout_covariates"],
+        ):
+            if _[0] is not None:
+                self._validate_column_names(data, _[0])
+                self.coords[_[1]] = _[0]  # type: ignore
 
         super().__init__(
             model_config=model_config,
@@ -227,9 +218,8 @@ class ParetoNBDModel(CLVModel):
             self.alpha0_prior = self._create_distribution(
                 self.model_config["alpha0_prior"]
             )
+            # TODO: Re-add coefficients when customer covariate coefficient priors are supported
             priors.extend([self.alpha0_prior])
-            # TODO: Is this still needed?
-            # self._params.extend(["alpha", "pr_coeff"])
 
         if self.dr_covar_columns is None:
             self.beta_prior = self._create_distribution(self.model_config["beta_prior"])
@@ -238,15 +228,14 @@ class ParetoNBDModel(CLVModel):
             self.beta0_prior = self._create_distribution(
                 self.model_config["beta0_prior"]
             )
+            # TODO: Re-add coefficients when customer covariate coefficient priors are supported
             priors.extend([self.beta0_prior])
-            # TODO: Is this still needed?
-            # self._params.extend(["beta0"])
 
         self._process_priors(*priors)
 
         # TODO: Add self.build_model() call here
 
-    # TODO: dims unsupported with dist API
+    # TODO: _create_distributions changes required in clv/basic.py to support custom covariate coefficient distributions
     @property
     def default_model_config(self) -> Dict[str, Dict]:
         return {
@@ -260,7 +249,6 @@ class ParetoNBDModel(CLVModel):
             "pr_coeff": {"nu": 1, "dims": ("purchase_rate_covariates",)},
         }
 
-    # TODO: Refer to delayed_saturated_mmm.py. Should all these register_rv calls be replaced by indexing model_config?
     def build_model(  # type: ignore
         self,
     ) -> None:
@@ -269,14 +257,19 @@ class ParetoNBDModel(CLVModel):
             r = self.model.register_rv(self.r_prior, name="r")
             if self.pr_covar_columns is not None:
                 alpha0 = self.model.register_rv(self.alpha0_prior, name="alpha0")
+                # TODO: _create_distributions changes required in clv/basic.py to support custom distributions
                 pr_coeff = pm.StudentT(
                     name="pr_coeff",
                     nu=self.model_config["pr_coeff"]["nu"],
                     dims=self.model_config["pr_coeff"]["dims"],
                 )
+                # TODO: recalculate this on the log scale for numerical stability
                 alpha = pm.Deterministic(
                     name="alpha",
-                    var=alpha0 * pm.math.exp(-pm.math.dot(pr_coeff, self.pr_covar)),
+                    var=alpha0
+                    * pm.math.exp(
+                        -pm.math.dot(self.data[self.pr_covar_columns], pr_coeff)
+                    ),
                     dims=("purchase_rate_covariates",),
                 )
             else:
@@ -286,14 +279,19 @@ class ParetoNBDModel(CLVModel):
             s = self.model.register_rv(self.s_prior, name="s")
             if self.dr_covar_columns is not None:
                 beta0 = self.model.register_rv(self.beta0_prior, name="beta0")
+                # TODO: _create_distributions changes required in clv/basic.py to support custom distributions
                 dr_coeff = pm.StudentT(
                     name="dr_coeff",
                     nu=self.model_config["dr_coeff"]["nu"],
                     dims=self.model_config["dr_coeff"]["dims"],
                 )
+                # TODO: recalculate this on the log scale for numerical stability
                 beta = pm.Deterministic(
                     name="beta",
-                    var=beta0 * pm.math.exp(-pm.math.dot(dr_coeff, self.dr_covar)),
+                    var=beta0
+                    * pm.math.exp(
+                        -pm.math.dot(self.data[self.dr_covar_columns], dr_coeff)
+                    ),
                     dims=("dropout_covariates",),
                 )
             else:
@@ -305,8 +303,10 @@ class ParetoNBDModel(CLVModel):
                 alpha=alpha,
                 s=s,
                 beta=beta,
-                T=self.T,
-                observed=np.stack((self.recency, self.frequency), axis=1),
+                T=self.data["T"],
+                observed=np.stack(
+                    (self.data["recency"], self.data["frequency"]), axis=1
+                ),
                 dims="customer_id",
             )
 
@@ -346,18 +346,16 @@ class ParetoNBDModel(CLVModel):
                 alpha = self.fit_result["alpha"]
             else:
                 self._validate_column_names(data, self.pr_covar_columns)
-                pr_covars = data[self.pr_covar_columns].values
                 alpha0 = self.fit_result["alpha0"]
                 pr_coeff = self.fit_result["pr_coeff"]
-                alpha = alpha0 * np.exp(-np.dot(pr_coeff, pr_covars))
+                alpha = alpha0 * np.exp(-np.dot(data[self.pr_covar_columns], pr_coeff))
             if self.dr_covar_columns is None:
                 beta = self.fit_result["beta"]
             else:
                 self._validate_column_names(data, self.dr_covar_columns)
-                dr_covars = data[self.dr_covar_columns].values
                 beta0 = self.fit_result["beta0"]
-                pr_coeff = self.fit_result["pr_coeff"]
-                beta = beta0 * np.exp(-np.dot(pr_coeff, dr_covars))
+                dr_coeff = self.fit_result["dr_coeff"]
+                beta = beta0 * np.exp(-np.dot(data[self.dr_covar_columns], dr_coeff))
         return alpha, beta
 
     def _process_customers(
@@ -723,7 +721,7 @@ class ParetoNBDModel(CLVModel):
     ) -> xarray.Dataset:
         """Utility function for posterior predictive sampling from dropout and purchase rate distributions."""
         if T is None:
-            T = self.T
+            T = self.data["T"]
 
         # This is the shape if using fit_method="map"
         if self.fit_result.dims == {"chain": 1, "draw": 1}:
