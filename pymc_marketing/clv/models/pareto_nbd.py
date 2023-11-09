@@ -320,16 +320,46 @@ class ParetoNBDModel(CLVModel):
 
     def _unload_params(
         self,
+        data: Union[pd.DataFrame, None],
     ) -> Tuple[Any, ...]:
         """Utility function retrieving posterior parameters for predictive methods"""
         r = self.fit_result["r"]
-        alpha = self.fit_result["alpha"]
         s = self.fit_result["s"]
-        beta = self.fit_result["beta"]
+
+        alpha, beta = self._process_covariates(data)
 
         return r, alpha, s, beta
 
-    # TODO: Add _validate_column_names and call in __init__
+    def _process_covariates(
+        self,
+        data: Union[pd.DataFrame, None],
+    ) -> Tuple[Any, Any]:
+        """
+        Utility function to process covariates into model parameters.
+        """
+
+        if data is None:
+            alpha = self.fit_result["alpha"]
+            beta = self.fit_result["beta"]
+        else:
+            if self.pr_covar_columns is None:
+                alpha = self.fit_result["alpha"]
+            else:
+                self._validate_column_names(data, self.pr_covar_columns)
+                pr_covars = data[self.pr_covar_columns].values
+                alpha0 = self.fit_result["alpha0"]
+                pr_coeff = self.fit_result["pr_coeff"]
+                alpha = alpha0 * np.exp(-np.dot(pr_coeff, pr_covars))
+            if self.dr_covar_columns is None:
+                beta = self.fit_result["beta"]
+            else:
+                self._validate_column_names(data, self.dr_covar_columns)
+                dr_covars = data[self.dr_covar_columns].values
+                beta0 = self.fit_result["beta0"]
+                pr_coeff = self.fit_result["pr_coeff"]
+                beta = beta0 * np.exp(-np.dot(pr_coeff, dr_covars))
+        return alpha, beta
+
     def _process_customers(
         self,
         data: Union[pd.DataFrame, None],
@@ -349,17 +379,6 @@ class ParetoNBDModel(CLVModel):
         return to_xarray(
             data["customer_id"], data["frequency"], data["recency"], data["T"]
         )
-
-    def _process_covariates(
-        self,
-        data: pd.DataFrame,
-        pr_covar: List[str],
-        dr_covar: List[str],
-    ) -> None:  # type: ignore
-        """
-        Utility function to check data for specified covariate columns and convert to xarrays.
-        """
-        pass
 
     @staticmethod
     def _logp(
@@ -454,9 +473,7 @@ class ParetoNBDModel(CLVModel):
         """
 
         x, t_x, T = self._process_customers(data)
-
-        r, alpha, s, beta = self._unload_params()
-
+        r, alpha, s, beta = self._unload_params(data)
         loglike = self._logp(r, alpha, s, beta, x, t_x, T)
 
         first_term = (
@@ -502,7 +519,7 @@ class ParetoNBDModel(CLVModel):
 
         t = np.asarray(t)
 
-        r, alpha, s, beta = self._unload_params()
+        r, alpha, s, beta = self._unload_params(self.data)
         first_term = r * beta / alpha / (s - 1)
         second_term = 1 - (beta / (beta + t)) ** (s - 1)
 
@@ -542,8 +559,7 @@ class ParetoNBDModel(CLVModel):
         """
 
         x, t_x, T = self._process_customers(data)
-
-        r, alpha, s, beta = self._unload_params()
+        r, alpha, s, beta = self._unload_params(data)
         loglike = self._logp(r, alpha, s, beta, x, t_x, T)
 
         term1 = gammaln(r + x) - gammaln(r)
@@ -593,8 +609,7 @@ class ParetoNBDModel(CLVModel):
         """
 
         x, t_x, T = self._process_customers(data)
-
-        r, alpha, s, beta = self._unload_params()
+        r, alpha, s, beta = self._unload_params(data)
         loglike = self._logp(r, alpha, s, beta, x, t_x, T)
 
         _alpha_less_than_beta = alpha < beta
