@@ -191,9 +191,9 @@ class TestParetoNBDModel:
     @pytest.mark.parametrize(
         "fit_method, rtol, covar_columns",
         [
-            ("mcmc", 0.1, None),
-            ("map", 0.2, None),
+            (None, 0.2, None),
             ("map", 0.2, ["cds_bought", "spent"]),
+            ("mcmc", 0.1, None),
         ],
     )
     def test_model_convergence(self, fit_method, rtol, covar_columns):

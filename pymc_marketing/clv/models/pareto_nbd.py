@@ -197,7 +197,7 @@ class ParetoNBDModel(CLVModel):
         ):
             if _[0] is not None:
                 self._validate_column_names(data, _[0])
-                self.coords[_[1]] = _[0]  # type: ignore
+                # self.coords[_[1]] = _[0]  # type: ignore
 
         super().__init__(
             model_config=model_config,
@@ -261,16 +261,15 @@ class ParetoNBDModel(CLVModel):
                 pr_coeff = pm.StudentT(
                     name="pr_coeff",
                     nu=self.model_config["pr_coeff"]["nu"],
-                    dims=self.model_config["pr_coeff"]["dims"],
+                    shape=2,  # self.model_config["pr_coeff"]["dims"],
                 )
-                # TODO: recalculate this on the log scale for numerical stability
+                # TODO: coordinates must be resolved
                 alpha = pm.Deterministic(
                     name="alpha",
                     var=alpha0
                     * pm.math.exp(
                         -pm.math.dot(self.data[self.pr_covar_columns], pr_coeff)
                     ),
-                    dims=("purchase_rate_covariates",),
                 )
             else:
                 alpha = self.model.register_rv(self.alpha_prior, name="alpha")
@@ -283,16 +282,15 @@ class ParetoNBDModel(CLVModel):
                 dr_coeff = pm.StudentT(
                     name="dr_coeff",
                     nu=self.model_config["dr_coeff"]["nu"],
-                    dims=self.model_config["dr_coeff"]["dims"],
+                    shape=2,  # self.model_config["dr_coeff"]["dims"],
                 )
-                # TODO: recalculate this on the log scale for numerical stability
+                # TODO: coordinates must be resolved
                 beta = pm.Deterministic(
                     name="beta",
                     var=beta0
                     * pm.math.exp(
                         -pm.math.dot(self.data[self.dr_covar_columns], dr_coeff)
                     ),
-                    dims=("dropout_covariates",),
                 )
             else:
                 beta = self.model.register_rv(self.beta_prior, name="beta")
