@@ -188,7 +188,7 @@ class ParetoNBDModel(CLVModel):
             raise ValueError("Customers must have unique ID labels.")
         self.coords = {"customer_id": self.customer_id}
 
-        # TODO: self.data is included persisted idata object.
+        # TODO: self.data is persisted in idata object.
         #       Consider making the assignment optional as it can reduce saved model size considerably.
         self.data = data
         # TODO: Can these attributes be eliminated and replaced with self.data["name"]?
