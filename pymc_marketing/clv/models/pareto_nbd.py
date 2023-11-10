@@ -347,6 +347,7 @@ class ParetoNBDModel(CLVModel):
                 alpha0 = self.fit_result["alpha0"]
                 pr_coeff = self.fit_result["pr_coeff"]
                 alpha = alpha0 * np.exp(-np.dot(data[self.pr_covar_columns], pr_coeff))
+                alpha = to_xarray("customer_id", alpha)
             if self.dr_covar_columns is None:
                 beta = self.fit_result["beta"]
             else:
@@ -354,6 +355,7 @@ class ParetoNBDModel(CLVModel):
                 beta0 = self.fit_result["beta0"]
                 dr_coeff = self.fit_result["dr_coeff"]
                 beta = beta0 * np.exp(-np.dot(data[self.dr_covar_columns], dr_coeff))
+                beta = to_xarray("customer_id", beta)
         return alpha, beta
 
     def _process_customers(
