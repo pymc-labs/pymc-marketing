@@ -2,14 +2,12 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 from pymc.distributions.continuous import PositiveContinuous
-from pymc.distributions.dist_math import check_parameters
+from pymc.distributions.distribution import Discrete
+from pymc.distributions.dist_math import betaln, check_parameters
+from pytensor import scan
 from pytensor.tensor.random.op import RandomVariable
 
-__all__ = [
-    "ContContract",
-    "ContNonContract",
-    "ParetoNBD",
-]
+__all__ = ["ContContract", "ContNonContract", "ParetoNBD", "BetaGeoBetaBinom"]
 
 
 class ContNonContractRV(RandomVariable):
@@ -459,4 +457,186 @@ class ParetoNBD(PositiveContinuous):
             s > 0,
             beta > 0,
             msg="r > 0, alpha > 0, s > 0, beta > 0",
+        )
+
+
+class BetaGeoBetaBinomRV(RandomVariable):
+    name = "beta_geo_beta_binom"
+    ndim_supp = 1
+    ndims_params = [0, 0, 0, 0, 0]
+    dtype = "floatX"
+    _print_name = ("BetaGeoBetaBinom", "\\operatorname{BetaGeoBetaBinom}")
+
+    def make_node(self, rng, size, dtype, alpha, beta, gamma, delta, T):
+        alpha = pt.as_tensor_variable(alpha)
+        beta = pt.as_tensor_variable(beta)
+        gamma = pt.as_tensor_variable(gamma)
+        delta = pt.as_tensor_variable(delta)
+        T = pt.as_tensor_variable(T)
+
+        return super().make_node(rng, size, dtype, alpha, beta, gamma, delta, T)
+
+    def __call__(self, alpha, beta, gamma, delta, T, size=None, **kwargs):
+        return super().__call__(alpha, beta, gamma, delta, T, size=size, **kwargs)
+
+    @classmethod
+    def rng_fn(cls, rng, alpha, beta, gamma, delta, T, size) -> np.ndarray:
+        size = pm.distributions.shape_utils.to_tuple(size)
+
+        alpha = np.asarray(alpha)
+        beta = np.asarray(beta)
+        gamma = np.asarray(gamma)
+        delta = np.asarray(delta)
+        T = np.asarray(T)
+
+        if size == ():
+            size = np.broadcast_shapes(
+                alpha.shape, beta.shape, gamma.shape, delta.shape, T.shape
+            )
+
+        alpha = np.broadcast_to(alpha, size)
+        beta = np.broadcast_to(beta, size)
+        gamma = np.broadcast_to(gamma, size)
+        delta = np.broadcast_to(delta, size)
+        T = np.broadcast_to(T, size)
+
+        output = np.zeros(shape=size + (2,))
+
+        purchase_prob = rng.beta(a=alpha, b=beta, size=size)
+        churn_prob = rng.beta(a=delta, b=gamma, size=size)
+
+        def sim_data(purchase_prob, churn_prob, T):
+            t = 0
+            n = 0
+            active = True
+
+            while t <= T and active:
+                t += 1
+                active = rng.binomial(1, churn_prob)
+                purchase = rng.binomial(1, purchase_prob)
+                if active and purchase:
+                    n += 1
+
+            return np.array(
+                [
+                    t,
+                    n,
+                ],
+            )
+
+        for index in np.ndindex(*size):
+            output[index] = sim_data(purchase_prob[index], churn_prob[index], T[index])
+
+        return output
+
+    def _supp_shape_from_params(*args, **kwargs):
+        return (2,)
+
+
+beta_geo_beta_binom = BetaGeoBetaBinomRV()
+
+
+# TODO: Edit likelihood expression in docstring
+class BetaGeoBetaBinom(Discrete):
+    r"""
+    Population-level distribution class for a discrete, non-contractual, Beta-Geometric/Beta-Binomial process,
+    based on Fader, et al. in [1]_.
+
+    .. math::
+
+        \begin{align}
+        \text{if }\alpha > \beta: \\
+        \\
+        \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) &=
+        \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\alpha +t_x)^{r+s+x}}
+        [(\frac{s}{r+s+x})_2F_1(r+s+x,s+1;r+s+x+1;\frac{\alpha-\beta}{\alpha+t_x}) \\
+        &+ (\frac{r+x}{r+s+x})
+        \frac{_2F_1(r+s+x,s;r+s+x+1;\frac{\alpha-\beta}{\alpha+T})(\alpha +t_x)^{r+s+x}}
+        {(\alpha +T)^{r+s+x}}] \\
+        \\
+        \text{if }\beta >= \alpha: \\
+        \\
+        \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) &=
+        \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\beta +t_x)^{r+s+x}}
+        [(\frac{s}{r+s+x})_2F_1(r+s+x,r+x;r+s+x+1;\frac{\beta-\alpha}{\beta+t_x}) \\
+        &+ (\frac{r+x}{r+s+x})
+        \frac{_2F_1(r+s+x,r+x+1;r+s+x+1;\frac{\beta-\alpha}{\beta+T})(\beta +t_x)^{r+s+x}}
+        {(\beta +T)^{r+s+x}}]
+        \end{align}
+
+    ========  ===============================================
+    Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
+    Mean      :math:`\mathbb{E}[X(t) | r, \alpha, s, \beta] = \frac{r\beta}{\alpha(s-1)}[1-(\frac{\beta}{\beta + t})^{s-1}]`
+    ========  ===============================================
+
+    References
+    ----------
+    .. [1] Fader, Peter S., Bruce G.S. Hardie, and Jen Shang (2010),
+       "Customer-Base Analysis in a Discrete-Time Noncontractual Setting,"
+       Marketing Science, 29 (6), 1086-1108. https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf
+
+    """
+
+    rv_op = beta_geo_beta_binom
+
+    @classmethod
+    def dist(cls, alpha, beta, gamma, delta, T, **kwargs):
+        return super().dist([alpha, beta, gamma, delta, T], **kwargs)
+
+    def logp(value, alpha, beta, gamma, delta, T):
+        t_x = value[..., 0]
+        x = value[..., 1]
+
+        betaln_ab = betaln(alpha, beta)
+        betaln_gd = betaln(gamma, delta)
+
+        A = (
+            betaln(alpha + x, beta + T - x)
+            - betaln_ab
+            + betaln(gamma, delta + T)
+            - betaln_gd
+        )
+
+        # TODO: The -1 may need to be omitted for the sequences loop
+        t_recent = T - t_x - 1
+
+        # TODO: Resolve this scan loop and logp will be ready
+        def _B_iter(ix):
+            return betaln(alpha + x, beta + t_x - x + ix) + betaln(
+                gamma + 1, delta + t_x + ix
+            )
+
+        iter_result, _ = scan(
+            fn=_B_iter,
+            # outputs_info=pt.zeros(1),
+            sequences=pt.arange(t_recent),
+        )
+
+        scan_sum = iter_result.sum()
+
+        # B_sum = function(inputs=[t_recent], outputs=[scan_sum])
+
+        B = scan_sum - betaln_gd - betaln_ab
+
+        logp = pt.logaddexp(A, B)
+
+        logp = pt.switch(
+            pt.or_(
+                pt.or_(
+                    pt.lt(t_x, 0),
+                    pt.lt(x, 0),
+                ),
+                pt.gt(t_x, T),
+            ),
+            -np.inf,
+            logp,
+        )
+
+        return check_parameters(
+            logp,
+            alpha > 0,
+            beta > 0,
+            gamma > 0,
+            delta > 0,
+            msg="alpha > 0, beta > 0, gamma > 0, delta > 0",
         )

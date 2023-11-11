@@ -5,7 +5,12 @@ from lifetimes import ParetoNBDFitter as PF
 from numpy.testing import assert_almost_equal
 from pymc import Model
 
-from pymc_marketing.clv.distributions import ContContract, ContNonContract, ParetoNBD
+from pymc_marketing.clv.distributions import (
+    BetaGeoBetaBinom,
+    ContContract,
+    ContNonContract,
+    ParetoNBD,
+)
 
 
 class TestContNonContract:
@@ -253,3 +258,116 @@ class TestParetoNBD:
             prior = pm.sample_prior_predictive(samples=100)
 
         assert prior["prior"]["pareto_nbd"][0].shape == (100,) + expected_size
+
+
+class TestBetaGeoBetaBinom:
+    @pytest.mark.parametrize(
+        "value, alpha, beta, gamma, delta, T, logp",
+        [
+            (np.array([1, 1]), 1.204, 0.750, 0.657, 2.783, 6, np.log(0.1014)),
+            (
+                np.array([2, 2]),
+                [1.204, 1.204],
+                0.750,
+                0.657,
+                2.783,
+                6,
+                [np.log(0.0492), np.log(0.0492)],
+            ),
+            (
+                np.array([[0, 0], [5, 1]]),
+                [1.204, 1.204],
+                0.750,
+                0.657,
+                [2.783, 2.783],
+                6,
+                [np.log(0.3111), np.log(0.0085)],
+            ),
+            (
+                np.array([[6, 5], [3, 2], [5, 5]]),
+                1.204,
+                0.750,
+                0.657,
+                2.783,
+                6,
+                [np.log(0.0136) + np.log(0.0109) + np.log(0.0243)],
+            ),
+            (
+                np.array([6, 6]),
+                1.204,
+                0.750,
+                0.657,
+                np.full((5, 3), 2.783),
+                6,
+                np.full((5, 3), np.log(0.1129)),
+            ),
+        ],
+    )
+    def test_beta_geo_beta_binom(self, value, alpha, beta, gamma, delta, T, logp):
+        # comparisons to lifetimes loglike difficult due to differences in array broadcasting.
+        # Expected logp values can be found in http://brucehardie.com/notes/010/
+        with Model():
+            beta_geo_beta_binom = BetaGeoBetaBinom(
+                "beta_geo_beta_binom",
+                alpha=alpha,
+                beta=beta,
+                gamma=gamma,
+                delta=delta,
+                T=T,
+            )
+        pt = {"beta_geo_beta_binom": value}
+
+        assert_almost_equal(
+            pm.logp(beta_geo_beta_binom, value).eval(),
+            logp,
+            decimal=6,
+            err_msg=str(pt),
+        )
+
+    def test_beta_geo_beta_binom_invalid(self):
+        beta_geo_beta_binom = BetaGeoBetaBinom.dist(
+            alpha=1.20, beta=0.75, gamma=0.66, delta=2.78, T=6
+        )
+        assert pm.logp(beta_geo_beta_binom, np.array([3, -1])).eval() == -np.inf
+        assert pm.logp(beta_geo_beta_binom, np.array([-1, 1.5])).eval() == -np.inf
+        assert pm.logp(beta_geo_beta_binom, np.array([11, 1.5])).eval() == -np.inf
+
+    @pytest.mark.parametrize(
+        "alpha_size, beta_size, gamma_size, delta_size, beta_geo_beta_binom_size, expected_size",
+        [
+            (None, None, None, None, None, (2,)),
+            ((5,), None, None, None, None, (5, 2)),
+            (None, (5,), None, None, (5,), (5, 2)),
+            (None, None, (5, 1), (1, 3), (5, 3), (5, 3, 2)),
+            (None, None, None, None, (5, 3), (5, 3, 2)),
+        ],
+    )
+    def test_beta_geo_beta_binom_sample_prior(
+        self,
+        alpha_size,
+        beta_size,
+        gamma_size,
+        delta_size,
+        beta_geo_beta_binom_size,
+        expected_size,
+    ):
+        with Model():
+            alpha = pm.Gamma(name="alpha", alpha=5, beta=1, size=alpha_size)
+            beta = pm.Gamma(name="beta", alpha=5, beta=1, size=beta_size)
+            gamma = pm.Gamma(name="gamma", alpha=5, beta=1, size=gamma_size)
+            delta = pm.Gamma(name="delta", alpha=5, beta=1, size=delta_size)
+
+            T = pm.MutableData(name="T", value=np.array(10))
+
+            BetaGeoBetaBinom(
+                name="beta_geo_beta_binom",
+                alpha=alpha,
+                beta=beta,
+                gamma=gamma,
+                delta=delta,
+                T=T,
+                size=beta_geo_beta_binom_size,
+            )
+            prior = pm.sample_prior_predictive(samples=100)
+
+        assert prior["prior"]["beta_geo_beta_binom"][0].shape == (100,) + expected_size
