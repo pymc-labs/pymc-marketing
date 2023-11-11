@@ -471,7 +471,7 @@ class TestBetaGeoModel:
 
         N = 1000
         p = pm.Beta.dist(self.a_true, self.b_true, size=N)
-        lam = pm.Gamma.dist(self.r_true, self.alpha_true, size=N)
+        lam = pm.Gamma.dist(self.r_true, 1 / self.alpha_true, size=N)
 
         rtol = 0.05
         np.testing.assert_allclose(
