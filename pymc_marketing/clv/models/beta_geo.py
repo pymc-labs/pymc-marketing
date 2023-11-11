@@ -372,7 +372,9 @@ class BetaGeoModel(CLVModel):
                 shape_kwargs = {}
 
             pm.Beta("population_dropout", alpha=a, beta=b, **shape_kwargs)
-            pm.Gamma("population_purchase_rate", alpha=r, beta=alpha, **shape_kwargs)
+            pm.Gamma(
+                "population_purchase_rate", alpha=r, beta=1 / alpha, **shape_kwargs
+            )
 
             return pm.sample_posterior_predictive(
                 self.fit_result,
