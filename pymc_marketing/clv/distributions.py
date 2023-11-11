@@ -4,7 +4,6 @@ import pytensor.tensor as pt
 from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.distribution import Discrete
 from pymc.distributions.dist_math import betaln, check_parameters
-from pytensor import scan
 from pytensor.tensor.random.op import RandomVariable
 
 __all__ = ["ContContract", "ContNonContract", "ParetoNBD", "BetaGeoBetaBinom"]
@@ -601,20 +600,24 @@ class BetaGeoBetaBinom(Discrete):
         t_recent = T - t_x - 1
 
         # TODO: Resolve this scan loop and logp will be ready
-        def _B_iter(ix):
-            return betaln(alpha + x, beta + t_x - x + ix) + betaln(
-                gamma + 1, delta + t_x + ix
-            )
-
-        iter_result, _ = scan(
-            fn=_B_iter,
-            # outputs_info=pt.zeros(1),
-            sequences=pt.arange(t_recent),
+        n_dims_expr = max(
+            [
+                alpha.ndim,
+                beta.ndim,
+                x.ndim,
+                t_x.ndim,
+                gamma.ndim,
+                delta.ndim,
+                t_recent.ndim,
+            ]
+        )
+        extra_dims_needed = (n_dims_expr - t_recent.ndim) + 1
+        ixs = pt.shape_padright(pt.arange(t_recent), extra_dims_needed)
+        iter_result = betaln(alpha + x, beta + t_x - x + ixs) + betaln(
+            gamma + 1, delta + t_x + ixs
         )
 
         scan_sum = iter_result.sum()
-
-        # B_sum = function(inputs=[t_recent], outputs=[scan_sum])
 
         B = scan_sum - betaln_gd - betaln_ab
 
