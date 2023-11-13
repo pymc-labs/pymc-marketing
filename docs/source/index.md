@@ -64,7 +64,7 @@ To the reference guide
 
 **[Try MMM-GPT Now](https://mmm-gpt.com/)**
 
-#### About MMM-GPT
+### About MMM-GPT
 Integrating PyMC-marketing for Bayesian analytics in marketing, MMM-GPT offers expert advice and strategic pathways for revolutionary marketing efforts and insights.
 
 ## Installation
