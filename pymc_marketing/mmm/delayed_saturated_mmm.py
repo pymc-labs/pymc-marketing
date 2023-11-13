@@ -356,14 +356,13 @@ class BaseDelayedSaturatedMMM(MMM):
     def gp_wrapper(self, name, X, config, positive=False, **kwargs):
         return self.gp_coeff(X, name, config=config, positive=positive, **kwargs)
 
-
     def gp_coeff(self, X, name, mean=0.0, positive=False, config=None):
-        params = pm.find_constrained_prior(pm.InverseGamma, 0.5, 2, init_guess={"alpha": 2, "beta": 1}, mass=0.95)
+        params = pm.find_constrained_prior(pm.InverseGamma, 8, 12, init_guess={"alpha": 1, "beta": 1}, mass=0.90)
         ell = pm.InverseGamma(f"ell_{name}", **params)
         eta = pm.Exponential(f"_eta_{name}", lam=1 / 0.5)
         cov = eta ** 2 * pm.gp.cov.ExpQuad(1, ls=ell)
     
-        gp = pm.gp.HSGP(m=[20], c=1.3, cov_func=cov)
+        gp = pm.gp.HSGP(m=[40], c=2, cov_func=cov)
         f_raw = gp.prior(f"{name}_tvp_raw", X=X)
     
 
