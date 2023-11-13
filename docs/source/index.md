@@ -60,6 +60,13 @@ To the reference guide
 ::::
 :::::
 
+## Marketing AI Assistant: MMM-GPT with PyMC-Marketing
+
+**[Try MMM-GPT Now](https://mmm-gpt.com/)**
+
+#### About MMM-GPT
+Integrating PyMC-marketing for Bayesian analytics in marketing, MMM-GPT offers expert advice and strategic pathways for revolutionary marketing efforts and insights.
+
 ## Installation
 
 Install and activate an environment (e.g. `marketing_env`) with the `pymc-marketing` package from [conda-forge](https://conda-forge.org). It may look something like the following:
