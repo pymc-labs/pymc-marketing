@@ -585,13 +585,20 @@ class BetaGeoBetaBinom(Discrete):
         return super().dist([alpha, beta, gamma, delta, T], **kwargs)
 
     def logp(value, alpha, beta, gamma, delta, T):
-        if value.ndim > 2:
-            raise NotImplementedError(
-                "BetaGeoBetaBinom logp only implemented for vector value"
-            )
-
         t_x = pt.atleast_1d(value[..., 0])
         x = pt.atleast_1d(value[..., 1])
+        scalar_case = t_x.type.broadcastable == (True,)
+
+        for param in (t_x, x, alpha, beta, gamma, delta, T):
+            if param.type.ndim > 1:
+                raise NotImplementedError(
+                    f"BetaGeoBetaBinom logp only implemented for vector parameters, got ndim={param.type.ndim}"
+                )
+            if scalar_case:
+                if param.type.broadcastable == (False,):
+                    raise NotImplementedError(
+                        f"Parameter {param} cannot be larger than scalar value"
+                    )
 
         # Broadcast all the parameters so they are sequences.
         # This is potentially inefficient, but otherwise we need some ugly logic to unpack argumens in the scan function,
