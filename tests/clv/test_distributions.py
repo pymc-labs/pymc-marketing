@@ -286,7 +286,6 @@ class TestBetaGeoBetaBinom:
         value = np.concatenate([t_x[..., None], x[..., None]], axis=-1)
 
         dist = BetaGeoBetaBinom.dist(alpha, beta, gamma, delta, T)
-        print(pm.logp(dist, value).eval())
         np.testing.assert_allclose(
             pm.logp(dist, value).eval(),
             BGBBF._loglikelihood((alpha, beta, gamma, delta), x, t_x, T),
