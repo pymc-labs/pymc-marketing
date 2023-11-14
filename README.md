@@ -75,6 +75,16 @@ PyMC-Marketing is and will always be free for commercial use, licensed under [Ap
 
 Due to its open source nature and active contributor base, new features get added constantly. Missing a feature or want to contribute? Fork our repository and submit a pull request. For any questions, feel free to [open an issue](https://github.com/your-repo/issues).
 
+## Marketing AI Assistant: MMM-GPT with PyMC-Marketing
+
+**[Try MMM-GPT Now](https://mmm-gpt.com/)**
+
+### About MMM-GPT
+
+Integrating PyMC-marketing for Bayesian analytics in marketing, MMM-GPT offers expert advice and strategic pathways for revolutionary marketing efforts and insights.
+
+
+
 ## 📞 Schedule a Free Consultation for MMM & CLV Strategy
 
 Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts. Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions.
