@@ -1,10 +1,13 @@
 import numpy as np
 import pymc as pm
+import pytensor
 import pytest
 from lifetimes import ParetoNBDFitter as PF
+from lifetimes import BetaGeoBetaBinomFitter as BGBBF
 from numpy.testing import assert_almost_equal
 from pymc import Model
 
+import pytensor.tensor as pt
 from pymc_marketing.clv.distributions import (
     BetaGeoBetaBinom,
     ContContract,
@@ -261,76 +264,100 @@ class TestParetoNBD:
 
 
 class TestBetaGeoBetaBinom:
-    @pytest.mark.parametrize(
-        "value, alpha, beta, gamma, delta, T, logp",
-        [
-            (np.array([1, 1]), 1.204, 0.750, 0.657, 2.783, 6, np.log(0.1014)),
-            (
-                np.array([2, 2]),
-                [1.204, 1.204],
-                0.750,
-                0.657,
-                2.783,
-                6,
-                [np.log(0.0492), np.log(0.0492)],
-            ),
-            (
-                np.array([[0, 0], [5, 1]]),
-                [1.204, 1.204],
-                0.750,
-                0.657,
-                [2.783, 2.783],
-                6,
-                [np.log(0.3111), np.log(0.0085)],
-            ),
-            (
-                np.array([[6, 5], [3, 2], [5, 5]]),
-                1.204,
-                0.750,
-                0.657,
-                2.783,
-                6,
-                [np.log(0.0136) + np.log(0.0109) + np.log(0.0243)],
-            ),
-            (
-                np.array([6, 6]),
-                1.204,
-                0.750,
-                0.657,
-                np.full((5, 3), 2.783),
-                6,
-                np.full((5, 3), np.log(0.1129)),
-            ),
-        ],
-    )
-    def test_beta_geo_beta_binom(self, value, alpha, beta, gamma, delta, T, logp):
-        # comparisons to lifetimes loglike difficult due to differences in array broadcasting.
-        # Expected logp values can be found in http://brucehardie.com/notes/010/
-        with Model():
-            beta_geo_beta_binom = BetaGeoBetaBinom(
-                "beta_geo_beta_binom",
-                alpha=alpha,
-                beta=beta,
-                gamma=gamma,
-                delta=delta,
-                T=T,
-            )
-        pt = {"beta_geo_beta_binom": value}
+    @pytest.mark.parametrize("batch_shape", [(), (5,)])
+    def test_logp_matches_lifetimes(self, batch_shape):
+        rng = np.random.default_rng(269)
 
-        assert_almost_equal(
-            pm.logp(beta_geo_beta_binom, value).eval(),
-            logp,
-            decimal=6,
-            err_msg=str(pt),
+        alpha = pm.draw(
+            pm.Gamma.dist(mu=1.2, sigma=3, shape=batch_shape), random_seed=rng
+        )
+        beta = pm.draw(
+            pm.Gamma.dist(mu=0.75, sigma=3, shape=batch_shape), random_seed=rng
+        )
+        gamma = pm.draw(
+            pm.Gamma.dist(mu=0.657, sigma=3, shape=(1,) * len(batch_shape)),
+            random_seed=rng,
+        )
+        delta = pm.draw(pm.Gamma.dist(mu=2.783, sigma=3), random_seed=rng)
+        T = pm.draw(pm.DiscreteUniform.dist(1, 10, shape=batch_shape), random_seed=rng)
+
+        t_x = pm.draw(pm.DiscreteUniform.dist(0, T, shape=batch_shape), random_seed=rng)
+        x = pm.draw(pm.DiscreteUniform.dist(0, t_x, shape=batch_shape), random_seed=rng)
+        value = np.concatenate([t_x[..., None], x[..., None]], axis=-1)
+
+        dist = BetaGeoBetaBinom.dist(alpha, beta, gamma, delta, T)
+        print(pm.logp(dist, value).eval())
+        np.testing.assert_allclose(
+            pm.logp(dist, value).eval(),
+            BGBBF._loglikelihood((alpha, beta, gamma, delta), x, t_x, T),
         )
 
-    def test_beta_geo_beta_binom_invalid(self):
+    def test_logp_matches_excel(self):
+        # Expected logp values can be found in excel file in http://brucehardie.com/notes/010/
+        # Spreadsheet: Parameter estimate
+
+        alpha = 1.204
+        beta = 0.750
+        gamma = 0.657
+        delta = 2.783
+        T = 6
+
+        x = np.array([6, 5, 4, 3, 2, 1, 5, 4, 3, 2, 1, 4, 3, 2, 1, 3, 2, 1, 2, 1, 1, 0])
+        t_x = np.array(
+            [6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 4, 4, 4, 4, 3, 3, 3, 2, 2, 1, 0]
+        )
+        expected_logp = np.array(
+            [
+                -2.18167018824,
+                -4.29485034929,
+                -5.38473334360,
+                -5.80915881601,
+                -5.65172964525,
+                -4.88370164695,
+                -3.71682127437,
+                -5.09558227343,
+                -5.61576884108,
+                -5.50636893346,
+                -4.76723821904,
+                -3.84829625138,
+                -5.05936147828,
+                -5.19562191019,
+                -4.57070931973,
+                -3.52745257839,
+                -4.51620272962,
+                -4.22465969453,
+                -3.01199924784,
+                -3.58817880928,
+                -2.28882847451,
+                -1.16751622367,
+            ]
+        )
+
+        value = np.concatenate([t_x[:, None], x[:, None]], axis=-1)
+        dist = BetaGeoBetaBinom.dist(
+            alpha=alpha,
+            beta=beta,
+            gamma=gamma,
+            delta=delta,
+            T=T,
+        )
+        np.testing.assert_allclose(
+            pm.logp(dist, value).eval(),
+            expected_logp,
+            rtol=1e-3,
+        )
+
+    def test_invalid_value_logp(self):
         beta_geo_beta_binom = BetaGeoBetaBinom.dist(
             alpha=1.20, beta=0.75, gamma=0.66, delta=2.78, T=6
         )
-        assert pm.logp(beta_geo_beta_binom, np.array([3, -1])).eval() == -np.inf
-        assert pm.logp(beta_geo_beta_binom, np.array([-1, 1.5])).eval() == -np.inf
-        assert pm.logp(beta_geo_beta_binom, np.array([11, 1.5])).eval() == -np.inf
+        value = pt.vector("value", shape=(2,))
+        logp = pm.logp(beta_geo_beta_binom, value)
+
+        logp_fn = pytensor.function([value], logp)
+        assert logp_fn(np.array([3, -1])) == -np.inf
+        assert logp_fn(np.array([-1, 1.5])) == -np.inf
+        assert logp_fn(np.array([11, 1.5])) == -np.inf
 
     @pytest.mark.parametrize(
         "alpha_size, beta_size, gamma_size, delta_size, beta_geo_beta_binom_size, expected_size",
@@ -368,6 +395,6 @@ class TestBetaGeoBetaBinom:
                 T=T,
                 size=beta_geo_beta_binom_size,
             )
-            prior = pm.sample_prior_predictive(samples=100)
+            prior = pm.sample_prior_predictive(samples=10)
 
-        assert prior["prior"]["beta_geo_beta_binom"][0].shape == (100,) + expected_size
+        assert prior["prior"]["beta_geo_beta_binom"][0].shape == (10,) + expected_size

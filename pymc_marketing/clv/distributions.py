@@ -4,6 +4,8 @@ import pytensor.tensor as pt
 from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.distribution import Discrete
 from pymc.distributions.dist_math import betaln, check_parameters
+from pytensor import scan
+from pytensor.graph import vectorize
 from pytensor.tensor.random.op import RandomVariable
 
 __all__ = ["ContContract", "ContNonContract", "ParetoNBD", "BetaGeoBetaBinom"]
@@ -583,45 +585,67 @@ class BetaGeoBetaBinom(Discrete):
         return super().dist([alpha, beta, gamma, delta, T], **kwargs)
 
     def logp(value, alpha, beta, gamma, delta, T):
-        t_x = value[..., 0]
-        x = value[..., 1]
+        if value.ndim > 2:
+            raise NotImplementedError(
+                "BetaGeoBetaBinom logp only implemented for vector value"
+            )
 
-        betaln_ab = betaln(alpha, beta)
-        betaln_gd = betaln(gamma, delta)
+        t_x = pt.atleast_1d(value[..., 0])
+        x = pt.atleast_1d(value[..., 1])
 
-        A = (
-            betaln(alpha + x, beta + T - x)
-            - betaln_ab
-            + betaln(gamma, delta + T)
-            - betaln_gd
+        # Broadcast all the parameters so they are sequences.
+        # This is potentially inefficient, but otherwise we need some ugly logic to unpack argumens in the scan function,
+        # since sequences always precede non-sequences.
+        _, alpha, beta, gamma, delta, T = pt.broadcast_arrays(
+            t_x, alpha, beta, gamma, delta, T
         )
 
-        # TODO: The -1 may need to be omitted for the sequences loop
-        t_recent = T - t_x - 1
+        def logp_customer_died(t_x_i, x_i, alpha_i, beta_i, gamma_i, delta_i, T_i):
+            i = pt.scalar("i", dtype=int)
+            died = pt.lt(t_x_i + i, T_i)
 
-        # TODO: Resolve this scan loop and logp will be ready
-        n_dims_expr = max(
-            [
-                alpha.ndim,
-                beta.ndim,
-                x.ndim,
-                t_x.ndim,
-                gamma.ndim,
-                delta.ndim,
-                t_recent.ndim,
-            ]
+            unnorm_logprob_customer_died_at_tx_plus_i = betaln(
+                alpha_i + x_i, beta_i + t_x_i - x_i + i
+            ) + betaln(gamma_i + died, delta_i + t_x_i + i)
+
+            # Maximum prevents invalid T - t_x values from crashing logp
+            i_vec = pt.arange(pt.maximum(T_i - t_x_i, 0) + 1)
+            unnorm_logprob_customer_died_at_tx_plus_i_vec = vectorize(
+                unnorm_logprob_customer_died_at_tx_plus_i, replace={i: i_vec}
+            )
+
+            return pt.logsumexp(unnorm_logprob_customer_died_at_tx_plus_i_vec)
+
+        unnorm_logp, _ = scan(
+            fn=logp_customer_died,
+            outputs_info=[None],
+            sequences=[t_x, x, alpha, beta, gamma, delta, T],
         )
-        extra_dims_needed = (n_dims_expr - t_recent.ndim) + 1
-        ixs = pt.shape_padright(pt.arange(t_recent), extra_dims_needed)
-        iter_result = betaln(alpha + x, beta + t_x - x + ixs) + betaln(
-            gamma + 1, delta + t_x + ixs
-        )
 
-        scan_sum = iter_result.sum()
+        # TODO: Vectorize without scan?
+        # i = pt.scalar("i", dtype=int)
+        # died = pt.lt(t_x + i, T)
+        #
+        # unnorm_logp_died_at_tx_plus_i = pt.where(
+        #     pt.ge(t_x, i),
+        #     (
+        #         betaln(alpha + x, beta + t_x - x + i)
+        #         + betaln(gamma + died, delta + t_x + i)
+        #     ),
+        #     -np.inf
+        # )
 
-        B = scan_sum - betaln_gd - betaln_ab
+        # Maximum prevents invalid T - t_x values from crashing logp
+        # max_range = pt.maximum(pt.max(T - t_x), 0)
+        # i_vec = pt.arange(max_range + 1)
+        # unnorm_logp_died_at_tx_plus_i_vec = vectorize(
+        #     unnorm_logp_died_at_tx_plus_i,
+        #     replace={i: i_vec},
+        # )
 
-        logp = pt.logaddexp(A, B)
+        # unnorm_logp = pt.logsumexp(unnorm_logp_died_at_tx_plus_i_vec, axis=0)
+
+        logp = unnorm_logp - betaln(alpha, beta) - betaln(gamma, delta)
 
         logp = pt.switch(
             pt.or_(
@@ -634,6 +658,9 @@ class BetaGeoBetaBinom(Discrete):
             -np.inf,
             logp,
         )
+
+        if value.ndim == 1:
+            logp = pt.specify_shape(logp, 1).squeeze(0)
 
         return check_parameters(
             logp,
