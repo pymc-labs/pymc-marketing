@@ -77,11 +77,9 @@ Due to its open source nature and active contributor base, new features get adde
 
 ## Marketing AI Assistant: MMM-GPT with PyMC-Marketing
 
-**[Try MMM-GPT Now](https://mmm-gpt.com/)**
+Not sure how to start or have questions? MMM-GPT is an AI that answers questions and provides expert advice on marketing analytics using PyMC-Marketing.
 
-### About MMM-GPT
-
-Integrating PyMC-marketing for Bayesian analytics in marketing, MMM-GPT offers expert advice and strategic pathways for revolutionary marketing efforts and insights.
+**[Try MMM-GPT here.](https://mmm-gpt.com/)**
 
 
 
