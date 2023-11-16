@@ -459,7 +459,7 @@ class BaseMMM(ModelBuilder):
         fig, ax = plt.subplots(**plt_kwargs)
         sns.violinplot(data=param_samples_df, orient="h", ax=ax)
         ax.set(
-            title=f"Posterior Predictive {param_name} Parameter",
+            title=f"Posterior Distribution: {param_name} Parameter",
             xlabel=param_name,
             ylabel="channel",
         )
