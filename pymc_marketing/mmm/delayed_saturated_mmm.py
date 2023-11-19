@@ -9,6 +9,7 @@ import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import seaborn as sns
+from pytensor.tensor.variable import TensorVariable
 from xarray import DataArray
 
 from pymc_marketing.mmm.base import MMM
@@ -344,9 +345,9 @@ class BaseDelayedSaturatedMMM(MMM):
             n_order=self.yearly_seasonality,
         )
 
-    def channel_contributions_forward_pass(
+    def channel_contributions_forward_pass_untransformed(
         self, channel_data: npt.NDArray[np.float_]
-    ) -> npt.NDArray[np.float_]:
+    ) -> TensorVariable:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
         Parameters
         ----------
@@ -383,7 +384,7 @@ class BaseDelayedSaturatedMMM(MMM):
         channel_contribution_forward_pass = (
             beta_channel_posterior_expanded * logistic_saturation_posterior
         )
-        return channel_contribution_forward_pass.eval()
+        return channel_contribution_forward_pass
 
     @property
     def _serializable_model_config(self) -> Dict[str, Any]:
@@ -556,15 +557,17 @@ class DelayedSaturatedMMM(
         array-like
             Transformed channel data.
         """
-        channel_contribution_forward_pass = super().channel_contributions_forward_pass(
-            channel_data=channel_data
+        channel_contribution_forward_pass = (
+            super().channel_contributions_forward_pass_untransformed(
+                channel_data=channel_data
+            )
         )
         target_transformed_vectorized = np.vectorize(
             self.target_transformer.inverse_transform,
             excluded=[1, 2],
             signature="(m, n) -> (m, n)",
         )
-        return target_transformed_vectorized(channel_contribution_forward_pass)
+        return target_transformed_vectorized(channel_contribution_forward_pass.eval())
 
     def get_channel_contributions_forward_pass_grid(
         self, start: float, stop: float, num: int
@@ -596,7 +599,7 @@ class DelayedSaturatedMMM(
             channel_contribution_forward_pass = self.channel_contributions_forward_pass(
                 channel_data=channel_data
             )
-            channel_contributions.append(channel_contribution_forward_pass)
+            channel_contributions.append(channel_contribution_forward_pass.eval())
         return DataArray(
             data=np.array(channel_contributions),
             dims=("delta", "chain", "draw", "date", "channel"),
