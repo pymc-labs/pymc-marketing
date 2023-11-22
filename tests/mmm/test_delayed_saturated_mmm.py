@@ -8,7 +8,6 @@ import pymc as pm
 import pytest
 from matplotlib import pyplot as plt
 
-import pytensor
 
 from pymc_marketing.mmm.delayed_saturated_mmm import (
     BaseDelayedSaturatedMMM,
