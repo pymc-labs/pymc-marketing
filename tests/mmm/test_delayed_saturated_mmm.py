@@ -8,6 +8,8 @@ import pymc as pm
 import pytest
 from matplotlib import pyplot as plt
 
+import pytensor
+
 from pymc_marketing.mmm.delayed_saturated_mmm import (
     BaseDelayedSaturatedMMM,
     DelayedSaturatedMMM,
@@ -515,35 +517,10 @@ class TestDelayedSaturatedMMM:
         os.remove("test_model")
 
 
-@pytest.mark.parametrize(
-    "dist, mu, observed, dims, expected_exception",
-    [
-        # This is a placeholder for the actual parameters you want to test with
-        # For example, a test case with an expected exception could be like:
-        (
-            {"dist": "NonExistentDistribution"},
-            np.array([0]),
-            np.array([10, 11, 9]),
-            "obs_dim",
-            ValueError,
-        ),
-        # Add more test cases as needed
-    ],
-)
-def test_create_likelihood_distribution(
-    mmm, dist, mu, observed, dims, expected_exception
-):
-    if expected_exception:
-        with pytest.raises(expected_exception):
-            mmm._create_likelihood_distribution(dist, mu, observed, dims)
-    else:
-        mmm._create_likelihood_distribution(dist, mu, observed, dims)
-
-
 # Test cases for _get_distribution
 def test_get_valid_distribution(mmm):
     normal_dist = mmm._get_distribution({"dist": "Normal"})
-    assert callable(normal_dist), "The method should return a callable distribution."
+    assert normal_dist is pm.Normal
 
 
 def test_get_invalid_distribution(mmm):
@@ -557,27 +534,22 @@ def test_get_invalid_distribution(mmm):
 def test_create_likelihood_invalid_kwargs_structure(mmm):
     with pytest.raises(ValueError) as excinfo:
         mmm._create_likelihood_distribution(
-            dist={"dist": "Normal", "kwargs": {"sigma": "not a dictionary"}},
+            dist={"dist": "Normal", "kwargs": {"sigma": "not a dictionary or numeric"}},
             mu=np.array([0]),
             observed=np.random.randn(100),
             dims="obs_dim",
         )
-    assert "must be a dictionary containing 'dist' and 'kwargs' keys" in str(
+    assert "either a dictionary with a 'dist' key or a numeric value" in str(
         excinfo.value
     )
 
 
-def test_create_likelihood_mu_in_nested_kwargs(mmm):
+def test_create_likelihood_mu_in_top_level_kwargs(mmm):
     with pytest.raises(ValueError) as excinfo:
         mmm._create_likelihood_distribution(
-            dist={
-                "dist": "Normal",
-                "kwargs": {
-                    "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 1, "mu": 0}}
-                },
-            },
+            dist={"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
             mu=np.array([0]),
             observed=np.random.randn(100),
             dims="obs_dim",
         )
-    assert "The 'mu' key is not allowed within 'kwargs'" in str(excinfo.value)
+    assert "The 'mu' key is not allowed directly within 'kwargs'" in str(excinfo.value)

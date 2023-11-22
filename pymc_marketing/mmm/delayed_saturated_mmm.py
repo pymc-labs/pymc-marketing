@@ -144,34 +144,6 @@ class BaseDelayedSaturatedMMM(MMM):
         idata.attrs["validate_data"] = json.dumps(self.validate_data)
         idata.attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
 
-    def _get_distribution(self, dist: Dict) -> Callable:
-        """
-        Retrieve a PyMC distribution callable based on the provided dictionary.
-
-        Parameters
-        ----------
-        dist : Dict
-            A dictionary containing the key 'dist' which should correspond to the
-            name of a PyMC distribution.
-
-        Returns
-        -------
-        Callable
-            A PyMC distribution callable that can be used to instantiate a random
-            variable.
-
-        Raises
-        ------
-        ValueError
-            If the specified distribution name in the dictionary does not correspond
-            to any distribution in PyMC.
-        """
-        try:
-            prior_distribution = getattr(pm, dist["dist"])
-        except AttributeError:
-            raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
-        return prior_distribution
-
     def _create_likelihood_distribution(
         self,
         dist: Dict,
@@ -214,33 +186,35 @@ class BaseDelayedSaturatedMMM(MMM):
                 "The 'kwargs' key must be present in the 'dist' dictionary and be a dictionary itself."
             )
 
-        # Validate that each value in 'kwargs' is a dictionary with the required keys
+        if "mu" in dist["kwargs"]:
+            raise ValueError(
+                "The 'mu' key is not allowed directly within 'kwargs' of the main distribution as it is reserved."
+            )
+
+        parameter_distributions = {}
         for param, param_config in dist["kwargs"].items():
-            if (
-                not isinstance(param_config, dict)
-                or "dist" not in param_config
-                or "kwargs" not in param_config
-            ):
+            # Check if param_config is a dictionary with a 'dist' key
+            if isinstance(param_config, dict) and "dist" in param_config:
+                # Prepare nested distribution
+                if "kwargs" not in param_config:
+                    raise ValueError(
+                        f"The parameter configuration for '{param}' must contain 'kwargs'."
+                    )
+
+                parameter_distributions[param] = self._get_distribution(
+                    dist=param_config
+                )(**param_config["kwargs"], name=f"likelihood_{param}")
+            elif isinstance(param_config, (int, float)):
+                # Use the value directly
+                parameter_distributions[param] = param_config
+            else:
                 raise ValueError(
-                    f"The parameter configuration for '{param}' must be a dictionary containing 'dist' and 'kwargs' keys."
+                    f"Invalid parameter configuration for '{param}'. It must be either a dictionary with a 'dist' key or a numeric value."
                 )
 
-            if "mu" in param_config["kwargs"]:
-                raise ValueError(
-                    f"The 'mu' key is not allowed within 'kwargs' of parameter '{param}' as it is reserved."
-                )
-
-        # Extract the likelihood distribution name and instantiate it without passing it as a positional argument
+        # Extract the likelihood distribution name and instantiate it
         likelihood_dist_name = dist["dist"]
         likelihood_dist = self._get_distribution(dist={"dist": likelihood_dist_name})
-
-        # Prepare parameter distributions directly from 'kwargs'
-        parameter_distributions = {
-            param: self._get_distribution(dist=param_config)(
-                **param_config["kwargs"], name=f"likelihood_{param}"
-            )
-            for param, param_config in dist["kwargs"].items()
-        }
 
         return likelihood_dist(
             name="likelihood",
