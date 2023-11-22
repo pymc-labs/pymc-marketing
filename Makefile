@@ -5,14 +5,12 @@ init:
 
 lint:
 	pip install .[lint]
-	isort .
-	black .
+	ruff . --fix
+	mypy .
 
 check_lint:
 	pip install .[lint]
-	flake8 .
-	isort --check-only .
-	black --diff --check --fast .
+	ruff .
 	mypy .
 
 test:
