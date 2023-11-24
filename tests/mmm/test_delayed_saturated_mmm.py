@@ -506,3 +506,29 @@ class TestDelayedSaturatedMMM:
         ):
             DelayedSaturatedMMM.load("test_model")
         os.remove("test_model")
+
+    def test_new_data_predictions(self, mmm_fitted: DelayedSaturatedMMM):
+        new_dates = pd.date_range(start="2021-11-01", end="2022-03-01", freq="W-MON")
+
+        n = new_dates.size
+        new_X = pd.DataFrame(
+            {
+                "date": new_dates,
+                "channel_1": rng.integers(low=0, high=400, size=n),
+                "channel_2": rng.integers(low=0, high=50, size=n),
+                "control_1": rng.gamma(shape=1000, scale=500, size=n),
+                "control_2": rng.gamma(shape=100, scale=5, size=n),
+                "other_column_1": rng.integers(low=0, high=100, size=n),
+                "other_column_2": rng.normal(loc=0, scale=1, size=n),
+            }
+        )
+
+        with pytest.raises(
+            TypeError,
+            match=r"The DType <class 'numpy.dtype\[datetime64\]'> could not be promoted by",
+        ):
+            mmm_fitted.predict_posterior(X_pred=new_X)
+
+        mmm_fitted.sample_posterior_predictive(
+            X_pred=new_X, extend_idata=True, combined=True
+        )
