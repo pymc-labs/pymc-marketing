@@ -539,7 +539,8 @@ class BaseDelayedSaturatedMMM(MMM):
             else:
                 raise TypeError("y must be either a pandas Series or a numpy array")
         else:
-            data["target"] = np.zeros(X.shape[0])
+            dtype = self.preprocessed_data["y"].dtype  # type: ignore
+            data["target"] = np.zeros(X.shape[0], dtype=dtype)  # type: ignore
 
         with self.model:
             pm.set_data(data, coords=coords)
