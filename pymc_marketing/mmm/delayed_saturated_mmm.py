@@ -495,15 +495,10 @@ class BaseDelayedSaturatedMMM(MMM):
         new_channel_data: Optional[np.ndarray] = None
         coords = {"date": X[self.date_column].to_numpy()}
 
-        if isinstance(X, pd.DataFrame):
-            try:
-                new_channel_data = X[self.channel_columns].to_numpy()
-            except KeyError as e:
-                raise RuntimeError("New data must contain channel_data!", e)
-        elif isinstance(X, np.ndarray):
-            new_channel_data = X
-        else:
-            raise TypeError("X must be either a pandas DataFrame or a numpy array")
+        try:
+            new_channel_data = X[self.channel_columns].to_numpy()
+        except KeyError as e:
+            raise RuntimeError("New data must contain channel_data!", e)
 
         def identity(x):
             return x
