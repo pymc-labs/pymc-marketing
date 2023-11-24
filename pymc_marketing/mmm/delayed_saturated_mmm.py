@@ -99,8 +99,10 @@ class BaseDelayedSaturatedMMM(MMM):
         """
         date_data = X[self.date_column]
         channel_data = X[self.channel_columns]
-        coords: Dict[str, Any] = {
+        self.coords_mutable: Dict[str, Any] = {
             "date": date_data,
+        }
+        coords: Dict[str, Any] = {
             "channel": self.channel_columns,
         }
 
@@ -174,7 +176,9 @@ class BaseDelayedSaturatedMMM(MMM):
         """
         model_config = self.model_config
         self._generate_and_preprocess_model_data(X, y)
-        with pm.Model(coords=self.model_coords) as self.model:
+        with pm.Model(
+            coords=self.model_coords, coords_mutable=self.coords_mutable
+        ) as self.model:
             channel_data_ = pm.MutableData(
                 name="channel_data",
                 value=self.preprocessed_data["X"][self.channel_columns].to_numpy(),
@@ -484,7 +488,12 @@ class BaseDelayedSaturatedMMM(MMM):
         -------
         None
         """
+        if not isinstance(X, pd.DataFrame):
+            raise TypeError(
+                "X must be a pandas DataFrame in order to access the columns"
+            )
         new_channel_data: Optional[np.ndarray] = None
+        coords = {"date": X[self.date_column].to_numpy()}
 
         if isinstance(X, pd.DataFrame):
             try:
@@ -496,7 +505,29 @@ class BaseDelayedSaturatedMMM(MMM):
         else:
             raise TypeError("X must be either a pandas DataFrame or a numpy array")
 
-        data: Dict[str, Union[np.ndarray, Any]] = {"channel_data": new_channel_data}
+        def identity(x):
+            return x
+
+        channel_transformation = (
+            identity
+            if not hasattr(self, "channel_transformer")
+            else self.channel_transformer.transform
+        )
+        data: Dict[str, Union[np.ndarray, Any]] = {
+            "channel_data": channel_transformation(new_channel_data)
+        }
+
+        if hasattr(self, "control_columns"):
+            control_data = X[self.control_columns].to_numpy()
+            control_transformation = (
+                identity
+                if not hasattr(self, "control_transformer")
+                else self.control_transformer.transform
+            )
+            data["control_data"] = control_transformation(control_data)
+
+        if hasattr(self, "fourier_columns"):
+            data["fourier_data"] = self._get_fourier_models_data(X)
 
         if y is not None:
             if isinstance(y, pd.Series):
@@ -507,9 +538,11 @@ class BaseDelayedSaturatedMMM(MMM):
                 data["target"] = y
             else:
                 raise TypeError("y must be either a pandas Series or a numpy array")
+        else:
+            data["target"] = np.zeros(X.shape[0])
 
         with self.model:
-            pm.set_data(data)
+            pm.set_data(data, coords=coords)
 
     @classmethod
     def _model_config_formatting(cls, model_config: Dict) -> Dict:
