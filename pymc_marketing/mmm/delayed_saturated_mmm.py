@@ -359,7 +359,7 @@ class BaseDelayedSaturatedMMM(MMM):
     def gp_coeff(self, X, name, mean=0.0, positive=False, config=None):
         params = pm.find_constrained_prior(pm.Gamma, 8, 12, init_guess={"alpha": 12, "beta": 1}, mass=0.75)
         ell = pm.Gamma(f"ell_{name}", **params)
-        eta = pm.Exponential(f"_eta_{name}", lam=10)
+        eta = pm.Exponential(f"_eta_{name}", lam=0.1)
         cov = eta ** 2 * pm.gp.cov.ExpQuad(1, ls=ell)
     
         gp = pm.gp.HSGP(m=[200], c=2, cov_func=cov)
