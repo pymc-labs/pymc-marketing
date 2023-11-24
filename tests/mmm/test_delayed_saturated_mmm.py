@@ -448,7 +448,7 @@ class TestDelayedSaturatedMMM:
         with pytest.raises(TypeError):
             base_delayed_saturated_mmm._data_setter(toy_X, y_incorrect)
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(KeyError):
             X_wrong_df = pd.DataFrame(
                 {"column1": np.random.rand(135), "column2": np.random.rand(135)}
             )
@@ -459,12 +459,10 @@ class TestDelayedSaturatedMMM:
         except Exception as e:
             pytest.fail(f"_data_setter failed with error {e}")
 
-        try:
+        with pytest.raises(TypeError, match="X must be a pandas DataFrame"):
             base_delayed_saturated_mmm._data_setter(
                 X_correct_ndarray, y_correct_ndarray
             )
-        except Exception as e:
-            pytest.fail(f"_data_setter failed with error {e}")
 
     def test_save_load(self, mmm_fitted):
         model = mmm_fitted

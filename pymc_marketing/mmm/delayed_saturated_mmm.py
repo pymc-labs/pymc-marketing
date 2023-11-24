@@ -517,7 +517,7 @@ class BaseDelayedSaturatedMMM(MMM):
             "channel_data": channel_transformation(new_channel_data)
         }
 
-        if hasattr(self, "control_columns"):
+        if self.control_columns is not None:
             control_data = X[self.control_columns].to_numpy()
             control_transformation = (
                 identity
