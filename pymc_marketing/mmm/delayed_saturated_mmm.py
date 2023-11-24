@@ -377,7 +377,7 @@ class BaseDelayedSaturatedMMM(MMM):
             offset_prior = 0
 
         if positive:
-            f_output = pm.Deterministic(f"{name}", (pt.exp(f_raw) - 1) + offset_prior, dims=("date"))
+            f_output = pm.Deterministic(f"{name}", (pt.exp(f_raw)) + offset_prior, dims=("date"))
         else:
             f_output = pm.Deterministic(f"{name}", f_raw + offset_prior, dims=("date"))
     
