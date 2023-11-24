@@ -527,6 +527,10 @@ class TestDelayedSaturatedMMM:
         ):
             mmm_fitted.predict_posterior(X_pred=new_X)
 
-        mmm_fitted.sample_posterior_predictive(
-            X_pred=new_X, extend_idata=True, combined=True
+        posterior_predictive = mmm_fitted.sample_posterior_predictive(
+            X_pred=new_X, extend_idata=False, combined=True
         )
+        pd.testing.assert_index_equal(
+            pd.DatetimeIndex(posterior_predictive.coords["date"]), new_dates
+        )
+        assert posterior_predictive["likelihood"].shape[0] == new_dates.size
