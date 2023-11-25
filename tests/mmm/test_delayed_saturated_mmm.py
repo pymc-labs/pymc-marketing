@@ -523,32 +523,29 @@ def test_get_valid_distribution(mmm):
 
 
 def test_get_invalid_distribution(mmm):
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(ValueError, match="does not exist in PyMC"):
         mmm._get_distribution({"dist": "NonExistentDist"})
-    assert "does not exist in PyMC" in str(
-        excinfo.value
-    ), "A ValueError should be raised for non-existent distributions."
 
 
 def test_create_likelihood_invalid_kwargs_structure(mmm):
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(
+        ValueError, match="either a dictionary with a 'dist' key or a numeric value"
+    ):
         mmm._create_likelihood_distribution(
             dist={"dist": "Normal", "kwargs": {"sigma": "not a dictionary or numeric"}},
             mu=np.array([0]),
             observed=np.random.randn(100),
             dims="obs_dim",
         )
-    assert "either a dictionary with a 'dist' key or a numeric value" in str(
-        excinfo.value
-    )
 
 
 def test_create_likelihood_mu_in_top_level_kwargs(mmm):
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(
+        ValueError, match="'mu' key is not allowed directly within 'kwargs'"
+    ):
         mmm._create_likelihood_distribution(
             dist={"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
             mu=np.array([0]),
             observed=np.random.randn(100),
             dims="obs_dim",
         )
-    assert "The 'mu' key is not allowed directly within 'kwargs'" in str(excinfo.value)
