@@ -357,7 +357,7 @@ class BaseDelayedSaturatedMMM(MMM):
         return self.gp_coeff(X, name, config=config, positive=positive, **kwargs)
 
     def gp_coeff(self, X, name, mean=0.0, positive=False, config=None):
-        params = pm.find_constrained_prior(pm.Gamma, 4, 8, init_guess={"alpha": 1, "beta": 1}, mass=0.8)
+        params = pm.find_constrained_prior(pm.Gamma, 8, 12, init_guess={"alpha": 1, "beta": 1}, mass=0.8)
         ell = pm.Gamma(f"ell_{name}", **params)
         eta = pm.Exponential(f"_eta_{name}", lam=1)
   #      cov = eta ** 2 * pm.gp.cov.ExpQuad(1, ls=ell)
