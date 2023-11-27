@@ -180,6 +180,20 @@ class BaseDelayedSaturatedMMM(MMM):
             not contain 'dist' and 'kwargs' keys, or if 'mu' is present in the nested
             'kwargs'
         """
+        allowed_distributions = [
+            "Normal",
+            "StudentT",
+            "Laplace",
+            "Logistic",
+            "Wald",
+            "TruncatedNormal",
+            "VonMises",
+        ]
+        if dist["dist"] not in allowed_distributions:
+            raise ValueError(
+                "The distribution used for the likelihood is not allowed. Please, use one of the following distributions: Normal, StudentT, Laplace, Logistic, Wald, TruncatedNormal or VonMises."
+            )
+
         # Validate that 'kwargs' is present and is a dictionary
         if "kwargs" not in dist or not isinstance(dist["kwargs"], dict):
             raise ValueError(
@@ -261,12 +275,8 @@ class BaseDelayedSaturatedMMM(MMM):
             'beta_channel': {'dist': 'LogNormal', 'kwargs': {'mu': 1, 'sigma': 3}},
             'alpha': {'dist': 'Beta', 'kwargs': {'alpha': 1, 'beta': 3}},
             'lam': {'dist': 'Gamma', 'kwargs': {'alpha': 3, 'beta': 1}},
-            'likelihood': {
-                'dist': 'StudentT',
-                'nu': {
-                    'dist': 'Gamma', 'kwargs': {'alpha': 3, 'beta': 1}},
-                'sigma': {
-                    'dist': 'HalfNormal', 'kwargs': {'sigma': 3}}
+            'likelihood': {'dist': 'Normal',
+                'kwargs': {'sigma': {'dist': 'HalfNormal', 'kwargs': {'sigma': 2}}}
             },
             'gamma_control': {'dist': 'Normal', 'kwargs': {'mu': 0, 'sigma': 2}},
             'gamma_fourier': {'dist': 'Laplace', 'kwargs': {'mu': 0, 'b': 1}}
