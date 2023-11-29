@@ -527,6 +527,19 @@ def test_get_invalid_distribution(mmm):
         mmm._get_distribution({"dist": "NonExistentDist"})
 
 
+def test_invalid_likelihood_type(mmm):
+    with pytest.raises(
+        ValueError,
+        match="The distribution used for the likelihood is not allowed. Please, use one of the following distributions: Normal, StudentT, Laplace, Logistic, Wald, TruncatedNormal, AsymmetricLaplace, Gamma or VonMises.",
+    ):
+        mmm._create_likelihood_distribution(
+            dist={"dist": "Cauchy", "kwargs": {"alpha": 2, "beta": 4}},
+            mu=np.array([0]),
+            observed=np.random.randn(100),
+            dims="obs_dim",
+        )
+
+
 def test_create_likelihood_invalid_kwargs_structure(mmm):
     with pytest.raises(
         ValueError, match="either a dictionary with a 'dist' key or a numeric value"
