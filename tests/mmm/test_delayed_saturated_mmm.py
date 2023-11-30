@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import arviz as az
 import numpy as np
@@ -40,7 +40,7 @@ def toy_X() -> pd.DataFrame:
 
 
 @pytest.fixture(scope="class")
-def model_config_requiring_serialization() -> dict:
+def model_config_requiring_serialization() -> Dict:
     model_config = {
         "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
         "beta_channel": {
@@ -171,6 +171,7 @@ class TestDelayedSaturatedMMM:
         channel_columns: List[str],
         control_columns: List[str],
         adstock_max_lag: int,
+        model_config_requiring_serialization: Dict,
     ) -> None:
         mmm = BaseDelayedSaturatedMMM(
             date_column="date",
@@ -178,6 +179,7 @@ class TestDelayedSaturatedMMM:
             control_columns=control_columns,
             adstock_max_lag=adstock_max_lag,
             yearly_seasonality=yearly_seasonality,
+            model_config=model_config_requiring_serialization,
         )
         mmm.build_model(X=toy_X, y=toy_y)
         n_channel: int = len(mmm.channel_columns)
