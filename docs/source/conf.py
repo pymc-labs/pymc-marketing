@@ -79,7 +79,7 @@ nb_execution_mode = "auto"
 nb_execution_excludepatterns = ["*.ipynb"]
 nb_kernel_rgx_aliases = {".*": "python3"}
 myst_enable_extensions = ["colon_fence", "deflist", "dollarmath", "amsmath"]
-myst_heading_anchors = None
+myst_heading_anchors = 0
 
 # intersphinx configuration to ease linking arviz docs
 intersphinx_mapping = {
