@@ -171,7 +171,6 @@ class TestDelayedSaturatedMMM:
         channel_columns: List[str],
         control_columns: List[str],
         adstock_max_lag: int,
-        model_config_requiring_serialization: Dict,
     ) -> None:
         mmm = BaseDelayedSaturatedMMM(
             date_column="date",
@@ -179,7 +178,6 @@ class TestDelayedSaturatedMMM:
             control_columns=control_columns,
             adstock_max_lag=adstock_max_lag,
             yearly_seasonality=yearly_seasonality,
-            model_config=model_config_requiring_serialization,
         )
         mmm.build_model(X=toy_X, y=toy_y)
         n_channel: int = len(mmm.channel_columns)
@@ -517,82 +515,85 @@ class TestDelayedSaturatedMMM:
             DelayedSaturatedMMM.load("test_model")
         os.remove("test_model")
 
-    def test_init_with_config(
-        self,
-        toy_X: pd.DataFrame,
-        toy_y: pd.Series,
-        yearly_seasonality: Optional[int],
-        channel_columns: List[str],
-        control_columns: List[str],
-        adstock_max_lag: int,
-    ) -> None:
-        mmm = DelayedSaturatedMMM(
-            date_column="date",
-            channel_columns=channel_columns,
-            control_columns=control_columns,
-            adstock_max_lag=adstock_max_lag,
-            yearly_seasonality=yearly_seasonality,
-            model_config=model_config_requiring_serialization,
-        )
-        mmm.build_model(X=toy_X, y=toy_y)
-        n_channel: int = len(mmm.channel_columns)
-        samples: int = 3
-        with mmm.model:
-            prior_predictive: az.InferenceData = pm.sample_prior_predictive(
-                samples=samples, random_seed=rng
+        def test_init_with_config(
+            self,
+            toy_X: pd.DataFrame,
+            toy_y: pd.Series,
+            yearly_seasonality: Optional[int],
+            channel_columns: List[str],
+            control_columns: List[str],
+            adstock_max_lag: int,
+        ) -> None:
+            mmm = DelayedSaturatedMMM(
+                date_column="date",
+                channel_columns=channel_columns,
+                control_columns=control_columns,
+                adstock_max_lag=adstock_max_lag,
+                yearly_seasonality=yearly_seasonality,
+                model_config=model_config_requiring_serialization,
             )
+            mmm.build_model(X=toy_X, y=toy_y)
+            n_channel: int = len(mmm.channel_columns)
+            samples: int = 3
+            with mmm.model:
+                prior_predictive: az.InferenceData = pm.sample_prior_predictive(
+                    samples=samples, random_seed=rng
+                )
 
-        assert (
-            az.extract(
-                prior_predictive, group="prior", var_names=["intercept"], combined=True
+            assert (
+                az.extract(
+                    prior_predictive,
+                    group="prior",
+                    var_names=["intercept"],
+                    combined=True,
+                )
+                .to_numpy()
+                .size
+                == samples
             )
-            .to_numpy()
-            .size
-            == samples
-        )
-        assert az.extract(
-            data=prior_predictive,
-            group="prior",
-            var_names=["beta_channel"],
-            combined=True,
-        ).to_numpy().shape == (
-            n_channel,
-            samples,
-        )
-        assert az.extract(
-            data=prior_predictive, group="prior", var_names=["alpha"], combined=True
-        ).to_numpy().shape == (
-            n_channel,
-            samples,
-        )
-        assert az.extract(
-            data=prior_predictive, group="prior", var_names=["lam"], combined=True
-        ).to_numpy().shape == (
-            n_channel,
-            samples,
-        )
-
-        if control_columns is not None:
-            n_control = len(control_columns)
             assert az.extract(
                 data=prior_predictive,
                 group="prior",
-                var_names=["gamma_control"],
+                var_names=["beta_channel"],
                 combined=True,
             ).to_numpy().shape == (
-                n_control,
+                n_channel,
                 samples,
             )
-        if yearly_seasonality is not None:
             assert az.extract(
-                data=prior_predictive,
-                group="prior",
-                var_names=["gamma_fourier"],
-                combined=True,
+                data=prior_predictive, group="prior", var_names=["alpha"], combined=True
             ).to_numpy().shape == (
-                2 * yearly_seasonality,
+                n_channel,
                 samples,
             )
+            assert az.extract(
+                data=prior_predictive, group="prior", var_names=["lam"], combined=True
+            ).to_numpy().shape == (
+                n_channel,
+                samples,
+            )
+
+            if control_columns is not None:
+                n_control = len(control_columns)
+                assert az.extract(
+                    data=prior_predictive,
+                    group="prior",
+                    var_names=["gamma_control"],
+                    combined=True,
+                ).to_numpy().shape == (
+                    n_control,
+                    samples,
+                )
+            if yearly_seasonality is not None:
+                assert az.extract(
+                    data=prior_predictive,
+                    group="prior",
+                    var_names=["gamma_fourier"],
+                    combined=True,
+                ).to_numpy().shape == (
+                    2 * yearly_seasonality,
+                    samples,
+                )
 
 
 # Test cases for _get_distribution
