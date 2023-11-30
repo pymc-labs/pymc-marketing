@@ -524,7 +524,7 @@ class TestDelayedSaturatedMMM:
         yearly_seasonality: Optional[int],
         channel_columns: List[str],
         control_columns: List[str],
-        adstock_max_lag: int
+        adstock_max_lag: int,
     ) -> None:
         mmm = DelayedSaturatedMMM(
             date_column="date",
@@ -532,7 +532,7 @@ class TestDelayedSaturatedMMM:
             control_columns=control_columns,
             adstock_max_lag=adstock_max_lag,
             yearly_seasonality=yearly_seasonality,
-            model_config=model_config_requiring_serialization
+            model_config=model_config_requiring_serialization,
         )
         mmm.build_model(X=toy_X, y=toy_y)
         n_channel: int = len(mmm.channel_columns)
@@ -593,6 +593,7 @@ class TestDelayedSaturatedMMM:
                 2 * yearly_seasonality,
                 samples,
             )
+
 
 # Test cases for _get_distribution
 def test_get_valid_distribution(mmm):
