@@ -77,6 +77,35 @@ def geometric_adstock(
     periods (e.g. weeks). `l_max` is the maximum duration of carryover effect.
 
 
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        plt.style.use('arviz-darkgrid')
+        l_max = 12
+        params = [
+            (0.01, False),
+            (0.5, False),
+            (0.9, False),
+            (0.5, True),
+            (0.9, True),
+        ]
+        spend = np.zeros(15)
+        spend[0] = 1
+        ax = plt.subplot(111)
+        x = np.arange(len(spend))
+        for a, normalize in params:
+            y = geometric_adstock(spend, alpha=a, l_max=l_max, normalize=normalize).eval()
+            plt.plot(x, y, label=f'$\\alpha$ = {a}, normalize = {normalize}')
+        plt.xlabel('time since spend', fontsize=12)
+        plt.title(f'Geometric Adstock with l_max = {l_max}', fontsize=14)
+        plt.ylabel('f(time since spend)', fontsize=12)
+        plt.legend()
+        plt.show()
+
+
     Parameters
     ----------
     x : tensor
@@ -117,6 +146,31 @@ def delayed_adstock(
     This transformation is similar to geometric adstock transformation, but it
     allows for a delayed peak of the effect. The peak is assumed to occur at `theta`.
 
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        plt.style.use('arviz-darkgrid')
+        params = [
+            (0.25, 0, False),
+            (0.25, 5, False),
+            (0.75, 5, False),
+            (0.75, 5, True)
+        ]
+        spend = np.zeros(15)
+        spend[0] = 1
+        x = np.arange(len(spend))
+        ax = plt.subplot(111)
+        for a, t, normalize in params:
+            y = delayed_adstock(spend, alpha=a, theta=t, normalize=normalize).eval()
+            plt.plot(x, y, label=f'$\\alpha$ = {a}, $\\theta$ = {t}, normalize = {normalize}')
+        plt.xlabel('time since spend', fontsize=12)
+        plt.ylabel('f(time since spend)', fontsize=12)
+        plt.legend()
+        plt.show()
+
     Parameters
     ----------
     x : tensor
@@ -150,6 +204,29 @@ def delayed_adstock(
 
 def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
     """Logistic saturation transformation.
+
+    .. math::
+
+        f(x) = \\frac{1 - e^{-\lambda x}}{1 + e^{-\lambda x}}
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        plt.style.use('arviz-darkgrid')
+        lam = np.array([0.25, 0.5, 1, 2, 4])
+        x = np.linspace(0, 5, 100)
+        ax = plt.subplot(111)
+        for l in lam:
+            y = logistic_saturation(x, lam=l).eval()
+            plt.plot(x, y, label=f'$\lambda$ = {l}')
+        plt.xlabel('spend', fontsize=12)
+        plt.ylabel('f(spend)', fontsize=12)
+        plt.legend()
+        plt.show()
+
     Parameters
     ----------
     x : tensor
@@ -167,6 +244,34 @@ def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
 
 def tanh_saturation(x, b: float = 0.5, c: float = 0.5):
     """Tanh saturation transformation.
+
+    .. math::
+
+        f(x) = b \\tanh \\left( \\frac{x}{bc} \\right)
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        plt.style.use('arviz-darkgrid')
+        params = [
+            (0.75, 0.25),
+            (0.75, 1.5),
+            (1, 0.25),
+            (1, 1),
+            (1, 1.5),
+        ]
+        x = np.linspace(0, 5, 100)
+        ax = plt.subplot(111)
+        for b, c in params:
+            y = tanh_saturation(x, b=b, c=c).eval()
+            plt.plot(x, y, label=f'b = {b}, c = {c}')
+        plt.xlabel('spend', fontsize=12)
+        plt.ylabel('f(spend)', fontsize=12)
+        plt.legend()
+        plt.show()
 
     Parameters
     ----------
