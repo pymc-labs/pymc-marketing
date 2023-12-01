@@ -596,7 +596,6 @@ class TestDelayedSaturatedMMM:
                 )
 
 
-# Test cases for _get_distribution
 def test_get_valid_distribution(mmm):
     normal_dist = mmm._get_distribution({"dist": "Normal"})
     assert normal_dist is pm.Normal
