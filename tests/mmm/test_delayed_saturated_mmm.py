@@ -515,85 +515,70 @@ class TestDelayedSaturatedMMM:
             DelayedSaturatedMMM.load("test_model")
         os.remove("test_model")
 
-        def test_init_with_config(
-            self,
-            toy_X: pd.DataFrame,
-            toy_y: pd.Series,
-            yearly_seasonality: Optional[int],
-            channel_columns: List[str],
-            control_columns: List[str],
-            adstock_max_lag: int,
-        ) -> None:
-            mmm = DelayedSaturatedMMM(
-                date_column="date",
-                channel_columns=channel_columns,
-                control_columns=control_columns,
-                adstock_max_lag=adstock_max_lag,
-                yearly_seasonality=yearly_seasonality,
-                model_config=model_config_requiring_serialization,
-            )
-            mmm.build_model(X=toy_X, y=toy_y)
-            n_channel: int = len(mmm.channel_columns)
-            samples: int = 3
-            with mmm.model:
-                prior_predictive: az.InferenceData = pm.sample_prior_predictive(
-                    samples=samples, random_seed=rng
-                )
+    @pytest.mark.parametrize(
+        argnames="model_config",
+        argvalues=[
+            None,
+            {
+                "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
+                "beta_channel": {
+                    "dist": "HalfNormal",
+                    "kwargs": {"sigma": np.array([0.4533017, 0.25488063])},
+                },
+                "alpha": {
+                    "dist": "Beta",
+                    "kwargs": {
+                        "alpha": np.array([3, 3]),
+                        "beta": np.array([3.55001301, 2.87092431]),
+                    },
+                },
+                "lam": {
+                    "dist": "Gamma",
+                    "kwargs": {
+                        "alpha": np.array([3, 3]),
+                        "beta": np.array([4.12231653, 5.02896872]),
+                    },
+                },
+                "likelihood": {
+                    "dist": "StudentT",
+                    "kwargs": {"nu": 3, "sigma": 2},
+                },
+                "gamma_control": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
+                "gamma_fourier": {"dist": "Laplace", "kwargs": {"mu": 0, "b": 1}},
+            },
+        ],
+        ids=["default_config", "custom_config"],
+    )
+    def test_model_config(
+        self, model_config: Dict, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        # Create model instance with specified config
+        model = DelayedSaturatedMMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock_max_lag=2,
+            yearly_seasonality=2,
+            model_config=model_config,
+        )
 
-            assert (
-                az.extract(
-                    prior_predictive,
-                    group="prior",
-                    var_names=["intercept"],
-                    combined=True,
-                )
-                .to_numpy()
-                .size
-                == samples
-            )
-            assert az.extract(
-                data=prior_predictive,
-                group="prior",
-                var_names=["beta_channel"],
-                combined=True,
-            ).to_numpy().shape == (
-                n_channel,
-                samples,
-            )
-            assert az.extract(
-                data=prior_predictive, group="prior", var_names=["alpha"], combined=True
-            ).to_numpy().shape == (
-                n_channel,
-                samples,
-            )
-            assert az.extract(
-                data=prior_predictive, group="prior", var_names=["lam"], combined=True
-            ).to_numpy().shape == (
-                n_channel,
-                samples,
-            )
+        model.build_model(X=toy_X, y=toy_y.to_numpy())
+        # Check for default configuration
+        if model_config is None:
+            # assert observed RV type, and priors of some/all free_RVs.
+            assert isinstance(
+                model.model.observed_RVs[0].owner.op, pm.Normal
+            )  # likelihood
+            # Add more asserts as needed for default configuration
 
-            if control_columns is not None:
-                n_control = len(control_columns)
-                assert az.extract(
-                    data=prior_predictive,
-                    group="prior",
-                    var_names=["gamma_control"],
-                    combined=True,
-                ).to_numpy().shape == (
-                    n_control,
-                    samples,
-                )
-            if yearly_seasonality is not None:
-                assert az.extract(
-                    data=prior_predictive,
-                    group="prior",
-                    var_names=["gamma_fourier"],
-                    combined=True,
-                ).to_numpy().shape == (
-                    2 * yearly_seasonality,
-                    samples,
-                )
+        # Check for custom configuration
+        else:
+            # assert custom configuration is applied correctly
+            assert isinstance(
+                model.model.observed_RVs[0].owner.op, pm.StudentT
+            )  # likelihood
+            assert isinstance(
+                model.model.free_RVs[1].owner.op, pm.HalfNormal
+            )  # beta_channel
 
 
 def test_get_valid_distribution(mmm):
