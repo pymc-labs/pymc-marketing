@@ -81,11 +81,32 @@ def mmm() -> DelayedSaturatedMMM:
 
 
 @pytest.fixture(scope="class")
+def mmm_with_fourier_features() -> DelayedSaturatedMMM:
+    return DelayedSaturatedMMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        adstock_max_lag=4,
+        control_columns=["control_1", "control_2"],
+        yearly_seasonality=2,
+    )
+
+
+@pytest.fixture(scope="class")
 def mmm_fitted(
     mmm: DelayedSaturatedMMM, toy_X: pd.DataFrame, toy_y: pd.Series
 ) -> DelayedSaturatedMMM:
     mmm.fit(X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2)
     return mmm
+
+
+@pytest.fixture(scope="class")
+def mmm_fitted_with_fourier_features(
+    mmm_with_fourier_features, toy_X: pd.DataFrame, toy_y: pd.Series
+) -> DelayedSaturatedMMM:
+    mmm_with_fourier_features.fit(
+        X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2
+    )
+    return mmm_with_fourier_features
 
 
 class TestDelayedSaturatedMMM:
@@ -448,9 +469,21 @@ class TestDelayedSaturatedMMM:
         with pytest.raises(TypeError):
             base_delayed_saturated_mmm._data_setter(toy_X, y_incorrect)
 
+        # Missing the date column
         with pytest.raises(KeyError):
             X_wrong_df = pd.DataFrame(
-                {"column1": np.random.rand(135), "column2": np.random.rand(135)}
+                {"column_1": np.random.rand(135), "column_2": np.random.rand(135)}
+            )
+            base_delayed_saturated_mmm._data_setter(X_wrong_df, toy_y)
+
+        # Missing a channel column (and not date)
+        with pytest.raises(RuntimeError):
+            X_wrong_df = pd.DataFrame(
+                {
+                    "date": pd.to_datetime("2023-01-01"),
+                    "column1": np.random.rand(135),
+                    "column2": np.random.rand(135),
+                }
             )
             base_delayed_saturated_mmm._data_setter(X_wrong_df, toy_y)
 
@@ -505,9 +538,31 @@ class TestDelayedSaturatedMMM:
             DelayedSaturatedMMM.load("test_model")
         os.remove("test_model")
 
-    def test_new_data_predictions(self, mmm_fitted: DelayedSaturatedMMM):
-        new_dates = pd.date_range(start="2021-11-01", end="2022-03-01", freq="W-MON")
-
+    @pytest.mark.parametrize(
+        "model_name", ["mmm_fitted", "mmm_fitted_with_fourier_features"]
+    )
+    @pytest.mark.parametrize(
+        "new_dates",
+        [
+            # 2021-12-31 is the last date in the toy data
+            # Old and New dates
+            pd.date_range(start="2021-11-01", end="2022-03-01", freq="W-MON"),
+            # Only Old dates
+            pd.date_range(start="2019-06-01", end="2021-12-31", freq="W-MON"),
+            # Only New dates
+            pd.date_range(start="2022-01-01", end="2022-03-01", freq="W-MON"),
+            # Less than the adstock_max_lag (4) of the model
+            pd.date_range(start="2022-01-01", freq="W-MON", periods=1),
+        ],
+    )
+    def test_new_data_predictions(
+        self,
+        model_name: str,
+        mmm_fitted: DelayedSaturatedMMM,
+        new_dates: pd.DatetimeIndex,
+        request,
+    ) -> None:
+        mmm = request.getfixturevalue(model_name)
         n = new_dates.size
         new_X = pd.DataFrame(
             {
@@ -525,9 +580,9 @@ class TestDelayedSaturatedMMM:
             TypeError,
             match=r"The DType <class 'numpy.dtype\[datetime64\]'> could not be promoted by",
         ):
-            mmm_fitted.predict_posterior(X_pred=new_X)
+            mmm.predict_posterior(X_pred=new_X)
 
-        posterior_predictive = mmm_fitted.sample_posterior_predictive(
+        posterior_predictive = mmm.sample_posterior_predictive(
             X_pred=new_X, extend_idata=False, combined=True
         )
         pd.testing.assert_index_equal(
