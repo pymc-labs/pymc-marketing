@@ -8,7 +8,6 @@ import pymc as pm
 import pytest
 from matplotlib import pyplot as plt
 
-
 from pymc_marketing.mmm.delayed_saturated_mmm import (
     BaseDelayedSaturatedMMM,
     DelayedSaturatedMMM,
@@ -594,7 +593,7 @@ def test_get_invalid_distribution(mmm):
 def test_invalid_likelihood_type(mmm):
     with pytest.raises(
         ValueError,
-        match="The distribution used for the likelihood is not allowed. Please, use one of the following distributions: ['Normal', 'StudentT', 'Laplace', 'Logistic', 'LogNormal', 'Wald', 'TruncatedNormal', 'Gamma', 'AsymmetricLaplace', 'VonMises'].",
+        match=r"The distribution used for the likelihood is not allowed\. Please, use one of the following distributions: \['Normal', 'StudentT', 'Laplace', 'Logistic', 'LogNormal', 'Wald', 'TruncatedNormal', 'Gamma', 'AsymmetricLaplace', 'VonMises'\]\.",
     ):
         mmm._create_likelihood_distribution(
             dist={"dist": "Cauchy", "kwargs": {"alpha": 2, "beta": 4}},

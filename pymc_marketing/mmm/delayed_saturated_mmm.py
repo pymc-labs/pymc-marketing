@@ -192,6 +192,7 @@ class BaseDelayedSaturatedMMM(MMM):
             "AsymmetricLaplace",
             "VonMises",
         ]
+
         if dist["dist"] not in allowed_distributions:
             raise ValueError(
                 f"The distribution used for the likelihood is not allowed. Please, use one of the following distributions: {allowed_distributions}."
