@@ -577,7 +577,7 @@ class TestDelayedSaturatedMMM:
                 model.model.observed_RVs[0].owner.op, pm.StudentT
             )  # likelihood
             assert isinstance(
-                model.model.free_RVs[1].owner.op, pm.HalfNormal
+                model.model["beta_channel"].owner.op, pm.HalfNormal
             )  # beta_channel
 
 
