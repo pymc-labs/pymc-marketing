@@ -594,7 +594,7 @@ def test_get_invalid_distribution(mmm):
 def test_invalid_likelihood_type(mmm):
     with pytest.raises(
         ValueError,
-        match="The distribution used for the likelihood is not allowed. Please, use one of the following distributions: Normal, StudentT, Laplace, Logistic, Wald, TruncatedNormal, AsymmetricLaplace, Gamma or VonMises.",
+        match="The distribution used for the likelihood is not allowed. Please, use one of the following distributions: ['Normal', 'StudentT', 'Laplace', 'Logistic', 'LogNormal', 'Wald', 'TruncatedNormal', 'Gamma', 'AsymmetricLaplace', 'VonMises'].",
     ):
         mmm._create_likelihood_distribution(
             dist={"dist": "Cauchy", "kwargs": {"alpha": 2, "beta": 4}},
