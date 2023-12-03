@@ -558,7 +558,6 @@ class TestDelayedSaturatedMMM:
     def test_new_data_predictions(
         self,
         model_name: str,
-        mmm_fitted: DelayedSaturatedMMM,
         new_dates: pd.DatetimeIndex,
         request,
     ) -> None:
