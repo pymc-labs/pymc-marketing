@@ -185,6 +185,7 @@ class BaseDelayedSaturatedMMM(MMM):
             "StudentT",
             "Laplace",
             "Logistic",
+            "LogNormal",
             "Wald",
             "TruncatedNormal",
             "Gamma",
@@ -193,7 +194,7 @@ class BaseDelayedSaturatedMMM(MMM):
         ]
         if dist["dist"] not in allowed_distributions:
             raise ValueError(
-                "The distribution used for the likelihood is not allowed. Please, use one of the following distributions: Normal, StudentT, Laplace, Logistic, Wald, TruncatedNormal, AsymmetricLaplace, Gamma or VonMises."
+                f"The distribution used for the likelihood is not allowed. Please, use one of the following distributions: {allowed_distributions}."
             )
 
         # Validate that 'kwargs' is present and is a dictionary
