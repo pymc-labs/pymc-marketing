@@ -180,6 +180,7 @@ class BaseDelayedSaturatedMMM(MMM):
             not contain 'dist' and 'kwargs' keys, or if 'mu' is present in the nested
             'kwargs'
         """
+
         allowed_distributions = [
             "Normal",
             "StudentT",
