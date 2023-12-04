@@ -76,7 +76,8 @@ def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
     elif mode == ConvMode.Before:
         window = slice(None, -l_max + 1)
     elif mode == ConvMode.Overlap:
-        window = slice(l_max // 2, -(l_max // 2))
+        # Handle even and odd l_max differently if l_max is odd then we can split evenly otherwise we drop from the end
+        window = slice((l_max // 2) - (1 if l_max % 2 == 0 else 0), -(l_max // 2))
     else:
         raise ValueError("Wrong Mode")
 
