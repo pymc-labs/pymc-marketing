@@ -85,6 +85,13 @@ def test_batched_convolution(convolution_inputs, convolution_axis, mode):
     assert all(mode_assertions[mode]())
 
 
+def test_batched_convolution_invalid_mode(convolution_inputs, convolution_axis):
+    x, w, x_val, w_val = convolution_inputs
+    invalid_mode = "InvalidMode"
+    with pytest.raises(ValueError):
+        batched_convolution(x, w, convolution_axis, invalid_mode)
+
+
 def test_batched_convolution_broadcasting():
     x_val = np.random.default_rng(42).normal(size=(3, 1, 5))
     x = pt.as_tensor_variable(x_val)
