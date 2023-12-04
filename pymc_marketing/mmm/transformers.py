@@ -25,8 +25,12 @@ def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
         to use in the convolution.
     axis : int
         The axis of ``x`` along witch to apply the convolution
-    mode : (ConvMode, optional): The mode of the convolution. Determines how the convolution is applied at the boundaries of x. Defaults to ConvMode.Before.
+    mode : ConvMode, optional
+        The convolution mode determines how the convolution is applied at the boundaries of the input signal, denoted as "x." The default mode is ConvMode.Before.
 
+        - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
+        - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect similar to the wow factor.
+        - ConvMode.Overlap: Applies the convolution with both "Pull-Forward" and "Pull-Backward" effects, where the effect overlaps with both preceding and succeeding elements.
 
     Returns
     -------
@@ -79,7 +83,7 @@ def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
         # Handle even and odd l_max differently if l_max is odd then we can split evenly otherwise we drop from the end
         window = slice((l_max // 2) - (1 if l_max % 2 == 0 else 0), -(l_max // 2))
     else:
-        raise ValueError("Wrong Mode")
+        raise ValueError(f"Wrong Mode: {mode}, expected of ConvMode")
 
     for i in range(l_max):
         padded_x = pt.set_subtensor(padded_x[..., i : x_time + i, i], x)
