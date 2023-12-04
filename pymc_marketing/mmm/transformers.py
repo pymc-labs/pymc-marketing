@@ -25,6 +25,8 @@ def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
         to use in the convolution.
     axis : int
         The axis of ``x`` along witch to apply the convolution
+    mode : (ConvMode, optional): The mode of the convolution. Determines how the convolution is applied at the boundaries of x. Defaults to ConvMode.Before.
+
 
     Returns
     -------
