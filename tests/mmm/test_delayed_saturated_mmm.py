@@ -8,6 +8,7 @@ import pymc as pm
 import pytest
 from matplotlib import pyplot as plt
 
+
 from pymc_marketing.mmm.delayed_saturated_mmm import (
     BaseDelayedSaturatedMMM,
     DelayedSaturatedMMM,

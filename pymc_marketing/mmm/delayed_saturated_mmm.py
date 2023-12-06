@@ -9,7 +9,6 @@ import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import seaborn as sns
-from pytensor.compile.sharedvalue import SharedVariable
 from pytensor.tensor import TensorVariable
 from xarray import DataArray
 
@@ -147,7 +146,7 @@ class BaseDelayedSaturatedMMM(MMM):
     def _create_likelihood_distribution(
         self,
         dist: Dict,
-        mu: SharedVariable,
+        mu: TensorVariable,
         observed: Union[np.ndarray, pd.Series],
         dims: str,
     ) -> TensorVariable:
@@ -180,7 +179,6 @@ class BaseDelayedSaturatedMMM(MMM):
             not contain 'dist' and 'kwargs' keys, or if 'mu' is present in the nested
             'kwargs'
         """
-
         allowed_distributions = [
             "Normal",
             "StudentT",
