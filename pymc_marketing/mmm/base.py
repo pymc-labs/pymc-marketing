@@ -943,7 +943,7 @@ class BaseMMM(ModelBuilder):
         xlim_max=None,
         method: str = "sigmoid",
         channels: Optional[List[str]] = None,
-        same_axis: bool = False,
+        same_axes: bool = False,
     ) -> plt.Figure:
         """
         Plots the direct contribution curves for each marketing channel. The term "direct" refers to the fact
@@ -960,8 +960,8 @@ class BaseMMM(ModelBuilder):
             The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'. Defaults to 'sigmoid'.
         channels : List[str], optional
             A list of channels to plot. If not provided, all channels will be plotted.
-        same_axis : bool, optional
-            If True, all channels will be plotted on the same axis. Defaults to False.
+        same_axes : bool, optional
+            If True, all channels will be plotted on the same axes. Defaults to False.
 
         Returns
         -------
@@ -979,7 +979,7 @@ class BaseMMM(ModelBuilder):
             ["chain", "draw"]
         )
 
-        if same_axis:
+        if same_axes:
             nrows = 1
             figsize = (12, 4)
 
@@ -1009,7 +1009,7 @@ class BaseMMM(ModelBuilder):
 
         axes_channels = (
             zip(repeat(axes), channels_to_plot)
-            if same_axis
+            if same_axes
             else zip(np.ravel(axes), channels_to_plot)
         )
 
@@ -1022,7 +1022,7 @@ class BaseMMM(ModelBuilder):
                 ax.scatter(x, y, label=label, color=f"C{i}")
 
                 if show_fit:
-                    label = f"{channel} Fit Curve" if same_axis else "Fit Curve"
+                    label = f"{channel} Fit Curve" if same_axes else "Fit Curve"
                     self._plot_response_curve_fit(
                         x=x,
                         ax=ax,
