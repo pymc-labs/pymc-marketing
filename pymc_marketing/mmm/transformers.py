@@ -61,10 +61,9 @@ def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
     w = pt.broadcast_to(w, w_shape)
     x_time = x.shape[-1]
     # Make a tensor with x at the different time lags needed for the convolution
-    x_shape = list(x.shape)
+    x_shape = x.shape
     # Add the size of the kernel to the time axis
-    x_shape[-1] = x_shape[-1] + w.shape[-1] - 1
-    shape = [*x_shape, w.shape[-1]]
+    shape = (*x_shape[:-1], x_shape[-1] + w.shape[-1] - 1, w.shape[-1])
     padded_x = pt.zeros(shape, dtype=x.dtype)
 
     if l_max is None:  # pragma: no cover
