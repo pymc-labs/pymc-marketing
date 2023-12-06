@@ -971,9 +971,13 @@ class BaseMMM(ModelBuilder):
         channels_to_plot = self.channel_columns if channels is None else channels
 
         if not all(channel in self.channel_columns for channel in channels_to_plot):
+            unknown_channels = set(channels_to_plot) - set(self.channel_columns)
             raise ValueError(
-                "The provided channels must be a subset of the available channels."
+                f"The provided channels must be a subset of the available channels. Got {unknown_channels}"
             )
+
+        if len(channels_to_plot) != len(set(channels_to_plot)):
+            raise ValueError("The provided channels must be unique.")
 
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
@@ -1015,7 +1019,7 @@ class BaseMMM(ModelBuilder):
 
         for i, (ax, channel) in enumerate(axes_channels):
             if self.X is not None:
-                x = self.X[channels].to_numpy()[:, i]
+                x = self.X[channels_to_plot].to_numpy()[:, i]
                 y = channel_contributions.sel(channel=channel).to_numpy()
 
                 label = label_func(channel)
