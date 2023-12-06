@@ -1,3 +1,4 @@
+from itertools import repeat
 import warnings
 from inspect import (
     getattr_static,
@@ -715,6 +716,7 @@ class BaseMMM(ModelBuilder):
         color_index: int,
         xlim_max: int,
         method: str = "sigmoid",
+        label: str = "Fit Curve",
     ) -> None:
         """
         Plot the curve fit for the given channel based on the estimation of the parameters.
@@ -815,7 +817,7 @@ class BaseMMM(ModelBuilder):
         ax.fill_between(
             x_fit, y_fit_lower, y_fit_upper, color=f"C{color_index}", alpha=0.25
         )
-        ax.plot(x_fit, y_fit, color=f"C{color_index}", label="Fit Curve", alpha=0.6)
+        ax.plot(x_fit, y_fit, color=f"C{color_index}", label=label, alpha=0.6)
         ax.plot(
             x_inflection,
             y_inflection,
@@ -936,7 +938,12 @@ class BaseMMM(ModelBuilder):
         }
 
     def plot_direct_contribution_curves(
-        self, show_fit: bool = False, xlim_max=None, method: str = "sigmoid"
+        self,
+        show_fit: bool = False,
+        xlim_max=None,
+        method: str = "sigmoid",
+        channels: Optional[List[str]] = None,
+        same_axis: bool = False,
     ) -> plt.Figure:
         """
         Plots the direct contribution curves for each marketing channel. The term "direct" refers to the fact
@@ -951,35 +958,71 @@ class BaseMMM(ModelBuilder):
             The maximum value to be plot on the X-axis. If not provided, the maximum value in the data will be used.
         method : str, optional
             The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'. Defaults to 'sigmoid'.
+        channels : List[str], optional
+            A list of channels to plot. If not provided, all channels will be plotted.
+        same_axis : bool, optional
+            If True, all channels will be plotted on the same axis. Defaults to False.
 
         Returns
         -------
         plt.Figure
             A matplotlib Figure object with the direct contribution curves.
         """
+        channels_to_plot = self.channel_columns if channels is None else channels
+
+        if not all(channel in self.channel_columns for channel in channels_to_plot):
+            raise ValueError(
+                "The provided channels must be a subset of the available channels."
+            )
+
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
         )
 
+        if same_axis:
+            nrows = 1
+            figsize = (12, 4)
+
+            def label_func(channel):
+                return f"{channel} Data Points"
+
+            def legend_title_func(channel):
+                return "Legend"
+        else:
+            nrows = len(channels_to_plot)
+            figsize = (12, 4 * len(channels_to_plot))
+
+            def label_func(channel):
+                return "Data Points"
+
+            def legend_title_func(channel):
+                return f"{channel} Legend"
+
         fig, axes = plt.subplots(
-            nrows=self.n_channel,
+            nrows=nrows,
             ncols=1,
             sharex=False,
             sharey=False,
-            figsize=(12, 4 * self.n_channel),
+            figsize=figsize,
             layout="constrained",
         )
 
-        for i, channel in enumerate(self.channel_columns):
-            ax = axes[i]
+        axes_channels = (
+            zip(repeat(axes), channels_to_plot)
+            if same_axis
+            else zip(np.ravel(axes), channels_to_plot)
+        )
 
+        for i, (ax, channel) in enumerate(axes_channels):
             if self.X is not None:
-                x = self.X[self.channel_columns].to_numpy()[:, i]
+                x = self.X[channels].to_numpy()[:, i]
                 y = channel_contributions.sel(channel=channel).to_numpy()
 
-                ax.scatter(x, y, label="Data Points", color=f"C{i}")
+                label = label_func(channel)
+                ax.scatter(x, y, label=label, color=f"C{i}")
 
                 if show_fit:
+                    label = f"{channel} Fit Curve" if same_axis else "Fit Curve"
                     self._plot_response_curve_fit(
                         x=x,
                         ax=ax,
@@ -987,12 +1030,14 @@ class BaseMMM(ModelBuilder):
                         color_index=i,
                         xlim_max=xlim_max,
                         method=method,
+                        label=label,
                     )
 
+                title = legend_title_func(channel)
                 ax.legend(
                     loc="upper left",
                     facecolor="white",
-                    title=f"{channel} Legend",
+                    title=title,
                     fontsize="small",
                 )
 
