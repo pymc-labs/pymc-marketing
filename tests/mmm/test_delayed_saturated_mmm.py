@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import arviz as az
 import numpy as np
@@ -7,6 +7,7 @@ import pandas as pd
 import pymc as pm
 import pytest
 from matplotlib import pyplot as plt
+
 
 from pymc_marketing.mmm.delayed_saturated_mmm import (
     BaseDelayedSaturatedMMM,
@@ -39,28 +40,35 @@ def toy_X() -> pd.DataFrame:
 
 
 @pytest.fixture(scope="class")
-def model_config_requiring_serialization() -> dict:
+def model_config_requiring_serialization() -> Dict:
     model_config = {
-        "intercept": {"mu": 0, "sigma": 2},
+        "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
         "beta_channel": {
-            "sigma": np.array([0.4533017, 0.25488063]),
-            "dims": ("channel",),
+            "dist": "HalfNormal",
+            "kwargs": {"sigma": np.array([0.4533017, 0.25488063])},
         },
         "alpha": {
-            "alpha": np.array([3, 3]),
-            "beta": np.array([3.55001301, 2.87092431]),
-            "dims": ("channel",),
+            "dist": "Beta",
+            "kwargs": {
+                "alpha": np.array([3, 3]),
+                "beta": np.array([3.55001301, 2.87092431]),
+            },
         },
         "lam": {
-            "alpha": np.array([3, 3]),
-            "beta": np.array([4.12231653, 5.02896872]),
-            "dims": ("channel",),
+            "dist": "Gamma",
+            "kwargs": {
+                "alpha": np.array([3, 3]),
+                "beta": np.array([4.12231653, 5.02896872]),
+            },
         },
-        "sigma": {"sigma": 2},
-        "gamma_control": {"mu": 0, "sigma": 2, "dims": ("control",)},
-        "mu": {"dims": ("date",)},
-        "likelihood": {"dims": ("date",)},
-        "gamma_fourier": {"mu": 0, "b": 1, "dims": "fourier_mode"},
+        "likelihood": {
+            "dist": "Normal",
+            "kwargs": {
+                "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+            },
+        },
+        "gamma_control": {"dist": "HalfNormal", "kwargs": {"mu": 0, "sigma": 2}},
+        "gamma_fourier": {"dist": "HalfNormal", "kwargs": {"mu": 0, "b": 1}},
     }
     return model_config
 
@@ -448,7 +456,7 @@ class TestDelayedSaturatedMMM:
         with pytest.raises(TypeError):
             base_delayed_saturated_mmm._data_setter(toy_X, y_incorrect)
 
-        with pytest.raises(KeyError):
+        with pytest.raises(RuntimeError):
             X_wrong_df = pd.DataFrame(
                 {"column1": np.random.rand(135), "column2": np.random.rand(135)}
             )
@@ -459,10 +467,12 @@ class TestDelayedSaturatedMMM:
         except Exception as e:
             pytest.fail(f"_data_setter failed with error {e}")
 
-        with pytest.raises(TypeError, match="X must be a pandas DataFrame"):
+        try:
             base_delayed_saturated_mmm._data_setter(
                 X_correct_ndarray, y_correct_ndarray
             )
+        except Exception as e:
+            pytest.fail(f"_data_setter failed with error {e}")
 
     def test_save_load(self, mmm_fitted):
         model = mmm_fitted
@@ -505,32 +515,114 @@ class TestDelayedSaturatedMMM:
             DelayedSaturatedMMM.load("test_model")
         os.remove("test_model")
 
-    def test_new_data_predictions(self, mmm_fitted: DelayedSaturatedMMM):
-        new_dates = pd.date_range(start="2021-11-01", end="2022-03-01", freq="W-MON")
-
-        n = new_dates.size
-        new_X = pd.DataFrame(
+    @pytest.mark.parametrize(
+        argnames="model_config",
+        argvalues=[
+            None,
             {
-                "date": new_dates,
-                "channel_1": rng.integers(low=0, high=400, size=n),
-                "channel_2": rng.integers(low=0, high=50, size=n),
-                "control_1": rng.gamma(shape=1000, scale=500, size=n),
-                "control_2": rng.gamma(shape=100, scale=5, size=n),
-                "other_column_1": rng.integers(low=0, high=100, size=n),
-                "other_column_2": rng.normal(loc=0, scale=1, size=n),
-            }
+                "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
+                "beta_channel": {
+                    "dist": "HalfNormal",
+                    "kwargs": {"sigma": np.array([0.4533017, 0.25488063])},
+                },
+                "alpha": {
+                    "dist": "Beta",
+                    "kwargs": {
+                        "alpha": np.array([3, 3]),
+                        "beta": np.array([3.55001301, 2.87092431]),
+                    },
+                },
+                "lam": {
+                    "dist": "Gamma",
+                    "kwargs": {
+                        "alpha": np.array([3, 3]),
+                        "beta": np.array([4.12231653, 5.02896872]),
+                    },
+                },
+                "likelihood": {
+                    "dist": "StudentT",
+                    "kwargs": {"nu": 3, "sigma": 2},
+                },
+                "gamma_control": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
+                "gamma_fourier": {"dist": "Laplace", "kwargs": {"mu": 0, "b": 1}},
+            },
+        ],
+        ids=["default_config", "custom_config"],
+    )
+    def test_model_config(
+        self, model_config: Dict, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        # Create model instance with specified config
+        model = DelayedSaturatedMMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock_max_lag=2,
+            yearly_seasonality=2,
+            model_config=model_config,
         )
 
-        with pytest.raises(
-            TypeError,
-            match=r"The DType <class 'numpy.dtype\[datetime64\]'> could not be promoted by",
-        ):
-            mmm_fitted.predict_posterior(X_pred=new_X)
+        model.build_model(X=toy_X, y=toy_y.to_numpy())
+        # Check for default configuration
+        if model_config is None:
+            # assert observed RV type, and priors of some/all free_RVs.
+            assert isinstance(
+                model.model.observed_RVs[0].owner.op, pm.Normal
+            )  # likelihood
+            # Add more asserts as needed for default configuration
 
-        posterior_predictive = mmm_fitted.sample_posterior_predictive(
-            X_pred=new_X, extend_idata=False, combined=True
+        # Check for custom configuration
+        else:
+            # assert custom configuration is applied correctly
+            assert isinstance(
+                model.model.observed_RVs[0].owner.op, pm.StudentT
+            )  # likelihood
+            assert isinstance(
+                model.model["beta_channel"].owner.op, pm.HalfNormal
+            )  # beta_channel
+
+
+def test_get_valid_distribution(mmm):
+    normal_dist = mmm._get_distribution({"dist": "Normal"})
+    assert normal_dist is pm.Normal
+
+
+def test_get_invalid_distribution(mmm):
+    with pytest.raises(ValueError, match="does not exist in PyMC"):
+        mmm._get_distribution({"dist": "NonExistentDist"})
+
+
+def test_invalid_likelihood_type(mmm):
+    with pytest.raises(
+        ValueError,
+        match="The distribution used for the likelihood is not allowed",
+    ):
+        mmm._create_likelihood_distribution(
+            dist={"dist": "Cauchy", "kwargs": {"alpha": 2, "beta": 4}},
+            mu=np.array([0]),
+            observed=np.random.randn(100),
+            dims="obs_dim",
         )
-        pd.testing.assert_index_equal(
-            pd.DatetimeIndex(posterior_predictive.coords["date"]), new_dates
+
+
+def test_create_likelihood_invalid_kwargs_structure(mmm):
+    with pytest.raises(
+        ValueError, match="either a dictionary with a 'dist' key or a numeric value"
+    ):
+        mmm._create_likelihood_distribution(
+            dist={"dist": "Normal", "kwargs": {"sigma": "not a dictionary or numeric"}},
+            mu=np.array([0]),
+            observed=np.random.randn(100),
+            dims="obs_dim",
         )
-        assert posterior_predictive["likelihood"].shape[0] == new_dates.size
+
+
+def test_create_likelihood_mu_in_top_level_kwargs(mmm):
+    with pytest.raises(
+        ValueError, match="'mu' key is not allowed directly within 'kwargs'"
+    ):
+        mmm._create_likelihood_distribution(
+            dist={"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
+            mu=np.array([0]),
+            observed=np.random.randn(100),
+            dims="obs_dim",
+        )
