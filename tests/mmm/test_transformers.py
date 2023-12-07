@@ -5,6 +5,7 @@ import pytest
 from pytensor.tensor.var import TensorVariable
 
 from pymc_marketing.mmm.transformers import (
+    ConvMode,
     batched_convolution,
     delayed_adstock,
     geometric_adstock,
@@ -51,9 +52,10 @@ def convolution_axis(request):
     return request.param
 
 
-def test_batched_convolution(convolution_inputs, convolution_axis):
+@pytest.mark.parametrize("mode", [ConvMode.After, ConvMode.Before, ConvMode.Overlap])
+def test_batched_convolution(convolution_inputs, convolution_axis, mode):
     x, w, x_val, w_val = convolution_inputs
-    y = batched_convolution(x, w, convolution_axis)
+    y = batched_convolution(x, w, convolution_axis, mode)
     if x_val is None:
         y_val = y.eval()
         expected_shape = getattr(x, "value", x).shape
@@ -65,8 +67,22 @@ def test_batched_convolution(convolution_inputs, convolution_axis):
     x_val = np.moveaxis(
         x_val if x_val is not None else getattr(x, "value", x), convolution_axis, 0
     )
-    assert np.allclose(y_val[0], x_val[0])
-    assert np.allclose(y_val[1:], x_val[1:] + x_val[:-1])
+    if mode == ConvMode.Before:
+        np.testing.assert_allclose(y_val[0], x_val[0])
+        np.testing.assert_allclose(y_val[1:], x_val[1:] + x_val[:-1])
+    elif mode == ConvMode.After:
+        np.testing.assert_allclose(y_val[-1], x_val[-1])
+        np.testing.assert_allclose(y_val[:-1], x_val[1:] + x_val[:-1])
+    elif mode == ConvMode.Overlap:
+        np.testing.assert_allclose(y_val[0], x_val[0])
+        np.testing.assert_allclose(y_val[1:-1], x_val[1:-1] + x_val[:-2])
+
+
+def test_batched_convolution_invalid_mode(convolution_inputs, convolution_axis):
+    x, w, x_val, w_val = convolution_inputs
+    invalid_mode = "InvalidMode"
+    with pytest.raises(ValueError):
+        batched_convolution(x, w, convolution_axis, invalid_mode)
 
 
 def test_batched_convolution_broadcasting():
