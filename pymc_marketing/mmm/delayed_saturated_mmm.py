@@ -10,7 +10,7 @@ import pandas as pd
 import pymc as pm
 import seaborn as sns
 from pytensor.tensor import TensorVariable
-from xarray import DataArray
+from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
@@ -872,8 +872,11 @@ class DelayedSaturatedMMM(
             ]
         )
 
-        new_data = self.channel_transformer.transform(new_data)
-        idata = self.idata
+        new_data = (
+            self.channel_transformer.transform(new_data) if not prior else new_data
+        )
+
+        idata: Dataset = self.fit_result if not prior else self.prior
 
         coords = {
             "weeks_since_spend": np.arange(
@@ -912,8 +915,9 @@ class DelayedSaturatedMMM(
         amount_spent: float,
         ax: Optional[plt.Axes] = None,
         one_time: bool = True,
-        ylabel: bool = True,
+        ylabel: str = "Sales",
         idx=None,
+        prior: bool = False,
     ) -> None:
         ax = ax or plt.gca()
         n_channels = len(self.channel_columns)
@@ -921,6 +925,7 @@ class DelayedSaturatedMMM(
             np.ones(n_channels) * amount_spent,
             one_time=one_time,
             spends_leading_up=np.ones(n_channels) * amount_spent,
+            prior=prior,
         )
 
         def inverse_transform_on_nparray(
@@ -947,27 +952,36 @@ class DelayedSaturatedMMM(
 
         idx = idx or pd.IndexSlice[0:]
 
+        def identity(x):
+            return x
+
+        inverse_transform = (
+            self.target_transformer.inverse_transform if not prior else identity
+        )
         spends_inverse_transformed = (
             spends.to_series()
             .pipe(
                 inverse_transform_on_series,
-                inverse_transform=self.target_transformer.inverse_transform,
+                inverse_transform=inverse_transform,
             )
             .unstack()
         )
+
+        quantiles = [0.025, 0.975]
         conf = (
             spends_inverse_transformed.groupby(level=-1)
-            .quantile([0.025, 0.975])
+            .quantile(quantiles)
             .unstack()
             .loc[idx]
         )
 
+        lower, upper = quantiles
         for channel in self.channel_columns:
             ax.fill_between(
                 conf.index,
-                conf[channel][0.025],
-                conf[channel][0.975],
-                label=f"{channel} 95% CI",
+                conf[channel][lower],
+                conf[channel][upper],
+                label=f"{channel} {100 * (upper - lower):.0f}% CI",
                 alpha=0.5,
             )
         tmp = spends_inverse_transformed.groupby(level=-1).mean().loc[idx]
@@ -975,7 +989,7 @@ class DelayedSaturatedMMM(
         ax.legend().set_title("Channel")
         ax.set(
             xlabel="Weeks since spend",
-            ylabel="Sales" if ylabel else None,
+            ylabel=ylabel,
             title=f"Upcoming sales for {amount_spent:.02f} spend",
         )
         return ax

@@ -234,6 +234,14 @@ class BaseMMM(ModelBuilder):
             return Pipeline(steps=[("scaler", identity_transformer)])
 
     @property
+    def prior(self) -> Dataset:
+        if self.idata is None or "prior" not in self.idata:
+            raise RuntimeError(
+                "The model hasn't been fit yet, call .sample_prior_predictive() first"
+            )
+        return self.idata["prior"]
+
+    @property
     def prior_predictive(self) -> az.InferenceData:
         if self.idata is None or "prior_predictive" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
