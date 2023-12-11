@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Union
 
 import numpy as np
@@ -6,7 +7,13 @@ import pytensor.tensor as pt
 from pytensor.tensor.random.utils import params_broadcast_shapes
 
 
-def batched_convolution(x, w, axis: int = 0):
+class ConvMode(Enum):
+    After = "After"
+    Before = "Before"
+    Overlap = "Overlap"
+
+
+def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
     """Apply a 1D convolution in a vectorized way across multiple batch dimensions.
 
     Parameters
@@ -18,6 +25,12 @@ def batched_convolution(x, w, axis: int = 0):
         to use in the convolution.
     axis : int
         The axis of ``x`` along witch to apply the convolution
+    mode : ConvMode, optional
+        The convolution mode determines how the convolution is applied at the boundaries of the input signal, denoted as "x." The default mode is ConvMode.Before.
+
+        - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
+        - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect similar to the wow factor.
+        - ConvMode.Overlap: Applies the convolution with both "Pull-Forward" and "Pull-Backward" effects, where the effect overlaps with both preceding and succeeding elements.
 
     Returns
     -------
@@ -43,22 +56,39 @@ def batched_convolution(x, w, axis: int = 0):
     # The last dimension of x is the "time" axis, which doesn't get broadcast
     # The last dimension of w is the number of time steps that go into the convolution
     x_shape, w_shape = params_broadcast_shapes([x.shape, w.shape], [1, 1])
+
     x = pt.broadcast_to(x, x_shape)
     w = pt.broadcast_to(w, w_shape)
     x_time = x.shape[-1]
-    shape = (*x.shape, w.shape[-1])
     # Make a tensor with x at the different time lags needed for the convolution
+    x_shape = x.shape
+    # Add the size of the kernel to the time axis
+    shape = (*x_shape[:-1], x_shape[-1] + w.shape[-1] - 1, w.shape[-1])
     padded_x = pt.zeros(shape, dtype=x.dtype)
-    if l_max is not None:
-        for i in range(l_max):
-            padded_x = pt.set_subtensor(
-                padded_x[..., i:x_time, i], x[..., : x_time - i]
-            )
-    else:  # pragma: no cover
+
+    if l_max is None:  # pragma: no cover
         raise NotImplementedError(
             "At the moment, convolving with weight arrays that don't have a concrete shape "
             "at compile time is not supported."
         )
+    # The window is the slice of the padded array that corresponds to the original x
+    if l_max <= 1:
+        window = slice(None)
+    elif mode == ConvMode.After:
+        window = slice(l_max - 1, None)
+    elif mode == ConvMode.Before:
+        window = slice(None, -l_max + 1)
+    elif mode == ConvMode.Overlap:
+        # Handle even and odd l_max differently if l_max is odd then we can split evenly otherwise we drop from the end
+        window = slice((l_max // 2) - (1 if l_max % 2 == 0 else 0), -(l_max // 2))
+    else:
+        raise ValueError(f"Wrong Mode: {mode}, expected of ConvMode")
+
+    for i in range(l_max):
+        padded_x = pt.set_subtensor(padded_x[..., i : x_time + i, i], x)
+
+    padded_x = padded_x[..., window, :]
+
     # The convolution is treated as an element-wise product, that then gets reduced
     # along the dimension that represents the convolution time lags
     conv = pt.sum(padded_x * w[..., None, :], axis=-1)
