@@ -129,10 +129,10 @@ class BetaGeoModel(CLVModel):
         except KeyError:
             raise KeyError("T column is missing from data")
         super().__init__(
+            data=data,
             model_config=model_config,
             sampler_config=sampler_config,
         )
-        self.data = data
         self.a_prior = self._create_distribution(self.model_config["a_prior"])
         self.b_prior = self._create_distribution(self.model_config["b_prior"])
         self.alpha_prior = self._create_distribution(self.model_config["alpha_prior"])

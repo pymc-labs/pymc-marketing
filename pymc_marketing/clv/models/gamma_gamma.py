@@ -16,11 +16,13 @@ class BaseGammaGammaModel(CLVModel):
     def __init__(
         self,
         data: pd.DataFrame,
+        *,
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
     ):
-        super().__init__(model_config, sampler_config)
-        self.data = data
+        super().__init__(
+            data=data, model_config=model_config, sampler_config=sampler_config
+        )
         self.p_prior = self._create_distribution(self.model_config["p_prior"])
         self.q_prior = self._create_distribution(self.model_config["q_prior"])
         self.v_prior = self._create_distribution(self.model_config["v_prior"])

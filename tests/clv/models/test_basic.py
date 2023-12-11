@@ -12,48 +12,30 @@ from pymc_marketing.clv.models.basic import CLVModel
 class CLVModelTest(CLVModel):
     _model_type = "CLVModelTest"
 
-    def __init__(self, dataset=None, model_config=None, sampler_config=None):
-        super().__init__()
-        self.data = pd.DataFrame({"y": np.random.randn(100)})
-        self.a = self._create_distribution(self.model_config["a"])
-        self._process_priors(self.a)
+    def __init__(self, data=None, **kwargs):
+        if data is None:
+            data = pd.DataFrame({"y": np.random.randn(10)})
+        super().__init__(data=data, **kwargs)
+        self.x_prior = self._create_distribution(self.model_config["x"])
+        self._process_priors(self.x_prior)
 
     @property
     def default_model_config(self):
         return {
-            "a": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}},
-            "b": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}},
+            "x": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}},
         }
 
     def build_model(self):
         with pm.Model() as self.model:
-            self.a = pm.Normal("a", mu=0, sigma=1)
-            self.b = pm.Normal("b", mu=0, sigma=1)
-            self.y = pm.Normal(
-                "y", mu=self.a + self.b, sigma=1, observed=self.data["y"]
-            )
-
-
-@pytest.fixture(scope="module")
-def posterior():
-    # Create a random numpy array for posterior samples
-    posterior_samples = np.random.randn(
-        4, 100, 2
-    )  # shape convention: (chain, draw, *shape)
-
-    # Create a dictionary for posterior
-    posterior_dict = {"theta": posterior_samples}
-    return from_dict(posterior=posterior_dict)
+            x = self.model.register_rv(self.x_prior, name="x")
+            pm.Normal("y", mu=x, sigma=1, observed=self.data["y"])
 
 
 class TestCLVModel:
     def test_repr(self):
         model = CLVModelTest()
         model.build_model()
-        assert (
-            model.__repr__()
-            == "CLVModelTest\na ~ Normal(0, 1)\nb ~ Normal(0, 1)\ny ~ Normal(f(a, b), 1)"
-        )
+        assert model.__repr__() == "CLVModelTest\nx ~ Normal(0, 1)\ny ~ Normal(x, 1)"
 
     def test_check_prior_ndim(self):
         prior = pm.Normal.dist(shape=(5,))  # ndim = 1
@@ -127,12 +109,7 @@ class TestCLVModel:
         ):
             model.fit(fit_method="wrong_method")
 
-    def test_sample_wihtout_build(self):
-        model = CLVModelTest()
-        with pytest.raises(RuntimeError, match="The model hasn't been built yet"):
-            model.sample_model()
-
-    def test_fit_no_model(self):
+    def test_fit_result_error(self):
         model = CLVModelTest()
         with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
             model.fit_result
@@ -140,7 +117,7 @@ class TestCLVModel:
     def test_load(self):
         model = CLVModelTest()
         model.build_model()
-        model.fit(target_accept=0.81, draws=100, chains=2, random_seed=1234)
+        model.fit(tune=0, chains=2, draws=5)
         model.save("test_model")
         model2 = model.load("test_model")
         assert model2.fit_result is not None
@@ -150,35 +127,6 @@ class TestCLVModel:
     def test_default_sampler_config(self):
         model = CLVModelTest()
         assert model.sampler_config == {}
-
-    def test_prior_predictive(self):
-        model = CLVModelTest()
-        model.build_model()
-        with pytest.raises(RuntimeError) as exc_info:
-            model.prior_predictive()
-        assert (
-            str(exc_info.value)
-            == "No prior predictive samples available, call sample_prior_predictive() first"
-        )
-        model.sample_prior_predictive(samples=1000, combined=False)
-        model.prior_predictive
-        model.idata = None
-        model.idata = pm.sample(
-            draws=50, tune=50, chains=2, model=model.model, random_seed=1234
-        )
-        model.sample_prior_predictive(samples=50, extend_idata=True)
-        assert "prior_predictive" in model.idata
-
-    @pytest.mark.skip(
-        reason="TODO: Still not decided whether posterior_predictive will stay"
-    )
-    def test_posterior_predictive(self):
-        model = CLVModelTest()
-        model.build_model()
-        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
-            model.posterior_predictive()
-        model.fit()
-        model.posterior_predictive
 
     def test_set_fit_result(self):
         model = CLVModelTest()
@@ -192,13 +140,12 @@ class TestCLVModel:
         with pytest.warns(UserWarning, match="Overriding pre-existing fit_result"):
             model.fit_result = fake_fit
         model.idata = None
-        model.sample_prior_predictive(samples=50, extend_idata=True)
         model.fit_result = fake_fit
 
     def test_fit_summary_for_mcmc(self):
         model = CLVModelTest()
         model.build_model()
-        model.fit()
+        model.fit(tune=0, chains=2, draws=5)
         summ = model.fit_summary()
         assert isinstance(summ, pd.DataFrame)
 
@@ -215,15 +162,31 @@ class TestCLVModel:
 
         # Now create an instance of MyClass
         mock_basic = CLVModelTest()
-
-        # Check that the property returns the new value
-        mock_basic.fit()
+        mock_basic.fit(tune=0, chains=2, draws=5)
         mock_basic.save("test_model")
+
         # Apply the monkeypatch for the property
         monkeypatch.setattr(CLVModelTest, "id", property(mock_property))
         with pytest.raises(
             ValueError,
-            match="The file 'test_model' does not contain an inference data of the same model or configuration as 'CLVModelTest'",
+            match="Inference data not compatible with CLVModelTest",
         ):
             CLVModelTest.load("test_model")
         os.remove("test_model")
+
+    def test_thin_fit_result(self):
+        data = pd.DataFrame(dict(y=[-3, -2, -1]))
+        model = CLVModelTest(data=data)
+        model.build_model()
+        fake_idata = from_dict(dict(x=np.random.normal(size=(4, 1000))))
+        fake_idata.add_groups(dict(fit_data=data.to_xarray()))
+        model.set_idata_attrs(fake_idata)
+        model.idata = fake_idata
+
+        thin_model = model.thin_fit_result(keep_every=20)
+        assert thin_model is not model
+        assert thin_model.idata is not model.idata
+        assert len(thin_model.idata.posterior["x"].chain) == 4
+        assert len(thin_model.idata.posterior["x"].draw) == 50
+        assert thin_model.data is not model.data
+        assert np.all(thin_model.data == model.data)
