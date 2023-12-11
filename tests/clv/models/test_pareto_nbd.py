@@ -28,7 +28,6 @@ class TestParetoNBDModel:
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
         # TODO: Create a pytest fixture for this
         test_data = pd.read_csv("tests/clv/datasets/test_clv_covar.csv")
-        test_data["customer_id"] = test_data.index
 
         cls.data = test_data
         cls.customer_id = test_data["customer_id"]
@@ -377,8 +376,8 @@ class TestParetoNBDModel:
         assert customer_purchase_rate.shape == expected_shape
         assert customer_rec_freq.shape == expected_pop_dims
 
-        lam = pm.Gamma.dist(alpha=self.r_true, beta=1 / self.alpha_true, size=N)
-        mu = pm.Gamma.dist(alpha=self.s_true, beta=1 / self.beta_true, size=N)
+        lam = pm.Gamma.dist(alpha=self.r_true, beta=self.alpha_true, size=N)
+        mu = pm.Gamma.dist(alpha=self.s_true, beta=self.beta_true, size=N)
 
         rec_freq = ParetoNBD.dist(
             r=self.r_true,
@@ -423,7 +422,6 @@ class TestParetoNBDModel:
         model = ParetoNBDModel(
             data=test_data,
         )
-
         model.fit("map")
         model.save("test_model")
         # Testing the valid case.

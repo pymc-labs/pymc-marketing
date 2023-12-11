@@ -181,16 +181,25 @@ class ParetoNBDModel(CLVModel):
         # TODO: Write a separate, more comprehensive RFM validation method in a future PR.
         # Perform validation checks on column names and customer identifiers
         self._validate_column_names(data, ["customer_id", "frequency", "recency", "T"])
+        if len(np.unique(data["customer_id"])) != len(data["customer_id"]):
+            raise ValueError("Customers must have unique ID labels.")
+
         # TODO: self.data is persisted in idata object.
         #       Consider making the assignment optional as it can reduce saved model size considerably.
-        self.data = data
-        if len(np.unique(self.data["customer_id"])) != len(self.data["customer_id"]):
-            raise ValueError("Customers must have unique ID labels.")
+        super().__init__(
+            data=data,
+            model_config=model_config,
+            sampler_config=sampler_config,
+        )
+
+        self.data: pd.DataFrame
+
         self.coords = {"customer_id": self.data["customer_id"]}
 
         self.pr_covar_columns = pr_covar_columns
         self.dr_covar_columns = dr_covar_columns
 
+        # validate data contains specified column names for covariates
         for _ in zip(
             [self.pr_covar_columns, self.dr_covar_columns],
             ["purchase_rate_covariates", "dropout_covariates"],
@@ -198,11 +207,6 @@ class ParetoNBDModel(CLVModel):
             if _[0] is not None:
                 self._validate_column_names(data, _[0])
                 # self.coords[_[1]] = _[0]  # type: ignore
-
-        super().__init__(
-            model_config=model_config,
-            sampler_config=sampler_config,
-        )
 
         self.r_prior = self._create_distribution(self.model_config["r_prior"])
         self.s_prior = self._create_distribution(self.model_config["s_prior"])
@@ -732,16 +736,38 @@ class ParetoNBDModel(CLVModel):
         with pm.Model():
             # purchase rate priors
             r = pm.HalfFlat("r")
-            alpha = pm.HalfFlat("alpha")
+            if self.pr_covar_columns is not None:
+                alpha0 = pm.HalfFlat("alpha0")
+                pr_coeff = pm.Flat("alpha0", shape=2)
+
+                alpha = pm.Deterministic(
+                    "alpha",
+                    alpha0
+                    * pm.math.exp(
+                        -pm.math.dot(self.data[self.pr_covar_columns], pr_coeff)
+                    ),
+                )
+            else:
+                alpha = pm.HalfFlat("alpha")
 
             # dropout priors
             s = pm.HalfFlat("s")
-            beta = pm.HalfFlat("beta")
+            if self.dr_covar_columns is not None:
+                beta0 = pm.HalfFlat("beta0")
+                dr_coeff = pm.Flat("beta0", shape=2)
 
-            pm.Gamma(
-                "population_purchase_rate", alpha=r, beta=1 / alpha, **shape_kwargs
-            )
-            pm.Gamma("population_dropout", alpha=s, beta=1 / beta, **shape_kwargs)
+                beta = pm.Deterministic(
+                    "beta",
+                    beta0
+                    * pm.math.exp(
+                        -pm.math.dot(self.data[self.dr_covar_columns], dr_coeff)
+                    ),
+                )
+            else:
+                beta = pm.HalfFlat("beta")
+
+            pm.Gamma("population_purchase_rate", alpha=r, beta=alpha, **shape_kwargs)
+            pm.Gamma("population_dropout", alpha=s, beta=beta, **shape_kwargs)
 
             ParetoNBD(
                 name="customer_population",
@@ -776,6 +802,12 @@ class ParetoNBDModel(CLVModel):
         xr.Dataset
             Dataset containing the posterior samples for the population-level dropout rate.
         """
+
+        if self.dr_covar_columns is not None:
+            raise ValueError(
+                "Population distribution cannot be estimated with covariates."
+            )
+
         return self._distribution_new_customers(
             random_seed=random_seed,
             T=None,
@@ -801,6 +833,12 @@ class ParetoNBDModel(CLVModel):
         xr.Dataset
             Dataset containing the posterior samples for the population-level purchase rate.
         """
+
+        if self.pr_covar_columns is not None:
+            raise ValueError(
+                "Population distribution cannot be estimated with covariates."
+            )
+
         return self._distribution_new_customers(
             random_seed=random_seed,
             T=None,
