@@ -93,6 +93,8 @@ class TestBasePlotting:
             ("plot_components_contributions", {}),
             ("plot_channel_parameter", {"param_name": "alpha"}),
             ("plot_direct_contribution_curves", {}),
+            ("plot_direct_contribution_curves", {"same_axes": True}),
+            ("plot_direct_contribution_curves", {"channels": ["channel_2"]}),
             ("plot_channel_contribution_share_hdi", {"hdi_prob": 0.95}),
             ("plot_grouped_contribution_breakdown_over_time", {}),
             (
@@ -109,3 +111,15 @@ class TestBasePlotting:
         func = plotting_mmm.__getattribute__(func_plot_name)
         assert isinstance(func(**kwargs_plot), plt.Figure)
         plt.close("all")
+
+    @pytest.mark.parametrize(
+        "channels, match",
+        [
+            (["invalid_channel"], "subset"),
+            (["channel_1", "channel_1"], "unique"),
+            ([], "Number of rows must be a positive"),
+        ],
+    )
+    def test_plot_direct_contribution_curves_error(self, plotting_mmm, channels, match):
+        with pytest.raises(ValueError, match=match):
+            plotting_mmm.plot_direct_contribution_curves(channels=channels)

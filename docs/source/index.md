@@ -139,6 +139,7 @@ from pymc_marketing import clv
 
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/datasets/clv_quickstart.csv"
 data = pd.read_csv(data_url)
+data['customer_id'] = data.index
 
 beta_geo_model = clv.BetaGeoModel(
     data = data
