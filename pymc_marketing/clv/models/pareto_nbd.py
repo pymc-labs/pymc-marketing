@@ -192,6 +192,7 @@ class ParetoNBDModel(CLVModel):
             sampler_config=sampler_config,
         )
 
+        # This type declaration is required for mypy
         self.data: pd.DataFrame
 
         self.coords = {"customer_id": self.data["customer_id"]}
