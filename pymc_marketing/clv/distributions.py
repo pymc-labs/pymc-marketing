@@ -374,7 +374,7 @@ class ParetoNBD(PositiveContinuous):
         \end{align}
 
     ========  ===============================================
-    Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
+    Support   :math:`t_j >= 0` for :math:`j = 1, \dots, x`
     Mean      :math:`\mathbb{E}[X(t) | r, \alpha, s, \beta] = \frac{r\beta}{\alpha(s-1)}[1-(\frac{\beta}{\beta + t})^{s-1}]`
     ========  ===============================================
 
@@ -537,7 +537,6 @@ class BetaGeoBetaBinomRV(RandomVariable):
 beta_geo_beta_binom = BetaGeoBetaBinomRV()
 
 
-# TODO: Edit likelihood expression in docstring
 class BetaGeoBetaBinom(Discrete):
     r"""
     Population-level distribution class for a discrete, non-contractual, Beta-Geometric/Beta-Binomial process,
@@ -545,29 +544,15 @@ class BetaGeoBetaBinom(Discrete):
 
     .. math::
 
-        \begin{align}
-        \text{if }\alpha > \beta: \\
-        \\
-        \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) &=
-        \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\alpha +t_x)^{r+s+x}}
-        [(\frac{s}{r+s+x})_2F_1(r+s+x,s+1;r+s+x+1;\frac{\alpha-\beta}{\alpha+t_x}) \\
-        &+ (\frac{r+x}{r+s+x})
-        \frac{_2F_1(r+s+x,s;r+s+x+1;\frac{\alpha-\beta}{\alpha+T})(\alpha +t_x)^{r+s+x}}
-        {(\alpha +T)^{r+s+x}}] \\
-        \\
-        \text{if }\beta >= \alpha: \\
-        \\
-        \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) &=
-        \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\beta +t_x)^{r+s+x}}
-        [(\frac{s}{r+s+x})_2F_1(r+s+x,r+x;r+s+x+1;\frac{\beta-\alpha}{\beta+t_x}) \\
-        &+ (\frac{r+x}{r+s+x})
-        \frac{_2F_1(r+s+x,r+x+1;r+s+x+1;\frac{\beta-\alpha}{\beta+T})(\beta +t_x)^{r+s+x}}
-        {(\beta +T)^{r+s+x}}]
-        \end{align}
+        \mathbb{L}(\alpha, \beta, \gamma, \delta  | x, t_x, n) &=
+        \frac{B(\alpha+x,\beta+n-x)}{B(\alpha,\beta)}
+        \frac{B(\gamma,\delta+n)}{B(\gamma,\delta)} \\
+        &+ \sum_{i=0}^{n-t_x-1}\frac{B(\alpha+x,\beta+t_x-x+i)}{B(\alpha,\beta)} \\
+        &\cdot \frac{B(\gamma+1,\delta+t_x+i)}{B(\gamma,\delta)}
 
     ========  ===============================================
-    Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
-    Mean      :math:`\mathbb{E}[X(t) | r, \alpha, s, \beta] = \frac{r\beta}{\alpha(s-1)}[1-(\frac{\beta}{\beta + t})^{s-1}]`
+    Support   :math:`t_j >= 0` for :math:`j = 1, \dots, x`
+    Mean      :math: `\mathbb{E}[X(n) | \alpha, \beta, \gamma, \delta] =  (\frac{\alpha}{\alpha+\beta})(\frac{\delta}{\gamma-1}) \cdot{1-\frac{\Gamma(\gamma+delta}{\Gamma(\gamma+\delta+n}\frac{\Gamma(1+\delta+n}{\Gamma(1+ \delta}}`
     ========  ===============================================
 
     References
@@ -601,7 +586,7 @@ class BetaGeoBetaBinom(Discrete):
                     )
 
         # Broadcast all the parameters so they are sequences.
-        # This is potentially inefficient, but otherwise we need some ugly logic to unpack argumens in the scan function,
+        # Potentially inefficient, but otherwise ugly logic needed to unpack arguments in the scan function,
         # since sequences always precede non-sequences.
         _, alpha, beta, gamma, delta, T = pt.broadcast_arrays(
             t_x, alpha, beta, gamma, delta, T
