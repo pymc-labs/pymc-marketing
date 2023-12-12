@@ -86,8 +86,8 @@ class TestParetoNBDModel:
                 "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 1, "beta": 1}},
                 "alpha0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
                 "beta0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
-                "dr_coeff": {"nu": 2, "dims": ("dropout_covariates",)},
-                "pr_coeff": {"nu": 3, "dims": ("purchase_rate_covariates",)},
+                "dr_coeff": {"dist": "StudentT", "kwargs": {"nu": 1, "shape": (2,)}},
+                "pr_coeff": {"dist": "StudentT", "kwargs": {"nu": 1, "shape": (2,)}},
             }
         else:
             config = model_config
@@ -432,13 +432,17 @@ class TestParetoNBDModel:
         assert isinstance(loaded_model, ParetoNBDModel)
         # Check if the loaded data matches with the model data
         np.testing.assert_array_equal(
-            loaded_model.customer_id.values, model.customer_id.values
+            loaded_model.data["customer_id"].values, model.data["customer_id"].values
         )
         np.testing.assert_array_equal(
-            loaded_model.frequency.values, model.frequency.values
+            loaded_model.data["frequency"].values, model.data["frequency"].values
         )
-        np.testing.assert_array_equal(loaded_model.T.values, model.T.values)
-        np.testing.assert_array_equal(loaded_model.recency.values, model.recency.values)
+        np.testing.assert_array_equal(
+            loaded_model.data["T"].values, model.data["T"].values
+        )
+        np.testing.assert_array_equal(
+            loaded_model.data["recency"].values, model.data["recency"].values
+        )
         assert model.model_config == loaded_model.model_config
         assert model.sampler_config == loaded_model.sampler_config
         assert model.idata == loaded_model.idata

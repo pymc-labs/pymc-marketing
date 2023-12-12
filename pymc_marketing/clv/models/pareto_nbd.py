@@ -184,6 +184,25 @@ class ParetoNBDModel(CLVModel):
         if len(np.unique(data["customer_id"])) != len(data["customer_id"]):
             raise ValueError("Customers must have unique ID labels.")
 
+        # validate data contains specified column names for covariates
+        for _ in zip(
+            [pr_covar_columns, dr_covar_columns],
+            ["purchase_rate_covariates", "dropout_covariates"],
+        ):
+            if _[0] is not None:
+                self._validate_column_names(data, _[0])
+                # self.coords[_[1]] = _[0]  # type: ignore
+
+        self.pr_shape = (
+            0 if pr_covar_columns is None else np.array(pr_covar_columns).shape
+        )
+        self.dr_shape = (
+            0 if dr_covar_columns is None else np.array(dr_covar_columns).shape
+        )
+
+        self.pr_covar_columns = pr_covar_columns
+        self.dr_covar_columns = dr_covar_columns
+
         # TODO: self.data is persisted in idata object.
         #       Consider making the assignment optional as it can reduce saved model size considerably.
         super().__init__(
@@ -192,22 +211,10 @@ class ParetoNBDModel(CLVModel):
             sampler_config=sampler_config,
         )
 
-        # This type declaration is required for mypy
+        # These type declarations are required for mypy
         self.data: pd.DataFrame
 
         self.coords = {"customer_id": self.data["customer_id"]}
-
-        self.pr_covar_columns = pr_covar_columns
-        self.dr_covar_columns = dr_covar_columns
-
-        # validate data contains specified column names for covariates
-        for _ in zip(
-            [self.pr_covar_columns, self.dr_covar_columns],
-            ["purchase_rate_covariates", "dropout_covariates"],
-        ):
-            if _[0] is not None:
-                self._validate_column_names(data, _[0])
-                # self.coords[_[1]] = _[0]  # type: ignore
 
         self.r_prior = self._create_distribution(self.model_config["r_prior"])
         self.s_prior = self._create_distribution(self.model_config["s_prior"])
@@ -223,8 +230,11 @@ class ParetoNBDModel(CLVModel):
             self.alpha0_prior = self._create_distribution(
                 self.model_config["alpha0_prior"]
             )
-            # TODO: Re-add coefficients when customer covariate coefficient priors are supported
-            priors.extend([self.alpha0_prior])
+            pr_ndim = len(self.pr_shape)  # type: ignore
+            self.pr_coeff = self._create_distribution(
+                self.model_config["pr_coeff"], ndim=pr_ndim
+            )
+            priors.extend([self.alpha0_prior, self.pr_coeff])
 
         if self.dr_covar_columns is None:
             self.beta_prior = self._create_distribution(self.model_config["beta_prior"])
@@ -233,8 +243,11 @@ class ParetoNBDModel(CLVModel):
             self.beta0_prior = self._create_distribution(
                 self.model_config["beta0_prior"]
             )
-            # TODO: Re-add coefficients when customer covariate coefficient priors are supported
-            priors.extend([self.beta0_prior])
+            dr_ndim = len(self.pr_shape)  # type: ignore
+            self.dr_coeff = self._create_distribution(
+                self.model_config["dr_coeff"], ndim=dr_ndim
+            )
+            priors.extend([self.beta0_prior, self.dr_coeff])
 
         self._process_priors(*priors)
 
@@ -250,8 +263,14 @@ class ParetoNBDModel(CLVModel):
             "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
             "alpha0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
             "beta0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
-            "dr_coeff": {"nu": 1, "dims": ("dropout_covariates",)},
-            "pr_coeff": {"nu": 1, "dims": ("purchase_rate_covariates",)},
+            "dr_coeff": {
+                "dist": "StudentT",
+                "kwargs": {"nu": 1, "shape": self.dr_shape},
+            },
+            "pr_coeff": {
+                "dist": "StudentT",
+                "kwargs": {"nu": 1, "shape": self.pr_shape},
+            },
         }
 
     def build_model(  # type: ignore
@@ -263,11 +282,14 @@ class ParetoNBDModel(CLVModel):
             if self.pr_covar_columns is not None:
                 alpha0 = self.model.register_rv(self.alpha0_prior, name="alpha0")
                 # TODO: _create_distributions changes required in clv/basic.py to support custom distributions
-                pr_coeff = pm.StudentT(
-                    name="pr_coeff",
-                    nu=self.model_config["pr_coeff"]["nu"],
-                    shape=2,  # self.model_config["pr_coeff"]["dims"],
-                )
+                pr_coeff = self.model.register_rv(
+                    self.pr_coeff, name="pr_coeff"
+                )  # , dims=tuple(self.pr_covar_columns))#("purchase_rate_covariates",))
+                #     pm.StudentT(
+                #     name="pr_coeff",
+                #     nu=self.model_config["pr_coeff"]["nu"],
+                #     shape=2,  # self.model_config["pr_coeff"]["dims"],
+                # )
                 # TODO: coordinates must be resolved
                 alpha = pm.Deterministic(
                     name="alpha",
@@ -284,11 +306,14 @@ class ParetoNBDModel(CLVModel):
             if self.dr_covar_columns is not None:
                 beta0 = self.model.register_rv(self.beta0_prior, name="beta0")
                 # TODO: _create_distributions changes required in clv/basic.py to support custom distributions
-                dr_coeff = pm.StudentT(
-                    name="dr_coeff",
-                    nu=self.model_config["dr_coeff"]["nu"],
-                    shape=2,  # self.model_config["dr_coeff"]["dims"],
-                )
+                dr_coeff = self.model.register_rv(
+                    self.dr_coeff, name="dr_coeff"
+                )  # , dims=tuple(self.dr_covar_columns))#("dropout_covariates",))
+                # pm.StudentT(
+                #     name="dr_coeff",
+                #     nu=self.model_config["dr_coeff"]["nu"],
+                #     shape=2,  # self.model_config["dr_coeff"]["dims"],
+                # )
                 # TODO: coordinates must be resolved
                 beta = pm.Deterministic(
                     name="beta",
