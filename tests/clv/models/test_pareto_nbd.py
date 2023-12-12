@@ -179,7 +179,9 @@ class TestParetoNBDModel:
             ParetoNBDModel(test_data)
 
     def test_missing_covariates(self):
-        with pytest.raises(KeyError, match="channel column is missing from data"):
+        with pytest.raises(
+            KeyError, match="purchase_channel column is missing from data"
+        ):
             ParetoNBDModel(
                 data=self.data, pr_covar_columns=["spent", "purchase_channel"]
             )

@@ -211,7 +211,7 @@ class ParetoNBDModel(CLVModel):
             sampler_config=sampler_config,
         )
 
-        # These type declarations are required for mypy
+        # Type declaration required for mypy
         self.data: pd.DataFrame
 
         self.coords = {"customer_id": self.data["customer_id"]}
@@ -227,6 +227,7 @@ class ParetoNBDModel(CLVModel):
             )
             priors.extend([self.alpha_prior])
         else:
+            self.coords["purchase_rate_covariates"] = self.pr_covar_columns  # type: ignore
             self.alpha0_prior = self._create_distribution(
                 self.model_config["alpha0_prior"]
             )
@@ -240,6 +241,8 @@ class ParetoNBDModel(CLVModel):
             self.beta_prior = self._create_distribution(self.model_config["beta_prior"])
             priors.extend([self.beta_prior])
         else:
+            self.coords["dropout_covariates"] = self.dr_covar_columns  # type: ignore
+
             self.beta0_prior = self._create_distribution(
                 self.model_config["beta0_prior"]
             )
@@ -283,8 +286,8 @@ class ParetoNBDModel(CLVModel):
                 alpha0 = self.model.register_rv(self.alpha0_prior, name="alpha0")
                 # TODO: _create_distributions changes required in clv/basic.py to support custom distributions
                 pr_coeff = self.model.register_rv(
-                    self.pr_coeff, name="pr_coeff"
-                )  # , dims=tuple(self.pr_covar_columns))#("purchase_rate_covariates",))
+                    self.pr_coeff, name="pr_coeff", dims=("purchase_rate_covariates",)
+                )  # tuple(self.pr_covar_columns))#("purchase_rate_covariates",))
                 #     pm.StudentT(
                 #     name="pr_coeff",
                 #     nu=self.model_config["pr_coeff"]["nu"],
@@ -297,6 +300,7 @@ class ParetoNBDModel(CLVModel):
                     * pm.math.exp(
                         -pm.math.dot(self.data[self.pr_covar_columns], pr_coeff)
                     ),
+                    dims="customer_id",
                 )
             else:
                 alpha = self.model.register_rv(self.alpha_prior, name="alpha")
@@ -307,8 +311,8 @@ class ParetoNBDModel(CLVModel):
                 beta0 = self.model.register_rv(self.beta0_prior, name="beta0")
                 # TODO: _create_distributions changes required in clv/basic.py to support custom distributions
                 dr_coeff = self.model.register_rv(
-                    self.dr_coeff, name="dr_coeff"
-                )  # , dims=tuple(self.dr_covar_columns))#("dropout_covariates",))
+                    self.dr_coeff, name="dr_coeff", dims=("dropout_covariates",)
+                )  # tuple(self.dr_covar_columns))#("dropout_covariates",))
                 # pm.StudentT(
                 #     name="dr_coeff",
                 #     nu=self.model_config["dr_coeff"]["nu"],
@@ -321,6 +325,7 @@ class ParetoNBDModel(CLVModel):
                     * pm.math.exp(
                         -pm.math.dot(self.data[self.dr_covar_columns], dr_coeff)
                     ),
+                    dims="customer_id",
                 )
             else:
                 beta = self.model.register_rv(self.beta_prior, name="beta")
@@ -365,7 +370,7 @@ class ParetoNBDModel(CLVModel):
         """
         Utility function to process covariates into model parameters.
         """
-
+        # TODO: broadcasting needs to be resolved when data is provided
         if data is None:
             alpha = self.fit_result["alpha"]
             beta = self.fit_result["beta"]
@@ -374,18 +379,28 @@ class ParetoNBDModel(CLVModel):
                 alpha = self.fit_result["alpha"]
             else:
                 self._validate_column_names(data, self.pr_covar_columns)
+                pr_xarray = xarray.DataArray(
+                    data[self.pr_covar_columns],
+                    dims=["customer_id", "purchase_rate_covariates"],
+                )
                 alpha0 = self.fit_result["alpha0"]
                 pr_coeff = self.fit_result["pr_coeff"]
-                alpha = alpha0 * np.exp(-np.dot(data[self.pr_covar_columns], pr_coeff))
-                alpha = to_xarray("customer_id", alpha)
+                alpha = alpha0 * np.exp(
+                    -xarray.dot(pr_coeff, pr_xarray, dims="purchase_rate_covariates")
+                )
             if self.dr_covar_columns is None:
                 beta = self.fit_result["beta"]
             else:
                 self._validate_column_names(data, self.dr_covar_columns)
+                dr_xarray = xarray.DataArray(
+                    data[self.dr_covar_columns],
+                    dims=["customer_id", "dropout_covariates"],
+                )
                 beta0 = self.fit_result["beta0"]
                 dr_coeff = self.fit_result["dr_coeff"]
-                beta = beta0 * np.exp(-np.dot(data[self.dr_covar_columns], dr_coeff))
-                beta = to_xarray("customer_id", beta)
+                beta = beta0 * np.exp(
+                    -xarray.dot(dr_coeff, dr_xarray, dims="dropout_covariates")
+                )
         return alpha, beta
 
     def _process_customers(
@@ -408,8 +423,8 @@ class ParetoNBDModel(CLVModel):
             data["customer_id"], data["frequency"], data["recency"], data["T"]
         )
 
-    @staticmethod
     def _logp(
+        self,
         r: xarray.DataArray,
         alpha: xarray.DataArray,
         s: xarray.DataArray,
@@ -421,12 +436,23 @@ class ParetoNBDModel(CLVModel):
         """
         Utility function for using ParetoNBD log-likelihood in predictive methods.
         """
-        # Add one dummy dimension to the right of the scalar parameters, so they broadcast with the `T` vector
+        # Add one dummy dimension to the right of every parameter so they broadcast with the `T` vector
+        # If using covariates, this dimension is already included for alpha and beta
+        if self.pr_covar_columns is None:
+            alpha = alpha.values[..., None]
+        else:
+            alpha = alpha.values
+
+        if self.dr_covar_columns is None:
+            beta = beta.values[..., None]
+        else:
+            beta = beta.values
+
         pareto_dist = ParetoNBD.dist(
             r=r.values[..., None],
-            alpha=alpha.values[..., None],
+            alpha=alpha,
             s=s.values[..., None],
-            beta=beta.values[..., None],
+            beta=beta,
             T=T.values,
         )
         values = np.vstack((t_x.values, x.values)).T
@@ -547,6 +573,7 @@ class ParetoNBDModel(CLVModel):
 
         t = np.asarray(t)
 
+        # TODO: This requires modification for covariates
         r, alpha, s, beta = self._unload_params(self.data)
         first_term = r * beta / alpha / (s - 1)
         second_term = 1 - (beta / (beta + t)) ** (s - 1)
