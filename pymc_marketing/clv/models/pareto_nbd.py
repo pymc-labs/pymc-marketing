@@ -284,16 +284,11 @@ class ParetoNBDModel(CLVModel):
             r = self.model.register_rv(self.r_prior, name="r")
             if self.pr_covar_columns is not None:
                 alpha0 = self.model.register_rv(self.alpha0_prior, name="alpha0")
-                # TODO: _create_distributions changes required in clv/basic.py to support custom distributions
+
                 pr_coeff = self.model.register_rv(
                     self.pr_coeff, name="pr_coeff", dims=("purchase_rate_covariates",)
-                )  # tuple(self.pr_covar_columns))#("purchase_rate_covariates",))
-                #     pm.StudentT(
-                #     name="pr_coeff",
-                #     nu=self.model_config["pr_coeff"]["nu"],
-                #     shape=2,  # self.model_config["pr_coeff"]["dims"],
-                # )
-                # TODO: coordinates must be resolved
+                )
+
                 alpha = pm.Deterministic(
                     name="alpha",
                     var=alpha0
@@ -309,16 +304,11 @@ class ParetoNBDModel(CLVModel):
             s = self.model.register_rv(self.s_prior, name="s")
             if self.dr_covar_columns is not None:
                 beta0 = self.model.register_rv(self.beta0_prior, name="beta0")
-                # TODO: _create_distributions changes required in clv/basic.py to support custom distributions
+
                 dr_coeff = self.model.register_rv(
                     self.dr_coeff, name="dr_coeff", dims=("dropout_covariates",)
-                )  # tuple(self.dr_covar_columns))#("dropout_covariates",))
-                # pm.StudentT(
-                #     name="dr_coeff",
-                #     nu=self.model_config["dr_coeff"]["nu"],
-                #     shape=2,  # self.model_config["dr_coeff"]["dims"],
-                # )
-                # TODO: coordinates must be resolved
+                )
+
                 beta = pm.Deterministic(
                     name="beta",
                     var=beta0
@@ -855,7 +845,7 @@ class ParetoNBDModel(CLVModel):
         xr.Dataset
             Dataset containing the posterior samples for the population-level dropout rate.
         """
-
+        # TODO: Covariate support still possible; get popular opinion
         if self.dr_covar_columns is not None:
             raise ValueError(
                 "Population distribution cannot be estimated with covariates."
@@ -886,7 +876,7 @@ class ParetoNBDModel(CLVModel):
         xr.Dataset
             Dataset containing the posterior samples for the population-level purchase rate.
         """
-
+        # TODO: Covariate support still possible; get popular opinion
         if self.pr_covar_columns is not None:
             raise ValueError(
                 "Population distribution cannot be estimated with covariates."
