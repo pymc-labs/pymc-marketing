@@ -5,7 +5,7 @@ from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.distribution import Discrete
 from pymc.distributions.dist_math import betaln, check_parameters
 from pytensor import scan
-from pytensor.graph import vectorize
+from pytensor.graph import vectorize_graph
 from pytensor.tensor.random.op import RandomVariable
 
 __all__ = ["ContContract", "ContNonContract", "ParetoNBD", "BetaGeoBetaBinom"]
@@ -602,7 +602,7 @@ class BetaGeoBetaBinom(Discrete):
 
             # Maximum prevents invalid T - t_x values from crashing logp
             i_vec = pt.arange(pt.maximum(T_i - t_x_i, 0) + 1)
-            unnorm_logprob_customer_died_at_tx_plus_i_vec = vectorize(
+            unnorm_logprob_customer_died_at_tx_plus_i_vec = vectorize_graph(
                 unnorm_logprob_customer_died_at_tx_plus_i, replace={i: i_vec}
             )
 
