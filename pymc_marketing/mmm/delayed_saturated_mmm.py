@@ -83,7 +83,7 @@ class BaseDelayedSaturatedMMM(MMM):
     @property
     def output_var(self):
         """Defines target variable for the model"""
-        return "y"
+        return "likelihood"
 
     def _generate_and_preprocess_model_data(  # type: ignore
         self, X: Union[pd.DataFrame, pd.Series], y: Union[pd.Series, np.ndarray]
@@ -843,3 +843,53 @@ class DelayedSaturatedMMM(
             ylabel="contribution",
         )
         return fig
+
+    def predict_posterior(
+        self,
+        X_pred: Union[np.ndarray, pd.DataFrame, pd.Series],
+        extend_idata: bool = True,
+        combined: bool = True,
+        include_last_observations: bool = False,
+        **kwargs,
+    ) -> DataArray:
+        """
+        Generate posterior predictive samples on unseen data.
+
+        Parameters
+        ---------
+        X_pred : array-like if sklearn is available, otherwise array, shape (n_pred, n_features)
+            The input data used for prediction.
+        extend_idata : Boolean determining whether the predictions should be added to inference data object.
+            Defaults to True.
+        combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
+            Defaults to True.
+        include_last_observations: Whether to include last observed data for carryover adstock and saturation effect.
+            Defaults to False.
+        **kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
+
+        Returns
+        -------
+        y_pred : DataArray, shape (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred)
+            Posterior predictive samples for each input X_pred
+        """
+        if not isinstance(X_pred, pd.DataFrame):
+            raise ValueError("X_pred must be a pandas DataFrame")
+
+        if include_last_observations:
+            X_pred = pd.concat([self.X.iloc[-self.adstock_max_lag :], X_pred])
+
+        posterior_predictive_samples = self.sample_posterior_predictive(
+            X_pred, extend_idata, combined, **kwargs
+        )
+
+        if self.output_var not in posterior_predictive_samples:
+            raise KeyError(
+                f"Output variable {self.output_var} not found in posterior predictive samples."
+            )
+
+        if include_last_observations:
+            posterior_predictive_samples = posterior_predictive_samples.isel(
+                date=slice(self.adstock_max_lag, None)
+            )
+
+        return posterior_predictive_samples[self.output_var]

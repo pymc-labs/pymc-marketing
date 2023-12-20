@@ -571,7 +571,7 @@ class TestDelayedSaturatedMMM:
     ) -> None:
         mmm = request.getfixturevalue(model_name)
         n = new_dates.size
-        new_X = pd.DataFrame(
+        X_pred = pd.DataFrame(
             {
                 "date": new_dates,
                 "channel_1": rng.integers(low=0, high=400, size=n),
@@ -583,19 +583,23 @@ class TestDelayedSaturatedMMM:
             }
         )
 
-        with pytest.raises(
-            TypeError,
-            match=r"The DType <class 'numpy.dtype\[datetime64\]'> could not be promoted by",
-        ):
-            mmm.predict_posterior(X_pred=new_X)
+        pp_without = mmm.predict_posterior(
+            X_pred=X_pred, include_last_observations=False
+        )
+        pp_with = mmm.predict_posterior(X_pred=X_pred, include_last_observations=True)
+
+        assert pp_without.coords.equals(pp_with.coords)
 
         posterior_predictive = mmm.sample_posterior_predictive(
-            X_pred=new_X, extend_idata=False, combined=True
+            X_pred=X_pred, extend_idata=False, combined=True
         )
         pd.testing.assert_index_equal(
             pd.DatetimeIndex(posterior_predictive.coords["date"]), new_dates
         )
         assert posterior_predictive["likelihood"].shape[0] == new_dates.size
+
+        posterior_predictive_mean = mmm.predict(X_pred=X_pred)
+        assert posterior_predictive_mean.shape[0] == new_dates.size
 
     @pytest.mark.parametrize(
         argnames="model_config",
