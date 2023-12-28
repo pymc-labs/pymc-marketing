@@ -574,7 +574,6 @@ class TestDelayedSaturatedMMM:
                 "other_column_2": rng.normal(loc=0, scale=1, size=n),
             }
         )
-
         pp_without = mmm.predict_posterior(
             X_pred=X_pred, include_last_observations=False
         )
@@ -591,6 +590,7 @@ class TestDelayedSaturatedMMM:
         assert posterior_predictive["likelihood"].shape[0] == new_dates.size
 
         posterior_predictive_mean = mmm.predict(X_pred=X_pred)
+
         assert posterior_predictive_mean.shape[0] == new_dates.size
 
     @pytest.mark.parametrize(
