@@ -572,13 +572,14 @@ class TestDelayedSaturatedMMM:
             }
         )
 
-        with pytest.raises(
-            TypeError,
-            match=r"The DType <class 'numpy.dtype\[datetime64\]'> could not be promoted by",
-        ):
-            mmm_fitted.predict_posterior(X_pred=X_pred)
+        pp_without = mmm.predict_posterior(
+            X_pred=X_pred, include_last_observations=False
+        )
+        pp_with = mmm.predict_posterior(X_pred=X_pred, include_last_observations=True)
 
-        posterior_predictive = mmm_fitted.sample_posterior_predictive(
+        assert pp_without.coords.equals(pp_with.coords)
+
+        posterior_predictive = mmm.sample_posterior_predictive(
             X_pred=X_pred, extend_idata=False, combined=True
         )
         pd.testing.assert_index_equal(
@@ -587,7 +588,6 @@ class TestDelayedSaturatedMMM:
         assert posterior_predictive["likelihood"].shape[0] == new_dates.size
 
         posterior_predictive_mean = mmm.predict(X_pred=X_pred)
-
         assert posterior_predictive_mean.shape[0] == new_dates.size
 
     @pytest.mark.parametrize(
