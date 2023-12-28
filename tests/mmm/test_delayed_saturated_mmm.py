@@ -535,9 +535,30 @@ class TestDelayedSaturatedMMM:
             DelayedSaturatedMMM.load("test_model")
         os.remove("test_model")
 
-    def test_new_data_predictions(self, mmm_fitted: DelayedSaturatedMMM):
-        new_dates = pd.date_range(start="2021-11-01", end="2022-03-01", freq="W-MON")
-
+    @pytest.mark.parametrize(
+        "model_name", ["mmm_fitted", "mmm_fitted_with_fourier_features"]
+    )
+    @pytest.mark.parametrize(
+        "new_dates",
+        [
+            # 2021-12-31 is the last date in the toy data
+            # Old and New dates
+            pd.date_range(start="2021-11-01", end="2022-03-01", freq="W-MON"),
+            # Only Old dates
+            pd.date_range(start="2019-06-01", end="2021-12-31", freq="W-MON"),
+            # Only New dates
+            pd.date_range(start="2022-01-01", end="2022-03-01", freq="W-MON"),
+            # Less than the adstock_max_lag (4) of the model
+            pd.date_range(start="2022-01-01", freq="W-MON", periods=1),
+        ],
+    )
+    def test_new_data_predictions(
+        self,
+        model_name: str,
+        new_dates: pd.DatetimeIndex,
+        request,
+    ) -> None:
+        mmm = request.getfixturevalue(model_name)
         n = new_dates.size
         X_pred = pd.DataFrame(
             {
@@ -555,10 +576,10 @@ class TestDelayedSaturatedMMM:
             TypeError,
             match=r"The DType <class 'numpy.dtype\[datetime64\]'> could not be promoted by",
         ):
-            mmm_fitted.predict_posterior(X_pred=new_X)
+            mmm_fitted.predict_posterior(X_pred=X_pred)
 
         posterior_predictive = mmm_fitted.sample_posterior_predictive(
-            X_pred=new_X, extend_idata=False, combined=True
+            X_pred=X_pred, extend_idata=False, combined=True
         )
         pd.testing.assert_index_equal(
             pd.DatetimeIndex(posterior_predictive.coords["date"]), new_dates
