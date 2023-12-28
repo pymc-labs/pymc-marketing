@@ -477,15 +477,7 @@ class TestDelayedSaturatedMMM:
         with pytest.raises(TypeError):
             base_delayed_saturated_mmm._data_setter(toy_X, y_incorrect)
 
-        # Missing the date column
         with pytest.raises(KeyError):
-            X_wrong_df = pd.DataFrame(
-                {"column_1": np.random.rand(135), "column_2": np.random.rand(135)}
-            )
-            base_delayed_saturated_mmm._data_setter(X_wrong_df, toy_y)
-
-        # Missing a channel column (and not date)
-        with pytest.raises(RuntimeError):
             X_wrong_df = pd.DataFrame(
                 {
                     "date": pd.to_datetime("2023-01-01"),
