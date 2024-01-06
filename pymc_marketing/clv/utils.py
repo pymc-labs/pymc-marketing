@@ -79,7 +79,12 @@ def customer_lifetime_value(
             x = x.squeeze(dims_to_squeeze)
         return x
 
-    steps = np.arange(1, time + 1)
+    if discount_rate == 0.0:
+        # no discount rate: just compute a single time step from 0 to `time`
+        steps = np.arange(time, time + 1)
+    else:
+        steps = np.arange(1, time + 1)
+
     factor = {"W": 4.345, "M": 1.0, "D": 30, "H": 30 * 24}[freq]
 
     # Monetary value can be passed as a DataArray, with entries per chain and draw or as a simple vector
