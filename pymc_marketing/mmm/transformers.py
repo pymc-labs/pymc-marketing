@@ -4,6 +4,7 @@ import numpy.typing as npt
 import pytensor.tensor as pt
 from pytensor.tensor.random.utils import params_broadcast_shapes
 
+<<<<<<< HEAD
 
 class ConvMode(Enum):
     After = "After"
@@ -37,6 +38,10 @@ def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
         ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
         ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.show()
+=======
+def batched_convolution(x, w, axis: int = 0):
+    """Apply a 1D convolution in a vectorized way across multiple batch dimensions.
+>>>>>>> 9f7066f (update to plots)
 
     Parameters
     ----------

@@ -849,7 +849,6 @@ class DelayedSaturatedMMM(
         ax = ax.flatten() if len(col_names) > 1 else [ax]     
         cmap = plt.get_cmap('tab10')
         
-        
         def channel_sample(samples, col):
             """Filter parameter index by column index"""
             # index is 0 if channles have shared priors, otherwise index is column index

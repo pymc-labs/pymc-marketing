@@ -20,9 +20,13 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
 
+<<<<<<< HEAD
 from pymc_marketing.mmm.transformers import geometric_adstock
 from pymc_marketing.mmm.budget_optimizer import budget_allocator
+=======
+>>>>>>> 9f7066f (update to plots)
 from pymc_marketing.mmm.transformers import geometric_adstock
+from pymc_marketing.mmm.budget_optimizer import budget_allocator
 from pymc_marketing.mmm.utils import (
     estimate_menten_parameters,
     estimate_sigmoid_parameters,
@@ -1071,7 +1075,7 @@ class BaseMMM(ModelBuilder):
                 for param in adstock_params
             }
             adstock_kwargs['x'] = x
-            adstock_kwargs['max_lag'] = self.adstock_max_lag if hasattr(self, 'adstock_max_lag') else l_max
+            adstock_kwargs['l_max'] = self.adstock_max_lag if hasattr(self, 'adstock_max_lag') else l_max
             adstock_kwargs['normalize'] = normalize
             adstock_kwargs['axis'] = axis
             adstock = adstock_func(**adstock_kwargs).eval().mean(axis=(0,1))
@@ -1084,7 +1088,7 @@ class BaseMMM(ModelBuilder):
             self, 
             show_fit : bool = True, 
             xlim_max=None, 
-            adstock_params : List[str] = ['alpha', 'lam'],
+            adstock_params : List[str] = ['alpha'],
             adstock_func : Any = geometric_adstock,
             method: str = "sigmoid",
             channels: Optional[List[str]] = None,
@@ -1198,6 +1202,7 @@ class BaseMMM(ModelBuilder):
         fig.suptitle("Adstocked response curves", fontsize=16)
         return fig
        
+<<<<<<< HEAD
 >>>>>>> fbf3164 (improved visuals for mmm)
 
             x = self.X[channels].to_numpy()
@@ -1333,6 +1338,8 @@ class BaseMMM(ModelBuilder):
         fig.suptitle("Adstocked response curves", fontsize=16)
         return fig
        
+=======
+>>>>>>> 9f7066f (update to plots)
     def _get_distribution(self, dist: Dict) -> Callable:
         """
         Retrieve a PyMC distribution callable based on the provided dictionary.
