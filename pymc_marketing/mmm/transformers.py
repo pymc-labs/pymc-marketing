@@ -4,8 +4,15 @@ import numpy.typing as npt
 import pytensor.tensor as pt
 from pytensor.tensor.random.utils import params_broadcast_shapes
 
-def batched_convolution(x, w, axis: int = 0):
-    """Apply a 1D convolution in a vectorized way across multiple batch dimensions.
+
+class ConvMode(Enum):
+    After = "After"
+    Before = "Before"
+    Overlap = "Overlap"
+
+
+def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
+    R"""Apply a 1D convolution in a vectorized way across multiple batch dimensions.
 
     .. plot::
         :context: close-figs
@@ -21,12 +28,14 @@ def batched_convolution(x, w, axis: int = 0):
         ax = plt.subplot(111)
         for mode in [ConvMode.Before, ConvMode.Overlap, ConvMode.After]:
             y = batched_convolution(spends, w, mode=mode).eval()
-            suffix = " (default)" if mode == ConvMode.Before else ""
-            plt.plot(x, y, label=f'mode = {mode}{suffix}')
+            suffix = "\n(default)" if mode == ConvMode.Before else ""
+            plt.plot(x, y, label=f'{mode.value}{suffix}')
         plt.xlabel('time since spend', fontsize=12)
         plt.ylabel('f(time since spend)', fontsize=12)
         plt.title(f"1 spend at time 0 and {w = }", fontsize=14)
-        plt.legend()
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.show()
 
     Parameters
@@ -122,11 +131,13 @@ def geometric_adstock(
         x = np.arange(len(spend))
         for a, normalize in params:
             y = geometric_adstock(spend, alpha=a, l_max=l_max, normalize=normalize).eval()
-            plt.plot(x, y, label=f'alpha = {a}, normalize = {normalize}')
+            plt.plot(x, y, label=f'alpha = {a}\nnormalize = {normalize}')
         plt.xlabel('time since spend', fontsize=12)
         plt.title(f'Geometric Adstock with l_max = {l_max}', fontsize=14)
         plt.ylabel('f(time since spend)', fontsize=12)
-        plt.legend()
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.65, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.show()
 
     Parameters
@@ -167,7 +178,7 @@ def delayed_adstock(
     normalize: bool = False,
     axis: int = 0,
 ):
-    """Delayed adstock transformation.
+    R"""Delayed adstock transformation.
 
     This transformation is similar to geometric adstock transformation, but it
     allows for a delayed peak of the effect. The peak is assumed to occur at `theta`.
@@ -192,10 +203,12 @@ def delayed_adstock(
         ax = plt.subplot(111)
         for a, t, normalize in params:
             y = delayed_adstock(spend, alpha=a, theta=t, normalize=normalize).eval()
-            plt.plot(x, y, label=f'alpha = {a}, theta = {t}, normalize = {normalize}')
+            plt.plot(x, y, label=f'alpha = {a}\ntheta = {t}\nnormalize = {normalize}')
         plt.xlabel('time since spend', fontsize=12)
         plt.ylabel('f(time since spend)', fontsize=12)
-        plt.legend()
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.65, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.show()
 
     Parameters
@@ -254,7 +267,9 @@ def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
             plt.plot(x, y, label=f'lam = {l}')
         plt.xlabel('spend', fontsize=12)
         plt.ylabel('f(spend)', fontsize=12)
-        plt.legend()
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.show()
 
     Parameters
@@ -297,10 +312,13 @@ def tanh_saturation(x, b: float = 0.5, c: float = 0.5):
         ax = plt.subplot(111)
         for b, c in params:
             y = tanh_saturation(x, b=b, c=c).eval()
-            plt.plot(x, y, label=f'b = {b}, c = {c}')
+            plt.plot(x, y, label=f'b = {b}\nc = {c}')
         plt.xlabel('spend', fontsize=12)
         plt.ylabel('f(spend)', fontsize=12)
-        plt.legend()
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        # plt.legend()
         plt.show()
 
     Parameters
