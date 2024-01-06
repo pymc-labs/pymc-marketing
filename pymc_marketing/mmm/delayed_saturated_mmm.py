@@ -8,7 +8,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
-import pytensor as pt
+import pytensor.tensor as pt
 import seaborn as sns
 from pytensor.tensor import TensorVariable
 from xarray import DataArray
@@ -849,6 +849,7 @@ class DelayedSaturatedMMM(
         ax = ax.flatten() if len(col_names) > 1 else [ax]     
         cmap = plt.get_cmap('tab10')
         
+        
         def channel_sample(samples, col):
             """Filter parameter index by column index"""
             # index is 0 if channles have shared priors, otherwise index is column index
@@ -896,10 +897,10 @@ class DelayedSaturatedMMM(
         """
         w = pt.power(
         pt.as_tensor(alpha)[..., None],
-        (pt.arange(l_max, dtype=np.array) - pt.as_tensor(theta)[..., None]) ** 2,
+        (pt.arange(l_max, dtype=np.float64) - pt.as_tensor(theta)[..., None]) ** 2,
         )
         w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
-        return w
+        return w.eval()
     
     def prior_samples(self, param_list):
         """Draw prior samples from the model config"""
@@ -967,7 +968,7 @@ class DelayedSaturatedMMM(
                 l_max=self.adstock_max_lag,
                 normalize=normalize, 
                 **kwargs
-            ).eval()
+            )
             ax[i].plot(weights.T, 'o', color=cmap(i), alpha=0.01)
             ax[i].set_title(f'Adstock Weights {col}')
             ax[i].set_xlabel('Lags')
@@ -1026,15 +1027,15 @@ class DelayedSaturatedMMM(
         if scale:
             X = self.preprocess("X", X)
             y = self.preprocess("y", y)
-               
+                
         adstock_samples = self.prior_samples(adstock_params)
         saturation_samples = self.prior_samples(saturation_params)
         
         n_cols = len(col_names)
-        
+        cmap = plt.get_cmap('tab10')
+
         fig, ax = plt.subplots(n_cols, 2, figsize=(15, 5*n_cols), sharex=True)
         ax = ax.flatten()
-        cmap = plt.get_cmap('tab10')
         
         ax_shift = 0
        
@@ -1059,7 +1060,7 @@ class DelayedSaturatedMMM(
             ax[i].plot(adstock.T, alpha=0.1, color=cmap(i - ax_shift),)
             ax[i].plot(x, 'o', color='k', label=f'Original Spend {col}')
 
-            ax[i+1].plot(saturated_adstock.T, alpha=0.1, color=cmap(i- ax_shift),)
+            ax[i+1].plot(saturated_adstock.T, alpha=0.01, color=cmap(i- ax_shift),)
             ax[i+1].plot(y, 'o', color='k', label='Dependent Variable')
 
             ax[i].legend(loc='upper left', shadow=True) 
