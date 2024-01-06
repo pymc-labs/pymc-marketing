@@ -814,3 +814,172 @@ class DelayedSaturatedMMM(
             ylabel="contribution",
         )
         return fig
+
+    def visualize_prior_dist(
+        self, param_name : str, col_names : Union[str, List[str]] = None, 
+    )->plt.Figure:
+        """ 
+        Visualize the prior distribution of a parameter in the model.
+
+        Parameters
+        ----------
+        param_name : str
+            The name of the parameter in the model config.
+        col_name : Union[str, List[str]], optional
+            The name of the channel column(s) to visualize the prior distribution for.
+            If None, visualize the prior distribution for all channel columns.
+        
+        Returns
+        -------
+        plt.Figure
+            Figure of the prior distribution(s).
+        """
+        col_names = [col_names] if isinstance(col_names, str) else col_names
+        assert param_name in self.model_config.keys(), f"param_name must be one of {self.model_config.keys()}"
+        assert all([col in self.channel_columns for col in col_names]), f'{col_names} not in channel columns'
+        
+        prior = self._get_distribution(dist=self.model_config[param_name]).dist(
+            **self.model_config[param_name]['kwargs']
+        )
+        samples = pm.draw(prior, draws=200)
+        samples = samples.reshape(-1, 1) if len(samples.shape) == 1 else samples
+        
+        fig, ax = plt.subplots(nrows=len(col_names), figsize=(8, 4*len(col_names) ))
+        ax = ax.flatten() if len(col_names) > 1 else [ax]     
+        cmap = plt.get_cmap('tab10')
+        
+        
+        def channel_sample(samples, col):
+            """Filter parameter index by column index"""
+            # index is 0 if channles have shared priors, otherwise index is column index
+            idx = 0 if samples.shape[-1] == 1 else self.channel_columns.index(col)
+            return samples[:, idx]  
+
+        for i, col in enumerate(col_names):
+            sample = channel_sample(samples, col)
+            sns.distplot(sample, ax=ax[i], color=cmap(i), bins=20)
+            ax[i].set_xlabel(f'Support interval {col}/{param_name}')
+            ax[i].set_title(f'Prior {col}/{param_name}')
+            ax[i].set_ylabel('Density')
+        
+        return fig
+    
+    def visualize_transforms(
+        self,
+        col_names : Union[str, List[str]], 
+        X : Optional[pd.DataFrame] = None,
+        y : Optional[Union[pd.Series, np.ndarray]] = None,
+        scale : Optional[bool] = True,
+        adstock_params : List[str] = ['alpha'],
+        saturation_params : List[str] = ['lam'],
+        adstock_func : Any = geometric_adstock,
+        saturation_func : Any = logistic_saturation,
+    )->plt.Figure:
+        """ 
+        Visualize the adstock and saturation transformation on the spend input.
+        Defaults are currently set to correspond to the default model config and
+        build_model method.
+
+        Parameters
+        -----------
+        col_names : Union[str, List[str]]
+            A string or list of strings for the specified column(s)
+        X : Optional[pd.DataFrame]
+            A dataframe containing the media spend data for the specified column(s)
+        adstock_params : List[str]
+            A list of the parameter names used in the adstock transformation
+        saturation_params List[str]
+            A list of the parameter names used in the saturation transformation
+        adstock_func : Any
+            The adstock transformation function
+        saturation_func : Amy
+            The saturation transformation function
+        """
+        params = adstock_params + saturation_params
+        assert all([param in self.model_config.keys() for param in params]), \
+            f'Parameter(s) in {params} is/are not in the model config : {list(self.model_config.keys())}'
+        if X is not None:
+            assert all(col in X.columns for col in col_names), f'If X passed, columns in X must be in col_names'
+        elif X is None:
+            assert isinstance(self.X, pd.DataFrame), f'If X is not passed, the X attribute must be a dataframe'
+            assert hasattr(self, 'X'), f'If X is not passed, the model must have an X attribute'
+            assert all(col in self.X.columns for col in col_names), f'If X is not passed, columns in X must be in col_names'
+            X = self.X
+        if y is not None:
+            y = y.to_numpy() if isinstance(y, pd.Series) else y
+        elif y is None:
+            assert hasattr(self, 'y'), f'If y is not passed, the model must have a y attribute'
+            y = self.y.to_numpy() if isinstance(self.y, pd.Series) else self.y
+        assert all([col in self.channel_columns for col in col_names]), f'{col_names} not in channel columns'
+
+        if scale:
+            X = self.preprocess("X", X)
+            y = self.preprocess("y", y)
+            
+        def prior_samples(param_list):
+            """Draw prior samples from the model config"""
+            dct = {
+                param : pm.draw(
+                    self._get_distribution(dist=self.model_config[param]).dist(
+                        **self.model_config[param]["kwargs"]
+                    ), 
+                    draws=100
+                )
+                for param in param_list
+            }
+            # if channels have shared priors, the shape will be (n_samples, 1)
+            # otherwise the shape will be (n_samples, n_channels)
+            for key, val in dct.items():
+                dct[key] = val.reshape(-1, 1) if len(val.shape) == 1 else val
+            return dct
+        
+        def get_param_sample(samples, param, col):
+            """Filter parameter index by column index"""
+            # index is 0 if channles have shared priors, otherwise index is column index
+            idx = 0 if samples[param].shape[-1] == 1 else self.channel_columns.index(col)
+            return samples[param][:, idx]
+                
+        adstock_samples = prior_samples(adstock_params)
+        saturation_samples = prior_samples(saturation_params)
+        
+        n_cols = len(col_names)
+        
+        fig, ax = plt.subplots(n_cols, 2, figsize=(15, 5*n_cols), sharex=True)
+        ax = ax.flatten()
+        cmap = plt.get_cmap('tab10')
+        
+        ax_shift = 0
+       
+        for i, col in enumerate(col_names):
+           
+            adstock_kwargs = {
+                param : get_param_sample(adstock_samples, param, col)
+                for param in adstock_params
+            }
+            x = X[col].values
+            adstock_kwargs['x'] = x
+            adstock = adstock_func(l_max=self.adstock_max_lag,
+                                   **adstock_kwargs).eval()
+            saturation_kwargs = {
+                param : get_param_sample(saturation_samples, param, col).reshape(-1, 1)
+                for param in saturation_params
+            }
+            saturation_kwargs['x'] = adstock
+            saturated_adstock = saturation_func(**saturation_kwargs).eval()
+
+            i = i + ax_shift
+            ax[i].plot(adstock.T, alpha=0.1, color=cmap(i - ax_shift),)
+            ax[i].plot(x, 'o', color='k', label=f'Original Spend {col}')
+
+            ax[i+1].plot(saturated_adstock.T, alpha=0.1, color=cmap(i- ax_shift),)
+            ax[i+1].plot(y, 'o', color='k', label='Dependent Variable')
+
+           
+            ax[i].legend()
+            ax[i+1].legend()
+            ax_shift += 1
+
+        ax[0].set_title('Adstocked Transformation')
+        ax[1].set_title('Saturated & Adstocked Transformation')
+
+        return fig

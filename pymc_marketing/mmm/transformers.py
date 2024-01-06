@@ -3,6 +3,7 @@ from typing import Union
 
 import numpy as np
 import numpy.typing as npt
+import matplotlib.pyplot as plt
 import pytensor.tensor as pt
 from pytensor.tensor.random.utils import params_broadcast_shapes
 
@@ -12,6 +13,25 @@ class ConvMode(Enum):
     Before = "Before"
     Overlap = "Overlap"
 
+def plot_weight(w):
+    """Plot the weight of a convolution kernel.
+
+    Parameters
+    ----------
+    w : tensor
+        The weight of the convolution.
+   
+    Returns
+    -------
+    None
+    """
+    fig, ax = plt.subplots(figsize=(15, 5))
+    ax.plot(w.eval().T, 'o', color='black', alpha=0.1)
+    ax.set_xlabel('Lag')
+    ax.set_ylabel('Weight Value')
+    ax.set_title('Adstock Weights')
+    fig.show()
+    
 
 def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
     """Apply a 1D convolution in a vectorized way across multiple batch dimensions.
@@ -97,7 +117,12 @@ def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
 
 
 def geometric_adstock(
-    x, alpha: float = 0.0, l_max: int = 12, normalize: bool = False, axis: int = 0
+    x, 
+    alpha: float = 0.0,
+    l_max: int = 12, 
+    normalize: bool = False, 
+    axis: int = 0,
+    verbose: bool = False,
 ):
     """Geometric adstock transformation.
 
@@ -131,6 +156,10 @@ def geometric_adstock(
 
     w = pt.power(pt.as_tensor(alpha)[..., None], pt.arange(l_max, dtype=x.dtype))
     w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
+    
+    if verbose:
+        plot_weight(w)
+    
     return batched_convolution(x, w, axis=axis)
 
 
@@ -141,6 +170,7 @@ def delayed_adstock(
     l_max: int = 12,
     normalize: bool = False,
     axis: int = 0,
+    verbose: bool = False,
 ):
     """Delayed adstock transformation.
 
@@ -175,6 +205,10 @@ def delayed_adstock(
         (pt.arange(l_max, dtype=x.dtype) - pt.as_tensor(theta)[..., None]) ** 2,
     )
     w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
+    
+    if verbose:
+        plot_weight(w)
+    
     return batched_convolution(x, w, axis=axis)
 
 

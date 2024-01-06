@@ -21,6 +21,7 @@ from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.budget_optimizer import budget_allocator
+from pymc_marketing.mmm.transformers import geometric_adstock
 from pymc_marketing.mmm.utils import (
     estimate_menten_parameters,
     estimate_sigmoid_parameters,
@@ -1049,6 +1050,151 @@ class BaseMMM(ModelBuilder):
 
         fig.suptitle("Direct response curves", fontsize=16)
         return fig
+    
+    def compute_adstocked_channels(
+            self, 
+            channels : List[str],
+            adstock_params : List[str] = ['alpha', 'lam'],
+            adstock_func : Any = geometric_adstock,
+            l_max : Optional[int] = 12,
+            normalize : bool = True,
+            axis : Optional[int] = 0,
+        ):
+            assert hasattr(self, 'fit_result'), 'Fit the model before calling this function'
+
+            x = self.X[channels].to_numpy()
+            adstock_kwargs = {
+                param : self.fit_result[param].to_numpy()
+                for param in adstock_params
+            }
+            adstock_kwargs['x'] = x
+            adstock_kwargs['max_lag'] = self.adstock_max_lag if hasattr(self, 'adstock_max_lag') else l_max
+            adstock_kwargs['normalize'] = normalize
+            adstock_kwargs['axis'] = axis
+            adstock = adstock_func(**adstock_kwargs).eval().mean(axis=(0,1))
+
+            for channel in channels:
+                idx = self.channel_columns.index(channel)
+                self.X[f'{channel}_adstocked'] = adstock[:, idx]
+    
+    def plot_adstocked_contribution_curves(
+            self, 
+            show_fit : bool = True, 
+            xlim_max=None, 
+            adstock_params : List[str] = ['alpha', 'lam'],
+            adstock_func : Any = geometric_adstock,
+            method: str = "sigmoid",
+            channels: Optional[List[str]] = None,
+            normalize: bool = True,
+            axis : Optional[int] = 0,
+            same_axes: bool = False,
+    ) -> plt.Figure:
+        """
+        Plots the adstocked contribution curves for each marketing channel.
+
+        Parameters
+        ----------
+        show_fit : bool
+            If True, the function will also plot the curve fit based on the specified method. Defaults to False.
+        xlim_max : int, optional
+            The maximum value to be plot on the X-axis. If not provided, the maximum value in the data will be used.
+        method : str, optional
+            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'. Defaults to 'sigmoid'.
+        
+        Returns
+        -------
+        plt.Figure
+            A matplotlib Figure object with the adsotcked contribution curves.
+        """
+        channels_to_plot = self.channel_columns if channels is None else channels
+
+        if not all(channel in self.channel_columns for channel in channels_to_plot):
+            unknown_channels = set(channels_to_plot) - set(self.channel_columns)
+            raise ValueError(
+                f"The provided channels must be a subset of the available channels. Got {unknown_channels}"
+            )
+
+        if len(channels_to_plot) != len(set(channels_to_plot)):
+            raise ValueError("The provided channels must be unique.")
+
+        channel_contributions = self.compute_channel_contribution_original_scale().mean(
+            ["chain", "draw"]
+        )
+
+        if same_axes:
+            nrows = 1
+            figsize = (12, 4)
+
+            def label_func(channel):
+                return f"{channel} Data Points"
+
+            def legend_title_func(channel):
+                return "Legend"
+        else:
+            nrows = len(channels_to_plot)
+            figsize = (12, 4 * len(channels_to_plot))
+
+            def label_func(channel):
+                return "Data Points"
+
+            def legend_title_func(channel):
+                return f"{channel} Legend"
+
+        fig, axes = plt.subplots(
+            nrows=nrows,
+            ncols=1,
+            sharex=False,
+            sharey=False,
+            figsize=figsize,
+            layout="constrained",
+        )
+
+        axes_channels = (
+            zip(repeat(axes), channels_to_plot)
+            if same_axes
+            else zip(np.ravel(axes), channels_to_plot)
+        )
+        self.compute_adstocked_channels(
+            channels=channels_to_plot,
+            adstock_params=adstock_params,
+            adstock_func=adstock_func,
+            normalize=normalize,
+            axis=axis,
+        )
+            
+        for i, (ax, channel) in enumerate(axes_channels):
+            if self.X is not None:
+                x = self.X[f'{channel}_adstocked'].to_numpy()
+                y = channel_contributions.sel(channel=channel).to_numpy()
+
+                label = label_func(channel)
+                ax.scatter(x, y, label=label, color=f"C{i}")
+
+                if show_fit:
+                    label = f"{channel} Fit Curve" if same_axes else "Fit Curve"
+                    self._plot_response_curve_fit(
+                        x=x,
+                        ax=ax,
+                        channel=channel,
+                        color_index=i,
+                        xlim_max=xlim_max,
+                        method=method,
+                        label=label,
+                    )
+
+                title = legend_title_func(channel)
+                ax.legend(
+                    loc="upper left",
+                    facecolor="white",
+                    title=title,
+                    fontsize="small",
+                )
+
+                ax.set(xlabel="Mean Adstock Spend", ylabel="Contribution")
+
+        fig.suptitle("Adstocked response curves", fontsize=16)
+        return fig
+       
 
     def _get_distribution(self, dist: Dict) -> Callable:
         """
