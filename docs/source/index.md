@@ -65,8 +65,8 @@ To the reference guide
 Install and activate an environment (e.g. `marketing_env`) with the `pymc-marketing` package from [conda-forge](https://conda-forge.org). It may look something like the following:
 
 ```bash
-mamba create -c conda-forge -n marketing_env pymc-marketing
-mamba activate marketing_env
+conda create -c conda-forge -n marketing_env pymc-marketing
+conda activate marketing_env
 ```
 
 See the official [PyMC installation guide](https://www.pymc.io/projects/docs/en/latest/installation.html) if more detail is needed.
@@ -80,7 +80,7 @@ Create a new Jupyter notebook with either JupyterLab or VS Code.
 After installing the `pymc-marketing` package (see above), run the following with `marketing_env` activated:
 
 ```bash
-mamba install -c conda-forge jupyterlab
+conda install -c conda-forge jupyterlab
 jupyter lab
 ```
 
@@ -89,7 +89,7 @@ jupyter lab
 After installing the `pymc-marketing` package (see above), run the following with `marketing_env` activated:
 
 ```bash
-mamba install -c conda-forge ipykernel
+conda install -c conda-forge ipykernel
 ```
 
 Start VS Code and ensure that the "Jupyter" extension is installed. Press Ctrl + Shift + P and type "Python: Select Interpreter". Ensure that `marketing_env` is selected. Press Ctrl + Shift + P and type "Create: New Jupyter Notebook".
@@ -122,8 +122,8 @@ Initiate fitting and get a visualization of some of the outputs with:
 ```python
 X = data.drop('y',axis=1)
 y = data['y']
-model.fit(X,y)
-model.plot_components_contributions();
+mmm.fit(X,y)
+mmm.plot_components_contributions();
 ```
 
 See the Example notebooks section for examples of further types of plot you can get, as well as introspect the results of the fitting.

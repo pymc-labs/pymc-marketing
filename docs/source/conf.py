@@ -25,7 +25,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx_autodoc_typehints",
     # extensions provided by other packages
-    # "matplotlib.sphinxext.plot_directive",  # needed to plot in docstrings
+    "matplotlib.sphinxext.plot_directive",  # needed to plot in docstrings
     "myst_nb",
     "notfound.extension",
     "sphinx_copybutton",

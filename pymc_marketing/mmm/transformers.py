@@ -14,7 +14,31 @@ class ConvMode(Enum):
 
 
 def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
-    """Apply a 1D convolution in a vectorized way across multiple batch dimensions.
+    R"""Apply a 1D convolution in a vectorized way across multiple batch dimensions.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import batched_convolution, ConvMode
+        plt.style.use('arviz-darkgrid')
+        spends = np.array([0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
+        w = np.array([0.75, 0.25, 0.125, 0.125])
+        x = np.arange(-5, 6)
+        ax = plt.subplot(111)
+        for mode in [ConvMode.Before, ConvMode.Overlap, ConvMode.After]:
+            y = batched_convolution(spends, w, mode=mode).eval()
+            suffix = "\n(default)" if mode == ConvMode.Before else ""
+            plt.plot(x, y, label=f'{mode.value}{suffix}')
+        plt.xlabel('time since spend', fontsize=12)
+        plt.ylabel('f(time since spend)', fontsize=12)
+        plt.title(f"1 spend at time 0 and {w = }", fontsize=14)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.show()
 
     Parameters
     ----------
@@ -99,13 +123,43 @@ def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
 def geometric_adstock(
     x, alpha: float = 0.0, l_max: int = 12, normalize: bool = False, axis: int = 0
 ):
-    """Geometric adstock transformation.
+    R"""Geometric adstock transformation.
 
     Adstock with geometric decay assumes advertising effect peaks at the same
     time period as ad exposure. The cumulative media effect is a weighted average
     of media spend in the current time-period (e.g. week) and previous `l_max` - 1
     periods (e.g. weeks). `l_max` is the maximum duration of carryover effect.
 
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import geometric_adstock
+        plt.style.use('arviz-darkgrid')
+        l_max = 12
+        params = [
+            (0.01, False),
+            (0.5, False),
+            (0.9, False),
+            (0.5, True),
+            (0.9, True),
+        ]
+        spend = np.zeros(15)
+        spend[0] = 1
+        ax = plt.subplot(111)
+        x = np.arange(len(spend))
+        for a, normalize in params:
+            y = geometric_adstock(spend, alpha=a, l_max=l_max, normalize=normalize).eval()
+            plt.plot(x, y, label=f'alpha = {a}\nnormalize = {normalize}')
+        plt.xlabel('time since spend', fontsize=12)
+        plt.title(f'Geometric Adstock with l_max = {l_max}', fontsize=14)
+        plt.ylabel('f(time since spend)', fontsize=12)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.65, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.show()
 
     Parameters
     ----------
@@ -142,10 +196,38 @@ def delayed_adstock(
     normalize: bool = False,
     axis: int = 0,
 ):
-    """Delayed adstock transformation.
+    R"""Delayed adstock transformation.
 
     This transformation is similar to geometric adstock transformation, but it
     allows for a delayed peak of the effect. The peak is assumed to occur at `theta`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import delayed_adstock
+        plt.style.use('arviz-darkgrid')
+        params = [
+            (0.25, 0, False),
+            (0.25, 5, False),
+            (0.75, 5, False),
+            (0.75, 5, True)
+        ]
+        spend = np.zeros(15)
+        spend[0] = 1
+        x = np.arange(len(spend))
+        ax = plt.subplot(111)
+        for a, t, normalize in params:
+            y = delayed_adstock(spend, alpha=a, theta=t, normalize=normalize).eval()
+            plt.plot(x, y, label=f'alpha = {a}\ntheta = {t}\nnormalize = {normalize}')
+        plt.xlabel('time since spend', fontsize=12)
+        plt.ylabel('f(time since spend)', fontsize=12)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.65, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.show()
 
     Parameters
     ----------
@@ -180,6 +262,31 @@ def delayed_adstock(
 
 def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
     """Logistic saturation transformation.
+
+    .. math::
+        f(x) = \\frac{1 - e^{-\lambda x}}{1 + e^{-\lambda x}}
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import logistic_saturation
+        plt.style.use('arviz-darkgrid')
+        lam = np.array([0.25, 0.5, 1, 2, 4])
+        x = np.linspace(0, 5, 100)
+        ax = plt.subplot(111)
+        for l in lam:
+            y = logistic_saturation(x, lam=l).eval()
+            plt.plot(x, y, label=f'lam = {l}')
+        plt.xlabel('spend', fontsize=12)
+        plt.ylabel('f(spend)', fontsize=12)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.show()
+
     Parameters
     ----------
     x : tensor
@@ -196,7 +303,38 @@ def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
 
 
 def tanh_saturation(x, b: float = 0.5, c: float = 0.5):
-    """Tanh saturation transformation.
+    R"""Tanh saturation transformation.
+
+    .. math::
+        f(x) = b \tanh \left( \frac{x}{bc} \right)
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import tanh_saturation
+        plt.style.use('arviz-darkgrid')
+        params = [
+            (0.75, 0.25),
+            (0.75, 1.5),
+            (1, 0.25),
+            (1, 1),
+            (1, 1.5),
+        ]
+        x = np.linspace(0, 5, 100)
+        ax = plt.subplot(111)
+        for b, c in params:
+            y = tanh_saturation(x, b=b, c=c).eval()
+            plt.plot(x, y, label=f'b = {b}\nc = {c}')
+        plt.xlabel('spend', fontsize=12)
+        plt.ylabel('f(spend)', fontsize=12)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        # plt.legend()
+        plt.show()
 
     Parameters
     ----------
