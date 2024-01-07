@@ -817,9 +817,11 @@ class DelayedSaturatedMMM(
         return fig
 
     def visualize_prior_dist(
-        self, param_name : str, col_names : Union[str, List[str]] = None, 
-    )->plt.Figure:
-        """ 
+        self,
+        param_name: str,
+        col_names: Union[str, List[str]] = None,
+    ) -> plt.Figure:
+        """
         Visualize the prior distribution of a parameter in the model.
 
         Parameters
@@ -829,49 +831,53 @@ class DelayedSaturatedMMM(
         col_name : Union[str, List[str]], optional
             The name of the channel column(s) to visualize the prior distribution for.
             If None, visualize the prior distribution for all channel columns.
-        
+
         Returns
         -------
         plt.Figure
             Figure of the prior distribution(s).
         """
         col_names = [col_names] if isinstance(col_names, str) else col_names
-        assert param_name in self.model_config.keys(), f"param_name must be one of {self.model_config.keys()}"
-        assert all([col in self.channel_columns for col in col_names]), f'{col_names} not in channel columns'
-        
+        assert (
+            param_name in self.model_config.keys()
+        ), f"param_name must be one of {self.model_config.keys()}"
+        assert all(
+            [col in self.channel_columns for col in col_names]
+        ), f"{col_names} not in channel columns"
+
         prior = self._get_distribution(dist=self.model_config[param_name]).dist(
-            **self.model_config[param_name]['kwargs']
+            **self.model_config[param_name]["kwargs"]
         )
         samples = pm.draw(prior, draws=1000)
         samples = samples.reshape(-1, 1) if len(samples.shape) == 1 else samples
-        
-        fig, ax = plt.subplots(nrows=len(col_names), figsize=(8, 4*len(col_names) ))
-        ax = ax.flatten() if len(col_names) > 1 else [ax]     
-        cmap = plt.get_cmap('tab10')
-        
+
+        fig, ax = plt.subplots(nrows=len(col_names), figsize=(8, 4 * len(col_names)))
+        ax = ax.flatten() if len(col_names) > 1 else [ax]
+        cmap = plt.get_cmap("tab10")
+
         def channel_sample(samples, col):
             """Filter parameter index by column index"""
             # index is 0 if channles have shared priors, otherwise index is column index
             idx = 0 if samples.shape[-1] == 1 else self.channel_columns.index(col)
-            return samples[:, idx]  
+            return samples[:, idx]
 
         for i, col in enumerate(col_names):
             sample = channel_sample(samples, col)
             sns.distplot(sample, ax=ax[i], color=cmap(i), bins=20)
-            ax[i].set_xlabel(f'Support interval {col}/{param_name}')
-            ax[i].set_title(f'Prior {col}/{param_name}')
-            ax[i].set_ylabel('Density')
-        
+            ax[i].set_xlabel(f"Support interval {col}/{param_name}")
+            ax[i].set_title(f"Prior {col}/{param_name}")
+            ax[i].set_ylabel("Density")
+
         return fig
-    
+
     @staticmethod
     def _get_weights(
-        alpha : Union[float, np.ndarray],
-        theta : Union[float, np.ndarray] = 0,
-        normalize : bool = True,
-        l_max : int = 12,
-    )->Union[float, np.ndarray]:
-        """ 
+        alpha: Union[float, np.ndarray],
+        theta: Union[float, np.ndarray] = 0,
+        normalize: bool = True,
+        l_max: int = 12,
+    ) -> np.ndarray:
+        """
         Weight function for the adstock transformation.
 
         Parameters
@@ -880,7 +886,7 @@ class DelayedSaturatedMMM(
             The alpha parameter for the adstock transformation.
         theta : Union[float, np.ndarray], optional
             The theta parameter for the adstock transformation, by default 0.
-            0 corresponds to the default geometric adstock transformation. 
+            0 corresponds to the default geometric adstock transformation.
             Non-zero corresponds to the delayed adstock transformation.
         l_max : int, optional
             The maximum lag for the adstock transformation, by default 12
@@ -888,27 +894,27 @@ class DelayedSaturatedMMM(
             Whether to normalize the weights, by default True
         axis : int, optional
             The axis to apply the transformation, by default 0
-        
+
         Returns
         -------
         Union[float, np.ndarray]
             The weight function.
         """
         w = pt.power(
-        pt.as_tensor(alpha)[..., None],
-        (pt.arange(l_max, dtype=np.float64) - pt.as_tensor(theta)[..., None]) ** 2,
+            pt.as_tensor(alpha)[..., None],
+            (pt.arange(l_max, dtype=np.float64) - pt.as_tensor(theta)[..., None]) ** 2,
         )
         w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
         return w.eval()
-    
+
     def prior_samples(self, param_list):
         """Draw prior samples from the model config"""
         dct = {
-            param : pm.draw(
+            param: pm.draw(
                 self._get_distribution(dist=self.model_config[param]).dist(
                     **self.model_config[param]["kwargs"]
-                ), 
-                draws=1000
+                ),
+                draws=1000,
             )
             for param in param_list
         }
@@ -917,7 +923,7 @@ class DelayedSaturatedMMM(
         for key, val in dct.items():
             dct[key] = val.reshape(-1, 1) if len(val.shape) == 1 else val
         return dct
-    
+
     def get_param_sample(self, samples, param, col):
         """Filter parameter index by column index"""
         # index is 0 if channles have shared priors, otherwise index is column index
@@ -925,12 +931,12 @@ class DelayedSaturatedMMM(
         return samples[param][:, idx]
 
     def plot_adstock_weights(
-            self,
-            col_names : Union[str, List[str]],
-            adstock_params : List[str] = ['alpha'],
-            normalize : bool = True,
-    )->plt.Figure:
-        """ 
+        self,
+        col_names: Union[str, List[str]],
+        adstock_params: List[str] = ["alpha"],
+        normalize: bool = True,
+    ) -> plt.Figure:
+        """
         Plot the adstock weights for the specified column(s).
 
         Parameters
@@ -939,54 +945,55 @@ class DelayedSaturatedMMM(
             A string or list of strings for the specified column(s)
         X : Optional[pd.DataFrame]
             A dataframe containing the media spend data for the specified column(s)
-        
+
         Returns
         -------
         plt.Figure
             Figure of the adstock weights.
         """
         col_names = [col_names] if isinstance(col_names, str) else col_names
-        assert all([col in self.channel_columns for col in col_names]), f'One or more of {col_names} not in channel columns'
-        assert all([param in self.model_config.keys() for param in adstock_params]), \
-            f"Parameter(s) in {adstock_params} is/are not in the model config : {list(self.model_config.keys())}"
-        
+        assert all(
+            [col in self.channel_columns for col in col_names]
+        ), f"One or more of {col_names} not in channel columns"
+        assert all(
+            [param in self.model_config.keys() for param in adstock_params]
+        ), f"Parameter(s) in {adstock_params} is/are not in the model config : {list(self.model_config.keys())}"
+
         samples = self.prior_samples(adstock_params)
-        
-        n_cols = len(col_names) 
-        cmap = plt.get_cmap('tab10')  
-        
-        fig, ax = plt.subplots(n_cols, 1, figsize=(8, 4*n_cols), sharex=True)
+
+        n_cols = len(col_names)
+        cmap = plt.get_cmap("tab10")
+
+        fig, ax = plt.subplots(n_cols, 1, figsize=(8, 4 * n_cols), sharex=True)
         ax = ax.flatten()
-        
+
         for i, col in enumerate(col_names):
             kwargs = {
-                param : self.get_param_sample(samples, param, col)
+                param: self.get_param_sample(samples, param, col)
                 for param in adstock_params
             }
             weights = self._get_weights(
-                l_max=self.adstock_max_lag,
-                normalize=normalize, 
-                **kwargs
+                l_max=self.adstock_max_lag, normalize=normalize, **kwargs
             )
-            ax[i].plot(weights.T, 'o', color=cmap(i), alpha=0.01)
-            ax[i].set_title(f'Adstock Weights {col}')
-            ax[i].set_xlabel('Lags')
-            ax[i].set_ylabel('Weight')
-        
+            ax[i].plot(weights.T, "o", color=cmap(i), alpha=0.01)
+            ax[i].set_title(f"Adstock Weights {col}")
+            ax[i].set_xlabel("Lags")
+            ax[i].set_ylabel("Weight")
+
         return fig
-    
+
     def plot_transforms(
         self,
-        col_names : Union[str, List[str]], 
-        X : Optional[pd.DataFrame] = None,
-        y : Optional[Union[pd.Series, np.ndarray]] = None,
-        scale : Optional[bool] = True,
-        adstock_params : List[str] = ['alpha'],
-        saturation_params : List[str] = ['lam'],
-        adstock_func : Any = geometric_adstock,
-        saturation_func : Any = logistic_saturation,
-    )->plt.Figure:
-        """ 
+        col_names: Union[str, List[str]],
+        X: Optional[pd.DataFrame] = None,
+        y: Optional[Union[pd.Series, np.ndarray]] = None,
+        scale: Optional[bool] = True,
+        adstock_params: List[str] = ["alpha"],
+        saturation_params: List[str] = ["lam"],
+        adstock_func: Any = geometric_adstock,
+        saturation_func: Any = logistic_saturation,
+    ) -> plt.Figure:
+        """
         Visualize the adstock and saturation transformation on the spend input.
         Defaults are currently set to correspond to the default model config and
         build_model method.
@@ -1007,66 +1014,95 @@ class DelayedSaturatedMMM(
             The saturation transformation function
         """
         params = adstock_params + saturation_params
-        assert all([param in self.model_config.keys() for param in params]), \
-            f'Parameter(s) in {params} is/are not in the model config : {list(self.model_config.keys())}'
+        assert all(
+            [param in self.model_config.keys() for param in params]
+        ), f"Parameter(s) in {params} is/are not in the model config : {list(self.model_config.keys())}"
         if X is not None:
-            assert all(col in X.columns for col in col_names), f'If X passed, columns in X must be in col_names'
+            assert all(
+                col in X.columns for col in col_names
+            ), "If X passed, columns in X must be in col_names"
         elif X is None:
-            assert isinstance(self.X, pd.DataFrame), f'If X is not passed, the X attribute must be a dataframe'
-            assert hasattr(self, 'X'), f'If X is not passed, the model must have an X attribute'
-            assert all(col in self.X.columns for col in col_names), f'If X is not passed, columns in X must be in col_names'
+            assert isinstance(
+                self.X, pd.DataFrame
+            ), "If X is not passed, the X attribute must be a dataframe"
+            assert hasattr(
+                self, "X"
+            ), "If X is not passed, the model must have an X attribute"
+            assert all(
+                col in self.X.columns for col in col_names
+            ), "If X is not passed, columns in X must be in col_names"
             X = self.X
         if y is not None:
             y = y.to_numpy() if isinstance(y, pd.Series) else y
         elif y is None:
-            assert hasattr(self, 'y'), f'If y is not passed, the model must have a y attribute'
+            assert hasattr(
+                self, "y"
+            ), "If y is not passed, the model must have a y attribute"
             y = self.y.to_numpy() if isinstance(self.y, pd.Series) else self.y
-        assert all([col in self.channel_columns for col in col_names]), f'{col_names} not in channel columns'
+        assert all(
+            [col in self.channel_columns for col in col_names]
+        ), f"{col_names} not in channel columns"
 
         if scale:
-            X = self.preprocess("X", X)
-            y = self.preprocess("y", y)
-                
+            X = (
+                self.preprocess("X", X)
+                if X is not None
+                else self.preprocessed_data["X"]
+            )
+            y = (
+                self.preprocess("y", y)
+                if y is not None
+                else self.preprocessed_data["y"]
+            )
+
         adstock_samples = self.prior_samples(adstock_params)
         saturation_samples = self.prior_samples(saturation_params)
-        
-        n_cols = len(col_names)
-        cmap = plt.get_cmap('tab10')
 
-        fig, ax = plt.subplots(n_cols, 2, figsize=(15, 5*n_cols), sharex=True)
+        n_cols = len(col_names)
+        cmap = plt.get_cmap("tab10")
+
+        fig, ax = plt.subplots(n_cols, 2, figsize=(15, 5 * n_cols), sharex=True)
         ax = ax.flatten()
-        
+
         ax_shift = 0
-       
+
         for i, col in enumerate(col_names):
-           
             adstock_kwargs = {
-                param : self.get_param_sample(adstock_samples, param, col)
+                param: self.get_param_sample(adstock_samples, param, col)
                 for param in adstock_params
             }
             x = X[col].values
-            adstock_kwargs['x'] = x
-            adstock = adstock_func(l_max=self.adstock_max_lag,
-                                   **adstock_kwargs).eval()
+            adstock_kwargs["x"] = x
+            adstock = adstock_func(l_max=self.adstock_max_lag, **adstock_kwargs).eval()
             saturation_kwargs = {
-                param : self.get_param_sample(saturation_samples, param, col).reshape(-1, 1)
+                param: self.get_param_sample(saturation_samples, param, col).reshape(
+                    -1, 1
+                )
                 for param in saturation_params
             }
-            saturation_kwargs['x'] = adstock
+            saturation_kwargs["x"] = adstock
             saturated_adstock = saturation_func(**saturation_kwargs).eval()
 
             i = i + ax_shift
-            ax[i].plot(adstock.T, alpha=0.1, color=cmap(i - ax_shift),)
-            ax[i].plot(x, 'o', color='k', label=f'Original Spend {col}')
+            ax[i].plot(
+                adstock.T,
+                alpha=0.1,
+                color=cmap(i - ax_shift),
+            )
+            ax[i].plot(x, "o", color="k", label=f"Original Spend {col}")
 
-            ax[i+1].plot(saturated_adstock.T, alpha=0.01, color=cmap(i- ax_shift),)
-            ax[i+1].plot(y, 'o', color='k', label='Dependent Variable')
+            ax[i + 1].plot(
+                saturated_adstock.T,
+                alpha=0.01,
+                color=cmap(i - ax_shift),
+            )
+            ax[i + 1].plot(y, "o", color="k", label="Dependent Variable")
 
-            ax[i].legend(loc='upper left', shadow=True) 
-            ax[i+1].legend(loc='upper left', shadow=True)
+            ax[i].legend(loc="upper left", shadow=True)
+            ax[i + 1].legend(loc="upper left", shadow=True)
             ax_shift += 1
 
-        ax[0].set_title('Adstocked Transformation')
-        ax[1].set_title('Saturated & Adstocked Transformation')
+        ax[0].set_title("Adstocked Transformation")
+        ax[1].set_title("Saturated & Adstocked Transformation")
 
         return fig
