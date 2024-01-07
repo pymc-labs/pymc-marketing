@@ -892,9 +892,7 @@ class DelayedSaturatedMMM(
             The maximum lag for the adstock transformation, by default 12
         normalize : bool, optional
             Whether to normalize the weights, by default True
-        axis : int, optional
-            The axis to apply the transformation, by default 0
-
+     
         Returns
         -------
         Union[float, np.ndarray]
