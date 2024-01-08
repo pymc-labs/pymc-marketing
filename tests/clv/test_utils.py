@@ -10,7 +10,7 @@ from pandas.testing import assert_frame_equal
 from pymc_marketing.clv import BetaGeoModel, GammaGammaModel
 from pymc_marketing.clv.utils import (
     _find_first_transactions,
-    clv_summary,
+    rfm_summary,
     customer_lifetime_value,
     to_xarray,
 )
@@ -335,7 +335,10 @@ def test_find_first_transactions_returns_correct_results(transaction_data, today
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L137
 
     actual = _find_first_transactions(
-        transaction_data, "id", "date", observation_period_end=today
+        transaction_data,
+        "id",
+        "date",
+        observation_period_end=today,
     )
     expected = pd.DataFrame(
         [
@@ -472,11 +475,11 @@ def test_find_first_transactions_with_monetary_values_with_specific_non_daily_fr
     argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7)],
     ids=["string", "period", "datetime"],
 )
-def test_clv_summary_returns_correct_results(transaction_data, today):
+def test_rfm_summary_returns_correct_results(transaction_data, today):
     # Test borrowed from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L239
 
-    actual = clv_summary(transaction_data, "id", "date", observation_period_end=today)
+    actual = rfm_summary(transaction_data, "id", "date", observation_period_end=today)
     expected = pd.DataFrame(
         [
             [1, 1.0, 36.0, 37.0],
@@ -486,12 +489,12 @@ def test_clv_summary_returns_correct_results(transaction_data, today):
             [5, 2.0, 2.0, 22.0],
             [6, 0.0, 0.0, 5.0],
         ],
-        columns=["id", "frequency", "recency", "T"],
+        columns=["customer_id", "frequency", "recency", "T"],
     )
     assert_frame_equal(actual, expected)
 
 
-def test_clv_summary_works_with_string_customer_ids():
+def test_rfm_summary_works_with_string_customer_ids():
     # Test borrowed from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L250
 
@@ -504,10 +507,10 @@ def test_clv_summary_works_with_string_customer_ids():
         ["Y", "2015-01-05"],
     ]
     df = pd.DataFrame(d, columns=["id", "date"])
-    clv_summary(df, "id", "date")
+    rfm_summary(df, "id", "date")
 
 
-def test_clv_summary_works_with_int_customer_ids_and_doesnt_coerce_to_float():
+def test_rfm_summary_works_with_int_customer_ids_and_doesnt_coerce_to_float():
     # Test borrowed from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L263
 
@@ -520,11 +523,11 @@ def test_clv_summary_works_with_int_customer_ids_and_doesnt_coerce_to_float():
         [2, "2015-01-05"],
     ]
     df = pd.DataFrame(d, columns=["id", "date"])
-    actual = clv_summary(df, "id", "date")
+    actual = rfm_summary(df, "id", "date")
     assert actual.index.dtype == "int64"
 
 
-def test_clv_summary_with_specific_datetime_format(
+def test_rfm_summary_with_specific_datetime_format(
     transaction_data,
 ):
     # Test borrowed from
@@ -535,12 +538,13 @@ def test_clv_summary_with_specific_datetime_format(
     )
     format = "%Y%m%d"
     today = "20150207"
-    actual = clv_summary(
+    actual = rfm_summary(
         transaction_data,
         "id",
         "date",
         observation_period_end=today,
         datetime_format=format,
+        sort_transactions=False,
     )
     expected = pd.DataFrame(
         [
@@ -551,19 +555,19 @@ def test_clv_summary_with_specific_datetime_format(
             [5, 2.0, 2.0, 22.0],
             [6, 0.0, 0.0, 5.0],
         ],
-        columns=["id", "frequency", "recency", "T"],
+        columns=["customer_id", "frequency", "recency", "T"],
     )
     assert_frame_equal(actual, expected)
 
 
-def test_summary_date_from_transaction_data_with_specific_non_daily_frequency(
+def test_rfm_summary_non_daily_frequency(
     transaction_data,
 ):
     # Test borrowed from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L292
 
     today = "20150207"
-    actual = clv_summary(
+    actual = rfm_summary(
         transaction_data,
         "id",
         "date",
@@ -579,19 +583,19 @@ def test_summary_date_from_transaction_data_with_specific_non_daily_frequency(
             [5, 0.0, 0.0, 3.0],
             [6, 0.0, 0.0, 0.0],
         ],
-        columns=["id", "frequency", "recency", "T"],
+        columns=["customer_id", "frequency", "recency", "T"],
     )
     assert_frame_equal(actual, expected)
 
 
-def test_summary_date_from_transaction_with_monetary_values(
+def test_rfm_summary_monetary_values_and_first_transactions(
     transaction_data,
 ):
     # Test borrowed from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L311
 
     today = "20150207"
-    actual = clv_summary(
+    actual = rfm_summary(
         transaction_data,
         "id",
         "date",
@@ -607,12 +611,33 @@ def test_summary_date_from_transaction_with_monetary_values(
             [5, 2.0, 2.0, 22.0, 4.5],
             [6, 0.0, 0.0, 5.0, 0],
         ],
-        columns=["id", "frequency", "recency", "T", "monetary_value"],
+        columns=["customer_id", "frequency", "recency", "T", "monetary_value"],
     )
     assert_frame_equal(actual, expected)
 
+    actual_first_trans = rfm_summary(
+        transaction_data,
+        "id",
+        "date",
+        monetary_value_col="monetary_value",
+        observation_period_end=today,
+        include_first_transaction=True,
+    )
+    expected_first_trans = pd.DataFrame(
+        [
+            [1, 2.0, 36.0, 37.0, 1.5],
+            [2, 1.0, 0.0, 37.0, 2],
+            [3, 3.0, 4.0, 37.0, 3],
+            [4, 3.0, 20.0, 22.0, 4],
+            [5, 3.0, 2.0, 22.0, 4],
+            [6, 1.0, 0.0, 5.0, 5],
+        ],
+        columns=["customer_id", "frequency", "recency", "T", "monetary_value"],
+    )
+    assert_frame_equal(actual_first_trans, expected_first_trans)
 
-def test_clv_summary_will_choose_the_correct_first_order_to_drop_in_monetary_transactions():
+
+def test_rfm_summary_will_choose_the_correct_first_order_to_drop_in_monetary_transactions():
     # Test borrowed from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L334
 
@@ -622,7 +647,7 @@ def test_clv_summary_will_choose_the_correct_first_order_to_drop_in_monetary_tra
     )
     sales = pd.Series([10, 20, 25])
     transaction_data = pd.DataFrame({"date": dates_ordered, "id": cust, "sales": sales})
-    summary_ordered_data = clv_summary(transaction_data, "id", "date", "sales")
+    summary_ordered_data = rfm_summary(transaction_data, "id", "date", "sales")
 
     dates_unordered = pd.to_datetime(
         pd.Series(["2014-04-09 00:00:00", "2014-03-14 00:00:00", "2014-05-21 00:00:00"])
@@ -631,13 +656,13 @@ def test_clv_summary_will_choose_the_correct_first_order_to_drop_in_monetary_tra
     transaction_data = pd.DataFrame(
         {"date": dates_unordered, "id": cust, "sales": sales}
     )
-    summary_unordered_data = clv_summary(transaction_data, "id", "date", "sales")
+    summary_unordered_data = rfm_summary(transaction_data, "id", "date", "sales")
 
     assert_frame_equal(summary_ordered_data, summary_unordered_data)
     assert summary_ordered_data["monetary_value"].loc[0] == 22.5
 
 
-def test_summary_statistics_are_identical_to_hardie_paper_confirming_correct_aggregations(
+def test_rfm_summary_statistics_identical_to_hardie_paper(
     cdnow_trans,
 ):
     # Test borrowed from
@@ -645,7 +670,7 @@ def test_summary_statistics_are_identical_to_hardie_paper_confirming_correct_agg
 
     # see http://brucehardie.com/papers/rfm_clv_2005-02-16.pdf
     # RFM and CLV: Using Iso-value Curves for Customer Base Analysis
-    summary = clv_summary(
+    summary = rfm_summary(
         cdnow_trans,
         "id",
         "date",
