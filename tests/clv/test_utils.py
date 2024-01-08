@@ -10,6 +10,7 @@ from pandas.testing import assert_frame_equal
 from pymc_marketing.clv import BetaGeoModel, GammaGammaModel
 from pymc_marketing.clv.utils import (
     _find_first_transactions,
+    clv_summary,
     rfm_summary,
     customer_lifetime_value,
     to_xarray,
@@ -686,3 +687,8 @@ def test_rfm_summary_statistics_identical_to_hardie_paper(
     assert np.round(results.loc["50%"]) == 27
     assert np.round(results.loc["max"]) == 300
     assert np.round(results.loc["count"]) == 946
+
+
+def test_clv_summary_warning(transaction_data):
+    with pytest.warns(UserWarning, match="clv_summary was renamed to rfm_summary"):
+        clv_summary(transaction_data, "id", "date")

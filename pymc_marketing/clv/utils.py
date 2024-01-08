@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional, Union
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -240,6 +241,11 @@ def _find_first_transactions(
     ].dt.to_period(time_unit)
 
     return period_transactions[select_columns]
+
+
+def clv_summary(*args, **kwargs):
+    warnings.warn("clv_summary was renamed to rfm_summary", UserWarning)
+    return rfm_summary(*args, **kwargs)
 
 
 def rfm_summary(
