@@ -179,8 +179,7 @@ def _find_first_transactions(
         https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
     sort_transactions: bool, optional
         Default: True
-        If encountering memory issues, set to False and order raw customer data in upstream external system
-        by customer_id_col and datetime_col.
+        If raw date is already sorted in chronological order, set to `False` to improve computational efficiency.
     """
 
     select_columns = [customer_id_col, datetime_col]
@@ -304,8 +303,7 @@ def rfm_summary(
         Set to True if performing RFM segmentation.
     sort_transactions: bool, optional
         Default: True
-        If encountering memory issues, set to False and order raw customer data in upstream external system
-        by customer_id_col and datetime_col.
+        If raw date is already sorted in chronological order, set to `False` to improve computational efficiency.
 
     Returns
     -------
