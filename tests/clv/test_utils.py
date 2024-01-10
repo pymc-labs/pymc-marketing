@@ -11,8 +11,8 @@ from pymc_marketing.clv import BetaGeoModel, GammaGammaModel
 from pymc_marketing.clv.utils import (
     _find_first_transactions,
     clv_summary,
-    rfm_summary,
     customer_lifetime_value,
+    rfm_summary,
     to_xarray,
 )
 
