@@ -497,12 +497,10 @@ class TestDelayedSaturatedMMM:
         except Exception as e:
             pytest.fail(f"_data_setter failed with error {e}")
 
-        try:
+        with pytest.raises(TypeError, match="X must be a pandas DataFrame"):
             base_delayed_saturated_mmm._data_setter(
                 X_correct_ndarray, y_correct_ndarray
             )
-        except Exception as e:
-            pytest.fail(f"_data_setter failed with error {e}")
 
     def test_save_load(self, mmm_fitted):
         model = mmm_fitted
@@ -610,62 +608,107 @@ class TestDelayedSaturatedMMM:
                 model.model["beta_channel"].owner.op, pm.HalfNormal
             )  # beta_channel
 
-    @pytest.mark.parametrize(
-        "model_name", ["mmm_fitted", "mmm_fitted_with_fourier_features"]
+
+def new_date_ranges_to_test():
+    yield from [
+        # 2021-12-31 is the last date in the toy data
+        # Old and New dates
+        pd.date_range("2021-11-01", "2022-03-01", freq="W-MON"),
+        # Only old dates
+        pd.date_range("2019-06-01", "2021-12-31", freq="W-MON"),
+        # Only new dates
+        pd.date_range("2022-01-01", "2022-03-01", freq="W-MON"),
+        # Less than the adstock_max_lag (4) of the model
+        pd.date_range("2022-01-01", freq="W-MON", periods=1),
+    ]
+
+
+@pytest.mark.parametrize(
+    "model_name", ["mmm_fitted", "mmm_fitted_with_fourier_features"]
+)
+@pytest.mark.parametrize(
+    "new_dates",
+    new_date_ranges_to_test(),
+)
+@pytest.mark.parametrize("combined", [True, False])
+@pytest.mark.parametrize("original_scale", [True, False])
+def test_new_data_sample_posterior_predictive_method(
+    generate_data,
+    model_name: str,
+    new_dates: pd.DatetimeIndex,
+    combined: bool,
+    original_scale: bool,
+    request,
+) -> None:
+    """This is the method that is used in all the other methods that generate predictions."""
+    mmm = request.getfixturevalue(model_name)
+    X_pred = generate_data(new_dates)
+
+    posterior_predictive = mmm.sample_posterior_predictive(
+        X_pred=X_pred,
+        extend_idata=False,
+        combined=combined,
+        original_scale=original_scale,
     )
-    @pytest.mark.parametrize(
-        "new_dates",
-        [
-            # 2021-12-31 is the last date in the toy data
-            # Old and New dates
-            pd.date_range("2021-11-01", "2022-03-01", freq="W-MON"),
-            # Only old dates
-            pd.date_range("2019-06-01", "2021-12-31", freq="W-MON"),
-            # Only new dates
-            pd.date_range("2022-01-01", "2022-03-01", freq="W-MON"),
-            # Less than the adstock_max_lag (4) of the model
-            pd.date_range("2022-01-01", freq="W-MON", periods=1),
-        ],
+    pd.testing.assert_index_equal(
+        pd.DatetimeIndex(posterior_predictive.coords["date"]),
+        new_dates,
     )
-    @pytest.mark.parametrize("original_scale", [True, False])
-    def test_new_data_predictions(
-        self,
-        generate_data,
-        model_name: str,
-        new_dates: pd.DatetimeIndex,
-        original_scale: bool,
-        request,
-    ):
-        mmm = request.getfixturevalue(model_name)
-        X_pred = generate_data(new_dates)
 
-        pp_without = mmm.predict_posterior(
-            X_pred,
-            include_last_observations=False,
-            original_scale=original_scale,
-        )
-        pp_with = mmm.predict_posterior(
-            X_pred,
-            include_last_observations=True,
-            original_scale=original_scale,
-        )
-        assert pp_without.coords.equals(pp_with.coords)
 
-        posterior_predictive = mmm.sample_posterior_predictive(
-            X_pred=X_pred,
-            extend_idata=False,
-            combined=True,
-            original_scale=original_scale,
-        )
-        pd.testing.assert_index_equal(
-            pd.DatetimeIndex(posterior_predictive.coords["date"]),
-            new_dates,
-        )
+@pytest.mark.parametrize(
+    "model_name", ["mmm_fitted", "mmm_fitted_with_fourier_features"]
+)
+@pytest.mark.parametrize(
+    "new_dates",
+    [pd.date_range("2022-01-01", "2022-03-01", freq="W-MON")],
+)
+def test_new_data_include_last_observation_same_dims(
+    generate_data,
+    model_name: str,
+    new_dates: pd.DatetimeIndex,
+    request,
+) -> None:
+    mmm = request.getfixturevalue(model_name)
+    X_pred = generate_data(new_dates)
 
-        posterior_predictive_mean = mmm.predict(
-            X_pred=X_pred, original_scale=original_scale
-        )
-        assert posterior_predictive_mean.shape[0] == new_dates.size
+    pp_without = mmm.predict_posterior(
+        X_pred,
+        include_last_observations=False,
+    )
+    pp_with = mmm.predict_posterior(
+        X_pred,
+        include_last_observations=True,
+    )
+    assert pp_without.coords.equals(pp_with.coords)
+    pd.testing.assert_index_equal(
+        pd.DatetimeIndex(pp_without.coords["date"]),
+        new_dates,
+    )
+
+
+@pytest.mark.parametrize(
+    "model_name", ["mmm_fitted", "mmm_fitted_with_fourier_features"]
+)
+@pytest.mark.parametrize(
+    "new_dates",
+    [pd.date_range("2022-01-01", "2022-03-01", freq="W-MON")],
+)
+def test_new_data_predict_method(
+    generate_data,
+    model_name: str,
+    new_dates: pd.DatetimeIndex,
+    request,
+) -> None:
+    mmm = request.getfixturevalue(model_name)
+    X_pred = generate_data(new_dates)
+
+    posterior_predictive_mean = mmm.predict(X_pred=X_pred)
+    assert posterior_predictive_mean.shape[0] == new_dates.size
+    pd.testing.assert_index_equal(
+        pd.DatetimeIndex(posterior_predictive_mean.coords["date"]),
+        new_dates,
+    )
 
 
 def test_get_valid_distribution(mmm):
