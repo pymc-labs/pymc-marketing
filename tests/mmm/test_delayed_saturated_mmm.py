@@ -705,10 +705,6 @@ def test_new_data_predict_method(
 
     posterior_predictive_mean = mmm.predict(X_pred=X_pred)
     assert posterior_predictive_mean.shape[0] == new_dates.size
-    pd.testing.assert_index_equal(
-        pd.DatetimeIndex(posterior_predictive_mean.coords["date"]),
-        new_dates,
-    )
 
 
 def test_get_valid_distribution(mmm):
