@@ -1,4 +1,3 @@
-from itertools import repeat
 import warnings
 from inspect import (
     getattr_static,
@@ -7,6 +6,7 @@ from inspect import (
     ismemberdescriptor,
     ismethoddescriptor,
 )
+from itertools import repeat
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import arviz as az
