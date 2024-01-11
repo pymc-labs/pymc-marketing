@@ -505,7 +505,7 @@ class ModelBuilder(ABC):
             The input data used for prediction.
         extend_idata : Boolean determining whether the predictions should be added to inference data object.
             Defaults to True.
-        **kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
+        **kwargs: Additional arguments to pass to sample_posterior_predictive method
 
         Returns
         -------
@@ -681,7 +681,7 @@ class ModelBuilder(ABC):
             Defaults to True.
         combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
-        **kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
+        **kwargs: Additional arguments to pass to sample_posterior_predictive method
 
         Returns
         -------
