@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 
 import arviz as az
 import numpy as np
@@ -7,7 +7,6 @@ import pandas as pd
 import pymc as pm
 import pytest
 from matplotlib import pyplot as plt
-
 
 from pymc_marketing.mmm.delayed_saturated_mmm import (
     BaseDelayedSaturatedMMM,
