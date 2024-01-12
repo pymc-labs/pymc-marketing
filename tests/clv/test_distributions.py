@@ -1,13 +1,13 @@
 import numpy as np
 import pymc as pm
 import pytensor
+import pytensor.tensor as pt
 import pytest
-from lifetimes import ParetoNBDFitter as PF
 from lifetimes import BetaGeoBetaBinomFitter as BGBBF
+from lifetimes import ParetoNBDFitter as PF
 from numpy.testing import assert_almost_equal
 from pymc import Model
 
-import pytensor.tensor as pt
 from pymc_marketing.clv.distributions import (
     BetaGeoBetaBinom,
     ContContract,

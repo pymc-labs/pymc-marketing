@@ -2,8 +2,8 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 from pymc.distributions.continuous import PositiveContinuous
-from pymc.distributions.distribution import Discrete
 from pymc.distributions.dist_math import betaln, check_parameters
+from pymc.distributions.distribution import Discrete
 from pytensor import scan
 from pytensor.graph import vectorize_graph
 from pytensor.tensor.random.op import RandomVariable
