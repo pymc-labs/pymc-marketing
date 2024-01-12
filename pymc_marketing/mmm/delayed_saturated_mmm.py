@@ -84,7 +84,7 @@ class BaseDelayedSaturatedMMM(MMM):
     @property
     def output_var(self):
         """Defines target variable for the model"""
-        return "likelihood"
+        return "y"
 
     def _generate_and_preprocess_model_data(  # type: ignore
         self, X: Union[pd.DataFrame, pd.Series], y: Union[pd.Series, np.ndarray]
@@ -238,7 +238,7 @@ class BaseDelayedSaturatedMMM(MMM):
         likelihood_dist = self._get_distribution(dist={"dist": likelihood_dist_name})
 
         return likelihood_dist(
-            name="likelihood",
+            name=self.output_var,
             mu=mu,
             observed=observed,
             dims=dims,
@@ -892,7 +892,7 @@ class DelayedSaturatedMMM(
         with self.model:  # sample with new input data
             post_pred = pm.sample_posterior_predictive(self.idata, **kwargs)
             if extend_idata:
-                self.idata.extend(post_pred)  # type: ignore
+                self.idata.extend(post_pred, join="right")  # type: ignore
 
         posterior_predictive_samples = az.extract(
             post_pred, "posterior_predictive", combined=combined

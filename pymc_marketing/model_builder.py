@@ -582,7 +582,7 @@ class ModelBuilder(ABC):
                 self.set_idata_attrs(prior_pred)
                 if extend_idata:
                     if self.idata is not None:
-                        self.idata.extend(prior_pred)
+                        self.idata.extend(prior_pred, join="right")
                     else:
                         self.idata = prior_pred
 
@@ -616,7 +616,7 @@ class ModelBuilder(ABC):
         with self.model:  # sample with new input data
             post_pred = pm.sample_posterior_predictive(self.idata, **kwargs)
             if extend_idata:
-                self.idata.extend(post_pred)
+                self.idata.extend(post_pred, join="right")
 
         posterior_predictive_samples = az.extract(
             post_pred, "posterior_predictive", combined=combined
