@@ -257,10 +257,10 @@ class BaseMMM(ModelBuilder):
         prior_predictive_data: az.InferenceData = self.prior_predictive
 
         likelihood_hdi_94: DataArray = az.hdi(ary=prior_predictive_data, hdi_prob=0.94)[
-            "likelihood"
+            self.output_var
         ]
         likelihood_hdi_50: DataArray = az.hdi(ary=prior_predictive_data, hdi_prob=0.50)[
-            "likelihood"
+            self.output_var
         ]
 
         fig, ax = plt.subplots(**plt_kwargs)
@@ -303,10 +303,10 @@ class BaseMMM(ModelBuilder):
         posterior_predictive_data: Dataset = self.posterior_predictive
         likelihood_hdi_94: DataArray = az.hdi(
             ary=posterior_predictive_data, hdi_prob=0.94
-        )["likelihood"]
+        )[self.output_var]
         likelihood_hdi_50: DataArray = az.hdi(
             ary=posterior_predictive_data, hdi_prob=0.50
-        )["likelihood"]
+        )[self.output_var]
 
         if original_scale:
             likelihood_hdi_94 = self.get_target_transformer().inverse_transform(
