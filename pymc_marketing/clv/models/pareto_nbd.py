@@ -563,7 +563,7 @@ class ParetoNBDModel(CLVModel):
 
         t = np.asarray(t)
 
-        # TODO: This requires modification for covariates
+        # TODO: _unload_params requires modification for covariates w/ new customers
         r, alpha, s, beta = self._unload_params(self.data)
         first_term = r * beta / alpha / (s - 1)
         second_term = 1 - (beta / (beta + t)) ** (s - 1)
@@ -781,7 +781,7 @@ class ParetoNBDModel(CLVModel):
             r = pm.HalfFlat("r")
             if self.pr_covar_columns is not None:
                 alpha0 = pm.HalfFlat("alpha0")
-                pr_coeff = pm.Flat("alpha0", shape=2)
+                pr_coeff = pm.Flat("alpha0", shape=len(self.pr_covar_columns))
 
                 alpha = pm.Deterministic(
                     "alpha",
@@ -797,7 +797,7 @@ class ParetoNBDModel(CLVModel):
             s = pm.HalfFlat("s")
             if self.dr_covar_columns is not None:
                 beta0 = pm.HalfFlat("beta0")
-                dr_coeff = pm.Flat("beta0", shape=2)
+                dr_coeff = pm.Flat("beta0", shape=len(self.dr_covar_columns))
 
                 beta = pm.Deterministic(
                     "beta",
@@ -845,11 +845,9 @@ class ParetoNBDModel(CLVModel):
         xr.Dataset
             Dataset containing the posterior samples for the population-level dropout rate.
         """
-        # TODO: Covariate support still possible; get popular opinion
+        # TODO: If requested, covariate support still possible
         if self.dr_covar_columns is not None:
-            raise ValueError(
-                "Population distribution cannot be estimated with covariates."
-            )
+            raise ValueError("Population distributions not supported with covariates.")
 
         return self._distribution_new_customers(
             random_seed=random_seed,
@@ -876,11 +874,9 @@ class ParetoNBDModel(CLVModel):
         xr.Dataset
             Dataset containing the posterior samples for the population-level purchase rate.
         """
-        # TODO: Covariate support still possible; get popular opinion
+        # TODO: If requested, covariate support still possible
         if self.pr_covar_columns is not None:
-            raise ValueError(
-                "Population distribution cannot be estimated with covariates."
-            )
+            raise ValueError("Population distributions not supported with covariates.")
 
         return self._distribution_new_customers(
             random_seed=random_seed,

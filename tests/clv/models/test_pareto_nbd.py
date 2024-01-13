@@ -6,11 +6,10 @@ import pandas as pd
 import pymc as pm
 import pytest
 from lifetimes import ParetoNBDFitter
+from pytensor.tensor.elemwise import Elemwise
 
 from pymc_marketing.clv import ParetoNBDModel
 from pymc_marketing.clv.distributions import ParetoNBD
-
-from pytensor.tensor.elemwise import Elemwise
 
 
 class TestParetoNBDModel:
@@ -26,8 +25,14 @@ class TestParetoNBDModel:
         cls.beta_true = 25.1449
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
-        # TODO: Create a pytest fixture for this
         test_data = pd.read_csv("tests/clv/datasets/test_clv_covar.csv")
+
+        # scale monetary_value column for use as a covariate
+        def scale(x):
+            return (x - x.min(axis=0)) / (x.max(axis=0) - x.min(axis=0))
+
+        test_data["cds_bought"] = scale(test_data["cds_bought"])
+        test_data["spent"] = scale(test_data["spent"])
 
         cls.data = test_data
         cls.customer_id = test_data["customer_id"]
@@ -67,6 +72,44 @@ class TestParetoNBDModel:
         )
 
         cls.model.idata = cls.mock_fit
+
+        # Setup for covar testing
+
+        cls.covar_model = ParetoNBDModel(
+            cls.data,
+            pr_covar_columns=["cds_bought", "spent"],
+            dr_covar_columns=["cds_bought", "spent"],
+        )
+        # TODO: This can be removed after build_model() is called internally with __init__
+        cls.covar_model.build_model()
+
+        # Parameters
+        cls.cov_r_true = 0.4655
+        cls.cov_s_true = 0.2499
+        cls.cov_alpha0_true = 62.4981
+        cls.cov_pr_coeff_true = 0.2499
+        cls.cov_beta0_true = 25.1449
+        cls.cov_dr_coeff_true = 0.2499
+
+        cls.covar_mock_fit = az.from_dict(
+            {
+                "r": cls.rng.normal(cls.cov_r_true, 1e-3, size=(cls.chains, cls.draws)),
+                "s": cls.rng.normal(cls.cov_s_true, 1e-3, size=(cls.chains, cls.draws)),
+                "alpha_0": cls.rng.normal(
+                    cls.cov_alpha0_true, 1e-3, size=(cls.chains, cls.draws)
+                ),
+                "pr_coeff": cls.rng.normal(
+                    cls.cov_pr_coeff_true, 1e-3, size=(cls.chains, cls.draws)
+                ),
+                "beta0": cls.rng.normal(
+                    cls.cov_beta0_true, 1e-3, size=(cls.chains, cls.draws)
+                ),
+                "dr_coeff": cls.rng.normal(
+                    cls.cov_dr_coeff_true, 1e-3, size=(cls.chains, cls.draws)
+                ),
+            }
+        )
+        cls.covar_model.idata = cls.covar_mock_fit
 
     @pytest.mark.parametrize(
         "model_config, covar_columns",
