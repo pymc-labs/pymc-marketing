@@ -256,7 +256,6 @@ class ParetoNBDModel(CLVModel):
 
         # TODO: Add self.build_model() call here
 
-    # TODO: _create_distributions changes required in clv/basic.py to support custom covariate coefficient distributions
     @property
     def default_model_config(self) -> Dict[str, Dict]:
         return {
@@ -360,37 +359,37 @@ class ParetoNBDModel(CLVModel):
         """
         Utility function to process covariates into model parameters.
         """
-        # TODO: broadcasting needs to be resolved when data is provided
+        # TODO: broadcasting needs to be resolved for out-of-sample data
         if data is None:
+            data = self.data
+
+        if self.pr_covar_columns is None:
             alpha = self.fit_result["alpha"]
+        else:
+            self._validate_column_names(data, self.pr_covar_columns)
+            pr_xarray = xarray.DataArray(
+                data[self.pr_covar_columns],
+                dims=["customer_id", "purchase_rate_covariates"],
+            )
+            alpha0 = self.fit_result["alpha0"]
+            pr_coeff = self.fit_result["pr_coeff"]
+            alpha = alpha0 * np.exp(
+                -xarray.dot(pr_coeff, pr_xarray, dims="purchase_rate_covariates")
+            )
+
+        if self.dr_covar_columns is None:
             beta = self.fit_result["beta"]
         else:
-            if self.pr_covar_columns is None:
-                alpha = self.fit_result["alpha"]
-            else:
-                self._validate_column_names(data, self.pr_covar_columns)
-                pr_xarray = xarray.DataArray(
-                    data[self.pr_covar_columns],
-                    dims=["customer_id", "purchase_rate_covariates"],
-                )
-                alpha0 = self.fit_result["alpha0"]
-                pr_coeff = self.fit_result["pr_coeff"]
-                alpha = alpha0 * np.exp(
-                    -xarray.dot(pr_coeff, pr_xarray, dims="purchase_rate_covariates")
-                )
-            if self.dr_covar_columns is None:
-                beta = self.fit_result["beta"]
-            else:
-                self._validate_column_names(data, self.dr_covar_columns)
-                dr_xarray = xarray.DataArray(
-                    data[self.dr_covar_columns],
-                    dims=["customer_id", "dropout_covariates"],
-                )
-                beta0 = self.fit_result["beta0"]
-                dr_coeff = self.fit_result["dr_coeff"]
-                beta = beta0 * np.exp(
-                    -xarray.dot(dr_coeff, dr_xarray, dims="dropout_covariates")
-                )
+            self._validate_column_names(data, self.dr_covar_columns)
+            dr_xarray = xarray.DataArray(
+                data[self.dr_covar_columns],
+                dims=["customer_id", "dropout_covariates"],
+            )
+            beta0 = self.fit_result["beta0"]
+            dr_coeff = self.fit_result["dr_coeff"]
+            beta = beta0 * np.exp(
+                -xarray.dot(dr_coeff, dr_xarray, dims="dropout_covariates")
+            )
         return alpha, beta
 
     def _process_customers(
@@ -560,6 +559,12 @@ class ParetoNBDModel(CLVModel):
                "A Note on Deriving the Pareto/NBD Model and Related Expressions."
                http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
         """
+
+        # TODO: If requested, this is still possible from a what-if standpoint.
+        if self.pr_covar_columns or self.pr_covar_columns is not None:
+            raise NotImplementedError(
+                "New customer estimates not currently supported with covariates"
+            )
 
         t = np.asarray(t)
 
@@ -767,6 +772,13 @@ class ParetoNBDModel(CLVModel):
         ),
     ) -> xarray.Dataset:
         """Utility function for posterior predictive sampling from dropout and purchase rate distributions."""
+
+        # TODO: If requested, covariate support still possible
+        if self.pr_covar_columns or self.dr_covar_columns is not None:
+            raise NotImplementedError(
+                "New customer estimates not currently supported with covariates"
+            )
+
         if T is None:
             T = self.data["T"]
 
@@ -781,7 +793,7 @@ class ParetoNBDModel(CLVModel):
             r = pm.HalfFlat("r")
             if self.pr_covar_columns is not None:
                 alpha0 = pm.HalfFlat("alpha0")
-                pr_coeff = pm.Flat("alpha0", shape=len(self.pr_covar_columns))
+                pr_coeff = pm.Flat("pr_coeff", shape=len(self.pr_covar_columns))
 
                 alpha = pm.Deterministic(
                     "alpha",
@@ -797,7 +809,7 @@ class ParetoNBDModel(CLVModel):
             s = pm.HalfFlat("s")
             if self.dr_covar_columns is not None:
                 beta0 = pm.HalfFlat("beta0")
-                dr_coeff = pm.Flat("beta0", shape=len(self.dr_covar_columns))
+                dr_coeff = pm.Flat("dr_coeff", shape=len(self.dr_covar_columns))
 
                 beta = pm.Deterministic(
                     "beta",
@@ -845,9 +857,6 @@ class ParetoNBDModel(CLVModel):
         xr.Dataset
             Dataset containing the posterior samples for the population-level dropout rate.
         """
-        # TODO: If requested, covariate support still possible
-        if self.dr_covar_columns is not None:
-            raise ValueError("Population distributions not supported with covariates.")
 
         return self._distribution_new_customers(
             random_seed=random_seed,
@@ -874,9 +883,6 @@ class ParetoNBDModel(CLVModel):
         xr.Dataset
             Dataset containing the posterior samples for the population-level purchase rate.
         """
-        # TODO: If requested, covariate support still possible
-        if self.pr_covar_columns is not None:
-            raise ValueError("Population distributions not supported with covariates.")
 
         return self._distribution_new_customers(
             random_seed=random_seed,

@@ -95,7 +95,7 @@ class TestParetoNBDModel:
             {
                 "r": cls.rng.normal(cls.cov_r_true, 1e-3, size=(cls.chains, cls.draws)),
                 "s": cls.rng.normal(cls.cov_s_true, 1e-3, size=(cls.chains, cls.draws)),
-                "alpha_0": cls.rng.normal(
+                "alpha0": cls.rng.normal(
                     cls.cov_alpha0_true, 1e-3, size=(cls.chains, cls.draws)
                 ),
                 "pr_coeff": cls.rng.normal(
@@ -309,6 +309,8 @@ class TestParetoNBDModel:
             rtol=0.001,
         )
 
+        self.covar_model.expected_purchases(test_t)
+
     @pytest.mark.parametrize("test_t", [1, 2, 3, 4, 5, 6])
     def test_expected_purchases_new_customer(self, test_t):
         true_purchases_new = (
@@ -327,6 +329,12 @@ class TestParetoNBDModel:
             est_purchases_new.mean(("chain", "draw")),
             rtol=0.001,
         )
+
+        with pytest.raises(
+            NotImplementedError,
+            match="New customer estimates not currently supported with covariates",
+        ):
+            self.covar_model.expected_purchases_new_customer(test_t)
 
     def test_expected_probability_alive(self):
         true_prob_alive = self.lifetimes_model.conditional_probability_alive(
@@ -347,6 +355,8 @@ class TestParetoNBDModel:
 
         est_prob_alive_t = self.model.expected_probability_alive(future_t=4.5)
         assert est_prob_alive.mean() > est_prob_alive_t.mean()
+
+        self.covar_model.expected_probability_alive()
 
     @pytest.mark.parametrize("test_n, test_t", [(0, 0), (1, 1), (2, 2)])
     def test_expected_purchase_probability(self, test_n, test_t):
@@ -372,6 +382,8 @@ class TestParetoNBDModel:
             est_purchases_new_customer.mean(("chain", "draw")),
             rtol=0.001,
         )
+
+        self.model.expected_purchase_probability(test_n, test_t, self.data)
 
     @pytest.mark.parametrize(
         "fake_fit, T",
@@ -459,6 +471,25 @@ class TestParetoNBDModel:
             pm.draw(rec_freq.var(), random_seed=self.rng),
             rtol=rtol,
         )
+
+        # Test unsupported covariate exceptions
+        with pytest.raises(
+            NotImplementedError,
+            match="New customer estimates not currently supported with covariates",
+        ):
+            self.covar_model.distribution_new_customer_dropout(random_seed=rng)
+
+        with pytest.raises(
+            NotImplementedError,
+            match="New customer estimates not currently supported with covariates",
+        ):
+            self.covar_model.distribution_new_customer_purchase_rate(random_seed=rng)
+
+        with pytest.raises(
+            NotImplementedError,
+            match="New customer estimates not currently supported with covariates",
+        ):
+            self.covar_model.distribution_customer_population(random_seed=rng, T=T)
 
     def test_save_load_pareto_nbd(self):
         # TODO: Create a pytest fixture for this
