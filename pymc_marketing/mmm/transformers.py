@@ -298,7 +298,7 @@ def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
     -------
     tensor
         Transformed tensor.
-    """
+    """  # noqa: W605
     return (1 - pt.exp(-lam * x)) / (1 + pt.exp(-lam * x))
 
 

@@ -37,12 +37,7 @@ docs = [
     "sphinx-notfound-page",
     "sphinx-design",
 ]
-lint = [
-    "mypy",
-    "pandas-stubs",
-    "pre-commit>=2.19.0",
-    "ruff>=0.1.4",
-]
+lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = ["lifetimes==0.11.3", "pytest==7.0.1", "pytest-cov==3.0.0"]
 
 [tool.setuptools]
@@ -64,7 +59,10 @@ repository = "https://github.com/pymc-labs/pymc-marketing"
 #changelog = ""
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F", "I"]
+select = ["E", "F", "I", "W"]
+ignore = [
+    "E501", # Line too long
+]
 
 [tool.pytest.ini_options]
 addopts = [
