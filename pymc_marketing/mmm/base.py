@@ -332,7 +332,7 @@ class BaseMMM(ModelBuilder):
                 y2=likelihood_hdi_94[:, 1],
                 color="C0",
                 alpha=0.2,
-                label="$94\%$ HDI",
+                label="$94\%$ HDI",  # noqa: W605
             )
 
             ax.fill_between(
@@ -341,7 +341,7 @@ class BaseMMM(ModelBuilder):
                 y2=likelihood_hdi_50[:, 1],
                 color="C0",
                 alpha=0.3,
-                label="$50\%$ HDI",
+                label="$50\%$ HDI",  # noqa: W605
             )
 
             target_to_plot: np.ndarray = np.asarray(
@@ -414,7 +414,7 @@ class BaseMMM(ModelBuilder):
                     y2=hdi.isel(hdi=1),
                     color=f"C{i}",
                     alpha=0.25,
-                    label=f"$94\%$ HDI ({var_contribution})",
+                    label=f"$94\%$ HDI ({var_contribution})",  # noqa: W605
                 )
                 ax.plot(
                     np.asarray(self.X[self.date_column]),
@@ -441,7 +441,7 @@ class BaseMMM(ModelBuilder):
                 y2=intercept_hdi[:, 1],
                 color=f"C{i + 1}",
                 alpha=0.25,
-                label="$94\%$ HDI (intercept)",
+                label="$94\%$ HDI (intercept)",  # noqa: W605
             )
             ax.plot(
                 np.asarray(self.X[self.date_column]),
