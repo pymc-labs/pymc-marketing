@@ -1,3 +1,4 @@
+import warnings
 from datetime import datetime
 from typing import Optional, Union
 
@@ -5,7 +6,7 @@ import numpy as np
 import pandas as pd
 import xarray
 
-__all__ = ["to_xarray", "customer_lifetime_value", "clv_summary"]
+__all__ = ["to_xarray", "customer_lifetime_value", "rfm_summary"]
 
 
 def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
@@ -142,6 +143,7 @@ def _find_first_transactions(
     datetime_format: Optional[str] = None,
     observation_period_end: Optional[Union[str, pd.Period, datetime]] = None,
     time_unit: str = "D",
+    sort_transactions: Optional[bool] = True,
 ) -> pd.DataFrame:
     """
     Return dataframe with first transactions.
@@ -175,6 +177,9 @@ def _find_first_transactions(
         Time granularity for study.
         Default: 'D' for days. Possible values listed here:
         https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+    sort_transactions: bool, optional
+        Default: True
+        If raw data is already sorted in chronological order, set to `False` to improve computational efficiency.
     """
 
     select_columns = [customer_id_col, datetime_col]
@@ -190,7 +195,8 @@ def _find_first_transactions(
     if monetary_value_col:
         select_columns.append(monetary_value_col)
 
-    transactions = transactions[select_columns].sort_values(select_columns).copy()
+    if sort_transactions:
+        transactions = transactions[select_columns].sort_values(select_columns).copy()
 
     # convert date column into a DateTimeIndex for time-wise grouping and truncating
     transactions[datetime_col] = pd.to_datetime(
@@ -236,7 +242,12 @@ def _find_first_transactions(
     return period_transactions[select_columns]
 
 
-def clv_summary(
+def clv_summary(*args, **kwargs):
+    warnings.warn("clv_summary was renamed to rfm_summary", UserWarning)
+    return rfm_summary(*args, **kwargs)
+
+
+def rfm_summary(
     transactions: pd.DataFrame,
     customer_id_col: str,
     datetime_col: str,
@@ -244,10 +255,12 @@ def clv_summary(
     datetime_format: Optional[str] = None,
     observation_period_end: Optional[Union[str, pd.Period, datetime]] = None,
     time_unit: str = "D",
-    time_scaler: float = 1,
+    time_scaler: Optional[float] = 1,
+    include_first_transaction: Optional[bool] = False,
+    sort_transactions: Optional[bool] = True,
 ) -> pd.DataFrame:
     """
-    Summarize transaction data for modeling.
+    Summarize transaction data for use in CLV modeling and/or RFM segmentation.
 
     This transforms a DataFrame of transaction data of the form:
         customer_id, datetime [, monetary_value]
@@ -284,6 +297,13 @@ def clv_summary(
         With freq='h' and freq_multiplier=24, we get recency=590.125 and T=631.375
         This is useful if predictions in a different time granularity are desired,
         and can also help with model convergence for study periods of many years.
+    include_first_transaction: bool, optional
+        Default: False
+        For predictive CLV modeling, this should be False.
+        Set to True if performing RFM segmentation.
+    sort_transactions: bool, optional
+        Default: True
+        If raw data is already sorted in chronological order, set to `False` to improve computational efficiency.
 
     Returns
     -------
@@ -307,7 +327,7 @@ def clv_summary(
         )
 
     # label repeated transactions
-    repeated_transactions = _find_first_transactions(
+    repeated_transactions = _find_first_transactions(  # type: ignore
         transactions,
         customer_id_col,
         datetime_col,
@@ -315,6 +335,7 @@ def clv_summary(
         datetime_format,
         observation_period_end_ts,
         time_unit,
+        sort_transactions,
     )
     # reset datetime_col to timestamp
     repeated_transactions[datetime_col] = repeated_transactions[
@@ -326,8 +347,11 @@ def clv_summary(
         datetime_col
     ].agg(["min", "max", "count"])
 
-    # subtract 1 from count for non-repeat customers
-    customers["frequency"] = customers["count"] - 1
+    if not include_first_transaction:
+        # subtract 1 from count, as we ignore their first order.
+        customers["frequency"] = customers["count"] - 1
+    else:
+        customers["frequency"] = customers["count"]
 
     customers["T"] = (
         (observation_period_end_ts - customers["min"])
@@ -335,7 +359,7 @@ def clv_summary(
         / time_scaler
     )
     customers["recency"] = (
-        (pd.to_datetime(customers["max"]) - pd.to_datetime(customers["min"]))
+        (pd.to_datetime(customers["max"]) - pd.to_datetime(customers["min"]))  # type: ignore
         / np.timedelta64(1, time_unit)
         / time_scaler
     )
@@ -343,11 +367,14 @@ def clv_summary(
     summary_columns = ["frequency", "recency", "T"]
 
     if monetary_value_col:
-        # create an index of first purchases
-        first_purchases = repeated_transactions[repeated_transactions["first"]].index
-        # Exclude first purchases from the mean value calculation,
-        # by setting as null, then imputing with zero
-        repeated_transactions.loc[first_purchases, monetary_value_col] = np.nan
+        if not include_first_transaction:
+            # create an index of all the first purchases
+            first_purchases = repeated_transactions[
+                repeated_transactions["first"]
+            ].index
+            # by setting the monetary_value cells of all the first purchases to NaN,
+            # those values will be excluded from the mean value calculation
+            repeated_transactions.loc[first_purchases, monetary_value_col] = np.nan
         customers["monetary_value"] = (
             repeated_transactions.groupby(customer_id_col)[monetary_value_col]
             .mean()
@@ -356,5 +383,8 @@ def clv_summary(
         summary_columns.append("monetary_value")
 
     summary_df = customers[summary_columns].astype(float)
+    summary_df = summary_df.reset_index().rename(
+        columns={customer_id_col: "customer_id"}
+    )
 
-    return summary_df.reset_index()
+    return summary_df

@@ -29,4 +29,4 @@ def cdnow_trans() -> pd.DataFrame:
 
     Data source: https://www.brucehardie.com/datasets/
     """
-    return pd.read_csv("tests/clv/datasets/cdnow_transactions.csv")
+    return pd.read_csv("datasets/cdnow_transactions.csv")
