@@ -837,9 +837,11 @@ class BaseMMM(ModelBuilder):
         ax.legend()
 
     def optimize_channel_budget_for_maximum_contribution(
-        self,
         method: str,
         total_budget: int,
+        emissions_per_channel: Dict[str, float],
+        max_emissions: float,
+        channel_columns: List[str],  # Add channel_columns as an input parameter
         budget_bounds: Optional[Dict[str, Tuple[float, float]]] = None,
         *,
         parameters: Dict[str, Tuple[float, float]],
@@ -857,12 +859,18 @@ class BaseMMM(ModelBuilder):
             The total budget to be distributed across channels.
         method : str, required
             The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
-        parameters : Dict, required
-            A dictionary where keys are channel names and values are tuples (L, k) representing the
-            parameters for each channel based on the method used.
+        emissions_per_channel : Dict, required
+            A dictionary where keys are channel names and values are the carbon emissions per unit budget for that channel.
+        max_emissions : float, required
+            The maximum allowable total carbon emissions.
+        channel_columns : List[str], required
+            A list of channel names.
         budget_bounds : Dict, optional
             An optional dictionary defining the minimum and maximum budget for each channel.
             If not provided, the budget for each channel is constrained between 0 and its L value.
+        parameters : Dict, required
+            A dictionary where keys are channel names and values are tuples (L, k) representing the
+            parameters for each channel based on the method used.
 
         Returns
         -------
@@ -892,11 +900,12 @@ class BaseMMM(ModelBuilder):
         return budget_allocator(
             method=method,
             total_budget=total_budget,
-            channels=list(self.channel_columns),
+            channels=channel_columns,  # Use the input parameter channel_columns
             parameters=parameters,
             budget_ranges=budget_bounds,
+            emissions_per_channel=emissions_per_channel,
+            max_emissions=max_emissions
         )
-
     def compute_channel_curve_optimization_parameters_original_scale(
         self, method: str = "sigmoid"
     ) -> Dict:
