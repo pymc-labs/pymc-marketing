@@ -249,7 +249,8 @@ def test_apply_sklearn_function_across_date(
 
 
 def test_apply_sklearn_function_across_date_error(
-    mock_method, create_mock_mmm_return_data, combined: bool
+    mock_method,
+    create_mock_mmm_return_data,
 ) -> None:
     data = create_mock_mmm_return_data(combined=False)
 
