@@ -9,14 +9,16 @@ import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import seaborn as sns
-import xarray as xr
 from pytensor.tensor import TensorVariable
 from xarray import DataArray
 
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
-from pymc_marketing.mmm.utils import generate_fourier_modes
+from pymc_marketing.mmm.utils import (
+    apply_sklearn_transformer_across_date,
+    generate_fourier_modes,
+)
 from pymc_marketing.mmm.validating import ValidateControlColumns
 
 __all__ = ["DelayedSaturatedMMM"]
@@ -671,6 +673,10 @@ class BaseDelayedSaturatedMMM(MMM):
         with self.model:
             pm.set_data(data, coords=coords)
 
+    def _reset_model_data(self) -> None:
+        """Resets the model data to the original data."""
+        self._data_setter(X=self.X, y=self.y)
+
     @classmethod
     def _model_config_formatting(cls, model_config: Dict) -> Dict:
         """
@@ -858,7 +864,7 @@ class DelayedSaturatedMMM(
         combined,
         include_last_observations: bool = False,
         original_scale: bool = True,
-        **kwargs,
+        **sample_posterior_predictive_kwargs,
     ):
         """
         Sample from the model's posterior predictive distribution.
@@ -866,16 +872,18 @@ class DelayedSaturatedMMM(
         Parameters
         ---------
         X_pred : array, shape (n_pred, n_features)
-            The input data used for prediction using prior distribution..
+            The input data used for prediction.
         extend_idata : Boolean determining whether the predictions should be added to inference data object.
             Defaults to False.
         combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
-        include_last_observations: Boolean determining whether to include the last observations of the training data.
+        include_last_observations: Boolean determining whether to include the last observations of the training
+            data in order to carry over costs with the adstock transformation.
+            Assumes that X_pred are the next predictions following the training data.
             Defaults to False.
         original_scale: Boolean determining whether to return the predictions in the original scale of the target variable.
             Defaults to True.
-        **kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
+        **sample_posterior_predictive_kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
 
         Returns
         -------
@@ -885,14 +893,18 @@ class DelayedSaturatedMMM(
         if include_last_observations:
             X_pred = pd.concat(
                 [self.X.iloc[-self.adstock_max_lag :, :], X_pred], axis=0
-            )
+            ).sort_values(by=self.date_column)
 
         self._data_setter(X_pred)
 
         with self.model:  # sample with new input data
-            post_pred = pm.sample_posterior_predictive(self.idata, **kwargs)
+            post_pred = pm.sample_posterior_predictive(
+                self.idata, **sample_posterior_predictive_kwargs
+            )
             if extend_idata:
                 self.idata.extend(post_pred, join="right")  # type: ignore
+
+        self._reset_model_data()
 
         posterior_predictive_samples = az.extract(
             post_pred, "posterior_predictive", combined=combined
@@ -904,23 +916,10 @@ class DelayedSaturatedMMM(
             )
 
         if original_scale:
-            # These are lost during the ufunc
-            attrs = posterior_predictive_samples.attrs
-
-            if combined:
-                posterior_predictive_samples = xr.apply_ufunc(
-                    self.get_target_transformer().inverse_transform,
-                    posterior_predictive_samples,
-                )
-            else:
-                posterior_predictive_samples = xr.apply_ufunc(
-                    self.get_target_transformer().inverse_transform,
-                    posterior_predictive_samples.expand_dims(dim={"_": 1}, axis=1),
-                    input_core_dims=[["date", "_"]],
-                    output_core_dims=[["date", "_"]],
-                    vectorize=True,
-                ).squeeze(dim="_")
-
-            posterior_predictive_samples.attrs = attrs
+            posterior_predictive_samples = apply_sklearn_transformer_across_date(
+                data=posterior_predictive_samples,
+                func=self.get_target_transformer().inverse_transform,
+                combined=combined,
+            )
 
         return posterior_predictive_samples

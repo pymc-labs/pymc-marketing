@@ -634,6 +634,7 @@ def new_date_ranges_to_test():
 @pytest.mark.parametrize("original_scale", [True, False])
 def test_new_data_sample_posterior_predictive_method(
     generate_data,
+    toy_X,
     model_name: str,
     new_dates: pd.DatetimeIndex,
     combined: bool,
@@ -653,6 +654,12 @@ def test_new_data_sample_posterior_predictive_method(
     pd.testing.assert_index_equal(
         pd.DatetimeIndex(posterior_predictive.coords["date"]),
         new_dates,
+    )
+
+    # Data has been set back
+    np.testing.assert_allclose(
+        mmm.model.channel_data.get_value(),
+        mmm.channel_transformer.transform(toy_X.loc[:, mmm.channel_columns].to_numpy()),
     )
 
 
@@ -696,6 +703,7 @@ def test_new_data_include_last_observation_same_dims(
 )
 def test_new_data_predict_method(
     generate_data,
+    toy_y,
     model_name: str,
     new_dates: pd.DatetimeIndex,
     request,
@@ -704,7 +712,14 @@ def test_new_data_predict_method(
     X_pred = generate_data(new_dates)
 
     posterior_predictive_mean = mmm.predict(X_pred=X_pred)
+    assert isinstance(posterior_predictive_mean, np.ndarray)
     assert posterior_predictive_mean.shape[0] == new_dates.size
+    # Original scale constraint
+    assert np.all(posterior_predictive_mean >= 0)
+
+    # Domain kept close
+    lower, upper = np.quantile(a=posterior_predictive_mean, q=[0.025, 0.975], axis=0)
+    assert lower < toy_y.mean() < upper
 
 
 def test_get_valid_distribution(mmm):
@@ -713,7 +728,7 @@ def test_get_valid_distribution(mmm):
 
 
 def test_get_invalid_distribution(mmm):
-    with pytest.raises(ValueError, match="does not exist in PyMC"):
+    with pytest.raises(ValueError, match="does not exist in P"):
         mmm._get_distribution({"dist": "NonExistentDist"})
 
 
