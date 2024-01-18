@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+import xarray as xr
 
 from pymc_marketing.model_builder import ModelBuilder
 
@@ -277,7 +278,7 @@ def test_id():
 
 
 @pytest.mark.parametrize("name", ["prior_predictive", "posterior_predictive"])
-def test_sample_xxx_predictive_keeps_first(
+def test_sample_xxx_predictive_keeps_second(
     fitted_model_instance, toy_X, name: str
 ) -> None:
     method_name = f"sample_{name}"
@@ -294,7 +295,8 @@ def test_sample_xxx_predictive_keeps_first(
     first_sample = method(**kwargs)
     second_sample = method(**kwargs)
 
-    assert first_sample != second_sample
+    with pytest.raises(AssertionError):
+        xr.testing.assert_allclose(first_sample, second_sample)
 
     sample = getattr(fitted_model_instance.idata, name)
-    assert sample == first_sample
+    xr.testing.assert_allclose(sample, second_sample)
