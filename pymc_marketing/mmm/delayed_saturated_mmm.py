@@ -860,8 +860,8 @@ class DelayedSaturatedMMM(
     def sample_posterior_predictive(
         self,
         X_pred,
-        extend_idata,
-        combined,
+        extend_idata: bool = True,
+        combined: bool = True,
         include_last_observations: bool = False,
         original_scale: bool = True,
         **sample_posterior_predictive_kwargs,
@@ -874,7 +874,7 @@ class DelayedSaturatedMMM(
         X_pred : array, shape (n_pred, n_features)
             The input data used for prediction.
         extend_idata : Boolean determining whether the predictions should be added to inference data object.
-            Defaults to False.
+            Defaults to True.
         combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
         include_last_observations: Boolean determining whether to include the last observations of the training
