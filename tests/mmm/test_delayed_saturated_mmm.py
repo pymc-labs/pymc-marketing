@@ -728,7 +728,7 @@ def test_get_valid_distribution(mmm):
 
 
 def test_get_invalid_distribution(mmm):
-    with pytest.raises(ValueError, match="does not exist in P"):
+    with pytest.raises(ValueError, match="does not exist in PyMC"):
         mmm._get_distribution({"dist": "NonExistentDist"})
 
 
