@@ -408,9 +408,9 @@ def tanh_saturation_baselined(
     r"""
     Baselined Tanh Saturation.
 
-    This parameterization that is easier than :func:`tanh_saturation` 
+    This parameterization that is easier than :func:`tanh_saturation`
     to use for industry applications where domain knowledge is an essence.
-    
+
     In a nutshell, it is an alternative parameterization of the reach function is given by:
 
     .. math::
