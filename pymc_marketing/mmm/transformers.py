@@ -401,7 +401,10 @@ def tanh_saturation_baselined(
     r"""
     Baselined Tanh Saturation.
 
-    An alternative parameterization of the reach function is given by:
+    This parameterization that is easier than :func:`tanh_saturation` 
+    to use for industry applications where domain knowledge is an essence.
+    
+    In a nutshell, it is an alternative parameterization of the reach function is given by:
 
     .. math::
 
@@ -414,14 +417,17 @@ def tanh_saturation_baselined(
     where:
 
     - :math:`x_0` is the "reference point". This is a point chosen
-      by the user (not given a prior) where they expect most of their data to lie (median recommended).
+      by the user (not given a prior) where they expect most of their data to lie.
       For example, if you're spending between 50 and 150 dollars on a particular channel,
       you might choose :math:`x_0 = 100`.
+      Suggested value is median channel spend: ``np.median(spend)``.
+
     - :math:`g` is the "gain", which is the value of the CAC (:math:`c_0`) at the reference point.
       You have to set a prior on what you think the CAC is when you spend :math:`x_0 = 100`.
       Imagine you have four advertising channels, and you acquired 1000 new users.
       If each channel performed equally well, and advertising drove all sales, you might expect
       that you gained 250 users from each channel.  Here, your "gain" would be :math:`250 / 100 = 2.5`.
+      Suggested prior is ``pm.Exponential``
     - :math:`r`, the overspend fraction is telling you where the reference point is.
 
       - :math:`0` - we can increase our budget by a lot to reach the saturated region,
@@ -430,7 +436,9 @@ def tanh_saturation_baselined(
         and additional dollar spend will not lead to any new users.
       - :math:`0.8`, you can still increase acquired users by :math:`50\%` as much
         you get in the reference point by increasing the budget.
-        :math:`x_0` is half way from saturation
+        :math:`x_0` effect is 20% away from saturation point
+
+      Suggested prior is ``pm.Beta``
 
     The original reach or saturation function used in an MMM is formulated as
 
