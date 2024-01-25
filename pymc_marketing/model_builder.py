@@ -505,7 +505,7 @@ class ModelBuilder(ABC):
             The input data used for prediction.
         extend_idata : Boolean determining whether the predictions should be added to inference data object.
             Defaults to True.
-        **kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
+        **kwargs: Additional arguments to pass to sample_posterior_predictive method
 
         Returns
         -------
@@ -582,7 +582,7 @@ class ModelBuilder(ABC):
                 self.set_idata_attrs(prior_pred)
                 if extend_idata:
                     if self.idata is not None:
-                        self.idata.extend(prior_pred)
+                        self.idata.extend(prior_pred, join="right")
                     else:
                         self.idata = prior_pred
 
@@ -592,7 +592,9 @@ class ModelBuilder(ABC):
 
         return prior_predictive_samples
 
-    def sample_posterior_predictive(self, X_pred, extend_idata, combined, **kwargs):
+    def sample_posterior_predictive(
+        self, X_pred, extend_idata: bool = True, combined: bool = True, **kwargs
+    ):
         """
         Sample from the model's posterior predictive distribution.
 
@@ -601,7 +603,7 @@ class ModelBuilder(ABC):
         X_pred : array, shape (n_pred, n_features)
             The input data used for prediction using prior distribution..
         extend_idata : Boolean determining whether the predictions should be added to inference data object.
-            Defaults to False.
+            Defaults to True.
         combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
         **kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
@@ -613,10 +615,10 @@ class ModelBuilder(ABC):
         """
         self._data_setter(X_pred)
 
-        with self.model:  # sample with new input data
+        with self.model:  # type: ignore
             post_pred = pm.sample_posterior_predictive(self.idata, **kwargs)
             if extend_idata:
-                self.idata.extend(post_pred)
+                self.idata.extend(post_pred, join="right")  # type: ignore
 
         posterior_predictive_samples = az.extract(
             post_pred, "posterior_predictive", combined=combined
@@ -681,7 +683,7 @@ class ModelBuilder(ABC):
             Defaults to True.
         combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
-        **kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
+        **kwargs: Additional arguments to pass to sample_posterior_predictive method
 
         Returns
         -------
