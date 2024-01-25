@@ -2,15 +2,18 @@ import numpy as np
 import pytensor
 import pytensor.tensor as pt
 import pytest
+import scipy as sp
 from pytensor.tensor.var import TensorVariable
 
 from pymc_marketing.mmm.transformers import (
     ConvMode,
+    WeibullType,
     batched_convolution,
     delayed_adstock,
     geometric_adstock,
     logistic_saturation,
     tanh_saturation,
+    weibull_adstock,
 )
 
 
@@ -160,6 +163,86 @@ class TestsAdstockTransformers:
 
         y_tensors = [
             delayed_adstock(x=x[:, i], alpha=alpha[i], theta=theta[i], l_max=12)
+            for i in range(x.shape[1])
+        ]
+        ys = np.concatenate([y_t.eval()[..., None] for y_t in y_tensors], axis=1)
+        assert y.shape == x.shape
+        np.testing.assert_almost_equal(actual=y, desired=ys, decimal=12)
+
+    def test_weibull_adstock_output_type(self):
+        x = np.ones(shape=(100))
+        y = weibull_adstock(x=x, lam=1, k=1, l_max=7, type=WeibullType.PDF)
+        assert isinstance(y, TensorVariable)
+        assert isinstance(y.eval(), np.ndarray)
+
+    def test_weibull_adstock_x_zero(self):
+        x = np.zeros(shape=(100))
+        y = weibull_adstock(x=x, lam=1, k=1, l_max=4, type=WeibullType.PDF)
+        np.testing.assert_array_equal(x=x, y=y.eval())
+
+    @pytest.mark.parametrize(
+        "x, lam, k, l_max",
+        [
+            (np.ones(shape=(100)), 0.3, 0.5, 10),
+            (np.ones(shape=(100)), 0.7, 1, 100),
+            (np.zeros(shape=(100)), 0.2, 0.2, 5),
+            (np.ones(shape=(100)), 0.5, 0.8, 7),
+            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 1.5, 3),
+            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 1, 50),
+        ],
+    )
+    def test_weibull_pdf_adstock(self, x, lam, k, l_max):
+        y = weibull_adstock(x=x, lam=lam, k=k, l_max=l_max, type=WeibullType.PDF).eval()
+
+        assert np.all(np.isfinite(y))
+        w = sp.stats.weibull_min.pdf(np.arange(l_max) + 1, c=k, scale=lam)
+        w = (w - np.min(w)) / (np.max(w) - np.min(w))
+        sp_y = batched_convolution(x, w).eval()
+
+        np.testing.assert_almost_equal(y, sp_y)
+
+    @pytest.mark.parametrize(
+        "x, lam, k, l_max",
+        [
+            (np.ones(shape=(100)), 0.3, 0.5, 10),
+            (np.ones(shape=(100)), 0.7, 1, 100),
+            (np.zeros(shape=(100)), 0.2, 0.2, 5),
+            (np.ones(shape=(100)), 0.5, 0.8, 7),
+            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 1.5, 3),
+            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 1, 50),
+        ],
+    )
+    def test_weibull_cdf_adsotck(self, x, lam, k, l_max):
+        y = weibull_adstock(x=x, lam=lam, k=k, l_max=l_max, type=WeibullType.CDF).eval()
+
+        assert np.all(np.isfinite(y))
+        w = 1 - sp.stats.weibull_min.cdf(np.arange(l_max) + 1, c=k, scale=lam)
+        w = sp.cumprod(np.concatenate([[1], w]))
+        sp_y = batched_convolution(x, w).eval()
+        np.testing.assert_almost_equal(y, sp_y)
+
+    @pytest.mark.parametrize(
+        "type",
+        [
+            WeibullType.PDF,
+            WeibullType.CDF,
+        ],
+    )
+    def test_weibull_adstock_vectorized(self, type, dummy_design_matrix):
+        x = dummy_design_matrix.copy()
+        x_tensor = pt.as_tensor_variable(x)
+        lam = [0.9, 0.33, 0.5, 0.1, 1.0]
+        lam_tensor = pt.as_tensor_variable(lam)
+        k = [0.8, 0.2, 0.6, 0.4, 1.0]
+        k_tensor = pt.as_tensor_variable(k)
+        y = weibull_adstock(
+            x=x_tensor, lam=lam_tensor, k=k_tensor, l_max=12, type=type
+        ).eval()
+
+        y_tensors = [
+            weibull_adstock(
+                x=x_tensor[:, i], lam=lam_tensor[i], k=k_tensor[i], l_max=12, type=type
+            )
             for i in range(x.shape[1])
         ]
         ys = np.concatenate([y_t.eval()[..., None] for y_t in y_tensors], axis=1)
