@@ -311,6 +311,7 @@ class TanhSaturationParameters(NamedTuple):
     """
 
     def baseline(self, x0: pt.TensorLike) -> "TanhSaturationBaselinedParameters":
+        """Change the parameterization to baselined at :math:`x_0`."""
         r_ref = tanh_saturation(x0, self.b, self.c)
         gain_ref = r_ref / x0
         return TanhSaturationBaselinedParameters(x0, gain_ref, r_ref)
@@ -328,9 +329,15 @@ class TanhSaturationBaselinedParameters(NamedTuple):
     """
 
     def debaseline(self) -> TanhSaturationParameters:
+        """Change the parameterization to baselined to be classic saturation and cac."""
         saturation = (self.gain * self.x0) / self.r
         cac = self.r / (self.gain * pt.arctanh(self.r))
         return TanhSaturationParameters(saturation, cac)
+
+    def rebaseline(self, x1: pt.TensorLike) -> "TanhSaturationBaselinedParameters":
+        """Change the parameterization to baselined at :math:`x_1`."""
+        params = self.debaseline()
+        return params.baseline(x1)
 
 
 def tanh_saturation(
@@ -431,7 +438,7 @@ def tanh_saturation_baselined(
     - :math:`r`, the overspend fraction is telling you where the reference point is.
 
       - :math:`0` - we can increase our budget by a lot to reach the saturated region,
-        the deminishing returns are not visible yet.
+        the diminishing returns are not visible yet.
       - :math:`1` - the reference point is already in the saturation region
         and additional dollar spend will not lead to any new users.
       - :math:`0.8`, you can still increase acquired users by :math:`50\%` as much
