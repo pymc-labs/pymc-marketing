@@ -656,11 +656,14 @@ def test_new_data_sample_posterior_predictive_method(
         new_dates,
     )
 
-    # Data has been set back
-    np.testing.assert_allclose(
-        mmm.model.channel_data.get_value(),
-        mmm.channel_transformer.transform(toy_X.loc[:, mmm.channel_columns].to_numpy()),
-    )
+    # Data has not been set back
+    with pytest.raises(AssertionError):
+        np.testing.assert_allclose(
+            mmm.model.channel_data.get_value(),
+            mmm.channel_transformer.transform(
+                toy_X.loc[:, mmm.channel_columns].to_numpy()
+            ),
+        )
 
 
 @pytest.mark.parametrize(

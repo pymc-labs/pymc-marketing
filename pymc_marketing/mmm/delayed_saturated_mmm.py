@@ -673,10 +673,6 @@ class BaseDelayedSaturatedMMM(MMM):
         with self.model:
             pm.set_data(data, coords=coords)
 
-    def _reset_model_data(self) -> None:
-        """Resets the model data to the original data."""
-        self._data_setter(X=self.X, y=self.y)
-
     @classmethod
     def _model_config_formatting(cls, model_config: Dict) -> Dict:
         """
@@ -903,8 +899,6 @@ class DelayedSaturatedMMM(
             )
             if extend_idata:
                 self.idata.extend(post_pred, join="right")  # type: ignore
-
-        self._reset_model_data()
 
         posterior_predictive_samples = az.extract(
             post_pred, "posterior_predictive", combined=combined
