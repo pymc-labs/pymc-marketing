@@ -2,7 +2,7 @@ import numpy as np
 import pytensor
 import pytensor.tensor as pt
 import pytest
-from pytensor.tensor.var import TensorVariable
+from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.mmm.transformers import (
     ConvMode,
@@ -11,6 +11,7 @@ from pymc_marketing.mmm.transformers import (
     geometric_adstock,
     logistic_saturation,
     tanh_saturation,
+    tanh_saturation_baselined,
 )
 
 
@@ -233,6 +234,38 @@ class TestSaturationTransformers:
     )
     def test_tanh_saturation_inverse(self, x, b, c):
         y = tanh_saturation(x=x, b=b, c=c)
+        y_inv = (b * c) * pt.arctanh(y / b)
+        np.testing.assert_array_almost_equal(x=x, y=y_inv.eval(), decimal=6)
+
+    @pytest.mark.parametrize(
+        "x, x0, gain, r",
+        [
+            (np.ones(shape=(100)), 10, 0.5, 0.5),
+            (np.zeros(shape=(100)), 10, 0.6, 0.3),
+            (np.linspace(start=0.0, stop=100.0, num=50), 10, 0.001, 0.01),
+            (np.linspace(start=0.0, stop=100.0, num=50), 10, 0.1, 0.01),
+            (np.linspace(start=0.0, stop=100.0, num=50), 10, 1, 0.25),
+        ],
+    )
+    def test_tanh_saturation_baselined_range(self, x, x0, gain, r):
+        b = (gain * x0) / r
+        assert tanh_saturation_baselined(x=x, x0=x0, gain=gain, r=r).eval().max() <= b
+        assert tanh_saturation_baselined(x=x, x0=x0, gain=gain, r=r).eval().min() >= -b
+
+    @pytest.mark.parametrize(
+        "x, x0, gain, r",
+        [
+            (np.ones(shape=(100)), 10, 0.5, 0.5),
+            (np.zeros(shape=(100)), 10, 0.6, 0.3),
+            (np.linspace(start=0.0, stop=100.0, num=50), 10, 0.001, 0.1),
+            (np.linspace(start=0.0, stop=100.0, num=50), 10, 0.1, 0.01),
+            (np.linspace(start=0.0, stop=100.0, num=50), 10, 1, 0.25),
+        ],
+    )
+    def test_tanh_saturation_baselined_inverse(self, x, x0, gain, r):
+        y = tanh_saturation_baselined(x=x, x0=x0, gain=gain, r=r)
+        b = (gain * x0) / r
+        c = r / (gain * pt.arctanh(r))
         y_inv = (b * c) * pt.arctanh(y / b)
         np.testing.assert_array_almost_equal(x=x, y=y_inv.eval(), decimal=6)
 
