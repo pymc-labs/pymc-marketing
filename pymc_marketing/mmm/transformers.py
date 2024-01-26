@@ -7,13 +7,19 @@ import pytensor.tensor as pt
 from pytensor.tensor.random.utils import params_broadcast_shapes
 
 
-class ConvMode(Enum):
+class ConvMode(str, Enum):
+    # TODO: use StrEnum when we upgrade to python 3.11
     After = "After"
     Before = "Before"
     Overlap = "Overlap"
 
 
-def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
+def batched_convolution(
+    x,
+    w,
+    axis: int = 0,
+    mode: Union[ConvMode, str] = ConvMode.After,
+):
     R"""Apply a 1D convolution in a vectorized way across multiple batch dimensions.
 
     .. plot::
@@ -98,9 +104,9 @@ def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
     # The window is the slice of the padded array that corresponds to the original x
     if l_max <= 1:
         window = slice(None)
-    elif mode == ConvMode.After:
-        window = slice(l_max - 1, None)
     elif mode == ConvMode.Before:
+        window = slice(l_max - 1, None)
+    elif mode == ConvMode.After:
         window = slice(None, -l_max + 1)
     elif mode == ConvMode.Overlap:
         # Handle even and odd l_max differently if l_max is odd then we can split evenly otherwise we drop from the end
@@ -185,7 +191,7 @@ def geometric_adstock(
 
     w = pt.power(pt.as_tensor(alpha)[..., None], pt.arange(l_max, dtype=x.dtype))
     w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
-    return batched_convolution(x, w, axis=axis)
+    return batched_convolution(x, w, axis=axis, mode=ConvMode.After)
 
 
 def delayed_adstock(
@@ -257,7 +263,7 @@ def delayed_adstock(
         (pt.arange(l_max, dtype=x.dtype) - pt.as_tensor(theta)[..., None]) ** 2,
     )
     w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
-    return batched_convolution(x, w, axis=axis)
+    return batched_convolution(x, w, axis=axis, mode=ConvMode.After)
 
 
 def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
