@@ -273,7 +273,7 @@ def weibull_adstock(
     k=1,
     l_max: int = 12,
     axis: int = 0,
-    type: WeibullType | str = WeibullType.PDF,
+    type: Union[WeibullType, str] = WeibullType.PDF,
 ):
     R"""Weibull Adstocking Transformation.
 
