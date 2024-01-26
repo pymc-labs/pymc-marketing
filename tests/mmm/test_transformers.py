@@ -1,3 +1,5 @@
+from contextlib import nullcontext as does_not_raise
+
 import numpy as np
 import pytensor
 import pytensor.tensor as pt
@@ -169,20 +171,10 @@ class TestsAdstockTransformers:
         assert y.shape == x.shape
         np.testing.assert_almost_equal(actual=y, desired=ys, decimal=12)
 
-    def test_weibull_adstock_output_type(self):
-        x = np.ones(shape=(100))
-        y = weibull_adstock(x=x, lam=1, k=1, l_max=7, type=WeibullType.PDF)
-        assert isinstance(y, TensorVariable)
-        assert isinstance(y.eval(), np.ndarray)
-
-    def test_weibull_adstock_x_zero(self):
-        x = np.zeros(shape=(100))
-        y = weibull_adstock(x=x, lam=1, k=1, l_max=4, type=WeibullType.PDF)
-        np.testing.assert_array_equal(x=x, y=y.eval())
-
     @pytest.mark.parametrize(
         "x, lam, k, l_max",
         [
+            (np.zeros(shape=(100)), 1, 1, 4),
             (np.ones(shape=(100)), 0.3, 0.5, 10),
             (np.ones(shape=(100)), 0.7, 1, 100),
             (np.zeros(shape=(100)), 0.2, 0.2, 5),
@@ -204,6 +196,7 @@ class TestsAdstockTransformers:
     @pytest.mark.parametrize(
         "x, lam, k, l_max",
         [
+            (np.zeros(shape=(100)), 1, 1, 4),
             (np.ones(shape=(100)), 0.3, 0.5, 10),
             (np.ones(shape=(100)), 0.7, 1, 100),
             (np.zeros(shape=(100)), 0.2, 0.2, 5),
@@ -248,6 +241,20 @@ class TestsAdstockTransformers:
         ys = np.concatenate([y_t.eval()[..., None] for y_t in y_tensors], axis=1)
         assert y.shape == x.shape
         np.testing.assert_almost_equal(actual=y, desired=ys, decimal=12)
+
+    @pytest.mark.parametrize(
+        "type, expectation",
+        [
+            ("PDF", does_not_raise()),
+            ("CDF", does_not_raise()),
+            ("PMF", pytest.raises(ValueError)),
+            (WeibullType.PDF, does_not_raise()),
+            (WeibullType.CDF, does_not_raise()),
+        ],
+    )
+    def test_weibull_adstock_type(self, type, expectation):
+        with expectation:
+            weibull_adstock(x=np.ones(shape=(100)), lam=0.5, k=0.5, l_max=10, type=type)
 
 
 class TestSaturationTransformers:
