@@ -279,11 +279,17 @@ def weibull_adstock(
     This transformation is similar to geometric adstock transformation but has more degrees of freedom, adding more flexibility.
     .. plot::
         :context: close-figs
-        spend = np.zeros(50)
-        spend[1] = 1
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import WeibullType, weibull_adstock
+        plt.style.use('arviz-darkgrid')
 
-        shapes = [0.1, 1, 5, 10]
-        scales = [0.1, 0.4, 1, 2]
+        spend = np.zeros(50)
+        spend[0] = 1
+
+        shapes = [0.5, 1., 1.5, 5.]
+        scales = [10, 20, 40]
         modes = [WeibullType.PDF, WeibullType.CDF]
 
         fig, axes = plt.subplots(
@@ -301,20 +307,23 @@ def weibull_adstock(
                     ).eval()
 
                     axes[i, m].plot(
-                        x,
+                        np.arange(len(spend)),
                         adstock,
                         label=f"Scale={scale}",
                         linestyle="-",
+                        alpha=0.5
                     )
 
         fig.legend(
             *axes[0, 0].get_legend_handles_labels(),
             loc="center right",
-            bbox_to_anchor=(1.1, 0.85),
+            bbox_to_anchor=(1.2, 0.85),
         )
 
         plt.tight_layout(rect=[0, 0, 0.9, 1])
         plt.show()
+
+
 
     Parameters
     ----------
@@ -334,19 +343,41 @@ def weibull_adstock(
     tensor
         Transformed tensor based on Weibull adstock transformation.
     """
+    lam = pt.as_tensor(lam)[..., None]
+    k = pt.as_tensor(k)[..., None]
+    t = pt.arange(l_max, dtype=x.dtype) + 1
 
     if type == WeibullType.PDF:
-        w = pt.exp(pm.Weibull.logp(pt.arange(l_max, dtype=x.dtype) + 1, lam, k))
-        w = (w - pt.min(w)) / (pt.max(w) - pt.min(w))
-
-    elif type == WeibullType.CDF:
-        w = 1 - pt.exp(pm.Weibull.logcdf(pt.arange(l_max, dtype=x.dtype) + 1, lam, k))
-        w = pt.cumprod(
-            pt.concatenate([pt.ones(1, dtype=x.dtype), w], axis=axis), axis=axis
+        w = pt.exp(pm.Weibull.logp(t, k, lam))
+        w = (w - pt.min(w, axis=-1)[..., None]) / (
+            pt.max(w, axis=-1)[..., None] - pt.min(w, axis=-1)[..., None]
         )
+    elif type == WeibullType.CDF:
+        w = 1 - pt.exp(pm.Weibull.logcdf(t, k, lam))
+        shape = (*w.shape[:-1], w.shape[-1] + 1)
+        padded_w = pt.ones(shape, dtype=w.dtype)
+        padded_w = pt.set_subtensor(padded_w[..., 1:], w)
+        w = pt.cumprod(padded_w, axis=-1)
     else:
         raise ValueError(f"Wrong WeibullType: {type}, expected of WeibullType")
     return batched_convolution(x, w, axis=axis)
+
+    # lam = pt.as_tensor(lam)
+    # k = pt.as_tensor(k)
+    # t = pt.arange(l_max, dtype=x.dtype) + 1
+
+    # if type == WeibullType.PDF:
+    #     w = pt.exp(pm.Weibull.logp(t, k, lam))
+    #     w = (w - pt.min(w, axis=-1)) / (pt.max(w, axis=-1) - pt.min(w, axis=-1))
+    # elif type == WeibullType.CDF:
+    #     w = 1 - pt.exp(pm.Weibull.logcdf(t, k, lam))
+    #     shape = (*w.shape[:-1], w.shape[-1] + 1)
+    #     padded_w = pt.ones(shape, dtype=w.dtype)
+    #     padded_w = pt.set_subtensor(padded_w[..., 1:], w)
+    #     w = pt.cumprod(padded_w, axis=-1)
+    # else:
+    #     raise ValueError(f"Wrong WeibullType: {type}, expected of WeibullType")
+    # return batched_convolution(x, w, axis=axis)
 
 
 def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
