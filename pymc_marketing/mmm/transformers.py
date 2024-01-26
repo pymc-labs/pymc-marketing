@@ -320,10 +320,10 @@ class TanhSaturationParameters(NamedTuple):
 
 class TanhSaturationBaselinedParameters(NamedTuple):
     x0: pt.TensorLike
-    """Baseline
+    """Baseline spend.
     """
     gain: pt.TensorLike
-    """Customer Acquisition Cost at 0.
+    """ROAS at :math:`x_0`.
     """
     r: pt.TensorLike
     """Overspend Fraction.
