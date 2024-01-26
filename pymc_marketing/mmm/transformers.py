@@ -7,13 +7,14 @@ import pytensor.tensor as pt
 from pytensor.tensor.random.utils import params_broadcast_shapes
 
 
-class ConvMode(Enum):
+class ConvMode(str, Enum):
+    # TODO: use StrEnum when we upgrade to python 3.11
     After = "After"
     Before = "Before"
     Overlap = "Overlap"
 
 
-def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
+def batched_convolution(x, w, axis: int = 0, mode: ConvMode | str = ConvMode.Before):
     R"""Apply a 1D convolution in a vectorized way across multiple batch dimensions.
 
     .. plot::
