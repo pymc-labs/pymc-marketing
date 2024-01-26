@@ -537,7 +537,7 @@ def tanh_saturation_baselined(
     gain : tensor, by default 0.5
         ROAS at the baseline point, mathematically as :math:`gain = f(x0) / x0`.
     r : tensor, by default 0.5
-        The overspend fraction.
+        The overspend fraction, mathematically as :math:`r = f(x0) / \text{saturation}`.
 
     Returns
     -------
