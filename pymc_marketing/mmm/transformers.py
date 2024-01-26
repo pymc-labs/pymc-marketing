@@ -14,7 +14,8 @@ class ConvMode(Enum):
     Overlap = "Overlap"
 
 
-class WeibullType(Enum):
+class WeibullType(str, Enum):
+    # TODO: use StrEnum when we upgrade to python 3.11
     PDF = "PDF"
     CDF = "CDF"
 
@@ -272,7 +273,7 @@ def weibull_adstock(
     k=1,
     l_max: int = 12,
     axis: int = 0,
-    type: WeibullType = WeibullType.PDF,
+    type: WeibullType | str = WeibullType.PDF,
 ):
     R"""Weibull Adstocking Transformation.
 
