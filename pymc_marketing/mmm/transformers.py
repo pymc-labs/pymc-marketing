@@ -447,6 +447,14 @@ def tanh_saturation_baselined(
 
       Suggested prior is ``pm.Beta``
 
+    .. note::
+
+        The reference point :math:`x_0` has to be set within the range of the actual spends. 
+        As in, you buy ads three times and spend :math:`5`, :math:`6` and :math:`7` dollars, 
+        :math:`x_0` has to be set within :math:`[5, 7]`, so not :math:`4` not :math:`8`. 
+        Otherwise the posterior of r and gain becomes a skinny diagonal line. 
+        It could be very relevant if there is very little spend observations for a particular channel.
+    
     The original reach or saturation function used in an MMM is formulated as
 
     .. math::
