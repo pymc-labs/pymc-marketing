@@ -69,10 +69,10 @@ def test_batched_convolution(convolution_inputs, convolution_axis, mode):
     x_val = np.moveaxis(
         x_val if x_val is not None else getattr(x, "value", x), convolution_axis, 0
     )
-    if mode == ConvMode.Before:
+    if mode == ConvMode.After:
         np.testing.assert_allclose(y_val[0], x_val[0])
         np.testing.assert_allclose(y_val[1:], x_val[1:] + x_val[:-1])
-    elif mode == ConvMode.After:
+    elif mode == ConvMode.Before:
         np.testing.assert_allclose(y_val[-1], x_val[-1])
         np.testing.assert_allclose(y_val[:-1], x_val[1:] + x_val[:-1])
     elif mode == ConvMode.Overlap:
