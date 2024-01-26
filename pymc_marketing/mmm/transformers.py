@@ -14,7 +14,9 @@ class ConvMode(str, Enum):
     Overlap = "Overlap"
 
 
-def batched_convolution(x, w, axis: int = 0, mode: ConvMode | str = ConvMode.After):
+def batched_convolution(
+    x, w, axis: int = 0, mode: Union[ConvMode, str] = ConvMode.After
+):
     R"""Apply a 1D convolution in a vectorized way across multiple batch dimensions.
 
     .. plot::
