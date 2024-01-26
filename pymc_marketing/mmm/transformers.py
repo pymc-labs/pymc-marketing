@@ -312,9 +312,9 @@ class TanhSaturationParameters(NamedTuple):
 
     def baseline(self, x0: pt.TensorLike) -> "TanhSaturationBaselinedParameters":
         """Change the parameterization to baselined at :math:`x_0`."""
-        r_ref = tanh_saturation(x0, self.b, self.c)
+        r_ref = tanh_saturation(x0, self.b, self.c) / self.b
         gain_ref = r_ref / x0
-        return TanhSaturationBaselinedParameters(x0, gain_ref, r_ref / self.b)
+        return TanhSaturationBaselinedParameters(x0, gain_ref, r_ref)
 
 
 class TanhSaturationBaselinedParameters(NamedTuple):
