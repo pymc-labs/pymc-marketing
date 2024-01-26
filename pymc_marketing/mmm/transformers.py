@@ -510,6 +510,7 @@ def tanh_saturation_baselined(
     --------
 
     .. code-block:: python
+
         import pymc as pm
         import numpy as np
 
