@@ -277,6 +277,7 @@ def weibull_adstock(
     R"""Weibull Adstocking Transformation.
 
     This transformation is similar to geometric adstock transformation but has more degrees of freedom, adding more flexibility.
+
     .. plot::
         :context: close-figs
         import matplotlib.pyplot as plt
@@ -311,7 +312,6 @@ def weibull_adstock(
                         adstock,
                         label=f"Scale={scale}",
                         linestyle="-",
-                        alpha=0.5
                     )
 
         fig.legend(
