@@ -12,6 +12,8 @@ from pymc_marketing.mmm.transformers import (
     logistic_saturation,
     tanh_saturation,
     tanh_saturation_baselined,
+    TanhSaturationBaselinedParameters,
+    TanhSaturationParameters,
 )
 
 
@@ -268,6 +270,27 @@ class TestSaturationTransformers:
         c = r / (gain * pt.arctanh(r))
         y_inv = (b * c) * pt.arctanh(y / b)
         np.testing.assert_array_almost_equal(x=x, y=y_inv.eval(), decimal=6)
+
+    @pytest.mark.parametrize(
+        "x, b, c",
+        [
+            (np.linspace(start=0.0, stop=10.0, num=50), 20, 0.5),
+            (np.linspace(start=0.0, stop=10.0, num=50), 100, 0.5),
+            (np.linspace(start=0.0, stop=10.0, num=50), 100, 1),
+        ],
+    )
+    def test_tanh_saturation_parameterization_transformation(self, x, b, c):
+        param_classic = TanhSaturationParameters(b, c)
+        param_x0 = param_classic.baseline(5)
+        param_x1 = param_x0.rebaseline(6)
+        param_classic1 = param_x1.debaseline()
+        y1 = tanh_saturation(x, *param_classic).eval()
+        y2 = tanh_saturation_baselined(x, *param_x0).eval()
+        y3 = tanh_saturation_baselined(x, *param_x1).eval()
+        y4 = tanh_saturation(x, *param_classic1).eval()
+        np.testing.assert_allclose(y1, y2)
+        np.testing.assert_allclose(y2, y3)
+        np.testing.assert_allclose(y3, y4)
 
 
 class TestTransformersComposition:

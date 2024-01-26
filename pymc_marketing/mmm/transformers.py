@@ -314,7 +314,7 @@ class TanhSaturationParameters(NamedTuple):
         """Change the parameterization to baselined at :math:`x_0`."""
         r_ref = tanh_saturation(x0, self.b, self.c)
         gain_ref = r_ref / x0
-        return TanhSaturationBaselinedParameters(x0, gain_ref, r_ref)
+        return TanhSaturationBaselinedParameters(x0, gain_ref, r_ref / self.b)
 
 
 class TanhSaturationBaselinedParameters(NamedTuple):
@@ -526,7 +526,7 @@ def tanh_saturation_baselined(
     x0: tensor
         Baseline for saturation.
     gain : tensor, by default 0.5
-        ROAS at the baseline point.
+        ROAS at the baseline point, mathematically as :math:`gain = f(x0) / x0`.
     r : tensor, by default 0.5
         The overspend fraction.
 
@@ -539,5 +539,4 @@ def tanh_saturation_baselined(
     ----------
     Developed by Max Kochurov and Aziz Al-Maeeni doing innovative work in `PyMC Labs <pymc-labs.com>`_.
     """
-    params = TanhSaturationBaselinedParameters(x0, gain, r)
-    return tanh_saturation(x, *params.debaseline())
+    return gain * x0 * pt.tanh(x * pt.arctanh(r) / x0) / r
