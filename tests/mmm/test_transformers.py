@@ -6,14 +6,13 @@ from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.mmm.transformers import (
     ConvMode,
+    TanhSaturationParameters,
     batched_convolution,
     delayed_adstock,
     geometric_adstock,
     logistic_saturation,
     tanh_saturation,
     tanh_saturation_baselined,
-    TanhSaturationBaselinedParameters,
-    TanhSaturationParameters,
 )
 
 
