@@ -15,7 +15,10 @@ from xarray import DataArray, Dataset
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
-from pymc_marketing.mmm.utils import generate_fourier_modes
+from pymc_marketing.mmm.utils import (
+    apply_sklearn_transformer_across_date,
+    generate_fourier_modes,
+)
 from pymc_marketing.mmm.validating import ValidateControlColumns
 
 __all__ = ["DelayedSaturatedMMM"]
@@ -100,8 +103,11 @@ class BaseDelayedSaturatedMMM(MMM):
         """
         date_data = X[self.date_column]
         channel_data = X[self.channel_columns]
-        coords: Dict[str, Any] = {
+
+        self.coords_mutable: Dict[str, Any] = {
             "date": date_data,
+        }
+        coords: Dict[str, Any] = {
             "channel": self.channel_columns,
         }
 
@@ -234,7 +240,7 @@ class BaseDelayedSaturatedMMM(MMM):
         likelihood_dist = self._get_distribution(dist={"dist": likelihood_dist_name})
 
         return likelihood_dist(
-            name="likelihood",
+            name=self.output_var,
             mu=mu,
             observed=observed,
             dims=dims,
@@ -315,7 +321,10 @@ class BaseDelayedSaturatedMMM(MMM):
         )
 
         self._generate_and_preprocess_model_data(X, y)
-        with pm.Model(coords=self.model_coords) as self.model:
+        with pm.Model(
+            coords=self.model_coords,
+            coords_mutable=self.coords_mutable,
+        ) as self.model:
             channel_data_ = pm.MutableData(
                 name="channel_data",
                 value=self.preprocessed_data["X"][self.channel_columns],
@@ -611,19 +620,42 @@ class BaseDelayedSaturatedMMM(MMM):
         -------
         None
         """
+        if not isinstance(X, pd.DataFrame):
+            msg = "X must be a pandas DataFrame in order to access the columns"
+            raise TypeError(msg)
+
         new_channel_data: Optional[np.ndarray] = None
+        coords = {"date": X[self.date_column].to_numpy()}
 
-        if isinstance(X, pd.DataFrame):
-            try:
-                new_channel_data = X[self.channel_columns].to_numpy()
-            except KeyError as e:
-                raise RuntimeError("New data must contain channel_data!", e)
-        elif isinstance(X, np.ndarray):
-            new_channel_data = X
-        else:
-            raise TypeError("X must be either a pandas DataFrame or a numpy array")
+        try:
+            new_channel_data = X[self.channel_columns].to_numpy()
+        except KeyError as e:
+            raise RuntimeError("New data must contain channel_data!", e)
 
-        data: Dict[str, Union[np.ndarray, Any]] = {"channel_data": new_channel_data}
+        def identity(x):
+            return x
+
+        channel_transformation = (
+            identity
+            if not hasattr(self, "channel_transformer")
+            else self.channel_transformer.transform
+        )
+
+        data: Dict[str, Union[np.ndarray, Any]] = {
+            "channel_data": channel_transformation(new_channel_data)
+        }
+
+        if self.control_columns is not None:
+            control_data = X[self.control_columns].to_numpy()
+            control_transformation = (
+                identity
+                if not hasattr(self, "control_transformer")
+                else self.control_transformer.transform
+            )
+            data["control_data"] = control_transformation(control_data)
+
+        if hasattr(self, "fourier_columns"):
+            data["fourier_data"] = self._get_fourier_models_data(X)
 
         if y is not None:
             if isinstance(y, pd.Series):
@@ -634,9 +666,12 @@ class BaseDelayedSaturatedMMM(MMM):
                 data["target"] = y
             else:
                 raise TypeError("y must be either a pandas Series or a numpy array")
+        else:
+            dtype = self.preprocessed_data["y"].dtype  # type: ignore
+            data["target"] = np.zeros(X.shape[0], dtype=dtype)  # type: ignore
 
         with self.model:
-            pm.set_data(data)
+            pm.set_data(data, coords=coords)
 
     @classmethod
     def _model_config_formatting(cls, model_config: Dict) -> Dict:
@@ -993,3 +1028,71 @@ class DelayedSaturatedMMM(
             title=f"Upcoming sales for {amount_spent:.02f} spend",
         )
         return ax
+
+    def _validate_data(self, X, y=None):
+        return X
+
+    def sample_posterior_predictive(
+        self,
+        X_pred,
+        extend_idata: bool = True,
+        combined: bool = True,
+        include_last_observations: bool = False,
+        original_scale: bool = True,
+        **sample_posterior_predictive_kwargs,
+    ):
+        """
+        Sample from the model's posterior predictive distribution.
+
+        Parameters
+        ---------
+        X_pred : array, shape (n_pred, n_features)
+            The input data used for prediction.
+        extend_idata : Boolean determining whether the predictions should be added to inference data object.
+            Defaults to True.
+        combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
+            Defaults to True.
+        include_last_observations: Boolean determining whether to include the last observations of the training
+            data in order to carry over costs with the adstock transformation.
+            Assumes that X_pred are the next predictions following the training data.
+            Defaults to False.
+        original_scale: Boolean determining whether to return the predictions in the original scale of the target variable.
+            Defaults to True.
+        **sample_posterior_predictive_kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
+
+        Returns
+        -------
+        posterior_predictive_samples : DataArray, shape (n_pred, samples)
+            Posterior predictive samples for each input X_pred
+        """
+        if include_last_observations:
+            X_pred = pd.concat(
+                [self.X.iloc[-self.adstock_max_lag :, :], X_pred], axis=0
+            ).sort_values(by=self.date_column)
+
+        self._data_setter(X_pred)
+
+        with self.model:  # sample with new input data
+            post_pred = pm.sample_posterior_predictive(
+                self.idata, **sample_posterior_predictive_kwargs
+            )
+            if extend_idata:
+                self.idata.extend(post_pred, join="right")  # type: ignore
+
+        posterior_predictive_samples = az.extract(
+            post_pred, "posterior_predictive", combined=combined
+        )
+
+        if include_last_observations:
+            posterior_predictive_samples = posterior_predictive_samples.isel(
+                date=slice(self.adstock_max_lag, None)
+            )
+
+        if original_scale:
+            posterior_predictive_samples = apply_sklearn_transformer_across_date(
+                data=posterior_predictive_samples,
+                func=self.get_target_transformer().inverse_transform,
+                combined=combined,
+            )
+
+        return posterior_predictive_samples
