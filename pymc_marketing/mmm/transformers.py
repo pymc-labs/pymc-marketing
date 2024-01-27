@@ -308,6 +308,62 @@ def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
     return (1 - pt.exp(-lam * x)) / (1 + pt.exp(-lam * x))
 
 
+def asymptotic_logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float]):
+    """Asymptotic logistic transformation.
+
+    This function represents a special type of logistic function where 
+    the `lam` characterizes its asymptote and the maximum slope is 1.
+
+    This is useful for multiple reasons:
+    * The function transforms spend into "effective spend", which is on
+      the same scale but has a saturation point. This means that channel
+      priors can be specified in units of spend relative to the KPI (e.g.
+      ROAS) without transformation.
+    * `lam` is intuitively interpreted as the "maximum effective spend".
+    * Since the slope never exceeds 1, "effective spend" is always less
+      than or equal to actual spend.
+
+    .. math::
+        f(x) = \lambda \left( \frac{1 - e^{-\frac{2}{\lambda} x}}{1 + e^{-\frac{2}{\lambda} x}} \right)
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import asymptotic_logistic_function
+        plt.style.use('arviz-darkgrid')
+        lam = np.array([500, 1000, 2000, 4000, 8000])
+        x = np.linspace(0, 10000, 400)
+        ax = plt.subplot(111)
+        for l in lam:
+            y = asymptotic_logistic_function(x, lam=l)
+            plt.plot(x, y, label=f'lam = {l}')
+        plt.xlabel('x', fontsize=12)
+        plt.ylabel('f(x)', fontsize=12)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.show()
+
+    Parameters
+    ----------
+    x : tensor
+        Input tensor.
+    lam : float or array-like
+        Saturation parameter, characterizing the asymptote of the function.
+
+    Returns
+    -------
+    tensor
+        Transformed tensor.
+    """  # noqa: W605
+    if lam == 0:
+        return pt.zeros_like(x)
+    return lam * (1 - pt.exp(-2 / lam * x)) / (1 + pt.exp(-2 / lam * x))
+
+
 class TanhSaturationParameters(NamedTuple):
     b: pt.TensorLike
     """Saturation.
