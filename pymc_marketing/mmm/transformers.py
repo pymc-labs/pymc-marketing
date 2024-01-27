@@ -309,19 +309,18 @@ def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
 
 
 def asymptotic_logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float]):
-    """Asymptotic logistic transformation.
+    """Logistic transformation with max slope 1 and asymptote at `lam`.
 
-    This function represents a special type of logistic function where 
-    the `lam` characterizes its asymptote and the maximum slope is 1.
+    This single-parameter saturation function maps its input to the range
+    `[0, lam]`, where f(x) <= x for all x. It can be interpreted as mapping
+    from spend to "effective spend".
 
-    This is useful for multiple reasons:
-    * The function transforms spend into "effective spend", which is on
-      the same scale but has a saturation point. This means that channel
-      priors can be specified in units of spend relative to the KPI (e.g.
-      ROAS) without transformation.
-    * `lam` is intuitively interpreted as the "maximum effective spend".
-    * Since the slope never exceeds 1, "effective spend" is always less
-      than or equal to actual spend.
+    Features:
+    * Transformed values are on similar scale as input values. This enables
+      one to specify coefficient priors in units of channel ROI, without
+      transformation.
+    * Intuitive parameter interpretation: `lam` is the "maximum achievable effect".
+    * Because the slope never exceeds 1, "effective spend" <= "actual spend".
 
     .. math::
         f(x) = \lambda \left( \frac{1 - e^{-\frac{2}{\lambda} x}}{1 + e^{-\frac{2}{\lambda} x}} \right)
@@ -338,7 +337,7 @@ def asymptotic_logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float])
         x = np.linspace(0, 10000, 400)
         ax = plt.subplot(111)
         for l in lam:
-            y = asymptotic_logistic_function(x, lam=l)
+            y = asymptotic_logistic_function(x, lam=l).eval()
             plt.plot(x, y, label=f'lam = {l}')
         plt.xlabel('x', fontsize=12)
         plt.ylabel('f(x)', fontsize=12)
@@ -352,7 +351,7 @@ def asymptotic_logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float])
     x : tensor
         Input tensor.
     lam : float or array-like
-        Saturation parameter, characterizing the asymptote of the function.
+        Saturation parameter, characterizing the asymptote of the function value.
 
     Returns
     -------
