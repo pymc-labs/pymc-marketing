@@ -644,7 +644,6 @@ class BaseDelayedSaturatedMMM(MMM):
         data: Dict[str, Union[np.ndarray, Any]] = {
             "channel_data": channel_transformation(new_channel_data)
         }
-
         if self.control_columns is not None:
             control_data = X[self.control_columns].to_numpy()
             control_transformation = (
