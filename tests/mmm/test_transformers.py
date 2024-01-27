@@ -7,11 +7,11 @@ from pytensor.tensor.variable import TensorVariable
 from pymc_marketing.mmm.transformers import (
     ConvMode,
     TanhSaturationParameters,
+    asymptotic_logistic_saturation,
     batched_convolution,
     delayed_adstock,
     geometric_adstock,
     logistic_saturation,
-    asymptotic_logistic_saturation,
     tanh_saturation,
     tanh_saturation_baselined,
 )
@@ -220,7 +220,9 @@ class TestSaturationTransformers:
         # When lam == max(x), f(max(x)) is max(x) * 0.76
         x = np.ones(shape=(100))
         y = asymptotic_logistic_saturation(x=x, lam=1)
-        np.testing.assert_array_almost_equal(x=np.ones(shape=(100)) * 0.761594, y=y.eval(), decimal=3)
+        np.testing.assert_array_almost_equal(
+            x=np.ones(shape=(100)) * 0.761594, y=y.eval(), decimal=3
+        )
 
     @pytest.mark.parametrize(
         "x",
