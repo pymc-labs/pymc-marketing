@@ -289,9 +289,10 @@ def standardize_scenarios_dict_keys(d: Dict, keywords: List[str]):
                 break
 
 
-def apply_sklearn_transformer_across_date(
+def apply_sklearn_transformer_across_dim(
     data: xr.DataArray,
     func: Callable[[np.ndarray], np.ndarray],
+    dim_name: str,
     combined: bool = False,
 ) -> xr.DataArray:
     """Helper function in order to use scikit-learn functions with the xarray target.
@@ -300,6 +301,7 @@ def apply_sklearn_transformer_across_date(
     ----------
     data :
     func : scikit-learn method to apply to the data
+    dim_name : Name of the dimension to apply the function to
     combined : Flag to indicate if the data coords have been combined or not
 
     Returns
@@ -318,8 +320,8 @@ def apply_sklearn_transformer_across_date(
         data = xr.apply_ufunc(
             func,
             data.expand_dims(dim={"_": 1}, axis=1),
-            input_core_dims=[["date", "_"]],
-            output_core_dims=[["date", "_"]],
+            input_core_dims=[[dim_name, "_"]],
+            output_core_dims=[[dim_name, "_"]],
             vectorize=True,
         ).squeeze(dim="_")
 

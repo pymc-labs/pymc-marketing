@@ -4,7 +4,7 @@ import pytest
 import xarray as xr
 
 from pymc_marketing.mmm.utils import (
-    apply_sklearn_transformer_across_date,
+    apply_sklearn_transformer_across_dim,
     compute_sigmoid_second_derivative,
     estimate_menten_parameters,
     estimate_sigmoid_parameters,
@@ -234,29 +234,31 @@ def create_mock_mmm_return_data():
 
 
 @pytest.mark.parametrize("combined", [True, False])
-def test_apply_sklearn_function_across_date(
+def test_apply_sklearn_function_across_dim(
     mock_method, create_mock_mmm_return_data, combined: bool
 ) -> None:
     # Data that would be returned from a MMM model
     data = create_mock_mmm_return_data(combined=combined)
-    result = apply_sklearn_transformer_across_date(
+    result = apply_sklearn_transformer_across_dim(
         data,
         mock_method,
+        dim_name="date",
         combined=combined,
     )
 
     xr.testing.assert_allclose(result, data * 2)
 
 
-def test_apply_sklearn_function_across_date_error(
+def test_apply_sklearn_function_across_dim_error(
     mock_method,
     create_mock_mmm_return_data,
 ) -> None:
     data = create_mock_mmm_return_data(combined=False)
 
     with pytest.raises(ValueError, match="x must be 2-dimensional"):
-        apply_sklearn_transformer_across_date(
+        apply_sklearn_transformer_across_dim(
             data,
             mock_method,
+            dim_name="date",
             combined=True,
         )

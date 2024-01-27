@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -16,7 +16,7 @@ from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.mmm.utils import (
-    apply_sklearn_transformer_across_date,
+    apply_sklearn_transformer_across_dim,
     generate_fourier_modes,
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
@@ -856,6 +856,7 @@ class DelayedSaturatedMMM(
         one_time: bool = True,
         spends_leading_up: Optional[np.ndarray] = None,
         prior: bool = False,
+        original_scale: bool = True,
     ) -> DataArray:
         """Return the upcoming contributions for a given spend.
 
@@ -943,7 +944,17 @@ class DelayedSaturatedMMM(
                 var_names=["channel_contributions"],
             )
 
-        return samples.posterior_predictive["channel_contributions"]
+        channel_contributions = samples.posterior_predictive["channel_contributions"]
+
+        if original_scale:
+            channel_contributions = apply_sklearn_transformer_across_dim(
+                data=channel_contributions,
+                func=self.get_target_transformer().inverse_transform,
+                dim_name="weeks_since_spend",
+                combined=False,
+            )
+
+        return channel_contributions
 
     def plot_new_spends_contributions(
         self,
@@ -952,66 +963,37 @@ class DelayedSaturatedMMM(
         one_time: bool = True,
         ylabel: str = "Sales",
         idx=None,
+        channels: Optional[List[str]] = None,
         prior: bool = False,
-    ) -> None:
+        original_scale: bool = True,
+    ) -> plt.Axes:
         ax = ax or plt.gca()
-        n_channels = len(self.channel_columns)
-        spends = self.new_spends_contributions(
-            np.ones(n_channels) * amount_spent,
+        total_channels = len(self.channel_columns)
+        contributions = self.new_spends_contributions(
+            np.ones(total_channels) * amount_spent,
             one_time=one_time,
-            spends_leading_up=np.ones(n_channels) * amount_spent,
+            spends_leading_up=np.ones(total_channels) * amount_spent,
             prior=prior,
+            original_scale=original_scale,
         )
 
-        def inverse_transform_on_nparray(
-            data: np.ndarray,
-            inverse_transform: Callable[[np.ndarray], np.ndarray],
-        ) -> np.ndarray:
-            shape = data.shape
-
-            data = data.reshape(-1, shape[-1])
-            data = inverse_transform(data)
-            data = data.reshape(shape)
-
-            return data
-
-        def inverse_transform_on_series(
-            data: pd.Series,
-            inverse_transform: Callable[[np.ndarray], np.ndarray],
-        ) -> pd.Series:
-            index = data.index
-            data_np = data.to_numpy()
-            data_np = inverse_transform_on_nparray(data_np, inverse_transform)
-            result_ser = pd.Series(data_np, index=index)
-            return result_ser
+        contributions_groupby = contributions.to_series().groupby(
+            level=["weeks_since_spend", "channel"]
+        )
 
         idx = idx or pd.IndexSlice[0:]
 
-        def identity(x):
-            return x
-
-        inverse_transform = (
-            self.target_transformer.inverse_transform if not prior else identity
-        )
-        spends_inverse_transformed = (
-            spends.to_series()
-            .pipe(
-                inverse_transform_on_series,
-                inverse_transform=inverse_transform,
-            )
-            .unstack()
-        )
-
         quantiles = [0.025, 0.975]
         conf = (
-            spends_inverse_transformed.groupby(level=-1)
-            .quantile(quantiles)
+            contributions_groupby.quantile(quantiles)
+            .unstack("channel")
             .unstack()
             .loc[idx]
         )
 
+        channels = channels or self.channel_columns  # type: ignore
         lower, upper = quantiles
-        for channel in self.channel_columns:
+        for channel in channels:  # type: ignore
             ax.fill_between(
                 conf.index,
                 conf[channel][lower],
@@ -1019,8 +1001,9 @@ class DelayedSaturatedMMM(
                 label=f"{channel} {100 * (upper - lower):.0f}% CI",
                 alpha=0.5,
             )
-        tmp = spends_inverse_transformed.groupby(level=-1).mean().loc[idx]
-        tmp.add_suffix(" mean").plot(ax=ax, color=["C0", "C1"], alpha=0.6)
+        mean = contributions_groupby.mean().unstack("channel").loc[idx, channels]
+        color = [f"C{i}" for i in range(len(channels))]  # type: ignore
+        mean.add_suffix(" mean").plot(ax=ax, color=color, alpha=0.75)
         ax.legend().set_title("Channel")
         ax.set(
             xlabel="Weeks since spend",
@@ -1089,176 +1072,11 @@ class DelayedSaturatedMMM(
             )
 
         if original_scale:
-            posterior_predictive_samples = apply_sklearn_transformer_across_date(
+            posterior_predictive_samples = apply_sklearn_transformer_across_dim(
                 data=posterior_predictive_samples,
                 func=self.get_target_transformer().inverse_transform,
+                dim_name="date",
                 combined=combined,
             )
 
         return posterior_predictive_samples
-
-
-    def new_spends_contributions(
-        self,
-        spends: np.ndarray,
-        one_time: bool = True,
-        spends_leading_up: Optional[np.ndarray] = None,
-        prior: bool = False,
-    ) -> DataArray:
-        """Return the upcoming contributions for a given spend.
-
-        Parameters
-        ----------
-        spends : np.ndarray
-            Array of spends for each channel
-        one_time : bool, optional
-            Whether the spends are one time (at start of period) or constant (over period), by default True (one time)
-        spends_leading_up : np.array, optional
-            Array of spends for each channel leading up to the spends, by default None (no spends leading up)
-        prior : bool, optional
-            Whether to use the prior or posterior, by default False (posterior)
-
-        Returns
-        -------
-        DataArray
-            Upcoming contributions for each channel
-
-
-        """
-        if spends_leading_up is None:
-            spends_leading_up = np.zeros_like(spends)
-
-        if len(spends) != len(self.channel_columns):
-            raise ValueError("spends must be the same length as the number of channels")
-
-        if len(spends_leading_up) != len(self.channel_columns):
-            raise ValueError(
-                "spends_leading_up must be the same length as the number of channels"
-            )
-
-        spends_leading_up = np.tile(spends_leading_up, self.adstock_max_lag).reshape(
-            self.adstock_max_lag, -1
-        )
-
-        spends = (
-            np.vstack(
-                [spends, np.zeros((self.adstock_max_lag, len(self.channel_columns)))]
-            )
-            if one_time
-            else np.ones((self.adstock_max_lag + 1, len(self.channel_columns))) * spends
-        )
-
-        new_data = np.vstack(
-            [
-                spends_leading_up,
-                spends,
-            ]
-        )
-
-        new_data = self.channel_transformer.transform(new_data)
-        idata = self.idata
-
-        coords = {
-            "weeks_since_spend": np.arange(
-                -self.adstock_max_lag, self.adstock_max_lag + 1
-            ),
-            "channel": self.channel_columns,
-        }
-        with pm.Model(coords=coords):
-            alpha = pm.Uniform("alpha", lower=0, upper=1, dims=("channel",))
-            lam = pm.HalfFlat("lam", dims=("channel",))
-            beta_channel = pm.HalfFlat("beta_channel", dims=("channel",))
-
-            channel_adstock = geometric_adstock(
-                x=new_data,
-                alpha=alpha,
-                l_max=self.adstock_max_lag,
-                normalize=True,
-                axis=0,
-            )
-            channel_adstock_saturated = logistic_saturation(x=channel_adstock, lam=lam)
-            pm.Deterministic(
-                name="channel_contributions",
-                var=channel_adstock_saturated * beta_channel,
-                dims=("weeks_since_spend", "channel"),
-            )
-
-            samples = pm.sample_posterior_predictive(
-                idata,
-                var_names=["channel_contributions"],
-            )
-
-        return samples.posterior_predictive["channel_contributions"]
-
-    def plot_new_spends_contributions(
-        self,
-        amount_spent: float,
-        ax: Optional[plt.Axes] = None,
-        one_time: bool = True,
-        ylabel: bool = True,
-        idx=None,
-    ) -> None:
-        ax = ax or plt.gca()
-        n_channels = len(self.channel_columns)
-        spends = self.new_spends_contributions(
-            np.ones(n_channels) * amount_spent,
-            one_time=one_time,
-            spends_leading_up=np.ones(n_channels) * amount_spent,
-        )
-
-        def inverse_transform_on_nparray(
-            data: np.ndarray,
-            inverse_transform: Callable[[np.ndarray], np.ndarray],
-        ) -> np.ndarray:
-            shape = data.shape
-
-            data = data.reshape(-1, shape[-1])
-            data = inverse_transform(data)
-            data = data.reshape(shape)
-
-            return data
-
-        def inverse_transform_on_series(
-            data: pd.Series,
-            inverse_transform: Callable[[np.ndarray], np.ndarray],
-        ) -> pd.Series:
-            index = data.index
-            data_np = data.to_numpy()
-            data_np = inverse_transform_on_nparray(data_np, inverse_transform)
-            result_ser = pd.Series(data_np, index=index)
-            return result_ser
-
-        idx = idx or pd.IndexSlice[0:]
-
-        spends_inverse_transformed = (
-            spends.to_series()
-            .pipe(
-                inverse_transform_on_series,
-                inverse_transform=self.target_transformer.inverse_transform,
-            )
-            .unstack()
-        )
-        conf = (
-            spends_inverse_transformed.groupby(level=-1)
-            .quantile([0.025, 0.975])
-            .unstack()
-            .loc[idx]
-        )
-
-        for channel in self.channel_columns:
-            ax.fill_between(
-                conf.index,
-                conf[channel][0.025],
-                conf[channel][0.975],
-                label=f"{channel} 95% CI",
-                alpha=0.5,
-            )
-        tmp = spends_inverse_transformed.groupby(level=-1).mean().loc[idx]
-        tmp.add_suffix(" mean").plot(ax=ax, color=["C0", "C1"], alpha=0.6)
-        ax.legend().set_title("Channel")
-        ax.set(
-            xlabel="Weeks since spend",
-            ylabel="Sales" if ylabel else None,
-            title=f"Upcoming sales for {amount_spent:.02f} spend",
-        )
-        return ax
