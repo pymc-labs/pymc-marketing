@@ -316,7 +316,7 @@ def scale_preserving_logistic_saturation(x, m: Union[npt.NDArray[np.float_], flo
     from spend to "effective spend".
 
     Properties:
-    
+
     * Output is on scale with input values. Simplifies prior specification.
     * Intuitive parameter interpretation: `m` is the "maximum achievable effect".
     * Slope of curve never exceeds 1. Thus "effective spend" <= "actual spend".
