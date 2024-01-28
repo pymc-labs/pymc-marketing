@@ -308,22 +308,22 @@ def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
     return (1 - pt.exp(-lam * x)) / (1 + pt.exp(-lam * x))
 
 
-def scale_preserving_logistic_saturation(x, L: Union[npt.NDArray[np.float_], float]):
+def scale_preserving_logistic_saturation(x, m: Union[npt.NDArray[np.float_], float]):
     """Scale preserving logistic transformation.
 
     This single-parameter saturation function maps its input to the range
-    `[0, L]`, where f(x) <= x for all x. It can be interpreted as mapping
+    `[0, m]`, where f(x) <= x for all x. It can be interpreted as mapping
     from spend to "effective spend".
 
     Properties:
     * Transformed values are on similar scale as input values. This enables
       one to specify coefficient priors in units of channel ROI, without
       transformation.
-    * Intuitive parameter interpretation: `L` is the "maximum achievable effect".
+    * Intuitive parameter interpretation: `m` is the "maximum achievable effect".
     * Slope of curve never exceeds 1. Thus "effective spend" <= "actual spend".
 
     .. math::
-        f(x) = L \left( \frac{1 - e^{-\frac{2}{L} x}}{1 + e^{-\frac{2}{L} x}} \right)
+        f(x) = m \left( \frac{1 - e^{-\frac{2}{m} x}}{1 + e^{-\frac{2}{m} x}} \right)
 
     .. plot::
         :context: close-figs
@@ -333,12 +333,12 @@ def scale_preserving_logistic_saturation(x, L: Union[npt.NDArray[np.float_], flo
         import arviz as az
         from pymc_marketing.mmm.transformers import scale_preserving_logistic_saturation
         plt.style.use('arviz-darkgrid')
-        L = np.array([500, 1000, 2000, 4000, 8000])
+        m = np.array([500, 1000, 2000, 4000, 8000])
         x = np.linspace(0, 10000, 400)
         ax = plt.subplot(111)
-        for l in L:
-            y = scale_preserving_logistic_saturation(x, L=l).eval()
-            plt.plot(x, y, label=f'L = {l}')
+        for l in m:
+            y = scale_preserving_logistic_saturation(x, m=l).eval()
+            plt.plot(x, y, label=f'm = {l}')
         plt.xlabel('x', fontsize=12)
         plt.ylabel('f(x)', fontsize=12)
         box = ax.get_position()
@@ -350,7 +350,7 @@ def scale_preserving_logistic_saturation(x, L: Union[npt.NDArray[np.float_], flo
     ----------
     x : tensor
         Input tensor.
-    L : float or array-like
+    m : float or array-like
         Saturation parameter, characterizing the asymptote of the function value.
 
     Returns
@@ -358,9 +358,9 @@ def scale_preserving_logistic_saturation(x, L: Union[npt.NDArray[np.float_], flo
     tensor
         Transformed tensor.
     """  # noqa: W605
-    if L == 0:
+    if m == 0:
         return pt.zeros_like(x)
-    return L * (1 - pt.exp(-2 / L * x)) / (1 + pt.exp(-2 / L * x))
+    return m * (1 - pt.exp(-2 / m * x)) / (1 + pt.exp(-2 / m * x))
 
 
 class TanhSaturationParameters(NamedTuple):
