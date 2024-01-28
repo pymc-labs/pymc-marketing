@@ -237,7 +237,7 @@ class BaseMMM(ModelBuilder):
     def prior(self) -> Dataset:
         if self.idata is None or "prior" not in self.idata:
             raise RuntimeError(
-                "The model hasn't been fit yet, call .sample_prior_predictive() first"
+                "The model hasn't been fit yet, call .sample_prior_predictive() with extend_idata=True first"
             )
         return self.idata["prior"]
 

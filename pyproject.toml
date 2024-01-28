@@ -38,7 +38,12 @@ docs = [
     "sphinx-design",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
-test = ["lifetimes==0.11.3", "pytest==7.0.1", "pytest-cov==3.0.0"]
+test = [
+    "lifetimes==0.11.3",
+    "pytest==7.0.1",
+    "pytest-cov==3.0.0",
+    "pytest-mpl==0.16.1",
+]
 
 [tool.setuptools]
 packages = [

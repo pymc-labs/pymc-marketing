@@ -849,26 +849,29 @@ class DelayedSaturatedMMM(
         )
         return fig
 
-    def new_spends_contributions(
+    def new_spend_contributions(
         self,
-        spends: np.ndarray,
+        spend: np.ndarray,
         one_time: bool = True,
-        spends_leading_up: Optional[np.ndarray] = None,
+        spend_leading_up: Optional[np.ndarray] = None,
         prior: bool = False,
         original_scale: bool = True,
+        **sample_posterior_predictive_kwargs,
     ) -> DataArray:
         """Return the upcoming contributions for a given spend.
 
         Parameters
         ----------
-        spends : np.ndarray
-            Array of spends for each channel
+        spend : np.ndarray
+            Array of spend for each channel
         one_time : bool, optional
-            Whether the spends are one time (at start of period) or constant (over period), by default True (one time)
-        spends_leading_up : np.array, optional
-            Array of spends for each channel leading up to the spends, by default None (no spends leading up)
+            Whether the spend are one time (at start of period) or constant (over period), by default True (one time)
+        spend_leading_up : np.array, optional
+            Array of spend for each channel leading up to the spend, by default None (no spend leading up)
         prior : bool, optional
             Whether to use the prior or posterior, by default False (posterior)
+        **sample_posterior_predictive_kwargs
+            Additional keyword arguments passed to pm.sample_posterior_predictive
 
         Returns
         -------
@@ -877,33 +880,33 @@ class DelayedSaturatedMMM(
 
 
         """
-        if spends_leading_up is None:
-            spends_leading_up = np.zeros_like(spends)
+        if spend_leading_up is None:
+            spend_leading_up = np.zeros_like(spend)
 
-        if len(spends) != len(self.channel_columns):
-            raise ValueError("spends must be the same length as the number of channels")
+        if len(spend) != len(self.channel_columns):
+            raise ValueError("spend must be the same length as the number of channels")
 
-        if len(spends_leading_up) != len(self.channel_columns):
+        if len(spend_leading_up) != len(self.channel_columns):
             raise ValueError(
-                "spends_leading_up must be the same length as the number of channels"
+                "spend_leading_up must be the same length as the number of channels"
             )
 
-        spends_leading_up = np.tile(spends_leading_up, self.adstock_max_lag).reshape(
+        spend_leading_up = np.tile(spend_leading_up, self.adstock_max_lag).reshape(
             self.adstock_max_lag, -1
         )
 
-        spends = (
+        spend = (
             np.vstack(
-                [spends, np.zeros((self.adstock_max_lag, len(self.channel_columns)))]
+                [spend, np.zeros((self.adstock_max_lag, len(self.channel_columns)))]
             )
             if one_time
-            else np.ones((self.adstock_max_lag + 1, len(self.channel_columns))) * spends
+            else np.ones((self.adstock_max_lag + 1, len(self.channel_columns))) * spend
         )
 
         new_data = np.vstack(
             [
-                spends_leading_up,
-                spends,
+                spend_leading_up,
+                spend,
             ]
         )
 
@@ -941,6 +944,7 @@ class DelayedSaturatedMMM(
             samples = pm.sample_posterior_predictive(
                 idata,
                 var_names=["channel_contributions"],
+                **sample_posterior_predictive_kwargs,
             )
 
         channel_contributions = samples.posterior_predictive["channel_contributions"]
@@ -955,9 +959,9 @@ class DelayedSaturatedMMM(
 
         return channel_contributions
 
-    def plot_new_spends_contributions(
+    def plot_new_spend_contributions(
         self,
-        amount_spent: float,
+        spend_amount: float,
         ax: Optional[plt.Axes] = None,
         one_time: bool = True,
         ylabel: str = "Sales",
@@ -965,15 +969,17 @@ class DelayedSaturatedMMM(
         channels: Optional[List[str]] = None,
         prior: bool = False,
         original_scale: bool = True,
+        **sample_posterior_predictive_kwargs,
     ) -> plt.Axes:
         ax = ax or plt.gca()
         total_channels = len(self.channel_columns)
-        contributions = self.new_spends_contributions(
-            np.ones(total_channels) * amount_spent,
+        contributions = self.new_spend_contributions(
+            np.ones(total_channels) * spend_amount,
             one_time=one_time,
-            spends_leading_up=np.ones(total_channels) * amount_spent,
+            spend_leading_up=np.ones(total_channels) * spend_amount,
             prior=prior,
             original_scale=original_scale,
+            **sample_posterior_predictive_kwargs,
         )
 
         contributions_groupby = contributions.to_series().groupby(
@@ -1007,7 +1013,7 @@ class DelayedSaturatedMMM(
         ax.set(
             xlabel="Weeks since spend",
             ylabel=ylabel,
-            title=f"Upcoming sales for {amount_spent:.02f} spend",
+            title=f"Upcoming sales for {spend_amount:.02f} spend",
         )
         return ax
 
