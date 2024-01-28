@@ -316,10 +316,9 @@ def scale_preserving_logistic_saturation(x, m: Union[npt.NDArray[np.float_], flo
     from spend to "effective spend".
 
     Properties:
-    * Transformed values are on similar scale as input values. This enables
-      one to specify coefficient priors in units of channel ROI, without
-      transformation.
-    * Intuitive parameter interpretation: :math:`m` is the "maximum achievable effect".
+    
+    * Output is on scale with input values. Simplifies prior specification.
+    * Intuitive parameter interpretation: `m` is the "maximum achievable effect".
     * Slope of curve never exceeds 1. Thus "effective spend" <= "actual spend".
 
     .. math::
