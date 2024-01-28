@@ -7,11 +7,11 @@ from pytensor.tensor.variable import TensorVariable
 from pymc_marketing.mmm.transformers import (
     ConvMode,
     TanhSaturationParameters,
-    asymptotic_logistic_saturation,
     batched_convolution,
     delayed_adstock,
     geometric_adstock,
     logistic_saturation,
+    scale_preserving_logistic_saturation,
     tanh_saturation,
     tanh_saturation_baselined,
 )
@@ -210,16 +210,16 @@ class TestSaturationTransformers:
         assert y_eval.max() <= 1
         assert y_eval.min() >= 0
 
-    def test_asymptotic_logistic_saturation_lam_zero(self):
+    def test_scale_preserving_logistic_saturation_L_zero(self):
         # All values should be zero
         x = np.ones(shape=(100))
-        y = asymptotic_logistic_saturation(x=x, lam=0.0)
+        y = scale_preserving_logistic_saturation(x=x, L=0.0)
         np.testing.assert_array_almost_equal(x=np.zeros(shape=(100)), y=y.eval())
 
-    def test_asymptotic_logistic_saturation_lam_max_x(self):
-        # When lam == max(x), f(max(x)) is max(x) * 0.76
+    def test_scale_preserving_logistic_saturation_L_max_x(self):
+        # When L == max(x), f(max(x)) is max(x) * 0.76
         x = np.ones(shape=(100))
-        y = asymptotic_logistic_saturation(x=x, lam=1)
+        y = scale_preserving_logistic_saturation(x=x, L=1)
         np.testing.assert_array_almost_equal(
             x=np.ones(shape=(100)) * 0.761594, y=y.eval(), decimal=3
         )
@@ -232,13 +232,13 @@ class TestSaturationTransformers:
             np.linspace(start=200, stop=1000, num=50),
         ],
     )
-    def test_asymptotic_logistic_saturation_lam_large(self, x):
+    def test_scale_preserving_logistic_saturation_L_large(self, x):
         # When asymptote is large, f(x) = x
-        y = asymptotic_logistic_saturation(x=x, lam=1e9)
+        y = scale_preserving_logistic_saturation(x=x, L=1e9)
         np.testing.assert_array_almost_equal(x=x, y=y.eval(), decimal=0)
 
     @pytest.mark.parametrize(
-        "x, lam",
+        "x, L",
         [
             (np.ones(shape=(100)), 30),
             (np.linspace(start=0.0, stop=1.0, num=50), 90),
@@ -246,17 +246,17 @@ class TestSaturationTransformers:
             (np.zeros(shape=(100)), 200),
         ],
     )
-    def test_asymptotic_logistic_saturation_bounds(self, x, lam):
-        # Check that the values are within the range [0, lam]
-        y = asymptotic_logistic_saturation(x=x, lam=lam)
-        assert y.eval().max() <= lam
+    def test_scale_preserving_logistic_saturation_bounds(self, x, L):
+        # Check that the values are within the range [0, L]
+        y = scale_preserving_logistic_saturation(x=x, L=L)
+        assert y.eval().max() <= L
         assert y.eval().min() >= 0
 
-    @pytest.mark.parametrize("lam", [10, 100, 1000])
-    def test_asymptotic_logistic_saturation_slope(self, lam):
+    @pytest.mark.parametrize("L", [10, 100, 1000])
+    def test_scale_preserving_logistic_saturation_slope(self, L):
         # Check that slope < 1
         x = np.linspace(0, 10, 100)
-        y = asymptotic_logistic_saturation(x, lam=lam).eval()
+        y = scale_preserving_logistic_saturation(x, L=L).eval()
         dy_dx = np.diff(y) / np.diff(x)
         assert np.all(dy_dx <= 1)
 

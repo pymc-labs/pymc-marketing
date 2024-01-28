@@ -308,22 +308,22 @@ def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
     return (1 - pt.exp(-lam * x)) / (1 + pt.exp(-lam * x))
 
 
-def asymptotic_logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float]):
-    """Logistic transformation with max slope 1 and asymptote at `lam`.
+def scale_preserving_logistic_saturation(x, L: Union[npt.NDArray[np.float_], float]):
+    """Scale preserving logistic transformation.
 
     This single-parameter saturation function maps its input to the range
-    `[0, lam]`, where f(x) <= x for all x. It can be interpreted as mapping
+    `[0, L]`, where f(x) <= x for all x. It can be interpreted as mapping
     from spend to "effective spend".
 
-    Features:
+    Properties:
     * Transformed values are on similar scale as input values. This enables
       one to specify coefficient priors in units of channel ROI, without
       transformation.
-    * Intuitive parameter interpretation: `lam` is the "maximum achievable effect".
-    * Because the slope never exceeds 1, "effective spend" <= "actual spend".
+    * Intuitive parameter interpretation: `L` is the "maximum achievable effect".
+    * Slope of curve never exceeds 1. Thus "effective spend" <= "actual spend".
 
     .. math::
-        f(x) = \lambda \left( \frac{1 - e^{-\frac{2}{\lambda} x}}{1 + e^{-\frac{2}{\lambda} x}} \right)
+        f(x) = L \left( \frac{1 - e^{-\frac{2}{L} x}}{1 + e^{-\frac{2}{L} x}} \right)
 
     .. plot::
         :context: close-figs
@@ -331,14 +331,14 @@ def asymptotic_logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float])
         import matplotlib.pyplot as plt
         import numpy as np
         import arviz as az
-        from pymc_marketing.mmm.transformers import asymptotic_logistic_function
+        from pymc_marketing.mmm.transformers import scale_preserving_logistic_saturation
         plt.style.use('arviz-darkgrid')
-        lam = np.array([500, 1000, 2000, 4000, 8000])
+        L = np.array([500, 1000, 2000, 4000, 8000])
         x = np.linspace(0, 10000, 400)
         ax = plt.subplot(111)
-        for l in lam:
-            y = asymptotic_logistic_function(x, lam=l).eval()
-            plt.plot(x, y, label=f'lam = {l}')
+        for l in L:
+            y = scale_preserving_logistic_saturation(x, L=l).eval()
+            plt.plot(x, y, label=f'L = {l}')
         plt.xlabel('x', fontsize=12)
         plt.ylabel('f(x)', fontsize=12)
         box = ax.get_position()
@@ -350,7 +350,7 @@ def asymptotic_logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float])
     ----------
     x : tensor
         Input tensor.
-    lam : float or array-like
+    L : float or array-like
         Saturation parameter, characterizing the asymptote of the function value.
 
     Returns
@@ -358,9 +358,9 @@ def asymptotic_logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float])
     tensor
         Transformed tensor.
     """  # noqa: W605
-    if lam == 0:
+    if L == 0:
         return pt.zeros_like(x)
-    return lam * (1 - pt.exp(-2 / lam * x)) / (1 + pt.exp(-2 / lam * x))
+    return L * (1 - pt.exp(-2 / L * x)) / (1 + pt.exp(-2 / L * x))
 
 
 class TanhSaturationParameters(NamedTuple):
