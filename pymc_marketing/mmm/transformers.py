@@ -312,7 +312,7 @@ def scale_preserving_logistic_saturation(x, m: Union[npt.NDArray[np.float_], flo
     """Scale preserving logistic transformation.
 
     This single-parameter saturation function maps its input to the range
-    `[0, m]`, where f(x) <= x for all x. It can be interpreted as mapping
+    `[0, m]`, where \( f(x) \leq x \) for all x. It can be interpreted as mapping
     from spend to "effective spend".
 
     Properties:
@@ -323,7 +323,7 @@ def scale_preserving_logistic_saturation(x, m: Union[npt.NDArray[np.float_], flo
     * Slope of curve never exceeds 1. Thus "effective spend" <= "actual spend".
 
     .. math::
-        f(x) = m \left( \frac{1 - e^{-\frac{2}{m} x}}{1 + e^{-\frac{2}{m} x}} \right)
+        f(x) = m \\left( \\frac{1 - e^{-\\frac{2}{m} x}}{1 + e^{-\\frac{2}{m} x}} \\right)
 
     .. plot::
         :context: close-figs
