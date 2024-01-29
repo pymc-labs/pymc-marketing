@@ -174,7 +174,7 @@ class GammaGammaModel(BaseGammaGammaModel):
     data: pd.DataFrame
         DataFrame containing the following columns:
             - customer_id: Customer labels. Must not repeat.
-            - mean_transaction_value: Mean transaction value of each customer.
+            - monetary_value: Average transaction value for each customer.
             - frequency: Number of transactions observed for each customer.
     model_config: dict, optional
         Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
@@ -250,9 +250,9 @@ class GammaGammaModel(BaseGammaGammaModel):
         try:
             self.mean_transaction_value: Union[
                 np.ndarray, pd.Series, TensorVariable
-            ] = data["mean_transaction_value"]
+            ] = data["monetary_value"]
         except KeyError:
-            raise KeyError("data must contain a mean_transaction_value column")
+            raise KeyError("data must contain a monetary_value column")
         try:
             self.frequency: Union[np.ndarray, pd.Series, TensorVariable] = data[
                 "frequency"

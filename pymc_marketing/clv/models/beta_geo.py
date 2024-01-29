@@ -78,13 +78,13 @@ class BetaGeoModel(CLVModel):
 
         # Estimating the expected number of purchases for a randomly chosen
         # individual in a future time period of length t
-        expected_num_purchases = model.expected_num_purchases(
+        expected_purchases = model.expected_purchases(
             t=[2, 5, 7, 10],
         )
 
         # Predicting the customer-specific number of purchases for a future
         # time interval of length t given their previous frequency and recency
-        expected_num_purchases_new_customer = model.expected_num_purchases_new_customer(
+        expected_purchases_new_customer = model.expected_purchases_new_customer(
             t=[5, 5, 5, 5],
             frequency=[5, 2, 1, 8],
             recency=[7, 4, 2.5, 11],
@@ -220,7 +220,7 @@ class BetaGeoModel(CLVModel):
         return a, b, alpha, r
 
     # taken from https://lifetimes.readthedocs.io/en/latest/lifetimes.fitters.html
-    def expected_num_purchases(
+    def expected_purchases(
         self,
         customer_id: Union[np.ndarray, pd.Series],
         t: Union[np.ndarray, pd.Series, TensorVariable],
@@ -319,7 +319,7 @@ class BetaGeoModel(CLVModel):
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
-    def expected_num_purchases_new_customer(
+    def expected_purchases_new_customer(
         self,
         t: Union[np.ndarray, pd.Series],
     ):

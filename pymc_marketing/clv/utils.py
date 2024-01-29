@@ -53,7 +53,7 @@ def customer_lifetime_value(
     T: array_like
         The vector of customers' age (time since first purchase)
     monetary_value: array_like
-        The monetary value vector of customer's purchases (denoted m in literature).
+        Average monetary value of customer's purchases (denoted m in literature).
     time: int, optional
         The lifetime expected for the user in months. Default: 12
     discount_rate: float, optional
@@ -97,9 +97,9 @@ def customer_lifetime_value(
 
     clv = xarray.DataArray(0.0)
 
-    # TODO: Vectorize computation so that we perform a single call to expected_num_purchases
-    prev_expected_num_purchases = _squeeze_dims(
-        transaction_model.expected_num_purchases(
+    # TODO: Vectorize computation so that we perform a single call to expected_purchases
+    prev_expected_purchases = _squeeze_dims(
+        transaction_model.expected_purchases(
             customer_id=customer_id,
             frequency=frequency,
             recency=recency,
@@ -109,8 +109,8 @@ def customer_lifetime_value(
     )
     for i in steps * factor:
         # since the prediction of number of transactions is cumulative, we have to subtract off the previous periods
-        new_expected_num_purchases = _squeeze_dims(
-            transaction_model.expected_num_purchases(
+        new_expected_purchases = _squeeze_dims(
+            transaction_model.expected_purchases(
                 customer_id=customer_id,
                 frequency=frequency,
                 recency=recency,
@@ -118,8 +118,8 @@ def customer_lifetime_value(
                 t=i,
             )
         )
-        expected_transactions = new_expected_num_purchases - prev_expected_num_purchases
-        prev_expected_num_purchases = new_expected_num_purchases
+        expected_transactions = new_expected_purchases - prev_expected_purchases
+        prev_expected_purchases = new_expected_purchases
 
         # sum up the CLV estimates of all the periods and apply discounted cash flow
         clv = clv + (monetary_value * expected_transactions) / (1 + discount_rate) ** (

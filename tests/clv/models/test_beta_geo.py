@@ -317,7 +317,7 @@ class TestBetaGeoModel:
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
 
-    def test_expected_num_purchases(self):
+    def test_expected_purchases(self):
         customer_id = np.arange(10)
         test_t = np.linspace(20, 38, 10)
         test_frequency = np.tile([1, 3, 5, 7, 9], 2)
@@ -343,7 +343,7 @@ class TestBetaGeoModel:
             }
         )
 
-        res_num_purchases = bg_model.expected_num_purchases(
+        res_num_purchases = bg_model.expected_purchases(
             customer_id,
             test_t,
             test_frequency,
@@ -375,7 +375,7 @@ class TestBetaGeoModel:
             rtol=0.1,
         )
 
-    def test_expected_num_purchases_new_customer(self):
+    def test_expected_purchases_new_customer(self):
         customer_id = np.arange(10)
         test_t = np.linspace(20, 38, 10)
         test_frequency = np.tile([1, 3, 5, 7, 9], 2)
@@ -400,7 +400,7 @@ class TestBetaGeoModel:
             }
         )
 
-        res_num_purchases_new_customer = bg_model.expected_num_purchases_new_customer(
+        res_num_purchases_new_customer = bg_model.expected_purchases_new_customer(
             test_t
         )
         assert res_num_purchases_new_customer.shape == (2, 5, 10)
