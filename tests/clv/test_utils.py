@@ -134,15 +134,8 @@ class TestCustomerLifetimeValue:
     def test_customer_lifetime_value_with_known_values(
         self, test_summary_data, fitted_bg, t, discount_rate, expected
     ):
-        # Test borrowed from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
-
         data = test_summary_data.head(3)
 
-        # expected = np.array([0.7119, 0.06404, 0.10533, 0.10533, 0.10533])
-        # monetary_value = np.ones_like(expected)
-
-        # discount_rate=0 means the clv will be the same as the predicted
         clv = customer_lifetime_value(
             fitted_bg,
             data.index,
@@ -154,56 +147,6 @@ class TestCustomerLifetimeValue:
             discount_rate=discount_rate,
         ).mean(("chain", "draw"))
         np.testing.assert_almost_equal(clv, expected, decimal=5)
-        # # discount_rate=1 means the clv will halve over a period
-        # clv_d1 = (
-        #     customer_lifetime_value(
-        #         fitted_bg,
-        #         t.index,
-        #         t["frequency"],
-        #         t["recency"],
-        #         t["T"],
-        #         monetary_value=pd.Series([1, 1, 1, 1, 1]),
-        #         time=1,
-        #         discount_rate=1.0,
-        #     )
-        #     .mean(("chain", "draw"))
-        #     .values
-        # )
-        # np.testing.assert_almost_equal(clv_d1, expected / 2.0, decimal=5)
-        #
-        # # time=2, discount_rate=0 means the clv will be twice the initial
-        # clv_t2_d0 = (
-        #     customer_lifetime_value(
-        #         fitted_bg,
-        #         t.index,
-        #         t["frequency"],
-        #         t["recency"],
-        #         t["T"],
-        #         monetary_value=monetary_value,
-        #         time=2,
-        #         discount_rate=0,
-        #     )
-        #     .mean(("chain", "draw"))
-        #     .values
-        # )
-        # np.testing.assert_allclose(clv_t2_d0, expected * 2.0, rtol=0.1)
-        #
-        # # time=2, discount_rate=1 means the clv will be twice the initial
-        # clv_t2_d1 = (
-        #     customer_lifetime_value(
-        #         fitted_bg,
-        #         t.index,
-        #         t["frequency"],
-        #         t["recency"],
-        #         t["T"],
-        #         monetary_value=pd.Series([1, 1, 1, 1, 1]),
-        #         time=2,
-        #         discount_rate=1.0,
-        #     )
-        #     .mean(("chain", "draw"))
-        #     .values
-        # )
-        # np.testing.assert_allclose(clv_t2_d1, expected / 2.0 + expected / 4.0, rtol=0.1)
 
     def test_customer_lifetime_value_gg_with_bgf(
         self, test_summary_data, fitted_gg, fitted_bg
