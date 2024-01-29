@@ -4,6 +4,7 @@ import pytest
 import xarray as xr
 
 from pymc_marketing.mmm.utils import (
+    apply_sklearn_transformer_across_date,
     compute_sigmoid_second_derivative,
     estimate_menten_parameters,
     estimate_sigmoid_parameters,
@@ -198,3 +199,64 @@ def test_compute_sigmoid_second_derivative_valid(x, alpha, lam, expected):
 def test_find_sigmoid_inflection_point_valid(alpha, lam, expected):
     result = find_sigmoid_inflection_point(alpha, lam)
     np.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-8)
+
+
+@pytest.fixture
+def mock_method():
+    def _mock_method(x):
+        if x.ndim != 2:
+            raise ValueError("x must be 2-dimensional")
+
+        return x * 2
+
+    return _mock_method
+
+
+@pytest.fixture
+def create_mock_mmm_return_data():
+    def _create_mock_mm_return_data(combined: bool) -> xr.DataArray:
+        dates = pd.date_range(start="2020-01-01", end="2020-01-31", freq="W-MON")
+        data = xr.DataArray(
+            np.ones(shape=(1, 3, len(dates))),
+            coords={
+                "chain": [1],
+                "draw": [1, 2, 3],
+                "date": dates,
+            },
+        )
+
+        if combined:
+            data = data.stack(sample=("chain", "draw"))
+
+        return data
+
+    return _create_mock_mm_return_data
+
+
+@pytest.mark.parametrize("combined", [True, False])
+def test_apply_sklearn_function_across_date(
+    mock_method, create_mock_mmm_return_data, combined: bool
+) -> None:
+    # Data that would be returned from a MMM model
+    data = create_mock_mmm_return_data(combined=combined)
+    result = apply_sklearn_transformer_across_date(
+        data,
+        mock_method,
+        combined=combined,
+    )
+
+    xr.testing.assert_allclose(result, data * 2)
+
+
+def test_apply_sklearn_function_across_date_error(
+    mock_method,
+    create_mock_mmm_return_data,
+) -> None:
+    data = create_mock_mmm_return_data(combined=False)
+
+    with pytest.raises(ValueError, match="x must be 2-dimensional"):
+        apply_sklearn_transformer_across_date(
+            data,
+            mock_method,
+            combined=True,
+        )

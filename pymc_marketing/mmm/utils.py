@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -287,3 +287,42 @@ def standardize_scenarios_dict_keys(d: Dict, keywords: List[str]):
             if re.search(keyword, key, re.IGNORECASE):
                 d[keyword] = d.pop(key)
                 break
+
+
+def apply_sklearn_transformer_across_date(
+    data: xr.DataArray,
+    func: Callable[[np.ndarray], np.ndarray],
+    combined: bool = False,
+) -> xr.DataArray:
+    """Helper function in order to use scikit-learn functions with the xarray target.
+
+    Parameters
+    ----------
+    data :
+    func : scikit-learn method to apply to the data
+    combined : Flag to indicate if the data coords have been combined or not
+
+    Returns
+    -------
+    xr.DataArray
+    """
+    # These are lost during the ufunc
+    attrs = data.attrs
+
+    if combined:
+        data = xr.apply_ufunc(
+            func,
+            data,
+        )
+    else:
+        data = xr.apply_ufunc(
+            func,
+            data.expand_dims(dim={"_": 1}, axis=1),
+            input_core_dims=[["date", "_"]],
+            output_core_dims=[["date", "_"]],
+            vectorize=True,
+        ).squeeze(dim="_")
+
+    data.attrs = attrs
+
+    return data

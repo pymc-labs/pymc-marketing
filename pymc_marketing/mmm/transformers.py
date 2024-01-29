@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Union
+from typing import NamedTuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -8,7 +8,8 @@ import pytensor.tensor as pt
 from pytensor.tensor.random.utils import params_broadcast_shapes
 
 
-class ConvMode(Enum):
+class ConvMode(str, Enum):
+    # TODO: use StrEnum when we upgrade to python 3.11
     After = "After"
     Before = "Before"
     Overlap = "Overlap"
@@ -20,7 +21,12 @@ class WeibullType(str, Enum):
     CDF = "CDF"
 
 
-def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
+def batched_convolution(
+    x,
+    w,
+    axis: int = 0,
+    mode: Union[ConvMode, str] = ConvMode.After,
+):
     R"""Apply a 1D convolution in a vectorized way across multiple batch dimensions.
 
     .. plot::
@@ -105,9 +111,9 @@ def batched_convolution(x, w, axis: int = 0, mode: ConvMode = ConvMode.Before):
     # The window is the slice of the padded array that corresponds to the original x
     if l_max <= 1:
         window = slice(None)
-    elif mode == ConvMode.After:
-        window = slice(l_max - 1, None)
     elif mode == ConvMode.Before:
+        window = slice(l_max - 1, None)
+    elif mode == ConvMode.After:
         window = slice(None, -l_max + 1)
     elif mode == ConvMode.Overlap:
         # Handle even and odd l_max differently if l_max is odd then we can split evenly otherwise we drop from the end
@@ -192,7 +198,7 @@ def geometric_adstock(
 
     w = pt.power(pt.as_tensor(alpha)[..., None], pt.arange(l_max, dtype=x.dtype))
     w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
-    return batched_convolution(x, w, axis=axis)
+    return batched_convolution(x, w, axis=axis, mode=ConvMode.After)
 
 
 def delayed_adstock(
@@ -264,7 +270,7 @@ def delayed_adstock(
         (pt.arange(l_max, dtype=x.dtype) - pt.as_tensor(theta)[..., None]) ** 2,
     )
     w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
-    return batched_convolution(x, w, axis=axis)
+    return batched_convolution(x, w, axis=axis, mode=ConvMode.After)
 
 
 def weibull_adstock(
@@ -407,7 +413,50 @@ def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
     return (1 - pt.exp(-lam * x)) / (1 + pt.exp(-lam * x))
 
 
-def tanh_saturation(x, b: float = 0.5, c: float = 0.5):
+class TanhSaturationParameters(NamedTuple):
+    b: pt.TensorLike
+    """Saturation.
+    """
+    c: pt.TensorLike
+    """Customer Aquisition Cost at 0.
+    """
+
+    def baseline(self, x0: pt.TensorLike) -> "TanhSaturationBaselinedParameters":
+        """Change the parameterization to baselined at :math:`x_0`."""
+        y_ref = tanh_saturation(x0, self.b, self.c)
+        gain_ref = y_ref / x0
+        r_ref = y_ref / self.b
+        return TanhSaturationBaselinedParameters(x0, gain_ref, r_ref)
+
+
+class TanhSaturationBaselinedParameters(NamedTuple):
+    x0: pt.TensorLike
+    """Baseline spend.
+    """
+    gain: pt.TensorLike
+    """ROAS at :math:`x_0`.
+    """
+    r: pt.TensorLike
+    """Overspend Fraction.
+    """
+
+    def debaseline(self) -> TanhSaturationParameters:
+        """Change the parameterization to baselined to be classic saturation and cac."""
+        saturation = (self.gain * self.x0) / self.r
+        cac = self.r / (self.gain * pt.arctanh(self.r))
+        return TanhSaturationParameters(saturation, cac)
+
+    def rebaseline(self, x1: pt.TensorLike) -> "TanhSaturationBaselinedParameters":
+        """Change the parameterization to baselined at :math:`x_1`."""
+        params = self.debaseline()
+        return params.baseline(x1)
+
+
+def tanh_saturation(
+    x: pt.TensorLike,
+    b: pt.TensorLike = 0.5,
+    c: pt.TensorLike = 0.5,
+) -> pt.TensorVariable:
     R"""Tanh saturation transformation.
 
     .. math::
@@ -460,3 +509,155 @@ def tanh_saturation(x, b: float = 0.5, c: float = 0.5):
     See https://www.pymc-labs.io/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/ # noqa: E501
     """
     return b * pt.tanh(x / (b * c))
+
+
+def tanh_saturation_baselined(
+    x: pt.TensorLike,
+    x0: pt.TensorLike,
+    gain: pt.TensorLike = 0.5,
+    r: pt.TensorLike = 0.5,
+) -> pt.TensorVariable:
+    r"""
+    Baselined Tanh Saturation.
+
+    This parameterization that is easier than :func:`tanh_saturation`
+    to use for industry applications where domain knowledge is an essence.
+
+    In a nutshell, it is an alternative parameterization of the reach function is given by:
+
+    .. math::
+
+        \begin{align}
+        c_0 &= \frac{r}{g \cdot \arctan(r)} \\
+        \beta &= \frac{g \cdot x_0}{r} \\
+        \operatorname{saturation}(x, \beta, c_0) &= \beta  \cdot \tanh \left( \frac{x}{c_0 \cdot \beta} \right)
+        \end{align}
+
+    where:
+
+    - :math:`x_0` is the "reference point". This is a point chosen
+      by the user (not given a prior) where they expect most of their data to lie.
+      For example, if you're spending between 50 and 150 dollars on a particular channel,
+      you might choose :math:`x_0 = 100`.
+      Suggested value is median channel spend: ``np.median(spend)``.
+
+    - :math:`g` is the "gain", which is the value of the CAC (:math:`c_0`) at the reference point.
+      You have to set a prior on what you think the CAC is when you spend :math:`x_0 = 100`.
+      Imagine you have four advertising channels, and you acquired 1000 new users.
+      If each channel performed equally well, and advertising drove all sales, you might expect
+      that you gained 250 users from each channel.  Here, your "gain" would be :math:`250 / 100 = 2.5`.
+      Suggested prior is ``pm.Exponential``
+    - :math:`r`, the overspend fraction is telling you where the reference point is.
+
+      - :math:`0` - we can increase our budget by a lot to reach the saturated region,
+        the diminishing returns are not visible yet.
+      - :math:`1` - the reference point is already in the saturation region
+        and additional dollar spend will not lead to any new users.
+      - :math:`0.8`, you can still increase acquired users by :math:`50\%` as much
+        you get in the reference point by increasing the budget.
+        :math:`x_0` effect is 20% away from saturation point
+
+      Suggested prior is ``pm.Beta``
+
+    .. note::
+
+        The reference point :math:`x_0` has to be set within the range of the actual spends.
+        As in, you buy ads three times and spend :math:`5`, :math:`6` and :math:`7` dollars,
+        :math:`x_0` has to be set within :math:`[5, 7]`, so not :math:`4` not :math:`8`.
+        Otherwise the posterior of r and gain becomes a skinny diagonal line.
+        It could be very relevant if there is very little spend observations for a particular channel.
+
+    The original reach or saturation function used in an MMM is formulated as
+
+    .. math::
+
+        \operatorname{saturation}(x, \beta, c_0) = \beta  \cdot \tanh \left( \frac{x}{c_0 \cdot \beta} \right)
+
+    where:
+
+    - :math:`\beta` is the saturation, or the limit of the total number
+      of new users obtained when an infinite number of dollars are spent on that channel.
+    - :math:`c_0` is the cost per acquisition (CAC0), so the initial cost per new user.
+    - :math:`\frac{1}{c_0}` is the inverse of the CAC0, so it's the number of new
+      users we might expect after spending our first dollar.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import (
+            tanh_saturation_baselined,
+            tanh_saturation,
+            TanhSaturationBaselinedParameters,
+        )
+
+        gain = 1
+        overspend_fraction = 0.7
+        x_baseline = 400
+
+        params = TanhSaturationBaselinedParameters(x_baseline, gain, overspend_fraction)
+
+        x = np.linspace(0, 1000)
+        y = tanh_saturation_baselined(x, *params).eval()
+
+        saturation, cac0 = params.debaseline()
+        cac0 = cac0.eval()
+        saturated_ref = tanh_saturation(x_baseline, saturation, cac0).eval()
+
+        plt.plot(x, y);
+        plt.axvline(x_baseline, linestyle="dashed", color="red", label="baseline")
+        plt.plot(x, x * gain, linestyle="dashed", label="gain (slope)");
+        plt.axhline(saturated_ref, linestyle="dashed", label="f(reference)")
+        plt.plot(x, x / cac0, linestyle="dotted", label="1/cac (slope)");
+        plt.axhline(saturation, linestyle="dotted", label="saturation")
+        plt.fill_between(x, saturated_ref, saturation, alpha=0.1, label="underspend fraction")
+        plt.fill_between(x, saturated_ref, alpha=0.1, label="overspend fraction")
+        plt.legend()
+        plt.show()
+
+    Examples
+    --------
+
+    .. code-block:: python
+
+        import pymc as pm
+        import numpy as np
+
+        x_in = np.exp(3+np.random.randn(100))
+        true_cac = 1
+        true_saturation = 100
+        y_out = abs(np.random.normal(tanh_saturation(x_in, true_saturation, true_cac).eval(), 0.1))
+
+        with pm.Model() as model_reparam:
+            r = pm.Uniform("r")
+            gain = pm.Exponential("gain", 1)
+            input = pm.ConstantData("spent", x_in)
+            response = pm.ConstantData("response", y_out)
+            sigma = pm.HalfNormal("n")
+            output = tanh_saturation_baselined(input, np.median(x_in), gain, r)
+            pm.Normal("output", output, sigma, observed=response)
+            trace = pm.sample()
+
+    Parameters
+    ----------
+    x : tensor
+        Input tensor.
+    x0: tensor
+        Baseline for saturation.
+    gain : tensor, by default 0.5
+        ROAS at the baseline point, mathematically as :math:`gain = f(x0) / x0`.
+    r : tensor, by default 0.5
+        The overspend fraction, mathematically as :math:`r = f(x0) / \text{saturation}`.
+
+    Returns
+    -------
+    tensor
+        Transformed tensor.
+
+    References
+    ----------
+    Developed by Max Kochurov and Aziz Al-Maeeni doing innovative work in `PyMC Labs <pymc-labs.com>`_.
+    """
+    return gain * x0 * pt.tanh(x * pt.arctanh(r) / x0) / r

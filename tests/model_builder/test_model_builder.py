@@ -22,8 +22,11 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+import xarray as xr
 
 from pymc_marketing.model_builder import ModelBuilder
+
+rng = np.random.default_rng(42)
 
 
 @pytest.fixture(scope="module")
@@ -123,11 +126,12 @@ class test_ModelBuilder(ModelBuilder):
     def output_var(self):
         return "output"
 
-    def _data_setter(self, x: pd.Series, y: pd.Series = None):
+    def _data_setter(self, X: pd.Series, y: pd.Series = None):
         with self.model:
-            pm.set_data({"x": x.values})
+            pm.set_data({"x": X.values})
             if y is not None:
-                pm.set_data({"y_data": y.values})
+                y = y.values if isinstance(y, pd.Series) else y
+                pm.set_data({"y_data": y})
 
     @property
     def _serializable_model_config(self):
@@ -271,3 +275,28 @@ def test_id():
     ).hexdigest()[:16]
 
     assert model_builder.id == expected_id
+
+
+@pytest.mark.parametrize("name", ["prior_predictive", "posterior_predictive"])
+def test_sample_xxx_predictive_keeps_second(
+    fitted_model_instance, toy_X, name: str
+) -> None:
+    method_name = f"sample_{name}"
+    method = getattr(fitted_model_instance, method_name)
+
+    X_pred = toy_X["input"]
+
+    kwargs = {
+        "X_pred": X_pred,
+        "combined": False,
+        "extend_idata": True,
+        "random_seed": rng,
+    }
+    first_sample = method(**kwargs)
+    second_sample = method(**kwargs)
+
+    with pytest.raises(AssertionError):
+        xr.testing.assert_allclose(first_sample, second_sample)
+
+    sample = getattr(fitted_model_instance.idata, name)
+    xr.testing.assert_allclose(sample, second_sample)
