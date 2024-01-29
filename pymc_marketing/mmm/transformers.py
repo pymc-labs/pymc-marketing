@@ -3,6 +3,7 @@ from typing import NamedTuple, Union
 
 import numpy as np
 import numpy.typing as npt
+import pymc as pm
 import pytensor.tensor as pt
 from pytensor.tensor.random.utils import params_broadcast_shapes
 
@@ -12,6 +13,12 @@ class ConvMode(str, Enum):
     After = "After"
     Before = "Before"
     Overlap = "Overlap"
+
+
+class WeibullType(str, Enum):
+    # TODO: use StrEnum when we upgrade to python 3.11
+    PDF = "PDF"
+    CDF = "CDF"
 
 
 def batched_convolution(
@@ -264,6 +271,104 @@ def delayed_adstock(
     )
     w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
     return batched_convolution(x, w, axis=axis, mode=ConvMode.After)
+
+
+def weibull_adstock(
+    x,
+    lam=1,
+    k=1,
+    l_max: int = 12,
+    axis: int = 0,
+    type: Union[WeibullType, str] = WeibullType.PDF,
+):
+    R"""Weibull Adstocking Transformation.
+
+    This transformation is similar to geometric adstock transformation but has more degrees of freedom, adding more flexibility.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import WeibullType, weibull_adstock
+        plt.style.use('arviz-darkgrid')
+
+        spend = np.zeros(50)
+        spend[0] = 1
+
+        shapes = [0.5, 1., 1.5, 5.]
+        scales = [10, 20, 40]
+        modes = [WeibullType.PDF, WeibullType.CDF]
+
+        fig, axes = plt.subplots(
+            len(shapes), len(modes), figsize=(12, 8), sharex=True, sharey=True
+        )
+        fig.suptitle("Effect of Changing Weibull Adstock Parameters", fontsize=16)
+
+        for m, mode in enumerate(modes):
+            axes[0, m].set_title(f"Mode: {mode.value}")
+
+            for i, shape in enumerate(shapes):
+                for j, scale in enumerate(scales):
+                    adstock = weibull_adstock(
+                        spend, lam=scale, k=shape, type=mode, l_max=len(spend)
+                    ).eval()
+
+                    axes[i, m].plot(
+                        np.arange(len(spend)),
+                        adstock,
+                        label=f"Scale={scale}",
+                        linestyle="-",
+                    )
+
+        fig.legend(
+            *axes[0, 0].get_legend_handles_labels(),
+            loc="center right",
+            bbox_to_anchor=(1.2, 0.85),
+        )
+
+        plt.tight_layout(rect=[0, 0, 0.9, 1])
+        plt.show()
+
+
+
+    Parameters
+    ----------
+    x : tensor
+        Input tensor.
+    lam : float, by default 1.
+        Scale parameter of the Weibull distribution. Must be positive.
+    k : float, by default 1.
+        Shape parameter of the Weibull distribution. Must be positive.
+    l_max : int, by default 12
+        Maximum duration of carryover effect.
+    type : WeibullType or str, by default WeibullType.PDF
+        Type of Weibull adstock transformation to be applied (PDF or CDF).
+
+    Returns
+    -------
+    tensor
+        Transformed tensor based on Weibull adstock transformation.
+    """
+    lam = pt.as_tensor(lam)[..., None]
+    k = pt.as_tensor(k)[..., None]
+    t = pt.arange(l_max, dtype=x.dtype) + 1
+
+    if type == WeibullType.PDF:
+        w = pt.exp(pm.Weibull.logp(t, k, lam))
+        w = (w - pt.min(w, axis=-1)[..., None]) / (
+            pt.max(w, axis=-1)[..., None] - pt.min(w, axis=-1)[..., None]
+        )
+    elif type == WeibullType.CDF:
+        w = 1 - pt.exp(pm.Weibull.logcdf(t, k, lam))
+        shape = (*w.shape[:-1], w.shape[-1] + 1)
+        padded_w = pt.ones(shape, dtype=w.dtype)
+        padded_w = pt.set_subtensor(padded_w[..., 1:], w)
+        w = pt.cumprod(padded_w, axis=-1)
+    else:
+        raise ValueError(f"Wrong WeibullType: {type}, expected of WeibullType")
+    return batched_convolution(x, w, axis=axis)
 
 
 def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
