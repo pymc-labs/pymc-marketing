@@ -337,7 +337,7 @@ def weibull_adstock(
         Shape parameter of the Weibull distribution. Must be positive.
     l_max : int, by default 12
         Maximum duration of carryover effect.
-    type : WeibullType, by default WeibullType.PDF
+    type : WeibullType or str, by default WeibullType.PDF
         Type of Weibull adstock transformation to be applied (PDF or CDF).
 
     Returns
