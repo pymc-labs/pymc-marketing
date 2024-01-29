@@ -212,7 +212,7 @@ class TestsAdstockTransformers:
 
         assert np.all(np.isfinite(y))
         w = 1 - sp.stats.weibull_min.cdf(np.arange(l_max) + 1, c=k, scale=lam)
-        w = sp.cumprod(np.concatenate([[1], w]))
+        w = np.cumprod(np.concatenate([[1], w]))
         sp_y = batched_convolution(x, w).eval()
         np.testing.assert_almost_equal(y, sp_y)
 
