@@ -53,7 +53,7 @@ class BaseTestGammaGammaModel:
         return pd.DataFrame(
             {
                 "customer_id": self.z_mean_idx,
-                "mean_transaction_value": self.z_mean,
+                "monetary_value": self.z_mean,
                 "frequency": self.z_mean_nobs,
             }
         )
@@ -98,13 +98,11 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         with pytest.raises(KeyError, match="data must contain a frequency column"):
             GammaGammaModel(data=data_invalid)
 
-    def test_missing_mean_transaction_value(self, data):
+    def test_missing_monetary_value(self, data):
         # Create a version of the data that's missing the 'recency' column
-        data_invalid = data.drop(columns="mean_transaction_value")
+        data_invalid = data.drop(columns="monetary_value")
 
-        with pytest.raises(
-            KeyError, match="data must contain a mean_transaction_value column"
-        ):
+        with pytest.raises(KeyError, match="data must contain a monetary_value column"):
             GammaGammaModel(data=data_invalid)
 
     def test_model(self, model_config, default_model_config, data):
