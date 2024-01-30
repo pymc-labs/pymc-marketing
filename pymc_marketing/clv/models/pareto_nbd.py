@@ -80,8 +80,6 @@ class ParetoNBDModel(CLVModel):
             * `alpha_prior`: Scale parameter of time between purchases; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
             * `s_prior`: Shape parameter of time until dropout; defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
             * `beta_prior`: Scale parameter of time until dropout; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
-            * `alpha_scale_prior: Scale parameter of time between purchases if using covariates; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
-            * `beta_scale_prior: Scale parameter of time until dropout if using covariates; ; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
             * `purchase_covariates_prior`: Coefficients for purchase rate covariates; defaults to `pymc.Normal.dist(mu=0, sigma=1, n=len(purchase_covariates_cols)`
             * `dropout_covariates_prior`: Coefficients for dropout covariates; defaults to `pymc.Normal.dist(mu=0, sigma=1, n=len(dropout_covariates_cols)`
         If not provided, the model will use default priors specified in the `default_model_config` class attribute.
@@ -105,6 +103,8 @@ class ParetoNBDModel(CLVModel):
                     "alpha_prior": pm.Weibull.dist(alpha=2,beta=10),
                     "s_prior": pm.Weibull.dist(alpha=2,beta=1),
                     "beta_prior": pm.Weibull.dist(alpha=2,beta=10),
+                    "purchase_covariates_prior": pm.StudentT.dist(nu=1)
+                    "dropout_covariates_prior":pm.StudentT.dist(nu=1)
                 },
             )
 
@@ -229,7 +229,7 @@ class ParetoNBDModel(CLVModel):
         else:
             self.coords["purchase_covariates"] = self.purchase_covariate_cols  # type: ignore
             self.alpha_scale_prior = self._create_distribution(
-                self.model_config["alpha_scale_prior"]
+                self.model_config["alpha_prior"]
             )
             pr_ndim = len(self.purchase_covariate_shape)  # type: ignore
             self.purchase_covariates_coeff = self._create_distribution(
@@ -244,7 +244,7 @@ class ParetoNBDModel(CLVModel):
             self.coords["dropout_covariates"] = self.dropout_covariate_cols  # type: ignore
 
             self.beta_scale_prior = self._create_distribution(
-                self.model_config["beta_scale_prior"]
+                self.model_config["beta_prior"]
             )
             dr_ndim = len(self.purchase_covariate_shape)  # type: ignore
             self.dropout_covariates_coeff = self._create_distribution(
@@ -263,11 +263,6 @@ class ParetoNBDModel(CLVModel):
             "alpha_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
             "s_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 1}},
             "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
-            "alpha_scale_prior": {
-                "dist": "Weibull",
-                "kwargs": {"alpha": 2, "beta": 10},
-            },
-            "beta_scale_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
             "dropout_covariates_prior": {
                 "dist": "StudentT",
                 "kwargs": {"nu": 1, "shape": self.dropout_covariate_shape},
