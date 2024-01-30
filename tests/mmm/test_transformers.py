@@ -1,16 +1,23 @@
+from contextlib import nullcontext as does_not_raise
+
 import numpy as np
 import pytensor
 import pytensor.tensor as pt
 import pytest
-from pytensor.tensor.var import TensorVariable
+import scipy as sp
+from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.mmm.transformers import (
     ConvMode,
+    TanhSaturationParameters,
+    WeibullType,
     batched_convolution,
     delayed_adstock,
     geometric_adstock,
     logistic_saturation,
     tanh_saturation,
+    tanh_saturation_baselined,
+    weibull_adstock,
 )
 
 
@@ -67,10 +74,10 @@ def test_batched_convolution(convolution_inputs, convolution_axis, mode):
     x_val = np.moveaxis(
         x_val if x_val is not None else getattr(x, "value", x), convolution_axis, 0
     )
-    if mode == ConvMode.Before:
+    if mode == ConvMode.After:
         np.testing.assert_allclose(y_val[0], x_val[0])
         np.testing.assert_allclose(y_val[1:], x_val[1:] + x_val[:-1])
-    elif mode == ConvMode.After:
+    elif mode == ConvMode.Before:
         np.testing.assert_allclose(y_val[-1], x_val[-1])
         np.testing.assert_allclose(y_val[:-1], x_val[1:] + x_val[:-1])
     elif mode == ConvMode.Overlap:
@@ -166,6 +173,91 @@ class TestsAdstockTransformers:
         assert y.shape == x.shape
         np.testing.assert_almost_equal(actual=y, desired=ys, decimal=12)
 
+    @pytest.mark.parametrize(
+        "x, lam, k, l_max",
+        [
+            (np.zeros(shape=(100)), 1, 1, 4),
+            (np.ones(shape=(100)), 0.3, 0.5, 10),
+            (np.ones(shape=(100)), 0.7, 1, 100),
+            (np.zeros(shape=(100)), 0.2, 0.2, 5),
+            (np.ones(shape=(100)), 0.5, 0.8, 7),
+            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 1.5, 3),
+            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 1, 50),
+        ],
+    )
+    def test_weibull_pdf_adstock(self, x, lam, k, l_max):
+        y = weibull_adstock(x=x, lam=lam, k=k, l_max=l_max, type=WeibullType.PDF).eval()
+
+        assert np.all(np.isfinite(y))
+        w = sp.stats.weibull_min.pdf(np.arange(l_max) + 1, c=k, scale=lam)
+        w = (w - np.min(w)) / (np.max(w) - np.min(w))
+        sp_y = batched_convolution(x, w).eval()
+
+        np.testing.assert_almost_equal(y, sp_y)
+
+    @pytest.mark.parametrize(
+        "x, lam, k, l_max",
+        [
+            (np.zeros(shape=(100)), 1, 1, 4),
+            (np.ones(shape=(100)), 0.3, 0.5, 10),
+            (np.ones(shape=(100)), 0.7, 1, 100),
+            (np.zeros(shape=(100)), 0.2, 0.2, 5),
+            (np.ones(shape=(100)), 0.5, 0.8, 7),
+            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 1.5, 3),
+            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 1, 50),
+        ],
+    )
+    def test_weibull_cdf_adsotck(self, x, lam, k, l_max):
+        y = weibull_adstock(x=x, lam=lam, k=k, l_max=l_max, type=WeibullType.CDF).eval()
+
+        assert np.all(np.isfinite(y))
+        w = 1 - sp.stats.weibull_min.cdf(np.arange(l_max) + 1, c=k, scale=lam)
+        w = np.cumprod(np.concatenate([[1], w]))
+        sp_y = batched_convolution(x, w).eval()
+        np.testing.assert_almost_equal(y, sp_y)
+
+    @pytest.mark.parametrize(
+        "type",
+        [
+            WeibullType.PDF,
+            WeibullType.CDF,
+        ],
+    )
+    def test_weibull_adstock_vectorized(self, type, dummy_design_matrix):
+        x = dummy_design_matrix.copy()
+        x_tensor = pt.as_tensor_variable(x)
+        lam = [0.9, 0.33, 0.5, 0.1, 1.0]
+        lam_tensor = pt.as_tensor_variable(lam)
+        k = [0.8, 0.2, 0.6, 0.4, 1.0]
+        k_tensor = pt.as_tensor_variable(k)
+        y = weibull_adstock(
+            x=x_tensor, lam=lam_tensor, k=k_tensor, l_max=12, type=type
+        ).eval()
+
+        y_tensors = [
+            weibull_adstock(
+                x=x_tensor[:, i], lam=lam_tensor[i], k=k_tensor[i], l_max=12, type=type
+            )
+            for i in range(x.shape[1])
+        ]
+        ys = np.concatenate([y_t.eval()[..., None] for y_t in y_tensors], axis=1)
+        assert y.shape == x.shape
+        np.testing.assert_almost_equal(actual=y, desired=ys, decimal=12)
+
+    @pytest.mark.parametrize(
+        "type, expectation",
+        [
+            ("PDF", does_not_raise()),
+            ("CDF", does_not_raise()),
+            ("PMF", pytest.raises(ValueError)),
+            (WeibullType.PDF, does_not_raise()),
+            (WeibullType.CDF, does_not_raise()),
+        ],
+    )
+    def test_weibull_adstock_type(self, type, expectation):
+        with expectation:
+            weibull_adstock(x=np.ones(shape=(100)), lam=0.5, k=0.5, l_max=10, type=type)
+
 
 class TestSaturationTransformers:
     def test_logistic_saturation_lam_zero(self):
@@ -235,6 +327,61 @@ class TestSaturationTransformers:
         y = tanh_saturation(x=x, b=b, c=c)
         y_inv = (b * c) * pt.arctanh(y / b)
         np.testing.assert_array_almost_equal(x=x, y=y_inv.eval(), decimal=6)
+
+    @pytest.mark.parametrize(
+        "x, x0, gain, r",
+        [
+            (np.ones(shape=(100)), 10, 0.5, 0.5),
+            (np.zeros(shape=(100)), 10, 0.6, 0.3),
+            (np.linspace(start=0.0, stop=100.0, num=50), 10, 0.001, 0.01),
+            (np.linspace(start=0.0, stop=100.0, num=50), 10, 0.1, 0.01),
+            (np.linspace(start=0.0, stop=100.0, num=50), 10, 1, 0.25),
+        ],
+    )
+    def test_tanh_saturation_baselined_range(self, x, x0, gain, r):
+        b = (gain * x0) / r
+        assert tanh_saturation_baselined(x=x, x0=x0, gain=gain, r=r).eval().max() <= b
+        assert tanh_saturation_baselined(x=x, x0=x0, gain=gain, r=r).eval().min() >= -b
+
+    @pytest.mark.parametrize(
+        "x, x0, gain, r",
+        [
+            (np.ones(shape=(100)), 10, 0.5, 0.5),
+            (np.zeros(shape=(100)), 10, 0.6, 0.3),
+            (np.linspace(start=0.0, stop=100.0, num=50), 10, 0.001, 0.1),
+            (np.linspace(start=0.0, stop=100.0, num=50), 10, 0.1, 0.01),
+            (np.linspace(start=0.0, stop=100.0, num=50), 10, 1, 0.25),
+        ],
+    )
+    def test_tanh_saturation_baselined_inverse(self, x, x0, gain, r):
+        y = tanh_saturation_baselined(x=x, x0=x0, gain=gain, r=r)
+        b = (gain * x0) / r
+        c = r / (gain * pt.arctanh(r))
+        y_inv = (b * c) * pt.arctanh(y / b)
+        np.testing.assert_array_almost_equal(x=x, y=y_inv.eval(), decimal=6)
+
+    @pytest.mark.parametrize(
+        "x, b, c",
+        [
+            (np.linspace(start=0.0, stop=10.0, num=50), 20, 0.5),
+            (np.linspace(start=0.0, stop=10.0, num=50), 100, 0.5),
+            (np.linspace(start=0.0, stop=10.0, num=50), 100, 1),
+        ],
+    )
+    def test_tanh_saturation_parameterization_transformation(self, x, b, c):
+        param_classic = TanhSaturationParameters(b, c)
+        param_x0 = param_classic.baseline(5)
+        param_x1 = param_x0.rebaseline(6)
+        param_classic1 = param_x1.debaseline()
+        y1 = tanh_saturation(x, *param_classic).eval()
+        y2 = tanh_saturation_baselined(x, *param_x0).eval()
+        y3 = tanh_saturation_baselined(x, *param_x1).eval()
+        y4 = tanh_saturation(x, *param_classic1).eval()
+        np.testing.assert_allclose(y1, y2)
+        np.testing.assert_allclose(y2, y3)
+        np.testing.assert_allclose(y3, y4)
+        np.testing.assert_allclose(param_classic1.b.eval(), b)
+        np.testing.assert_allclose(param_classic1.c.eval(), c)
 
 
 class TestTransformersComposition:
