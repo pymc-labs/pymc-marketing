@@ -1,3 +1,4 @@
+import warnings
 from typing import Dict, Optional, Sequence, Union
 
 import numpy as np
@@ -218,6 +219,13 @@ class BetaGeoModel(CLVModel):
         r = trace["r"]
 
         return a, b, alpha, r
+
+    def expected_num_purchases(self, *args, **kwargs):
+        warnings.warn(
+            "Method was renamed to 'expected_purchases'. Old method will be removed in a future release.",
+            FutureWarning,
+        )
+        self.expected_purchases(*args, **kwargs)
 
     # taken from https://lifetimes.readthedocs.io/en/latest/lifetimes.fitters.html
     def expected_purchases(

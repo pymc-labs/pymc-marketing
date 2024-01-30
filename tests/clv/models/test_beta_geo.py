@@ -515,3 +515,29 @@ class TestBetaGeoModel:
         assert model.sampler_config == model2.sampler_config
         assert model.idata == model2.idata
         os.remove("test_model")
+
+    def test_expected_num_purchases_warning(self, data):
+        # TODO: This should either be made into a fixture or defined in the class setup.
+        mock_model = BetaGeoModel(
+            data=data,
+        )
+        mock_model.idata = az.from_dict(
+            {
+                "a": [self.a_true],
+                "b": [self.b_true],
+                "alpha": [self.alpha_true],
+                "r": [self.r_true],
+            }
+        )
+
+        with pytest.warns(
+            FutureWarning,
+            match="Method was renamed to 'expected_purchases'. Old method will be removed in a future release.",
+        ):
+            mock_model.expected_num_purchases(
+                data["customer_id"],
+                10,
+                data["frequency"],
+                data["recency"],
+                data["T"],
+            )
