@@ -77,8 +77,8 @@ class TestParetoNBDModel:
 
         cls.covar_model = ParetoNBDModel(
             cls.data,
-            pr_covar_columns=["cds_bought", "spent"],
-            dr_covar_columns=["cds_bought", "spent"],
+            purchase_covariate_cols=["cds_bought", "spent"],
+            dropout_covariate_cols=["cds_bought", "spent"],
         )
         # TODO: This can be removed after build_model() is called internally with __init__
         cls.covar_model.build_model()
@@ -86,26 +86,30 @@ class TestParetoNBDModel:
         # Parameters
         cls.cov_r_true = 0.4655
         cls.cov_s_true = 0.2499
-        cls.cov_alpha0_true = 62.4981
-        cls.cov_pr_coeff_true = 0.2499
-        cls.cov_beta0_true = 25.1449
-        cls.cov_dr_coeff_true = 0.2499
+        cls.cov_alpha_scale_true = 62.4981
+        cls.cov_purchase_covariates_coeff_true = 0.2499
+        cls.cov_beta_scale_true = 25.1449
+        cls.cov_dropout_covariates_coeff_true = 0.2499
 
         cls.covar_mock_fit = az.from_dict(
             {
                 "r": cls.rng.normal(cls.cov_r_true, 1e-3, size=(cls.chains, cls.draws)),
                 "s": cls.rng.normal(cls.cov_s_true, 1e-3, size=(cls.chains, cls.draws)),
-                "alpha0": cls.rng.normal(
-                    cls.cov_alpha0_true, 1e-3, size=(cls.chains, cls.draws)
+                "alpha_scale": cls.rng.normal(
+                    cls.cov_alpha_scale_true, 1e-3, size=(cls.chains, cls.draws)
                 ),
-                "pr_coeff": cls.rng.normal(
-                    cls.cov_pr_coeff_true, 1e-3, size=(cls.chains, cls.draws)
+                "purchase_covariates_coeff": cls.rng.normal(
+                    cls.cov_purchase_covariates_coeff_true,
+                    1e-3,
+                    size=(cls.chains, cls.draws),
                 ),
-                "beta0": cls.rng.normal(
-                    cls.cov_beta0_true, 1e-3, size=(cls.chains, cls.draws)
+                "beta_scale": cls.rng.normal(
+                    cls.cov_beta_scale_true, 1e-3, size=(cls.chains, cls.draws)
                 ),
-                "dr_coeff": cls.rng.normal(
-                    cls.cov_dr_coeff_true, 1e-3, size=(cls.chains, cls.draws)
+                "dropout_covariates_coeff": cls.rng.normal(
+                    cls.cov_dropout_covariates_coeff_true,
+                    1e-3,
+                    size=(cls.chains, cls.draws),
                 ),
             }
         )
@@ -127,10 +131,22 @@ class TestParetoNBDModel:
                 "alpha_prior": {"dist": "Weibull", "kwargs": {"alpha": 1, "beta": 1}},
                 "s_prior": {"dist": "HalfCauchy", "kwargs": {"beta": 2}},
                 "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 1, "beta": 1}},
-                "alpha0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
-                "beta0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
-                "dr_coeff": {"dist": "StudentT", "kwargs": {"nu": 1, "shape": (2,)}},
-                "pr_coeff": {"dist": "StudentT", "kwargs": {"nu": 1, "shape": (2,)}},
+                "alpha_scale_prior": {
+                    "dist": "Weibull",
+                    "kwargs": {"alpha": 2, "beta": 10},
+                },
+                "beta_scale_prior": {
+                    "dist": "Weibull",
+                    "kwargs": {"alpha": 2, "beta": 10},
+                },
+                "dropout_covariates_prior": {
+                    "dist": "StudentT",
+                    "kwargs": {"nu": 1, "shape": (2,)},
+                },
+                "purchase_covariates_prior": {
+                    "dist": "StudentT",
+                    "kwargs": {"nu": 1, "shape": (2,)},
+                },
             }
         else:
             config = model_config
@@ -169,16 +185,16 @@ class TestParetoNBDModel:
             }
         else:
             assert model.model.eval_rv_shapes() == {
-                "alpha0": (),
-                "alpha0_log__": (),
-                "beta0": (),
-                "beta0_log__": (),
+                "alpha_scale": (),
+                "alpha_scale_log__": (),
+                "beta_scale": (),
+                "beta_scale_log__": (),
                 "r": (),
                 "r_log__": (),
                 "s": (),
                 "s_log__": (),
-                "dr_coeff": (2,),
-                "pr_coeff": (2,),
+                "dropout_covariates_coeff": (2,),
+                "purchase_covariates_coeff": (2,),
             }
 
     def test_missing_customer_id(self):
@@ -226,10 +242,12 @@ class TestParetoNBDModel:
             KeyError, match="purchase_channel column is missing from data"
         ):
             ParetoNBDModel(
-                data=self.data, pr_covar_columns=["spent", "purchase_channel"]
+                data=self.data, purchase_covariate_cols=["spent", "purchase_channel"]
             )
         with pytest.raises(KeyError, match="discounts column is missing from data"):
-            ParetoNBDModel(data=self.data, dr_covar_columns=["spent", "discounts"])
+            ParetoNBDModel(
+                data=self.data, dropout_covariate_cols=["spent", "discounts"]
+            )
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
@@ -243,8 +261,8 @@ class TestParetoNBDModel:
     def test_model_convergence(self, fit_method, rtol, covar_columns):
         model = ParetoNBDModel(
             data=self.data,
-            pr_covar_columns=covar_columns,
-            dr_covar_columns=covar_columns,
+            purchase_covariate_cols=covar_columns,
+            dropout_covariate_cols=covar_columns,
         )
         # TODO: This can be removed after build_model() is called internally with __init__
         model.build_model()
@@ -356,7 +374,7 @@ class TestParetoNBDModel:
         est_prob_alive_t = self.model.expected_probability_alive(future_t=4.5)
         assert est_prob_alive.mean() > est_prob_alive_t.mean()
 
-        self.covar_model.expected_probability_alive()
+        assert est_prob_alive.mean() != self.covar_model.expected_probability_alive()
 
     @pytest.mark.parametrize("test_n, test_t", [(0, 0), (1, 1), (2, 2)])
     def test_expected_purchase_probability(self, test_n, test_t):
@@ -383,7 +401,7 @@ class TestParetoNBDModel:
             rtol=0.001,
         )
 
-        self.model.expected_purchase_probability(test_n, test_t, self.data)
+        self.covar_model.expected_purchase_probability(test_n, test_t, self.data)
 
     @pytest.mark.parametrize(
         "fake_fit, T",

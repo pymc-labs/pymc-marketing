@@ -70,9 +70,9 @@ class ParetoNBDModel(CLVModel):
             * `T`: time between the first purchase and the end of the observation period; model assumptions require T >= recency
             * `customer_id`: unique customer identifier
         Along with optional covariate columns.
-    pr_covar_columns: list, optional
+    purchase_covariate_cols: list, optional
         List containing column names of covariates for customer purchase rates.
-    dr_covar_columns: list, optional
+    dropout_covariate_cols: list, optional
         List containing column names of covariates for customer dropouts.
     model_config: dict, optional
         Dictionary containing model parameters:
@@ -80,10 +80,10 @@ class ParetoNBDModel(CLVModel):
             * `alpha_prior`: Scale parameter of time between purchases; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
             * `s_prior`: Shape parameter of time until dropout; defaults to `pymc.Weibull.dist(alpha=2, beta=1)`
             * `beta_prior`: Scale parameter of time until dropout; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
-            * `alpha0_prior: Scale parameter of time between purchases if using covariates; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
-            * `beta0_prior: Scale parameter of time until dropout if using covariates; ; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
-            * `pr_prior`: Coefficients for purchase rate covariates; defaults to `pymc.Normal.dist(mu=0, sigma=1, n=len(tr_covar)`
-            * `dr_prior`: Coefficients for dropout covariates; defaults to `pymc.Normal.dist(mu=0, sigma=1, n=len(dr_covar)`
+            * `alpha_scale_prior: Scale parameter of time between purchases if using covariates; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
+            * `beta_scale_prior: Scale parameter of time until dropout if using covariates; ; defaults to `pymc.Weibull.dist(alpha=2, beta=10)`
+            * `purchase_covariates_prior`: Coefficients for purchase rate covariates; defaults to `pymc.Normal.dist(mu=0, sigma=1, n=len(purchase_covariates_cols)`
+            * `dropout_covariates_prior`: Coefficients for dropout covariates; defaults to `pymc.Normal.dist(mu=0, sigma=1, n=len(dropout_covariates_cols)`
         If not provided, the model will use default priors specified in the `default_model_config` class attribute.
     sampler_config: dict, optional
         Dictionary of sampler parameters. Defaults to None.
@@ -173,8 +173,8 @@ class ParetoNBDModel(CLVModel):
     def __init__(
         self,
         data: pd.DataFrame,
-        pr_covar_columns: Optional[List[str]] = None,
-        dr_covar_columns: Optional[List[str]] = None,
+        purchase_covariate_cols: Optional[List[str]] = None,
+        dropout_covariate_cols: Optional[List[str]] = None,
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
     ):
@@ -184,24 +184,24 @@ class ParetoNBDModel(CLVModel):
         if len(np.unique(data["customer_id"])) != len(data["customer_id"]):
             raise ValueError("Customers must have unique ID labels.")
 
-        # validate data contains specified column names for covariates
-        for _ in zip(
-            [pr_covar_columns, dr_covar_columns],
-            ["purchase_rate_covariates", "dropout_covariates"],
-        ):
-            if _[0] is not None:
-                self._validate_column_names(data, _[0])
-                # self.coords[_[1]] = _[0]  # type: ignore
+        # validate if data contains specified column names for covariates
+        for covariates in [purchase_covariate_cols, dropout_covariate_cols]:
+            if covariates is not None:
+                self._validate_column_names(data, covariates)
 
-        self.pr_shape = (
-            0 if pr_covar_columns is None else np.array(pr_covar_columns).shape
+        self.purchase_covariate_shape = (
+            0
+            if purchase_covariate_cols is None
+            else np.array(purchase_covariate_cols).shape
         )
-        self.dr_shape = (
-            0 if dr_covar_columns is None else np.array(dr_covar_columns).shape
+        self.dropout_covariate_shape = (
+            0
+            if dropout_covariate_cols is None
+            else np.array(dropout_covariate_cols).shape
         )
 
-        self.pr_covar_columns = pr_covar_columns
-        self.dr_covar_columns = dr_covar_columns
+        self.purchase_covariate_cols = purchase_covariate_cols
+        self.dropout_covariate_cols = dropout_covariate_cols
 
         # TODO: self.data is persisted in idata object.
         #       Consider making the assignment optional as it can reduce saved model size considerably.
@@ -221,36 +221,36 @@ class ParetoNBDModel(CLVModel):
 
         priors = [self.r_prior, self.s_prior]
 
-        if self.pr_covar_columns is None:
+        if self.purchase_covariate_cols is None:
             self.alpha_prior = self._create_distribution(
                 self.model_config["alpha_prior"]
             )
             priors.extend([self.alpha_prior])
         else:
-            self.coords["purchase_rate_covariates"] = self.pr_covar_columns  # type: ignore
-            self.alpha0_prior = self._create_distribution(
-                self.model_config["alpha0_prior"]
+            self.coords["purchase_covariates"] = self.purchase_covariate_cols  # type: ignore
+            self.alpha_scale_prior = self._create_distribution(
+                self.model_config["alpha_scale_prior"]
             )
-            pr_ndim = len(self.pr_shape)  # type: ignore
-            self.pr_coeff = self._create_distribution(
-                self.model_config["pr_coeff"], ndim=pr_ndim
+            pr_ndim = len(self.purchase_covariate_shape)  # type: ignore
+            self.purchase_covariates_coeff = self._create_distribution(
+                self.model_config["purchase_covariates_prior"], ndim=pr_ndim
             )
-            priors.extend([self.alpha0_prior, self.pr_coeff])
+            priors.extend([self.alpha_scale_prior, self.purchase_covariates_coeff])
 
-        if self.dr_covar_columns is None:
+        if self.dropout_covariate_cols is None:
             self.beta_prior = self._create_distribution(self.model_config["beta_prior"])
             priors.extend([self.beta_prior])
         else:
-            self.coords["dropout_covariates"] = self.dr_covar_columns  # type: ignore
+            self.coords["dropout_covariates"] = self.dropout_covariate_cols  # type: ignore
 
-            self.beta0_prior = self._create_distribution(
-                self.model_config["beta0_prior"]
+            self.beta_scale_prior = self._create_distribution(
+                self.model_config["beta_scale_prior"]
             )
-            dr_ndim = len(self.pr_shape)  # type: ignore
-            self.dr_coeff = self._create_distribution(
-                self.model_config["dr_coeff"], ndim=dr_ndim
+            dr_ndim = len(self.purchase_covariate_shape)  # type: ignore
+            self.dropout_covariates_coeff = self._create_distribution(
+                self.model_config["dropout_covariates_prior"], ndim=dr_ndim
             )
-            priors.extend([self.beta0_prior, self.dr_coeff])
+            priors.extend([self.beta_scale_prior, self.dropout_covariates_coeff])
 
         self._process_priors(*priors)
 
@@ -263,15 +263,18 @@ class ParetoNBDModel(CLVModel):
             "alpha_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
             "s_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 1}},
             "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
-            "alpha0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
-            "beta0_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
-            "dr_coeff": {
-                "dist": "StudentT",
-                "kwargs": {"nu": 1, "shape": self.dr_shape},
+            "alpha_scale_prior": {
+                "dist": "Weibull",
+                "kwargs": {"alpha": 2, "beta": 10},
             },
-            "pr_coeff": {
+            "beta_scale_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+            "dropout_covariates_prior": {
                 "dist": "StudentT",
-                "kwargs": {"nu": 1, "shape": self.pr_shape},
+                "kwargs": {"nu": 1, "shape": self.dropout_covariate_shape},
+            },
+            "purchase_covariates_prior": {
+                "dist": "StudentT",
+                "kwargs": {"nu": 1, "shape": self.purchase_covariate_shape},
             },
         }
 
@@ -281,18 +284,25 @@ class ParetoNBDModel(CLVModel):
         with pm.Model(coords=self.coords) as self.model:
             # purchase rate priors
             r = self.model.register_rv(self.r_prior, name="r")
-            if self.pr_covar_columns is not None:
-                alpha0 = self.model.register_rv(self.alpha0_prior, name="alpha0")
+            if self.purchase_covariate_cols is not None:
+                alpha_scale = self.model.register_rv(
+                    self.alpha_scale_prior, name="alpha_scale"
+                )
 
-                pr_coeff = self.model.register_rv(
-                    self.pr_coeff, name="pr_coeff", dims=("purchase_rate_covariates",)
+                purchase_covariates_coeff = self.model.register_rv(
+                    self.purchase_covariates_coeff,
+                    name="purchase_covariates_coeff",
+                    dims=("purchase_covariates",),
                 )
 
                 alpha = pm.Deterministic(
                     name="alpha",
-                    var=alpha0
+                    var=alpha_scale
                     * pm.math.exp(
-                        -pm.math.dot(self.data[self.pr_covar_columns], pr_coeff)
+                        -pm.math.dot(
+                            self.data[self.purchase_covariate_cols],
+                            purchase_covariates_coeff,
+                        )
                     ),
                     dims="customer_id",
                 )
@@ -301,18 +311,25 @@ class ParetoNBDModel(CLVModel):
 
             # dropout priors
             s = self.model.register_rv(self.s_prior, name="s")
-            if self.dr_covar_columns is not None:
-                beta0 = self.model.register_rv(self.beta0_prior, name="beta0")
+            if self.dropout_covariate_cols is not None:
+                beta_scale = self.model.register_rv(
+                    self.beta_scale_prior, name="beta_scale"
+                )
 
-                dr_coeff = self.model.register_rv(
-                    self.dr_coeff, name="dr_coeff", dims=("dropout_covariates",)
+                dropout_covariates_coeff = self.model.register_rv(
+                    self.dropout_covariates_coeff,
+                    name="dropout_covariates_coeff",
+                    dims=("dropout_covariates",),
                 )
 
                 beta = pm.Deterministic(
                     name="beta",
-                    var=beta0
+                    var=beta_scale
                     * pm.math.exp(
-                        -pm.math.dot(self.data[self.dr_covar_columns], dr_coeff)
+                        -pm.math.dot(
+                            self.data[self.dropout_covariate_cols],
+                            dropout_covariates_coeff,
+                        )
                     ),
                     dims="customer_id",
                 )
@@ -357,38 +374,40 @@ class ParetoNBDModel(CLVModel):
         data: Union[pd.DataFrame, None],
     ) -> Tuple[Any, Any]:
         """
-        Utility function to process covariates into model parameters.
+        Utility function to process covariates. If used, covariate column names are validated,
+        and alpha and/or beta parameters replaced with covariate expressions.
         """
+
         # TODO: broadcasting needs to be resolved for out-of-sample data
         if data is None:
             data = self.data
 
-        if self.pr_covar_columns is None:
+        if self.purchase_covariate_cols is None:
             alpha = self.fit_result["alpha"]
         else:
-            self._validate_column_names(data, self.pr_covar_columns)
-            pr_xarray = xarray.DataArray(
-                data[self.pr_covar_columns],
-                dims=["customer_id", "purchase_rate_covariates"],
+            self._validate_column_names(data, self.purchase_covariate_cols)
+            purchase_xarray = xarray.DataArray(
+                data[self.purchase_covariate_cols],
+                dims=["customer_id", "purchase_covariates"],
             )
-            alpha0 = self.fit_result["alpha0"]
-            pr_coeff = self.fit_result["pr_coeff"]
-            alpha = alpha0 * np.exp(
-                -xarray.dot(pr_coeff, pr_xarray, dims="purchase_rate_covariates")
+            alpha_scale = self.fit_result["alpha_scale"]
+            purchase_coeff = self.fit_result["purchase_covariates_coeff"]
+            alpha = alpha_scale * np.exp(
+                -xarray.dot(purchase_coeff, purchase_xarray, dims="purchase_covariates")
             )
 
-        if self.dr_covar_columns is None:
+        if self.dropout_covariate_cols is None:
             beta = self.fit_result["beta"]
         else:
-            self._validate_column_names(data, self.dr_covar_columns)
-            dr_xarray = xarray.DataArray(
-                data[self.dr_covar_columns],
+            self._validate_column_names(data, self.dropout_covariate_cols)
+            dropout_xarray = xarray.DataArray(
+                data[self.dropout_covariate_cols],
                 dims=["customer_id", "dropout_covariates"],
             )
-            beta0 = self.fit_result["beta0"]
-            dr_coeff = self.fit_result["dr_coeff"]
-            beta = beta0 * np.exp(
-                -xarray.dot(dr_coeff, dr_xarray, dims="dropout_covariates")
+            beta_scale = self.fit_result["beta_scale"]
+            dropout_coeff = self.fit_result["dropout_covariates_coeff"]
+            beta = beta_scale * np.exp(
+                -xarray.dot(dropout_coeff, dropout_xarray, dims="dropout_covariates")
             )
         return alpha, beta
 
@@ -427,12 +446,12 @@ class ParetoNBDModel(CLVModel):
         """
         # Add one dummy dimension to the right of every parameter so they broadcast with the `T` vector
         # If using covariates, this dimension is already included for alpha and beta
-        if self.pr_covar_columns is None:
+        if self.purchase_covariate_cols is None:
             alpha = alpha.values[..., None]
         else:
             alpha = alpha.values
 
-        if self.dr_covar_columns is None:
+        if self.dropout_covariate_cols is None:
             beta = beta.values[..., None]
         else:
             beta = beta.values
@@ -561,7 +580,7 @@ class ParetoNBDModel(CLVModel):
         """
 
         # TODO: If requested, this is still possible from a what-if standpoint.
-        if self.pr_covar_columns or self.pr_covar_columns is not None:
+        if self.purchase_covariate_cols or self.purchase_covariate_cols is not None:
             raise NotImplementedError(
                 "New customer estimates not currently supported with covariates"
             )
@@ -774,7 +793,7 @@ class ParetoNBDModel(CLVModel):
         """Utility function for posterior predictive sampling from dropout and purchase rate distributions."""
 
         # TODO: If requested, covariate support still possible
-        if self.pr_covar_columns or self.dr_covar_columns is not None:
+        if self.purchase_covariate_cols or self.dropout_covariate_cols is not None:
             raise NotImplementedError(
                 "New customer estimates not currently supported with covariates"
             )
@@ -791,15 +810,20 @@ class ParetoNBDModel(CLVModel):
         with pm.Model():
             # purchase rate priors
             r = pm.HalfFlat("r")
-            if self.pr_covar_columns is not None:
-                alpha0 = pm.HalfFlat("alpha0")
-                pr_coeff = pm.Flat("pr_coeff", shape=len(self.pr_covar_columns))
+            if self.purchase_covariate_cols is not None:
+                alpha_scale = pm.HalfFlat("alpha_scale")
+                purchase_covariates_coeff = pm.Flat(
+                    "purchase_covariates_coeff", shape=len(self.purchase_covariate_cols)
+                )
 
                 alpha = pm.Deterministic(
                     "alpha",
-                    alpha0
+                    alpha_scale
                     * pm.math.exp(
-                        -pm.math.dot(self.data[self.pr_covar_columns], pr_coeff)
+                        -pm.math.dot(
+                            self.data[self.purchase_covariate_cols],
+                            purchase_covariates_coeff,
+                        )
                     ),
                 )
             else:
@@ -807,15 +831,20 @@ class ParetoNBDModel(CLVModel):
 
             # dropout priors
             s = pm.HalfFlat("s")
-            if self.dr_covar_columns is not None:
-                beta0 = pm.HalfFlat("beta0")
-                dr_coeff = pm.Flat("dr_coeff", shape=len(self.dr_covar_columns))
+            if self.dropout_covariate_cols is not None:
+                beta_scale = pm.HalfFlat("beta_scale")
+                dropout_covariates_coeff = pm.Flat(
+                    "dropout_covariates_coeff", shape=len(self.dropout_covariate_cols)
+                )
 
                 beta = pm.Deterministic(
                     "beta",
-                    beta0
+                    beta_scale
                     * pm.math.exp(
-                        -pm.math.dot(self.data[self.dr_covar_columns], dr_coeff)
+                        -pm.math.dot(
+                            self.data[self.dropout_covariate_cols],
+                            dropout_covariates_coeff,
+                        )
                     ),
                 )
             else:
