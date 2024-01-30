@@ -507,21 +507,21 @@ class BetaGeoBetaBinomRV(RandomVariable):
         churn_prob = rng.beta(a=delta, b=gamma, size=size)
 
         def sim_data(purchase_prob, churn_prob, T):
-            t = 0
-            n = 0
+            t_x = 0
+            x = 0
             active = True
 
-            while t <= T and active:
-                t += 1
+            while t_x <= T and active:
+                t_x += 1
                 active = rng.binomial(1, churn_prob)
                 purchase = rng.binomial(1, purchase_prob)
                 if active and purchase:
-                    n += 1
+                    x += 1
 
             return np.array(
                 [
-                    t,
-                    n,
+                    t_x,
+                    x,
                 ],
             )
 

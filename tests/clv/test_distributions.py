@@ -413,6 +413,11 @@ class TestBetaGeoBetaBinom:
                 T=T,
                 size=beta_geo_beta_binom_size,
             )
-            prior = pm.sample_prior_predictive(samples=10)
+            prior = pm.sample_prior_predictive(samples=1000)
+            prior = prior["prior"]["beta_geo_beta_binom"][0]
 
-        assert prior["prior"]["beta_geo_beta_binom"][0].shape == (10,) + expected_size
+        assert prior.shape == (1000,) + expected_size
+
+        dist = BetaGeoBetaBinom.dist(alpha, beta, gamma, delta, T, size=expected_size)
+
+        np.testing.assert_allclose(pm.draw(dist.mean()), prior.mean(), rtol=0.5)
