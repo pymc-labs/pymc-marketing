@@ -216,8 +216,11 @@ class TestSaturationTransformers:
         y = scale_preserving_logistic_saturation(x=x, m=0.0)
         np.testing.assert_array_almost_equal(x=np.zeros(shape=(100)), y=y.eval())
 
-    def test_scale_preserving_logistic_saturation_m_max_x(self):
-        # When m == max(x), f(max(x)) is max(x) * 0.76
+    def test_scale_preserving_logistic_saturation_m_eq_x(self):
+        # At x = m, the saturation f(x), reduces to
+        #     f(x) = m * (1 - exp(-2)) / (1 + exp(-2))
+        #          = m * 0.761594...
+        # This test asserts that this is the case
         x = np.ones(shape=(100))
         y = scale_preserving_logistic_saturation(x=x, m=1)
         np.testing.assert_array_almost_equal(
