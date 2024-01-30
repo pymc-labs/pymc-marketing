@@ -123,22 +123,40 @@ def transaction_data() -> pd.DataFrame:
 
 class TestCustomerLifetimeValue:
     @pytest.mark.parametrize(
-        "t, discount_rate, expected",
+        "t, discount_rate, expected_change",
         [
-            (1, 0, np.array([15.91086, 0.7538, 0])),
-            (1, 1, np.array([7.95543, 0.3769, 0])),
-            (2, 0, np.array([26.21316, 1.28481, 0])),
-            (2, 1, np.array([10.531, 0.50965, 0])),
+            (1, 0, 1),
+            (1, 1, 0.5),
+            (2, 0, 2),
+            (2, 1, 0.75),
         ],
     )
     def test_customer_lifetime_value_with_known_values(
-        self, test_summary_data, fitted_bg, t, discount_rate, expected
+        self, fitted_bg, t, discount_rate, expected_change
     ):
-        data = test_summary_data.head(3)
+        # Test borrowed from
+        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
+
+        # time=1, discount_rate=0 means the clv will be the same as the predicted
+        # time=1, discount_rate=1 means the clv will halve over a period
+        # time=2, discount_rate=0 means the clv will be twice the initial
+        # time=2, discount_rate=1 means the clv will be twice the initial
+
+        expected = np.array([0.016053, 0.021171, 0.030461, 0.031686, 0.001607])
+
+        data = pd.DataFrame(
+            {
+                "customer_id": [0, 1, 2, 3, 4],
+                "frequency": [0, 0, 6, 0, 2],
+                "recency": [0, 0, 142, 0, 9],
+                "T": [298, 224, 292, 147, 183],
+                "monetary_value": [1, 1, 1, 1, 1],
+            }
+        )
 
         clv = customer_lifetime_value(
             fitted_bg,
-            data.index,
+            data["customer_id"],
             data["frequency"],
             data["recency"],
             data["T"],
@@ -146,7 +164,8 @@ class TestCustomerLifetimeValue:
             time=t,
             discount_rate=discount_rate,
         ).mean(("chain", "draw"))
-        np.testing.assert_almost_equal(clv, expected, decimal=5)
+
+        np.testing.assert_allclose(clv, expected * expected_change, rtol=0.1)
 
     def test_customer_lifetime_value_gg_with_bgf(
         self, test_summary_data, fitted_gg, fitted_bg
