@@ -541,3 +541,23 @@ class TestBetaGeoModel:
                 data["recency"],
                 data["T"],
             )
+
+    def test_expected_num_purchases_new_customer_warning(self, data):
+        # TODO: This should either be made into a fixture or defined in the class setup.
+        mock_model = BetaGeoModel(
+            data=data,
+        )
+        mock_model.idata = az.from_dict(
+            {
+                "a": [self.a_true],
+                "b": [self.b_true],
+                "alpha": [self.alpha_true],
+                "r": [self.r_true],
+            }
+        )
+
+        with pytest.warns(
+            FutureWarning,
+            match="Method was renamed to 'expected_purchases_new_customer'. Old method will be removed in a future release.",
+        ):
+            mock_model.expected_num_purchases_new_customer(t=10)

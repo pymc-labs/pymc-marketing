@@ -327,6 +327,13 @@ class BetaGeoModel(CLVModel):
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
+    def expected_num_purchases_new_customer(self, *args, **kwargs):
+        warnings.warn(
+            "Method was renamed to 'expected_purchases_new_customer'. Old method will be removed in a future release.",
+            FutureWarning,
+        )
+        self.expected_purchases_new_customer(*args, **kwargs)
+
     def expected_purchases_new_customer(
         self,
         t: Union[np.ndarray, pd.Series],
