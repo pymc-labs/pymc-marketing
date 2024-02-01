@@ -1,5 +1,5 @@
 import warnings
-from typing import Dict, Optional, Sequence, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -8,7 +8,6 @@ import pytensor.tensor as pt
 import xarray as xr
 from pymc.distributions.dist_math import check_parameters
 from pymc.util import RandomState
-from pytensor.tensor import TensorVariable
 from scipy.special import expit, hyp2f1
 
 from pymc_marketing.clv.models.basic import CLVModel
@@ -106,6 +105,7 @@ class BetaGeoModel(CLVModel):
     """
 
     _model_type = "BG/NBD"  # Beta-Geometric Negative Binomial Distribution
+    _params = ["a", "b", "alpha", "r"]
 
     def __init__(
         self,
@@ -211,14 +211,34 @@ class BetaGeoModel(CLVModel):
                 ),
             )
 
-    def _unload_params(self):
-        trace = self.idata.posterior
-        a = trace["a"]
-        b = trace["b"]
-        alpha = trace["alpha"]
-        r = trace["r"]
+    def _unload_params(
+        self,
+    ) -> Tuple[Any, ...]:
+        """Utility function retrieving posterior parameters for predictive methods"""
+        assert self.idata is not None, "Model must be fit first."
+        return tuple([self.idata.posterior[param] for param in self._params])
 
-        return a, b, alpha, r
+    # TODO: Convert to list comprehension to support covariates?
+    def _process_customers(
+        self,
+        data: Union[pd.DataFrame, None],
+    ) -> Tuple[xr.DataArray, ...]:
+        """Utility function assigning default customer arguments
+        for predictive methods and converting to xarrays.
+        """
+        if data is None:
+            customer_id = self.customer_id
+            frequency = self.frequency
+            recency = self.recency
+            T = self.T
+        else:
+            data.columns = data.columns.str.upper()
+            customer_id = data["CUSTOMER_ID"]
+            frequency = data["FREQUENCY"]
+            recency = data["RECENCY"]
+            T = data["T"]
+
+        return to_xarray(customer_id, frequency, recency, T)
 
     def expected_num_purchases(self, *args, **kwargs):
         warnings.warn(
@@ -227,64 +247,61 @@ class BetaGeoModel(CLVModel):
         )
         self.expected_purchases(*args, **kwargs)
 
-    # taken from https://lifetimes.readthedocs.io/en/latest/lifetimes.fitters.html
+    # TODP: Docstring references
+    # adapted from https://lifetimes.readthedocs.io/en/latest/lifetimes.fitters.html
     def expected_purchases(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        t: Union[np.ndarray, pd.Series, TensorVariable],
-        frequency: Union[np.ndarray, pd.Series, TensorVariable],
-        recency: Union[np.ndarray, pd.Series, TensorVariable],
-        T: Union[np.ndarray, pd.Series, TensorVariable],
+        future_t: Union[float, np.ndarray, pd.Series],
+        data: Optional[pd.DataFrame] = None,
     ) -> xr.DataArray:
-        r"""
-        Given a purchase history/profile of :math:`x` and :math:`t_x` for an individual
-        customer, this method returns the expected number of future purchases in the
-        next time interval of length :math:`t`, i.e. :math:`(T, T + t]`. The closed form
-        solution for this equation is available as (10) from [1] linked above. With
-        :math:`\text{hyp2f1}` being the Gaussian hypergeometric function, the
-        expectation is defined as below.
-
-        .. math::
-
-           \mathbb{E}\left[Y(t) \mid x, t_x, T, r, \alpha, a, b\right] =
-           \frac
-           {
-            \frac{a + b + x - 1}{a - 1}\left[
-                1 - \left(\frac{\alpha + T}{\alpha + T + t}\right)^{r + x}
-                \text{hyp2f1}\left(
-                    r + x, b + x; a + b + x, \frac{1}{\alpha + T + t}
-                \right)
-            \right]
-           }
-           {
-            1 + \delta_{x > 0} \frac{a}{b + x - 1} \left(
-                \frac{\alpha + T}{\alpha + T + t}
-            \right)^{r + x}
-           }
         """
-        t = np.asarray(t)
-        if t.size != 1:
-            t = to_xarray(customer_id, t)
+        Given *recency*, *frequency*, and *T* for an individual customer, this method predicts the
+        expected number of future purchases across *future_t* time periods.
 
-        T = np.asarray(T)
-        if T.size != 1:
-            T = to_xarray(customer_id, T)
+        `data` parameter is not required if estimating probabilities for customers in model fit dataset.
 
-        # print(customer_id)
-        frequency, recency = to_xarray(customer_id, frequency, recency)
+        Adapted from equation (41) In Bruce Hardie's notes [2]_, and `lifetimes` package:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/pareto_nbd_fitter.py#L242
+
+        Parameters
+        ----------
+        future_t: array_like
+            Number of time periods to predict expected purchases.
+        data: pd.DataFrame
+            Optional dataframe containing the following columns:
+                * `frequency`: number of repeat purchases
+                * `recency`: time between the first and the last purchase
+                * `T`: time between the first purchase and the end of the observation period, model assumptions require T >= recency
+                * `customer_id`: unique customer identifier
+
+        References
+        ----------
+        .. [2] Fader, Peter & G. S. Hardie, Bruce (2005).
+               "A Note on Deriving the Pareto/NBD Model and Related Expressions."
+               http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
+        """
+        # mypy requires explicit typing declarations for these variables.
+        x: xr.DataArray
+        t_x: xr.DataArray
+        a: xr.DataArray
+        b: xr.DataArray
+        alpha: xr.DataArray
+        r: xr.DataArray
+
+        x, t_x, T = self._process_customers(data)
 
         a, b, alpha, r = self._unload_params()
 
-        numerator = 1 - ((alpha + T) / (alpha + T + t)) ** (r + frequency) * hyp2f1(
-            r + frequency,
-            b + frequency,
-            a + b + frequency - 1,
-            t / (alpha + T + t),
+        numerator = 1 - ((alpha + T) / (alpha + T + future_t)) ** (r + x) * hyp2f1(
+            r + x,
+            b + x,
+            a + b + x - 1,
+            future_t / (alpha + T + future_t),
         )
-        numerator *= (a + b + frequency - 1) / (a - 1)
-        denominator = 1 + (frequency > 0) * (a / (b + frequency - 1)) * (
-            (alpha + T) / (alpha + recency)
-        ) ** (r + frequency)
+        numerator *= (a + b + x - 1) / (a - 1)
+        denominator = 1 + (x > 0) * (a / (b + x - 1)) * ((alpha + T) / (alpha + x)) ** (
+            r + x
+        )
 
         return (numerator / denominator).transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
@@ -292,10 +309,7 @@ class BetaGeoModel(CLVModel):
 
     def expected_probability_alive(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        frequency: Union[np.ndarray, pd.Series],
-        recency: Union[np.ndarray, pd.Series],
-        T: Union[np.ndarray, pd.Series],
+        data: Optional[pd.DataFrame] = None,
     ) -> xr.DataArray:
         r"""
         Posterior expected value of the probability of being alive at time T. The
@@ -311,19 +325,23 @@ class BetaGeoModel(CLVModel):
                         \right)^{r + x}
                 \right\}
         """
-        T = np.asarray(T)
-        if T.size != 1:
-            T = to_xarray(customer_id, T)
+        # mypy requires explicit typing declarations for these variables.
+        x: xr.DataArray
+        t_x: xr.DataArray
+        a: xr.DataArray
+        b: xr.DataArray
+        alpha: xr.DataArray
+        r: xr.DataArray
 
-        frequency, recency = to_xarray(customer_id, frequency, recency)
+        x, t_x, T = self._process_customers(data)
 
         a, b, alpha, r = self._unload_params()
 
-        log_div = (r + frequency) * np.log((alpha + T) / (alpha + recency)) + np.log(
-            a / (b + np.maximum(frequency, 1) - 1)
+        log_div = (r + x) * np.log((alpha + T) / (alpha + t_x)) + np.log(
+            a / (b + np.maximum(x, 1) - 1)
         )
 
-        return xr.where(frequency == 0, 1.0, expit(-log_div)).transpose(
+        return xr.where(x == 0, 1.0, expit(-log_div)).transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
@@ -354,9 +372,13 @@ class BetaGeoModel(CLVModel):
             \right]
 
         """
+        # mypy requires explicit typing declarations for these variables.
+        a: xr.DataArray
+        b: xr.DataArray
+        alpha: xr.DataArray
+        r: xr.DataArray
+
         t = np.asarray(t)
-        if t.size != 1:
-            t = to_xarray(range(len(t)), t, dim="t")
 
         a, b, alpha, r = self._unload_params()
 

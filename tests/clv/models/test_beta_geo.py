@@ -8,41 +8,62 @@ import pytest
 import xarray as xr
 from lifetimes.fitters.beta_geo_fitter import BetaGeoFitter
 
-from pymc_marketing.clv.distributions import continuous_contractual
 from pymc_marketing.clv.models.beta_geo import BetaGeoModel
 
 
 class TestBetaGeoModel:
-    @staticmethod
-    def generate_data(a, b, alpha, r, N, rng):
-        # Subject level parameters
-        p = pm.Beta.dist(a, b, size=N)
-        lam = pm.Gamma.dist(r, alpha, size=N)
-        T = pm.DiscreteUniform.dist(lower=20, upper=40, size=N)
-
-        # Observations
-        data, T = pm.draw(
-            [
-                continuous_contractual(p=p, lam=lam, T=T, size=N),
-                T,
-            ],
-            random_seed=rng,
-        )
-        return data[..., 0], data[..., 1], 1 - data[..., 2], T
-
     @classmethod
     def setup_class(cls):
-        cls.N = 500
-        cls.a_true = 0.8
-        cls.b_true = 2.5
-        cls.alpha_true = 3
-        cls.r_true = 4
-        rng = np.random.default_rng(34)
+        # Set random seed
+        cls.rng = np.random.default_rng(34)
 
-        cls.customer_id = list(range(cls.N))
-        cls.recency, cls.frequency, cls.alive, cls.T = cls.generate_data(
-            cls.a_true, cls.b_true, cls.alpha_true, cls.r_true, cls.N, rng=rng
+        # parameters
+        cls.a_true = 0.79
+        cls.b_true = 2.43
+        cls.alpha_true = 4.41
+        cls.r_true = 0.24
+
+        # Use Quickstart dataset (the CDNOW_sample research data) for testing
+        # TODO: Create a pytest fixture for this
+        test_data = pd.read_csv("datasets/clv_quickstart.csv")
+        test_data["customer_id"] = test_data.index
+
+        cls.data = test_data
+        cls.customer_id = test_data["customer_id"]
+        cls.frequency = test_data["frequency"]
+        cls.recency = test_data["recency"]
+        cls.T = test_data["T"]
+
+        # Instantiate model with CDNOW data for testing
+        cls.model = BetaGeoModel(cls.data)
+        # TODO: This can be removed after build_model() is called internally with __init__
+        cls.model.build_model()
+
+        # Also instantiate lifetimes model for comparison
+        cls.lifetimes_model = BetaGeoFitter()
+        cls.lifetimes_model.params_ = {
+            "a": cls.a_true,
+            "b": cls.b_true,
+            "alpha": cls.alpha_true,
+            "r": cls.r_true,
+        }
+
+        # Mock an idata object for tests requiring a fitted model
+        cls.N = len(cls.customer_id)
+        cls.chains = 2
+        cls.draws = 50
+        cls.mock_fit = az.from_dict(
+            {
+                "a": cls.rng.normal(cls.a_true, 1e-3, size=(cls.chains, cls.draws)),
+                "b": cls.rng.normal(cls.b_true, 1e-3, size=(cls.chains, cls.draws)),
+                "alpha": cls.rng.normal(
+                    cls.alpha_true, 1e-3, size=(cls.chains, cls.draws)
+                ),
+                "r": cls.rng.normal(cls.r_true, 1e-3, size=(cls.chains, cls.draws)),
+            }
         )
+
+        cls.model.idata = cls.mock_fit
 
     @pytest.fixture(scope="class")
     def data(self):
@@ -246,61 +267,6 @@ class TestBetaGeoModel:
             rtol=rtol,
         )
 
-    def test_expected_probability_alive(self):
-        """
-        The "true" prefix refers to the value obtained using 1) the closed form
-        solution and 2) the data-generating parameter values.
-        """
-        rng = np.random.default_rng(152)
-
-        N = 100
-        # Almost deterministic p = .02, which yield a p(alive) ~ 0.5
-        a = 0.02 * 10_000
-        b = 0.98 * 10_000
-        alpha = 3
-        r = 4
-
-        recency, frequency, alive, T = self.generate_data(a, b, alpha, r, N, rng=rng)
-
-        customer_id = list(range(N))
-        data = pd.DataFrame(
-            {
-                "customer_id": customer_id,
-                "frequency": frequency,
-                "recency": recency,
-                "T": T,
-            }
-        )
-        bg_model = BetaGeoModel(
-            data=data,
-        )
-        bg_model.build_model()
-        fake_fit = az.from_dict(
-            {
-                "a": rng.normal(a, 1e-3, size=(2, 25)),
-                "b": rng.normal(b, 1e-3, size=(2, 25)),
-                "alpha": rng.normal(alpha, 1e-3, size=(2, 25)),
-                "r": rng.normal(r, 1e-3, size=(2, 25)),
-            }
-        )
-        bg_model.idata = fake_fit
-
-        est_prob_alive = bg_model.expected_probability_alive(
-            customer_id,
-            frequency,
-            recency,
-            T,
-        )
-
-        assert est_prob_alive.shape == (2, 25, N)
-        assert est_prob_alive.dims == ("chain", "draw", "customer_id")
-
-        np.testing.assert_allclose(
-            alive.mean(),
-            est_prob_alive.mean(),
-            rtol=0.05,
-        )
-
     def test_fit_result_without_fit(self, data, model_config):
         model = BetaGeoModel(data=data, model_config=model_config)
         with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
@@ -316,113 +282,6 @@ class TestBetaGeoModel:
         assert len(idata.posterior.chain) == 2
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
-
-    def test_expected_purchases(self):
-        customer_id = np.arange(10)
-        test_t = np.linspace(20, 38, 10)
-        test_frequency = np.tile([1, 3, 5, 7, 9], 2)
-        test_recency = np.tile([20, 30], 5)
-        test_T = np.tile([25, 35], 5)
-        data = pd.DataFrame(
-            {
-                "customer_id": customer_id,
-                "frequency": test_frequency,
-                "recency": test_recency,
-                "T": test_T,
-            }
-        )
-
-        bg_model = BetaGeoModel(data=data)
-        bg_model.build_model()
-        bg_model.idata = az.from_dict(
-            {
-                "a": np.full((2, 5), self.a_true),
-                "b": np.full((2, 5), self.b_true),
-                "alpha": np.full((2, 5), self.alpha_true),
-                "r": np.full((2, 5), self.r_true),
-            }
-        )
-
-        res_num_purchases = bg_model.expected_purchases(
-            customer_id,
-            test_t,
-            test_frequency,
-            test_recency,
-            test_T,
-        )
-        assert res_num_purchases.shape == (2, 5, 10)
-        assert res_num_purchases.dims == ("chain", "draw", "customer_id")
-
-        # Compare with lifetimes
-        lifetimes_bg_model = BetaGeoFitter()
-        lifetimes_bg_model.params_ = {
-            "a": self.a_true,
-            "b": self.b_true,
-            "alpha": self.alpha_true,
-            "r": self.r_true,
-        }
-        lifetimes_res_num_purchases = (
-            lifetimes_bg_model.conditional_expected_number_of_purchases_up_to_time(
-                t=test_t,
-                frequency=test_frequency,
-                recency=test_recency,
-                T=test_T,
-            )
-        )
-        np.testing.assert_allclose(
-            res_num_purchases.mean(("chain", "draw")),
-            lifetimes_res_num_purchases,
-            rtol=0.1,
-        )
-
-    def test_expected_purchases_new_customer(self):
-        customer_id = np.arange(10)
-        test_t = np.linspace(20, 38, 10)
-        test_frequency = np.tile([1, 3, 5, 7, 9], 2)
-        test_recency = np.tile([20, 30], 5)
-        test_T = np.tile([25, 35], 5)
-        data = pd.DataFrame(
-            {
-                "customer_id": customer_id,
-                "frequency": test_frequency,
-                "recency": test_recency,
-                "T": test_T,
-            }
-        )
-        bg_model = BetaGeoModel(data=data)
-        bg_model.build_model()
-        bg_model.idata = az.from_dict(
-            {
-                "a": np.full((2, 5), self.a_true),
-                "b": np.full((2, 5), self.b_true),
-                "alpha": np.full((2, 5), self.alpha_true),
-                "r": np.full((2, 5), self.r_true),
-            }
-        )
-
-        res_num_purchases_new_customer = bg_model.expected_purchases_new_customer(
-            test_t
-        )
-        assert res_num_purchases_new_customer.shape == (2, 5, 10)
-        assert res_num_purchases_new_customer.dims == ("chain", "draw", "t")
-
-        # Compare with lifetimes
-        lifetimes_bg_model = BetaGeoFitter()
-        lifetimes_bg_model.params_ = {
-            "a": self.a_true,
-            "b": self.b_true,
-            "alpha": self.alpha_true,
-            "r": self.r_true,
-        }
-        lifetimes_res_num_purchases_new_customer = (
-            lifetimes_bg_model.expected_number_of_purchases_up_to_time(t=test_t)
-        )
-
-        np.testing.assert_allclose(
-            res_num_purchases_new_customer.mean(("chain", "draw")),
-            lifetimes_res_num_purchases_new_customer,
-            rtol=1,
-        )
 
     def test_model_repr(self, data):
         model_config = {
@@ -443,6 +302,64 @@ class TestBetaGeoModel:
             "\nalpha~HalfFlat()"
             "\nr~HalfFlat()"
             "\nlikelihood~Potential(f(r,alpha,b,a))"
+        )
+
+    @pytest.mark.parametrize("test_t", [1, 2, 3, 4, 5, 6])
+    def test_expected_purchases(self, test_t):
+        true_purchases = (
+            self.lifetimes_model.conditional_expected_number_of_purchases_up_to_time(
+                t=test_t,
+                frequency=self.frequency,
+                recency=self.recency,
+                T=self.T,
+            )
+        )
+
+        est_num_purchases = self.model.expected_purchases(test_t)
+
+        assert est_num_purchases.shape == (self.chains, self.draws, self.N)
+        assert est_num_purchases.dims == ("chain", "draw", "customer_id")
+
+        np.testing.assert_allclose(
+            true_purchases,
+            est_num_purchases.mean(("chain", "draw")),
+            rtol=0.001,
+        )
+
+    @pytest.mark.parametrize("test_t", [1, 2, 3, 4, 5, 6])
+    def test_expected_purchases_new_customer(self, test_t):
+        true_purchases_new = (
+            self.lifetimes_model.expected_number_of_purchases_up_to_time(
+                t=test_t,
+            )
+        )
+
+        est_purchases_new = self.model.expected_purchases_new_customer(test_t)
+
+        assert est_purchases_new.shape == (self.chains, self.draws)
+        assert est_purchases_new.dims == ("chain", "draw")
+
+        np.testing.assert_allclose(
+            true_purchases_new,
+            est_purchases_new.mean(("chain", "draw")),
+            rtol=0.001,
+        )
+
+    def test_expected_probability_alive(self):
+        true_prob_alive = self.lifetimes_model.conditional_probability_alive(
+            frequency=self.frequency,
+            recency=self.recency,
+            T=self.T,
+        )
+
+        est_prob_alive = self.model.expected_probability_alive()
+
+        assert est_prob_alive.shape == (self.chains, self.draws, self.N)
+        assert est_prob_alive.dims == ("chain", "draw", "customer_id")
+        np.testing.assert_allclose(
+            true_prob_alive,
+            est_prob_alive.mean(("chain", "draw")),
+            rtol=0.001,
         )
 
     def test_distribution_new_customer(self, data) -> None:
@@ -534,13 +451,7 @@ class TestBetaGeoModel:
             FutureWarning,
             match="Method was renamed to 'expected_purchases'. Old method will be removed in a future release.",
         ):
-            mock_model.expected_num_purchases(
-                data["customer_id"],
-                10,
-                data["frequency"],
-                data["recency"],
-                data["T"],
-            )
+            mock_model.expected_num_purchases(10)
 
     def test_expected_num_purchases_new_customer_warning(self, data):
         # TODO: This should either be made into a fixture or defined in the class setup.
