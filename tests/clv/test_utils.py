@@ -7,7 +7,7 @@ import pytest
 import xarray
 from pandas.testing import assert_frame_equal
 
-from pymc_marketing.clv import BetaGeoModel, GammaGammaModel
+from pymc_marketing.clv import BetaGeoModel, GammaGammaModel, ParetoNBDModel
 from pymc_marketing.clv.utils import (
     _find_first_transactions,
     clv_summary,
@@ -58,20 +58,39 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
         "b_prior": {"dist": "DiracDelta", "kwargs": {"c": 3.18105431}},
         "r_prior": {"dist": "DiracDelta", "kwargs": {"c": 0.16385072}},
     }
-    model = BetaGeoModel(
+    bg_model = BetaGeoModel(
         data=test_summary_data,
         model_config=model_config,
     )
-    model.build_model()
+    bg_model.build_model()
     fake_fit = pm.sample_prior_predictive(
-        samples=50, model=model.model, random_seed=rng
+        samples=50, model=bg_model.model, random_seed=rng
     )
     fake_fit.add_groups(dict(posterior=fake_fit.prior))
-    model.idata = fake_fit
-    model.set_idata_attrs(model.idata)
-    model._add_fit_data_group(model.data)
+    bg_model.idata = fake_fit
+    bg_model.set_idata_attrs(bg_model.idata)
+    bg_model._add_fit_data_group(bg_model.data)
 
-    return model
+    return bg_model
+
+
+@pytest.fixture(scope="module")
+def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
+    rng = np.random.default_rng(13)
+
+    pnbd_model = ParetoNBDModel(test_summary_data)
+    pnbd_model.build_model()
+
+    # Mock an idata object for tests requiring a fitted model
+    fake_fit = pm.sample_prior_predictive(
+        samples=50, model=pnbd_model.model, random_seed=rng
+    )
+    fake_fit.add_groups(dict(posterior=fake_fit.prior))
+    pnbd_model.idata = fake_fit
+    pnbd_model.set_idata_attrs(pnbd_model.idata)
+    pnbd_model._add_fit_data_group(pnbd_model.data)
+
+    return pnbd_model
 
 
 @pytest.fixture(scope="module")
@@ -178,7 +197,7 @@ class TestCustomerLifetimeValue:
             frequency=t["frequency"],
             recency=t["recency"],
             T=t["T"],
-            mean_transaction_value=t["monetary_value"],
+            monetary_value=t["monetary_value"],
         )
 
         utils_clv = customer_lifetime_value(
@@ -189,7 +208,7 @@ class TestCustomerLifetimeValue:
             T=t["T"],
             monetary_value=fitted_gg.expected_customer_spend(
                 t.index,
-                mean_transaction_value=t["monetary_value"],
+                monetary_value=t["monetary_value"],
                 frequency=t["frequency"],
             ),
         )
@@ -226,7 +245,7 @@ class TestCustomerLifetimeValue:
             T=t["T"],
             monetary_value=gg.expected_customer_spend(
                 t.index,
-                mean_transaction_value=t["monetary_value"],
+                monetary_value=t["monetary_value"],
                 frequency=t["frequency"],
             ),
         )
@@ -242,7 +261,7 @@ class TestCustomerLifetimeValue:
             frequency=t["frequency"],
             recency=t["recency"],
             T=t["T"],
-            mean_transaction_value=t["monetary_value"],
+            monetary_value=t["monetary_value"],
         )
 
         fitted_gg_thinned = fitted_gg.thin_fit_result(keep_every=10)
@@ -253,7 +272,7 @@ class TestCustomerLifetimeValue:
             frequency=t["frequency"],
             recency=t["recency"],
             T=t["T"],
-            mean_transaction_value=t["monetary_value"],
+            monetary_value=t["monetary_value"],
         )
 
         assert ggf_clv.shape == (1, 50, 5)

@@ -31,14 +31,14 @@ class BaseGammaGammaModel(CLVModel):
     def distribution_customer_spend(
         self,
         customer_id: Union[np.ndarray, pd.Series],
-        mean_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
+        monetary_value: Union[np.ndarray, pd.Series, TensorVariable],
         frequency: Union[np.ndarray, pd.Series, TensorVariable],
         random_seed: Optional[RandomState] = None,
     ) -> xarray.DataArray:
         """Posterior distribution of transaction value per customer"""
 
         x = frequency
-        z_mean = mean_transaction_value
+        z_mean = monetary_value
 
         coords = {"customer_id": np.unique(customer_id)}
         with pm.Model(coords=coords):
@@ -60,7 +60,7 @@ class BaseGammaGammaModel(CLVModel):
     def expected_customer_spend(
         self,
         customer_id: Union[np.ndarray, pd.Series],
-        mean_transaction_value: Union[np.ndarray, pd.Series],
+        monetary_value: Union[np.ndarray, pd.Series],
         frequency: Union[np.ndarray, pd.Series],
     ) -> xarray.DataArray:
         """Expected transaction value per customer
@@ -70,9 +70,7 @@ class BaseGammaGammaModel(CLVModel):
         Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117  # noqa: E501
         """
 
-        mean_transaction_value, frequency = to_xarray(
-            customer_id, mean_transaction_value, frequency
-        )
+        monetary_value, frequency = to_xarray(customer_id, monetary_value, frequency)
         assert self.idata is not None, "Model must be fitted first"
         p = self.idata.posterior["p"]
         q = self.idata.posterior["q"]
@@ -82,7 +80,7 @@ class BaseGammaGammaModel(CLVModel):
         population_mean = v * p / (q - 1)
         return (
             1 - individual_weight
-        ) * population_mean + individual_weight * mean_transaction_value
+        ) * population_mean + individual_weight * monetary_value
 
     def distribution_new_customer_spend(
         self, n=1, random_seed=None
@@ -104,7 +102,7 @@ class BaseGammaGammaModel(CLVModel):
             ).posterior_predictive["mean_spend"]
 
     def expected_new_customer_spend(self) -> xarray.DataArray:
-        """Expected transaction value for a new customer"""
+        """Expected monetary value for a new customer"""
 
         assert self.idata is not None, "Model must be fitted first"
         p_mean = self.idata.posterior["p"]
@@ -123,7 +121,7 @@ class BaseGammaGammaModel(CLVModel):
         self,
         transaction_model: CLVModel,
         customer_id: Union[np.ndarray, pd.Series],
-        mean_transaction_value: Union[np.ndarray, pd.Series],
+        monetary_value: Union[np.ndarray, pd.Series],
         frequency: Union[np.ndarray, pd.Series],
         recency: Union[np.ndarray, pd.Series],
         T: Union[np.ndarray, pd.Series],
@@ -139,7 +137,7 @@ class BaseGammaGammaModel(CLVModel):
         # Use the Gamma-Gamma estimates for the monetary_values
         adjusted_monetary_value = self.expected_customer_spend(
             customer_id=customer_id,
-            mean_transaction_value=mean_transaction_value,
+            monetary_value=monetary_value,
             frequency=frequency,
         )
 
@@ -193,7 +191,7 @@ class GammaGammaModel(BaseGammaGammaModel):
             model = GammaGammaModel(
                 data=pd.DataFrame({
                     "customer_id": [0, 1, 2, 3, ...],
-                    "mean_transaction_value" :[23.5, 19.3, 11.2, 100.5, ...],
+                    "monetary_value" :[23.5, 19.3, 11.2, 100.5, ...],
                     "frequency": [6, 8, 2, 1, ...],
                 }),
                 model_config={
@@ -216,7 +214,7 @@ class GammaGammaModel(BaseGammaGammaModel):
             # Predict spend of customers for which we know transaction history, conditioned on data.
             expected_customer_spend = model.expected_customer_spend(
                 customer_id=[0, 1, 2, 3, ...],
-                mean_transaction_value=[23.5, 19.3, 11.2, 100.5, ...],
+                monetary_value=[23.5, 19.3, 11.2, 100.5, ...],
                 frequency=[6, 8, 2, 1, ...],
             )
             print(expected_customer_spend.mean("customer_id"))
@@ -248,9 +246,9 @@ class GammaGammaModel(BaseGammaGammaModel):
         except KeyError:
             raise KeyError("data must contain a customer_id column")
         try:
-            self.mean_transaction_value: Union[
-                np.ndarray, pd.Series, TensorVariable
-            ] = data["monetary_value"]
+            self.monetary_value: Union[np.ndarray, pd.Series, TensorVariable] = data[
+                "monetary_value"
+            ]
         except KeyError:
             raise KeyError("data must contain a monetary_value column")
         try:
@@ -274,7 +272,7 @@ class GammaGammaModel(BaseGammaGammaModel):
         }
 
     def build_model(self):
-        z_mean = pt.as_tensor_variable(self.mean_transaction_value)
+        z_mean = pt.as_tensor_variable(self.monetary_value)
         x = pt.as_tensor_variable(self.frequency)
         with pm.Model(coords=self.coords) as self.model:
             p = self.model.register_rv(self.p_prior, name="p")
@@ -315,7 +313,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         Dataframe containing the following columns:
             - customer_id: Customer labels. The same value should be used for each observation
         coming from the same customer.
-            - individual_transaction_value: Value of individual transactions.
+            - monetary_value: Value of individual monetary transactions.
     model_config: dict, optional
         Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
     sampler_config: dict, optional
@@ -335,7 +333,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             model = GammaGammaModelIndividual(
                 data=pd.DataFrame({
                     "customer_id": [0, 0, 0, 1, 1, 2, ...],
-                    "individual_transaction_value": [5.3. 5.7, 6.9, 13.5, 0.3, 19.2 ...],
+                    "monetary_value": [5.3. 5.7, 6.9, 13.5, 0.3, 19.2 ...],
                 }),
                 model_config={
                     "p_prior": {dist: 'HalfNorm', kwargs: {}},
@@ -358,7 +356,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             # conditioned on data. May include customers not included in fitting
             expected_customer_spend = model.expected_customer_spend(
                 customer_id=[0, 0, 0, 1, 1, 2, ...],
-                individual_transaction_value=[5.3. 5.7, 6.9, 13.5, 0.3, 19.2 ...],
+                monetary_value=[5.3. 5.7, 6.9, 13.5, 0.3, 19.2 ...],
             )
             print(expected_customer_spend.mean("customer_id"))
 
@@ -390,11 +388,11 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         except KeyError:
             raise KeyError("data must contain a 'customer_id' column")
         try:
-            self.individual_transaction_value: Union[
-                np.ndarray, pd.Series, TensorVariable
-            ] = data["individual_transaction_value"]
+            self.monetary_value: Union[np.ndarray, pd.Series, TensorVariable] = data[
+                "monetary_value"
+            ]
         except KeyError:
-            raise KeyError("data must contain a 'individual_transaction_value' column")
+            raise KeyError("data must contain a 'monetary_value' column")
         super().__init__(
             data=data, model_config=model_config, sampler_config=sampler_config
         )
@@ -408,7 +406,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         }
 
     def build_model(self):
-        z = self.individual_transaction_value
+        z = self.monetary_value
 
         self.coords = {
             "customer_id": np.unique(self.customer_id),
@@ -422,16 +420,14 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             nu = pm.Gamma("nu", q, v, dims=("customer_id",))
             pm.Gamma("spend", p, nu[self.customer_id], observed=z, dims=("obs",))
 
-    def _summarize_mean_data(self, customer_id, individual_transaction_value):
+    def _summarize_mean_data(self, customer_id, monetary_value):
         df = pd.DataFrame(
             {
                 "customer_id": customer_id,
-                "individual_transaction_value": individual_transaction_value,
+                "monetary_value": monetary_value,
             }
         )
-        gdf = df.groupby("customer_id")["individual_transaction_value"].aggregate(
-            ("count", "mean")
-        )
+        gdf = df.groupby("customer_id")["monetary_value"].aggregate(("count", "mean"))
         customer_id = gdf.index
         x = gdf["count"]
         z_mean = gdf["mean"]
@@ -441,18 +437,16 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     def distribution_customer_spend(  # type: ignore [override]
         self,
         customer_id: Union[np.ndarray, pd.Series],
-        individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
+        monetary_value: Union[np.ndarray, pd.Series, TensorVariable],
         random_seed: Optional[RandomState] = None,
     ) -> xarray.DataArray:
         """Return distribution of transaction value per customer"""
 
-        customer_id, z_mean, x = self._summarize_mean_data(
-            customer_id, individual_transaction_value
-        )
+        customer_id, z_mean, x = self._summarize_mean_data(customer_id, monetary_value)
 
         return super().distribution_customer_spend(
             customer_id=customer_id,
-            mean_transaction_value=z_mean,
+            monetary_value=z_mean,
             frequency=x,
             random_seed=random_seed,
         )
@@ -460,18 +454,16 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     def expected_customer_spend(
         self,
         customer_id: Union[np.ndarray, pd.Series],
-        individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
+        monetary_value: Union[np.ndarray, pd.Series, TensorVariable],
         random_seed: Optional[RandomState] = None,
     ) -> xarray.DataArray:
         """Return expected transaction value per customer"""
 
-        customer_id, z_mean, x = self._summarize_mean_data(
-            customer_id, individual_transaction_value
-        )
+        customer_id, z_mean, x = self._summarize_mean_data(customer_id, monetary_value)
 
         return super().expected_customer_spend(
             customer_id=customer_id,
-            mean_transaction_value=z_mean,
+            monetary_value=z_mean,
             frequency=x,
             random_seed=random_seed,  # type: ignore [call-arg]
         )
@@ -480,7 +472,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         self,
         transaction_model: CLVModel,
         customer_id: Union[np.ndarray, pd.Series],
-        individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
+        monetary_value: Union[np.ndarray, pd.Series, TensorVariable],
         recency: Union[np.ndarray, pd.Series],
         T: Union[np.ndarray, pd.Series],
         time: int = 12,
@@ -492,14 +484,12 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         See clv.utils.customer_lifetime_value for details on the meaning of each parameter
         """
 
-        customer_id, z_mean, x = self._summarize_mean_data(
-            customer_id, individual_transaction_value
-        )
+        customer_id, z_mean, x = self._summarize_mean_data(customer_id, monetary_value)
 
         return super().expected_customer_lifetime_value(
             transaction_model=transaction_model,
             customer_id=customer_id,
-            mean_transaction_value=z_mean,
+            monetary_value=z_mean,
             frequency=x,
             recency=recency,
             T=T,

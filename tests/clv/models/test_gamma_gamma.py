@@ -63,7 +63,7 @@ class BaseTestGammaGammaModel:
         return pd.DataFrame(
             {
                 "customer_id": self.z_idx,
-                "individual_transaction_value": self.z,
+                "monetary_value": self.z,
             }
         )
 
@@ -180,14 +180,14 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         if distribution:
             preds = model.distribution_customer_spend(
                 customer_id=self.z_mean_idx,
-                mean_transaction_value=self.z_mean,
+                monetary_value=self.z_mean,
                 frequency=1000,
                 random_seed=self.rng,
             )
         else:
             preds = model.expected_customer_spend(
                 customer_id=self.z_mean_idx,
-                mean_transaction_value=self.z_mean,
+                monetary_value=self.z_mean,
                 frequency=1000,
             )
         assert preds.shape == (1, 1000, len(self.z_mean_idx))
@@ -205,7 +205,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         if distribution:
             preds = model.distribution_customer_spend(
                 customer_id=self.z_mean_idx[:10],
-                mean_transaction_value=self.z_mean[:10],
+                monetary_value=self.z_mean[:10],
                 frequency=0,
                 random_seed=self.rng,
             )
@@ -221,7 +221,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             # Force posterior close to group mean with zero observations
             preds = model.expected_customer_spend(
                 customer_id=self.z_mean_idx[:10],
-                mean_transaction_value=self.z_mean[:10],
+                monetary_value=self.z_mean[:10],
                 # Force the posterior to be centered around the empirical mean
                 frequency=0,
             )
@@ -304,9 +304,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         # Check if the loaded data matches with the model data
         assert np.array_equal(model2.customer_id.values, model.customer_id.values)
         assert np.array_equal(model2.frequency, model.frequency)
-        assert np.array_equal(
-            model2.mean_transaction_value, model.mean_transaction_value
-        )
+        assert np.array_equal(model2.monetary_value, model.monetary_value)
 
         assert model.model_config == model2.model_config
         assert model.sampler_config == model2.sampler_config
@@ -321,12 +319,12 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         with pytest.raises(KeyError, match="data must contain a 'customer_id' column"):
             GammaGammaModelIndividual(data=data_invalid)
 
-    def test_missing_individual_transaction_value(self, individual_data):
+    def test_missing_monetary_value(self, individual_data):
         # Create a version of the data that's missing the 'recency' column
-        data_invalid = individual_data.drop(columns="individual_transaction_value")
+        data_invalid = individual_data.drop(columns="monetary_value")
 
         with pytest.raises(
-            KeyError, match="data must contain a 'individual_transaction_value' column"
+            KeyError, match="data must contain a 'monetary_value' column"
         ):
             GammaGammaModelIndividual(data=data_invalid)
 
@@ -394,16 +392,14 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         )
         model.build_model()
         model.distribution_customer_spend(
-            customer_id=self.z_idx, individual_transaction_value=self.z, random_seed=123
+            customer_id=self.z_idx, monetary_value=self.z, random_seed=123
         )
 
         dummy_method.assert_called_once()
 
         kwargs = dummy_method.call_args[1]
         np.testing.assert_array_equal(kwargs["customer_id"].values, self.z_mean_idx)
-        np.testing.assert_array_equal(
-            kwargs["mean_transaction_value"].values, self.z_mean
-        )
+        np.testing.assert_array_equal(kwargs["monetary_value"].values, self.z_mean)
         np.testing.assert_array_equal(kwargs["frequency"].values, self.z_mean_nobs)
         assert kwargs["random_seed"] == 123
 
@@ -414,16 +410,14 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         model = GammaGammaModelIndividual(individual_data)
 
         model.expected_customer_spend(
-            customer_id=self.z_idx, individual_transaction_value=self.z, random_seed=123
+            customer_id=self.z_idx, monetary_value=self.z, random_seed=123
         )
 
         dummy_method.assert_called_once()
 
         kwargs = dummy_method.call_args[1]
         np.testing.assert_array_equal(kwargs["customer_id"].values, self.z_mean_idx)
-        np.testing.assert_array_equal(
-            kwargs["mean_transaction_value"].values, self.z_mean
-        )
+        np.testing.assert_array_equal(kwargs["monetary_value"].values, self.z_mean)
         np.testing.assert_array_equal(kwargs["frequency"].values, self.z_mean_nobs)
         assert kwargs["random_seed"] == 123
 
@@ -462,9 +456,7 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         np.testing.assert_array_equal(
             model2.customer_id.values, model.customer_id.values
         )
-        np.testing.assert_array_equal(
-            model2.individual_transaction_value, model.individual_transaction_value
-        )
+        np.testing.assert_array_equal(model2.monetary_value, model.monetary_value)
 
         assert model.model_config == model2.model_config
         assert model.sampler_config == model2.sampler_config
