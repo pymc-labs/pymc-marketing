@@ -15,21 +15,17 @@ from pymc_marketing.clv.utils import to_xarray
 
 
 class BetaGeoModel(CLVModel):
-    r"""Beta-Geo Negative Binomial Distribution (BG/NBD) model
+    """Beta-Geo Negative Binomial Distribution (BG/NBD) model for a continuous, non-contractual customer population,
+    first introduced by Fader, et al. [1]_ with additional predictive methods and improvements in [2]_, [_3]_.
 
-    In the BG/NBD model, the frequency of customer purchases is modelled as the time
-    of each purchase has an instantaneous probability of occurrence (hazard) and, at
-    every purchase, a probability of "dropout", i.e. no longer being a customer.
+    The BG/NBD model assumes dropout probabilities for the customer population are Beta-distributed,
+    and time between transactions follows a Gamma distribution while the customer is still active.
 
-    Customer-specific data needed for statistical inference include 1) the total
-    number of purchases (:math:`x`) and 2) the time of the last, i.e. xth, purchase. The
-    omission of purchase times :math:`t_1, ..., t_x` is due to a telescoping sum in the
-    exponential function of the joint likelihood; see Section 4.1 of [1] for more
-    details.
+    This model requires data to be summarized by recency, frequency, and T for each customer,
+    using `clv.utils.rfm_summary()` or equivalent.
 
     Methods below are adapted from the BetaGeoFitter class from the lifetimes package
     (see https://github.com/CamDavidsonPilon/lifetimes/).
-
 
     Parameters
     ----------
@@ -84,11 +80,10 @@ class BetaGeoModel(CLVModel):
 
         # Predicting the customer-specific number of purchases for a future
         # time interval of length t given their previous frequency and recency
+        # data parameter is only required for out-of-sample-data
         expected_purchases_new_customer = model.expected_purchases_new_customer(
             t=[5, 5, 5, 5],
-            frequency=[5, 2, 1, 8],
-            recency=[7, 4, 2.5, 11],
-            T=[10, 8, 10, 22],
+            data = new_data,
         )
 
     References
@@ -247,8 +242,6 @@ class BetaGeoModel(CLVModel):
         )
         self.expected_purchases(*args, **kwargs)
 
-    # TODO: Docstring references
-    # adapted from https://lifetimes.readthedocs.io/en/latest/lifetimes.fitters.html
     def expected_purchases(
         self,
         future_t: Union[float, np.ndarray, pd.Series],
@@ -258,10 +251,10 @@ class BetaGeoModel(CLVModel):
         Given *recency*, *frequency*, and *T* for an individual customer, this method predicts the
         expected number of future purchases across *future_t* time periods.
 
-        `data` parameter is not required if estimating probabilities for customers in model fit dataset.
+        `data` parameter is not required if running predictions on model fit dataset.
 
-        Adapted from equation (41) In Bruce Hardie's notes [2]_, and `lifetimes` package:
-        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/pareto_nbd_fitter.py#L242
+        Adapted from equation (10) in [1]_, and `lifetimes` package:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L201
 
         Parameters
         ----------
@@ -276,9 +269,10 @@ class BetaGeoModel(CLVModel):
 
         References
         ----------
-        .. [2] Fader, Peter & G. S. Hardie, Bruce (2005).
-               "A Note on Deriving the Pareto/NBD Model and Related Expressions."
-               http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
+        .. [2] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005a),
+            "Counting Your Customers the Easy Way: An Alternative to the
+            Pareto/NBD Model," Marketing Science, 24 (2), 275-84.
+            https://www.brucehardie.com/papers/bgnbd_2004-04-20.pdf
         """
         # mypy requires explicit typing declarations for these variables.
         x: xr.DataArray
@@ -313,19 +307,29 @@ class BetaGeoModel(CLVModel):
         self,
         data: Optional[pd.DataFrame] = None,
     ) -> xr.DataArray:
-        r"""
-        Posterior expected value of the probability of being alive at time T. The
-        derivation of the closed form solution is available in [2].
+        """
+        Estimate probability a customer with history *frequency*, *recency*, and *T*
+        is currently active.
 
-        .. math::
-            P\left( \text{alive} \mid x, t_x, T, r, \alpha, a, b \right)
-            = 1 \Big/
-                \left\{
-                    1 + \delta_{x>0} \frac{a}{b + x - 1}
-                        \left(
-                            \frac{\alpha + T}{\alpha + t_x}
-                        \right)^{r + x}
-                \right\}
+        `data` parameter is not required if estimating probabilities for customers in model fit dataset.
+
+        Adapted from page (2) in Bruce Hardie's notes [3]_ and `lifetimes` package:
+         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L260
+
+        Parameters
+        ----------
+        data: pd.DataFrame
+            Optional dataframe containing the following columns:
+                * `frequency`: number of repeat purchases
+                * `recency`: time between the first and the last purchase
+                * `T`: time between the first purchase and the end of the observation period, model assumptions require T >= recency
+                * `customer_id`: unique customer identifier
+
+        References
+        ----------
+        .. [2] Fader, P. S., Hardie, B. G., & Lee, K. L. (2008). Computing
+               P (alive) using the BG/NBD model. Research Note available via
+               http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
         """
         # mypy requires explicit typing declarations for these variables.
         x: xr.DataArray
@@ -358,21 +362,23 @@ class BetaGeoModel(CLVModel):
         self,
         t: Union[np.ndarray, pd.Series],
     ):
-        r"""
-        Posterior expected number of purchases for any interval of length :math:`t`. See
-        equation (9) of [1].
+        """
+        Expected number of purchases for a new customer across *t* time periods.
 
-        The customer_id shouldn't matter too much here since no individual-specific data
-        is conditioned on.
+        Adapted from equation (9) in [1]_, and `lifetimes` package:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L328
 
-        .. math::
-            \mathbb{E}\left(X(t) \mid r, \alpha, a, b \right)
-            = \frac{a + b - 1}{a - 1}
-            \left[
-                1 - \left(\frac{\alpha}{\alpha + t}\right)^r
-                \text{hyp2f1}\left(r, b; a + b - 1; \frac{t}{\alpha + t}\right)
-            \right]
+        Parameters
+        ----------
+        t: array_like
+            Number of time periods over which to estimate purchases.
 
+        References
+        ----------
+        .. [2] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005a),
+            "Counting Your Customers the Easy Way: An Alternative to the
+            Pareto/NBD Model," Marketing Science, 24 (2), 275-84.
+            http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf
         """
         # mypy requires explicit typing declarations for these variables.
         a: xr.DataArray
