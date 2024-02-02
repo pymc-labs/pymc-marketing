@@ -175,11 +175,8 @@ class TestCustomerLifetimeValue:
 
         clv = customer_lifetime_value(
             fitted_bg,
-            data["customer_id"],
-            data["frequency"],
-            data["recency"],
-            data["T"],
-            data["monetary_value"],
+            transaction_data=data,
+            monetary_value=data["monetary_value"],
             time=t,
             discount_rate=discount_rate,
         ).mean(("chain", "draw"))
@@ -190,28 +187,28 @@ class TestCustomerLifetimeValue:
         self, test_summary_data, fitted_gg, fitted_bg
     ):
         t = test_summary_data.head()
+        t["customer_id"] = t.index
 
         ggf_clv = fitted_gg.expected_customer_lifetime_value(
             transaction_model=fitted_bg,
-            customer_id=t.index,
-            frequency=t["frequency"],
-            recency=t["recency"],
-            T=t["T"],
-            monetary_value=t["monetary_value"],
+            transaction_data=t,
+            monetary_value=np.array([1, 1, 1, 1, 1]),
+        )
+
+        expected_spend = (
+            fitted_gg.expected_customer_spend(
+                t.index,
+                monetary_value=np.array([1, 1, 1, 1, 1]),
+                frequency=t["frequency"],
+            ),
         )
 
         utils_clv = customer_lifetime_value(
             transaction_model=fitted_bg,
-            customer_id=t.index,
-            frequency=t["frequency"],
-            recency=t["recency"],
-            T=t["T"],
-            monetary_value=fitted_gg.expected_customer_spend(
-                t.index,
-                monetary_value=t["monetary_value"],
-                frequency=t["frequency"],
-            ),
+            transaction_data=t,
+            monetary_value=expected_spend,
         )
+
         np.testing.assert_equal(ggf_clv.values, utils_clv.values)
 
     @pytest.mark.parametrize("bg_map", (True, False))
@@ -221,6 +218,7 @@ class TestCustomerLifetimeValue:
     ):
         """Test we can mix a model that was fit with MAP and one that was fit with sample."""
         t = test_summary_data.head()
+        t["customer_id"] = t.index
 
         # Copy model with thinned chain/draw as would be obtained from MAP
         if bg_map:
@@ -237,42 +235,38 @@ class TestCustomerLifetimeValue:
         else:
             gg = fitted_gg
 
-        res = customer_lifetime_value(
-            transaction_model=bg,
-            customer_id=t.index,
-            frequency=t["frequency"],
-            recency=t["recency"],
-            T=t["T"],
-            monetary_value=gg.expected_customer_spend(
+        expected_spend = (
+            gg.expected_customer_spend(
                 t.index,
-                monetary_value=t["monetary_value"],
+                monetary_value=np.array([1, 1, 1, 1, 1]),
                 frequency=t["frequency"],
             ),
+        )
+
+        res = customer_lifetime_value(
+            transaction_model=bg,
+            transaction_data=t,
+            monetary_value=expected_spend,
         )
 
         assert res.dims == ("chain", "draw", "customer_id")
 
     def test_clv_after_thinning(self, test_summary_data, fitted_gg, fitted_bg):
         t = test_summary_data.head()
+        t["customer_id"] = t.index
 
         ggf_clv = fitted_gg.expected_customer_lifetime_value(
             transaction_model=fitted_bg,
-            customer_id=t.index,
-            frequency=t["frequency"],
-            recency=t["recency"],
-            T=t["T"],
-            monetary_value=t["monetary_value"],
+            transaction_data=t,
+            monetary_value=np.array([1, 1, 1, 1, 1]),
         )
 
         fitted_gg_thinned = fitted_gg.thin_fit_result(keep_every=10)
         fitted_bg_thinned = fitted_bg.thin_fit_result(keep_every=10)
         ggf_clv_thinned = fitted_gg_thinned.expected_customer_lifetime_value(
             transaction_model=fitted_bg_thinned,
-            customer_id=t.index,
-            frequency=t["frequency"],
-            recency=t["recency"],
-            T=t["T"],
-            monetary_value=t["monetary_value"],
+            transaction_data=t,
+            monetary_value=np.array([1, 1, 1, 1, 1]),
         )
 
         assert ggf_clv.shape == (1, 50, 5)

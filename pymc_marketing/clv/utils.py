@@ -21,12 +21,10 @@ def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
     return res[0] if len(arrays) == 1 else res
 
 
+# TODO: monetary_value column must be parametrized separately from transaction_data.
 def customer_lifetime_value(
     transaction_model,
-    customer_id: Union[pd.Series, np.ndarray],
-    frequency: Union[pd.Series, np.ndarray],
-    recency: Union[pd.Series, np.ndarray],
-    T: Union[pd.Series, np.ndarray],
+    transaction_data: pd.DataFrame,
     monetary_value: Union[pd.Series, np.ndarray, xarray.DataArray],
     time: int = 12,
     discount_rate: float = 0.01,
@@ -34,8 +32,7 @@ def customer_lifetime_value(
 ) -> xarray.DataArray:
     """
     Compute the average lifetime value for a group of one or more customers.
-    This method computes the average lifetime value for a group of one or more customers.
-    It also applies Discounted Cash Flow.
+    Use discount rate for net present value estimations.
 
     Adapted from lifetimes package
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L449
@@ -43,17 +40,14 @@ def customer_lifetime_value(
     Parameters
     ----------
     transaction_model: CLVModel
-        The model to predict future transactions
-    customer_id: array_like
-        Customer unique identifiers. Must not repeat.
-    frequency: array_like
-        The frequency vector of customers' purchases (denoted x in literature).
-    recency: array_like
-        The recency vector of customers' purchases (denoted t_x in literature).
-    T: array_like
-        The vector of customers' age (time since first purchase)
-    monetary_value: array_like
-        Average monetary value of customer's purchases (denoted m in literature).
+        Predictive model for future transactions. BG/NBD and Pareto/NBD are currently supported.
+    transaction_data: pd.DataFrame
+            Optional dataframe containing the following columns:
+                * `frequency`: number of repeat purchases (denoted x in literature)
+                * `recency`: time between the first and the last purchase (denoted t_x in literature)
+                * `monetary_values`: Average monetary value of customer's repeat purchases (denoted m in literature)
+                * `T`: time since first purchase; model assumptions require T >= recency
+                * `customer_id`: unique customer identifier
     time: int, optional
         The lifetime expected for the user in months. Default: 12
     discount_rate: float, optional
@@ -90,32 +84,28 @@ def customer_lifetime_value(
 
     # Monetary value can be passed as a DataArray, with entries per chain and draw or as a simple vector
     if not isinstance(monetary_value, xarray.DataArray):
-        monetary_value = to_xarray(customer_id, monetary_value)
+        monetary_value = to_xarray(transaction_data["customer_id"], monetary_value)
+        # TODO: Can this convenience be resolved?
+        # monetary_value = to_xarray(
+        #     transaction_data["customer_id"], transaction_data["monetary_value"]
+        # )
     monetary_value = _squeeze_dims(monetary_value)
-
-    frequency, recency, T = to_xarray(customer_id, frequency, recency, T)
 
     clv = xarray.DataArray(0.0)
 
     # TODO: Vectorize computation so that we perform a single call to expected_purchases
     prev_expected_purchases = _squeeze_dims(
         transaction_model.expected_purchases(
-            customer_id=customer_id,
-            frequency=frequency,
-            recency=recency,
-            T=T,
-            t=0,
+            future_t=0,
+            data=transaction_data,
         )
     )
     for i in steps * factor:
         # since the prediction of number of transactions is cumulative, we have to subtract off the previous periods
         new_expected_purchases = _squeeze_dims(
             transaction_model.expected_purchases(
-                customer_id=customer_id,
-                frequency=frequency,
-                recency=recency,
-                T=T,
-                t=i,
+                future_t=i,
+                data=transaction_data,
             )
         )
         expected_transactions = new_expected_purchases - prev_expected_purchases

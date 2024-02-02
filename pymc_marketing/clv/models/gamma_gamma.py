@@ -117,14 +117,13 @@ class BaseGammaGammaModel(CLVModel):
 
         return mean_spend
 
+    # TODO: Why isn't this in the child GammaGammaModel class?
+    # TODO: Refactor for transaction data dataframe here and in utils.py
     def expected_customer_lifetime_value(
         self,
         transaction_model: CLVModel,
-        customer_id: Union[np.ndarray, pd.Series],
-        monetary_value: Union[np.ndarray, pd.Series],
-        frequency: Union[np.ndarray, pd.Series],
-        recency: Union[np.ndarray, pd.Series],
-        T: Union[np.ndarray, pd.Series],
+        transaction_data: pd.DataFrame,
+        monetary_value: Union[pd.Series, np.ndarray, xarray.DataArray],
         time: int = 12,
         discount_rate: float = 0.01,
         freq: str = "D",
@@ -136,17 +135,14 @@ class BaseGammaGammaModel(CLVModel):
 
         # Use the Gamma-Gamma estimates for the monetary_values
         adjusted_monetary_value = self.expected_customer_spend(
-            customer_id=customer_id,
+            customer_id=transaction_data["customer_id"],
             monetary_value=monetary_value,
-            frequency=frequency,
+            frequency=transaction_data["frequency"],
         )
 
         return customer_lifetime_value(
             transaction_model=transaction_model,
-            customer_id=customer_id,
-            frequency=frequency,
-            recency=recency,
-            T=T,
+            transaction_data=transaction_data,
             monetary_value=adjusted_monetary_value,
             time=time,
             discount_rate=discount_rate,
@@ -471,10 +467,8 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     def expected_customer_lifetime_value(  # type: ignore [override]
         self,
         transaction_model: CLVModel,
-        customer_id: Union[np.ndarray, pd.Series],
+        transaction_data: pd.DataFrame,
         monetary_value: Union[np.ndarray, pd.Series, TensorVariable],
-        recency: Union[np.ndarray, pd.Series],
-        T: Union[np.ndarray, pd.Series],
         time: int = 12,
         discount_rate: float = 0.01,
         freq: str = "D",
@@ -484,15 +478,14 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         See clv.utils.customer_lifetime_value for details on the meaning of each parameter
         """
 
-        customer_id, z_mean, x = self._summarize_mean_data(customer_id, monetary_value)
+        customer_id, z_mean, x = self._summarize_mean_data(
+            transaction_data["customer_id"], monetary_value
+        )
 
         return super().expected_customer_lifetime_value(
             transaction_model=transaction_model,
-            customer_id=customer_id,
+            transaction_data=transaction_data,
             monetary_value=z_mean,
-            frequency=x,
-            recency=recency,
-            T=T,
             time=time,
             discount_rate=discount_rate,
             freq=freq,
