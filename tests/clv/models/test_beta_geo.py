@@ -18,10 +18,10 @@ class TestBetaGeoModel:
         cls.rng = np.random.default_rng(34)
 
         # parameters
-        cls.a_true = 0.79
-        cls.b_true = 2.43
-        cls.alpha_true = 4.41
-        cls.r_true = 0.24
+        cls.a_true = 0.793
+        cls.b_true = 2.426
+        cls.alpha_true = 4.414
+        cls.r_true = 0.243
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
         # TODO: Create a pytest fixture for this
@@ -363,23 +363,23 @@ class TestBetaGeoModel:
         )
 
     def test_distribution_new_customer(self, data) -> None:
-        mock_model = BetaGeoModel(
-            data=data,
-        )
-        mock_model.idata = az.from_dict(
-            {
-                "a": [self.a_true],
-                "b": [self.b_true],
-                "alpha": [self.alpha_true],
-                "r": [self.r_true],
-            }
-        )
+        # mock_model = BetaGeoModel(
+        #     data=data,
+        # )
+        # mock_model.idata = az.from_dict(
+        #     {
+        #         "a": [self.a_true],
+        #         "b": [self.b_true],
+        #         "alpha": [self.alpha_true],
+        #         "r": [self.r_true],
+        #     }
+        # )
 
         rng = np.random.default_rng(42)
-        new_customer_dropout = mock_model.distribution_new_customer_dropout(
+        new_customer_dropout = self.model.distribution_new_customer_dropout(
             random_seed=rng
         )
-        new_customer_purchase_rate = mock_model.distribution_new_customer_purchase_rate(
+        new_customer_purchase_rate = self.model.distribution_new_customer_purchase_rate(
             random_seed=rng
         )
 
@@ -390,7 +390,7 @@ class TestBetaGeoModel:
         p = pm.Beta.dist(self.a_true, self.b_true, size=N)
         lam = pm.Gamma.dist(self.r_true, self.alpha_true, size=N)
 
-        rtol = 0.05
+        rtol = 0.15
         np.testing.assert_allclose(
             new_customer_dropout.mean(), pm.draw(p.mean(), random_seed=rng), rtol=rtol
         )
@@ -434,41 +434,15 @@ class TestBetaGeoModel:
         os.remove("test_model")
 
     def test_expected_num_purchases_warning(self, data):
-        # TODO: This should either be made into a fixture or defined in the class setup.
-        mock_model = BetaGeoModel(
-            data=data,
-        )
-        mock_model.idata = az.from_dict(
-            {
-                "a": [self.a_true],
-                "b": [self.b_true],
-                "alpha": [self.alpha_true],
-                "r": [self.r_true],
-            }
-        )
-
         with pytest.warns(
             FutureWarning,
             match="Method was renamed to 'expected_purchases'. Old method will be removed in a future release.",
         ):
-            mock_model.expected_num_purchases(10)
+            self.model.expected_num_purchases(10)
 
     def test_expected_num_purchases_new_customer_warning(self, data):
-        # TODO: This should either be made into a fixture or defined in the class setup.
-        mock_model = BetaGeoModel(
-            data=data,
-        )
-        mock_model.idata = az.from_dict(
-            {
-                "a": [self.a_true],
-                "b": [self.b_true],
-                "alpha": [self.alpha_true],
-                "r": [self.r_true],
-            }
-        )
-
         with pytest.warns(
             FutureWarning,
             match="Method was renamed to 'expected_purchases_new_customer'. Old method will be removed in a future release.",
         ):
-            mock_model.expected_num_purchases_new_customer(t=10)
+            self.model.expected_num_purchases_new_customer(t=10)

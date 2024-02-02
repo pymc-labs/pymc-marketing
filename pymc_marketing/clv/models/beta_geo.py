@@ -247,7 +247,7 @@ class BetaGeoModel(CLVModel):
         )
         self.expected_purchases(*args, **kwargs)
 
-    # TODP: Docstring references
+    # TODO: Docstring references
     # adapted from https://lifetimes.readthedocs.io/en/latest/lifetimes.fitters.html
     def expected_purchases(
         self,
@@ -292,6 +292,8 @@ class BetaGeoModel(CLVModel):
 
         a, b, alpha, r = self._unload_params()
 
+        future_t = np.asarray(future_t)
+
         numerator = 1 - ((alpha + T) / (alpha + T + future_t)) ** (r + x) * hyp2f1(
             r + x,
             b + x,
@@ -299,9 +301,9 @@ class BetaGeoModel(CLVModel):
             future_t / (alpha + T + future_t),
         )
         numerator *= (a + b + x - 1) / (a - 1)
-        denominator = 1 + (x > 0) * (a / (b + x - 1)) * ((alpha + T) / (alpha + x)) ** (
-            r + x
-        )
+        denominator = 1 + (x > 0) * (a / (b + x - 1)) * (
+            (alpha + T) / (alpha + t_x)
+        ) ** (r + x)
 
         return (numerator / denominator).transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
