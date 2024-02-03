@@ -510,17 +510,18 @@ class BetaGeoBetaBinomRV(RandomVariable):
             t_x = 0
             x = 0
             active = True
+            recency = 0
 
             while t_x <= T and active:
                 t_x += 1
                 active = rng.binomial(1, churn_prob)
                 purchase = rng.binomial(1, purchase_prob)
                 if active and purchase:
+                    recency = t_x
                     x += 1
-
             return np.array(
                 [
-                    t_x,
+                    recency if x > 0 else T,
                     x,
                 ],
             )

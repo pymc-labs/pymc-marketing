@@ -5,6 +5,7 @@ import pytensor.tensor as pt
 import pytest
 from lifetimes import BetaGeoBetaBinomFitter as BGBBF
 from lifetimes import ParetoNBDFitter as PF
+from lifetimes.generate_data import beta_geometric_beta_binom_model
 from numpy.testing import assert_almost_equal
 from pymc import Model
 
@@ -396,13 +397,33 @@ class TestBetaGeoBetaBinom:
         beta_geo_beta_binom_size,
         expected_size,
     ):
-        with Model():
-            alpha = pm.Gamma(name="alpha", alpha=5, beta=1, size=alpha_size)
-            beta = pm.Gamma(name="beta", alpha=5, beta=1, size=beta_size)
-            gamma = pm.Gamma(name="gamma", alpha=5, beta=1, size=gamma_size)
-            delta = pm.Gamma(name="delta", alpha=5, beta=1, size=delta_size)
+        # Declare simulation params
+        T_true = 60
+        alpha_true = 1.204
+        beta_true = 0.750
+        gamma_true = 0.657
+        delta_true = 2.783
 
-            T = pm.MutableData(name="T", value=np.array(10))
+        # Generate simulated data from lifetimes
+        # this does not have a random seed
+        lt_bgbb = beta_geometric_beta_binom_model(
+            N=T_true,
+            alpha=alpha_true,
+            beta=beta_true,
+            gamma=gamma_true,
+            delta=delta_true,
+            size=1000,
+        )
+        lt_frequency = lt_bgbb["frequency"].values
+        lt_recency = lt_bgbb["recency"].values
+
+        with Model():
+            alpha = pm.Normal(name="alpha", mu=alpha_true, sigma=1e-4, size=alpha_size)
+            beta = pm.Normal(name="beta", mu=beta_true, sigma=1e-4, size=beta_size)
+            gamma = pm.Normal(name="gamma", mu=gamma_true, sigma=1e-4, size=gamma_size)
+            delta = pm.Normal(name="delta", mu=delta_true, sigma=1e-4, size=delta_size)
+
+            T = pm.MutableData(name="T", value=np.array(T_true))
 
             BetaGeoBetaBinom(
                 name="beta_geo_beta_binom",
@@ -415,9 +436,10 @@ class TestBetaGeoBetaBinom:
             )
             prior = pm.sample_prior_predictive(samples=1000)
             prior = prior["prior"]["beta_geo_beta_binom"][0]
+            recency = prior[:, 0]
+            frequency = prior[:, 1]
 
         assert prior.shape == (1000,) + expected_size
 
-        dist = BetaGeoBetaBinom.dist(alpha, beta, gamma, delta, T, size=expected_size)
-
-        np.testing.assert_allclose(pm.draw(dist.mean()), prior.mean(), rtol=0.5)
+        np.testing.assert_allclose(lt_frequency.mean(), recency.mean(), rtol=0.7)
+        np.testing.assert_allclose(lt_recency.mean(), frequency.mean(), rtol=0.7)
