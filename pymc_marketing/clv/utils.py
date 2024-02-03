@@ -21,7 +21,7 @@ def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
     return res[0] if len(arrays) == 1 else res
 
 
-# TODO: monetary_value column must be parametrized separately from transaction_data.
+# TODO: copy/paste docstrings into GammaGamma parent functions
 def customer_lifetime_value(
     transaction_model,
     transaction_data: pd.DataFrame,
@@ -42,12 +42,13 @@ def customer_lifetime_value(
     transaction_model: CLVModel
         Predictive model for future transactions. BG/NBD and Pareto/NBD are currently supported.
     transaction_data: pd.DataFrame
-            Optional dataframe containing the following columns:
+            Dataframe containing the following columns:
                 * `frequency`: number of repeat purchases (denoted x in literature)
                 * `recency`: time between the first and the last purchase (denoted t_x in literature)
-                * `monetary_values`: Average monetary value of customer's repeat purchases (denoted m in literature)
                 * `T`: time since first purchase; model assumptions require T >= recency
                 * `customer_id`: unique customer identifier
+    monetary_value: arraylike, optional
+        Average monetary value of customer's repeat purchases. (Denoted m in literature.)
     time: int, optional
         The lifetime expected for the user in months. Default: 12
     discount_rate: float, optional
@@ -85,10 +86,7 @@ def customer_lifetime_value(
     # Monetary value can be passed as a DataArray, with entries per chain and draw or as a simple vector
     if not isinstance(monetary_value, xarray.DataArray):
         monetary_value = to_xarray(transaction_data["customer_id"], monetary_value)
-        # TODO: Can this convenience be resolved?
-        # monetary_value = to_xarray(
-        #     transaction_data["customer_id"], transaction_data["monetary_value"]
-        # )
+
     monetary_value = _squeeze_dims(monetary_value)
 
     clv = xarray.DataArray(0.0)

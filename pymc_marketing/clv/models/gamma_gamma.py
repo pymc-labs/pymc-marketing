@@ -118,7 +118,7 @@ class BaseGammaGammaModel(CLVModel):
         return mean_spend
 
     # TODO: Why isn't this in the child GammaGammaModel class?
-    # TODO: Refactor for transaction data dataframe here and in utils.py
+    # TODO: Copy/paste docstrings from utils.py
     def expected_customer_lifetime_value(
         self,
         transaction_model: CLVModel,
@@ -132,6 +132,9 @@ class BaseGammaGammaModel(CLVModel):
 
         See clv.utils.customer_lifetime_value for details on the meaning of each parameter
         """
+
+        if "monetary_value" in transaction_data.columns:
+            monetary_value = transaction_data["monetary_value"].copy()
 
         # Use the Gamma-Gamma estimates for the monetary_values
         adjusted_monetary_value = self.expected_customer_spend(
@@ -464,6 +467,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             random_seed=random_seed,  # type: ignore [call-arg]
         )
 
+    # TODO: Why not just copy/paste docstrings from clv.utils.customer_lifetime_value?
     def expected_customer_lifetime_value(  # type: ignore [override]
         self,
         transaction_model: CLVModel,
@@ -475,8 +479,11 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     ) -> xarray.DataArray:
         """Return expected customer lifetime value.
 
-        See clv.utils.customer_lifetime_value for details on the meaning of each parameter
+        See clv.utils.customer_lifetime_value for details on the meaning of each parameter.
         """
+
+        if "monetary_value" in transaction_data.columns:
+            monetary_value = transaction_data["monetary_value"].copy()
 
         customer_id, z_mean, x = self._summarize_mean_data(
             transaction_data["customer_id"], monetary_value

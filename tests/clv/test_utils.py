@@ -187,7 +187,6 @@ class TestCustomerLifetimeValue:
         self, test_summary_data, fitted_gg, fitted_bg
     ):
         t = test_summary_data.head()
-        t["customer_id"] = t.index
 
         ggf_clv = fitted_gg.expected_customer_lifetime_value(
             transaction_model=fitted_bg,
@@ -218,7 +217,6 @@ class TestCustomerLifetimeValue:
     ):
         """Test we can mix a model that was fit with MAP and one that was fit with sample."""
         t = test_summary_data.head()
-        t["customer_id"] = t.index
 
         # Copy model with thinned chain/draw as would be obtained from MAP
         if bg_map:
@@ -253,12 +251,11 @@ class TestCustomerLifetimeValue:
 
     def test_clv_after_thinning(self, test_summary_data, fitted_gg, fitted_bg):
         t = test_summary_data.head()
-        t["customer_id"] = t.index
 
         ggf_clv = fitted_gg.expected_customer_lifetime_value(
             transaction_model=fitted_bg,
             transaction_data=t,
-            monetary_value=np.array([1, 1, 1, 1, 1]),
+            monetary_value=t["monetary_value"],
         )
 
         fitted_gg_thinned = fitted_gg.thin_fit_result(keep_every=10)
@@ -266,7 +263,7 @@ class TestCustomerLifetimeValue:
         ggf_clv_thinned = fitted_gg_thinned.expected_customer_lifetime_value(
             transaction_model=fitted_bg_thinned,
             transaction_data=t,
-            monetary_value=np.array([1, 1, 1, 1, 1]),
+            monetary_value=t.monetary_value,
         )
 
         assert ggf_clv.shape == (1, 50, 5)
