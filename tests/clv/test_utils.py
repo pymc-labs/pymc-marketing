@@ -187,7 +187,6 @@ class TestCustomerLifetimeValue:
         self, test_summary_data, fitted_gg, fitted_bg
     ):
         t = test_summary_data.head()
-        # t.columns = t.columns.str.upper()
 
         ggf_clv = fitted_gg.expected_customer_lifetime_value(
             transaction_model=fitted_bg,
@@ -195,6 +194,9 @@ class TestCustomerLifetimeValue:
             monetary_value=np.array([1, 1, 1, 1, 1]),
         )
 
+        # TODO: Why is a pandas KeyError raised for 'frequency' here?
+        #       This was called internally by fitted_gg.expected_customer_lifetime_value
+        #       in the above code lines and ran just fine.
         expected_spend = (
             fitted_gg.expected_customer_spend(
                 t.index,
@@ -218,7 +220,9 @@ class TestCustomerLifetimeValue:
     ):
         """Test we can mix a model that was fit with MAP and one that was fit with sample."""
         t = test_summary_data.head()
-        # t.columns = t.columns.str.upper()
+
+        # TODO: to_xarray(transaction_data["customer_id"], monetary_value)
+        #       raises ValueError: different number of dimensions on data and dims: 0 vs 1
 
         # Copy model with thinned chain/draw as would be obtained from MAP
         if bg_map:
