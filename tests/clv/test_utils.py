@@ -187,24 +187,24 @@ class TestCustomerLifetimeValue:
         self, test_summary_data, fitted_gg, fitted_bg
     ):
         t = test_summary_data.head()
+        frequency = t["frequency"].values
 
         ggf_clv = fitted_gg.expected_customer_lifetime_value(
             transaction_model=fitted_bg,
             transaction_data=t,
-            monetary_value=np.array([1, 1, 1, 1, 1]),
+            monetary_value=t["monetary_value"],
         )
 
-        # TODO: Why is a pandas KeyError raised for 'frequency' here?
-        #       This was called internally by fitted_gg.expected_customer_lifetime_value
-        #       in the above code lines and ran just fine.
+        # TODO: Using t["frequency"] here raises a pandas KeyError
+        #       It seems dataframe slices are problematic
         expected_spend = (
             fitted_gg.expected_customer_spend(
                 t.index,
                 monetary_value=np.array([1, 1, 1, 1, 1]),
-                frequency=t["frequency"],
+                frequency=frequency,
             ),
         )
-
+        # TODO: KeyError: 'customer_id' at to_xarray(t["customer_id"],monetary_value)
         utils_clv = customer_lifetime_value(
             transaction_model=fitted_bg,
             transaction_data=t,
@@ -267,14 +267,9 @@ class TestCustomerLifetimeValue:
 
         fitted_gg_thinned = fitted_gg.thin_fit_result(keep_every=10)
         fitted_bg_thinned = fitted_bg.thin_fit_result(keep_every=10)
-        # TODO: monetary value is required due to its arg positioning
         # TODO: Why can't a normal and thinned model be fit to same dataset?
         #       A pandas error Key Error is raised for monetary_value
         #           if monetary_value=t["monetary_value"]
-        #
-        # TODO: Why can't a normal and thinned model be fit to same dataset?
-        #       A pandas error Key Error is raised for customer_id
-        #           if monetary_value=monetary_value
         ggf_clv_thinned = fitted_gg_thinned.expected_customer_lifetime_value(
             transaction_model=fitted_bg_thinned,
             transaction_data=t,

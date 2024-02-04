@@ -91,6 +91,8 @@ def customer_lifetime_value(
 
     clv = xarray.DataArray(0.0)
 
+    # TODO: if data attribute added to transaction model,
+    #       transaction_data can be an optional arg for out-of-sample data
     # TODO: Vectorize computation so that we perform a single call to expected_purchases
     prev_expected_purchases = _squeeze_dims(
         transaction_model.expected_purchases(

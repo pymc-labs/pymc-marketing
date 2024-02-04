@@ -133,8 +133,9 @@ class BaseGammaGammaModel(CLVModel):
         See clv.utils.customer_lifetime_value for details on the meaning of each parameter
         """
 
-        if "monetary_value" in transaction_data.columns:
-            monetary_value = transaction_data["monetary_value"].copy()
+        # TODO: This can become an optional arg for out-of-sample data in a future PR.
+        # if "monetary_value" in transaction_data.columns:
+        #     monetary_value = transaction_data["monetary_value"].copy()
 
         # Use the Gamma-Gamma estimates for the monetary_values
         adjusted_monetary_value = self.expected_customer_spend(
@@ -143,6 +144,8 @@ class BaseGammaGammaModel(CLVModel):
             frequency=transaction_data["frequency"],
         )
 
+        # TODO: if data attribute added to transaction model,
+        #       transaction_data can be an optional arg for out-of-sample data
         return customer_lifetime_value(
             transaction_model=transaction_model,
             transaction_data=transaction_data,
