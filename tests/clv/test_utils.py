@@ -76,9 +76,19 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
 
 @pytest.fixture(scope="module")
 def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
-    rng = np.random.default_rng(13)
+    rng = np.random.default_rng(45)
 
-    pnbd_model = ParetoNBDModel(test_summary_data)
+    model_config = {
+        # Narrow Gaussian centered at MLE params from lifetimes ParetoNBDFitter
+        "r_prior": {"dist": "DiracDelta", "kwargs": {"c": 0.5534}},
+        "alpha_prior": {"dist": "DiracDelta", "kwargs": {"c": 10.5802}},
+        "s_prior": {"dist": "DiracDelta", "kwargs": {"c": 0.6061}},
+        "beta_prior": {"dist": "DiracDelta", "kwargs": {"c": 11.6562}},
+    }
+    pnbd_model = ParetoNBDModel(
+        data=test_summary_data,
+        model_config=model_config,
+    )
     pnbd_model.build_model()
 
     # Mock an idata object for tests requiring a fitted model
@@ -175,7 +185,10 @@ class TestCustomerLifetimeValue:
 
         clv = customer_lifetime_value(
             fitted_bg,
-            transaction_data=data,
+            customer_id=data["customer_id"],
+            frequency=data["frequency"],
+            recency=data["recency"],
+            T=data["T"],
             monetary_value=data["monetary_value"],
             time=t,
             discount_rate=discount_rate,
@@ -183,54 +196,77 @@ class TestCustomerLifetimeValue:
 
         np.testing.assert_allclose(clv, expected * expected_change, rtol=0.1)
 
+    @pytest.mark.parametrize("transaction_model", ("bg", "pnbd"))
     def test_customer_lifetime_value_gg_with_bgf(
-        self, test_summary_data, fitted_gg, fitted_bg
+        self, test_summary_data, fitted_gg, fitted_bg, fitted_pnbd, transaction_model
     ):
+        if transaction_model == "bg":
+            transaction_model = fitted_bg
+        else:
+            transaction_model = fitted_pnbd
+
         t = test_summary_data.head()
-        frequency = t["frequency"].values
 
         ggf_clv = fitted_gg.expected_customer_lifetime_value(
-            transaction_model=fitted_bg,
+            transaction_model=transaction_model,
             transaction_data=t,
             monetary_value=t["monetary_value"],
         )
 
-        # TODO: Using t["frequency"] here raises a pandas KeyError
-        #       It seems dataframe slices are problematic
-        expected_spend = (
-            fitted_gg.expected_customer_spend(
-                t.index,
-                monetary_value=np.array([1, 1, 1, 1, 1]),
-                frequency=frequency,
-            ),
-        )
-        # TODO: KeyError: 'customer_id' at to_xarray(t["customer_id"],monetary_value)
         utils_clv = customer_lifetime_value(
-            transaction_model=fitted_bg,
-            transaction_data=t,
-            monetary_value=expected_spend,
+            transaction_model=transaction_model,
+            customer_id=t["customer_id"],
+            frequency=t["frequency"],
+            recency=t["recency"],
+            T=t["T"],
+            monetary_value=fitted_gg.expected_customer_spend(
+                t.index,
+                monetary_value=t["monetary_value"],
+                frequency=t["frequency"],
+            ),
         )
 
         np.testing.assert_equal(ggf_clv.values, utils_clv.values)
 
-    @pytest.mark.parametrize("bg_map", (True, False))
     @pytest.mark.parametrize("gg_map", (True, False))
+    @pytest.mark.parametrize("transaction_model_map", (True, False))
+    @pytest.mark.parametrize("transaction_model", ("bg", "pnbd"))
     def test_map_posterior_mix_fit_types(
-        self, fitted_bg, fitted_gg, test_summary_data, bg_map, gg_map
+        self,
+        fitted_bg,
+        fitted_gg,
+        fitted_pnbd,
+        test_summary_data,
+        gg_map,
+        transaction_model_map,
+        transaction_model,
     ):
         """Test we can mix a model that was fit with MAP and one that was fit with sample."""
         t = test_summary_data.head()
 
-        # TODO: to_xarray(transaction_data["customer_id"], monetary_value)
-        #       raises ValueError: different number of dimensions on data and dims: 0 vs 1
-
         # Copy model with thinned chain/draw as would be obtained from MAP
-        if bg_map:
-            bg = BetaGeoModel(fitted_bg.data, model_config=fitted_bg.model_config)
-            bg.build_model()
-            bg.idata = fitted_bg.idata.sel(chain=slice(0, 1), draw=slice(0, 1))
-        else:
-            bg = fitted_bg
+        if transaction_model == "bg":
+            if transaction_model_map:
+                transaction_model = BetaGeoModel(
+                    fitted_bg.data, model_config=fitted_bg.model_config
+                )
+                transaction_model.build_model()
+                transaction_model.idata = fitted_bg.idata.sel(
+                    chain=slice(0, 1), draw=slice(0, 1)
+                )
+            else:
+                transaction_model = fitted_bg
+        elif transaction_model == "pnbd":
+            if transaction_model_map:
+                transaction_model = ParetoNBDModel(
+                    fitted_pnbd.data, model_config=fitted_pnbd.model_config
+                )
+                transaction_model.build_model()
+                transaction_model.idata = fitted_pnbd.idata.sel(
+                    chain=slice(0, 1), draw=slice(0, 1)
+                )
+            else:
+                transaction_model = fitted_pnbd
 
         if gg_map:
             gg = GammaGammaModel(fitted_gg.data, model_config=fitted_gg.model_config)
@@ -239,44 +275,48 @@ class TestCustomerLifetimeValue:
         else:
             gg = fitted_gg
 
-        expected_spend = (
-            gg.expected_customer_spend(
+        res = customer_lifetime_value(
+            transaction_model=transaction_model,
+            customer_id=t["customer_id"],
+            frequency=t["frequency"],
+            recency=t["recency"],
+            T=t["T"],
+            monetary_value=gg.expected_customer_spend(
                 t.index,
-                monetary_value=np.array([1, 1, 1, 1, 1]),
+                monetary_value=t["monetary_value"],
                 frequency=t["frequency"],
             ),
         )
 
-        res = customer_lifetime_value(
-            transaction_model=bg,
-            transaction_data=t,
-            monetary_value=expected_spend,
-        )
-
         assert res.dims == ("chain", "draw", "customer_id")
 
-    def test_clv_after_thinning(self, test_summary_data, fitted_gg, fitted_bg):
+    @pytest.mark.parametrize("transaction_model", ("bg", "pnbd"))
+    def test_clv_after_thinning(
+        self, test_summary_data, fitted_gg, fitted_bg, fitted_pnbd, transaction_model
+    ):
+        if transaction_model == "bg":
+            transaction_model = fitted_bg
+        else:
+            transaction_model = fitted_pnbd
+
         t = test_summary_data.head().copy()
-        monetary_value = t["monetary_value"]
 
         ggf_clv = fitted_gg.expected_customer_lifetime_value(
-            transaction_model=fitted_bg,
+            transaction_model=transaction_model,
             transaction_data=t,
             monetary_value=t["monetary_value"],
         )
 
         fitted_gg_thinned = fitted_gg.thin_fit_result(keep_every=10)
-        fitted_bg_thinned = fitted_bg.thin_fit_result(keep_every=10)
-        # TODO: Why can't a normal and thinned model be fit to same dataset?
-        #       A pandas error Key Error is raised for monetary_value
-        #           if monetary_value=t["monetary_value"]
+        transaction_model_thinned = transaction_model.thin_fit_result(keep_every=10)
+
         ggf_clv_thinned = fitted_gg_thinned.expected_customer_lifetime_value(
-            transaction_model=fitted_bg_thinned,
+            transaction_model=transaction_model_thinned,
             transaction_data=t,
-            monetary_value=monetary_value,
+            monetary_value=t["monetary_value"],
         )
 
-        assert ggf_clv.shape == (1, 50, 2357)
+        assert ggf_clv.shape == (1, 50, 5)
         assert ggf_clv_thinned.shape == (1, 5, 5)
 
         np.testing.assert_equal(

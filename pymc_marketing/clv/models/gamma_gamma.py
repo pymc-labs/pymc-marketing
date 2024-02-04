@@ -148,11 +148,11 @@ class BaseGammaGammaModel(CLVModel):
         #       transaction_data can be an optional arg for out-of-sample data
         return customer_lifetime_value(
             transaction_model=transaction_model,
-            transaction_data=transaction_data,
+            customer_id=transaction_data["customer_id"],
+            frequency=transaction_data["frequency"],
+            recency=transaction_data["recency"],
+            T=transaction_data["T"],
             monetary_value=adjusted_monetary_value,
-            time=time,
-            discount_rate=discount_rate,
-            freq=freq,
         )
 
 
