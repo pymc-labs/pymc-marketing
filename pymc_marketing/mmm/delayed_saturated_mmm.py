@@ -985,8 +985,9 @@ class DelayedSaturatedMMM(
             The axes to plot on, by default None or current axes
         ylabel : str, optional
             The label for the y-axis, by default "Sales"
-        idx : pd.IndexSlice, optional
-            The index slice of days to plot, by default None or only positive days from spend
+        idx : slice, optional
+            The index slice of days to plot, by default None or only the positive days.
+            More specifically, slice(0, None, None)
         channels : List[str], optional
             The channels to plot, by default None or all channels
         prior : bool, optional
