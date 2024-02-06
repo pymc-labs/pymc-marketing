@@ -878,7 +878,6 @@ class DelayedSaturatedMMM(
         DataArray
             Upcoming contributions for each channel
 
-
         """
         if spend_leading_up is None:
             spend_leading_up = np.zeros_like(spend)
@@ -962,15 +961,47 @@ class DelayedSaturatedMMM(
     def plot_new_spend_contributions(
         self,
         spend_amount: float,
-        ax: Optional[plt.Axes] = None,
         one_time: bool = True,
+        ax: Optional[plt.Axes] = None,
         ylabel: str = "Sales",
-        idx=None,
+        idx: Optional[slice] = None,
         channels: Optional[List[str]] = None,
         prior: bool = False,
         original_scale: bool = True,
         **sample_posterior_predictive_kwargs,
     ) -> plt.Axes:
+        """Plot the upcoming sales for a given spend amount.
+
+        Calls the new_spend_contributions method and plots the results. For more
+        control over the plot, use new_spend_contributions directly.
+
+        Parameters
+        ----------
+        spend_amount : float
+            The amount of spend for each channel
+        one_time : bool, optional
+            Whether the spend are one time (at start of period) or constant (over period), by default True (one time)
+        ax : plt.Axes, optional
+            The axes to plot on, by default None or current axes
+        ylabel : str, optional
+            The label for the y-axis, by default "Sales"
+        idx : pd.IndexSlice, optional
+            The index slice of days to plot, by default None or only positive days from spend
+        channels : List[str], optional
+            The channels to plot, by default None or all channels
+        prior : bool, optional
+            Whether to use the prior or posterior, by default False (posterior)
+        original_scale : bool, optional
+            Whether to plot in the original scale of the target variable, by default True
+        **sample_posterior_predictive_kwargs
+            Additional keyword arguments passed to pm.sample_posterior_predictive
+
+        Returns
+        -------
+        plt.Axes
+            The plot of upcoming sales for the given spend amount
+
+        """
         ax = ax or plt.gca()
         total_channels = len(self.channel_columns)
         contributions = self.new_spend_contributions(
