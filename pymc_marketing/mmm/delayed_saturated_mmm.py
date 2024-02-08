@@ -851,7 +851,7 @@ class DelayedSaturatedMMM(
 
     def new_spend_contributions(
         self,
-        spend: np.ndarray,
+        spend: Optional[np.ndarray] = None,
         one_time: bool = True,
         spend_leading_up: Optional[np.ndarray] = None,
         prior: bool = False,
@@ -862,8 +862,8 @@ class DelayedSaturatedMMM(
 
         Parameters
         ----------
-        spend : np.ndarray
-            Array of spend for each channel
+        spend : np.ndarray, optional
+            Array of spend for each channel. If None, the average spend for each channel is used, by default None.
         one_time : bool, optional
             Whether the spend are one time (at start of period) or constant (over period), by default True (one time)
         spend_leading_up : np.array, optional
@@ -879,6 +879,9 @@ class DelayedSaturatedMMM(
             Upcoming contributions for each channel
 
         """
+        if spend is None:
+            spend = self.X.loc[:, self.channel_columns].mean().to_numpy()  # type: ignore
+
         if spend_leading_up is None:
             spend_leading_up = np.zeros_like(spend)
 
@@ -1020,7 +1023,7 @@ class DelayedSaturatedMMM(
 
         idx = idx or pd.IndexSlice[0:]
 
-        quantiles = [0.025, 0.975]
+        lower, upper = quantiles = [0.025, 0.975]
         conf = (
             contributions_groupby.quantile(quantiles)
             .unstack("channel")
@@ -1029,7 +1032,6 @@ class DelayedSaturatedMMM(
         )
 
         channels = channels or self.channel_columns  # type: ignore
-        lower, upper = quantiles
         for channel in channels:  # type: ignore
             ax.fill_between(
                 conf.index,
