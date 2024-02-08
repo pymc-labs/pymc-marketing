@@ -775,6 +775,9 @@ def new_contributions_property_checks(new_contributions, X, model):
         np.arange(-model.adstock_max_lag, model.adstock_max_lag + 1),
     )
 
+    # Channel contributions are non-negative
+    assert (new_contributions >= 0).all()
+
 
 def test_new_spend_contributions(mmm_fitted) -> None:
     new_spend = np.ones(len(mmm_fitted.channel_columns))
