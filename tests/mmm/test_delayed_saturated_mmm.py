@@ -17,7 +17,7 @@ seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def generate_data():
     def _generate_data(date_data: pd.DatetimeIndex) -> pd.DataFrame:
         n: int = date_data.size
@@ -37,7 +37,7 @@ def generate_data():
     return _generate_data
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def toy_X(generate_data) -> pd.DataFrame:
     date_data: pd.DatetimeIndex = pd.date_range(
         start="2019-06-01", end="2021-12-31", freq="W-MON"
@@ -80,12 +80,12 @@ def model_config_requiring_serialization() -> Dict:
     return model_config
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def toy_y(toy_X: pd.DataFrame) -> pd.Series:
     return pd.Series(data=rng.integers(low=0, high=100, size=toy_X.shape[0]))
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def mmm() -> DelayedSaturatedMMM:
     return DelayedSaturatedMMM(
         date_column="date",
@@ -95,7 +95,7 @@ def mmm() -> DelayedSaturatedMMM:
     )
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def mmm_with_fourier_features() -> DelayedSaturatedMMM:
     return DelayedSaturatedMMM(
         date_column="date",
@@ -106,7 +106,7 @@ def mmm_with_fourier_features() -> DelayedSaturatedMMM:
     )
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def mmm_fitted(
     mmm: DelayedSaturatedMMM, toy_X: pd.DataFrame, toy_y: pd.Series
 ) -> DelayedSaturatedMMM:
@@ -114,7 +114,7 @@ def mmm_fitted(
     return mmm
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def mmm_fitted_with_fourier_features(
     mmm_with_fourier_features: DelayedSaturatedMMM,
     toy_X: pd.DataFrame,

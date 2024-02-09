@@ -413,6 +413,60 @@ def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
     return (1 - pt.exp(-lam * x)) / (1 + pt.exp(-lam * x))
 
 
+def scale_preserving_logistic_saturation(x, m: Union[npt.NDArray[np.float_], float]):
+    """Scale preserving logistic transformation.
+
+    This single-parameter saturation function maps its input to the range
+    :math:`[0, m]`, where :math:`f(x) \leq x` for all :math:`x`. It can be interpreted as mapping
+    from spend to "effective spend".
+
+    Properties:
+
+    * Output is on scale with input values. Simplifies prior specification.
+    * Intuitive parameter interpretation: `m` is the "maximum achievable effect".
+    * Slope of curve never exceeds 1. Thus "effective spend" <= "actual spend".
+
+    .. math::
+        f(x) = m \\left( \\frac{1 - e^{-\\frac{2}{m} x}}{1 + e^{-\\frac{2}{m} x}} \\right)
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import scale_preserving_logistic_saturation
+        plt.style.use('arviz-darkgrid')
+        m = np.array([500, 1000, 2000, 4000, 8000])
+        x = np.linspace(0, 10000, 400)
+        ax = plt.subplot(111)
+        for l in m:
+            y = scale_preserving_logistic_saturation(x, m=l).eval()
+            plt.plot(x, y, label=f'm = {l}')
+        plt.xlabel('x', fontsize=12)
+        plt.ylabel('f(x)', fontsize=12)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.show()
+
+    Parameters
+    ----------
+    x : tensor
+        Input tensor.
+    m : float or array-like
+        Saturation parameter, characterizing the asymptote of the function value.
+
+    Returns
+    -------
+    tensor
+        Transformed tensor.
+    """  # noqa: W605
+    if m == 0:
+        return pt.zeros_like(x)
+    return m * (1 - pt.exp(-2 / m * x)) / (1 + pt.exp(-2 / m * x))
+
+
 class TanhSaturationParameters(NamedTuple):
     b: pt.TensorLike
     """Saturation.

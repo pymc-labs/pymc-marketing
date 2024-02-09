@@ -97,9 +97,31 @@ def customer_lifetime_value(
 
     clv = xarray.DataArray(0.0)
 
+    # FIXME: This is a hotfix for ParetoNBDModel, as it has a different API from BetaGeoModel
+    #  We should harmonize them!
+    from pymc_marketing.clv.models import ParetoNBDModel
+
+    if isinstance(transaction_model, ParetoNBDModel):
+        transaction_data = pd.DataFrame(
+            {
+                "customer_id": customer_id,
+                "frequency": frequency,
+                "recency": recency,
+                "T": T,
+            }
+        )
+
+        def expected_purchases(*, t, **kwargs):
+            return transaction_model.expected_purchases(
+                future_t=t,
+                data=transaction_data,
+            )
+    else:
+        expected_purchases = transaction_model.expected_num_purchases
+
     # TODO: Vectorize computation so that we perform a single call to expected_num_purchases
     prev_expected_num_purchases = _squeeze_dims(
-        transaction_model.expected_num_purchases(
+        expected_purchases(
             customer_id=customer_id,
             frequency=frequency,
             recency=recency,
@@ -110,7 +132,7 @@ def customer_lifetime_value(
     for i in steps * factor:
         # since the prediction of number of transactions is cumulative, we have to subtract off the previous periods
         new_expected_num_purchases = _squeeze_dims(
-            transaction_model.expected_num_purchases(
+            expected_purchases(
                 customer_id=customer_id,
                 frequency=frequency,
                 recency=recency,
