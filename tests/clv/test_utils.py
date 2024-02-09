@@ -7,7 +7,7 @@ import pytest
 import xarray
 from pandas.testing import assert_frame_equal
 
-from pymc_marketing.clv import BetaGeoModel, GammaGammaModel
+from pymc_marketing.clv import BetaGeoModel, GammaGammaModel, ParetoNBDModel
 from pymc_marketing.clv.utils import (
     _find_first_transactions,
     clv_summary,
@@ -45,6 +45,7 @@ def test_summary_data() -> pd.DataFrame:
     rng = np.random.default_rng(14)
     df = pd.read_csv("tests/clv/datasets/test_summary_data.csv", index_col=0)
     df["monetary_value"] = rng.lognormal(size=(len(df)))
+    df["customer_id"] = df.index
     return df
 
 
@@ -80,6 +81,35 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
     model._add_fit_data_group(model.data)
 
     return model
+
+
+@pytest.fixture(scope="module")
+def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
+    rng = np.random.default_rng(45)
+
+    model_config = {
+        # Narrow Gaussian centered at MLE params from lifetimes ParetoNBDFitter
+        "r_prior": {"dist": "DiracDelta", "kwargs": {"c": 0.5534}},
+        "alpha_prior": {"dist": "DiracDelta", "kwargs": {"c": 10.5802}},
+        "s_prior": {"dist": "DiracDelta", "kwargs": {"c": 0.6061}},
+        "beta_prior": {"dist": "DiracDelta", "kwargs": {"c": 11.6562}},
+    }
+    pnbd_model = ParetoNBDModel(
+        data=test_summary_data,
+        model_config=model_config,
+    )
+    pnbd_model.build_model()
+
+    # Mock an idata object for tests requiring a fitted model
+    fake_fit = pm.sample_prior_predictive(
+        samples=50, model=pnbd_model.model, random_seed=rng
+    )
+    fake_fit.add_groups(dict(posterior=fake_fit.prior))
+    pnbd_model.idata = fake_fit
+    pnbd_model.set_idata_attrs(pnbd_model.idata)
+    pnbd_model._add_fit_data_group(pnbd_model.data)
+
+    return pnbd_model
 
 
 @pytest.fixture(scope="module")
@@ -136,7 +166,7 @@ def transaction_data() -> pd.DataFrame:
 
 
 class TestCustomerLifetimeValue:
-    def test_customer_lifetime_value_with_known_values(
+    def test_customer_lifetime_value_bg_with_known_values(
         self, test_summary_data, fitted_bg
     ):
         # Test borrowed from
@@ -159,6 +189,7 @@ class TestCustomerLifetimeValue:
             discount_rate=0.0,
         ).mean(("chain", "draw"))
         np.testing.assert_almost_equal(clv_d0, expected, decimal=5)
+
         # discount_rate=1 means the clv will halve over a period
         clv_d1 = (
             customer_lifetime_value(
@@ -210,14 +241,16 @@ class TestCustomerLifetimeValue:
         )
         np.testing.assert_allclose(clv_t2_d1, expected / 2.0 + expected / 4.0, rtol=0.1)
 
-    def test_customer_lifetime_value_gg_with_bgf(
-        self, test_summary_data, fitted_gg, fitted_bg
+    @pytest.mark.parametrize("transaction_model", ("fitted_bg", "fitted_pnbd"))
+    def test_customer_lifetime_value_as_gg_method(
+        self, request, test_summary_data, fitted_gg, transaction_model
     ):
+        transaction_model = request.getfixturevalue(transaction_model)
         t = test_summary_data.head()
 
         ggf_clv = fitted_gg.expected_customer_lifetime_value(
-            transaction_model=fitted_bg,
-            customer_id=t.index,
+            transaction_model=transaction_model,
+            customer_id=t["customer_id"],
             frequency=t["frequency"],
             recency=t["recency"],
             T=t["T"],
@@ -225,8 +258,8 @@ class TestCustomerLifetimeValue:
         )
 
         utils_clv = customer_lifetime_value(
-            transaction_model=fitted_bg,
-            customer_id=t.index,
+            transaction_model=transaction_model,
+            customer_id=t["customer_id"],
             frequency=t["frequency"],
             recency=t["recency"],
             T=t["T"],
@@ -238,36 +271,40 @@ class TestCustomerLifetimeValue:
         )
         np.testing.assert_equal(ggf_clv.values, utils_clv.values)
 
-    @pytest.mark.parametrize("bg_map", (True, False))
     @pytest.mark.parametrize("gg_map", (True, False))
+    @pytest.mark.parametrize("transaction_model_map", (True, False))
+    @pytest.mark.parametrize("transaction_model", ("fitted_bg", "fitted_pnbd"))
     def test_map_posterior_mix_fit_types(
-        self, fitted_bg, fitted_gg, test_summary_data, bg_map, gg_map
+        self,
+        request,
+        test_summary_data,
+        fitted_gg,
+        gg_map,
+        transaction_model_map,
+        transaction_model,
     ):
         """Test we can mix a model that was fit with MAP and one that was fit with sample."""
+        transaction_model = request.getfixturevalue(transaction_model)
         t = test_summary_data.head()
 
         # Copy model with thinned chain/draw as would be obtained from MAP
-        if bg_map:
-            bg = BetaGeoModel(fitted_bg.data, model_config=fitted_bg.model_config)
-            bg.build_model()
-            bg.idata = fitted_bg.idata.sel(chain=slice(0, 1), draw=slice(0, 1))
-        else:
-            bg = fitted_bg
+        if transaction_model_map:
+            transaction_model = transaction_model._build_with_idata(
+                transaction_model.idata.sel(chain=slice(0, 1), draw=slice(0, 1))
+            )
 
         if gg_map:
-            gg = GammaGammaModel(fitted_gg.data, model_config=fitted_gg.model_config)
-            gg.build_model()
-            gg.idata = fitted_gg.idata.sel(chain=slice(0, 1), draw=slice(0, 1))
-        else:
-            gg = fitted_gg
+            fitted_gg = fitted_gg._build_with_idata(
+                fitted_gg.idata.sel(chain=slice(0, 1), draw=slice(0, 1))
+            )
 
         res = customer_lifetime_value(
-            transaction_model=bg,
-            customer_id=t.index,
+            transaction_model=transaction_model,
+            customer_id=t["customer_id"],
             frequency=t["frequency"],
             recency=t["recency"],
             T=t["T"],
-            monetary_value=gg.expected_customer_spend(
+            monetary_value=fitted_gg.expected_customer_spend(
                 t.index,
                 mean_transaction_value=t["monetary_value"],
                 frequency=t["frequency"],
@@ -276,11 +313,19 @@ class TestCustomerLifetimeValue:
 
         assert res.dims == ("chain", "draw", "customer_id")
 
-    def test_clv_after_thinning(self, test_summary_data, fitted_gg, fitted_bg):
+    @pytest.mark.parametrize("transaction_model", ("fitted_bg", "fitted_pnbd"))
+    def test_clv_after_thinning(
+        self,
+        request,
+        test_summary_data,
+        fitted_gg,
+        transaction_model,
+    ):
+        transaction_model = request.getfixturevalue(transaction_model)
         t = test_summary_data.head()
 
         ggf_clv = fitted_gg.expected_customer_lifetime_value(
-            transaction_model=fitted_bg,
+            transaction_model=transaction_model,
             customer_id=t.index,
             frequency=t["frequency"],
             recency=t["recency"],
@@ -289,9 +334,9 @@ class TestCustomerLifetimeValue:
         )
 
         fitted_gg_thinned = fitted_gg.thin_fit_result(keep_every=10)
-        fitted_bg_thinned = fitted_bg.thin_fit_result(keep_every=10)
+        transaction_model_thinned = transaction_model.thin_fit_result(keep_every=10)
         ggf_clv_thinned = fitted_gg_thinned.expected_customer_lifetime_value(
-            transaction_model=fitted_bg_thinned,
+            transaction_model=transaction_model_thinned,
             customer_id=t.index,
             frequency=t["frequency"],
             recency=t["recency"],
