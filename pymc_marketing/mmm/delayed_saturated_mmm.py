@@ -965,12 +965,12 @@ class DelayedSaturatedMMM(
         self,
         spend_amount: float,
         one_time: bool = True,
-        ax: Optional[plt.Axes] = None,
         ylabel: str = "Sales",
         idx: Optional[slice] = None,
         channels: Optional[List[str]] = None,
         prior: bool = False,
         original_scale: bool = True,
+        ax: Optional[plt.Axes] = None,
         **sample_posterior_predictive_kwargs,
     ) -> plt.Axes:
         """Plot the upcoming sales for a given spend amount.
@@ -984,8 +984,6 @@ class DelayedSaturatedMMM(
             The amount of spend for each channel
         one_time : bool, optional
             Whether the spend are one time (at start of period) or constant (over period), by default True (one time)
-        ax : plt.Axes, optional
-            The axes to plot on, by default None or current axes
         ylabel : str, optional
             The label for the y-axis, by default "Sales"
         idx : slice, optional
@@ -997,6 +995,8 @@ class DelayedSaturatedMMM(
             Whether to use the prior or posterior, by default False (posterior)
         original_scale : bool, optional
             Whether to plot in the original scale of the target variable, by default True
+        ax : plt.Axes, optional
+            The axes to plot on, by default None or current axes
         **sample_posterior_predictive_kwargs
             Additional keyword arguments passed to pm.sample_posterior_predictive
 
