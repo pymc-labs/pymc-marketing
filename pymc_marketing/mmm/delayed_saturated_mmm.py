@@ -919,7 +919,7 @@ class DelayedSaturatedMMM(
         idata: Dataset = self.fit_result if not prior else self.prior
 
         coords = {
-            "weeks_since_spend": np.arange(
+            "time_since_spend": np.arange(
                 -self.adstock_max_lag, self.adstock_max_lag + 1
             ),
             "channel": self.channel_columns,
@@ -940,7 +940,7 @@ class DelayedSaturatedMMM(
             pm.Deterministic(
                 name="channel_contributions",
                 var=channel_adstock_saturated * beta_channel,
-                dims=("weeks_since_spend", "channel"),
+                dims=("time_since_spend", "channel"),
             )
 
             samples = pm.sample_posterior_predictive(
@@ -955,7 +955,7 @@ class DelayedSaturatedMMM(
             channel_contributions = apply_sklearn_transformer_across_dim(
                 data=channel_contributions,
                 func=self.get_target_transformer().inverse_transform,
-                dim_name="weeks_since_spend",
+                dim_name="time_since_spend",
                 combined=False,
             )
 
@@ -1018,7 +1018,7 @@ class DelayedSaturatedMMM(
         )
 
         contributions_groupby = contributions.to_series().groupby(
-            level=["weeks_since_spend", "channel"]
+            level=["time_since_spend", "channel"]
         )
 
         idx = idx or pd.IndexSlice[0:]
@@ -1045,7 +1045,7 @@ class DelayedSaturatedMMM(
         mean.add_suffix(" mean").plot(ax=ax, color=color, alpha=0.75)
         ax.legend().set_title("Channel")
         ax.set(
-            xlabel="Weeks since spend",
+            xlabel="Time since spend",
             ylabel=ylabel,
             title=f"Upcoming sales for {spend_amount:.02f} spend",
         )

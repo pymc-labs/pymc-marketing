@@ -771,7 +771,7 @@ def new_contributions_property_checks(new_contributions, X, model):
     coords = new_contributions.coords
     assert coords["channel"].values.tolist() == model.channel_columns
     np.testing.assert_allclose(
-        coords["weeks_since_spend"].values,
+        coords["time_since_spend"].values,
         np.arange(-model.adstock_max_lag, model.adstock_max_lag + 1),
     )
 
