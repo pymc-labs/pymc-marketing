@@ -965,6 +965,8 @@ class DelayedSaturatedMMM(
         self,
         spend_amount: float,
         one_time: bool = True,
+        lower: float = 0.025,
+        upper: float = 0.975,
         ylabel: str = "Sales",
         idx: Optional[slice] = None,
         channels: Optional[List[str]] = None,
@@ -984,6 +986,10 @@ class DelayedSaturatedMMM(
             The amount of spend for each channel
         one_time : bool, optional
             Whether the spend are one time (at start of period) or constant (over period), by default True (one time)
+        lower : float, optional
+            The lower quantile for the confidence interval, by default 0.025
+        upper : float, optional
+            The upper quantile for the confidence interval, by default 0.975
         ylabel : str, optional
             The label for the y-axis, by default "Sales"
         idx : slice, optional
@@ -1006,6 +1012,12 @@ class DelayedSaturatedMMM(
             The plot of upcoming sales for the given spend amount
 
         """
+        for value in [lower, upper]:
+            if value < 0 or value > 1:
+                raise ValueError("lower and upper must be between 0 and 1")
+        if lower > upper:
+            raise ValueError("lower must be less than or equal to upper")
+
         ax = ax or plt.gca()
         total_channels = len(self.channel_columns)
         contributions = self.new_spend_contributions(
@@ -1023,9 +1035,8 @@ class DelayedSaturatedMMM(
 
         idx = idx or pd.IndexSlice[0:]
 
-        lower, upper = quantiles = [0.025, 0.975]
         conf = (
-            contributions_groupby.quantile(quantiles)
+            contributions_groupby.quantile([lower, upper])
             .unstack("channel")
             .unstack()
             .loc[idx]
