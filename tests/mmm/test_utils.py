@@ -6,6 +6,7 @@ import xarray as xr
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     compute_sigmoid_second_derivative,
+    create_new_spend_data,
     estimate_menten_parameters,
     estimate_sigmoid_parameters,
     extense_sigmoid,
@@ -262,3 +263,45 @@ def test_apply_sklearn_function_across_dim_error(
             dim_name="date",
             combined=True,
         )
+
+
+@pytest.mark.parametrize(
+    "spend, adstock_max_lag, one_time, spend_leading_up, expected_result",
+    [
+        (
+            [1, 2],
+            2,
+            True,
+            None,
+            [[0, 0], [0, 0], [1, 2], [0, 0], [0, 0]],
+        ),
+        (
+            [1, 2],
+            2,
+            False,
+            None,
+            [[0, 0], [0, 0], [1, 2], [1, 2], [1, 2]],
+        ),
+        (
+            [1, 2],
+            2,
+            True,
+            [3, 4],
+            [[3, 4], [3, 4], [1, 2], [0, 0], [0, 0]],
+        ),
+    ],
+)
+def test_create_new_spend_data(
+    spend, adstock_max_lag, one_time, spend_leading_up, expected_result
+) -> None:
+    spend = np.array(spend)
+    if spend_leading_up is not None:
+        spend_leading_up = np.array(spend_leading_up)
+    new_spend_data = create_new_spend_data(
+        spend, adstock_max_lag, one_time, spend_leading_up
+    )
+
+    np.testing.assert_allclose(
+        new_spend_data,
+        np.array(expected_result),
+    )

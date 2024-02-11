@@ -17,6 +17,7 @@ from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTar
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
+    create_new_spend_data,
     generate_fourier_modes,
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
@@ -860,14 +861,21 @@ class DelayedSaturatedMMM(
     ) -> DataArray:
         """Return the upcoming contributions for a given spend.
 
+        The spend can be one time or constant over the period. The spend leading up to the
+        period can also be specified in order account for the lagged effect of the spend.
+
         Parameters
         ----------
         spend : np.ndarray, optional
             Array of spend for each channel. If None, the average spend for each channel is used, by default None.
         one_time : bool, optional
-            Whether the spend are one time (at start of period) or constant (over period), by default True (one time)
+            Whether the spends for each channel are only at the start of the period.
+            If True, all spends after the initial spend are zero.
+            If False, all spends after the initial spend are the same as the initial spend.
+            By default True.
         spend_leading_up : np.array, optional
-            Array of spend for each channel leading up to the spend, by default None (no spend leading up)
+            Array of spend for each channel leading up to the spend, by default None or 0 for each channel.
+            Use this parameter to account for the lagged effect of the spend.
         prior : bool, optional
             Whether to use the prior or posterior, by default False (posterior)
         **sample_posterior_predictive_kwargs
@@ -878,38 +886,45 @@ class DelayedSaturatedMMM(
         DataArray
             Upcoming contributions for each channel
 
+        Examples
+        --------
+        Channel contributions from 1 unit on each channel only once.
+
+        .. code-block:: python
+
+            n_channels = len(model.channel_columns)
+            spend = np.ones(n_channels)
+            new_spend_contributions = model.new_spend_contributions(spend=spend)
+
+        Channel contributions from continuously spending 1 unit on each channel.
+
+        .. code-block:: python
+
+            n_channels = len(model.channel_columns)
+            spend = np.ones(n_channels)
+            new_spend_contributions = model.new_spend_contributions(spend=spend, one_time=False)
+
+        Channel contributions from 1 unit on each channel only once but with 1 unit leading up to the spend.
+
+        .. code-block:: python
+
+            n_channels = len(model.channel_columns)
+            spend = np.ones(n_channels)
+            spend_leading_up = np.ones(n_channels)
+            new_spend_contributions = model.new_spend_contributions(spend=spend, spend_leading_up=spend_leading_up)
         """
         if spend is None:
             spend = self.X.loc[:, self.channel_columns].mean().to_numpy()  # type: ignore
 
-        if spend_leading_up is None:
-            spend_leading_up = np.zeros_like(spend)
-
-        if len(spend) != len(self.channel_columns):
+        n_channels = len(self.channel_columns)
+        if len(spend) != n_channels:
             raise ValueError("spend must be the same length as the number of channels")
 
-        if len(spend_leading_up) != len(self.channel_columns):
-            raise ValueError(
-                "spend_leading_up must be the same length as the number of channels"
-            )
-
-        spend_leading_up = np.tile(spend_leading_up, self.adstock_max_lag).reshape(
-            self.adstock_max_lag, -1
-        )
-
-        spend = (
-            np.vstack(
-                [spend, np.zeros((self.adstock_max_lag, len(self.channel_columns)))]
-            )
-            if one_time
-            else np.ones((self.adstock_max_lag + 1, len(self.channel_columns))) * spend
-        )
-
-        new_data = np.vstack(
-            [
-                spend_leading_up,
-                spend,
-            ]
+        new_data = create_new_spend_data(
+            spend=spend,
+            adstock_max_lag=self.adstock_max_lag,
+            one_time=one_time,
+            spend_leading_up=spend_leading_up,
         )
 
         new_data = (
@@ -929,6 +944,7 @@ class DelayedSaturatedMMM(
             lam = pm.HalfFlat("lam", dims=("channel",))
             beta_channel = pm.HalfFlat("beta_channel", dims=("channel",))
 
+            # Same as the forward pass of the model
             channel_adstock = geometric_adstock(
                 x=new_data,
                 alpha=alpha,
