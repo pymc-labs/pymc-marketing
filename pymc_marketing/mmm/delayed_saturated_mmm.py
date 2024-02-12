@@ -13,6 +13,13 @@ from pytensor.tensor import TensorVariable
 from xarray import DataArray
 
 from pymc_marketing.mmm.base import MMM
+from pymc_marketing.mmm.forward_pass import (
+    apply_forward_pass,
+    create_geometric_adstock_handler,
+    create_multiply_handler,
+    logistic_saturation_handler,
+    wrap_as_deterministic,
+)
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.mmm.utils import (
@@ -247,6 +254,63 @@ class BaseDelayedSaturatedMMM(MMM):
             **parameter_distributions,
         )
 
+    @property
+    def forward_pass_params(self):
+        if not hasattr(self, "_forward_pass_params"):
+            self._forward_pass_params = ["alpha", "lam", "beta_channel"]
+
+        return self._forward_pass_params
+
+    @forward_pass_params.setter
+    def forward_pass_params(self, value):
+        self._forward_pass_params = value
+
+    @property
+    def forward_pass_steps(self):
+        if not hasattr(self, "_forward_pass_steps"):
+            multiply = create_multiply_handler("beta_channel")
+
+            geometric_adstock_handler = create_geometric_adstock_handler(
+                self.adstock_max_lag, True, 0
+            )
+            self._forward_pass_steps = [
+                wrap_as_deterministic(
+                    name="geometric_adstock",
+                    dims=("date", "channel"),
+                )(geometric_adstock_handler),
+                wrap_as_deterministic(
+                    name="logistic_saturation",
+                    dims=("date", "channel"),
+                )(logistic_saturation_handler),
+                wrap_as_deterministic(
+                    name="channel_contributions",
+                    dims=("date", "channel"),
+                )(multiply),
+            ]
+
+        return self._forward_pass_steps
+
+    @forward_pass_steps.setter
+    def forward_pass_steps(self, value):
+        self._forward_pass_steps = value
+
+    def forward_pass(self, channel_data_: TensorVariable) -> TensorVariable:
+        """Define the variables and steps in the forward pass of the model."""
+        params: Dict[str, TensorVariable] = {
+            name: self._get_distribution(dist=self.model_config[name])(
+                name=name,
+                **self.model_config[name]["kwargs"],
+                dims="channel",
+            )
+            for name in self.forward_pass_params
+        }
+
+        return apply_forward_pass(
+            x=channel_data_,
+            steps=self.forward_pass_steps,
+            params=params,
+        )
+
     def build_model(
         self,
         X: pd.DataFrame,
@@ -308,11 +372,7 @@ class BaseDelayedSaturatedMMM(MMM):
         self.intercept_dist = self._get_distribution(
             dist=self.model_config["intercept"]
         )
-        self.beta_channel_dist = self._get_distribution(
-            dist=self.model_config["beta_channel"]
-        )
-        self.lam_dist = self._get_distribution(dist=self.model_config["lam"])
-        self.alpha_dist = self._get_distribution(dist=self.model_config["alpha"])
+
         self.gamma_control_dist = self._get_distribution(
             dist=self.model_config["gamma_control"]
         )
@@ -341,43 +401,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 name="intercept", **self.model_config["intercept"]["kwargs"]
             )
 
-            beta_channel = self.beta_channel_dist(
-                name="beta_channel",
-                **self.model_config["beta_channel"]["kwargs"],
-                dims=("channel",),
-            )
-            alpha = self.alpha_dist(
-                name="alpha",
-                dims="channel",
-                **self.model_config["alpha"]["kwargs"],
-            )
-            lam = self.lam_dist(
-                name="lam",
-                dims="channel",
-                **self.model_config["lam"]["kwargs"],
-            )
-
-            channel_adstock = pm.Deterministic(
-                name="channel_adstock",
-                var=geometric_adstock(
-                    x=channel_data_,
-                    alpha=alpha,
-                    l_max=self.adstock_max_lag,
-                    normalize=True,
-                    axis=0,
-                ),
-                dims=("date", "channel"),
-            )
-            channel_adstock_saturated = pm.Deterministic(
-                name="channel_adstock_saturated",
-                var=logistic_saturation(x=channel_adstock, lam=lam),
-                dims=("date", "channel"),
-            )
-            channel_contributions = pm.Deterministic(
-                name="channel_contributions",
-                var=channel_adstock_saturated * beta_channel,
-                dims=("date", "channel"),
-            )
+            channel_contributions = self.forward_pass(channel_data_)
 
             mu_var = intercept + channel_contributions.sum(axis=-1)
             if (
