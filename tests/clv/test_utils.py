@@ -13,6 +13,7 @@ from pymc_marketing.clv.utils import (
     clv_summary,
     customer_lifetime_value,
     rfm_summary,
+    rfm_train_test_split,
     to_xarray,
 )
 
@@ -169,7 +170,7 @@ class TestCustomerLifetimeValue:
     def test_customer_lifetime_value_bg_with_known_values(
         self, test_summary_data, fitted_bg
     ):
-        # Test borrowed from
+        # Test adapted from
         # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L527
 
         t = test_summary_data.head()
@@ -353,7 +354,7 @@ class TestCustomerLifetimeValue:
         )
 
 
-def test_find_first_transactions_observation_period_end_none(transaction_data):
+def test_find_first_transactions_test_period_end_none(transaction_data):
     max_date = transaction_data["date"].max()
     pd.testing.assert_frame_equal(
         left=_find_first_transactions(
@@ -377,7 +378,7 @@ def test_find_first_transactions_observation_period_end_none(transaction_data):
     ids=["string", "period", "datetime", "none"],
 )
 def test_find_first_transactions_returns_correct_results(transaction_data, today):
-    # Test borrowed from
+    # Test adapted from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L137
 
     actual = _find_first_transactions(
@@ -415,7 +416,7 @@ def test_find_first_transactions_returns_correct_results(transaction_data, today
 def test_find_first_transactions_with_specific_non_daily_frequency(
     transaction_data, today
 ):
-    # Test borrowed from
+    # Test adapted from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L161
 
     actual = _find_first_transactions(
@@ -449,7 +450,7 @@ def test_find_first_transactions_with_specific_non_daily_frequency(
     ids=["string", "period", "datetime", "none"],
 )
 def test_find_first_transactions_with_monetary_values(transaction_data, today):
-    # Test borrowed from
+    # Test adapted from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L184
 
     actual = _find_first_transactions(
@@ -488,7 +489,7 @@ def test_find_first_transactions_with_monetary_values(transaction_data, today):
 def test_find_first_transactions_with_monetary_values_with_specific_non_daily_frequency(
     transaction_data, today
 ):
-    # Test borrowed from
+    # Test adapted from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L210
 
     actual = _find_first_transactions(
@@ -522,7 +523,7 @@ def test_find_first_transactions_with_monetary_values_with_specific_non_daily_fr
     ids=["string", "period", "datetime"],
 )
 def test_rfm_summary_returns_correct_results(transaction_data, today):
-    # Test borrowed from
+    # Test adapted from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L239
 
     actual = rfm_summary(transaction_data, "id", "date", observation_period_end=today)
@@ -541,7 +542,7 @@ def test_rfm_summary_returns_correct_results(transaction_data, today):
 
 
 def test_rfm_summary_works_with_string_customer_ids():
-    # Test borrowed from
+    # Test adapted from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L250
 
     d = [
@@ -557,7 +558,7 @@ def test_rfm_summary_works_with_string_customer_ids():
 
 
 def test_rfm_summary_works_with_int_customer_ids_and_doesnt_coerce_to_float():
-    # Test borrowed from
+    # Test adapted from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L263
 
     d = [
@@ -576,7 +577,7 @@ def test_rfm_summary_works_with_int_customer_ids_and_doesnt_coerce_to_float():
 def test_rfm_summary_with_specific_datetime_format(
     transaction_data,
 ):
-    # Test borrowed from
+    # Test adapted from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L279
 
     transaction_data["date"] = transaction_data["date"].map(
@@ -609,7 +610,7 @@ def test_rfm_summary_with_specific_datetime_format(
 def test_rfm_summary_non_daily_frequency(
     transaction_data,
 ):
-    # Test borrowed from
+    # Test adapted from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L292
 
     today = "20150207"
@@ -637,7 +638,7 @@ def test_rfm_summary_non_daily_frequency(
 def test_rfm_summary_monetary_values_and_first_transactions(
     transaction_data,
 ):
-    # Test borrowed from
+    # Test adapted from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L311
 
     today = "20150207"
@@ -684,7 +685,7 @@ def test_rfm_summary_monetary_values_and_first_transactions(
 
 
 def test_rfm_summary_will_choose_the_correct_first_order_to_drop_in_monetary_transactions():
-    # Test borrowed from
+    # Test adapted from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L334
 
     cust = pd.Series([2, 2, 2])
@@ -711,7 +712,7 @@ def test_rfm_summary_will_choose_the_correct_first_order_to_drop_in_monetary_tra
 def test_rfm_summary_statistics_identical_to_hardie_paper(
     cdnow_trans,
 ):
-    # Test borrowed from
+    # Test adapted from
     # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L353
 
     # see http://brucehardie.com/papers/rfm_clv_2005-02-16.pdf
@@ -734,6 +735,136 @@ def test_rfm_summary_statistics_identical_to_hardie_paper(
     assert np.round(results.loc["count"]) == 946
 
 
+def test_rfm_summary_squashes_period_purchases_to_one_purchase():
+    # Test adapted from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L472
+
+    transactions = pd.DataFrame(
+        [[1, "2015-01-01"], [1, "2015-01-01"]], columns=["id", "t"]
+    )
+    actual = rfm_summary(transactions, "id", "t", time_unit="W")
+    assert actual.loc[0]["frequency"] == 1.0 - 1.0
+
+
 def test_clv_summary_warning(transaction_data):
     with pytest.warns(UserWarning, match="clv_summary was renamed to rfm_summary"):
         clv_summary(transaction_data, "id", "date")
+
+
+def test_rfm_train_test_split(transaction_data):
+    # Test adapted from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L374
+
+    today = "2015-02-07"
+    train_end = "2015-02-01"
+    actual = rfm_train_test_split(
+        transaction_data, "id", "date", train_end, test_period_end=today
+    )
+    assert actual.loc[1]["test_frequency"] == 1
+    assert actual.loc[2]["test_frequency"] == 0
+
+    with pytest.raises(KeyError):
+        actual.loc[6]
+
+
+def test_rfm_train_test_split_throws_better_error_if_test_period_end_is_too_early(
+    transaction_data,
+):
+    # Test adapted from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L387
+
+    # max date is 2015-02-02
+    today = "2014-02-07"
+    train_end = "2014-02-01"
+
+    with pytest.raises(ValueError, match="There is no data available"):
+        rfm_train_test_split(
+            transaction_data, "id", "date", train_end, test_period_end=today
+        )
+
+
+def test_rfm_train_test_split_is_okay_with_other_indexes(transaction_data):
+    # Test adapted from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L400
+
+    n = transaction_data.shape[0]
+    transaction_data.index = np.random.randint(0, n, size=n)
+    today = "2015-02-07"
+    train_end = "2015-02-01"
+    actual = rfm_train_test_split(
+        transaction_data, "id", "date", train_end, test_period_end=today
+    )
+    assert actual.loc[1]["test_frequency"] == 1
+    assert actual.loc[2]["test_frequency"] == 0
+
+
+def test_rfm_train_test_split_works_with_specific_frequency(transaction_data):
+    # Test adapted from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L412
+
+    today = "2015-02-07"
+    train_end = "2015-02-01"
+    actual = rfm_train_test_split(
+        transaction_data, "id", "date", train_end, test_period_end=today, time_unit="W"
+    )
+    expected_cols = ["id", "frequency", "recency", "T", "test_frequency", "test_T"]
+    expected = pd.DataFrame(
+        [
+            [1, 0.0, 0.0, 4.0, 1, 1],
+            [2, 0.0, 0.0, 4.0, 0, 1],
+            [3, 1.0, 1.0, 4.0, 0, 1],
+            [4, 0.0, 0.0, 2.0, 1, 1],
+            [5, 0.0, 0.0, 2.0, 0, 1],
+        ],
+        columns=expected_cols,
+    ).set_index("id")
+    assert_frame_equal(actual, expected, check_dtype=False)
+
+
+def test_rfm_train_test_split_gives_correct_date_boundaries():
+    # Test adapted from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L432
+
+    d = [
+        [1, "2015-01-01"],
+        [1, "2015-02-06"],  # excluded from both holdout and calibration
+        [2, "2015-01-01"],
+        [3, "2015-01-01"],
+        [3, "2015-01-02"],
+        [3, "2015-01-05"],
+        [4, "2015-01-16"],
+        [4, "2015-02-02"],
+        [4, "2015-02-05"],  # excluded from both holdout and calibration
+        [5, "2015-01-16"],
+        [5, "2015-01-17"],
+        [5, "2015-01-18"],
+        [6, "2015-02-02"],
+    ]
+    transactions = pd.DataFrame(d, columns=["id", "date"])
+    actual = rfm_train_test_split(
+        transactions,
+        "id",
+        "date",
+        train_period_end="2015-02-01",
+        test_period_end="2015-02-04",
+    )
+    assert actual["test_frequency"].loc[1] == 0
+    assert actual["test_frequency"].loc[4] == 1
+
+
+def test_rfm_train_test_split_with_monetary_value(transaction_data):
+    # Test adapted from
+    # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L457
+
+    today = "2015-02-07"
+    train_end = "2015-02-01"
+    actual = rfm_train_test_split(
+        transaction_data,
+        "id",
+        "date",
+        train_end,
+        test_period_end=today,
+        monetary_value_col="monetary_value",
+    )
+    assert (actual["monetary_value_cal"] == [0, 0, 3, 0, 4.5]).all()
+    assert (actual["monetary_value_holdout"] == [2, 0, 0, 3, 0]).all()

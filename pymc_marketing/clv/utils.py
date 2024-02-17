@@ -483,6 +483,7 @@ def rfm_train_test_split(
         customer_id, frequency, recency, T, test_frequency, test_T [, monetary_value, test_monetary_value]
     """
 
+    # TODO: This is causing things to break.
     def to_period(d):
         return d.to_period(time_unit)
 
@@ -523,6 +524,7 @@ def rfm_train_test_split(
         & (transactions[datetime_col] > train_period_end)
     ]
 
+    # TODO: This is causing things to break.
     if test_transactions.empty:
         raise ValueError(
             "No data available. Check `test_transactions` and  `train_period_end` and confirm values in `transactions` occur prior to those time periods."
