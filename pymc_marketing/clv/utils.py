@@ -258,9 +258,9 @@ def _find_first_transactions(
     period_transactions.loc[first_transactions, "first"] = True
     select_columns.append("first")
     # reset datetime_col to period
-    period_transactions.loc[:, datetime_col] = period_transactions[
-        datetime_col
-    ].dt.to_period(time_unit)
+    period_transactions[datetime_col] = period_transactions[datetime_col].dt.to_period(
+        time_unit
+    )
 
     return period_transactions[select_columns]
 
@@ -522,7 +522,7 @@ def rfm_train_test_split(
     test_transactions = transactions.loc[
         (test_period_end >= transactions[datetime_col])
         & (transactions[datetime_col] > train_period_end)
-    ]
+    ].copy()
 
     # TODO: This is causing things to break.
     if test_transactions.empty:
