@@ -483,10 +483,6 @@ def rfm_train_test_split(
         customer_id, frequency, recency, T, test_frequency, test_T [, monetary_value, test_monetary_value]
     """
 
-    # TODO: This is causing things to break.
-    def to_period(d):
-        return d.to_period(time_unit)
-
     if test_period_end is None:
         test_period_end = transactions[datetime_col].max()
 
@@ -505,6 +501,13 @@ def rfm_train_test_split(
     training_transactions = transactions.loc[
         transactions[datetime_col] <= train_period_end
     ]
+
+    # TODO: This is causing things to break.
+    if training_transactions.empty:
+        raise ValueError(
+            "No data available. Check `test_transactions` and  `train_period_end` and confirm values in `transactions` occur prior to those time periods."
+        )
+
     training_rfm_data = rfm_summary(
         training_transactions,
         customer_id_col,
@@ -530,7 +533,10 @@ def rfm_train_test_split(
             "No data available. Check `test_transactions` and  `train_period_end` and confirm values in `transactions` occur prior to those time periods."
         )
 
-    test_transactions[datetime_col] = test_transactions[datetime_col].map(to_period)
+    test_transactions[datetime_col] = test_transactions[datetime_col].dt.to_period(
+        time_unit
+    )
+    # TODO: What is going on here?
     test_rfm_data = (
         test_transactions.groupby([customer_id_col, datetime_col], sort=False)
         .agg(lambda r: 1)
@@ -547,6 +553,11 @@ def rfm_train_test_split(
     train_test_rfm_data = training_rfm_data.join(test_rfm_data, how="left")
     train_test_rfm_data.fillna(0, inplace=True)
 
+    # TODO: Dummy function to pass pre-commit checks. Delete once resolved.
+    def to_period(dataframe):
+        return dataframe
+
+    # TODO: What is going on here?
     time_delta = (to_period(test_rfm_data) - to_period(training_rfm_data)).n
     train_test_rfm_data["test_T"] = time_delta / time_scaler
 

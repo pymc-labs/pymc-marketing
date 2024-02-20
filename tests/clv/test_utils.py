@@ -769,20 +769,24 @@ class TestRFM:
         with pytest.raises(KeyError):
             actual.loc[6]
 
+    @pytest.mark.parametrize("test_end", ("2015-02-01", "2015-02-07"))
     def test_rfm_train_test_split_throws_better_error_if_test_period_end_is_too_early(
         self,
+        test_end,
         transaction_data,
     ):
         # Test adapted from
         # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L387
 
         # max date is 2015-02-02
-        today = "2014-02-07"
         train_end = "2014-02-01"
 
-        with pytest.raises(ValueError, match="There is no data available"):
+        with pytest.raises(
+            ValueError,
+            match="No data available. Check `test_transactions` and  `train_period_end` and confirm values in `transactions` occur prior to those time periods.",
+        ):
             rfm_train_test_split(
-                transaction_data, "id", "date", train_end, test_period_end=today
+                transaction_data, "id", "date", train_end, test_period_end=test_end
             )
 
     def test_rfm_train_test_split_is_okay_with_other_indexes(self, transaction_data):
