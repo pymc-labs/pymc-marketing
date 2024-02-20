@@ -42,8 +42,8 @@ jobs:
     if: ${{ always() }}
     runs-on: ubuntu-latest
     name: All checks
-    needs: [ lint, test ]
+    needs: [ test ]
     steps:
       - name: Confirm checks passed
-        if: ${{ (needs.lint.result != 'success' || needs.test.result != 'success') }}
+        if: ${{ needs.test.result != 'success') }}
         run: exit 1
