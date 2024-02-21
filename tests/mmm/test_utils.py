@@ -8,10 +8,8 @@ from pymc_marketing.mmm.utils import (
     compute_sigmoid_second_derivative,
     estimate_menten_parameters,
     estimate_sigmoid_parameters,
-    extense_sigmoid,
     find_sigmoid_inflection_point,
     generate_fourier_modes,
-    michaelis_menten,
 )
 
 
@@ -87,41 +85,6 @@ def test_bad_order(n_order):
         generate_fourier_modes(
             periods=np.linspace(start=0.0, stop=1.0, num=50), n_order=n_order
         )
-
-
-@pytest.mark.parametrize(
-    "x, alpha, lam, expected",
-    [
-        (10, 100, 5, 66.67),
-        (20, 100, 5, 80),
-    ],
-)
-def test_michaelis_menten(x, alpha, lam, expected):
-    assert np.isclose(michaelis_menten(x, alpha, lam), expected, atol=0.01)
-
-
-@pytest.mark.parametrize(
-    "x, alpha, lam, expected",
-    [
-        (0, 1, 1, 0),
-        (1, 1, 1, 0.4621),
-    ],
-)
-def test_extense_sigmoid(x, alpha, lam, expected):
-    assert np.isclose(extense_sigmoid(x, alpha, lam), expected, atol=0.01)
-
-
-@pytest.mark.parametrize(
-    "x, alpha, lam",
-    [
-        (0, 0, 1),
-        (1, -1, 1),
-        (1, 1, 0),
-    ],
-)
-def test_extense_sigmoid_value_errors(x, alpha, lam):
-    with pytest.raises(ValueError):
-        extense_sigmoid(x, alpha, lam)
 
 
 # Test estimate_menten_parameters with valid inputs

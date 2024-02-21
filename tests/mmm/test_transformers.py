@@ -15,7 +15,9 @@ from pymc_marketing.mmm.transformers import (
     delayed_adstock,
     geometric_adstock,
     logistic_saturation,
+    michaelis_menten,
     scale_preserving_logistic_saturation,
+    sigmoid_saturation,
     tanh_saturation,
     tanh_saturation_baselined,
     weibull_adstock,
@@ -436,6 +438,38 @@ class TestSaturationTransformers:
         np.testing.assert_allclose(y3, y4)
         np.testing.assert_allclose(param_classic1.b.eval(), b)
         np.testing.assert_allclose(param_classic1.c.eval(), c)
+
+    @pytest.mark.parametrize(
+        "x, alpha, lam, expected",
+        [
+            (10, 100, 5, 66.67),
+            (20, 100, 5, 80),
+        ],
+    )
+    def test_michaelis_menten(self, x, alpha, lam, expected):
+        assert np.isclose(michaelis_menten(x, alpha, lam), expected, atol=0.01)
+
+    @pytest.mark.parametrize(
+        "x, alpha, lam, expected",
+        [
+            (0, 1, 1, 0),
+            (1, 1, 1, 0.4621),
+        ],
+    )
+    def test_sigmoid_saturation(self, x, alpha, lam, expected):
+        assert np.isclose(sigmoid_saturation(x, alpha, lam), expected, atol=0.01)
+
+    @pytest.mark.parametrize(
+        "x, alpha, lam",
+        [
+            (0, 0, 1),
+            (1, -1, 1),
+            (1, 1, 0),
+        ],
+    )
+    def test_sigmoid_saturation_value_errors(self, x, alpha, lam):
+        with pytest.raises(ValueError):
+            sigmoid_saturation(x, alpha, lam)
 
 
 class TestTransformersComposition:
