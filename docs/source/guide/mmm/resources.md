@@ -49,3 +49,7 @@ To add more substance to our session and ensure it's not just informative but al
 * Juan Orduz: [Media Mix Model and Experimental Calibration: A Simulation Study](https://juanitorduz.github.io/mmm_roas/)
 * Dr. Robert Kübler: [Convenient Bayesian Marketing Mix Modeling with PyMC Marketing](https://towardsdatascience.com/convenient-bayesian-marketing-mix-modeling-with-pymc-marketing-8b02a9a9c4aa)
 * Carlos Eduardo Trujillo Agostini: [Better budgeting with Bayesian models: Bolt’s story with PyMC-Marketing](https://bolt.eu/en/blog/budgeting-with-bayesian-models-pymc-marketing/)
+
+### Tutorials
+
+- [Example Problem: JellyPop](https://github.com/PhilClarkPhD/mmm)
