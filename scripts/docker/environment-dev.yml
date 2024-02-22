@@ -6,6 +6,3 @@ channels:
 dependencies:
   # core
   - pymc-marketing
-  # dev
-  - ipython
-  - ipykernel
