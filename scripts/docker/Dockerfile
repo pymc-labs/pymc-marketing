@@ -3,8 +3,6 @@ FROM jupyter/base-notebook:python-3.11.6
 LABEL name="pymc-marketing"
 LABEL description="Environment for PyMC Marketing"
 
-ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
-
 # Install conda environment
 COPY environment-dev.yml /tmp/
 
