@@ -11,3 +11,7 @@ To run the docker image, run the following command:
 ```bash
 docker run -it -p 8888:8888 -v $(pwd):/home/jovyan/work docker-pymc-marketing
 ```
+
+Now you are ready to access the Jupyter Notebook:
+
+> Visiting http://<hostname>:8888/?token=<token> in a browser loads the Jupyter Notebook dashboard page, where hostname is the name of the computer running docker and token is the secret token printed in the console.

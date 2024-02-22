@@ -31,6 +31,10 @@ conda activate marketing_env
 
 For a comprehensive installation guide, refer to the [official PyMC installation documentation](https://www.pymc.io/projects/docs/en/latest/installation.html).
 
+### Docker
+
+We provide a `Dockerfile` to build a Docker image for PyMC-Marketing so that is accessible from a Jupyter Notebook. See [here](/scripts/docker/README.md) for more details.
+
 ## In-depth Bayesian Marketing Mix Modeling (MMM) in PyMC
 
 Leverage our Bayesian MMM API to tailor your marketing strategies effectively. Based on the research [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017)](https://research.google/pubs/pub46001/),  and integrating the expertise from core PyMC developers, our API provides:
