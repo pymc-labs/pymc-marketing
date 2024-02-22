@@ -12,7 +12,7 @@ USER $NB_UID
 COPY /scripts/docker/environment-dev.yml .
 RUN mamba env create -f environment-dev.yml && \
     /bin/bash -c ". activate pymc-marketing-dev" && \
-    conda clean --all -f -y
+    mamba clean --all -f -y
 
 # Create kernel
 RUN $CONDA_DIR/envs/pymc-marketing-dev/bin/python -m ipykernel install --user --name=pymc-marketing-dev
@@ -28,9 +28,9 @@ WORKDIR /home/jovyan/work
 
 # For running from bash
 SHELL ["/bin/bash","-c"]
-RUN echo "conda activate pymc-marketing-dev" >> ~/.bashrc && \
+RUN echo "mamba activate pymc-marketing-dev" >> ~/.bashrc && \
     source ~/.bashrc
 
 # For running from jupyter notebook
 EXPOSE 8888
-CMD ["conda", "run", "--no-capture-output", "-n", "pymc-marketing-dev", "jupyter","notebook","--ip=0.0.0.0","--port=8888","--no-browser"]
+CMD ["mamba", "run", "--no-capture-output", "-n", "pymc-marketing-dev", "jupyter","notebook","--ip=0.0.0.0","--port=8888","--no-browser"]
