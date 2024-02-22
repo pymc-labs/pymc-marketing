@@ -3,12 +3,14 @@
 To build the docker image, run the following command:
 
 ```bash
-docker build  -f scripts/docker/Dockerfile -t docker-pymc-marketing .
+cd scripts/docker/
+docker build -t docker-pymc-marketing .
 ```
 
 To run the docker image, run the following command:
 
 ```bash
+cd /path/to/your/project
 docker run -it -p 8888:8888 -v $(pwd):/home/jovyan/work docker-pymc-marketing
 ```
 
