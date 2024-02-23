@@ -12,5 +12,6 @@ Given the popularity of the Media Mix Modelling (MMM) approach, there are many p
 | Model   | 🏗️ Build            | 🏗️ Build        |  🏗️ Build       | 🏗️ Build        | 🛒 Buy               |
 | Budget optimizer | ✅ | ✅ |   ✅        |   ❌        |    ✅                  |
 | Time-varying parameters | coming soon | ❌ |   ❌        |   ✅        |    ?                  |
-| Custom Priors | ✅ | ✅ | ❌ | ❌ | ✅ |
-| Lift Test Calibration | coming soon | ❌ | ✅ | ❌ | ✅ |
+| Custom priors | ✅ | ✅ | ❌ | ❌ | ✅ |
+| Lift-test calibration | coming soon | ❌ | ✅ | ❌ | ✅ |
+| Out of sample predictions | ✅ | ✅ | no | ✅ | ✅ |
