@@ -21,14 +21,12 @@ from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.budget_optimizer import budget_allocator
-from pymc_marketing.mmm.transformers import (
-    michaelis_menten,
-    sigmoid_saturation,
-)
+from pymc_marketing.mmm.transformers import michaelis_menten
 from pymc_marketing.mmm.utils import (
     estimate_menten_parameters,
     estimate_sigmoid_parameters,
     find_sigmoid_inflection_point,
+    sigmoid_saturation,
     standardize_scenarios_dict_keys,
 )
 from pymc_marketing.mmm.validating import (

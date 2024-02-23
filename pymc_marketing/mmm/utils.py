@@ -7,7 +7,7 @@ import pandas as pd
 import xarray as xr
 from scipy.optimize import curve_fit, minimize_scalar
 
-from pymc_marketing.mmm.transformers import michaelis_menten, sigmoid_saturation
+from pymc_marketing.mmm.transformers import michaelis_menten
 
 
 def generate_fourier_modes(
@@ -273,3 +273,24 @@ def apply_sklearn_transformer_across_date(
     data.attrs = attrs
 
     return data
+
+
+def sigmoid_saturation(
+    x: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
+) -> Union[float, Any]:
+    """
+    Parameters
+    ----------
+    - alpha
+        α (alpha): Represent the Asymptotic Maximum or Ceiling Value.
+    - lam
+        λ (lambda): affects how quickly the function approaches its upper and lower asymptotes. A higher value of
+        lam makes the curve steeper, while a lower value makes it more gradual.
+    """
+
+    if alpha <= 0 or lam <= 0:
+        raise ValueError("alpha and lam must be greater than 0")
+
+    return (alpha - alpha * np.exp(-lam * x)) / (1 + np.exp(-lam * x))

@@ -10,6 +10,7 @@ from pymc_marketing.mmm.utils import (
     estimate_sigmoid_parameters,
     find_sigmoid_inflection_point,
     generate_fourier_modes,
+    sigmoid_saturation,
 )
 
 
@@ -223,3 +224,27 @@ def test_apply_sklearn_function_across_date_error(
             mock_method,
             combined=True,
         )
+
+
+@pytest.mark.parametrize(
+    "x, alpha, lam, expected",
+    [
+        (0, 1, 1, 0),
+        (1, 1, 1, 0.4621),
+    ],
+)
+def test_sigmoid_saturation(x, alpha, lam, expected):
+    assert np.isclose(sigmoid_saturation(x, alpha, lam), expected, atol=0.01)
+
+
+@pytest.mark.parametrize(
+    "x, alpha, lam",
+    [
+        (0, 0, 1),
+        (1, -1, 1),
+        (1, 1, 0),
+    ],
+)
+def test_sigmoid_saturation_value_errors(x, alpha, lam):
+    with pytest.raises(ValueError):
+        sigmoid_saturation(x, alpha, lam)

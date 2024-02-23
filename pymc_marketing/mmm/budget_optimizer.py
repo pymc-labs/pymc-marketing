@@ -5,7 +5,8 @@ import numpy as np
 from pandas import DataFrame
 from scipy.optimize import minimize
 
-from pymc_marketing.mmm.transformers import michaelis_menten, sigmoid_saturation
+from pymc_marketing.mmm.transformers import michaelis_menten
+from pymc_marketing.mmm.utils import sigmoid_saturation
 
 
 def calculate_expected_contribution(
