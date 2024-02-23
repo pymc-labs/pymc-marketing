@@ -14,4 +14,4 @@ Given the popularity of the Media Mix Modelling (MMM) approach, there are many p
 | Time-varying parameters | coming soon | ❌ |   ❌        |   ✅        |    ?                  |
 | Custom priors | ✅ | ✅ | ❌ | ❌ | ✅ |
 | Lift-test calibration | coming soon | ❌ | ✅ | ❌ | ✅ |
-| Out of sample predictions | ✅ | ✅ | no | ✅ | ✅ |
+| Out of sample predictions | ✅ | ✅ | ❌ | ✅ | ✅ |
