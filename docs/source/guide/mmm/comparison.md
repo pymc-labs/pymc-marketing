@@ -10,5 +10,5 @@ Given the popularity of the Media Mix Modelling (MMM) approach, there are many p
 | Company    | PyMC Labs           | Google          | Meta                  | Uber      | Recast              |
 | Open source| ✅                  | ✅              | ✅                    | ✅       | ❌                 |
 | Model   | 🏗️ Build            | 🏗️ Build        |  🏗️ Build       | 🏗️ Build        | 🛒 Buy               |
-| Budget optimizer | coming soon | ✅ |   ✅        |   ❌        |    ✅                  |
+| Budget optimizer |  ✅| ✅ |   ✅        |   ❌        |    ✅                  |
 | Time-varying parameters | coming soon | ❌ |   ❌        |   ✅        |    ?                  |
