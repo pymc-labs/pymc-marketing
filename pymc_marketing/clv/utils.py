@@ -534,13 +534,14 @@ def rfm_train_test_split(
     test_transactions[datetime_col] = test_transactions[datetime_col].dt.to_period(
         time_unit
     )
-    # TODO: What is going on here?
+    # create test_frequency column
     test_rfm_data = (
         test_transactions.groupby([customer_id_col, datetime_col], sort=False)
         .agg(lambda r: 1)
         .groupby(level=customer_id_col)
-        .agg(["count"])
+        .count()
     )
+    # TODO: This line will break if additional columns are present in transaction_df
     test_rfm_data.columns = ["test_frequency"]  # type: ignore
     # TODO: Test fix here for known lifetimes bug: https://github.com/CamDavidsonPilon/lifetimes/issues/431
     if monetary_value_col:
@@ -556,12 +557,9 @@ def rfm_train_test_split(
     train_test_rfm_data = training_rfm_data.join(test_rfm_data, how="outer")
     train_test_rfm_data.fillna(0, inplace=True)
 
-    # TODO: Dummy function to pass pre-commit checks. Delete once resolved.
-    def to_period(dataframe):
-        return dataframe
-
-    # TODO: What is going on here?
-    time_delta = (to_period(test_rfm_data) - to_period(training_rfm_data)).n
-    train_test_rfm_data["test_T"] = time_delta / time_scaler
+    time_delta = (
+        test_period_end.to_period(time_unit) - train_period_end.to_period(time_unit)
+    ).n
+    train_test_rfm_data["test_T"] = time_delta / time_scaler  # type: ignore
 
     return train_test_rfm_data
