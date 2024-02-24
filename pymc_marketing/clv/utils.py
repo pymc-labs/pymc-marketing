@@ -502,7 +502,6 @@ def rfm_train_test_split(
         transactions[datetime_col] <= train_period_end
     ]
 
-    # TODO: This is causing things to break.
     if training_transactions.empty:
         raise ValueError(
             "No data available. Check `test_transactions` and  `train_period_end` and confirm values in `transactions` occur prior to those time periods."
@@ -527,7 +526,6 @@ def rfm_train_test_split(
         & (transactions[datetime_col] > train_period_end)
     ].copy()
 
-    # TODO: This is causing things to break.
     if test_transactions.empty:
         raise ValueError(
             "No data available. Check `test_transactions` and  `train_period_end` and confirm values in `transactions` occur prior to those time periods."
@@ -544,13 +542,19 @@ def rfm_train_test_split(
         .agg(["count"])
     )
     test_rfm_data.columns = ["test_frequency"]  # type: ignore
-    # TODO: monetary_value is not being aggregated properly here. This is a known lifetimes bug.
+    # TODO: Test fix here for known lifetimes bug: https://github.com/CamDavidsonPilon/lifetimes/issues/431
     if monetary_value_col:
-        test_rfm_data["test_monetary_value"] = test_transactions.groupby(
-            customer_id_col
-        )[monetary_value_col].mean()
-    # TODO: This will remove customers who have not made purchases in the train period. Return this DF as well.
-    train_test_rfm_data = training_rfm_data.join(test_rfm_data, how="left")
+        test_rfm_data["test_monetary_value"] = (
+            test_transactions.groupby([customer_id_col, datetime_col])[
+                monetary_value_col
+            ]
+            .sum()
+            .groupby(customer_id_col)
+            .mean()
+            .mean()
+        )
+    # TODO: This will include new customers who are not in the train period, check if test period contains nulls.
+    train_test_rfm_data = training_rfm_data.join(test_rfm_data, how="outer")
     train_test_rfm_data.fillna(0, inplace=True)
 
     # TODO: Dummy function to pass pre-commit checks. Delete once resolved.
