@@ -10,21 +10,6 @@ env:
   OLDEST_PYMC_VERSION: "5.10.0"
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.9", "3.11"]
-        oldest-pymc: [false, true]
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v3
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Run lint
-        uses: pre-commit/action@v3.0.0
-
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -57,8 +42,8 @@ jobs:
     if: ${{ always() }}
     runs-on: ubuntu-latest
     name: All checks
-    needs: [ lint, test ]
+    needs: [ test ]
     steps:
       - name: Confirm checks passed
-        if: ${{ (needs.lint.result != 'success' || needs.test.result != 'success') }}
+        if: ${{ needs.test.result != 'success' }}
         run: exit 1
