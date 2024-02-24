@@ -551,7 +551,6 @@ def rfm_train_test_split(
             .sum()
             .groupby(customer_id_col)
             .mean()
-            .mean()
         )
     # TODO: This will include new customers who are not in the train period, check if test period contains nulls.
     train_test_rfm_data = training_rfm_data.join(test_rfm_data, how="outer")
