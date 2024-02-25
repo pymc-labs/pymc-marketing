@@ -874,5 +874,5 @@ class TestRFM:
             test_period_end=today,
             monetary_value_col="monetary_value",
         )
-        assert (actual["monetary_value_cal"] == [0, 0, 3, 0, 4.5]).all()
-        assert (actual["monetary_value_holdout"] == [2, 0, 0, 3, 0]).all()
+        assert (actual["monetary_value"] == [0, 0, 3, 0, 4.5]).all()
+        assert (actual["test_monetary_value"] == [2, 0, 0, 3, 0]).all()

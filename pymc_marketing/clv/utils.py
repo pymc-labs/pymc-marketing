@@ -553,8 +553,17 @@ def rfm_train_test_split(
             .groupby(customer_id_col)
             .mean()
         )
-    # TODO: This will include new customers who are not in the train period, check if test period contains nulls.
-    train_test_rfm_data = training_rfm_data.join(test_rfm_data, how="outer")
+
+    # TODO: need to rename index of test_rfm_data to "customer_id"
+    # https://towardsdatascience.com/the-most-efficient-way-to-merge-join-pandas-dataframes-7576e8b6c5c
+
+    # test_rfm_data = test_rfm_data.reset_index().rename(
+    #     columns={customer_id_col: "customer_id"}
+    # )
+    train_test_rfm_data = training_rfm_data.merge(
+        test_rfm_data, left_on=customer_id_col, how="left", right_index=True
+    )
+    # TODO: What to do with new customers not in the train period? Disregard, or return in a second DF?
     train_test_rfm_data.fillna(0, inplace=True)
 
     time_delta = (
