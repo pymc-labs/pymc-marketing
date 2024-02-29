@@ -50,26 +50,32 @@ class BetaGeoModel(CLVModel):
 
     .. code-block:: python
 
+        import pandas as pd
+
         import pymc as pm
         from pymc_marketing.clv import BetaGeoModel
 
-        model = BetaGeoFitter(
-            data=pd.DataFrame({
-                "frequency"=[4, 0, 6, 3, ...],
-                "recency":[30.73, 1.72, 0., 0., ...]
-            }),
+        data = pd.DataFrame({
+            "frequency": [4, 0, 6, 3],
+            "recency": [30.73, 1.72, 0., 0.],
+            "T": [38.86, 38.86, 38.86, 38.86],
+        })
+        data["customer_id"] = data.index
+
+        prior_distribution = {"dist": "Gamma", "kwargs": {"alpha": 0.1, "beta": 0.1}}
+        model = BetaGeoModel(
+            data=data,
             model_config={
-                "r_prior": pm.Gamma.dist(alpha=0.1, beta=0.1),
-                "alpha_prior": pm.Gamma.dist(alpha=0.1, beta=0.1),
-                "a_prior": pm.Gamma.dist(alpha=0.1, beta=0.1),
-                "b_prior": pm.Gamma.dist(alpha=0.1, beta=0.1),
+                "r_prior": prior_distribution,
+                'alpha_prior': prior_distribution,
+                'a_prior': prior_distribution,
+                'b_prior': prior_distribution,
             },
             sampler_config={
                 "draws": 1000,
                 "tune": 1000,
                 "chains": 2,
                 "cores": 2,
-                "nuts_kwargs": {"target_accept": 0.95},
             },
         )
         model.build_model()
