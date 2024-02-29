@@ -67,9 +67,9 @@ class BetaGeoModel(CLVModel):
             data=data,
             model_config={
                 "r_prior": prior_distribution,
-                'alpha_prior': prior_distribution,
-                'a_prior': prior_distribution,
-                'b_prior': prior_distribution,
+                "alpha_prior": prior_distribution,
+                "a_prior": prior_distribution,
+                "b_prior": prior_distribution,
             },
             sampler_config={
                 "draws": 1000,
