@@ -166,43 +166,16 @@ class ParetoNBDModel(CLVModel):
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
     ):
-        # Assign inputs to attributes and perform validation checks
-        try:
-            self.customer_id = data["customer_id"]
-            if len(np.unique(self.customer_id)) != len(self.customer_id):
-                raise ValueError("Customers must have unique ID labels.")
-            self.coords = {"customer_id": self.customer_id}
-        except KeyError:
-            raise KeyError("customer_id column is missing from data")
-        try:
-            self.frequency = data["frequency"]
-        except KeyError:
-            raise KeyError("frequency column is missing from data")
-        try:
-            self.recency = data["recency"]
-        except KeyError:
-            raise KeyError("recency column is missing from data")
-        try:
-            self.T = data["T"]
-        except KeyError:
-            raise KeyError("T column is missing from data")
-
+        self._validate_cols(
+            data,
+            required_cols=["customer_id", "frequency", "recency", "T"],
+            must_be_unique=["customer_id"],
+        )
         super().__init__(
+            data=data,
             model_config=model_config,
             sampler_config=sampler_config,
         )
-
-        self.data = data
-
-        self.r_prior = self._create_distribution(self.model_config["r_prior"])
-        self.alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
-        self.s_prior = self._create_distribution(self.model_config["s_prior"])
-        self.beta_prior = self._create_distribution(self.model_config["beta_prior"])
-        self._process_priors(
-            self.r_prior, self.alpha_prior, self.s_prior, self.beta_prior
-        )
-
-        # TODO: Add self.build_model() call here
 
     @property
     def default_model_config(self) -> Dict[str, Dict]:
@@ -213,17 +186,21 @@ class ParetoNBDModel(CLVModel):
             "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
         }
 
-    def build_model(  # type: ignore
-        self,
-    ) -> None:
-        with pm.Model(coords=self.coords) as self.model:
+    def build_model(self) -> None:  # type: ignore[override]
+        r_prior = self._create_distribution(self.model_config["r_prior"])
+        alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
+        s_prior = self._create_distribution(self.model_config["s_prior"])
+        beta_prior = self._create_distribution(self.model_config["beta_prior"])
+
+        coords = {"customer_id": self.data["customer_id"]}
+        with pm.Model(coords=coords) as self.model:
             # purchase rate priors
-            r = self.model.register_rv(self.r_prior, name="r")
-            alpha = self.model.register_rv(self.alpha_prior, name="alpha")
+            r = self.model.register_rv(r_prior, name="r")
+            alpha = self.model.register_rv(alpha_prior, name="alpha")
 
             # churn priors
-            s = self.model.register_rv(self.s_prior, name="s")
-            beta = self.model.register_rv(self.beta_prior, name="beta")
+            s = self.model.register_rv(s_prior, name="s")
+            beta = self.model.register_rv(beta_prior, name="beta")
 
             ParetoNBD(
                 name="likelihood",
@@ -231,8 +208,10 @@ class ParetoNBDModel(CLVModel):
                 alpha=alpha,
                 s=s,
                 beta=beta,
-                T=self.T,
-                observed=np.stack((self.recency, self.frequency), axis=1),
+                T=self.data["T"],
+                observed=np.stack(
+                    (self.data["recency"], self.data["frequency"]), axis=1
+                ),
                 dims="customer_id",
             )
 
@@ -252,16 +231,18 @@ class ParetoNBDModel(CLVModel):
         for predictive methods and converting to xarrays.
         """
         if data is None:
-            customer_id = self.customer_id
-            frequency = self.frequency
-            recency = self.recency
-            T = self.T
+            data = self.data
         else:
-            data.columns = data.columns.str.upper()
-            customer_id = data["CUSTOMER_ID"]
-            frequency = data["FREQUENCY"]
-            recency = data["RECENCY"]
-            T = data["T"]
+            self._validate_cols(
+                data,
+                required_cols=["customer_id", "frequency", "recency", "T"],
+                must_be_unique=["customer_id"],
+            )
+
+        customer_id = data["customer_id"]
+        frequency = data["frequency"]
+        recency = data["recency"]
+        T = data["T"]
 
         return to_xarray(customer_id, frequency, recency, T)
 
@@ -638,7 +619,7 @@ class ParetoNBDModel(CLVModel):
     ) -> xarray.Dataset:
         """Utility function for posterior predictive sampling from dropout and purchase rate distributions."""
         if T is None:
-            T = self.T
+            T = self.data["T"]
 
         # This is the shape if using fit_method="map"
         if self.fit_result.dims == {"chain": 1, "draw": 1}:

@@ -1,33 +1,47 @@
 import json
-import types
 import warnings
 from pathlib import Path
-from typing import Dict, Optional, Tuple, cast
+from typing import Dict, Optional, Sequence, cast
 
 import arviz as az
 import pandas as pd
 import pymc as pm
-from pymc import Model, str_for_dist
 from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
-from pytensor.tensor import TensorVariable
+from pymc.model.core import Model
 from xarray import Dataset
 
 from pymc_marketing.model_builder import ModelBuilder
 
 
 class CLVModel(ModelBuilder):
-    _model_type = ""
+    _model_type = "CLVModel"
 
     def __init__(
         self,
-        data: Optional[pd.DataFrame] = None,
+        data: pd.DataFrame,
         *,
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
     ):
         super().__init__(model_config, sampler_config)
         self.data = data
+
+    @staticmethod
+    def _validate_cols(
+        data: pd.DataFrame,
+        required_cols: Sequence[str],
+        must_be_unique: Sequence[str] = (),
+    ):
+        existing_columns = set(data.columns)
+        n = data.shape[0]
+
+        for required_col in required_cols:
+            if required_col not in existing_columns:
+                raise ValueError(f"Required column {required_col} missing")
+            if required_col in must_be_unique:
+                if data[required_col].nunique() != n:
+                    raise ValueError(f"Column {required_col} has duplicate entries")
 
     def __repr__(self):
         if self.model is None:
@@ -197,32 +211,11 @@ class CLVModel(ModelBuilder):
         return type(self)._build_with_idata(new_idata)
 
     @staticmethod
-    def _check_prior_ndim(prior, ndim: int = 0):
-        if prior.ndim != ndim:
-            raise ValueError(
-                f"Prior variable {prior} must be have {ndim} ndims, but it has {prior.ndim} ndims."
-            )
-
-    @staticmethod
-    def _create_distribution(dist: Dict, ndim: int = 0) -> TensorVariable:
+    def _create_distribution(dist: Dict, shape=()):
         try:
-            prior_distribution = getattr(pm, dist["dist"]).dist(**dist["kwargs"])
-            CLVModel._check_prior_ndim(prior_distribution, ndim)
+            return getattr(pm, dist["dist"]).dist(**dist.get("kwargs", {}), shape=shape)
         except AttributeError:
             raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
-        return prior_distribution
-
-    @staticmethod
-    def _process_priors(
-        *priors: TensorVariable, check_ndim: bool = True
-    ) -> Tuple[TensorVariable, ...]:
-        """Check that each prior variable is unique and attach `str_repr` method."""
-        if len(priors) != len(set(priors)):
-            raise ValueError("Prior variables must be unique")
-        # Related to https://github.com/pymc-devs/pymc/issues/6311
-        for prior in priors:
-            prior.str_repr = types.MethodType(str_for_dist, prior)  # type: ignore
-        return priors
 
     @property
     def default_sampler_config(self) -> Dict:
