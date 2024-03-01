@@ -128,36 +128,31 @@ class TestParetoNBDModel:
                 "s_log__": (),
             }
 
-    def test_missing_customer_id(self):
-        # Create a version of the data that's missing the 'customer_id' column
+    def test_missing_cols(self):
         data_invalid = self.data.drop(columns="customer_id")
 
-        with pytest.raises(KeyError, match="customer_id column is missing from data"):
+        with pytest.raises(ValueError, match="Required column customer_id missing"):
             ParetoNBDModel(data=data_invalid)
 
-    def test_missing_frequency(self):
-        # Create a version of the data that's missing the 'frequency' column
         data_invalid = self.data.drop(columns="frequency")
 
-        with pytest.raises(KeyError, match="frequency column is missing from data"):
+        with pytest.raises(ValueError, match="Required column frequency missing"):
             ParetoNBDModel(data=data_invalid)
 
-    def test_missing_recency(self):
-        # Create a version of the data that's missing the 'recency' column
         data_invalid = self.data.drop(columns="recency")
 
-        with pytest.raises(KeyError, match="recency column is missing from data"):
+        with pytest.raises(ValueError, match="Required column recency missing"):
             ParetoNBDModel(data=data_invalid)
 
-    def test_missing_T(self):
-        # Create a version of the data that's missing the 'T' column
         data_invalid = self.data.drop(columns="T")
 
-        with pytest.raises(KeyError, match="T column is missing from data"):
+        with pytest.raises(ValueError, match="Required column T missing"):
             ParetoNBDModel(data=data_invalid)
 
-    def test_customer_id_warning(self):
-        with pytest.raises(ValueError, match="Customers must have unique ID labels."):
+    def test_customer_id_error(self):
+        with pytest.raises(
+            ValueError, match="Column customer_id has duplicate entries"
+        ):
             test_data = pd.DataFrame(
                 {
                     "customer_id": np.array([1, 2, 2]),
@@ -394,14 +389,7 @@ class TestParetoNBDModel:
         # Check if the loaded model is indeed an instance of the class
         assert isinstance(loaded_model, ParetoNBDModel)
         # Check if the loaded data matches with the model data
-        np.testing.assert_array_equal(
-            loaded_model.customer_id.values, model.customer_id.values
-        )
-        np.testing.assert_array_equal(
-            loaded_model.frequency.values, model.frequency.values
-        )
-        np.testing.assert_array_equal(loaded_model.T.values, model.T.values)
-        np.testing.assert_array_equal(loaded_model.recency.values, model.recency.values)
+        pd.testing.assert_frame_equal(model.data, loaded_model.data, check_names=False)
         assert model.model_config == loaded_model.model_config
         assert model.sampler_config == loaded_model.sampler_config
         assert model.idata == loaded_model.idata
