@@ -40,8 +40,8 @@ To add more substance to our session and ensure it's not just informative but al
 ## Business Cases
 
 * PyMC Labs: [Bayesian Media Mix Models: Modelling changes in marketing effectiveness over time](https://www.pymc-labs.com/blog-posts/modelling-changes-marketing-effectiveness-over-time/)
-* Carlos Eduardo Trujillo Agostini: [Better budgeting with Bayesian models: Bolt’s story with PyMC-Marketing](https://bolt.eu/en/blog/budgeting-with-bayesian-models-pymc-marketing/)
-* Carlos Trujillo, Corey Abshire, Niall Oulton, Dan Morris and Layla Yang: [Revolutionizing Tech Marketing: The Synergy of PyMC and Databricks](https://www.databricks.com/blog/revolutionizing-tech-marketing)
+* Bolt: [Better budgeting with Bayesian models: Bolt’s story with PyMC-Marketing](https://bolt.eu/en/blog/budgeting-with-bayesian-models-pymc-marketing/)
+* Shell & DataBricks: [Revolutionizing Tech Marketing: The Synergy of PyMC and Databricks](https://www.databricks.com/blog/revolutionizing-tech-marketing)
 
 ## Blogposts
 
