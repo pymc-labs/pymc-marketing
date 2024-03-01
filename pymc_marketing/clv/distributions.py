@@ -320,7 +320,8 @@ class ParetoNBDRV(RandomVariable):
             dropout_time = rng.exponential(scale=1 / mu)
             wait = rng.exponential(scale=1 / lam)
 
-            while t + wait < min(dropout_time, T):
+            final_t = min(dropout_time, T)
+            while (t + wait) < final_t:
                 t += wait
                 n += 1
                 wait = rng.exponential(scale=1 / lam)
