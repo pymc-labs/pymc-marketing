@@ -30,7 +30,10 @@ class CLVModel(ModelBuilder):
         self.data = data
 
     def __repr__(self):
-        return f"{self._model_type}\n{self.model.str_repr()}"
+        if self.model is None:
+            return self._model_type
+        else:
+            return f"{self._model_type}\n{self.model.str_repr()}"
 
     def _add_fit_data_group(self, data: pd.DataFrame) -> None:
         with warnings.catch_warnings():
