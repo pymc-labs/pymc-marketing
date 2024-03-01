@@ -46,16 +46,16 @@ For more instructions see the [Pull request checklist](#pull-request-checklist)
 
    Always use a feature branch. It's good practice to never routinely work on the `main` branch of any repository.
 
-1. Create an environment. For example:
+1. Create a dedicated development environment from the file present in the repo:
 
     ```bash
-    conda create -n pymc_marketing_env
+    conda env create -f environment.yml
     ```
 
-    Activate the environment.
+    This will create an environment called `pymc-marketing-dev`. Activate the environment.
 
     ```bash
-    conda activate pymc_marketing_env
+    conda activate pymc-marketing-dev
     ```
 
     Install the package (in editable mode) and its development dependencies:
