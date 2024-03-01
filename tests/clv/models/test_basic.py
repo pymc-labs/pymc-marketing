@@ -34,6 +34,8 @@ class CLVModelTest(CLVModel):
 class TestCLVModel:
     def test_repr(self):
         model = CLVModelTest()
+        assert model.__repr__() == "CLVModelTest"
+
         model.build_model()
         assert model.__repr__() == "CLVModelTest\nx ~ Normal(0, 1)\ny ~ Normal(x, 1)"
 
