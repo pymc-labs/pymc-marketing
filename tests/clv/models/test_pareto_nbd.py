@@ -9,6 +9,7 @@ from lifetimes import ParetoNBDFitter
 
 from pymc_marketing.clv import ParetoNBDModel
 from pymc_marketing.clv.distributions import ParetoNBD
+from tests.clv.utils import set_model_fit
 
 
 class TestParetoNBDModel:
@@ -36,8 +37,6 @@ class TestParetoNBDModel:
 
         # Instantiate model with CDNOW data for testing
         cls.model = ParetoNBDModel(cls.data)
-        # TODO: This can be removed after build_model() is called internally with __init__
-        cls.model.build_model()
 
         # Also instantiate lifetimes model for comparison
         cls.lifetimes_model = ParetoNBDFitter()
@@ -64,8 +63,7 @@ class TestParetoNBDModel:
                 ),
             }
         )
-
-        cls.model.idata = cls.mock_fit
+        set_model_fit(cls.model, cls.mock_fit)
 
     @pytest.fixture(scope="class")
     def model_config(self):
