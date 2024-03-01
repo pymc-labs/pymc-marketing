@@ -15,6 +15,7 @@ from pymc_marketing.clv.utils import (
     rfm_summary,
     to_xarray,
 )
+from tests.clv.utils import set_model_fit
 
 
 def test_to_xarray():
@@ -74,11 +75,8 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
     model.build_model()
     fake_fit = pm.sample_prior_predictive(
         samples=50, model=model.model, random_seed=rng
-    )
-    fake_fit.add_groups(dict(posterior=fake_fit.prior))
-    model.idata = fake_fit
-    model.set_idata_attrs(model.idata)
-    model._add_fit_data_group(model.data)
+    ).prior
+    set_model_fit(model, fake_fit)
 
     return model
 
@@ -103,11 +101,8 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
     # Mock an idata object for tests requiring a fitted model
     fake_fit = pm.sample_prior_predictive(
         samples=50, model=pnbd_model.model, random_seed=rng
-    )
-    fake_fit.add_groups(dict(posterior=fake_fit.prior))
-    pnbd_model.idata = fake_fit
-    pnbd_model.set_idata_attrs(pnbd_model.idata)
-    pnbd_model._add_fit_data_group(pnbd_model.data)
+    ).prior
+    set_model_fit(pnbd_model, fake_fit)
 
     return pnbd_model
 
@@ -136,11 +131,8 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
     model.build_model()
     fake_fit = pm.sample_prior_predictive(
         samples=50, model=model.model, random_seed=rng
-    )
-    fake_fit.add_groups(dict(posterior=fake_fit.prior))
-    model.idata = fake_fit
-    model.set_idata_attrs(model.idata)
-    model._add_fit_data_group(model.data)
+    ).prior
+    set_model_fit(model, fake_fit)
 
     return model
 
