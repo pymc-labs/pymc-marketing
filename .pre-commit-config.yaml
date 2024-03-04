@@ -15,6 +15,13 @@ repos:
         args: [--ignore-missing-imports]
         files: ^pymc_marketing/
         additional_dependencies: [numpy>=1.20, pandas-stubs]
+  - repo: https://github.com/nbQA-dev/nbQA
+    rev: 1.7.1
+    hooks:
+    - id: nbqa-ruff
+      args: ["--fix", "--show-source"]
+      files: ^docs/source/notebooks/
+      exclude: ^docs/source/notebooks/clv/dev/
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
