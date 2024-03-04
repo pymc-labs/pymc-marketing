@@ -3,7 +3,7 @@ ci:
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.2.2
+    rev: v0.3.0
     hooks:
       - id: ruff
         args: ["--fix", "--show-source"]
@@ -16,7 +16,7 @@ repos:
         files: ^pymc_marketing/
         additional_dependencies: [numpy>=1.20, pandas-stubs]
   - repo: https://github.com/nbQA-dev/nbQA
-    rev: 1.7.1
+    rev: 1.8.3
     hooks:
     - id: nbqa-ruff
       args: ["--fix", "--show-source"]
