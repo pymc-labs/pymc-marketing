@@ -48,105 +48,85 @@ class BaseTestGammaGammaModel:
         cls.z_mean_idx = list(range(N))
         cls.z_mean_nobs = x
 
-    @pytest.fixture(scope="class")
-    def data(self):
-        return pd.DataFrame(
+        cls.data = pd.DataFrame(
             {
-                "customer_id": self.z_mean_idx,
-                "mean_transaction_value": self.z_mean,
-                "frequency": self.z_mean_nobs,
+                "customer_id": cls.z_mean_idx,
+                "mean_transaction_value": cls.z_mean,
+                "frequency": cls.z_mean_nobs,
             }
         )
 
-    @pytest.fixture(scope="class")
-    def individual_data(self):
-        return pd.DataFrame(
+        cls.individual_data = pd.DataFrame(
             {
-                "customer_id": self.z_idx,
-                "individual_transaction_value": self.z,
+                "customer_id": cls.z_idx,
+                "individual_transaction_value": cls.z,
             }
         )
-
-    @pytest.fixture(scope="class")
-    def default_model_config(self):
-        return {
-            "p_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "q_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "v_prior": {"dist": "HalfFlat", "kwargs": {}},
-        }
-
-    @pytest.fixture(scope="class")
-    def model_config(self):
-        return {
-            "p_prior": {"dist": "HalfNormal", "kwargs": {}},
-            "q_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4}},
-            "v_prior": {"dist": "HalfCauchy", "kwargs": {"beta": 2}},
-        }
 
 
 class TestGammaGammaModel(BaseTestGammaGammaModel):
-    def test_missing_columns(self, data):
-        data_invalid = data.drop(columns="customer_id")
+    def test_missing_columns(self):
+        data_invalid = self.data.drop(columns="customer_id")
         with pytest.raises(ValueError, match="Required column customer_id missing"):
             GammaGammaModel(data=data_invalid)
 
-        data_invalid = data.drop(columns="frequency")
+        data_invalid = self.data.drop(columns="frequency")
 
         with pytest.raises(ValueError, match="Required column frequency missing"):
             GammaGammaModel(data=data_invalid)
 
-        data_invalid = data.drop(columns="mean_transaction_value")
+        data_invalid = self.data.drop(columns="mean_transaction_value")
 
         with pytest.raises(
             ValueError, match="Required column mean_transaction_value missing"
         ):
             GammaGammaModel(data=data_invalid)
 
-    def test_model(self, model_config, default_model_config, data):
-        for config in (model_config, default_model_config):
-            model = GammaGammaModel(
-                data=data,
-                model_config=config,
-            )
-            model.build_model()
-            assert isinstance(
-                model.model["p"].owner.op,
-                pm.HalfFlat
-                if config["p_prior"]["dist"] == "HalfFlat"
-                else getattr(pm, config["p_prior"]["dist"]),
-            )
-            assert isinstance(
-                model.model["q"].owner.op,
-                pm.HalfFlat
-                if config["q_prior"]["dist"] == "HalfFlat"
-                else getattr(pm, config["q_prior"]["dist"]),
-            )
-            assert isinstance(
-                model.model["v"].owner.op,
-                pm.HalfFlat
-                if config["v_prior"]["dist"] == "HalfFlat"
-                else getattr(pm, config["v_prior"]["dist"]),
-            )
-            assert model.model.eval_rv_shapes() == {
-                "p": (),
-                "p_log__": (),
-                "q": (),
-                "q_log__": (),
-                "v": (),
-                "v_log__": (),
-            }
-            assert len(model.model.potentials) == 1
-            assert model.model.coords == {
-                "customer_id": tuple(range(self.N)),
-            }
+    @pytest.mark.parametrize(
+        "config",
+        [
+            None,
+            {
+                "p_prior": {"dist": "HalfNormal"},
+                "q_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4}},
+            },
+        ],
+    )
+    def test_model(self, config):
+        model = GammaGammaModel(
+            data=self.data,
+            model_config=config,
+        )
+        model.build_model()
+        assert isinstance(
+            model.model["p"].owner.op,
+            (pm.HalfFlat if config is None else pm.HalfNormal),
+        )
+        assert isinstance(
+            model.model["q"].owner.op,
+            (pm.HalfFlat if config is None else pm.HalfStudentT),
+        )
+        assert isinstance(
+            model.model["v"].owner.op,
+            pm.HalfFlat,
+        )
+        assert model.model.eval_rv_shapes() == {
+            "p": (),
+            "p_log__": (),
+            "q": (),
+            "q_log__": (),
+            "v": (),
+            "v_log__": (),
+        }
+        assert len(model.model.potentials) == 1
+        assert model.model.coords == {
+            "customer_id": tuple(range(self.N)),
+        }
 
     @pytest.mark.slow
-    def test_model_convergence(self, data, model_config):
+    def test_model_convergence(self):
         rng = np.random.default_rng(13)
-        model = GammaGammaModel(
-            data=data,
-            model_config=model_config,
-        )
+        model = GammaGammaModel(data=self.data)
         model.fit(chains=2, progressbar=False, random_seed=rng)
         fit = model.idata.posterior
         np.testing.assert_allclose(
@@ -156,7 +136,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         )
 
     @pytest.mark.parametrize("distribution", (True, False))
-    def test_spend(self, distribution, data):
+    def test_spend(self, distribution):
         p_mean = self.p_true
         q_mean = self.q_true
         v_mean = self.v_true
@@ -167,7 +147,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             "v_prior": {"dist": "Normal", "kwargs": {"mu": v_mean, "sigma": 0.01}},
         }
         model = GammaGammaModel(
-            data=data,
+            data=self.data,
             model_config=custom_model_config,
         )
         model.build_model()
@@ -228,7 +208,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             )
 
     @pytest.mark.parametrize("distribution", (True, False))
-    def test_new_customer_spend(self, distribution, data):
+    def test_new_customer_spend(self, distribution):
         p_mean = 35
         q_mean = 15
         v_mean = 3
@@ -240,7 +220,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             "v_prior": {"dist": "Normal", "kwargs": {"mu": v_mean, "sigma": 0.01}},
         }
         model = GammaGammaModel(
-            data=data,
+            data=self.data,
             model_config=custom_model_config,
         )
         model.build_model()
@@ -271,10 +251,11 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
                 preds.mean(("draw", "chain")), expected_preds_mean, rtol=0.05
             )
 
-    def test_model_repr(self, data, default_model_config):
-        custom_model_config = default_model_config.copy()
-        custom_model_config["p_prior"] = {"dist": "HalfNormal", "kwargs": {"sigma": 10}}
-        model = GammaGammaModel(data=data, model_config=custom_model_config)
+    def test_model_repr(self):
+        custom_model_config = {
+            "p_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}}
+        }
+        model = GammaGammaModel(data=self.data, model_config=custom_model_config)
         model.build_model()
 
         assert model.__repr__().replace(" ", "") == (
@@ -285,9 +266,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             "\nlikelihood~Potential(f(q,p,v))"
         )
 
-    def test_save_load_beta_geo(self, data):
+    def test_save_load_beta_geo(self):
         model = GammaGammaModel(
-            data=data,
+            data=self.data,
         )
         model.build_model()
         model.fit("map")
@@ -307,66 +288,63 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
 
 
 class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
-    def test_missing_columns(self, individual_data):
+    def test_missing_columns(self):
         # Create a version of the data that's missing the 'customer_id' column
-        data_invalid = individual_data.drop(columns="customer_id")
+        data_invalid = self.individual_data.drop(columns="customer_id")
         with pytest.raises(ValueError, match="Required column customer_id missing"):
             GammaGammaModelIndividual(data=data_invalid)
 
-        data_invalid = individual_data.drop(columns="individual_transaction_value")
+        data_invalid = self.individual_data.drop(columns="individual_transaction_value")
 
         with pytest.raises(
             ValueError, match="Required column individual_transaction_value missing"
         ):
             GammaGammaModelIndividual(data=data_invalid)
 
-    def test_model(self, model_config, default_model_config, individual_data):
-        for config in (model_config, default_model_config):
-            model = GammaGammaModelIndividual(
-                data=individual_data,
-                model_config=config,
-            )
-            model.build_model()
-            assert isinstance(
-                model.model["p"].owner.op,
-                pm.HalfFlat
-                if config["p_prior"]["dist"] == "HalfFlat"
-                else getattr(pm, config["p_prior"]["dist"]),
-            )
-            assert isinstance(
-                model.model["q"].owner.op,
-                pm.HalfFlat
-                if config["q_prior"]["dist"] == "HalfFlat"
-                else getattr(pm, config["q_prior"]["dist"]),
-            )
-            assert isinstance(
-                model.model["v"].owner.op,
-                pm.HalfFlat
-                if config["v_prior"]["dist"] == "HalfFlat"
-                else getattr(pm, config["v_prior"]["dist"]),
-            )
-            assert model.model.eval_rv_shapes() == {
-                "p": (),
-                "p_log__": (),
-                "q": (),
-                "q_log__": (),
-                "v": (),
-                "v_log__": (),
-                "nu": (self.N,),
-                "nu_log__": (self.N,),
-            }
-            assert model.model.coords == {
-                "customer_id": tuple(range(self.N)),
-                "obs": tuple(range(len(self.z))),
-            }
+    @pytest.mark.parametrize(
+        "config",
+        [
+            None,
+            {
+                "p_prior": {"dist": "HalfNormal"},
+                "q_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4}},
+            },
+        ],
+    )
+    def test_model(self, config):
+        model = GammaGammaModelIndividual(
+            data=self.individual_data,
+            model_config=config,
+        )
+        model.build_model()
+        assert isinstance(
+            model.model["p"].owner.op,
+            pm.HalfFlat if config is None else pm.HalfNormal,
+        )
+        assert isinstance(
+            model.model["q"].owner.op,
+            pm.HalfFlat if config is None else pm.HalfStudentT,
+        )
+        assert isinstance(model.model["v"].owner.op, pm.HalfFlat)
+        assert model.model.eval_rv_shapes() == {
+            "p": (),
+            "p_log__": (),
+            "q": (),
+            "q_log__": (),
+            "v": (),
+            "v_log__": (),
+            "nu": (self.N,),
+            "nu_log__": (self.N,),
+        }
+        assert model.model.coords == {
+            "customer_id": tuple(range(self.N)),
+            "obs": tuple(range(len(self.z))),
+        }
 
     @pytest.mark.slow
-    def test_model_convergence(self, individual_data, model_config):
+    def test_model_convergence(self):
         rng = np.random.default_rng(13)
-        model = GammaGammaModelIndividual(
-            data=individual_data,
-            model_config=model_config,
-        )
+        model = GammaGammaModelIndividual(data=self.individual_data)
         model.fit(chains=2, progressbar=False, random_seed=rng)
         fit = model.idata.posterior
         np.testing.assert_allclose(
@@ -378,9 +356,9 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
     @patch(
         "pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_customer_spend"
     )
-    def test_distribution_spend(self, dummy_method, individual_data):
+    def test_distribution_spend(self, dummy_method):
         model = GammaGammaModelIndividual(
-            data=individual_data,
+            data=self.individual_data,
         )
         model.build_model()
         model.distribution_customer_spend(
@@ -400,8 +378,8 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
     @patch(
         "pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend"
     )
-    def test_expected_spend(self, dummy_method, individual_data):
-        model = GammaGammaModelIndividual(individual_data)
+    def test_expected_spend(self, dummy_method):
+        model = GammaGammaModelIndividual(self.individual_data)
 
         model.expected_customer_spend(
             customer_id=self.z_idx, individual_transaction_value=self.z, random_seed=123
@@ -417,11 +395,12 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         np.testing.assert_array_equal(kwargs["frequency"].values, self.z_mean_nobs)
         assert kwargs["random_seed"] == 123
 
-    def test_model_repr(self, individual_data, default_model_config):
-        custom_model_config = default_model_config.copy()
-        custom_model_config["q_prior"] = {"dist": "HalfNormal", "kwargs": {"sigma": 10}}
+    def test_model_repr(self):
+        custom_model_config = {
+            "q_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}}
+        }
         model = GammaGammaModelIndividual(
-            data=individual_data,
+            data=self.individual_data,
             model_config=custom_model_config,
         )
         model.build_model()
@@ -435,9 +414,9 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             "\nspend~Gamma(p,f(nu))"
         )
 
-    def test_save_load_beta_geo(self, individual_data):
+    def test_save_load_beta_geo(self):
         model = GammaGammaModelIndividual(
-            data=individual_data,
+            data=self.individual_data,
         )
         model.build_model()
         model.fit("map")
