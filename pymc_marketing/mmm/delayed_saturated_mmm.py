@@ -659,9 +659,9 @@ class BaseDelayedSaturatedMMM(MMM):
 
         if y is not None:
             if isinstance(y, pd.Series):
-                data[
-                    "target"
-                ] = y.to_numpy()  # convert Series to numpy array explicitly
+                data["target"] = (
+                    y.to_numpy()
+                )  # convert Series to numpy array explicitly
             elif isinstance(y, np.ndarray):
                 data["target"] = y
             else:

@@ -85,9 +85,9 @@ class ModelBuilder(ABC):
             self.default_model_config | model_config
         )  # parameters for priors etc.
         self.model: Optional[pm.Model] = None  # Set by build_model
-        self.idata: Optional[
-            az.InferenceData
-        ] = None  # idata is generated during fitting
+        self.idata: Optional[az.InferenceData] = (
+            None  # idata is generated during fitting
+        )
         self.is_fitted_ = False
 
     def _validate_data(self, X, y=None):
