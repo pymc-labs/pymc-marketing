@@ -758,10 +758,10 @@ class TestRFM:
         # Test adapted from
         # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L374
 
-        today = "2015-02-07"
+        test_end = "2015-02-07"
         train_end = "2015-02-01"
         actual = rfm_train_test_split(
-            transaction_data, "id", "date", train_end, test_period_end=today
+            transaction_data, "id", "date", train_end, test_period_end=test_end
         )
         assert actual.loc[1]["test_frequency"] == 1
         assert actual.loc[2]["test_frequency"] == 0
@@ -795,10 +795,10 @@ class TestRFM:
 
         n = transaction_data.shape[0]
         transaction_data.index = np.random.randint(0, n, size=n)
-        today = "2015-02-07"
+        test_end = "2015-02-07"
         train_end = "2015-02-01"
         actual = rfm_train_test_split(
-            transaction_data, "id", "date", train_end, test_period_end=today
+            transaction_data, "id", "date", train_end, test_period_end=test_end
         )
         assert actual.loc[1]["test_frequency"] == 1
         assert actual.loc[2]["test_frequency"] == 0
@@ -807,14 +807,14 @@ class TestRFM:
         # Test adapted from
         # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L412
 
-        today = "2015-02-07"
+        test_end = "2015-02-07"
         train_end = "2015-02-01"
         actual = rfm_train_test_split(
             transaction_data,
             "id",
             "date",
             train_end,
-            test_period_end=today,
+            test_period_end=test_end,
             time_unit="W",
         )
         expected_cols = ["id", "frequency", "recency", "T", "test_frequency", "test_T"]
@@ -864,14 +864,14 @@ class TestRFM:
         # Test adapted from
         # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L457
 
-        today = "2015-02-07"
+        test_end = "2015-02-07"
         train_end = "2015-02-01"
         actual = rfm_train_test_split(
             transaction_data,
             "id",
             "date",
             train_end,
-            test_period_end=today,
+            test_period_end=test_end,
             monetary_value_col="monetary_value",
         )
         assert (actual["monetary_value"] == [0, 0, 3, 0, 4.5]).all()
