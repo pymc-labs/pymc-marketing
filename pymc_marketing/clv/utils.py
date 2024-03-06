@@ -541,7 +541,7 @@ def rfm_train_test_split(
         .groupby(level=customer_id_col)
         .count()
     )
-    # TODO: This line will break if additional columns are present in transaction_df
+    # TODO: This only works with a monetary value column, otherwise this is a Series.
     test_rfm_data.columns = ["test_frequency"]  # type: ignore
     # TODO: Test fix here for known lifetimes bug: https://github.com/CamDavidsonPilon/lifetimes/issues/431
     if monetary_value_col:
@@ -554,9 +554,6 @@ def rfm_train_test_split(
             .mean()
         )
 
-    # TODO: need to rename index of test_rfm_data to "customer_id"
-    # https://towardsdatascience.com/the-most-efficient-way-to-merge-join-pandas-dataframes-7576e8b6c5c
-
     test_rfm_data = test_rfm_data.reset_index().rename(
         columns={customer_id_col: "customer_id"}
     )
@@ -565,13 +562,6 @@ def rfm_train_test_split(
     )
     # TODO: What to do with new customers not in the train period? Disregard, or return in a second DF?
     train_test_rfm_data.fillna(0, inplace=True)
-
-    # TODO: Drop extraneous columns
-    # if monetary_value_col:
-    #     rfm_columns = ["customer_id", "frequency", "recency", "T", "monetary_value", "test_frequency", "test_monetary_value"]
-    # else:
-    #     rfm_columns = ["customer_id", "frequency", "recency", "T", "test_frequency"]
-    # train_test_rfm_data = train_test_rfm_data[rfm_columns].copy()
 
     time_delta = (
         test_period_end.to_period(time_unit) - train_period_end.to_period(time_unit)
