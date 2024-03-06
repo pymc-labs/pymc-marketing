@@ -347,6 +347,7 @@ class TestRFM:
             [4, "2015-01-16", 6],
             [4, "2015-02-02", 3],
             [4, "2015-02-05", 3],
+            [4, "2015-02-05", 6],
             [5, "2015-01-16", 3],
             [5, "2015-01-17", 1],
             [5, "2015-01-18", 8],
@@ -405,7 +406,8 @@ class TestRFM:
                 [6, pd.Period("2015-02-02", "D"), True],
             ],
             columns=["id", "date", "first"],
-        )
+            index=[0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13],
+        )  # row indices are skipped for time periods with multiple transactions
         assert_frame_equal(actual, expected)
 
     @pytest.mark.parametrize(
@@ -471,7 +473,7 @@ class TestRFM:
                 [3, pd.Period("2015-01-05", "D"), 5, False],
                 [4, pd.Period("2015-01-16", "D"), 6, True],
                 [4, pd.Period("2015-02-02", "D"), 3, False],
-                [4, pd.Period("2015-02-05", "D"), 3, False],
+                [4, pd.Period("2015-02-05", "D"), 9, False],
                 [5, pd.Period("2015-01-16", "D"), 3, True],
                 [5, pd.Period("2015-01-17", "D"), 1, False],
                 [5, pd.Period("2015-01-18", "D"), 8, False],
@@ -508,7 +510,7 @@ class TestRFM:
                 [3, pd.Period("2014-12-29/2015-01-04", "W-SUN"), 4, True],
                 [3, pd.Period("2015-01-05/2015-01-11", "W-SUN"), 5, False],
                 [4, pd.Period("2015-01-12/2015-01-18", "W-SUN"), 6, True],
-                [4, pd.Period("2015-02-02/2015-02-08", "W-SUN"), 6, False],
+                [4, pd.Period("2015-02-02/2015-02-08", "W-SUN"), 12, False],
                 [5, pd.Period("2015-01-12/2015-01-18", "W-SUN"), 12, True],
                 [6, pd.Period("2015-02-02/2015-02-08", "W-SUN"), 5, True],
             ],
@@ -653,7 +655,7 @@ class TestRFM:
                 [1, 1.0, 36.0, 37.0, 2],
                 [2, 0.0, 0.0, 37.0, 0],
                 [3, 2.0, 4.0, 37.0, 3],
-                [4, 2.0, 20.0, 22.0, 3],
+                [4, 2.0, 20.0, 22.0, 6],
                 [5, 2.0, 2.0, 22.0, 4.5],
                 [6, 0.0, 0.0, 5.0, 0],
             ],
@@ -674,7 +676,7 @@ class TestRFM:
                 [1, 2.0, 36.0, 37.0, 1.5],
                 [2, 1.0, 0.0, 37.0, 2],
                 [3, 3.0, 4.0, 37.0, 3],
-                [4, 3.0, 20.0, 22.0, 4],
+                [4, 3.0, 20.0, 22.0, 6],
                 [5, 3.0, 2.0, 22.0, 4],
                 [6, 1.0, 0.0, 5.0, 5],
             ],
@@ -852,6 +854,6 @@ class TestRFM:
             monetary_value_col="monetary_value",
         )
         assert (actual["monetary_value"] == [0, 0, 3, 0, 4.5]).all()
-        assert (actual["test_monetary_value"] == [2, 0, 0, 3, 0]).all()
+        assert (actual["test_monetary_value"] == [2, 0, 0, 6, 0]).all()
 
         # check test_monetary_value is being aggregated correctly for time periods with multiple purchases
