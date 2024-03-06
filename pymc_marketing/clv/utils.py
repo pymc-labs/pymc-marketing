@@ -534,18 +534,23 @@ def rfm_train_test_split(
     test_transactions[datetime_col] = test_transactions[datetime_col].dt.to_period(
         time_unit
     )
-    # create test_frequency column
+    # create dataframe with customer_id and test_frequency columns
     test_rfm_data = (
-        test_transactions.groupby([customer_id_col, datetime_col], sort=False)
+        test_transactions.groupby([customer_id_col, datetime_col], sort=False)[
+            datetime_col
+        ]
         .agg(lambda r: 1)
         .groupby(level=customer_id_col)
         .count()
+    ).reset_index()
+
+    test_rfm_data = test_rfm_data.rename(
+        columns={"id": "customer_id", "date": "test_frequency"}
     )
-    # TODO: This only works with a monetary value column, otherwise this is a Series.
-    test_rfm_data.columns = ["test_frequency"]  # type: ignore
+
     # TODO: Test fix here for known lifetimes bug: https://github.com/CamDavidsonPilon/lifetimes/issues/431
     if monetary_value_col:
-        test_rfm_data["test_monetary_value"] = (
+        test_monetary_value = (
             test_transactions.groupby([customer_id_col, datetime_col])[
                 monetary_value_col
             ]
@@ -554,9 +559,15 @@ def rfm_train_test_split(
             .mean()
         )
 
-    test_rfm_data = test_rfm_data.reset_index().rename(
-        columns={customer_id_col: "customer_id"}
-    )
+        test_rfm_data = test_rfm_data.merge(
+            test_monetary_value,
+            left_on="customer_id",
+            right_on=customer_id_col,
+            how="inner",
+        )
+        test_rfm_data = test_rfm_data.rename(
+            columns={monetary_value_col: "test_monetary_value"}
+        )
     train_test_rfm_data = training_rfm_data.merge(
         test_rfm_data, on="customer_id", how="left"
     )

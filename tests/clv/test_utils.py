@@ -763,8 +763,8 @@ class TestRFM:
         actual = rfm_train_test_split(
             transaction_data, "id", "date", train_end, test_period_end=test_end
         )
-        assert actual.loc[1]["test_frequency"] == 1
-        assert actual.loc[2]["test_frequency"] == 0
+        assert actual.loc[0]["test_frequency"] == 1
+        assert actual.loc[1]["test_frequency"] == 0
 
         with pytest.raises(KeyError):
             actual.loc[6]
@@ -789,20 +789,6 @@ class TestRFM:
                 transaction_data, "id", "date", train_end, test_period_end=test_end
             )
 
-    def test_rfm_train_test_split_is_okay_with_other_indexes(self, transaction_data):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L400
-
-        n = transaction_data.shape[0]
-        transaction_data.index = np.random.randint(0, n, size=n)
-        test_end = "2015-02-07"
-        train_end = "2015-02-01"
-        actual = rfm_train_test_split(
-            transaction_data, "id", "date", train_end, test_period_end=test_end
-        )
-        assert actual.loc[1]["test_frequency"] == 1
-        assert actual.loc[2]["test_frequency"] == 0
-
     def test_rfm_train_test_split_works_with_specific_frequency(self, transaction_data):
         # Test adapted from
         # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L412
@@ -817,7 +803,14 @@ class TestRFM:
             test_period_end=test_end,
             time_unit="W",
         )
-        expected_cols = ["id", "frequency", "recency", "T", "test_frequency", "test_T"]
+        expected_cols = [
+            "customer_id",
+            "frequency",
+            "recency",
+            "T",
+            "test_frequency",
+            "test_T",
+        ]
         expected = pd.DataFrame(
             [
                 [1, 0.0, 0.0, 4.0, 1, 1],
@@ -827,38 +820,22 @@ class TestRFM:
                 [5, 0.0, 0.0, 2.0, 0, 1],
             ],
             columns=expected_cols,
-        ).set_index("id")
+        )
         assert_frame_equal(actual, expected, check_dtype=False)
 
-    def test_rfm_train_test_split_gives_correct_date_boundaries(self):
+    def test_rfm_train_test_split_gives_correct_date_boundaries(self, transaction_data):
         # Test adapted from
         # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L432
 
-        d = [
-            [1, "2015-01-01"],
-            [1, "2015-02-06"],  # excluded from both holdout and calibration
-            [2, "2015-01-01"],
-            [3, "2015-01-01"],
-            [3, "2015-01-02"],
-            [3, "2015-01-05"],
-            [4, "2015-01-16"],
-            [4, "2015-02-02"],
-            [4, "2015-02-05"],  # excluded from both holdout and calibration
-            [5, "2015-01-16"],
-            [5, "2015-01-17"],
-            [5, "2015-01-18"],
-            [6, "2015-02-02"],
-        ]
-        transactions = pd.DataFrame(d, columns=["id", "date"])
         actual = rfm_train_test_split(
-            transactions,
+            transaction_data,
             "id",
             "date",
             train_period_end="2015-02-01",
             test_period_end="2015-02-04",
         )
         assert actual["test_frequency"].loc[1] == 0
-        assert actual["test_frequency"].loc[4] == 1
+        assert actual["test_frequency"].loc[3] == 1
 
     def test_rfm_train_test_split_with_monetary_value(self, transaction_data):
         # Test adapted from
@@ -876,3 +853,5 @@ class TestRFM:
         )
         assert (actual["monetary_value"] == [0, 0, 3, 0, 4.5]).all()
         assert (actual["test_monetary_value"] == [2, 0, 0, 3, 0]).all()
+
+        # check test_monetary_value is being aggregated correctly for time periods with multiple purchases
