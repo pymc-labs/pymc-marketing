@@ -548,7 +548,6 @@ def rfm_train_test_split(
         columns={"id": "customer_id", "date": "test_frequency"}
     )
 
-    # TODO: Test fix here for known lifetimes bug: https://github.com/CamDavidsonPilon/lifetimes/issues/431
     if monetary_value_col:
         test_monetary_value = (
             test_transactions.groupby([customer_id_col, datetime_col])[
