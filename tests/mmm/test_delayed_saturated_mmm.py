@@ -86,7 +86,7 @@ def toy_y(toy_X: pd.DataFrame) -> pd.Series:
     return pd.Series(data=rng.integers(low=0, high=100, size=toy_X.shape[0]))
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def mmm() -> DelayedSaturatedMMM:
     return DelayedSaturatedMMM(
         date_column="date",
@@ -818,21 +818,48 @@ def test_plot_new_spend_contributions_original_scale(mmm_fitted) -> plt.Figure:
     return fig
 
 
-@pytest.mark.mpl_image_compare(style="default")
-def test_plot_new_spend_contributions_prior(mmm, toy_X) -> plt.Figure:
-    mmm.sample_prior_predictive(X_pred=toy_X, extend_idata=True, random_seed=0)
+@pytest.fixture(scope="module")
+def mmm_with_prior(mmm) -> DelayedSaturatedMMM:
+    n_chains = 1
+    n_samples = 100
 
+    channels = mmm.channel_columns
+    n_channels = len(channels)
+
+    idata = az.from_dict(
+        prior={
+            # Arbitrary but close to the default parameterization
+            "alpha": rng.uniform(size=(n_chains, n_samples, n_channels)),
+            "lam": rng.exponential(size=(n_chains, n_samples, n_channels)),
+            "beta_channel": np.abs(rng.normal(size=(n_chains, n_samples, n_channels))),
+        },
+        coords={"channel": channels},
+        dims={
+            "alpha": ["chain", "draw", "channel"],
+            "lam": ["chain", "draw", "channel"],
+            "beta_channel": ["chain", "draw", "channel"],
+        },
+    )
+    mmm.idata = idata
+
+    return mmm
+
+
+@pytest.mark.mpl_image_compare(style="default")
+def test_plot_new_spend_contributions_prior(mmm_with_prior) -> plt.Figure:
     fig, ax = plt.subplots(figsize=(10, 5))
-    mmm.plot_new_spend_contributions(spend_amount=1, prior=True, ax=ax, random_seed=0)
+    mmm_with_prior.plot_new_spend_contributions(
+        spend_amount=1, prior=True, ax=ax, random_seed=0
+    )
     return fig
 
 
 @pytest.mark.mpl_image_compare(style="default")
-def test_plot_new_spend_contributions_prior_select_channels(mmm, toy_X) -> plt.Figure:
-    mmm.sample_prior_predictive(X_pred=toy_X, extend_idata=True, random_seed=0)
-
+def test_plot_new_spend_contributions_prior_select_channels(
+    mmm_with_prior,
+) -> plt.Figure:
     fig, ax = plt.subplots(figsize=(10, 5))
-    mmm.plot_new_spend_contributions(
+    mmm_with_prior.plot_new_spend_contributions(
         spend_amount=1, prior=True, ax=ax, channels=["channel_2"], random_seed=0
     )
     return fig
