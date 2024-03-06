@@ -50,26 +50,32 @@ class BetaGeoModel(CLVModel):
 
     .. code-block:: python
 
+        import pandas as pd
+
         import pymc as pm
         from pymc_marketing.clv import BetaGeoModel
 
-        model = BetaGeoFitter(
-            data=pd.DataFrame({
-                "frequency"=[4, 0, 6, 3, ...],
-                "recency":[30.73, 1.72, 0., 0., ...]
-            }),
+        data = pd.DataFrame({
+            "frequency": [4, 0, 6, 3],
+            "recency": [30.73, 1.72, 0., 0.],
+            "T": [38.86, 38.86, 38.86, 38.86],
+        })
+        data["customer_id"] = data.index
+
+        prior_distribution = {"dist": "Gamma", "kwargs": {"alpha": 0.1, "beta": 0.1}}
+        model = BetaGeoModel(
+            data=data,
             model_config={
-                "r_prior": pm.Gamma.dist(alpha=0.1, beta=0.1),
-                "alpha_prior": pm.Gamma.dist(alpha=0.1, beta=0.1),
-                "a_prior": pm.Gamma.dist(alpha=0.1, beta=0.1),
-                "b_prior": pm.Gamma.dist(alpha=0.1, beta=0.1),
+                "r_prior": prior_distribution,
+                "alpha_prior": prior_distribution,
+                "a_prior": prior_distribution,
+                "b_prior": prior_distribution,
             },
             sampler_config={
                 "draws": 1000,
                 "tune": 1000,
                 "chains": 2,
                 "cores": 2,
-                "nuts_kwargs": {"target_accept": 0.95},
             },
         )
         model.build_model()
@@ -112,39 +118,16 @@ class BetaGeoModel(CLVModel):
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
     ):
-        try:
-            self.customer_id = data["customer_id"]
-        except KeyError:
-            raise KeyError("customer_id column is missing from data")
-        try:
-            self.frequency = data["frequency"]
-        except KeyError:
-            raise KeyError("frequency column is missing from data")
-        try:
-            self.recency = data["recency"]
-        except KeyError:
-            raise KeyError("recency column is missing from data")
-        try:
-            self.T = data["T"]
-        except KeyError:
-            raise KeyError("T column is missing from data")
+        self._validate_cols(
+            data,
+            required_cols=["customer_id", "frequency", "recency", "T"],
+            must_be_unique=["customer_id"],
+        )
         super().__init__(
             data=data,
             model_config=model_config,
             sampler_config=sampler_config,
         )
-        self.a_prior = self._create_distribution(self.model_config["a_prior"])
-        self.b_prior = self._create_distribution(self.model_config["b_prior"])
-        self.alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
-        self.r_prior = self._create_distribution(self.model_config["r_prior"])
-        self._process_priors(self.a_prior, self.b_prior, self.alpha_prior, self.r_prior)
-        # each customer's information should be encapsulated by a single data entry
-        if len(np.unique(self.customer_id)) != len(self.customer_id):
-            raise ValueError(
-                "The BetaGeoModel expects exactly one entry per customer. More than"
-                " one entry is currently provided per customer id."
-            )
-        self.coords = {"customer_id": self.customer_id}
 
     @property
     def default_model_config(self) -> Dict[str, Dict]:
@@ -155,15 +138,19 @@ class BetaGeoModel(CLVModel):
             "r_prior": {"dist": "HalfFlat", "kwargs": {}},
         }
 
-    def build_model(  # type: ignore
-        self,
-    ) -> None:
-        with pm.Model(coords=self.coords) as self.model:
-            a = self.model.register_rv(self.a_prior, name="a")
-            b = self.model.register_rv(self.b_prior, name="b")
+    def build_model(self) -> None:  # type: ignore[override]
+        a_prior = self._create_distribution(self.model_config["a_prior"])
+        b_prior = self._create_distribution(self.model_config["b_prior"])
+        alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
+        r_prior = self._create_distribution(self.model_config["r_prior"])
 
-            alpha = self.model.register_rv(self.alpha_prior, name="alpha")
-            r = self.model.register_rv(self.r_prior, name="r")
+        coords = {"customer_id": self.data["customer_id"]}
+        with pm.Model(coords=coords) as self.model:
+            a = self.model.register_rv(a_prior, name="a")
+            b = self.model.register_rv(b_prior, name="b")
+
+            alpha = self.model.register_rv(alpha_prior, name="alpha")
+            r = self.model.register_rv(r_prior, name="r")
 
             def logp(t_x, x, a, b, r, alpha, T):
                 """
@@ -200,13 +187,13 @@ class BetaGeoModel(CLVModel):
             pm.Potential(
                 "likelihood",
                 logp(
-                    x=self.frequency,
-                    t_x=self.recency,
+                    x=self.data["frequency"],
+                    t_x=self.data["recency"],
                     a=a,
                     b=b,
                     alpha=alpha,
                     r=r,
-                    T=self.T,
+                    T=self.data["T"],
                 ),
             )
 

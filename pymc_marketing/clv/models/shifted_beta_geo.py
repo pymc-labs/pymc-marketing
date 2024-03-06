@@ -92,32 +92,24 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
     ):
-        try:
-            self.customer_id = data["customer_id"]
-        except KeyError:
-            raise KeyError("data must contain a 'customer_id' column")
-        try:
-            self.t_churn: np.ndarray = np.asarray(data["t_churn"])
-        except KeyError:
-            raise KeyError("data must contain a 't_churn' column")
-        try:
-            self.T: np.ndarray = np.asarray(data["T"])
-        except KeyError:
-            raise KeyError("data must contain a 'T' column")
-        super().__init__(model_config=model_config, sampler_config=sampler_config)
-        self.data = data
-        self.alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
-        self.beta_prior = self._create_distribution(self.model_config["beta_prior"])
-        self._process_priors(self.alpha_prior, self.beta_prior)
+        self._validate_cols(
+            data,
+            required_cols=["customer_id", "t_churn", "T"],
+            must_be_unique=["customer_id"],
+        )
 
         if np.any(
-            (self.t_churn < 0) | (self.t_churn > self.T) | np.isnan(self.t_churn)
+            (data["t_churn"] < 0)
+            | (data["t_churn"] > data["T"])
+            | np.isnan(data["t_churn"])
         ):
             raise ValueError(
                 "t_churn must respect 0 < t_churn <= T.\n",
                 "Customers that are still alive should have t_churn = T",
             )
-        self.coords = {"customer_id": np.asarray(self.customer_id)}
+        super().__init__(
+            data=data, model_config=model_config, sampler_config=sampler_config
+        )
 
     @property
     def default_model_config(self) -> Dict:
@@ -126,12 +118,14 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             "beta_prior": {"dist": "HalfFlat", "kwargs": {}},
         }
 
-    def build_model(  # type: ignore
-        self,
-    ) -> None:
-        with pm.Model(coords=self.coords) as self.model:
-            alpha = self.model.register_rv(self.alpha_prior, name="alpha")
-            beta = self.model.register_rv(self.beta_prior, name="beta")
+    def build_model(self):
+        alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
+        beta_prior = self._create_distribution(self.model_config["beta_prior"])
+
+        coords = {"customer_id": self.data["customer_id"]}
+        with pm.Model(coords=coords) as self.model:
+            alpha = self.model.register_rv(alpha_prior, name="alpha")
+            beta = self.model.register_rv(beta_prior, name="beta")
 
             theta = pm.Beta("theta", alpha, beta, dims=("customer_id",))
 
@@ -140,8 +134,8 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
                 "churn_censored",
                 churn_raw,
                 lower=None,
-                upper=self.T,
-                observed=self.t_churn,
+                upper=self.data["T"],
+                observed=self.data["t_churn"],
                 dims=("customer_id",),
             )
 
@@ -156,7 +150,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
         It ignores that some customers may have already cancelled.
         """
 
-        coords = {"customer_id": np.asarray(customer_id)}
+        coords = {"customer_id": customer_id}
         with pm.Model(coords=coords):
             alpha = pm.HalfFlat("alpha")
             beta = pm.HalfFlat("beta")

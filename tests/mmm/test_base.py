@@ -68,11 +68,11 @@ def toy_mmm(request, toy_X, toy_y):
 
         @property
         def default_model_config(self):
-            pass
+            return {}
 
         @property
         def default_sampler_config(self):
-            pass
+            return {}
 
         @property
         def output_var(self):

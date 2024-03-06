@@ -85,25 +85,20 @@ class BaseTestGammaGammaModel:
 
 
 class TestGammaGammaModel(BaseTestGammaGammaModel):
-    def test_missing_customer_id(self, data):
-        # Create a version of the data that's missing the 'customer_id' column
+    def test_missing_columns(self, data):
         data_invalid = data.drop(columns="customer_id")
-        with pytest.raises(KeyError, match="data must contain a customer_id column"):
+        with pytest.raises(ValueError, match="Required column customer_id missing"):
             GammaGammaModel(data=data_invalid)
 
-    def test_missing_frequency(self, data):
-        # Create a version of the data that's missing the 'frequency' column
         data_invalid = data.drop(columns="frequency")
 
-        with pytest.raises(KeyError, match="data must contain a frequency column"):
+        with pytest.raises(ValueError, match="Required column frequency missing"):
             GammaGammaModel(data=data_invalid)
 
-    def test_missing_mean_transaction_value(self, data):
-        # Create a version of the data that's missing the 'recency' column
         data_invalid = data.drop(columns="mean_transaction_value")
 
         with pytest.raises(
-            KeyError, match="data must contain a mean_transaction_value column"
+            ValueError, match="Required column mean_transaction_value missing"
         ):
             GammaGammaModel(data=data_invalid)
 
@@ -304,12 +299,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         # Check if the loaded model is indeed an instance of the class
         assert isinstance(model, GammaGammaModel)
         # Check if the loaded data matches with the model data
-        assert np.array_equal(model2.customer_id.values, model.customer_id.values)
-        assert np.array_equal(model2.frequency, model.frequency)
-        assert np.array_equal(
-            model2.mean_transaction_value, model.mean_transaction_value
-        )
-
+        pd.testing.assert_frame_equal(model.data, model2.data, check_names=False)
         assert model.model_config == model2.model_config
         assert model.sampler_config == model2.sampler_config
         assert model.idata == model2.idata
@@ -317,18 +307,16 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
 
 
 class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
-    def test_missing_customer_id(self, individual_data):
+    def test_missing_columns(self, individual_data):
         # Create a version of the data that's missing the 'customer_id' column
         data_invalid = individual_data.drop(columns="customer_id")
-        with pytest.raises(KeyError, match="data must contain a 'customer_id' column"):
+        with pytest.raises(ValueError, match="Required column customer_id missing"):
             GammaGammaModelIndividual(data=data_invalid)
 
-    def test_missing_individual_transaction_value(self, individual_data):
-        # Create a version of the data that's missing the 'recency' column
         data_invalid = individual_data.drop(columns="individual_transaction_value")
 
         with pytest.raises(
-            KeyError, match="data must contain a 'individual_transaction_value' column"
+            ValueError, match="Required column individual_transaction_value missing"
         ):
             GammaGammaModelIndividual(data=data_invalid)
 
@@ -461,13 +449,7 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         # Check if the loaded model is indeed an instance of the class
         assert isinstance(model, GammaGammaModelIndividual)
         # Check if the loaded data matches with the model data
-        np.testing.assert_array_equal(
-            model2.customer_id.values, model.customer_id.values
-        )
-        np.testing.assert_array_equal(
-            model2.individual_transaction_value, model.individual_transaction_value
-        )
-
+        pd.testing.assert_frame_equal(model.data, model2.data, check_names=False)
         assert model.model_config == model2.model_config
         assert model.sampler_config == model2.sampler_config
         assert model.idata == model2.idata
