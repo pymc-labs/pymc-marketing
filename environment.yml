@@ -29,6 +29,7 @@ dependencies:
 - sphinxext-opengraph
 - sphinx-notfound-page
 - sphinx-design
+- watermark
 # lint
 - mypy
 - pandas-stubs
