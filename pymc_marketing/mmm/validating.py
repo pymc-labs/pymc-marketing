@@ -40,6 +40,16 @@ class ValidateDateColumn:
     def validate_date_col(self, data: pd.DataFrame) -> None:
         if self.date_column not in data.columns:
             raise ValueError(f"date_col {self.date_column} not in data")
+
+        if (
+            not isinstance(data.index, pd.RangeIndex)
+            or data.index.start != 0
+            or data.index.stop != len(data)
+        ):
+            raise ValueError(
+                "X or y has incorrect indices. Try to reset with `data.reset_index(inplace=True)`"
+            )
+
         if not data[self.date_column].is_unique:
             raise ValueError(f"date_col {self.date_column} has repeated values")
 
