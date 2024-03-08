@@ -25,7 +25,7 @@ class TestParetoNBDModel:
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
         # TODO: Create a pytest fixture for this
-        test_data = pd.read_csv("datasets/clv_quickstart.csv")
+        test_data = pd.read_csv("data/clv_quickstart.csv")
         test_data["customer_id"] = test_data.index
 
         cls.data = test_data
@@ -374,7 +374,7 @@ class TestParetoNBDModel:
 
     def test_save_load_pareto_nbd(self):
         # TODO: Create a pytest fixture for this
-        test_data = pd.read_csv("datasets/clv_quickstart.csv")
+        test_data = pd.read_csv("data/clv_quickstart.csv")
         test_data["customer_id"] = test_data.index
         model = ParetoNBDModel(
             data=test_data,
