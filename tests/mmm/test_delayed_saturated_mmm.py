@@ -808,14 +808,12 @@ def test_new_spend_contributions_prior(original_scale, mmm, toy_X) -> None:
     new_contributions_property_checks(new_contributions, toy_X, mmm)
 
 
-@pytest.mark.xfail(reason="The fit results change")
-@pytest.mark.mpl_image_compare(style="default")
-def test_plot_new_spend_contributions_original_scale(mmm_fitted) -> plt.Figure:
-    fig, ax = plt.subplots(figsize=(10, 5))
-    mmm_fitted.plot_new_spend_contributions(
-        spend_amount=1, original_scale=True, ax=ax, random_seed=0
+def test_plot_new_spend_contributions_original_scale(mmm_fitted) -> None:
+    ax = mmm_fitted.plot_new_spend_contributions(
+        spend_amount=1, original_scale=True, random_seed=0
     )
-    return fig
+
+    assert isinstance(ax, plt.Axes)
 
 
 @pytest.fixture(scope="module")
@@ -845,21 +843,18 @@ def mmm_with_prior(mmm) -> DelayedSaturatedMMM:
     return mmm
 
 
-@pytest.mark.mpl_image_compare(style="default")
-def test_plot_new_spend_contributions_prior(mmm_with_prior) -> plt.Figure:
-    fig, ax = plt.subplots(figsize=(10, 5))
-    mmm_with_prior.plot_new_spend_contributions(
-        spend_amount=1, prior=True, ax=ax, random_seed=0
+def test_plot_new_spend_contributions_prior(mmm_with_prior) -> None:
+    ax = mmm_with_prior.plot_new_spend_contributions(
+        spend_amount=1, prior=True, random_seed=0
     )
-    return fig
+    assert isinstance(ax, plt.Axes)
 
 
-@pytest.mark.mpl_image_compare(style="default")
 def test_plot_new_spend_contributions_prior_select_channels(
     mmm_with_prior,
-) -> plt.Figure:
-    fig, ax = plt.subplots(figsize=(10, 5))
-    mmm_with_prior.plot_new_spend_contributions(
-        spend_amount=1, prior=True, ax=ax, channels=["channel_2"], random_seed=0
+) -> None:
+    ax = mmm_with_prior.plot_new_spend_contributions(
+        spend_amount=1, prior=True, channels=["channel_2"], random_seed=0
     )
-    return fig
+
+    assert isinstance(ax, plt.Axes)

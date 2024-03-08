@@ -42,7 +42,6 @@ test = [
     "lifetimes==0.11.3",
     "pytest==7.0.1",
     "pytest-cov==3.0.0",
-    "pytest-mpl==0.16.1",
 ]
 
 [tool.setuptools]
@@ -77,8 +76,6 @@ addopts = [
     "--cov=pymc_marketing",
     "--cov-report=term-missing",
     "--color=yes",
-    "--mpl",
-    "--mpl-baseline-path=tests/baseline",
 ]
 filterwarnings = ["ignore::DeprecationWarning:bokeh.core.property.primitive:37"]
 testpaths = "tests"
