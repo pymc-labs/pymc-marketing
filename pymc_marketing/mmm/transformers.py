@@ -726,7 +726,7 @@ def michaelis_menten(
     Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
 
     The Michaelis-Menten function models enzyme kinetics and describes how the rate of a chemical reaction increases with substrate concentration until it reaches its maximum value.
-    
+
      .. math::
          \alpha \cdot \frac{x}{\lambda + x}}
 
