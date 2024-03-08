@@ -722,25 +722,27 @@ def michaelis_menten(
     alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
     lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
 ) -> Union[float, Any]:
-    """
+    r"""
     Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
 
-    The Michaelis-Menten function is a type of mathematical saturation function commonly used in
-    enzyme kinetics, but it's also applicable in marketing mix models to describe
-    how different channels contribute to a certain outcome (e.g., sales or conversions)
-    as the spending on that channel increases and the contribution saturates.
+    The Michaelis-Menten function models enzyme kinetics and describes how the rate of a chemical reaction increases with substrate concentration until it reaches its maximum value.
+    
+     .. math::
+         \alpha \cdot \frac{x}{\lambda + x}}
 
-    Mathematically, it is described as:
-    α * x / (λ + x)
+    where:
+     - :math:`\alpha`: Maximum contribution or efficiency factor.
+     - :math:`x`: Channel spend or substrate concentration.
+     - :math:`\lambda` (k): Michaelis constant, representing the threshold substrate concentration.
 
     Parameters
     ----------
     x : float
         The spent on a channel.
-    alpha (Limit/Vmax) : float
+    alpha : float
         The maximum contribution a channel can make.
-    lam (k) : float
-        The elbow on the function in `x` (Point where the curve change their direction).
+    lam : float
+        The Michaelis constant for the given enzyme-substrate system.
 
     Returns
     -------
