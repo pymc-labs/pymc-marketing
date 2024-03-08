@@ -77,6 +77,8 @@ addopts = [
     "--cov=pymc_marketing",
     "--cov-report=term-missing",
     "--color=yes",
+    "--mpl",
+    "--mpl-baseline-path=tests/baseline",
 ]
 filterwarnings = ["ignore::DeprecationWarning:bokeh.core.property.primitive:37"]
 testpaths = "tests"

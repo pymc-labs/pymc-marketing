@@ -42,7 +42,7 @@ jobs:
       - name: Run tests
         run: |
           pip install -e .[test]
-          pytest --mpl --mpl-baseline-path=tests/baseline --cov-report=xml --no-cov-on-fail --durations=50
+          pytest --cov-report=xml --no-cov-on-fail --durations=50
       - name: Check oldest version of PyMC
         if: ${{ matrix.config.oldest-pymc }}
         run: python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}'"
