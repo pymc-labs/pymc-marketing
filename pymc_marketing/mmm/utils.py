@@ -283,9 +283,9 @@ def sigmoid_saturation(
     """
     Parameters
     ----------
-    - alpha
+    alpha
         α (alpha): Represent the Asymptotic Maximum or Ceiling Value.
-    - lam
+    lam
         λ (lambda): affects how quickly the function approaches its upper and lower asymptotes. A higher value of
         lam makes the curve steeper, while a lower value makes it more gradual.
     """
