@@ -18,6 +18,7 @@ clv/clv_quickstart
 clv/bg_nbd
 clv/gamma_gamma
 clv/sBG
+:::
 
 :::{toctree}
 :caption: General
