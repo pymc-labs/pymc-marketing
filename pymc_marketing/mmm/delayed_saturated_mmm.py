@@ -10,13 +10,14 @@ import pandas as pd
 import pymc as pm
 import seaborn as sns
 from pytensor.tensor import TensorVariable
-from xarray import DataArray
+from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.mmm.utils import (
-    apply_sklearn_transformer_across_date,
+    apply_sklearn_transformer_across_dim,
+    create_new_spend_data,
     generate_fourier_modes,
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
@@ -644,7 +645,6 @@ class BaseDelayedSaturatedMMM(MMM):
         data: Dict[str, Union[np.ndarray, Any]] = {
             "channel_data": channel_transformation(new_channel_data)
         }
-
         if self.control_columns is not None:
             control_data = X[self.control_columns].to_numpy()
             control_transformation = (
@@ -850,6 +850,234 @@ class DelayedSaturatedMMM(
         )
         return fig
 
+    def new_spend_contributions(
+        self,
+        spend: Optional[np.ndarray] = None,
+        one_time: bool = True,
+        spend_leading_up: Optional[np.ndarray] = None,
+        prior: bool = False,
+        original_scale: bool = True,
+        **sample_posterior_predictive_kwargs,
+    ) -> DataArray:
+        """Return the upcoming contributions for a given spend.
+
+        The spend can be one time or constant over the period. The spend leading up to the
+        period can also be specified in order account for the lagged effect of the spend.
+
+        Parameters
+        ----------
+        spend : np.ndarray, optional
+            Array of spend for each channel. If None, the average spend for each channel is used, by default None.
+        one_time : bool, optional
+            Whether the spends for each channel are only at the start of the period.
+            If True, all spends after the initial spend are zero.
+            If False, all spends after the initial spend are the same as the initial spend.
+            By default True.
+        spend_leading_up : np.array, optional
+            Array of spend for each channel leading up to the spend, by default None or 0 for each channel.
+            Use this parameter to account for the lagged effect of the spend.
+        prior : bool, optional
+            Whether to use the prior or posterior, by default False (posterior)
+        **sample_posterior_predictive_kwargs
+            Additional keyword arguments passed to pm.sample_posterior_predictive
+
+        Returns
+        -------
+        DataArray
+            Upcoming contributions for each channel
+
+        Examples
+        --------
+        Channel contributions from 1 unit on each channel only once.
+
+        .. code-block:: python
+
+            n_channels = len(model.channel_columns)
+            spend = np.ones(n_channels)
+            new_spend_contributions = model.new_spend_contributions(spend=spend)
+
+        Channel contributions from continuously spending 1 unit on each channel.
+
+        .. code-block:: python
+
+            n_channels = len(model.channel_columns)
+            spend = np.ones(n_channels)
+            new_spend_contributions = model.new_spend_contributions(spend=spend, one_time=False)
+
+        Channel contributions from 1 unit on each channel only once but with 1 unit leading up to the spend.
+
+        .. code-block:: python
+
+            n_channels = len(model.channel_columns)
+            spend = np.ones(n_channels)
+            spend_leading_up = np.ones(n_channels)
+            new_spend_contributions = model.new_spend_contributions(spend=spend, spend_leading_up=spend_leading_up)
+        """
+        if spend is None:
+            spend = self.X.loc[:, self.channel_columns].mean().to_numpy()  # type: ignore
+
+        n_channels = len(self.channel_columns)
+        if len(spend) != n_channels:
+            raise ValueError("spend must be the same length as the number of channels")
+
+        new_data = create_new_spend_data(
+            spend=spend,
+            adstock_max_lag=self.adstock_max_lag,
+            one_time=one_time,
+            spend_leading_up=spend_leading_up,
+        )
+
+        new_data = (
+            self.channel_transformer.transform(new_data) if not prior else new_data
+        )
+
+        idata: Dataset = self.fit_result if not prior else self.prior
+
+        coords = {
+            "time_since_spend": np.arange(
+                -self.adstock_max_lag, self.adstock_max_lag + 1
+            ),
+            "channel": self.channel_columns,
+        }
+        with pm.Model(coords=coords):
+            alpha = pm.Uniform("alpha", lower=0, upper=1, dims=("channel",))
+            lam = pm.HalfFlat("lam", dims=("channel",))
+            beta_channel = pm.HalfFlat("beta_channel", dims=("channel",))
+
+            # Same as the forward pass of the model
+            channel_adstock = geometric_adstock(
+                x=new_data,
+                alpha=alpha,
+                l_max=self.adstock_max_lag,
+                normalize=True,
+                axis=0,
+            )
+            channel_adstock_saturated = logistic_saturation(x=channel_adstock, lam=lam)
+            pm.Deterministic(
+                name="channel_contributions",
+                var=channel_adstock_saturated * beta_channel,
+                dims=("time_since_spend", "channel"),
+            )
+
+            samples = pm.sample_posterior_predictive(
+                idata,
+                var_names=["channel_contributions"],
+                **sample_posterior_predictive_kwargs,
+            )
+
+        channel_contributions = samples.posterior_predictive["channel_contributions"]
+
+        if original_scale:
+            channel_contributions = apply_sklearn_transformer_across_dim(
+                data=channel_contributions,
+                func=self.get_target_transformer().inverse_transform,
+                dim_name="time_since_spend",
+                combined=False,
+            )
+
+        return channel_contributions
+
+    def plot_new_spend_contributions(
+        self,
+        spend_amount: float,
+        one_time: bool = True,
+        lower: float = 0.025,
+        upper: float = 0.975,
+        ylabel: str = "Sales",
+        idx: Optional[slice] = None,
+        channels: Optional[List[str]] = None,
+        prior: bool = False,
+        original_scale: bool = True,
+        ax: Optional[plt.Axes] = None,
+        **sample_posterior_predictive_kwargs,
+    ) -> plt.Axes:
+        """Plot the upcoming sales for a given spend amount.
+
+        Calls the new_spend_contributions method and plots the results. For more
+        control over the plot, use new_spend_contributions directly.
+
+        Parameters
+        ----------
+        spend_amount : float
+            The amount of spend for each channel
+        one_time : bool, optional
+            Whether the spend are one time (at start of period) or constant (over period), by default True (one time)
+        lower : float, optional
+            The lower quantile for the confidence interval, by default 0.025
+        upper : float, optional
+            The upper quantile for the confidence interval, by default 0.975
+        ylabel : str, optional
+            The label for the y-axis, by default "Sales"
+        idx : slice, optional
+            The index slice of days to plot, by default None or only the positive days.
+            More specifically, slice(0, None, None)
+        channels : List[str], optional
+            The channels to plot, by default None or all channels
+        prior : bool, optional
+            Whether to use the prior or posterior, by default False (posterior)
+        original_scale : bool, optional
+            Whether to plot in the original scale of the target variable, by default True
+        ax : plt.Axes, optional
+            The axes to plot on, by default None or current axes
+        **sample_posterior_predictive_kwargs
+            Additional keyword arguments passed to pm.sample_posterior_predictive
+
+        Returns
+        -------
+        plt.Axes
+            The plot of upcoming sales for the given spend amount
+
+        """
+        for value in [lower, upper]:
+            if value < 0 or value > 1:
+                raise ValueError("lower and upper must be between 0 and 1")
+        if lower > upper:
+            raise ValueError("lower must be less than or equal to upper")
+
+        ax = ax or plt.gca()
+        total_channels = len(self.channel_columns)
+        contributions = self.new_spend_contributions(
+            np.ones(total_channels) * spend_amount,
+            one_time=one_time,
+            spend_leading_up=np.ones(total_channels) * spend_amount,
+            prior=prior,
+            original_scale=original_scale,
+            **sample_posterior_predictive_kwargs,
+        )
+
+        contributions_groupby = contributions.to_series().groupby(
+            level=["time_since_spend", "channel"]
+        )
+
+        idx = idx or pd.IndexSlice[0:]
+
+        conf = (
+            contributions_groupby.quantile([lower, upper])
+            .unstack("channel")
+            .unstack()
+            .loc[idx]
+        )
+
+        channels = channels or self.channel_columns  # type: ignore
+        for channel in channels:  # type: ignore
+            ax.fill_between(
+                conf.index,
+                conf[channel][lower],
+                conf[channel][upper],
+                label=f"{channel} {100 * (upper - lower):.0f}% CI",
+                alpha=0.5,
+            )
+        mean = contributions_groupby.mean().unstack("channel").loc[idx, channels]
+        color = [f"C{i}" for i in range(len(channels))]  # type: ignore
+        mean.add_suffix(" mean").plot(ax=ax, color=color, alpha=0.75)
+        ax.legend().set_title("Channel")
+        ax.set(
+            xlabel="Time since spend",
+            ylabel=ylabel,
+            title=f"Upcoming sales for {spend_amount:.02f} spend",
+        )
+        return ax
+
     def _validate_data(self, X, y=None):
         return X
 
@@ -910,9 +1138,10 @@ class DelayedSaturatedMMM(
             )
 
         if original_scale:
-            posterior_predictive_samples = apply_sklearn_transformer_across_date(
+            posterior_predictive_samples = apply_sklearn_transformer_across_dim(
                 data=posterior_predictive_samples,
                 func=self.get_target_transformer().inverse_transform,
+                dim_name="date",
                 combined=combined,
             )
 
