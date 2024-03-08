@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+import xarray as xr
 from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.delayed_saturated_mmm import (
@@ -706,6 +707,7 @@ def test_new_data_predict_method(
     X_pred = generate_data(new_dates)
 
     posterior_predictive_mean = mmm.predict(X_pred=X_pred)
+
     assert isinstance(posterior_predictive_mean, np.ndarray)
     assert posterior_predictive_mean.shape[0] == new_dates.size
     # Original scale constraint
@@ -761,3 +763,98 @@ def test_create_likelihood_mu_in_top_level_kwargs(mmm):
             observed=np.random.randn(100),
             dims="obs_dim",
         )
+
+
+def new_contributions_property_checks(new_contributions, X, model):
+    assert isinstance(new_contributions, xr.DataArray)
+
+    coords = new_contributions.coords
+    assert coords["channel"].values.tolist() == model.channel_columns
+    np.testing.assert_allclose(
+        coords["time_since_spend"].values,
+        np.arange(-model.adstock_max_lag, model.adstock_max_lag + 1),
+    )
+
+    # Channel contributions are non-negative
+    assert (new_contributions >= 0).all()
+
+
+def test_new_spend_contributions(mmm_fitted) -> None:
+    new_spend = np.ones(len(mmm_fitted.channel_columns))
+    new_contributions = mmm_fitted.new_spend_contributions(new_spend)
+
+    new_contributions_property_checks(new_contributions, mmm_fitted.X, mmm_fitted)
+
+
+def test_new_spend_contributions_prior_error(mmm) -> None:
+    new_spend = np.ones(len(mmm.channel_columns))
+    match = "sample_prior_predictive"
+    with pytest.raises(RuntimeError, match=match):
+        mmm.new_spend_contributions(new_spend, prior=True)
+
+
+@pytest.mark.parametrize("original_scale", [True, False])
+def test_new_spend_contributions_prior(original_scale, mmm, toy_X) -> None:
+    mmm.sample_prior_predictive(
+        X_pred=toy_X,
+        extend_idata=True,
+    )
+
+    new_spend = np.ones(len(mmm.channel_columns))
+    new_contributions = mmm.new_spend_contributions(
+        new_spend, prior=True, original_scale=original_scale, random_seed=0
+    )
+
+    new_contributions_property_checks(new_contributions, toy_X, mmm)
+
+
+def test_plot_new_spend_contributions_original_scale(mmm_fitted) -> None:
+    ax = mmm_fitted.plot_new_spend_contributions(
+        spend_amount=1, original_scale=True, random_seed=0
+    )
+
+    assert isinstance(ax, plt.Axes)
+
+
+@pytest.fixture(scope="module")
+def mmm_with_prior(mmm) -> DelayedSaturatedMMM:
+    n_chains = 1
+    n_samples = 100
+
+    channels = mmm.channel_columns
+    n_channels = len(channels)
+
+    idata = az.from_dict(
+        prior={
+            # Arbitrary but close to the default parameterization
+            "alpha": rng.uniform(size=(n_chains, n_samples, n_channels)),
+            "lam": rng.exponential(size=(n_chains, n_samples, n_channels)),
+            "beta_channel": np.abs(rng.normal(size=(n_chains, n_samples, n_channels))),
+        },
+        coords={"channel": channels},
+        dims={
+            "alpha": ["chain", "draw", "channel"],
+            "lam": ["chain", "draw", "channel"],
+            "beta_channel": ["chain", "draw", "channel"],
+        },
+    )
+    mmm.idata = idata
+
+    return mmm
+
+
+def test_plot_new_spend_contributions_prior(mmm_with_prior) -> None:
+    ax = mmm_with_prior.plot_new_spend_contributions(
+        spend_amount=1, prior=True, random_seed=0
+    )
+    assert isinstance(ax, plt.Axes)
+
+
+def test_plot_new_spend_contributions_prior_select_channels(
+    mmm_with_prior,
+) -> None:
+    ax = mmm_with_prior.plot_new_spend_contributions(
+        spend_amount=1, prior=True, channels=["channel_2"], random_seed=0
+    )
+
+    assert isinstance(ax, plt.Axes)
