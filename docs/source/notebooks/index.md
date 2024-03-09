@@ -1,5 +1,5 @@
 (howto)=
-# How to?
+# How-to
 
 
 :::{toctree}
