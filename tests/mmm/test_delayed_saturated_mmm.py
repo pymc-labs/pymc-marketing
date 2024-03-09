@@ -111,7 +111,7 @@ def mmm_with_fourier_features() -> DelayedSaturatedMMM:
 def mmm_fitted(
     mmm: DelayedSaturatedMMM, toy_X: pd.DataFrame, toy_y: pd.Series
 ) -> DelayedSaturatedMMM:
-    mmm.fit(X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2)
+    mmm.fit(X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2, random_seed=rng)
     return mmm
 
 
@@ -122,7 +122,7 @@ def mmm_fitted_with_fourier_features(
     toy_y: pd.Series,
 ) -> DelayedSaturatedMMM:
     mmm_with_fourier_features.fit(
-        X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2
+        X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2, random_seed=rng
     )
     return mmm_with_fourier_features
 
