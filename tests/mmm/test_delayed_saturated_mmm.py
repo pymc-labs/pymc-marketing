@@ -107,12 +107,30 @@ def mmm_with_fourier_features() -> DelayedSaturatedMMM:
     )
 
 
+def mock_posterior_with_prior(model, X: pd.DataFrame, y: np.ndarray, **kwargs):
+    model.build_model(X=X, y=y)
+    with model.model:
+        idata = pm.sample_prior_predictive(random_seed=rng, **kwargs)
+
+    idata.add_groups(
+        {
+            "posterior": idata.prior,
+            "fit_data": pd.concat(
+                [X, pd.Series(y, index=X.index, name="y")], axis=1
+            ).to_xarray(),
+        }
+    )
+    model.idata = idata
+    model.set_idata_attrs(idata=idata)
+
+    return model
+
+
 @pytest.fixture(scope="module")
 def mmm_fitted(
     mmm: DelayedSaturatedMMM, toy_X: pd.DataFrame, toy_y: pd.Series
 ) -> DelayedSaturatedMMM:
-    mmm.fit(X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2, random_seed=rng)
-    return mmm
+    return mock_posterior_with_prior(mmm, toy_X, toy_y.to_numpy())
 
 
 @pytest.fixture(scope="module")
@@ -121,10 +139,7 @@ def mmm_fitted_with_fourier_features(
     toy_X: pd.DataFrame,
     toy_y: pd.Series,
 ) -> DelayedSaturatedMMM:
-    mmm_with_fourier_features.fit(
-        X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2, random_seed=rng
-    )
-    return mmm_with_fourier_features
+    return mock_posterior_with_prior(mmm_with_fourier_features, toy_X, toy_y.to_numpy())
 
 
 class TestDelayedSaturatedMMM:
@@ -152,9 +167,7 @@ class TestDelayedSaturatedMMM:
             adstock_max_lag=4,
             model_config=model_config_requiring_serialization,
         )
-        model.fit(
-            toy_X, toy_y, target_accept=0.81, draws=100, chains=2, random_seed=rng
-        )
+        model = mock_posterior_with_prior(model, toy_X, toy_y.to_numpy())
         model.save("test_save_load")
         model2 = DelayedSaturatedMMM.load("test_save_load")
         assert model.date_column == model2.date_column
@@ -271,9 +284,6 @@ class TestDelayedSaturatedMMM:
             )
 
     def test_fit(self, toy_X: pd.DataFrame, toy_y: pd.Series) -> None:
-        draws: int = 100
-        chains: int = 2
-
         mmm = BaseDelayedSaturatedMMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
@@ -287,35 +297,28 @@ class TestDelayedSaturatedMMM:
         n_channel: int = len(mmm.channel_columns)
         n_control: int = len(mmm.control_columns)
         fourier_terms: int = 2 * mmm.yearly_seasonality
-        mmm.fit(
-            X=toy_X,
-            y=toy_y,
-            target_accept=0.81,
-            draws=draws,
-            chains=chains,
-            random_seed=rng,
-        )
+        mmm = mock_posterior_with_prior(mmm, toy_X, toy_y.to_numpy())
         idata: az.InferenceData = mmm.fit_result
         assert (
             az.extract(data=idata, var_names=["intercept"], combined=True)
             .to_numpy()
             .size
-            == draws * chains
+            == 500
         )
         assert az.extract(
             data=idata, var_names=["beta_channel"], combined=True
-        ).to_numpy().shape == (n_channel, draws * chains)
+        ).to_numpy().shape == (n_channel, 500)
         assert az.extract(
             data=idata, var_names=["alpha"], combined=True
-        ).to_numpy().shape == (n_channel, draws * chains)
+        ).to_numpy().shape == (n_channel, 500)
         assert az.extract(
             data=idata, var_names=["lam"], combined=True
-        ).to_numpy().shape == (n_channel, draws * chains)
+        ).to_numpy().shape == (n_channel, 500)
         assert az.extract(
             data=idata, var_names=["gamma_control"], combined=True
         ).to_numpy().shape == (
             n_channel,
-            draws * chains,
+            500,
         )
 
         mean_model_contributions_ts = mmm.compute_mean_contributions_over_time(
@@ -427,16 +430,14 @@ class TestDelayedSaturatedMMM:
     ) -> None:
         n_channels = len(mmm_fitted.channel_columns)
         data_range = mmm_fitted.X.shape[0]
-        draws = 3
-        chains = 2
         grid_size = 2
         contributions = mmm_fitted.get_channel_contributions_forward_pass_grid(
             start=0, stop=1.5, num=grid_size
         )
         assert contributions.shape == (
             grid_size,
-            chains,
-            draws,
+            1,
+            500,
             data_range,
             n_channels,
         )
@@ -471,8 +472,10 @@ class TestDelayedSaturatedMMM:
             channel_columns=["channel_1", "channel_2"],
             adstock_max_lag=4,
         )
-        base_delayed_saturated_mmm.fit(
-            X=toy_X, y=toy_y, target_accept=0.81, draws=100, chains=2, random_seed=rng
+        base_delayed_saturated_mmm = mock_posterior_with_prior(
+            base_delayed_saturated_mmm,
+            toy_X,
+            toy_y.to_numpy(),
         )
 
         X_correct_ndarray = np.random.randint(low=0, high=100, size=(135, 2))
@@ -531,9 +534,7 @@ class TestDelayedSaturatedMMM:
         )
 
         # Check that the property returns the new value
-        DSMMM.fit(
-            toy_X, toy_y, target_accept=0.81, draws=100, chains=2, random_seed=rng
-        )
+        DSMMM = mock_posterior_with_prior(DSMMM, toy_X, toy_y.to_numpy())
         DSMMM.save("test_model")
         # Apply the monkeypatch for the property
         monkeypatch.setattr(DelayedSaturatedMMM, "id", property(mock_property))
@@ -787,6 +788,11 @@ def test_new_spend_contributions(mmm_fitted) -> None:
 
 
 def test_new_spend_contributions_prior_error(mmm) -> None:
+    prior_index = [i for i, group in enumerate(mmm.idata._groups) if group == "prior"][
+        0
+    ]
+    mmm.idata._groups.pop(prior_index)
+
     new_spend = np.ones(len(mmm.channel_columns))
     match = "sample_prior_predictive"
     with pytest.raises(RuntimeError, match=match):
