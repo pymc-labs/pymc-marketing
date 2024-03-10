@@ -107,7 +107,7 @@ def mmm_with_fourier_features() -> DelayedSaturatedMMM:
     )
 
 
-def mock_posterior_with_prior(model, X: pd.DataFrame, y: np.ndarray, **kwargs):
+def mock_fit(model, X: pd.DataFrame, y: np.ndarray, **kwargs):
     model.build_model(X=X, y=y)
     with model.model:
         idata = pm.sample_prior_predictive(random_seed=rng, **kwargs)
@@ -130,7 +130,7 @@ def mock_posterior_with_prior(model, X: pd.DataFrame, y: np.ndarray, **kwargs):
 def mmm_fitted(
     mmm: DelayedSaturatedMMM, toy_X: pd.DataFrame, toy_y: pd.Series
 ) -> DelayedSaturatedMMM:
-    return mock_posterior_with_prior(mmm, toy_X, toy_y.to_numpy())
+    return mock_fit(mmm, toy_X, toy_y.to_numpy())
 
 
 @pytest.fixture(scope="module")
@@ -139,7 +139,7 @@ def mmm_fitted_with_fourier_features(
     toy_X: pd.DataFrame,
     toy_y: pd.Series,
 ) -> DelayedSaturatedMMM:
-    return mock_posterior_with_prior(mmm_with_fourier_features, toy_X, toy_y.to_numpy())
+    return mock_fit(mmm_with_fourier_features, toy_X, toy_y.to_numpy())
 
 
 class TestDelayedSaturatedMMM:
@@ -167,7 +167,7 @@ class TestDelayedSaturatedMMM:
             adstock_max_lag=4,
             model_config=model_config_requiring_serialization,
         )
-        model = mock_posterior_with_prior(model, toy_X, toy_y.to_numpy())
+        model = mock_fit(model, toy_X, toy_y.to_numpy())
         model.save("test_save_load")
         model2 = DelayedSaturatedMMM.load("test_save_load")
         assert model.date_column == model2.date_column
@@ -297,7 +297,7 @@ class TestDelayedSaturatedMMM:
         n_channel: int = len(mmm.channel_columns)
         n_control: int = len(mmm.control_columns)
         fourier_terms: int = 2 * mmm.yearly_seasonality
-        mmm = mock_posterior_with_prior(mmm, toy_X, toy_y.to_numpy())
+        mmm = mock_fit(mmm, toy_X, toy_y.to_numpy())
         idata: az.InferenceData = mmm.fit_result
         assert (
             az.extract(data=idata, var_names=["intercept"], combined=True)
@@ -472,7 +472,7 @@ class TestDelayedSaturatedMMM:
             channel_columns=["channel_1", "channel_2"],
             adstock_max_lag=4,
         )
-        base_delayed_saturated_mmm = mock_posterior_with_prior(
+        base_delayed_saturated_mmm = mock_fit(
             base_delayed_saturated_mmm,
             toy_X,
             toy_y.to_numpy(),
@@ -534,7 +534,7 @@ class TestDelayedSaturatedMMM:
         )
 
         # Check that the property returns the new value
-        DSMMM = mock_posterior_with_prior(DSMMM, toy_X, toy_y.to_numpy())
+        DSMMM = mock_fit(DSMMM, toy_X, toy_y.to_numpy())
         DSMMM.save("test_model")
         # Apply the monkeypatch for the property
         monkeypatch.setattr(DelayedSaturatedMMM, "id", property(mock_property))
