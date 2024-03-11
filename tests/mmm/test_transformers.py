@@ -15,7 +15,6 @@ from pymc_marketing.mmm.transformers import (
     delayed_adstock,
     geometric_adstock,
     logistic_saturation,
-    scale_preserving_logistic_saturation,
     tanh_saturation,
     tanh_saturation_baselined,
     weibull_adstock,
@@ -299,59 +298,6 @@ class TestSaturationTransformers:
         y_eval = y.eval()
         assert y_eval.max() <= 1
         assert y_eval.min() >= 0
-
-    def test_scale_preserving_logistic_saturation_m_zero(self):
-        # All values should be zero
-        x = np.ones(shape=(100))
-        y = scale_preserving_logistic_saturation(x=x, m=0.0)
-        np.testing.assert_array_almost_equal(x=np.zeros(shape=(100)), y=y.eval())
-
-    def test_scale_preserving_logistic_saturation_m_eq_x(self):
-        # At x = m, the saturation f(x), reduces to
-        #     f(x) = m * (1 - exp(-2)) / (1 + exp(-2))
-        #          = m * 0.761594...
-        # This test asserts that this is the case
-        x = np.ones(shape=(100))
-        y = scale_preserving_logistic_saturation(x=x, m=1)
-        np.testing.assert_array_almost_equal(
-            x=np.ones(shape=(100)) * 0.761594, y=y.eval(), decimal=3
-        )
-
-    @pytest.mark.parametrize(
-        "x",
-        [
-            np.ones(shape=(100)),
-            np.linspace(start=0.0, stop=1.0, num=50),
-            np.linspace(start=200, stop=1000, num=50),
-        ],
-    )
-    def test_scale_preserving_logistic_saturation_m_large(self, x):
-        # When asymptote is large, f(x) = x
-        y = scale_preserving_logistic_saturation(x=x, m=1e9)
-        np.testing.assert_array_almost_equal(x=x, y=y.eval(), decimal=0)
-
-    @pytest.mark.parametrize(
-        "x, m",
-        [
-            (np.ones(shape=(100)), 30),
-            (np.linspace(start=0.0, stop=1.0, num=50), 90),
-            (np.linspace(start=200, stop=1000, num=50), 17),
-            (np.zeros(shape=(100)), 200),
-        ],
-    )
-    def test_scale_preserving_logistic_saturation_bounds(self, x, m):
-        # Check that the values are within the range [0, m]
-        y = scale_preserving_logistic_saturation(x=x, m=m)
-        assert y.eval().max() <= m
-        assert y.eval().min() >= 0
-
-    @pytest.mark.parametrize("m", [10, 100, 1000])
-    def test_scale_preserving_logistic_saturation_slope(self, m):
-        # Check that slope < 1
-        x = np.linspace(0, 10, 100)
-        y = scale_preserving_logistic_saturation(x, m=m).eval()
-        dy_dx = np.diff(y) / np.diff(x)
-        assert np.all(dy_dx <= 1)
 
     @pytest.mark.parametrize(
         "x, b, c",
