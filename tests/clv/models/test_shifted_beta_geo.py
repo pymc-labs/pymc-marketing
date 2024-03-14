@@ -242,12 +242,12 @@ class TestShiftedBetaGeoModel:
             rtol=0.05,
         )
 
-    def test_save_load_beta_geo(self, data):
+    def test_save_load(self, data):
         model = ShiftedBetaGeoModelIndividual(
             data=data,
         )
         model.build_model()
-        model.fit("map")
+        model.fit("map", maxeval=1)
         model.save("test_model")
         # Testing the valid case.
         model2 = ShiftedBetaGeoModelIndividual.load("test_model")
