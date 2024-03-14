@@ -15,7 +15,7 @@ from pymc_marketing.clv.models.gamma_gamma import (
 class BaseTestGammaGammaModel:
     @classmethod
     def setup_class(cls):
-        rng = np.random.default_rng(14)
+        rng = np.random.default_rng(18)
 
         # Hyperparameters
         p_true = 6.0
@@ -23,12 +23,12 @@ class BaseTestGammaGammaModel:
         v_true = 15.0
 
         # Number of subjects
-        N = 500
+        N = 1000
         # Subject level parameters
         nu_true = pm.draw(pm.Gamma.dist(q_true, v_true, size=N), random_seed=rng)
 
         # Number of observations per subject
-        x = rng.poisson(lam=2, size=N) + 1
+        x = rng.poisson(lam=5, size=N) + 1
         idx = np.repeat(np.arange(0, N), x)
 
         # Observations
@@ -126,7 +126,12 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
     @pytest.mark.slow
     def test_model_convergence(self):
         rng = np.random.default_rng(13)
-        model = GammaGammaModel(data=self.data)
+        model_config = {
+            "p_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
+            "q_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
+            "v_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
+        }
+        model = GammaGammaModel(data=self.data, model_config=model_config)
         model.fit(chains=2, progressbar=False, random_seed=rng)
         fit = model.idata.posterior
         np.testing.assert_allclose(
