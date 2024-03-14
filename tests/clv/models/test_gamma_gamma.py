@@ -266,12 +266,12 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             "\nlikelihood~Potential(f(q,p,v))"
         )
 
-    def test_save_load_beta_geo(self):
+    def test_save_load(self):
         model = GammaGammaModel(
             data=self.data,
         )
         model.build_model()
-        model.fit("map")
+        model.fit("map", maxeval=1)
         model.save("test_model")
         # Testing the valid case.
 
@@ -414,12 +414,12 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             "\nspend~Gamma(p,f(nu))"
         )
 
-    def test_save_load_beta_geo(self):
+    def test_save_load(self):
         model = GammaGammaModelIndividual(
             data=self.individual_data,
         )
         model.build_model()
-        model.fit("map")
+        model.fit("map", maxeval=1)
         model.save("test_model")
         # Testing the valid case.
 
