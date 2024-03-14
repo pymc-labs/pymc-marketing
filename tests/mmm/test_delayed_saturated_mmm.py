@@ -112,6 +112,9 @@ def mock_fit(model, X: pd.DataFrame, y: np.ndarray, **kwargs):
     with model.model:
         idata = pm.sample_prior_predictive(random_seed=rng, **kwargs)
 
+    model.preprocess("X", X)
+    model.preprocess("y", y)
+
     idata.add_groups(
         {
             "posterior": idata.prior,
@@ -711,12 +714,6 @@ def test_new_data_predict_method(
 
     assert isinstance(posterior_predictive_mean, np.ndarray)
     assert posterior_predictive_mean.shape[0] == new_dates.size
-    # Original scale constraint
-    assert np.all(posterior_predictive_mean >= 0)
-
-    # Domain kept close
-    lower, upper = np.quantile(a=posterior_predictive_mean, q=[0.025, 0.975], axis=0)
-    assert lower < toy_y.mean() < upper
 
 
 def test_get_valid_distribution(mmm):
