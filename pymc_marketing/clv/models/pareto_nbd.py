@@ -915,7 +915,6 @@ class ParetoNBDModel(CLVModel):
         data: pd.DataFrame, optional
             DataFrame containing the following columns:
                 * `customer_id`: unique customer identifier
-                * `T`: time between the first purchase and the end of the observation period.
                 * covariates: Purchase and dropout covariate columns if original model had any.
             If not provided, the method will use the fit dataset.
         random_seed: RandomState, optional
@@ -934,7 +933,7 @@ class ParetoNBDModel(CLVModel):
 
     def distribution_new_customer_purchase_rate(
         self,
-        data,
+        data: Optional[pd.DataFrame] = None,
         *,
         random_seed: Optional[RandomState] = None,
     ) -> xarray.Dataset:
@@ -945,6 +944,11 @@ class ParetoNBDModel(CLVModel):
 
         Parameters
         ----------
+        data: pd.DataFrame, optional
+            DataFrame containing the following columns:
+                * `customer_id`: unique customer identifier
+                * covariates: Purchase and dropout covariate columns if original model had any.
+            If not provided, the method will use the fit dataset.
         random_seed : RandomState, optional
             Random state to use for sampling.
 
@@ -961,7 +965,7 @@ class ParetoNBDModel(CLVModel):
 
     def distribution_new_customer_recency_frequency(
         self,
-        data,
+        data: Optional[pd.DataFrame] = None,
         *,
         T: Optional[Union[int, np.ndarray, pd.Series]] = None,
         random_seed: Optional[RandomState] = None,
