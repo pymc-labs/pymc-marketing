@@ -485,12 +485,20 @@ class TestParetoNBDModelWithCovariates:
         new_data = self.data.assign(
             purchase_cov1=1.0,
             dropout_cov=1.0,
+            customer_id=self.data["customer_id"] + 1,
         )
         different_vars = model._extract_predictive_variables(data=new_data)
-        different_alpha = different_vars["alpha"]
-        different_beta = different_vars["beta"]
 
+        different_alpha = different_vars["alpha"]
+        assert np.all(
+            different_alpha.customer_id.values == alpha_model.customer_id.values + 1
+        )
         assert not np.allclose(alpha_model, different_alpha)
+
+        different_beta = different_vars["beta"]
+        assert np.all(
+            different_beta.customer_id.values == beta_model.customer_id.values + 1
+        )
         assert not np.allclose(beta_model, different_beta)
 
     def test_logp(self):
