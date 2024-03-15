@@ -384,10 +384,13 @@ class ParetoNBDModel(CLVModel):
             must_be_unique=["customer_id"],
         )
 
+        customer_id = data["customer_id"]
+        model_coords = self.model.coords  # type: ignore
         if self.purchase_covariate_cols:
             purchase_xarray = xarray.DataArray(
                 data[self.purchase_covariate_cols],
                 dims=["customer_id", "purchase_covariate"],
+                coords=[customer_id, list(model_coords["purchase_covariate"])],
             )
             alpha_scale = self.fit_result["alpha_scale"]
             purchase_coefficient = self.fit_result["purchase_coefficient"]
@@ -404,6 +407,7 @@ class ParetoNBDModel(CLVModel):
             dropout_xarray = xarray.DataArray(
                 data[self.dropout_covariate_cols],
                 dims=["customer_id", "dropout_covariate"],
+                coords=[customer_id, list(model_coords["dropout_covariate"])],
             )
             beta_scale = self.fit_result["beta_scale"]
             dropout_coefficient = self.fit_result["dropout_coefficient"]
