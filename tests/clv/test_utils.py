@@ -752,28 +752,24 @@ class TestRFM:
         # Test adapted from
         # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L374
 
-        test_end = "2015-02-07"
         train_end = "2015-02-01"
-        actual = rfm_train_test_split(
-            transaction_data, "id", "date", train_end, test_period_end=test_end
-        )
+        actual = rfm_train_test_split(transaction_data, "id", "date", train_end)
         assert actual.loc[0]["test_frequency"] == 1
         assert actual.loc[1]["test_frequency"] == 0
 
         with pytest.raises(KeyError):
             actual.loc[6]
 
-    @pytest.mark.parametrize("test_end", ("2015-02-01", "2015-02-07"))
+    @pytest.mark.parametrize("train_end", ("2014-02-07", "2015-02-08"))
     def test_rfm_train_test_split_throws_better_error_if_test_period_end_is_too_early(
         self,
-        test_end,
+        train_end,
         transaction_data,
     ):
         # Test adapted from
         # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L387
 
-        # max date is 2015-02-02
-        train_end = "2014-02-01"
+        test_end = "2014-02-07"
 
         with pytest.raises(
             ValueError,
