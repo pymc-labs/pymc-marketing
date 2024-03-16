@@ -4,13 +4,18 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import pytest
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import MaxAbsScaler
 
 from pymc_marketing.mmm.lift_test import (
     MissingLiftTestError,
+    add_logistic_empirical_lift_measurements_to_likelihood,
     add_menten_empirical_lift_measurements_to_likelihood,
     index_variable,
     indices_from_lift_tests,
     lift_test_indices,
+    scale_channel_lift_measurements,
+    scale_target_for_lift_measurements,
 )
 
 
@@ -124,6 +129,29 @@ def test_add_menten_empirical_lift_measurements_to_likelihood(
         add_menten_empirical_lift_measurements_to_likelihood(
             df_lift_tests_with_numerics,
             alpha_name="alpha",
+            lam_name="lam",
+            dist=dist,
+        )
+
+    assert "lift_measurements" in model
+
+
+@pytest.mark.parametrize("dist", [pm.Normal, pm.Gamma])
+@pytest.mark.parametrize("lam_dims", ["channel", ("date", "channel"), "date"])
+def test_add_logistic_empirical_lift_measurements_to_likelihood(
+    df_lift_tests_with_numerics,
+    dist,
+    lam_dims,
+) -> None:
+    coords = {
+        "date": ["2020-01-01", "2020-01-02", "2020-01-03"],
+        "channel": ["organic", "paid", "social"],
+    }
+    with pm.Model(coords=coords) as model:
+        pm.HalfNormal("lam", dims=lam_dims)
+
+        add_logistic_empirical_lift_measurements_to_likelihood(
+            df_lift_tests_with_numerics,
             lam_name="lam",
             dist=dist,
         )
@@ -320,4 +348,68 @@ def test_index_variable(var_dims, var_data, indices, expected) -> None:
     np.testing.assert_allclose(
         result.eval(),
         expected,
+    )
+
+
+@pytest.fixture
+def mock_channel_pipeline() -> Pipeline:
+    pipeline = Pipeline(steps=[("scaler", MaxAbsScaler())])
+
+    n_channels = 3
+    max_value = np.arange(1, n_channels + 1)
+    pipeline.fit(np.ones((5, n_channels)) * max_value)
+
+    return pipeline
+
+
+def test_scale_channel_lift_measurements(mock_channel_pipeline) -> None:
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["organic", "organic", "social"],
+            "x": [1, 2, 3],
+        }
+    ).assign(delta_x=1)
+    channel_columns = ["organic", "paid", "social"]
+
+    result = scale_channel_lift_measurements(
+        df_lift_test=df_lift_test,
+        channel_col="channel",
+        channel_columns=channel_columns,
+        transform=mock_channel_pipeline.transform,
+    )
+
+    pd.testing.assert_frame_equal(
+        result,
+        pd.DataFrame(
+            {
+                "channel": ["organic", "organic", "social"],
+                "x": [1.0, 2.0, 1.0],
+                "delta_x": [1.0, 1.0, 1 / 3],
+            }
+        ),
+    )
+
+
+@pytest.fixture
+def mock_target_pipeline() -> Pipeline:
+    pipeline = Pipeline(steps=[("scaler", MaxAbsScaler())])
+
+    max_value = 3
+
+    pipeline.fit(np.ones((5, 1)) * max_value)
+
+    return pipeline
+
+
+def test_scale_target_for_lift_measurements(mock_target_pipeline) -> None:
+    target = pd.Series([0, 3, 6, 9])
+
+    result = scale_target_for_lift_measurements(
+        target=target,
+        transform=mock_target_pipeline.transform,
+    )
+
+    pd.testing.assert_series_equal(
+        result,
+        pd.Series([0, 1, 2, 3], dtype="float64"),
     )
