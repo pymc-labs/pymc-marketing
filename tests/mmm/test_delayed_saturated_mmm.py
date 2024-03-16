@@ -861,3 +861,16 @@ def test_plot_new_spend_contributions_prior_select_channels(
     )
 
     assert isinstance(ax, plt.Axes)
+
+
+@pytest.mark.slow
+def test_mmm_fit(mmm_with_fourier_features, toy_X, toy_y) -> None:
+    idata = mmm_with_fourier_features.fit(
+        toy_X,
+        toy_y,
+        random_seed=rng,
+    )
+
+    print(idata)
+    print(type(idata))
+    assert False
