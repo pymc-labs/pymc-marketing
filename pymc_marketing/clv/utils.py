@@ -7,7 +7,12 @@ import pandas as pd
 import xarray
 from numpy import datetime64
 
-__all__ = ["to_xarray", "customer_lifetime_value", "rfm_summary"]
+__all__ = [
+    "to_xarray",
+    "customer_lifetime_value",
+    "rfm_summary",
+    "rfm_train_test_split",
+]
 
 
 def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
@@ -430,11 +435,14 @@ def rfm_train_test_split(
 ) -> pd.DataFrame:
     """
     Summarize transaction data and split into training and tests datasets for CLV modeling.
+    This can also be used to evaluate the impact of a time-based intervention like a marketing campaign.
 
     This transforms a DataFrame of transaction data of the form:
         customer_id, datetime [, monetary_value]
     to a DataFrame of the form:
-        customer_id, frequency, recency, T [, monetary_value]
+        customer_id, frequency, recency, T [, monetary_value], test_frequency [, test_monetary_value], test_T
+
+    Note this function will exclude new customers whose first transactions occurred during the test period.
 
     Adapted from lifetimes package
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L27
@@ -567,10 +575,10 @@ def rfm_train_test_split(
         test_rfm_data = test_rfm_data.rename(
             columns={monetary_value_col: "test_monetary_value"}
         )
+
     train_test_rfm_data = training_rfm_data.merge(
         test_rfm_data, on="customer_id", how="left"
     )
-    # TODO: What to do with new customers not in the train period? Disregard, or return in a second DF?
     train_test_rfm_data.fillna(0, inplace=True)
 
     time_delta = (
