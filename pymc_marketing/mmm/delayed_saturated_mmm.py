@@ -1158,6 +1158,57 @@ class DelayedSaturatedMMM(
         dist=pm.Gamma,
         name: str = "lift_measurements",
     ) -> None:
+        """Add lift tests to the model.
+
+        Parameters
+        ----------
+        df_lift_test : pd.DataFrame
+            DataFrame containing the lift test measurements.
+        dist : pm.Distribution, optional
+            The distribution to use for the likelihood, by default pm.Gamma
+        name : str, optional
+            The name of the likelihood, by default "lift_measurements"
+
+        Raises
+        ------
+        RuntimeError
+            If the model has not been built yet.
+        KeyError
+            If the 'channel' column is not present in df_lift_test.
+
+        Examples
+        --------
+        Build the model first then add lift test measurements.
+
+        .. code-block:: python
+
+            model = DelayedSaturatedMMM(
+                date_column="date_week",
+                channel_columns=["x1", "x2"],
+                control_columns=[
+                    "event_1",
+                    "event_2",
+                ],
+                adstock_max_lag=8,
+                yearly_seasonality=2,
+            )
+
+            X: pd.DataFrame = ...
+            y: np.ndarray = ...
+
+            model.build_model(X, y)
+
+            df_lift_test = pd.DataFrame({
+                "channel": ["x1", "x1"],
+                "x": [1, 1],
+                "delta_x": [0.1, 0.2],
+                "delta_y": [0.1, 0.1],
+                "confidence": [0.1, 0.1],
+            })
+
+            model.add_lift_test_measurements(df_lift_test)
+
+        """
         if self.model is None:
             raise RuntimeError(
                 "The model has not been built yet. Please, build the model first."
@@ -1193,6 +1244,7 @@ class DelayedSaturatedMMM(
                 df_lift_test=df_lift_test_scaled,
                 # Based on the model
                 lam_name="lam",
+                beta_name="beta_channel",
                 dist=dist,
                 name=name,
             )

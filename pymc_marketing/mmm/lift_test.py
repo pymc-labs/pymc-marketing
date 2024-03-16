@@ -236,6 +236,7 @@ def add_menten_empirical_lift_measurements_to_likelihood(
 def add_logistic_empirical_lift_measurements_to_likelihood(
     df_lift_test: pd.DataFrame,
     lam_name: str,
+    beta_name: str,
     dist=pm.Gamma,
     model: Optional[pm.Model] = None,
     name: str = "lift_measurements",
@@ -245,6 +246,7 @@ def add_logistic_empirical_lift_measurements_to_likelihood(
     Args:
         df_lift_test: DataFrame with lift test results.
         lam_name: Name of the lambda parameter in the model.
+        beta_name: Name of the beta parameter in the model.
         dist: PyMC distribution to use for the likelihood.
         model: PyMC model with date and channel coordinates.
         name: Name of the likelihood.
@@ -255,12 +257,16 @@ def add_logistic_empirical_lift_measurements_to_likelihood(
     """
     variable_mapping = {
         "lam": lam_name,
+        "beta": beta_name,
     }
+
+    def saturation_function(x, beta, lam):
+        return beta * logistic_saturation(x, lam)
 
     add_lift_measurements_to_likelihood(
         df_lift_test,
         variable_mapping,
-        saturation_function=logistic_saturation,
+        saturation_function=saturation_function,
         model=model,
         dist=dist,
         name=name,

@@ -149,10 +149,12 @@ def test_add_logistic_empirical_lift_measurements_to_likelihood(
     }
     with pm.Model(coords=coords) as model:
         pm.HalfNormal("lam", dims=lam_dims)
+        pm.HalfNormal("beta", dims="channel")
 
         add_logistic_empirical_lift_measurements_to_likelihood(
             df_lift_tests_with_numerics,
             lam_name="lam",
+            beta_name="beta",
             dist=dist,
         )
 
