@@ -13,6 +13,11 @@ from pytensor.tensor import TensorVariable
 from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.base import MMM
+from pymc_marketing.mmm.lift_test import (
+    add_logistic_empirical_lift_measurements_to_likelihood,
+    scale_channel_lift_measurements,
+    scale_target_for_lift_measurements,
+)
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.mmm.utils import (
@@ -1146,3 +1151,43 @@ class DelayedSaturatedMMM(
             )
 
         return posterior_predictive_samples
+
+    def add_lift_test_measurements(
+        self,
+        df_lift_test: pd.DataFrame,
+        dist=pm.Gamma,
+        name: str = "lift_measurements",
+    ) -> None:
+        if not hasattr(self, "model"):
+            raise RuntimeError(
+                "The model has not been built yet. Please, build the model first."
+            )
+
+        if "channel" not in df_lift_test.columns:
+            raise KeyError(
+                "The 'channel' column is required to map the lift measurements to the model."
+            )
+
+        df_lift_test_channel_scaled = scale_channel_lift_measurements(
+            df_lift_test.copy(),
+            # Based on the model coords
+            channel_col="channel",
+            channel_columns=self.channel_columns,  # type: ignore
+            transform=self.channel_transformer.transform,
+        )
+        df_target_scaled = scale_target_for_lift_measurements(
+            df_lift_test["delta_y"],
+            self.target_transformer.transform,
+        )
+
+        df_lift_test_scaled = pd.concat(
+            [df_lift_test_channel_scaled, df_target_scaled], axis=1
+        )
+        with self.model:
+            add_logistic_empirical_lift_measurements_to_likelihood(
+                df_lift_test=df_lift_test_scaled,
+                # Based on the model
+                lam_name="lam",
+                dist=dist,
+                name=name,
+            )
