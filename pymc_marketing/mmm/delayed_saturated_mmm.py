@@ -1158,7 +1158,7 @@ class DelayedSaturatedMMM(
         dist=pm.Gamma,
         name: str = "lift_measurements",
     ) -> None:
-        if not hasattr(self, "model"):
+        if self.model is None:
             raise RuntimeError(
                 "The model has not been built yet. Please, build the model first."
             )
@@ -1179,9 +1179,14 @@ class DelayedSaturatedMMM(
             df_lift_test["delta_y"],
             self.target_transformer.transform,
         )
+        df_confidence_scaled = scale_target_for_lift_measurements(
+            df_lift_test["confidence"],
+            self.target_transformer.transform,
+        )
 
         df_lift_test_scaled = pd.concat(
-            [df_lift_test_channel_scaled, df_target_scaled], axis=1
+            [df_lift_test_channel_scaled, df_target_scaled, df_confidence_scaled],
+            axis=1,
         )
         with self.model:
             add_logistic_empirical_lift_measurements_to_likelihood(
