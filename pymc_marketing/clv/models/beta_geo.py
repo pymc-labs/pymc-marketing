@@ -352,17 +352,18 @@ class BetaGeoModel(CLVModel):
             alpha = pm.HalfFlat("alpha")
             r = pm.HalfFlat("r")
 
-            # This is the shape with fit_method="map"
-            if self.fit_result.dims == {"chain": 1, "draw": 1}:
-                shape_kwargs = {"shape": 1000}
-            else:
-                shape_kwargs = {}
+            fit_result = self.fit_result
+            if fit_result.sizes["chain"] == 1 and fit_result.sizes["draw"] == 1:
+                # For map fit add a dummy draw dimension
+                fit_result = self.fit_result.squeeze("draw").expand_dims(
+                    draw=range(1000)
+                )
 
-            pm.Beta("population_dropout", alpha=a, beta=b, **shape_kwargs)
-            pm.Gamma("population_purchase_rate", alpha=r, beta=alpha, **shape_kwargs)
+            pm.Beta("population_dropout", alpha=a, beta=b)
+            pm.Gamma("population_purchase_rate", alpha=r, beta=alpha)
 
             return pm.sample_posterior_predictive(
-                self.fit_result,
+                fit_result,
                 var_names=var_names,
                 random_seed=random_seed,
             ).posterior_predictive

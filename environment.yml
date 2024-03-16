@@ -11,12 +11,11 @@ dependencies:
 - pandas
 - pip
 # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
-- pymc>=5.8.2
+- pymc>=5.10.4
 - scikit-learn>=1.1.1
 - seaborn>=0.12.2
 - xarray
 - xarray-einstats>=0.5.1
-- watermark
 # Extra dependencies for lint, testing and docs build
 # docs
 - sphinx
@@ -29,6 +28,7 @@ dependencies:
 - sphinxext-opengraph
 - sphinx-notfound-page
 - sphinx-design
+- watermark
 # lint
 - mypy
 - pandas-stubs

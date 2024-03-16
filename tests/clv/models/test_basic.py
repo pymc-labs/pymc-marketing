@@ -7,6 +7,7 @@ import pytest
 from arviz import InferenceData, from_dict
 
 from pymc_marketing.clv.models.basic import CLVModel
+from tests.clv.utils import set_model_fit
 
 
 class CLVModelTest(CLVModel):
@@ -54,10 +55,10 @@ class TestCLVModel:
         model = CLVModelTest()
         with pytest.raises(
             ValueError,
-            match="Distribution definately_not_PyMC_dist does not exist in PyMC",
+            match="Distribution definitely_not_PyMC_dist does not exist in PyMC",
         ):
             model._create_distribution(
-                {"dist": "definately_not_PyMC_dist", "kwargs": {"alpha": 1, "beta": 1}}
+                {"dist": "definitely_not_PyMC_dist", "kwargs": {"alpha": 1, "beta": 1}}
             )
 
     def test_fit_mcmc(self):
@@ -165,9 +166,7 @@ class TestCLVModel:
         model = CLVModelTest(data=data)
         model.build_model()
         fake_idata = from_dict(dict(x=np.random.normal(size=(4, 1000))))
-        fake_idata.add_groups(dict(fit_data=data.to_xarray()))
-        model.set_idata_attrs(fake_idata)
-        model.idata = fake_idata
+        set_model_fit(model, fake_idata)
 
         thin_model = model.thin_fit_result(keep_every=20)
         assert thin_model is not model
