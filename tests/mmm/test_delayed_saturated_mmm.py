@@ -871,6 +871,4 @@ def test_mmm_fit(mmm_with_fourier_features, toy_X, toy_y) -> None:
         random_seed=rng,
     )
 
-    print(idata)
-    print(type(idata))
-    assert False
+    assert isinstance(idata, az.InferenceData)
