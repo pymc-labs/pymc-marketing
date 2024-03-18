@@ -1,12 +1,18 @@
 import warnings
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
 import xarray
+from numpy import datetime64
 
-__all__ = ["to_xarray", "customer_lifetime_value", "rfm_summary"]
+__all__ = [
+    "to_xarray",
+    "customer_lifetime_value",
+    "rfm_summary",
+    "rfm_train_test_split",
+]
 
 
 def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
@@ -257,9 +263,9 @@ def _find_first_transactions(
     period_transactions.loc[first_transactions, "first"] = True
     select_columns.append("first")
     # reset datetime_col to period
-    period_transactions.loc[:, datetime_col] = period_transactions[
-        datetime_col
-    ].dt.to_period(time_unit)
+    period_transactions[datetime_col] = period_transactions[datetime_col].dt.to_period(
+        time_unit
+    )
 
     return period_transactions[select_columns]
 
@@ -410,3 +416,174 @@ def rfm_summary(
     )
 
     return summary_df
+
+
+def rfm_train_test_split(
+    transactions: pd.DataFrame,
+    customer_id_col: str,
+    datetime_col: str,
+    train_period_end: Union[Union[float, str], datetime, datetime64, date],
+    test_period_end: Optional[
+        Union[Union[float, str], datetime, datetime64, date]
+    ] = None,
+    time_unit: str = "D",
+    time_scaler: Optional[float] = 1,
+    datetime_format: Optional[str] = None,
+    monetary_value_col: Optional[str] = None,
+    include_first_transaction: Optional[bool] = False,
+    sort_transactions: Optional[bool] = True,
+) -> pd.DataFrame:
+    """
+    Summarize transaction data and split into training and tests datasets for CLV modeling.
+    This can also be used to evaluate the impact of a time-based intervention like a marketing campaign.
+
+    This transforms a DataFrame of transaction data of the form:
+        customer_id, datetime [, monetary_value]
+    to a DataFrame of the form:
+        customer_id, frequency, recency, T [, monetary_value], test_frequency [, test_monetary_value], test_T
+
+    Note this function will exclude new customers whose first transactions occurred during the test period.
+
+    Adapted from lifetimes package
+    https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L27
+
+    Parameters
+    ----------
+    transactions: :obj: DataFrame
+        A Pandas DataFrame that contains the customer_id col and the datetime col.
+    customer_id_col: string
+        Column in the transactions DataFrame that denotes the customer_id.
+    datetime_col:  string
+        Column in the transactions DataFrame that denotes the datetime the purchase was made.
+    train_period_end: Union[str, pd.Period, datetime], optional
+        A string or datetime to denote the final time period for the training data.
+        Events after this time period are used for the test data.
+    test_period_end: Union[str, pd.Period, datetime], optional
+        A string or datetime to denote the final time period of the study.
+        Events after this date are truncated. If not given, defaults to the max of 'datetime_col'.
+    time_unit: string, optional
+        Time granularity for study.
+        Default: 'D' for days. Possible values listed here:
+        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+    time_scaler: int, optional
+        Default: 1. Useful for scaling recency & T to a different time granularity. Example:
+        With freq='D' and freq_multiplier=1, we get recency=591 and T=632
+        With freq='h' and freq_multiplier=24, we get recency=590.125 and T=631.375
+        This is useful if predictions in months or years are desired,
+        and can also help with model convergence for study periods of many years.
+    datetime_format: string, optional
+        A string that represents the timestamp format. Useful if Pandas can't understand
+        the provided format.
+    monetary_value_col: string, optional
+        Column in the transactions DataFrame that denotes the monetary value of the transaction.
+        Optional; only needed for spend estimation models like the Gamma-Gamma model.
+    include_first_transaction: bool, optional
+        Default: False
+        For predictive CLV modeling, this should be False.
+        Set to True if performing RFM segmentation.
+    sort_transactions: bool, optional
+        Default: True
+        If raw data is already sorted in chronological order, set to `False` to improve computational efficiency.
+
+    Returns
+    -------
+    :obj: DataFrame:
+        customer_id, frequency, recency, T, test_frequency, test_T [, monetary_value, test_monetary_value]
+    """
+
+    if test_period_end is None:
+        test_period_end = transactions[datetime_col].max()
+
+    transaction_cols = [customer_id_col, datetime_col]
+    if monetary_value_col:
+        transaction_cols.append(monetary_value_col)
+    transactions = transactions[transaction_cols].copy()
+
+    transactions[datetime_col] = pd.to_datetime(
+        transactions[datetime_col], format=datetime_format
+    )
+    test_period_end = pd.to_datetime(test_period_end, format=datetime_format)
+    train_period_end = pd.to_datetime(train_period_end, format=datetime_format)
+
+    # create training dataset
+    training_transactions = transactions.loc[
+        transactions[datetime_col] <= train_period_end
+    ]
+
+    if training_transactions.empty:
+        raise ValueError(
+            "No data available. Check `test_transactions` and  `train_period_end` and confirm values in `transactions` occur prior to those time periods."
+        )
+
+    training_rfm_data = rfm_summary(
+        training_transactions,
+        customer_id_col,
+        datetime_col,
+        monetary_value_col=monetary_value_col,
+        datetime_format=datetime_format,
+        observation_period_end=train_period_end,
+        time_unit=time_unit,
+        time_scaler=time_scaler,
+        include_first_transaction=include_first_transaction,
+        sort_transactions=sort_transactions,
+    )
+
+    # create test dataset
+    test_transactions = transactions.loc[
+        (test_period_end >= transactions[datetime_col])
+        & (transactions[datetime_col] > train_period_end)
+    ].copy()
+
+    if test_transactions.empty:
+        raise ValueError(
+            "No data available. Check `test_transactions` and  `train_period_end` and confirm values in `transactions` occur prior to those time periods."
+        )
+
+    test_transactions[datetime_col] = test_transactions[datetime_col].dt.to_period(
+        time_unit
+    )
+    # create dataframe with customer_id and test_frequency columns
+    test_rfm_data = (
+        test_transactions.groupby([customer_id_col, datetime_col], sort=False)[
+            datetime_col
+        ]
+        .agg(lambda r: 1)
+        .groupby(level=customer_id_col)
+        .count()
+    ).reset_index()
+
+    test_rfm_data = test_rfm_data.rename(
+        columns={"id": "customer_id", "date": "test_frequency"}
+    )
+
+    if monetary_value_col:
+        test_monetary_value = (
+            test_transactions.groupby([customer_id_col, datetime_col])[
+                monetary_value_col
+            ]
+            .sum()
+            .groupby(customer_id_col)
+            .mean()
+        )
+
+        test_rfm_data = test_rfm_data.merge(
+            test_monetary_value,
+            left_on="customer_id",
+            right_on=customer_id_col,
+            how="inner",
+        )
+        test_rfm_data = test_rfm_data.rename(
+            columns={monetary_value_col: "test_monetary_value"}
+        )
+
+    train_test_rfm_data = training_rfm_data.merge(
+        test_rfm_data, on="customer_id", how="left"
+    )
+    train_test_rfm_data.fillna(0, inplace=True)
+
+    time_delta = (
+        test_period_end.to_period(time_unit) - train_period_end.to_period(time_unit)
+    ).n
+    train_test_rfm_data["test_T"] = time_delta / time_scaler  # type: ignore
+
+    return train_test_rfm_data
