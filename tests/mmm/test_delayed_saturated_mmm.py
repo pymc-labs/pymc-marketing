@@ -863,12 +863,12 @@ def test_plot_new_spend_contributions_prior_select_channels(
     assert isinstance(ax, plt.Axes)
 
 
-@pytest.mark.slow
-def test_mmm_fit(mmm_with_fourier_features, toy_X, toy_y) -> None:
-    idata = mmm_with_fourier_features.fit(
-        toy_X,
-        toy_y,
-        random_seed=rng,
-    )
+@pytest.fixture(scope="module")
+def actually_fit_mmm(mmm, toy_X, toy_y) -> DelayedSaturatedMMM:
+    mmm.fit(toy_X, toy_y, random_seed=rng)
+    return mmm
 
-    assert isinstance(idata, az.InferenceData)
+
+@pytest.mark.slow
+def test_mmm_fit(actually_fit_mmm, toy_X, toy_y) -> None:
+    assert isinstance(actually_fit_mmm.idata, az.InferenceData)
