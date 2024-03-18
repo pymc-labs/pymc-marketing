@@ -161,10 +161,11 @@ def add_lift_measurements_to_likelihood(
         None
 
     """
-    required_columns = ["x", "delta_x", "delta_y", "confidence"]
-    for col in required_columns:
-        if col not in df_lift_test.columns:
-            raise KeyError(f"The required columns are {required_columns}")
+    required_columns = ["x", "delta_x", "delta_y", "sigma"]
+
+    missing_cols = set(required_columns).difference(df_lift_test.columns)
+    if missing_cols:
+        raise KeyError(f"Missing from DataFrame: {list(missing_cols)}")
 
     model = pm.modelcontext(model)
 
@@ -191,7 +192,7 @@ def add_lift_measurements_to_likelihood(
     dist(
         name=name,
         mu=empirical_lift,
-        sigma=df_lift_test["confidence"].to_numpy(),
+        sigma=df_lift_test["sigma"].to_numpy(),
         observed=df_lift_test["delta_y"].to_numpy(),
     )
 
@@ -333,4 +334,33 @@ def scale_target_for_lift_measurements(
 
     return pd.Series(
         transform(target_to_scale).flatten(), index=target.index, name=target.name
+    )
+
+
+def scale_lift_measurements(
+    df_lift_test: pd.DataFrame,
+    channel_col: str,
+    channel_columns: list[str],
+    channel_transform: Callable[[np.ndarray], np.ndarray],
+    target_transform: Callable[[np.ndarray], np.ndarray],
+) -> pd.DataFrame:
+    df_lift_test_channel_scaled = scale_channel_lift_measurements(
+        df_lift_test.copy(),
+        # Based on the model coords
+        channel_col=channel_col,
+        channel_columns=channel_columns,  # type: ignore
+        transform=channel_transform,
+    )
+    df_target_scaled = scale_target_for_lift_measurements(
+        df_lift_test["delta_y"],
+        target_transform,
+    )
+    df_sigma_scaled = scale_target_for_lift_measurements(
+        df_lift_test["sigma"],
+        target_transform,
+    )
+
+    return pd.concat(
+        [df_lift_test_channel_scaled, df_target_scaled, df_sigma_scaled],
+        axis=1,
     )

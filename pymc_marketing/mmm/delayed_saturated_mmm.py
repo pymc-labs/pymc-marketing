@@ -15,8 +15,7 @@ from xarray import DataArray, Dataset
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.lift_test import (
     add_logistic_empirical_lift_measurements_to_likelihood,
-    scale_channel_lift_measurements,
-    scale_target_for_lift_measurements,
+    scale_lift_measurements,
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
@@ -1219,25 +1218,12 @@ class DelayedSaturatedMMM(
                 "The 'channel' column is required to map the lift measurements to the model."
             )
 
-        df_lift_test_channel_scaled = scale_channel_lift_measurements(
-            df_lift_test.copy(),
-            # Based on the model coords
+        df_lift_test_scaled = scale_lift_measurements(
+            df_lift_test=df_lift_test,
             channel_col="channel",
             channel_columns=self.channel_columns,  # type: ignore
-            transform=self.channel_transformer.transform,
-        )
-        df_target_scaled = scale_target_for_lift_measurements(
-            df_lift_test["delta_y"],
-            self.target_transformer.transform,
-        )
-        df_confidence_scaled = scale_target_for_lift_measurements(
-            df_lift_test["confidence"],
-            self.target_transformer.transform,
-        )
-
-        df_lift_test_scaled = pd.concat(
-            [df_lift_test_channel_scaled, df_target_scaled, df_confidence_scaled],
-            axis=1,
+            channel_transform=self.channel_transformer.transform,
+            target_transform=self.target_transformer.transform,
         )
         with self.model:
             add_logistic_empirical_lift_measurements_to_likelihood(

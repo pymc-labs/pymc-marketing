@@ -107,7 +107,7 @@ def df_lift_tests_with_numerics(df_lift_tests) -> pd.DataFrame:
         x=100,
         delta_x=50,
         delta_y=0.1,
-        confidence=0.15,
+        sigma=0.15,
     )
 
 

@@ -868,7 +868,7 @@ def df_lift_test() -> pd.DataFrame:
             "x": [1, 2],
             "delta_x": [1, 1],
             "delta_y": [1, 1],
-            "confidence": [1, 1],
+            "sigma": [1, 1],
         }
     )
 
