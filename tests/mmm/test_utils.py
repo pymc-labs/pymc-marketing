@@ -251,31 +251,34 @@ def test_sigmoid_saturation(x, alpha, lam, expected):
 def test_sigmoid_saturation_value_errors(x, alpha, lam):
     with pytest.raises(ValueError):
         sigmoid_saturation(x, alpha, lam)
-    "spend, adstock_max_lag, one_time, spend_leading_up, expected_result",
-    [
-        (
-            [1, 2],
-            2,
-            True,
-            None,
-            [[0, 0], [0, 0], [1, 2], [0, 0], [0, 0]],
-        ),
-        (
-            [1, 2],
-            2,
-            False,
-            None,
-            [[0, 0], [0, 0], [1, 2], [1, 2], [1, 2]],
-        ),
-        (
-            [1, 2],
-            2,
-            True,
-            [3, 4],
-            [[3, 4], [3, 4], [1, 2], [0, 0], [0, 0]],
-        ),
-    ],
-)
+    (
+        "spend, adstock_max_lag, one_time, spend_leading_up, expected_result",
+        [
+            (
+                [1, 2],
+                2,
+                True,
+                None,
+                [[0, 0], [0, 0], [1, 2], [0, 0], [0, 0]],
+            ),
+            (
+                [1, 2],
+                2,
+                False,
+                None,
+                [[0, 0], [0, 0], [1, 2], [1, 2], [1, 2]],
+            ),
+            (
+                [1, 2],
+                2,
+                True,
+                [3, 4],
+                [[3, 4], [3, 4], [1, 2], [0, 0], [0, 0]],
+            ),
+        ],
+    )
+
+
 def test_create_new_spend_data(
     spend, adstock_max_lag, one_time, spend_leading_up, expected_result
 ) -> None:

@@ -16,7 +16,6 @@ from pymc_marketing.mmm.transformers import (
     geometric_adstock,
     logistic_saturation,
     michaelis_menten,
-    scale_preserving_logistic_saturation,
     tanh_saturation,
     tanh_saturation_baselined,
     weibull_adstock,

@@ -297,6 +297,7 @@ def sigmoid_saturation(
 
     return (alpha - alpha * np.exp(-lam * x)) / (1 + np.exp(-lam * x))
 
+
 def create_new_spend_data(
     spend: np.ndarray,
     adstock_max_lag: int,
