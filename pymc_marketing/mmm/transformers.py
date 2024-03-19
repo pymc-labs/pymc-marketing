@@ -731,8 +731,8 @@ def michaelis_menten(
          \alpha \cdot \frac{x}{\lambda + x}}
 
     where:
-     - :math:`\alpha`: Maximum contribution or efficiency factor.
      - :math:`x`: Channel spend or substrate concentration.
+     - :math:`\alpha`: Maximum contribution or efficiency factor.
      - :math:`\lambda` (k): Michaelis constant, representing the threshold substrate concentration.
 
     Parameters
