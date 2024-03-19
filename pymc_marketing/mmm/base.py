@@ -52,11 +52,17 @@ class BaseMMM(ModelBuilder):
         sampler_config: Optional[Dict] = None,
         **kwargs,
     ) -> None:
-        self.X: Optional[pd.DataFrame] = None
-        self.y: Optional[Union[pd.Series, np.ndarray]] = None
         self.date_column: str = date_column
         self.channel_columns: Union[List[str], Tuple[str]] = channel_columns
+
         self.n_channel: int = len(channel_columns)
+
+        self.X: Optional[pd.DataFrame] = None
+        self.y: Optional[Union[pd.Series, np.ndarray]] = None
+
+        self._time_resolution: Optional[int] = None
+        self._time_index: Optional[np.ndarray[int]] = None
+        self._time_index_mid: Optional[int] = None
         self._fit_result: Optional[az.InferenceData] = None
         self._posterior_predictive: Optional[az.InferenceData] = None
         super().__init__(model_config=model_config, sampler_config=sampler_config)
@@ -319,7 +325,7 @@ class BaseMMM(ModelBuilder):
         fig, ax = plt.subplots(**plt_kwargs)
         if self.X is not None and self.y is not None:
             ax.fill_between(
-                x=self.X[self.date_column],
+                x=posterior_predictive_data.date,
                 y1=likelihood_hdi_94[:, 0],
                 y2=likelihood_hdi_94[:, 1],
                 color="C0",
@@ -328,7 +334,7 @@ class BaseMMM(ModelBuilder):
             )
 
             ax.fill_between(
-                x=self.X[self.date_column],
+                x=posterior_predictive_data.date,
                 y1=likelihood_hdi_50[:, 0],
                 y2=likelihood_hdi_50[:, 1],
                 color="C0",
@@ -336,11 +342,18 @@ class BaseMMM(ModelBuilder):
                 label="$50\%$ HDI",  # noqa: W605
             )
 
-            target_to_plot: np.ndarray = np.asarray(
-                self.y if original_scale else self.preprocessed_data["y"]  # type: ignore
+            target_to_plot = np.asarray(
+                self.y if original_scale else self.get_target_transformer().transform(self.y[:, None]).flatten()  # type: ignore
             )
+
+            assert len(target_to_plot) == len(posterior_predictive_data.date), (
+                "The length of the target variable doesn't match the length of the date column. "
+                "If you are predicting out-of-sample, please overwrite `self.y` with the "
+                "corresponding (non-transformed) target variable."
+            )
+
             ax.plot(
-                np.asarray(self.X[self.date_column]),
+                np.asarray(posterior_predictive_data.date),
                 target_to_plot,
                 color="black",
             )
@@ -417,11 +430,18 @@ class BaseMMM(ModelBuilder):
             intercept = az.extract(
                 self.fit_result, var_names=["intercept"], combined=False
             )
-            intercept_hdi = np.repeat(
-                a=az.hdi(intercept).intercept.data[None, ...],
-                repeats=self.X[self.date_column].shape[0],
-                axis=0,
-            )
+
+            if intercept.ndim == 2:
+                # Intercept has a stationary prior
+                intercept_hdi = np.repeat(
+                    a=az.hdi(intercept).intercept.data[None, ...],
+                    repeats=self.X[self.date_column].shape[0],
+                    axis=0,
+                )
+            elif intercept.ndim == 3:
+                # Intercept has a time-varying prior
+                intercept_hdi = az.hdi(intercept).intercept.data
+
             ax.plot(
                 np.asarray(self.X[self.date_column]),
                 np.full(len(self.X[self.date_column]), intercept.mean().data),
@@ -992,6 +1012,7 @@ class BaseMMM(ModelBuilder):
 
             def legend_title_func(channel):
                 return "Legend"
+
         else:
             nrows = len(channels_to_plot)
             figsize = (12, 4 * len(channels_to_plot))
