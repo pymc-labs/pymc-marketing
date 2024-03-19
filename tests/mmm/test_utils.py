@@ -4,8 +4,9 @@ import pytest
 import xarray as xr
 
 from pymc_marketing.mmm.utils import (
-    apply_sklearn_transformer_across_date,
+    apply_sklearn_transformer_across_dim,
     compute_sigmoid_second_derivative,
+    create_new_spend_data,
     estimate_menten_parameters,
     estimate_sigmoid_parameters,
     find_sigmoid_inflection_point,
@@ -198,30 +199,32 @@ def create_mock_mmm_return_data():
 
 
 @pytest.mark.parametrize("combined", [True, False])
-def test_apply_sklearn_function_across_date(
+def test_apply_sklearn_function_across_dim(
     mock_method, create_mock_mmm_return_data, combined: bool
 ) -> None:
     # Data that would be returned from a MMM model
     data = create_mock_mmm_return_data(combined=combined)
-    result = apply_sklearn_transformer_across_date(
+    result = apply_sklearn_transformer_across_dim(
         data,
         mock_method,
+        dim_name="date",
         combined=combined,
     )
 
     xr.testing.assert_allclose(result, data * 2)
 
 
-def test_apply_sklearn_function_across_date_error(
+def test_apply_sklearn_function_across_dim_error(
     mock_method,
     create_mock_mmm_return_data,
 ) -> None:
     data = create_mock_mmm_return_data(combined=False)
 
     with pytest.raises(ValueError, match="x must be 2-dimensional"):
-        apply_sklearn_transformer_across_date(
+        apply_sklearn_transformer_across_dim(
             data,
             mock_method,
+            dim_name="date",
             combined=True,
         )
 
@@ -248,3 +251,42 @@ def test_sigmoid_saturation(x, alpha, lam, expected):
 def test_sigmoid_saturation_value_errors(x, alpha, lam):
     with pytest.raises(ValueError):
         sigmoid_saturation(x, alpha, lam)
+    "spend, adstock_max_lag, one_time, spend_leading_up, expected_result",
+    [
+        (
+            [1, 2],
+            2,
+            True,
+            None,
+            [[0, 0], [0, 0], [1, 2], [0, 0], [0, 0]],
+        ),
+        (
+            [1, 2],
+            2,
+            False,
+            None,
+            [[0, 0], [0, 0], [1, 2], [1, 2], [1, 2]],
+        ),
+        (
+            [1, 2],
+            2,
+            True,
+            [3, 4],
+            [[3, 4], [3, 4], [1, 2], [0, 0], [0, 0]],
+        ),
+    ],
+)
+def test_create_new_spend_data(
+    spend, adstock_max_lag, one_time, spend_leading_up, expected_result
+) -> None:
+    spend = np.array(spend)
+    if spend_leading_up is not None:
+        spend_leading_up = np.array(spend_leading_up)
+    new_spend_data = create_new_spend_data(
+        spend, adstock_max_lag, one_time, spend_leading_up
+    )
+
+    np.testing.assert_allclose(
+        new_spend_data,
+        np.array(expected_result),
+    )
