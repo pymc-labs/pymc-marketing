@@ -278,7 +278,32 @@ def test_sigmoid_saturation_value_errors(x, alpha, lam):
         ],
     )
 
-
+@pytest.mark.parametrize(
+    "spend, adstock_max_lag, one_time, spend_leading_up, expected_result",
+    [
+        (
+            [1, 2],
+            2,
+            True,
+            None,
+            [[0, 0], [0, 0], [1, 2], [0, 0], [0, 0]],
+        ),
+        (
+            [1, 2],
+            2,
+            False,
+            None,
+            [[0, 0], [0, 0], [1, 2], [1, 2], [1, 2]],
+        ),
+        (
+            [1, 2],
+            2,
+            True,
+            [3, 4],
+            [[3, 4], [3, 4], [1, 2], [0, 0], [0, 0]],
+        ),
+    ],
+)
 def test_create_new_spend_data(
     spend, adstock_max_lag, one_time, spend_leading_up, expected_result
 ) -> None:
