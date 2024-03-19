@@ -217,7 +217,6 @@ def compute_sigmoid_second_derivative(
     float
         The second derivative of the sigmoid function at the input value.
     """
-
     return (
         -alpha
         * lam**2
