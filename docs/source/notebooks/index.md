@@ -1,5 +1,5 @@
-(clv_examples)=
-# Examples
+(howto)=
+# How-to
 
 
 :::{toctree}
@@ -18,4 +18,11 @@ clv/clv_quickstart
 clv/bg_nbd
 clv/gamma_gamma
 clv/sBG
+:::
+
+:::{toctree}
+:caption: General
+:maxdepth: 1
+
+general/other_nuts_samplers
 :::

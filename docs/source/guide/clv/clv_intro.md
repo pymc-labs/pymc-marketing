@@ -32,4 +32,4 @@ By combining the purchasing behavior of each customer with the expected period o
 
 ## Putting it all together
 
-To see how all these different components come together, you can review the {ref}`CLV Quickstart <clv_quickstart>` or one of {ref}`specific CLV models <clv_examples>` available within PyMC-Marketing.
+To see how all these different components come together, you can review the {ref}`CLV Quickstart <clv_quickstart>` or one of {ref}`specific CLV models <howto>` available within PyMC-Marketing.

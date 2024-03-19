@@ -13,21 +13,6 @@ from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
 
 
 class BaseGammaGammaModel(CLVModel):
-    def __init__(
-        self,
-        data: pd.DataFrame,
-        *,
-        model_config: Optional[Dict] = None,
-        sampler_config: Optional[Dict] = None,
-    ):
-        super().__init__(
-            data=data, model_config=model_config, sampler_config=sampler_config
-        )
-        self.p_prior = self._create_distribution(self.model_config["p_prior"])
-        self.q_prior = self._create_distribution(self.model_config["q_prior"])
-        self.v_prior = self._create_distribution(self.model_config["v_prior"])
-        self._process_priors(self.p_prior, self.q_prior, self.v_prior)
-
     def distribution_customer_spend(
         self,
         customer_id: Union[np.ndarray, pd.Series],
@@ -243,27 +228,14 @@ class GammaGammaModel(BaseGammaGammaModel):
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
     ):
-        try:
-            self.customer_id: Union[np.ndarray, pd.Series] = data["customer_id"]
-        except KeyError:
-            raise KeyError("data must contain a customer_id column")
-        try:
-            self.mean_transaction_value: Union[
-                np.ndarray, pd.Series, TensorVariable
-            ] = data["mean_transaction_value"]
-        except KeyError:
-            raise KeyError("data must contain a mean_transaction_value column")
-        try:
-            self.frequency: Union[np.ndarray, pd.Series, TensorVariable] = data[
-                "frequency"
-            ]
-        except KeyError:
-            raise KeyError("data must contain a frequency column")
+        self._validate_cols(
+            data,
+            required_cols=["customer_id", "mean_transaction_value", "frequency"],
+            must_be_unique=["customer_id"],
+        )
         super().__init__(
             data=data, model_config=model_config, sampler_config=sampler_config
         )
-
-        self.coords = {"customer_id": np.unique(self.customer_id)}
 
     @property
     def default_model_config(self) -> Dict:
@@ -274,12 +246,18 @@ class GammaGammaModel(BaseGammaGammaModel):
         }
 
     def build_model(self):
-        z_mean = pt.as_tensor_variable(self.mean_transaction_value)
-        x = pt.as_tensor_variable(self.frequency)
-        with pm.Model(coords=self.coords) as self.model:
-            p = self.model.register_rv(self.p_prior, name="p")
-            q = self.model.register_rv(self.q_prior, name="q")
-            v = self.model.register_rv(self.v_prior, name="v")
+        z_mean = pt.as_tensor_variable(self.data["mean_transaction_value"])
+        x = pt.as_tensor_variable(self.data["frequency"])
+
+        p_prior = self._create_distribution(self.model_config["p_prior"])
+        q_prior = self._create_distribution(self.model_config["q_prior"])
+        v_prior = self._create_distribution(self.model_config["v_prior"])
+
+        coords = {"customer_id": self.data["customer_id"]}
+        with pm.Model(coords=coords) as self.model:
+            p = self.model.register_rv(p_prior, name="p")
+            q = self.model.register_rv(q_prior, name="q")
+            v = self.model.register_rv(v_prior, name="v")
             # Likelihood for mean_spend, marginalizing over nu
             # Eq 1a from [1], p.2
             pm.Potential(
@@ -385,16 +363,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
     ):
-        try:
-            self.customer_id: Union[np.ndarray, pd.Series] = data["customer_id"]
-        except KeyError:
-            raise KeyError("data must contain a 'customer_id' column")
-        try:
-            self.individual_transaction_value: Union[
-                np.ndarray, pd.Series, TensorVariable
-            ] = data["individual_transaction_value"]
-        except KeyError:
-            raise KeyError("data must contain a 'individual_transaction_value' column")
+        self._validate_cols(
+            data, required_cols=["customer_id", "individual_transaction_value"]
+        )
         super().__init__(
             data=data, model_config=model_config, sampler_config=sampler_config
         )
@@ -408,19 +379,25 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         }
 
     def build_model(self):
-        z = self.individual_transaction_value
+        z = self.data["individual_transaction_value"]
 
-        self.coords = {
-            "customer_id": np.unique(self.customer_id),
-            "obs": range(len(self.customer_id)),
+        p_prior = self._create_distribution(self.model_config["p_prior"])
+        q_prior = self._create_distribution(self.model_config["q_prior"])
+        v_prior = self._create_distribution(self.model_config["v_prior"])
+
+        coords = {
+            "customer_id": np.unique(self.data["customer_id"]),
+            "obs": range(self.data.shape[0]),
         }
-        with pm.Model(coords=self.coords) as self.model:
-            p = self.model.register_rv(self.p_prior, name="p")
-            q = self.model.register_rv(self.q_prior, name="q")
-            v = self.model.register_rv(self.v_prior, name="v")
+        with pm.Model(coords=coords) as self.model:
+            p = self.model.register_rv(p_prior, name="p")
+            q = self.model.register_rv(q_prior, name="q")
+            v = self.model.register_rv(v_prior, name="v")
 
             nu = pm.Gamma("nu", q, v, dims=("customer_id",))
-            pm.Gamma("spend", p, nu[self.customer_id], observed=z, dims=("obs",))
+            pm.Gamma(
+                "spend", p, nu[self.data["customer_id"]], observed=z, dims=("obs",)
+            )
 
     def _summarize_mean_data(self, customer_id, individual_transaction_value):
         df = pd.DataFrame(

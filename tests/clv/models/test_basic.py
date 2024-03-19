@@ -7,6 +7,7 @@ import pytest
 from arviz import InferenceData, from_dict
 
 from pymc_marketing.clv.models.basic import CLVModel
+from tests.clv.utils import set_model_fit
 
 
 class CLVModelTest(CLVModel):
@@ -16,8 +17,6 @@ class CLVModelTest(CLVModel):
         if data is None:
             data = pd.DataFrame({"y": np.random.randn(10)})
         super().__init__(data=data, **kwargs)
-        self.x_prior = self._create_distribution(self.model_config["x"])
-        self._process_priors(self.x_prior)
 
     @property
     def default_model_config(self):
@@ -26,52 +25,40 @@ class CLVModelTest(CLVModel):
         }
 
     def build_model(self):
+        x_prior = self._create_distribution(self.model_config["x"])
         with pm.Model() as self.model:
-            x = self.model.register_rv(self.x_prior, name="x")
+            x = self.model.register_rv(x_prior, name="x")
             pm.Normal("y", mu=x, sigma=1, observed=self.data["y"])
+
+
+@pytest.fixture(scope="module")
+def posterior():
+    # Create a random numpy array for posterior samples
+    posterior_samples = np.random.randn(
+        4, 100, 2
+    )  # shape convention: (chain, draw, *shape)
+
+    # Create a dictionary for posterior
+    posterior_dict = {"theta": posterior_samples}
+    return from_dict(posterior=posterior_dict)
 
 
 class TestCLVModel:
     def test_repr(self):
         model = CLVModelTest()
+        assert model.__repr__() == "CLVModelTest"
+
         model.build_model()
         assert model.__repr__() == "CLVModelTest\nx ~ Normal(0, 1)\ny ~ Normal(x, 1)"
-
-    def test_check_prior_ndim(self):
-        prior = pm.Normal.dist(shape=(5,))  # ndim = 1
-        with pytest.raises(
-            ValueError, match="must be have 0 ndims, but it has 1 ndims"
-        ):
-            # Default ndim=0
-            CLVModel._check_prior_ndim(prior)
-        CLVModel._check_prior_ndim(prior, ndim=1)
-        with pytest.raises(
-            ValueError, match="must be have 2 ndims, but it has 1 ndims"
-        ):
-            CLVModel._check_prior_ndim(prior, ndim=2)
-
-    def test_process_priors(self):
-        prior1 = pm.Normal.dist()
-        prior2 = pm.HalfNormal.dist()
-
-        ret_prior1, ret_prior2 = CLVModel._process_priors(prior1, prior2)
-
-        assert ret_prior1 is prior1
-        assert ret_prior2 is prior2
-        assert ret_prior1.str_repr() == "Normal(0, 1)"
-        assert ret_prior2.str_repr() == "HalfNormal(0, 1)"
-
-        with pytest.raises(ValueError, match="Prior variables must be unique"):
-            CLVModel._process_priors(prior1, prior2, prior1)
 
     def test_create_distribution_from_wrong_prior(self):
         model = CLVModelTest()
         with pytest.raises(
             ValueError,
-            match="Distribution definately_not_PyMC_dist does not exist in PyMC",
+            match="Distribution definitely_not_PyMC_dist does not exist in PyMC",
         ):
             model._create_distribution(
-                {"dist": "definately_not_PyMC_dist", "kwargs": {"alpha": 1, "beta": 1}}
+                {"dist": "definitely_not_PyMC_dist", "kwargs": {"alpha": 1, "beta": 1}}
             )
 
     def test_fit_mcmc(self):
@@ -179,9 +166,7 @@ class TestCLVModel:
         model = CLVModelTest(data=data)
         model.build_model()
         fake_idata = from_dict(dict(x=np.random.normal(size=(4, 1000))))
-        fake_idata.add_groups(dict(fit_data=data.to_xarray()))
-        model.set_idata_attrs(fake_idata)
-        model.idata = fake_idata
+        set_model_fit(model, fake_idata)
 
         thin_model = model.thin_fit_result(keep_every=20)
         assert thin_model is not model
