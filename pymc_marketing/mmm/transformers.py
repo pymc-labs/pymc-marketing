@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import NamedTuple, Union
+from typing import Any, NamedTuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -661,3 +661,60 @@ def tanh_saturation_baselined(
     Developed by Max Kochurov and Aziz Al-Maeeni doing innovative work in `PyMC Labs <pymc-labs.com>`_.
     """
     return gain * x0 * pt.tanh(x * pt.arctanh(r) / x0) / r
+
+
+def michaelis_menten(
+    x: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
+) -> Union[float, Any]:
+    """
+    Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
+
+    The Michaelis-Menten function is a type of mathematical saturation function commonly used in
+    enzyme kinetics, but it's also applicable in marketing mix models to describe
+    how different channels contribute to a certain outcome (e.g., sales or conversions)
+    as the spending on that channel increases and the contribution saturates.
+
+    Mathematically, it is described as:
+    α * x / (λ + x)
+
+    Parameters
+    ----------
+    x : float
+        The spent on a channel.
+    alpha (Limit/Vmax) : float
+        The maximum contribution a channel can make.
+    lam (k) : float
+        The elbow on the function in `x` (Point where the curve change their direction).
+
+    Returns
+    -------
+    float
+        The value of the Michaelis-Menten function given the parameters.
+    """
+
+    return alpha * x / (lam + x)
+
+
+def hill_saturation(x, sigma, beta, lam):
+    """
+    Compute the hill sigmoidal response curve.
+
+    Parameters
+    ----------
+    x : float or array-like
+        The independent variable.
+    sigma : float
+        The upper asymptote (maximum value the function will approach as x grows large).
+    beta : float
+        The growth rate.
+    lam : float
+        The x-value of the midpoint where the curve transitions from exponential growth to saturation.
+
+    Returns
+    -------
+    float or array-like
+        The computed y-values based on the sigmoidal response curve.
+    """
+    return sigma / (1 + pt.exp(-beta * (x - lam)))

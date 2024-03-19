@@ -4,7 +4,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import pymc as pm
 import xarray as xr
+from pytensor.tensor import TensorVariable
 from scipy.optimize import curve_fit, minimize_scalar
 
 
@@ -415,4 +417,149 @@ def create_new_spend_data(
             spend_leading_up,
             spend,
         ]
+    )
+
+
+def _validate_model_config(required_keys: List[str], model_config: Dict):
+    missing_keys = [key for key in required_keys if key not in model_config]
+    if missing_keys:
+        raise ValueError(f"Missing required configuration keys: {missing_keys}")
+
+
+def _get_distribution(dist: Dict) -> Callable:
+    """
+    Retrieve a PyMC distribution callable based on the provided dictionary.
+
+    Parameters
+    ----------
+    dist : Dict
+        A dictionary containing the key 'dist' which should correspond to the
+        name of a PyMC distribution.
+
+    Returns
+    -------
+    Callable
+        A PyMC distribution callable that can be used to instantiate a random
+        variable.
+
+    Raises
+    ------
+    ValueError
+        If the specified distribution name in the dictionary does not correspond
+        to any distribution in PyMC.
+    """
+    try:
+        prior_distribution = getattr(pm, dist["dist"])
+    except AttributeError:
+        raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
+    return prior_distribution
+
+
+def _create_likelihood_distribution(
+    dist: Dict,
+    mu: TensorVariable,
+    observed: Union[np.ndarray, pd.Series],
+    dims: str,
+) -> TensorVariable:
+    """
+    Create and return a likelihood distribution for the model.
+
+    This method prepares the distribution and its parameters as specified in the
+    configuration dictionary, validates them, and constructs the likelihood
+    distribution using PyMC.
+
+    Parameters
+    ----------
+    dist : Dict
+        A configuration dictionary that must contain a 'dist' key with the name of
+        the distribution and a 'kwargs' key with parameters for the distribution.
+    observed : Union[np.ndarray, pd.Series]
+        The observed data to which the likelihood distribution will be fitted.
+    dims : str
+        The dimensions of the data.
+
+    Returns
+    -------
+    TensorVariable
+        The likelihood distribution constructed with PyMC.
+
+    Raises
+    ------
+    ValueError
+        If 'kwargs' key is missing in `dist`, or the parameter configuration does
+        not contain 'dist' and 'kwargs' keys, or if 'mu' is present in the nested
+        'kwargs'
+    """
+    allowed_distributions = [
+        "Normal",
+        "StudentT",
+        "Laplace",
+        "Logistic",
+        "LogNormal",
+        "Wald",
+        "TruncatedNormal",
+        "Gamma",
+        "AsymmetricLaplace",
+        "VonMises",
+    ]
+
+    if dist["dist"] not in allowed_distributions:
+        msg = (
+            "The distribution used for the likelihood is not allowed."
+            " Please, use one of the following distributions:"
+            f" {allowed_distributions}."
+        )
+        raise ValueError(msg)
+
+    # Validate that 'kwargs' is present and is a dictionary
+    if "kwargs" not in dist or not isinstance(dist["kwargs"], dict):
+        msg = (
+            "The 'kwargs' key must be present in"
+            " the 'dist' dictionary and be a dictionary itself."
+        )
+        raise ValueError(msg)
+
+    if "mu" in dist["kwargs"]:
+        msg = (
+            "The 'mu' key is not allowed directly within"
+            " 'kwargs' of the main distribution as it is reserved."
+        )
+        raise ValueError(msg)
+
+    parameter_distributions = {}
+    for param, param_config in dist["kwargs"].items():
+        # Check if param_config is a dictionary with a 'dist' key
+        if isinstance(param_config, dict) and "dist" in param_config:
+            # Prepare nested distribution
+            if "kwargs" not in param_config:
+                msg = (
+                    "The parameter configuration for"
+                    f" '{param}' must contain 'kwargs'."
+                )
+                raise ValueError(msg)
+
+            parameter_distributions[param] = _get_distribution(dist=param_config)(
+                **param_config["kwargs"], name=f"likelihood_{param}"
+            )
+        elif isinstance(param_config, (int, float)):
+            # Use the value directly
+            parameter_distributions[param] = param_config
+        else:
+            msg = (
+                f"Invalid parameter configuration for '{param}'."
+                " It must be either a dictionary with a"
+                " 'dist' key or a numeric value."
+            )
+            raise ValueError(msg)
+
+    # Extract the likelihood distribution name and instantiate it
+    likelihood_dist_name = dist["dist"]
+    likelihood_dist = _get_distribution(dist={"dist": likelihood_dist_name})
+
+    return likelihood_dist(
+        name="likelihood",
+        mu=mu,
+        observed=observed,
+        dims=dims,
+        **parameter_distributions,
     )
