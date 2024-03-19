@@ -26,7 +26,7 @@ def time_varying_prior(
         Name of the prior.
     X : 1d array-like of int or float
         Time points.
-    X_mid : int or float 
+    X_mid : int or float
         Midpoint of the time points.
     positive : bool
         Whether the prior should be positive.
@@ -52,12 +52,13 @@ def time_varying_prior(
     pm.Deterministic
         Time-varying prior.
     """  # noqa: W605
-    if cov_func is None:
-        eta = pm.Exponential(f"eta_{name}", lam=eta_lam)
-        ls = pm.InverseGamma(f"ls_{name}", mu=ls_mu, sigma=ls_sigma)
-        cov_func = eta**2 * pm.gp.cov.Matern52(1, ls=ls)
 
     with pm.modelcontext(model) as model:
+        if cov_func is None:
+            eta = pm.Exponential(f"eta_{name}", lam=eta_lam)
+            ls = pm.InverseGamma(f"ls_{name}", mu=ls_mu, sigma=ls_sigma)
+            cov_func = eta**2 * pm.gp.cov.Matern52(1, ls=ls)
+
         if type(dims) is tuple:
             n_columns = len(model.coords[dims[1]])
             hsgp_size = (n_columns, m)

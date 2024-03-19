@@ -24,6 +24,7 @@ from pymc_marketing.mmm.validating import ValidateControlColumns
 
 __all__ = ["DelayedSaturatedMMM"]
 
+DAYS_IN_YEAR = 365.25
 
 class BaseDelayedSaturatedMMM(MMM):
     _model_type = "DelayedSaturatedMMM"
@@ -386,8 +387,8 @@ class BaseDelayedSaturatedMMM(MMM):
                     X_mid=self._time_index_mid,
                     positive=True,
                     m=200,
-                    L=[self._time_index_mid + 365 / self._time_resolution],
-                    ls_mu=365 / self._time_resolution * 2,
+                    L=[self._time_index_mid + DAYS_IN_YEAR / self._time_resolution],
+                    ls_mu=DAYS_IN_YEAR / self._time_resolution * 2,
                     ls_sigma=10,
                     eta_lam=1,
                     dims="date",
@@ -412,8 +413,8 @@ class BaseDelayedSaturatedMMM(MMM):
                     X_mid=self._time_index_mid,
                     positive=True,
                     m=200,
-                    L=[self._time_index_mid + 365 / self._time_resolution],
-                    ls_mu=365 / self._time_resolution * 2,
+                    L=[self._time_index_mid + DAYS_IN_YEAR / self._time_resolution],
+                    ls_mu=DAYS_IN_YEAR / self._time_resolution * 2,
                     ls_sigma=10,
                     eta_lam=1,
                     dims="date",
@@ -452,20 +453,14 @@ class BaseDelayedSaturatedMMM(MMM):
                 dims=("date", "channel"),
             )
 
+            channel_contributions_var = channel_adstock_saturated * beta_channel
             if self.time_varying_media_effect:
-                channel_contributions = pm.Deterministic(
-                    name="channel_contributions",
-                    var=channel_adstock_saturated
-                    * beta_channel
-                    * tv_multiplier_media[:, None],
-                    dims=("date", "channel"),
-                )
-            else:
-                channel_contributions = pm.Deterministic(
-                    name="channel_contributions",
-                    var=channel_adstock_saturated * beta_channel,
-                    dims=("date", "channel"),
-                )
+                channel_contributions_var *= tv_multiplier_media[:, None]
+            channel_contributions = pm.Deterministic(
+                name="channel_contributions", 
+                var=channel_contributions_var, 
+                dims=("date", "channel"), 
+            )
 
             mu_var = intercept + channel_contributions.sum(axis=-1)
             if (
@@ -562,7 +557,7 @@ class BaseDelayedSaturatedMMM(MMM):
         date_data: pd.Series = pd.to_datetime(
             arg=X[self.date_column], format="%Y-%m-%d"
         )
-        periods: npt.NDArray[np.float_] = date_data.dt.dayofyear.to_numpy() / 365.25
+        periods: npt.NDArray[np.float_] = date_data.dt.dayofyear.to_numpy() / DAYS_IN_YEAR
         return generate_fourier_modes(
             periods=periods,
             n_order=self.yearly_seasonality,
