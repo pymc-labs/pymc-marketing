@@ -6,7 +6,7 @@ repos:
     rev: v0.3.2
     hooks:
       - id: ruff
-        args: ["--fix", "--show-source"]
+        args: ["--fix", "--output-format=full"]
       - id: ruff-format
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.9.0
@@ -19,7 +19,7 @@ repos:
     rev: 1.8.4
     hooks:
     - id: nbqa-ruff
-      args: ["--fix", "--show-source"]
+      args: ["--fix", "--output-format=full"]
       files: ^docs/source/notebooks/
       exclude: ^docs/source/notebooks/clv/dev/
   - repo: https://github.com/pre-commit/pre-commit-hooks
