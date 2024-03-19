@@ -727,13 +727,60 @@ def michaelis_menten(
 
     The Michaelis-Menten function models enzyme kinetics and describes how the rate of a chemical reaction increases with substrate concentration until it reaches its maximum value.
 
-     .. math::
-         \alpha \cdot \frac{x}{\lambda + x}}
+    .. math::
+        \alpha \cdot \frac{x}{\lambda + x}}
 
     where:
      - :math:`x`: Channel spend or substrate concentration.
      - :math:`\alpha`: Maximum contribution or efficiency factor.
      - :math:`\lambda` (k): Michaelis constant, representing the threshold substrate concentration.
+
+    .. code-block:: python
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+
+        x = np.linspace(0, 100, 500)
+        alpha = 10
+        lam = 50
+        y = michaelis_menten(x, alpha, lam)
+
+        plt.plot(x, y)
+        plt.xlabel('Spend/Impressions (x)')
+        plt.ylabel('Contribution (y)')
+        plt.title('Michaelis-Menten Function')
+        plt.show()
+
+    .. code-block:: python
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+
+        x = np.linspace(0, 100, 500)
+        alpha_values = [5, 10, 15]  # Different values of alpha
+        lam_values = [25, 50, 75]  # Different values of lam
+
+        # Plot varying lam
+        plt.figure(figsize=(8, 6))
+        for lam in lam_values:
+            y = michaelis_menten(x, alpha_values[0], lam)
+            plt.plot(x, y, label=f"lam={lam}")
+        plt.xlabel('Spend/Impressions (x)')
+        plt.ylabel('Contribution (y)')
+        plt.title('Michaelis-Menten Function (Varying lam)')
+        plt.legend()
+        plt.show()
+
+        # Plot varying alpha
+        plt.figure(figsize=(8, 6))
+        for alpha in alpha_values:
+            y = michaelis_menten(x, alpha, lam_values[0])
+            plt.plot(x, y, label=f"alpha={alpha}")
+        plt.xlabel('Spend/Impressions (x)')
+        plt.ylabel('Contribution (y)')
+        plt.title('Michaelis-Menten Function (Varying alpha)')
+        plt.legend()
+        plt.show()
 
     Parameters
     ----------
