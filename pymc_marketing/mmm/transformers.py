@@ -681,7 +681,8 @@ def michaelis_menten(
      - :math:`\alpha`: Maximum contribution or efficiency factor.
      - :math:`\lambda` (k): Michaelis constant, representing the threshold substrate concentration.
 
-    .. code-block:: python
+    .. plot::
+        :context: close-figs
 
         import numpy as np
         import matplotlib.pyplot as plt
@@ -697,7 +698,8 @@ def michaelis_menten(
         plt.title('Michaelis-Menten Function')
         plt.show()
 
-    .. code-block:: python
+    .. plot::
+        :context: close-figs
 
         import numpy as np
         import matplotlib.pyplot as plt
