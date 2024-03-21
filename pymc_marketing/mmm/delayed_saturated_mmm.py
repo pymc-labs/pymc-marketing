@@ -1154,10 +1154,26 @@ class DelayedSaturatedMMM(
     def add_lift_test_measurements(
         self,
         df_lift_test: pd.DataFrame,
-        dist=pm.Gamma,
+        dist: pm.Distribution = pm.Gamma,
         name: str = "lift_measurements",
     ) -> None:
         """Add lift tests to the model.
+
+        The empirical difference of a channel's saturation curve is created
+        from `x` and `x + delta_x` for each channel. This random variable is
+        then then conditioned using the `delta_y` and `sigma` of the lift test
+        with the specified distribution `dist`.
+
+        The sudo code for the lift test is as follows:
+
+        .. code-block:: python
+
+            empirical_lift = (
+                saturation_curve(x + delta_x)
+                - saturation_curve(x)
+            )
+            dist(empirical_lift, sigma=sigma, observed=delta_y)
+
 
         The model has to be built before adding the lift tests.
 
@@ -1173,7 +1189,9 @@ class DelayedSaturatedMMM(
         dist : pm.Distribution, optional
             The distribution to use for the likelihood, by default pm.Gamma
         name : str, optional
-            The name of the likelihood, by default "lift_measurements"
+            The name of the likelihood of the lift test contribution(s),
+            by default "lift_measurements"
+            Name change required if calling this method multiple times.
 
         Raises
         ------
