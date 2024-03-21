@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import arviz as az
 import numpy as np
@@ -864,11 +864,90 @@ def test_plot_new_spend_contributions_prior_select_channels(
 
 
 @pytest.fixture(scope="module")
-def actually_fit_mmm(mmm, toy_X, toy_y) -> DelayedSaturatedMMM:
-    mmm.fit(toy_X, toy_y, random_seed=rng)
+def fixed_model_parameters() -> dict[str, Union[float, list[float]]]:
+    return {
+        "intercept": 2.5,
+        "beta_channel": [0.5, 0.5],
+        "alpha": [0.5, 0.5],
+        "lam": [0.5, 0.5],
+        "likelihood_sigma": 0.25,
+        "gamma_control": [0.5, 0.5],
+    }
+
+
+@pytest.fixture(scope="module")
+def model_generated_y(mmm, toy_X, fixed_model_parameters) -> np.ndarray:
+    fake_y = np.ones(len(toy_X))
+    mmm.build_model(toy_X, fake_y)
+
+    fixed_model = pm.do(mmm.model, fixed_model_parameters)
+    return pm.draw(fixed_model["y"], random_seed=rng)
+
+
+@pytest.fixture(scope="module")
+def actually_fit_mmm(mmm, toy_X, model_generated_y) -> DelayedSaturatedMMM:
+    mmm.fit(toy_X, model_generated_y, random_seed=rng)
     return mmm
 
 
 @pytest.mark.slow
-def test_mmm_fit(actually_fit_mmm, toy_X, toy_y) -> None:
-    assert isinstance(actually_fit_mmm.idata, az.InferenceData)
+def test_mmm_sampling_stats(actually_fit_mmm) -> None:
+    idata = actually_fit_mmm.idata
+
+    assert idata.sample_stats.diverging.sum() == 0
+
+
+@pytest.mark.slow
+def test_mmm_channel_contributions_positive(actually_fit_mmm) -> None:
+    contributions = actually_fit_mmm.fit_result["channel_contributions"]
+
+    assert (contributions >= 0).all()
+
+
+@pytest.mark.slow
+def test_mmm_mean_predictions_positive(actually_fit_mmm) -> None:
+    """Not required technically, but based on the model parameters."""
+    mean_predictions = actually_fit_mmm.fit_result["mu"]
+
+    assert (mean_predictions >= 0).all()
+
+
+@pytest.mark.slow
+def test_mmm_fit_posterior_close_to_actual_parameters(
+    actually_fit_mmm, fixed_model_parameters
+) -> None:
+    posterior = actually_fit_mmm.fit_result
+
+    assert isinstance(posterior, xr.Dataset)
+
+    hdi = az.hdi(posterior)
+
+    for parameter, actual in fixed_model_parameters.items():
+        hdi_parameter = hdi[parameter]
+
+        lower = hdi_parameter.sel(hdi="lower").values
+        upper = hdi_parameter.sel(hdi="upper").values
+
+        if isinstance(actual, float):
+            assert lower < actual < upper
+        elif isinstance(actual, list):
+            assert (lower < actual).all() and (actual < upper).all()
+        else:
+            assert False, "Unexpected type for the actual parameter"
+
+
+@pytest.mark.slow
+def test_mmm_fit_better_than_naive_model(actually_fit_mmm, toy_X, toy_y) -> None:
+    preprocessed_y = actually_fit_mmm.preprocessed_data["y"]
+
+    preprocessed_y_mean = preprocessed_y.mean()
+
+    def mse(y_true, y_pred, *args, **kwargs):
+        return ((y_true - y_pred) ** 2).mean(*args, **kwargs)
+
+    mse_mean_model = mse(preprocessed_y, preprocessed_y_mean)
+    mse_mmm_model = mse(actually_fit_mmm.posterior["mu"], preprocessed_y, "date")
+
+    mmm_sample_is_better = mse_mmm_model < mse_mean_model
+
+    assert mmm_sample_is_better.all()
