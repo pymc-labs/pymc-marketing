@@ -1190,8 +1190,8 @@ class DelayedSaturatedMMM(
             The distribution to use for the likelihood, by default pm.Gamma
         name : str, optional
             The name of the likelihood of the lift test contribution(s),
-            by default "lift_measurements"
-            Name change required if calling this method multiple times.
+            by default "lift_measurements". Name change required if calling
+            this method multiple times.
 
         Raises
         ------
