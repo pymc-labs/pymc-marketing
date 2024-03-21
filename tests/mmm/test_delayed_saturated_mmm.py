@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import arviz as az
 import numpy as np
@@ -107,12 +107,33 @@ def mmm_with_fourier_features() -> DelayedSaturatedMMM:
     )
 
 
+def mock_fit(model, X: pd.DataFrame, y: np.ndarray, **kwargs):
+    model.build_model(X=X, y=y)
+    with model.model:
+        idata = pm.sample_prior_predictive(random_seed=rng, **kwargs)
+
+    model.preprocess("X", X)
+    model.preprocess("y", y)
+
+    idata.add_groups(
+        {
+            "posterior": idata.prior,
+            "fit_data": pd.concat(
+                [X, pd.Series(y, index=X.index, name="y")], axis=1
+            ).to_xarray(),
+        }
+    )
+    model.idata = idata
+    model.set_idata_attrs(idata=idata)
+
+    return model
+
+
 @pytest.fixture(scope="module")
 def mmm_fitted(
     mmm: DelayedSaturatedMMM, toy_X: pd.DataFrame, toy_y: pd.Series
 ) -> DelayedSaturatedMMM:
-    mmm.fit(X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2, random_seed=rng)
-    return mmm
+    return mock_fit(mmm, toy_X, toy_y.to_numpy())
 
 
 @pytest.fixture(scope="module")
@@ -121,10 +142,7 @@ def mmm_fitted_with_fourier_features(
     toy_X: pd.DataFrame,
     toy_y: pd.Series,
 ) -> DelayedSaturatedMMM:
-    mmm_with_fourier_features.fit(
-        X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2, random_seed=rng
-    )
-    return mmm_with_fourier_features
+    return mock_fit(mmm_with_fourier_features, toy_X, toy_y.to_numpy())
 
 
 class TestDelayedSaturatedMMM:
@@ -152,9 +170,7 @@ class TestDelayedSaturatedMMM:
             adstock_max_lag=4,
             model_config=model_config_requiring_serialization,
         )
-        model.fit(
-            toy_X, toy_y, target_accept=0.81, draws=100, chains=2, random_seed=rng
-        )
+        model = mock_fit(model, toy_X, toy_y.to_numpy())
         model.save("test_save_load")
         model2 = DelayedSaturatedMMM.load("test_save_load")
         assert model.date_column == model2.date_column
@@ -271,9 +287,6 @@ class TestDelayedSaturatedMMM:
             )
 
     def test_fit(self, toy_X: pd.DataFrame, toy_y: pd.Series) -> None:
-        draws: int = 100
-        chains: int = 2
-
         mmm = BaseDelayedSaturatedMMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
@@ -287,35 +300,28 @@ class TestDelayedSaturatedMMM:
         n_channel: int = len(mmm.channel_columns)
         n_control: int = len(mmm.control_columns)
         fourier_terms: int = 2 * mmm.yearly_seasonality
-        mmm.fit(
-            X=toy_X,
-            y=toy_y,
-            target_accept=0.81,
-            draws=draws,
-            chains=chains,
-            random_seed=rng,
-        )
+        mmm = mock_fit(mmm, toy_X, toy_y.to_numpy())
         idata: az.InferenceData = mmm.fit_result
         assert (
             az.extract(data=idata, var_names=["intercept"], combined=True)
             .to_numpy()
             .size
-            == draws * chains
+            == 500
         )
         assert az.extract(
             data=idata, var_names=["beta_channel"], combined=True
-        ).to_numpy().shape == (n_channel, draws * chains)
+        ).to_numpy().shape == (n_channel, 500)
         assert az.extract(
             data=idata, var_names=["alpha"], combined=True
-        ).to_numpy().shape == (n_channel, draws * chains)
+        ).to_numpy().shape == (n_channel, 500)
         assert az.extract(
             data=idata, var_names=["lam"], combined=True
-        ).to_numpy().shape == (n_channel, draws * chains)
+        ).to_numpy().shape == (n_channel, 500)
         assert az.extract(
             data=idata, var_names=["gamma_control"], combined=True
         ).to_numpy().shape == (
             n_channel,
-            draws * chains,
+            500,
         )
 
         mean_model_contributions_ts = mmm.compute_mean_contributions_over_time(
@@ -427,16 +433,14 @@ class TestDelayedSaturatedMMM:
     ) -> None:
         n_channels = len(mmm_fitted.channel_columns)
         data_range = mmm_fitted.X.shape[0]
-        draws = 3
-        chains = 2
         grid_size = 2
         contributions = mmm_fitted.get_channel_contributions_forward_pass_grid(
             start=0, stop=1.5, num=grid_size
         )
         assert contributions.shape == (
             grid_size,
-            chains,
-            draws,
+            1,
+            500,
             data_range,
             n_channels,
         )
@@ -471,8 +475,10 @@ class TestDelayedSaturatedMMM:
             channel_columns=["channel_1", "channel_2"],
             adstock_max_lag=4,
         )
-        base_delayed_saturated_mmm.fit(
-            X=toy_X, y=toy_y, target_accept=0.81, draws=100, chains=2, random_seed=rng
+        base_delayed_saturated_mmm = mock_fit(
+            base_delayed_saturated_mmm,
+            toy_X,
+            toy_y.to_numpy(),
         )
 
         X_correct_ndarray = np.random.randint(low=0, high=100, size=(135, 2))
@@ -531,9 +537,7 @@ class TestDelayedSaturatedMMM:
         )
 
         # Check that the property returns the new value
-        DSMMM.fit(
-            toy_X, toy_y, target_accept=0.81, draws=100, chains=2, random_seed=rng
-        )
+        DSMMM = mock_fit(DSMMM, toy_X, toy_y.to_numpy())
         DSMMM.save("test_model")
         # Apply the monkeypatch for the property
         monkeypatch.setattr(DelayedSaturatedMMM, "id", property(mock_property))
@@ -710,12 +714,6 @@ def test_new_data_predict_method(
 
     assert isinstance(posterior_predictive_mean, np.ndarray)
     assert posterior_predictive_mean.shape[0] == new_dates.size
-    # Original scale constraint
-    assert np.all(posterior_predictive_mean >= 0)
-
-    # Domain kept close
-    lower, upper = np.quantile(a=posterior_predictive_mean, q=[0.025, 0.975], axis=0)
-    assert lower < toy_y.mean() < upper
 
 
 def test_get_valid_distribution(mmm):
@@ -787,6 +785,11 @@ def test_new_spend_contributions(mmm_fitted) -> None:
 
 
 def test_new_spend_contributions_prior_error(mmm) -> None:
+    prior_index = [i for i, group in enumerate(mmm.idata._groups) if group == "prior"][
+        0
+    ]
+    mmm.idata._groups.pop(prior_index)
+
     new_spend = np.ones(len(mmm.channel_columns))
     match = "sample_prior_predictive"
     with pytest.raises(RuntimeError, match=match):
@@ -858,3 +861,93 @@ def test_plot_new_spend_contributions_prior_select_channels(
     )
 
     assert isinstance(ax, plt.Axes)
+
+
+@pytest.fixture(scope="module")
+def fixed_model_parameters() -> dict[str, Union[float, list[float]]]:
+    return {
+        "intercept": 2.5,
+        "beta_channel": [0.5, 0.5],
+        "alpha": [0.5, 0.5],
+        "lam": [0.5, 0.5],
+        "likelihood_sigma": 0.25,
+        "gamma_control": [0.5, 0.5],
+    }
+
+
+@pytest.fixture(scope="module")
+def model_generated_y(mmm, toy_X, fixed_model_parameters) -> np.ndarray:
+    fake_y = np.ones(len(toy_X))
+    mmm.build_model(toy_X, fake_y)
+
+    fixed_model = pm.do(mmm.model, fixed_model_parameters)
+    return pm.draw(fixed_model["y"], random_seed=rng)
+
+
+@pytest.fixture(scope="module")
+def actually_fit_mmm(mmm, toy_X, model_generated_y) -> DelayedSaturatedMMM:
+    mmm.fit(toy_X, model_generated_y, random_seed=rng)
+    return mmm
+
+
+@pytest.mark.slow
+def test_mmm_sampling_stats(actually_fit_mmm) -> None:
+    idata = actually_fit_mmm.idata
+
+    assert idata.sample_stats.diverging.sum() == 0
+
+
+@pytest.mark.slow
+def test_mmm_channel_contributions_positive(actually_fit_mmm) -> None:
+    contributions = actually_fit_mmm.fit_result["channel_contributions"]
+
+    assert (contributions >= 0).all()
+
+
+@pytest.mark.slow
+def test_mmm_mean_predictions_positive(actually_fit_mmm) -> None:
+    """Not required technically, but based on the model parameters."""
+    mean_predictions = actually_fit_mmm.fit_result["mu"]
+
+    assert (mean_predictions >= 0).all()
+
+
+@pytest.mark.slow
+def test_mmm_fit_posterior_close_to_actual_parameters(
+    actually_fit_mmm, fixed_model_parameters
+) -> None:
+    posterior = actually_fit_mmm.fit_result
+
+    assert isinstance(posterior, xr.Dataset)
+
+    hdi = az.hdi(posterior)
+
+    for parameter, actual in fixed_model_parameters.items():
+        hdi_parameter = hdi[parameter]
+
+        lower = hdi_parameter.sel(hdi="lower").values
+        upper = hdi_parameter.sel(hdi="higher").values
+
+        if isinstance(actual, float):
+            assert lower < actual < upper
+        else:
+            assert (lower < actual).all() and (actual < upper).all()
+
+
+@pytest.mark.slow
+def test_mmm_fit_better_than_naive_model(actually_fit_mmm, toy_X, toy_y) -> None:
+    preprocessed_y = actually_fit_mmm.preprocessed_data["y"]
+
+    preprocessed_y_mean = preprocessed_y.mean()
+
+    def mse(y_pred, *args, **kwargs):
+        return ((preprocessed_y - y_pred) ** 2).mean(*args, **kwargs)
+
+    posterior = actually_fit_mmm.fit_result
+
+    mse_mean_model = mse(preprocessed_y_mean)
+    mse_mmm_model = mse(posterior["mu"], "date")
+
+    mmm_sample_is_better = mse_mmm_model < mse_mean_model
+
+    assert mmm_sample_is_better.all()

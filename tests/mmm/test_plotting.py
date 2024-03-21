@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 from matplotlib import pyplot as plt
 
@@ -34,6 +35,25 @@ def toy_X() -> pd.DataFrame:
 @pytest.fixture(scope="module")
 def toy_y(toy_X) -> pd.Series:
     return pd.Series(rng.integers(low=0, high=100, size=toy_X.shape[0]))
+
+
+def mock_fit(model, X: pd.DataFrame, y: np.ndarray, **kwargs):
+    model.build_model(X=X, y=y)
+    with model.model:
+        idata = pm.sample_prior_predictive(random_seed=rng, **kwargs)
+
+    idata.add_groups(
+        {
+            "posterior": idata.prior,
+            "fit_data": pd.concat(
+                [X, pd.Series(y, index=X.index, name="y")], axis=1
+            ).to_xarray(),
+        }
+    )
+    model.idata = idata
+    model.set_idata_attrs(idata=idata)
+
+    return model
 
 
 class TestBasePlotting:
@@ -72,10 +92,7 @@ class TestBasePlotting:
                 channel_columns=["channel_1", "channel_2"],
             )
         # fit the model
-        mmm.fit(
-            X=toy_X,
-            y=toy_y,
-        )
+        mmm = mock_fit(mmm, toy_X, toy_y.to_numpy())
         mmm.sample_prior_predictive(toy_X, toy_y, extend_idata=True, combined=True)
         mmm.sample_posterior_predictive(toy_X, extend_idata=True, combined=True)
         mmm._prior_predictive = mmm.prior_predictive
