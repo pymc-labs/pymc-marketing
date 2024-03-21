@@ -1,7 +1,7 @@
 """Lift test functions for the MMM."""
 
 from functools import partial
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -21,9 +21,12 @@ class MissingLiftTestError(Exception):
         )
 
 
-def _lift_test_index(
-    lift_values: np.ndarray, model_values: np.ndarray
-) -> npt.NDArray[np.int_]:
+Index = npt.NDArray[np.int_]
+
+Values = Union[npt.NDArray[np.int_], npt.NDArray[np.float_], npt.NDArray[np.str_]]
+
+
+def _lift_test_index(lift_values: Values, model_values: Values) -> Index:
     same_value = lift_values[:, None] == model_values
     if not (same_value.sum(axis=1) == 1).all():
         missing_values = np.argwhere(same_value.sum(axis=1) == 0).flatten()
@@ -32,7 +35,6 @@ def _lift_test_index(
     return np.argmax(same_value, axis=1)
 
 
-Index = npt.NDArray[np.int_]
 Indices = dict[str, Index]
 
 
@@ -42,14 +44,25 @@ def lift_test_indices(df_lift_test: pd.DataFrame, model: pm.Model) -> Indices:
     Assumes any column in the DataFrame is a coordinate in the model with the
     same name.
 
-    Args:
-        df_lift_test: DataFrame with lift test results.
-        model: PyMC model with date and channel coordinates.
+    Parameters
+    ----------
+    df_lift_test : pd.DataFrame
+        DataFrame with lift test results.
+    model : pm.Model
+        PyMC model with all the coordinates in the DataFrame.
 
-    Returns:
+    Returns
+    -------
+    dict[str, np.ndarray]
         Dictionary of indices for the lift test results in the model.
 
+    Raises
+    ------
+    MissingLiftTestError
+        If some lift test values are not in the model.
+
     """
+
     columns = df_lift_test.columns.tolist()
     return {
         col: _lift_test_index(df_lift_test[col].to_numpy(), np.array(model.coords[col]))
@@ -57,16 +70,27 @@ def lift_test_indices(df_lift_test: pd.DataFrame, model: pm.Model) -> Indices:
     }
 
 
-def empirical_lift_measurements(x_before, x_after, saturation_curve, pt=pt):
+def empirical_lift_measurements(
+    x_before: npt.NDArray[np.float_],
+    x_after: npt.NDArray[np.float_],
+    saturation_curve: Callable[[npt.NDArray[np.float_]], npt.NDArray[np.float_]],
+    pt=pt,
+) -> npt.NDArray[np.float_]:
     """Calculate the empirical lift measurements at two spends.
 
-    Args:
-        x_before: Array of x before the change.
-        x_after: Array of x after the change.
-        saturation_curve: Function that takes spend and returns saturation.
-        pt: PyTensor module.
+    Parameters
+    ----------
+    x_before : npt.NDArray[float]
+        Array of x before the change.
+    x_after : npt.NDArray[float]
+        Array of x after the change.
+    saturation_curve : Callable[[npt.NDArray[float]], npt.NDArray[float]]
+        Function that takes spend and returns saturation.
+    pt : tensor module, optional. Default is pytensor.tensor.
 
-    Returns:
+    Returns
+    -------
+    npt.NDArray[float]
         Array of empirical lift measurements.
 
     """
@@ -81,10 +105,14 @@ def required_dims_from_named_vars_to_dims(
 ) -> list[str]:
     """Get the required dimensions from a named_vars_to_dims dictionary.
 
-    Args:
-        named_vars_to_dims: Dictionary of variable names to dimensions.
+    Parameters
+    ----------
+    named_vars_to_dims : dict[str, tuple[str, ...]]
+        Dictionary of variable names to dimensions.
 
-    Returns:
+    Returns
+    -------
+    list[str]
         List of required dimensions.
 
     """
@@ -103,15 +131,27 @@ def indices_from_lift_tests(
 ) -> Indices:
     """Get the indices of the lift test results in the model.
 
-    Args:
-        df_lift_test: DataFrame with lift test results.
-        model: PyMC model with arbitrary number of coordinates.
-        alpha_name: Name of the alpha parameter in the model.
-        lam_name: Name of the lambda parameter in the model.
+    These are the mapping from the lift test result to the index of the
+    corresponding variable in the model.
 
-    Returns:
+    Parameters
+    ----------
+    df_lift_test : pd.DataFrame
+        DataFrame with lift test results with at least the following columns:
+            * `x`: x axis value of the lift test.
+            * `delta_x`: change in x axis value of the lift test.
+            * `delta_y`: change in y axis value of the lift test.
+            * `sigma`: standard deviation of the lift test.
+        Any additional columns are assumed to be coordinates in the model.
+    model : pm.Model
+        PyMC model with arbitrary number of coordinates.
+    var_names : list[str]
+        List of variable names in the model.
+
+    Returns
+    -------
+    dict[str, np.ndarray]
         Dictionary of indices for the lift test results in the model.
-
     """
 
     named_vars_to_dims = {
@@ -149,16 +189,67 @@ def add_lift_measurements_to_likelihood(
 ) -> None:
     """Add lift measurements to the likelihood of the model.
 
-    Args:
-        df_lift_test: DataFrame with lift test results.
-        variable_mapping: Dictionary of variable names to dimensions.
-        saturation_function: Function that takes spend and returns saturation.
-        model: PyMC model with arbitrary number of coordinates.
-        dist: PyMC distribution to use for the likelihood.
-        name: Name of the likelihood.
+    General function to add lift measurements to the likelihood of the model.
 
-    Returns:
-        None
+    Parameters
+    ----------
+    df_lift_test : pd.DataFrame
+        DataFrame with lift test results with at least the following columns:
+            * `x`: x axis value of the lift test.
+            * `delta_x`: change in x axis value of the lift test.
+            * `delta_y`: change in y axis value of the lift test.
+            * `sigma`: standard deviation of the lift test.
+        Any additional columns are assumed to be coordinates in the model.
+    variable_mapping : dict[str, str]
+        Dictionary of variable names to dimensions.
+    saturation_function : Callable[[np.ndarray], np.ndarray]
+        Function that takes spend and returns saturation.
+    model : Optional[pm.Model], optional
+        PyMC model with arbitrary number of coordinates, by default None
+    dist : pm.Distribution, optional
+        PyMC distribution to use for the likelihood, by default pm.Gamma
+    name : str, optional
+        Name of the likelihood, by default "lift_measurements"
+
+    Examples
+    --------
+    Add an arbitrary lift test to a model:
+
+    .. code-block:: python
+
+        import pymc as pm
+        import pandas as pd
+        from pymc_marketing.mmm.lift_test import add_lift_measurements_to_likelihood
+
+        df_base_lift_test = pd.DataFrame({
+            "x": [1, 2, 3],
+            "delta_x": [1, 2, 3],
+            "delta_y": [1, 2, 3],
+            "sigma": [0.1, 0.2, 0.3],
+        })
+
+        def saturation_function(x, alpha, lam):
+            return alpha * x / (x + lam)
+
+        df_lift_test = df_base_lift_test.assign(
+            channel="channel_1",
+            date=["2019-01-01", "2019-01-02", "2019-01-03"],
+        )
+
+        coords = {
+            "channel": ["channel_1", "channel_2"],
+            "date": ["2019-01-01", "2019-01-02", "2019-01-03", "2019-01-04"],
+        }
+        with pm.Model(coords=coords) as model:
+            alpha = pm.HalfNormal("alpha_in_model", dims=("channel", "date"))
+            lam = pm.HalfNormal("lam_in_model", dims="channel")
+
+            add_lift_measurements_to_likelihood(
+                df_lift_test,
+                {"alpha": "alpha_in_model", "lam": "lam_in_model"},
+                saturation_function,
+                model=model,
+            )
 
     """
     required_columns = ["x", "delta_x", "delta_y", "sigma"]
@@ -207,17 +298,28 @@ def add_menten_empirical_lift_measurements_to_likelihood(
 ) -> None:
     """Add empirical lift measurements to the likelihood of the model.
 
-    Args:
-        df_lift_test: DataFrame with lift test results.
-        alpha_name: Name of the alpha parameter in the model.
-        lam_name: Name of the lambda parameter in the model.
-        dist: PyMC distribution to use for the likelihood.
-        model: PyMC model with date and channel coordinates.
-        name: Name of the likelihood.
+    Specific implementation of the add_lift_measurements_to_likelihood function
+    for the Michaelis-Menten saturation function.
 
-    Returns:
-        None
-
+    Parameters
+    ----------
+    df_lift_test : pd.DataFrame
+        DataFrame with lift test results with at least the following columns:
+            * `x`: x axis value of the lift test.
+            * `delta_x`: change in x axis value of the lift test.
+            * `delta_y`: change in y axis value of the lift test.
+            * `sigma`: standard deviation of the lift test.
+        Any additional columns are assumed to be coordinates in the model.
+    alpha_name : str
+        Name of the alpha parameter in the model.
+    lam_name : str
+        Name of the lambda parameter in the model.
+    dist : pm.Distribution, optional
+        PyMC distribution to use for the likelihood, by default pm.Gamma
+    model : Optional[pm.Model], optional
+        PyMC model with date and channel coordinates, by default None
+    name : str, optional
+        Name of the likelihood, by default "lift_measurements"
     """
     variable_mapping = {
         "alpha": alpha_name,
@@ -238,23 +340,34 @@ def add_logistic_empirical_lift_measurements_to_likelihood(
     df_lift_test: pd.DataFrame,
     lam_name: str,
     beta_name: str,
-    dist=pm.Gamma,
+    dist: pm.Distribution = pm.Gamma,
     model: Optional[pm.Model] = None,
     name: str = "lift_measurements",
 ) -> None:
     """Add empirical lift measurements to the likelihood of the model.
 
-    Args:
-        df_lift_test: DataFrame with lift test results.
-        lam_name: Name of the lambda parameter in the model.
-        beta_name: Name of the beta parameter in the model.
-        dist: PyMC distribution to use for the likelihood.
-        model: PyMC model with date and channel coordinates.
-        name: Name of the likelihood.
+    Specific implementation of add_lift_measurements_to_likelihood for the
+    logistic saturation function.
 
-    Returns:
-        None
-
+    Parameters
+    ----------
+    df_lift_test : pd.DataFrame
+        DataFrame with lift test results with at least the following columns:
+            * `x`: x axis value of the lift test.
+            * `delta_x`: change in x axis value of the lift test.
+            * `delta_y`: change in y axis value of the lift test.
+            * `sigma`: standard deviation of the lift test.
+        Any additional columns are assumed to be coordinates in the model.
+    lam_name : str
+        Name of the lambda parameter in the model.
+    beta_name : str
+        Name of the beta parameter in the model.
+    dist : pm.Distribution, optional
+        PyMC distribution to use for the likelihood, by default pm.Gamma
+    model : Optional[pm.Model], optional
+        PyMC model with date and channel coordinates, by default None
+    name : str, optional
+        Name of the likelihood, by default "lift_measurements"
     """
     variable_mapping = {
         "lam": lam_name,
@@ -282,16 +395,28 @@ def scale_channel_lift_measurements(
 ) -> pd.DataFrame:
     """Scale the lift measurements for a specific channel.
 
-    Args:
-        df_lift_test: DataFrame with lift test results.
-        channel_col: Name of the channel to scale.
-        channel_columns: List of channel names.
-        transform: Function to scale the lift measurements.
+    Parameters
+    ----------
+    df_lift_test : pd.DataFrame
+        DataFrame with lift test results with the following columns:
+            * `x`: x axis value of the lift test.
+            * `delta_x`: change in x axis value of the lift test.
+            * `channel_col`: channel to scale.
+    channel_col : str
+        Name of the channel to scale.
+    channel_columns : list[str]
+        List of channel values in the model. All lift tests results will be
+        a subset of these values.
+    transform : Callable[[np.ndarray], np.ndarray]
+        Function to scale the lift measurements.
 
-    Returns:
+    Returns
+    -------
+    pd.DataFrame
         DataFrame with the scaled lift measurements.
 
     """
+
     df_original = df_lift_test.loc[:, [channel_col, "x", "delta_x"]].set_index(
         channel_col, append=True
     )
@@ -322,11 +447,16 @@ def scale_target_for_lift_measurements(
 ) -> pd.Series:
     """Scale the target for the lift measurements.
 
-    Args:
-        target: Series with the target variable.
-        transform: Function to scale the target.
+    Parameters
+    ----------
+    target : pd.Series
+        Series with the target variable.
+    transform : Callable[[np.ndarray], np.ndarray]
+        Function to scale the target.
 
-    Returns:
+    Returns
+    -------
+    pd.Series
         Series with the scaled target.
 
     """
@@ -344,6 +474,32 @@ def scale_lift_measurements(
     channel_transform: Callable[[np.ndarray], np.ndarray],
     target_transform: Callable[[np.ndarray], np.ndarray],
 ) -> pd.DataFrame:
+    """Scale the DataFrame with lift test results to be used in the model.
+
+    Parameters
+    ----------
+    df_lift_test : pd.DataFrame
+        DataFrame with lift test results with at least the following columns:
+            * `x`: x axis value of the lift test.
+            * `delta_x`: change in x axis value of the lift test.
+            * `delta_y`: change in y axis value of the lift test.
+            * `sigma`: standard deviation of the lift test.
+    channel_col : str
+        Name of the channel to scale.
+    channel_columns : list[str]
+        List of channel names.
+    channel_transform : Callable[[np.ndarray], np.ndarray]
+        Function to scale the lift measurements.
+    target_transform : Callable[[np.ndarray], np.ndarray]
+        Function to scale the target.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with the scaled lift measurements. Will be same columns and
+        index as the input DataFrame, but with the values scaled.
+
+    """
     df_lift_test_channel_scaled = scale_channel_lift_measurements(
         df_lift_test.copy(),
         # Based on the model coords

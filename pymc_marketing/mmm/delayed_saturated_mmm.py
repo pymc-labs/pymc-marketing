@@ -1159,10 +1159,17 @@ class DelayedSaturatedMMM(
     ) -> None:
         """Add lift tests to the model.
 
+        The model has to be built before adding the lift tests.
+
         Parameters
         ----------
         df_lift_test : pd.DataFrame
-            DataFrame containing the lift test measurements.
+            DataFrame with lift test results with at least the following columns:
+                * `channel`: channel name. Must be present in `channel_columns`.
+                * `x`: x axis value of the lift test.
+                * `delta_x`: change in x axis value of the lift test.
+                * `delta_y`: change in y axis value of the lift test.
+                * `sigma`: standard deviation of the lift test.
         dist : pm.Distribution, optional
             The distribution to use for the likelihood, by default pm.Gamma
         name : str, optional
@@ -1202,7 +1209,7 @@ class DelayedSaturatedMMM(
                 "x": [1, 1],
                 "delta_x": [0.1, 0.2],
                 "delta_y": [0.1, 0.1],
-                "confidence": [0.1, 0.1],
+                "sigma": [0.1, 0.1],
             })
 
             model.add_lift_test_measurements(df_lift_test)
