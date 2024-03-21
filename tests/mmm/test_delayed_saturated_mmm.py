@@ -926,14 +926,12 @@ def test_mmm_fit_posterior_close_to_actual_parameters(
         hdi_parameter = hdi[parameter]
 
         lower = hdi_parameter.sel(hdi="lower").values
-        upper = hdi_parameter.sel(hdi="upper").values
+        upper = hdi_parameter.sel(hdi="higher").values
 
         if isinstance(actual, float):
             assert lower < actual < upper
-        elif isinstance(actual, list):
-            assert (lower < actual).all() and (actual < upper).all()
         else:
-            assert False, "Unexpected type for the actual parameter"
+            assert (lower < actual).all() and (actual < upper).all()
 
 
 @pytest.mark.slow
@@ -942,11 +940,13 @@ def test_mmm_fit_better_than_naive_model(actually_fit_mmm, toy_X, toy_y) -> None
 
     preprocessed_y_mean = preprocessed_y.mean()
 
-    def mse(y_true, y_pred, *args, **kwargs):
-        return ((y_true - y_pred) ** 2).mean(*args, **kwargs)
+    def mse(y_pred, *args, **kwargs):
+        return ((preprocessed_y - y_pred) ** 2).mean(*args, **kwargs)
 
-    mse_mean_model = mse(preprocessed_y, preprocessed_y_mean)
-    mse_mmm_model = mse(actually_fit_mmm.posterior["mu"], preprocessed_y, "date")
+    posterior = actually_fit_mmm.fit_result
+
+    mse_mean_model = mse(preprocessed_y_mean)
+    mse_mmm_model = mse(posterior["mu"], "date")
 
     mmm_sample_is_better = mse_mmm_model < mse_mean_model
 
