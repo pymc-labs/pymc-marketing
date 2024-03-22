@@ -387,6 +387,14 @@ def add_logistic_empirical_lift_measurements_to_likelihood(
     )
 
 
+def _swap_columns_and_last_index_level(df: pd.DataFrame) -> pd.DataFrame:
+    """Take a DataFrame with a MultiIndex and swap the columns and the last index level."""
+    if not isinstance(df.index, pd.MultiIndex):
+        raise ValueError("Index must be a MultiIndex")
+
+    return df.stack().unstack(level=-2)  # type: ignore
+
+
 def scale_channel_lift_measurements(
     df_lift_test: pd.DataFrame,
     channel_col: str,
@@ -417,13 +425,17 @@ def scale_channel_lift_measurements(
 
     """
 
+    # DataFrame with MultiIndex (RangeIndex, channel_col)
+    # columns: x, delta_x
     df_original = df_lift_test.loc[:, [channel_col, "x", "delta_x"]].set_index(
         channel_col, append=True
     )
+
+    # DataFrame with MultiIndex (RangeIndex, (x, delta_x))
+    # columns: channel_columns values
     df_to_rescale = (
-        df_original.stack()
-        .unstack(channel_col)
-        .reindex(channel_columns, axis=1)  # type: ignore
+        df_original.pipe(_swap_columns_and_last_index_level)
+        .reindex(channel_columns, axis=1)
         .fillna(0)
     )
 
@@ -434,8 +446,7 @@ def scale_channel_lift_measurements(
     )
 
     return (
-        df_rescaled.stack()
-        .unstack(1)
+        df_rescaled.pipe(_swap_columns_and_last_index_level)
         .loc[df_original.index, :]
         .reset_index(channel_col)
     )
