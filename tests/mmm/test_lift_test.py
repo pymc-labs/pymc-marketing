@@ -357,8 +357,8 @@ def test_index_variable(var_dims, var_data, indices, expected) -> None:
 def mock_channel_pipeline() -> Pipeline:
     pipeline = Pipeline(steps=[("scaler", MaxAbsScaler())])
 
-    n_channels = 3
-    max_value = np.arange(1, n_channels + 1)
+    max_value = np.array([1, 2, 3])
+    n_channels = len(max_value)
     pipeline.fit(np.ones((5, n_channels)) * max_value)
 
     return pipeline

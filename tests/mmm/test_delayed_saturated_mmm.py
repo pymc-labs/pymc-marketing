@@ -874,7 +874,7 @@ def df_lift_test() -> pd.DataFrame:
 
 
 def test_add_lift_test_measurements(mmm, toy_X, toy_y, df_lift_test) -> None:
-    mmm.build_model(X=toy_X, y=toy_y.to_numpy())
+    mmm.build_model(X=toy_X, y=toy_y)
 
     name = "lift_measurements"
     assert name not in mmm.model
