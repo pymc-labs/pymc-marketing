@@ -16,6 +16,33 @@ class BaseFunction:
 
 
 class GeometricAdstockComponent(BaseFunction):
+    """
+    Geometric Adstock Component.
+
+    This component applies geometric adstock transformation to the input data.
+    It calculates the adstock effect of past marketing efforts on the current response.
+
+    Parameters:
+    -----------
+    max_lagging : int
+        The maximum lagging period to consider for adstock effect.
+    model : pymc.Model
+        The PyMC model object.
+    model_config : dict
+        The configuration dictionary for the model.
+
+    Attributes:
+    -----------
+    REQUIRED_KEYS : list
+        The list of required keys in the model_config dictionary.
+
+    Methods:
+    --------
+    apply(data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
+        Apply the geometric adstock transformation to the input data.
+
+    """
+
     REQUIRED_KEYS = [
         "adstock_alpha",
     ]
@@ -28,6 +55,20 @@ class GeometricAdstockComponent(BaseFunction):
         )
 
     def apply(self, data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
+        """
+        Apply the geometric adstock transformation to the input data.
+
+        Parameters:
+        -----------
+        data : Union[pm.Data, pm.MutableData]
+            The input data to apply the adstock transformation.
+
+        Returns:
+        --------
+        pm.Deterministic
+            The transformed data with adstock effect.
+
+        """
         self.adstock_alpha_dist = _get_distribution(
             dist=self.model_config["adstock_alpha"]
         )
@@ -53,6 +94,30 @@ class GeometricAdstockComponent(BaseFunction):
 
 
 class WeibullPDFAdstockComponent(BaseFunction):
+    """
+    A class representing a Weibull PDF adstock component in a marketing mix model.
+
+    Parameters:
+    -----------
+    max_lagging : int
+        The maximum lagging value for the adstock component.
+    model : pymc.Model
+        The PyMC model object.
+    model_config : dict
+        The configuration dictionary for the model.
+
+    Attributes:
+    -----------
+    REQUIRED_KEYS : list
+        The list of required keys in the model configuration.
+
+    Methods:
+    --------
+    apply(data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
+        Apply the Weibull PDF adstock component to the given data.
+
+    """
+
     REQUIRED_KEYS = ["adstock_lambda", "adstock_shape"]
 
     def __init__(self, max_lagging, model, model_config):
@@ -63,6 +128,20 @@ class WeibullPDFAdstockComponent(BaseFunction):
         )
 
     def apply(self, data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
+        """
+        Apply the Weibull PDF adstock component to the given data.
+
+        Parameters:
+        -----------
+        data : Union[pm.Data, pm.MutableData]
+            The data to apply the adstock component to.
+
+        Returns:
+        --------
+        pm.Deterministic
+            The adstocked data as a PyMC Deterministic variable.
+
+        """
         self.adstock_lambda_dist = _get_distribution(
             dist=self.model_config["adstock_lambda"]
         )
@@ -98,9 +177,46 @@ class WeibullPDFAdstockComponent(BaseFunction):
 
 
 class WeibullCDFAdstockComponent(BaseFunction):
+    """
+    A class representing a Weibull CDF adstock component in a marketing mix model.
+
+    Parameters:
+    -----------
+    max_lagging : int
+        The maximum lagging value for the adstock component.
+    model : pymc.Model
+        The PyMC model object.
+    model_config : dict
+        The configuration dictionary for the model.
+
+    Attributes:
+    -----------
+    REQUIRED_KEYS : list
+        The list of required keys in the model configuration.
+
+    Methods:
+    --------
+    apply(data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
+        Apply the Weibull CDF adstock component to the given data.
+
+    """
+
     REQUIRED_KEYS = ["adstock_lambda", "adstock_shape"]
 
     def __init__(self, max_lagging, model, model_config):
+        """
+        Initialize the WeibullCDFAdstockComponent.
+
+        Parameters:
+        -----------
+        max_lagging : int
+            The maximum lagging value for the adstock component.
+        model : pymc.Model
+            The PyMC model object.
+        model_config : dict
+            The configuration dictionary for the model.
+
+        """
         super().__init__(max_lagging, model)
         self.model_config = model_config
         _validate_model_config(
@@ -108,6 +224,20 @@ class WeibullCDFAdstockComponent(BaseFunction):
         )
 
     def apply(self, data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
+        """
+        Apply the Weibull CDF adstock component to the given data.
+
+        Parameters:
+        -----------
+        data : Union[pm.Data, pm.MutableData]
+            The data to apply the adstock component to.
+
+        Returns:
+        --------
+        pm.Deterministic
+            The adstocked data as a PyMC Deterministic variable.
+
+        """
         self.adstock_lambda_dist = _get_distribution(
             dist=self.model_config["adstock_lambda"]
         )
@@ -145,6 +275,31 @@ class WeibullCDFAdstockComponent(BaseFunction):
 def _get_lagging_function(
     name: str, max_lagging: int, model: pm.Model, model_config: Optional[Dict] = None
 ):
+    """
+    Get the lagging function based on the given name.
+
+    Parameters:
+    -----------
+    name : str
+        The name of the lagging function.
+    max_lagging : int
+        The maximum lagging value for the adstock component.
+    model : pm.Model
+        The PyMC model object.
+    model_config : Optional[Dict], optional
+        The configuration dictionary for the model, by default None.
+
+    Returns:
+    --------
+    BaseFunction
+        The lagging function object.
+
+    Raises:
+    -------
+    ValueError
+        If the lagging function name is not recognized.
+
+    """
     lagging_functions = {
         "geometric": GeometricAdstockComponent,
         "weibull_pdf": WeibullPDFAdstockComponent,

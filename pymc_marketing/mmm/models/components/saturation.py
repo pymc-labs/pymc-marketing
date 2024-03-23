@@ -21,6 +21,28 @@ class BaseFunction:
 
 
 class HillSaturationComponent(BaseFunction):
+    """
+    A class representing the Hill Saturation component of a marketing mix model.
+
+    Parameters:
+    -----------
+    model : PyMC.Model
+        The PyMC model object.
+    model_config : dict
+        A dictionary containing the configuration parameters for the model.
+
+    Attributes:
+    -----------
+    REQUIRED_KEYS : list
+        A list of required keys in the model_config dictionary.
+
+    Methods:
+    --------
+    apply(data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
+        Apply the Hill Saturation component to the given data.
+
+    """
+
     REQUIRED_KEYS = [
         "saturation_sigma",
         "saturation_lambda",
@@ -35,6 +57,20 @@ class HillSaturationComponent(BaseFunction):
         )
 
     def apply(self, data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
+        """
+        Apply the Hill Saturation component to the given data.
+
+        Parameters:
+        -----------
+        data : Union[pm.Data, pm.MutableData]
+            The input data for the model.
+
+        Returns:
+        --------
+        pm.Deterministic
+            The deterministic variable representing the channel contributions.
+
+        """
         self.saturation_sigma_dist = _get_distribution(
             dist=self.model_config["saturation_sigma"]
         )
@@ -80,12 +116,44 @@ class HillSaturationComponent(BaseFunction):
 
 
 class MentenSaturationComponent(BaseFunction):
+    """
+    A class representing the Menten Saturation component of a marketing mix model.
+
+    Parameters:
+    -----------
+    model : PyMC.Model
+        The PyMC model object.
+    model_config : dict
+        A dictionary containing the configuration parameters for the model.
+
+    Attributes:
+    -----------
+    REQUIRED_KEYS : list
+        A list of required keys in the model_config dictionary.
+
+    Methods:
+    --------
+    apply(data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
+        Apply the Menten Saturation component to the given data.
+
+    """
+
     REQUIRED_KEYS = [
         "saturation_alpha",
         "saturation_lambda",
     ]
 
     def __init__(self, model, model_config):
+        """
+        Initialize the MentenSaturationComponent.
+
+        Parameters:
+        -----------
+        model : PyMC.Model
+            The PyMC model object.
+        model_config : dict
+            A dictionary containing the configuration parameters for the model.
+        """
         self.model = model
         self.model_config = model_config
         _validate_model_config(
@@ -93,6 +161,19 @@ class MentenSaturationComponent(BaseFunction):
         )
 
     def apply(self, data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
+        """
+        Apply the Menten Saturation component to the given data.
+
+        Parameters:
+        -----------
+        data : Union[pm.Data, pm.MutableData]
+            The data to which the Menten Saturation component will be applied.
+
+        Returns:
+        --------
+        pm.Deterministic:
+            The result of applying the Menten Saturation component to the data.
+        """
         self.saturation_alpha_dist = _get_distribution(
             dist=self.model_config["saturation_alpha"]
         )
@@ -126,12 +207,44 @@ class MentenSaturationComponent(BaseFunction):
 
 
 class LogisticSaturationComponent(BaseFunction):
+    """
+    A class representing the Logistic Saturation component of a marketing mix model.
+
+    Parameters:
+    -----------
+    model : PyMC.Model
+        The PyMC model object.
+    model_config : dict
+        A dictionary containing the configuration parameters for the model.
+
+    Attributes:
+    -----------
+    REQUIRED_KEYS : list
+        A list of required keys in the model_config dictionary.
+
+    Methods:
+    --------
+    apply(data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
+        Apply the Logistic Saturation component to the given data.
+
+    """
+
     REQUIRED_KEYS = [
         "saturation_beta",
         "saturation_lambda",
     ]
 
     def __init__(self, model, model_config):
+        """
+        Initialize the LogisticSaturationComponent.
+
+        Parameters:
+        -----------
+        model : PyMC.Model
+            The PyMC model object.
+        model_config : dict
+            A dictionary containing the configuration parameters for the model.
+        """
         self.model = model
         self.model_config = model_config
         _validate_model_config(
@@ -139,6 +252,19 @@ class LogisticSaturationComponent(BaseFunction):
         )
 
     def apply(self, data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
+        """
+        Apply the Logistic Saturation component to the given data.
+
+        Parameters:
+        -----------
+        data : Union[pm.Data, pm.MutableData]
+            The data to which the Logistic Saturation component will be applied.
+
+        Returns:
+        --------
+        pm.Deterministic:
+            The result of applying the Logistic Saturation component to the data.
+        """
         self.saturation_beta_dist = _get_distribution(
             dist=self.model_config["saturation_beta"]
         )
@@ -173,6 +299,28 @@ class LogisticSaturationComponent(BaseFunction):
 def _get_saturation_function(
     name: str, model: pm.Model, model_config: Optional[Dict] = None
 ):
+    """
+    Get the saturation function based on the given name.
+
+    Parameters:
+    -----------
+    name : str
+        The name of the saturation function.
+    model : pm.Model
+        The PyMC model object.
+    model_config : Optional[Dict], optional
+        A dictionary containing the configuration parameters for the model, by default None.
+
+    Returns:
+    --------
+    Union[HillSaturationComponent, MentenSaturationComponent, LogisticSaturationComponent]:
+        The saturation function object based on the given name.
+
+    Raises:
+    -------
+    ValueError:
+        If the saturation function name is not recognized.
+    """
     saturation_functions = {
         "hill": HillSaturationComponent,
         "michaelis_menten": MentenSaturationComponent,
