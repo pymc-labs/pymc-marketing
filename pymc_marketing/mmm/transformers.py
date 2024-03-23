@@ -669,78 +669,164 @@ def michaelis_menten(
     lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
 ) -> Union[float, Any]:
     r"""
-    Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
+     Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
 
-    The Michaelis-Menten function models enzyme kinetics and describes how the rate of a chemical reaction increases with substrate concentration until it reaches its maximum value.
+     The Michaelis-Menten function models enzyme kinetics and describes how the rate of a chemical reaction increases with substrate concentration until it reaches its maximum value.
+
+     .. math::
+         \alpha \cdot \frac{x}{\lambda + x}}
+
+     where:
+      - :math:`x`: Channel spend or substrate concentration.
+      - :math:`\alpha`: Maximum contribution or efficiency factor.
+      - :math:`\lambda` (k): Michaelis constant, representing the threshold substrate concentration.
+
+     .. plot::
+         :context: close-figs
+
+         import numpy as np
+         import matplotlib.pyplot as plt
+
+         x = np.linspace(0, 100, 500)
+         alpha = 10
+         lam = 50
+         y = michaelis_menten(x, alpha, lam)
+
+         plt.plot(x, y)
+         plt.xlabel('Spend/Impressions (x)')
+         plt.ylabel('Contribution (y)')
+         plt.title('Michaelis-Menten Function')
+         plt.show()
+
+    .. plot::
+         :context: close-figs
+
+         import numpy as np
+         import matplotlib.pyplot as plt
+
+         x = np.linspace(0, 100, 500)
+         alpha_values = [5, 10, 15]  # Different values of alpha
+         lam_values = [25, 50, 75]  # Different values of lam
+
+         # Plot varying lam
+         plt.figure(figsize=(8, 6))
+         for lam in lam_values:
+             y = michaelis_menten(x, alpha_values[0], lam)
+             plt.plot(x, y, label=f"lam={lam}")
+         plt.xlabel('Spend/Impressions (x)')
+         plt.ylabel('Contribution (y)')
+         plt.title('Michaelis-Menten Function (Varying lam)')
+         plt.legend()
+         plt.show()
+
+         # Plot varying alpha
+         plt.figure(figsize=(8, 6))
+         for alpha in alpha_values:
+             y = michaelis_menten(x, alpha, lam_values[0])
+             plt.plot(x, y, label=f"alpha={alpha}")
+         plt.xlabel('Spend/Impressions (x)')
+         plt.ylabel('Contribution (y)')
+         plt.title('Michaelis-Menten Function (Varying alpha)')
+         plt.legend()
+         plt.show()
+
+     Parameters
+     ----------
+     x : float
+         The spent on a channel.
+     alpha : float
+         The maximum contribution a channel can make.
+     lam : float
+         The Michaelis constant for the given enzyme-substrate system.
+
+     Returns
+     -------
+     float
+         The value of the Michaelis-Menten function given the parameters.
+    """
+
+    return alpha * x / (lam + x)
+
+
+def hill_saturation(x, sigma, beta, lam):
+    """
+    Hill Saturation Function
 
     .. math::
-        \alpha \cdot \frac{x}{\lambda + x}}
+        f(x) = \\frac{\\sigma}{1 + e^{-\\beta(x - \\lambda)}}
 
     where:
-     - :math:`x`: Channel spend or substrate concentration.
-     - :math:`\alpha`: Maximum contribution or efficiency factor.
-     - :math:`\lambda` (k): Michaelis constant, representing the threshold substrate concentration.
+    - :math:`\\sigma` is the maximum value (upper asymptote),
+    - :math:`\\beta` is the slope parameter,
+    - :math:`\\lambda` is the transition point on the X-axis,
+    - :math:`x` is the independent variable.
 
-    .. code-block:: python
+    This function computes the Hill sigmoidal response curve, which is commonly used to describe the saturation effect in biological systems.
+    The curve is characterized by its sigmoidal shape, representing a gradual transition from a low, nearly zero level to a high plateau,
+    the maximum value the function will approach as the independent variable grows large.
 
-        import numpy as np
-        import matplotlib.pyplot as plt
-
-        x = np.linspace(0, 100, 500)
-        alpha = 10
-        lam = 50
-        y = michaelis_menten(x, alpha, lam)
-
-        plt.plot(x, y)
-        plt.xlabel('Spend/Impressions (x)')
-        plt.ylabel('Contribution (y)')
-        plt.title('Michaelis-Menten Function')
-        plt.show()
-
-    .. code-block:: python
+    .. plot::
+        :context: close-figs
 
         import numpy as np
         import matplotlib.pyplot as plt
+        from pymc_marketing.mmm.transformers import hill_saturation
 
-        x = np.linspace(0, 100, 500)
-        alpha_values = [5, 10, 15]  # Different values of alpha
-        lam_values = [25, 50, 75]  # Different values of lam
+        x = np.linspace(0, 10, 100)
 
-        # Plot varying lam
-        plt.figure(figsize=(8, 6))
-        for lam in lam_values:
-            y = michaelis_menten(x, alpha_values[0], lam)
-            plt.plot(x, y, label=f"lam={lam}")
-        plt.xlabel('Spend/Impressions (x)')
-        plt.ylabel('Contribution (y)')
-        plt.title('Michaelis-Menten Function (Varying lam)')
-        plt.legend()
+        # Varying sigma
+        sigmas = [0.5, 1, 1.5]
+        plt.figure(figsize=(12, 4))
+        for i, sigma in enumerate(sigmas):
+            plt.subplot(1, 3, i+1)
+            y = hill_saturation(x, sigma, 2, 5)
+            plt.plot(x, y)
+            plt.xlabel('x')
+            plt.ylabel('Hill Saturation')
+            plt.title(f'Sigma = {sigma}')
+        plt.tight_layout()
         plt.show()
 
-        # Plot varying alpha
-        plt.figure(figsize=(8, 6))
-        for alpha in alpha_values:
-            y = michaelis_menten(x, alpha, lam_values[0])
-            plt.plot(x, y, label=f"alpha={alpha}")
-        plt.xlabel('Spend/Impressions (x)')
-        plt.ylabel('Contribution (y)')
-        plt.title('Michaelis-Menten Function (Varying alpha)')
-        plt.legend()
+        # Varying beta
+        betas = [1, 2, 3]
+        plt.figure(figsize=(12, 4))
+        for i, beta in enumerate(betas):
+            plt.subplot(1, 3, i+1)
+            y = hill_saturation(x, 1, beta, 5)
+            plt.plot(x, y)
+            plt.xlabel('x')
+            plt.ylabel('Hill Saturation')
+            plt.title(f'Beta = {beta}')
+        plt.tight_layout()
+        plt.show()
+
+        # Varying lam
+        lams = [3, 5, 7]
+        plt.figure(figsize=(12, 4))
+        for i, lam in enumerate(lams):
+            plt.subplot(1, 3, i+1)
+            y = hill_saturation(x, 1, 2, lam)
+            plt.plot(x, y)
+            plt.xlabel('x')
+            plt.ylabel('Hill Saturation')
+            plt.title(f'Lambda = {lam}')
+        plt.tight_layout()
         plt.show()
 
     Parameters
     ----------
-    x : float
-        The spent on a channel.
-    alpha : float
-        The maximum contribution a channel can make.
+    x : float or array-like
+        The independent variable, typically representing the concentration of a substrate or the intensity of a stimulus.
+    sigma : float
+        The upper asymptote of the curve, representing the maximum value the function will approach as x grows large.
+    beta : float
+        The slope parameter, determining the steepness of the curve.
     lam : float
-        The Michaelis constant for the given enzyme-substrate system.
+        The x-value of the midpoint where the curve transitions from exponential growth to saturation.
 
     Returns
     -------
-    float
-        The value of the Michaelis-Menten function given the parameters.
+    float or array-like
+        The value of the Hill function for each input value of x.
     """
-
-    return alpha * x / (lam + x)
+    return sigma / (1 + pt.exp(-beta * (x - lam)))
