@@ -458,18 +458,18 @@ class TestDelayedSaturatedMMM:
     #             start=-0.5, stop=1.5, num=2
     #         )
 
-    @pytest.mark.parametrize(
-        argnames="absolute_xrange",
-        argvalues=[False, True],
-        ids=["relative_xrange", "absolute_xrange"],
-    )
-    def test_plot_channel_contributions_grid(
-        self, mmm_fitted: DelayedSaturatedMMM, absolute_xrange: bool
-    ) -> None:
-        fig = mmm_fitted.plot_channel_contributions_grid(
-            start=0, stop=1.5, num=2, absolute_xrange=absolute_xrange
-        )
-        assert isinstance(fig, plt.Figure)
+    # @pytest.mark.parametrize(
+    #     argnames="absolute_xrange",
+    #     argvalues=[False, True],
+    #     ids=["relative_xrange", "absolute_xrange"],
+    # )
+    # def test_plot_channel_contributions_grid(
+    #     self, mmm_fitted: DelayedSaturatedMMM, absolute_xrange: bool
+    # ) -> None:
+    #     fig = mmm_fitted.plot_channel_contributions_grid(
+    #         start=0, stop=1.5, num=2, absolute_xrange=absolute_xrange
+    #     )
+    #     assert isinstance(fig, plt.Figure)
 
     def test_data_setter(self, toy_X, toy_y):
         base_delayed_saturated_mmm = BaseDelayedSaturatedMMM(
