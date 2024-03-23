@@ -10,7 +10,7 @@ from pymc_marketing.clv.plotting import (
     plot_frequency_recency_matrix,
     plot_probability_alive_matrix,
 )
-from tests.clv.conftest import set_model_fit
+from tests.conftest import set_model_fit
 
 
 @pytest.fixture(scope="module")
@@ -111,7 +111,7 @@ def test_plot_customer_exposure_invalid_args(test_summary_data, kwargs) -> None:
         plot_customer_exposure(test_summary_data, **kwargs)
 
 
-@pytest.mark.parametrize("mock_model", [fitted_bg, fitted_pnbd])
+@pytest.mark.parametrize("mock_model", (fitted_bg, fitted_pnbd))
 def test_plot_frequency_recency_matrix(mock_model) -> None:
     ax: plt.Axes = plot_frequency_recency_matrix(mock_model)
 
