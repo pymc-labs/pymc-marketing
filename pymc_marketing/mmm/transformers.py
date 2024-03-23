@@ -674,7 +674,7 @@ def michaelis_menten(
     The Michaelis-Menten function models enzyme kinetics and describes how the rate of a chemical reaction increases with substrate concentration until it reaches its maximum value.
 
     .. math::
-        \alpha \cdot \frac{x}{\lambda + x}}
+        \alpha \cdot \frac{x}{\lambda + x}
 
     where:
      - :math:`x`: Channel spend or substrate concentration.
