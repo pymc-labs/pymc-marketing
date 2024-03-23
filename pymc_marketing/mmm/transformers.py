@@ -751,7 +751,7 @@ def michaelis_menten(
 
 
 def hill_saturation(x, sigma, beta, lam):
-    """
+    r"""
     Hill Saturation Function
 
     .. math::
