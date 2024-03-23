@@ -755,12 +755,12 @@ def hill_saturation(x, sigma, beta, lam):
     Hill Saturation Function
 
     .. math::
-        f(x) = \frac{\sigma}{1 + e^{-\beta(x - \lambda)}}
+        f(x) = \frac{\\sigma}{1 + e^{-\beta(x - \\lambda)}}
 
     where:
-    - :math:`\sigma` is the maximum value (upper asymptote),
+    - :math:`\\sigma` is the maximum value (upper asymptote),
     - :math:`\beta` is the slope parameter,
-    - :math:`\lambda` is the transition point on the X-axis,
+    - :math:`\\lambda` is the transition point on the X-axis,
     - :math:`x` is the independent variable.
 
     This function computes the Hill sigmoidal response curve, which is commonly used to describe the saturation effect in biological systems.
