@@ -209,17 +209,39 @@ def plot_frequency_recency_matrix(
         max_recency=max_recency,
     )
 
-    Z = (
-        model.expected_num_purchases(
-            customer_id=np.arange(mesh_recency.size),  # placeholder
-            t=t,
-            frequency=mesh_frequency.ravel(),
-            recency=mesh_recency.ravel(),
-            T=max_recency,
+    # FIXME: This is a hotfix for ParetoNBDModel, as it has a different API from BetaGeoModel
+    #  We should harmonize them!
+    if isinstance(model, ParetoNBDModel):
+        transaction_data = pd.DataFrame(
+            {
+                "customer_id": np.arange(mesh_recency.size),  # placeholder
+                "frequency": mesh_frequency.ravel(),
+                "recency": mesh_recency.ravel(),
+                "T": max_recency,
+            }
         )
-        .mean(("draw", "chain"))
-        .values.reshape(mesh_recency.shape)
-    )
+
+        Z = (
+            model.expected_purchases(
+                data=transaction_data,
+                future_t=t,
+            )
+            .mean(("draw", "chain"))
+            .values.reshape(mesh_recency.shape)
+        )
+    else:
+        Z = (
+            model.expected_num_purchases(
+                customer_id=np.arange(mesh_recency.size),  # placeholder
+                frequency=mesh_frequency.ravel(),
+                recency=mesh_recency.ravel(),
+                T=max_recency,
+                t=t,
+            )
+            .mean(("draw", "chain"))
+            .values.reshape(mesh_recency.shape)
+        )
+
     if ax is None:
         ax = plt.subplot(111)
 
@@ -296,17 +318,37 @@ def plot_probability_alive_matrix(
         max_frequency=max_frequency,
         max_recency=max_recency,
     )
-
-    Z = (
-        model.expected_probability_alive(
-            customer_id=np.arange(mesh_recency.size),  # placeholder
-            frequency=mesh_frequency.ravel(),
-            recency=mesh_recency.ravel(),
-            T=max_recency,
+    # FIXME: This is a hotfix for ParetoNBDModel, as it has a different API from BetaGeoModel
+    #  We should harmonize them!
+    if isinstance(model, ParetoNBDModel):
+        transaction_data = pd.DataFrame(
+            {
+                "customer_id": np.arange(mesh_recency.size),  # placeholder
+                "frequency": mesh_frequency.ravel(),
+                "recency": mesh_recency.ravel(),
+                "T": max_recency,
+            }
         )
-        .mean(("draw", "chain"))
-        .values.reshape(mesh_recency.shape)
-    )
+
+        Z = (
+            model.expected_probability_alive(
+                data=transaction_data,
+                future_t=0,  # TODO: This can be a function parameter in the case of ParetoNBDModel
+            )
+            .mean(("draw", "chain"))
+            .values.reshape(mesh_recency.shape)
+        )
+    else:
+        Z = (
+            model.expected_probability_alive(
+                customer_id=np.arange(mesh_recency.size),  # placeholder
+                frequency=mesh_frequency.ravel(),
+                recency=mesh_recency.ravel(),
+                T=max_recency,  # type: ignore
+            )
+            .mean(("draw", "chain"))
+            .values.reshape(mesh_recency.shape)
+        )
 
     interpolation = kwargs.pop("interpolation", "none")
 
