@@ -688,23 +688,6 @@ def michaelis_menten(
         import matplotlib.pyplot as plt
 
         x = np.linspace(0, 100, 500)
-        alpha = 10
-        lam = 50
-        y = michaelis_menten(x, alpha, lam)
-
-        plt.plot(x, y)
-        plt.xlabel('Spend/Impressions (x)')
-        plt.ylabel('Contribution (y)')
-        plt.title('Michaelis-Menten Function')
-        plt.show()
-
-    .. plot::
-        :context: close-figs
-
-        import numpy as np
-        import matplotlib.pyplot as plt
-
-        x = np.linspace(0, 100, 500)
         alpha_values = [5, 10, 15]  # Different values of alpha
         lam_values = [25, 50, 75]  # Different values of lam
 
