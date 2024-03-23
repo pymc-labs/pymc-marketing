@@ -684,51 +684,53 @@ def michaelis_menten(
     .. plot::
         :context: close-figs
 
-            import numpy as np
-            import matplotlib.pyplot as plt
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from pymc_marketing.mmm.transformers import michaelis_menten
 
-            x = np.linspace(0, 100, 500)
-            alpha = 10
-            lam = 50
-            y = michaelis_menten(x, alpha, lam)
+        x = np.linspace(0, 100, 500)
+        alpha = 10
+        lam = 50
+        y = michaelis_menten(x, alpha, lam)
 
-            plt.plot(x, y)
-            plt.xlabel('Spend/Impressions (x)')
-            plt.ylabel('Contribution (y)')
-            plt.title('Michaelis-Menten Function')
-            plt.show()
+        plt.plot(x, y)
+        plt.xlabel('Spend/Impressions (x)')
+        plt.ylabel('Contribution (y)')
+        plt.title('Michaelis-Menten Function')
+        plt.show()
 
     .. plot::
         :context: close-figs
 
-            import numpy as np
-            import matplotlib.pyplot as plt
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from pymc_marketing.mmm.transformers import michaelis_menten
 
-            x = np.linspace(0, 100, 500)
-            alpha_values = [5, 10, 15]  # Different values of alpha
-            lam_values = [25, 50, 75]  # Different values of lam
+        x = np.linspace(0, 100, 500)
+        alpha_values = [5, 10, 15]  # Different values of alpha
+        lam_values = [25, 50, 75]  # Different values of lam
 
-            # Plot varying lam
-            plt.figure(figsize=(8, 6))
-            for lam in lam_values:
-                y = michaelis_menten(x, alpha_values[0], lam)
-                plt.plot(x, y, label=f"lam={lam}")
-            plt.xlabel('Spend/Impressions (x)')
-            plt.ylabel('Contribution (y)')
-            plt.title('Michaelis-Menten Function (Varying lam)')
-            plt.legend()
-            plt.show()
+        # Plot varying lam
+        plt.figure(figsize=(8, 6))
+        for lam in lam_values:
+            y = michaelis_menten(x, alpha_values[0], lam)
+            plt.plot(x, y, label=f"lam={lam}")
+        plt.xlabel('Spend/Impressions (x)')
+        plt.ylabel('Contribution (y)')
+        plt.title('Michaelis-Menten Function (Varying lam)')
+        plt.legend()
+        plt.show()
 
-            # Plot varying alpha
-            plt.figure(figsize=(8, 6))
-            for alpha in alpha_values:
-                y = michaelis_menten(x, alpha, lam_values[0])
-                plt.plot(x, y, label=f"alpha={alpha}")
-            plt.xlabel('Spend/Impressions (x)')
-            plt.ylabel('Contribution (y)')
-            plt.title('Michaelis-Menten Function (Varying alpha)')
-            plt.legend()
-            plt.show()
+        # Plot varying alpha
+        plt.figure(figsize=(8, 6))
+        for alpha in alpha_values:
+            y = michaelis_menten(x, alpha, lam_values[0])
+            plt.plot(x, y, label=f"alpha={alpha}")
+        plt.xlabel('Spend/Impressions (x)')
+        plt.ylabel('Contribution (y)')
+        plt.title('Michaelis-Menten Function (Varying alpha)')
+        plt.legend()
+        plt.show()
 
     Parameters
     ----------
