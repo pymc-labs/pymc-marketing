@@ -48,6 +48,7 @@ test = [
 packages = [
     "pymc_marketing",
     "pymc_marketing.mmm",
+    "pymc_marketing.mmm.models",
     "pymc_marketing.clv",
     "pymc_marketing.clv.models",
 ]
