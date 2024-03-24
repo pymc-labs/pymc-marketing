@@ -21,12 +21,12 @@ from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.budget_optimizer import budget_allocator
+from pymc_marketing.mmm.transformers import michaelis_menten
 from pymc_marketing.mmm.utils import (
     estimate_menten_parameters,
     estimate_sigmoid_parameters,
-    extense_sigmoid,
     find_sigmoid_inflection_point,
-    michaelis_menten,
+    sigmoid_saturation,
     standardize_scenarios_dict_keys,
 )
 from pymc_marketing.mmm.validating import (
@@ -457,8 +457,8 @@ class BaseMMM(ModelBuilder):
         return fig
 
     def plot_channel_parameter(self, param_name: str, **plt_kwargs: Any) -> plt.Figure:
-        if param_name not in ["alpha", "lam", "beta_channel"]:
-            raise ValueError(f"Invalid parameter name: {param_name}")
+        # if param_name not in ["alpha", "lam", "beta_channel"]:
+        #     raise ValueError(f"Invalid parameter name: {param_name}")
 
         param_samples_df = pd.DataFrame(
             data=az.extract(data=self.fit_result, var_names=[param_name]).T,
@@ -534,7 +534,7 @@ class BaseMMM(ModelBuilder):
         # Estimate parameters based on the method
         if method == "sigmoid":
             estimate_function = estimate_sigmoid_parameters
-            fit_function = extense_sigmoid
+            fit_function = sigmoid_saturation
         elif method == "michaelis-menten":
             estimate_function = estimate_menten_parameters
             fit_function = michaelis_menten
@@ -786,7 +786,7 @@ class BaseMMM(ModelBuilder):
             x_inflection, y_inflection = find_sigmoid_inflection_point(
                 alpha=alpha_limit, lam=lam_constant
             )
-            fit_function = extense_sigmoid
+            fit_function = sigmoid_saturation
         elif method == "michaelis-menten":
             alpha_limit, lam_constant = estimate_menten_parameters(
                 channel=channel,

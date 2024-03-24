@@ -4,8 +4,11 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import pymc as pm
 import xarray as xr
 from scipy.optimize import curve_fit, minimize_scalar
+
+from pymc_marketing.mmm.transformers import michaelis_menten
 
 
 def generate_fourier_modes(
@@ -38,61 +41,6 @@ def generate_fourier_modes(
             for func in ("sin", "cos")
         }
     )
-
-
-def michaelis_menten(
-    x: Union[float, np.ndarray, npt.NDArray[np.float64]],
-    alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
-    lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
-) -> Union[float, Any]:
-    """
-    Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
-
-    The Michaelis-Menten function is a type of mathematical saturation function commonly used in
-    enzyme kinetics, but it's also applicable in marketing mix models to describe
-    how different channels contribute to a certain outcome (e.g., sales or conversions)
-    as the spending on that channel increases and the contribution saturates.
-
-    Mathematically, it is described as:
-    α * x / (λ + x)
-
-    Parameters
-    ----------
-    x : float
-        The spent on a channel.
-    alpha (Limit/Vmax) : float
-        The maximum contribution a channel can make.
-    lam (k) : float
-        The elbow on the function in `x` (Point where the curve change their direction).
-
-    Returns
-    -------
-    float
-        The value of the Michaelis-Menten function given the parameters.
-    """
-
-    return alpha * x / (lam + x)
-
-
-def extense_sigmoid(
-    x: Union[float, np.ndarray, npt.NDArray[np.float64]],
-    alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
-    lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
-) -> Union[float, Any]:
-    """
-    Parameters
-    ----------
-    - alpha
-        α (alpha): Represent the Asymptotic Maximum or Ceiling Value.
-    - lam
-        λ (lambda): affects how quickly the function approaches its upper and lower asymptotes. A higher value of
-        lam makes the curve steeper, while a lower value makes it more gradual.
-    """
-
-    if alpha <= 0 or lam <= 0:
-        raise ValueError("alpha and lam must be greater than 0")
-
-    return (alpha - alpha * np.exp(-lam * x)) / (1 + np.exp(-lam * x))
 
 
 def estimate_menten_parameters(
@@ -180,7 +128,7 @@ def estimate_sigmoid_parameters(
 
     parameter_bounds_modified = ([0, 0], [alpha_initial_estimate, np.inf])
     popt, _ = curve_fit(
-        extense_sigmoid,
+        sigmoid_saturation,
         x,
         y,
         p0=[alpha_initial_estimate, lam_initial_estimate],
@@ -258,7 +206,7 @@ def find_sigmoid_inflection_point(
 
     # Evaluate the original function at the inflection point
     x_inflection = result.x
-    y_inflection = extense_sigmoid(x_inflection, alpha, lam)
+    y_inflection = sigmoid_saturation(x_inflection, alpha, lam)
 
     return x_inflection, y_inflection
 
@@ -328,6 +276,27 @@ def apply_sklearn_transformer_across_dim(
     data.attrs = attrs
 
     return data
+
+
+def sigmoid_saturation(
+    x: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
+) -> Union[float, Any]:
+    """
+    Parameters
+    ----------
+    alpha
+        α (alpha): Represent the Asymptotic Maximum or Ceiling Value.
+    lam
+        λ (lambda): affects how quickly the function approaches its upper and lower asymptotes. A higher value of
+        lam makes the curve steeper, while a lower value makes it more gradual.
+    """
+
+    if alpha <= 0 or lam <= 0:
+        raise ValueError("alpha and lam must be greater than 0")
+
+    return (alpha - alpha * np.exp(-lam * x)) / (1 + np.exp(-lam * x))
 
 
 def create_new_spend_data(
@@ -416,3 +385,38 @@ def create_new_spend_data(
             spend,
         ]
     )
+
+
+def _get_distribution(dist: Dict) -> Callable:
+    """
+    Retrieve a PyMC distribution callable based on the provided dictionary.
+
+    Parameters
+    ----------
+    dist : Dict
+        A dictionary containing the key 'dist' which should correspond to the
+        name of a PyMC distribution.
+
+    Returns
+    -------
+    Callable
+        A PyMC distribution callable that can be used to instantiate a random
+        variable.
+
+    Raises
+    ------
+    ValueError
+        If the specified distribution name in the dictionary does not correspond
+        to any distribution in PyMC.
+    """
+    try:
+        prior_distribution = getattr(pm, dist["dist"])
+    except AttributeError:
+        raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
+    return prior_distribution
+
+
+def _validate_model_config(required_keys: List[str], model_config: Dict):
+    missing_keys = [key for key in required_keys if key not in model_config]
+    if missing_keys:
+        raise ValueError(f"Missing required configuration keys: {missing_keys}")
