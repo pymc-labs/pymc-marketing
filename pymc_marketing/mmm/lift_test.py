@@ -22,20 +22,18 @@ class MissingLiftTestError(Exception):
 
 
 Index = npt.NDArray[np.int_]
-
+Indices = dict[str, Index]
 Values = Union[npt.NDArray[np.int_], npt.NDArray[np.float_], npt.NDArray[np.str_]]
 
 
 def _lift_test_index(lift_values: Values, model_values: Values) -> Index:
+    # TODO: better support for datetime64 required for date coordinates
     same_value = lift_values[:, None] == model_values
     if not (same_value.sum(axis=1) == 1).all():
         missing_values = np.argwhere(same_value.sum(axis=1) == 0).flatten()
         raise MissingLiftTestError(missing_values)
 
     return np.argmax(same_value, axis=1)
-
-
-Indices = dict[str, Index]
 
 
 def lift_test_indices(df_lift_test: pd.DataFrame, model: pm.Model) -> Indices:
