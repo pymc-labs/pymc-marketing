@@ -4,6 +4,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import pymc as pm
+import pytensor.tensor as pt
 import xarray as xr
 from scipy.optimize import curve_fit, minimize_scalar
 
@@ -276,6 +278,10 @@ def apply_sklearn_transformer_across_dim(
 
     return data
 
+  
+def softplus(x: pt.TensorVariable) -> pt.TensorVariable:
+    return pm.math.log(1 + pm.math.exp(x))
+  
 
 def sigmoid_saturation(
     x: Union[float, np.ndarray, npt.NDArray[np.float64]],
