@@ -467,7 +467,9 @@ class ModelBuilder(ABC):
         self._generate_and_preprocess_model_data(X, y_df.values.flatten())
         if self.X is None or self.y is None:
             raise ValueError("X and y must be set before calling build_model!")
-        self.build_model(self.X, self.y)
+
+        if self.model is None:
+            self.build_model(self.X, self.y)
 
         sampler_config = self.sampler_config.copy()
         sampler_config["progressbar"] = progressbar

@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 from pymc_marketing.mmm.preprocessing import (
     MaxAbsScaleChannels,
@@ -60,9 +61,11 @@ def test_preprocessing_method():
     assert vf.__name__ == "f3"
 
 
-def test_max_abs_scale_target():
+@pytest.mark.parametrize("to_numpy", [True, False])
+def test_max_abs_scale_target(to_numpy: bool):
     obj = MaxAbsScaleTarget()
-    out = obj.max_abs_scale_target_data(toy_y.to_numpy())
+    data = toy_y.to_numpy() if to_numpy else toy_y
+    out = obj.max_abs_scale_target_data(data)
     temp = toy_y
     assert out.min() == temp.min() / temp.max()
     assert out.max() == 1
