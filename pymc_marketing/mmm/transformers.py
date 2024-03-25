@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import NamedTuple, Union
+from typing import Any, NamedTuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -413,60 +413,6 @@ def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
     return (1 - pt.exp(-lam * x)) / (1 + pt.exp(-lam * x))
 
 
-def scale_preserving_logistic_saturation(x, m: Union[npt.NDArray[np.float_], float]):
-    """Scale preserving logistic transformation.
-
-    This single-parameter saturation function maps its input to the range
-    :math:`[0, m]`, where :math:`f(x) \leq x` for all :math:`x`. It can be interpreted as mapping
-    from spend to "effective spend".
-
-    Properties:
-
-    * Output is on scale with input values. Simplifies prior specification.
-    * Intuitive parameter interpretation: `m` is the "maximum achievable effect".
-    * Slope of curve never exceeds 1. Thus "effective spend" <= "actual spend".
-
-    .. math::
-        f(x) = m \\left( \\frac{1 - e^{-\\frac{2}{m} x}}{1 + e^{-\\frac{2}{m} x}} \\right)
-
-    .. plot::
-        :context: close-figs
-
-        import matplotlib.pyplot as plt
-        import numpy as np
-        import arviz as az
-        from pymc_marketing.mmm.transformers import scale_preserving_logistic_saturation
-        plt.style.use('arviz-darkgrid')
-        m = np.array([500, 1000, 2000, 4000, 8000])
-        x = np.linspace(0, 10000, 400)
-        ax = plt.subplot(111)
-        for l in m:
-            y = scale_preserving_logistic_saturation(x, m=l).eval()
-            plt.plot(x, y, label=f'm = {l}')
-        plt.xlabel('x', fontsize=12)
-        plt.ylabel('f(x)', fontsize=12)
-        box = ax.get_position()
-        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.show()
-
-    Parameters
-    ----------
-    x : tensor
-        Input tensor.
-    m : float or array-like
-        Saturation parameter, characterizing the asymptote of the function value.
-
-    Returns
-    -------
-    tensor
-        Transformed tensor.
-    """  # noqa: W605
-    if m == 0:
-        return pt.zeros_like(x)
-    return m * (1 - pt.exp(-2 / m * x)) / (1 + pt.exp(-2 / m * x))
-
-
 class TanhSaturationParameters(NamedTuple):
     b: pt.TensorLike
     """Saturation.
@@ -715,3 +661,90 @@ def tanh_saturation_baselined(
     Developed by Max Kochurov and Aziz Al-Maeeni doing innovative work in `PyMC Labs <pymc-labs.com>`_.
     """
     return gain * x0 * pt.tanh(x * pt.arctanh(r) / x0) / r
+
+
+def michaelis_menten(
+    x: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
+) -> Union[float, Any]:
+    r"""
+    Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
+
+    The Michaelis-Menten function models enzyme kinetics and describes how the rate of a chemical reaction increases with substrate concentration until it reaches its maximum value.
+
+    .. math::
+        \alpha \cdot \frac{x}{\lambda + x}
+
+    where:
+     - :math:`x`: Channel spend or substrate concentration.
+     - :math:`\alpha`: Maximum contribution or efficiency factor.
+     - :math:`\lambda` (k): Michaelis constant, representing the threshold substrate concentration.
+
+    .. plot::
+        :context: close-figs
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from pymc_marketing.mmm.transformers import michaelis_menten
+
+        x = np.linspace(0, 100, 500)
+        alpha = 10
+        lam = 50
+        y = michaelis_menten(x, alpha, lam)
+
+        plt.plot(x, y)
+        plt.xlabel('Spend/Impressions (x)')
+        plt.ylabel('Contribution (y)')
+        plt.title('Michaelis-Menten Function')
+        plt.show()
+
+    .. plot::
+        :context: close-figs
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from pymc_marketing.mmm.transformers import michaelis_menten
+
+        x = np.linspace(0, 100, 500)
+        alpha_values = [5, 10, 15]  # Different values of alpha
+        lam_values = [25, 50, 75]  # Different values of lam
+
+        # Plot varying lam
+        plt.figure(figsize=(8, 6))
+        for lam in lam_values:
+            y = michaelis_menten(x, alpha_values[0], lam)
+            plt.plot(x, y, label=f"lam={lam}")
+        plt.xlabel('Spend/Impressions (x)')
+        plt.ylabel('Contribution (y)')
+        plt.title('Michaelis-Menten Function (Varying lam)')
+        plt.legend()
+        plt.show()
+
+        # Plot varying alpha
+        plt.figure(figsize=(8, 6))
+        for alpha in alpha_values:
+            y = michaelis_menten(x, alpha, lam_values[0])
+            plt.plot(x, y, label=f"alpha={alpha}")
+        plt.xlabel('Spend/Impressions (x)')
+        plt.ylabel('Contribution (y)')
+        plt.title('Michaelis-Menten Function (Varying alpha)')
+        plt.legend()
+        plt.show()
+
+    Parameters
+    ----------
+    x : float
+        The spent on a channel.
+    alpha : float
+        The maximum contribution a channel can make.
+    lam : float
+        The Michaelis constant for the given enzyme-substrate system.
+
+    Returns
+    -------
+    float
+        The value of the Michaelis-Menten function given the parameters.
+    """
+
+    return alpha * x / (lam + x)

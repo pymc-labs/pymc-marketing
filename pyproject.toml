@@ -17,7 +17,7 @@ dependencies = [
     "numpy>=1.17",
     "pandas",
     # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
-    "pymc>=5.10.0",
+    "pymc>=5.10.4",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "xarray",
@@ -38,7 +38,11 @@ docs = [
     "sphinx-design",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
-test = ["lifetimes==0.11.3", "pytest==7.0.1", "pytest-cov==3.0.0"]
+test = [
+    "lifetimes==0.11.3",
+    "pytest==7.0.1",
+    "pytest-cov==3.0.0",
+]
 
 [tool.setuptools]
 packages = [
