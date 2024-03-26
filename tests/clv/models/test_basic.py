@@ -7,7 +7,7 @@ import pytest
 from arviz import InferenceData, from_dict
 
 from pymc_marketing.clv.models.basic import CLVModel
-from tests.clv.utils import set_model_fit
+from tests.conftest import set_model_fit
 
 
 class CLVModelTest(CLVModel):

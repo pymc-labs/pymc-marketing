@@ -16,7 +16,7 @@ from pymc_marketing.clv.utils import (
     rfm_train_test_split,
     to_xarray,
 )
-from tests.clv.utils import set_model_fit
+from tests.conftest import set_model_fit
 
 
 def test_to_xarray():
@@ -40,15 +40,6 @@ def test_to_xarray():
     new_y = to_xarray(customer_id, y, dim="test_dim")
     new_y.dims == ("test_dim",)
     np.testing.assert_array_equal(new_y.coords["test_dim"], customer_id)
-
-
-@pytest.fixture(scope="module")
-def test_summary_data() -> pd.DataFrame:
-    rng = np.random.default_rng(14)
-    df = pd.read_csv("tests/clv/datasets/test_summary_data.csv", index_col=0)
-    df["monetary_value"] = rng.lognormal(size=(len(df)))
-    df["customer_id"] = df.index
-    return df
 
 
 @pytest.fixture(scope="module")
@@ -100,6 +91,7 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
     pnbd_model.build_model()
 
     # Mock an idata object for tests requiring a fitted model
+    # TODO: This is quite slow. Check similar fixtures in the model tests to speed this up.
     fake_fit = pm.sample_prior_predictive(
         samples=50, model=pnbd_model.model, random_seed=rng
     ).prior

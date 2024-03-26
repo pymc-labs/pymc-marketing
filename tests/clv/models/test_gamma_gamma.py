@@ -10,7 +10,7 @@ from pymc_marketing.clv.models.gamma_gamma import (
     GammaGammaModel,
     GammaGammaModelIndividual,
 )
-from tests.clv.utils import set_model_fit
+from tests.conftest import set_model_fit
 
 
 class BaseTestGammaGammaModel:
