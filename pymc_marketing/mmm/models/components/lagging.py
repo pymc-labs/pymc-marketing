@@ -3,11 +3,11 @@ from typing import Dict, Optional, Union
 import pymc as pm
 
 from pymc_marketing.mmm.transformers import geometric_adstock, weibull_adstock
-from pymc_marketing.mmm.utils import _get_distribution, _validate_model_config
+from pymc_marketing.mmm.utils import _get_distribution
 
 
 class BaseFunction:
-    def __init__(self, max_lagging, model):
+    def __init__(self, max_lagging: int = 4, model: Optional[pm.Model] = None):
         self.max_lagging = max_lagging
         self.model = model
 
@@ -47,12 +47,38 @@ class GeometricAdstockComponent(BaseFunction):
         "adstock_alpha",
     ]
 
-    def __init__(self, max_lagging, model, model_config):
-        super().__init__(max_lagging, model)
-        self.model_config = model_config
-        _validate_model_config(
-            required_keys=self.REQUIRED_KEYS, model_config=self.model_config
-        )
+    def __init__(
+        self,
+        max_lagging: int = 4,
+        model: Optional[pm.Model] = None,
+        model_config: Optional[Dict] = None,
+    ):
+        self.max_lagging = max_lagging
+        self.model = model
+        if model_config is not None and not all(
+            key in model_config for key in self.REQUIRED_KEYS
+        ):
+            self.model_config = {**model_config, **self._default_lagging_config}
+        elif model_config is None:
+            self.model_config = self._default_lagging_config
+        else:
+            self.model_config = model_config
+
+    @property
+    def _default_lagging_config(self) -> Dict[str, Dict]:
+        return {
+            "adstock_alpha": {
+                "dist": "Beta",
+                "kwargs": {"alpha": 1, "beta": 3},
+            }
+        }
+
+    @property
+    def variable_mapping(self) -> Dict[str, str]:
+        """The mapping from saturation function parameters to variables in a model."""
+        return {
+            "alpha": "adstock_alpha",
+        }
 
     def apply(self, data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
         """
@@ -80,16 +106,12 @@ class GeometricAdstockComponent(BaseFunction):
                 **self.model_config["adstock_alpha"]["kwargs"],
             )
 
-            return pm.Deterministic(
-                name="channel_adstock",
-                var=geometric_adstock(
-                    x=data,
-                    alpha=adstock_alpha,
-                    l_max=self.max_lagging,
-                    normalize=True,
-                    axis=0,
-                ),
-                dims=("date", "channel"),
+            return geometric_adstock(
+                x=data,
+                alpha=adstock_alpha,
+                l_max=self.max_lagging,
+                normalize=True,
+                axis=0,
             )
 
 
@@ -120,12 +142,43 @@ class WeibullPDFAdstockComponent(BaseFunction):
 
     REQUIRED_KEYS = ["adstock_lambda", "adstock_shape"]
 
-    def __init__(self, max_lagging, model, model_config):
-        super().__init__(max_lagging, model)
-        self.model_config = model_config
-        _validate_model_config(
-            required_keys=self.REQUIRED_KEYS, model_config=self.model_config
-        )
+    def __init__(
+        self,
+        max_lagging: int = 4,
+        model: Optional[pm.Model] = None,
+        model_config: Optional[Dict] = None,
+    ):
+        self.max_lagging = max_lagging
+        self.model = model
+        if model_config is not None and not all(
+            key in model_config for key in self.REQUIRED_KEYS
+        ):
+            self.model_config = {**model_config, **self._default_lagging_config}
+        elif model_config is None:
+            self.model_config = self._default_lagging_config
+        else:
+            self.model_config = model_config
+
+    @property
+    def _default_lagging_config(self) -> Dict[str, Dict]:
+        return {
+            "adstock_lambda": {
+                "dist": "Beta",
+                "kwargs": {"alpha": 1, "beta": 3},
+            },
+            "adstock_shape": {
+                "dist": "Beta",
+                "kwargs": {"alpha": 1, "beta": 3},
+            },
+        }
+
+    @property
+    def variable_mapping(self) -> Dict[str, str]:
+        """The mapping from saturation function parameters to variables in a model."""
+        return {
+            "lam": "adstock_lambda",
+            "k": "adstock_shape",
+        }
 
     def apply(self, data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
         """
@@ -163,16 +216,12 @@ class WeibullPDFAdstockComponent(BaseFunction):
                 **self.model_config["adstock_shape"]["kwargs"],
             )
 
-            return pm.Deterministic(
-                name="channel_adstock",
-                var=weibull_adstock(
-                    x=data,
-                    lam=adstock_lambda,
-                    k=adstock_shape,
-                    type="PDF",
-                    l_max=self.max_lagging,
-                ),
-                dims=("date", "channel"),
+            return weibull_adstock(
+                x=data,
+                lam=adstock_lambda,
+                k=adstock_shape,
+                type="PDF",
+                l_max=self.max_lagging,
             )
 
 
@@ -203,7 +252,12 @@ class WeibullCDFAdstockComponent(BaseFunction):
 
     REQUIRED_KEYS = ["adstock_lambda", "adstock_shape"]
 
-    def __init__(self, max_lagging, model, model_config):
+    def __init__(
+        self,
+        max_lagging: int = 4,
+        model: Optional[pm.Model] = None,
+        model_config: Optional[Dict] = None,
+    ):
         """
         Initialize the WeibullCDFAdstockComponent.
 
@@ -217,11 +271,37 @@ class WeibullCDFAdstockComponent(BaseFunction):
             The configuration dictionary for the model.
 
         """
-        super().__init__(max_lagging, model)
-        self.model_config = model_config
-        _validate_model_config(
-            required_keys=self.REQUIRED_KEYS, model_config=self.model_config
-        )
+        self.max_lagging = max_lagging
+        self.model = model
+        if model_config is not None and not all(
+            key in model_config for key in self.REQUIRED_KEYS
+        ):
+            self.model_config = {**model_config, **self._default_lagging_config}
+        elif model_config is None:
+            self.model_config = self._default_lagging_config
+        else:
+            self.model_config = model_config
+
+    @property
+    def _default_lagging_config(self) -> Dict[str, Dict]:
+        return {
+            "adstock_lambda": {
+                "dist": "Beta",
+                "kwargs": {"alpha": 1, "beta": 3},
+            },
+            "adstock_shape": {
+                "dist": "Beta",
+                "kwargs": {"alpha": 1, "beta": 3},
+            },
+        }
+
+    @property
+    def variable_mapping(self) -> Dict[str, str]:
+        """The mapping from saturation function parameters to variables in a model."""
+        return {
+            "lam": "adstock_lambda",
+            "k": "adstock_shape",
+        }
 
     def apply(self, data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
         """
@@ -259,21 +339,20 @@ class WeibullCDFAdstockComponent(BaseFunction):
                 **self.model_config["adstock_shape"]["kwargs"],
             )
 
-            return pm.Deterministic(
-                name="channel_adstock",
-                var=weibull_adstock(
-                    x=data,
-                    lam=adstock_lambda,
-                    k=adstock_shape,
-                    type="CDF",
-                    l_max=self.max_lagging,
-                ),
-                dims=("date", "channel"),
+            return weibull_adstock(
+                x=data,
+                lam=adstock_lambda,
+                k=adstock_shape,
+                type="CDF",
+                l_max=self.max_lagging,
             )
 
 
 def _get_lagging_function(
-    name: str, max_lagging: int, model: pm.Model, model_config: Optional[Dict] = None
+    name: str,
+    max_lagging: int = 4,
+    model: Optional[pm.Model] = None,
+    model_config: Optional[Dict] = None,
 ):
     """
     Get the lagging function based on the given name.
@@ -308,6 +387,8 @@ def _get_lagging_function(
     }
 
     if name in lagging_functions:
-        return lagging_functions[name](max_lagging, model, model_config)
+        return lagging_functions[name](
+            max_lagging=max_lagging, model=model, model_config=model_config
+        )
     else:
         raise ValueError(f"Lagging function {name} not recognized.")

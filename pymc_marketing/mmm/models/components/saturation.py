@@ -7,12 +7,14 @@ from pymc_marketing.mmm.transformers import (
     logistic_saturation,
     michaelis_menten,
 )
-from pymc_marketing.mmm.utils import _get_distribution, _validate_model_config
+from pymc_marketing.mmm.utils import _get_distribution
 
 
 ### SATURATION FUNCTIONS
 class BaseFunction:
-    def __init__(self, max_lagging, model):
+    def __init__(
+        self, max_lagging: Optional[int] = None, model: Optional[pm.Model] = None
+    ):
         self.max_lagging = max_lagging
         self.model = model
 
@@ -49,12 +51,44 @@ class HillSaturationComponent(BaseFunction):
         "saturation_beta",
     ]
 
-    def __init__(self, model, model_config):
+    def __init__(
+        self, model: Optional[pm.Model] = None, model_config: Optional[Dict] = None
+    ):
         self.model = model
-        self.model_config = model_config
-        _validate_model_config(
-            required_keys=self.REQUIRED_KEYS, model_config=self.model_config
-        )
+        if model_config is not None and not all(
+            key in model_config for key in self.REQUIRED_KEYS
+        ):
+            self.model_config = {**model_config, **self._default_saturation_config}
+        elif model_config is None:
+            self.model_config = self._default_saturation_config
+        else:
+            self.model_config = model_config
+
+    @property
+    def _default_saturation_config(self) -> Dict:
+        return {
+            "saturation_sigma": {
+                "dist": "HalfNormal",
+                "kwargs": {"sigma": 2},
+            },
+            "saturation_lambda": {
+                "dist": "Gamma",
+                "kwargs": {"mu": 1, "sigma": 2},
+            },
+            "saturation_beta": {
+                "dist": "HalfNormal",
+                "kwargs": {"sigma": 2},
+            },
+        }
+
+    @property
+    def variable_mapping(self) -> Dict[str, str]:
+        """The mapping from saturation function parameters to variables in a model."""
+        return {
+            "lam": "saturation_lambda",
+            "beta": "saturation_beta",
+            "sigma": "saturation_sigma",
+        }
 
     def apply(self, data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
         """
@@ -103,15 +137,11 @@ class HillSaturationComponent(BaseFunction):
                 **self.model_config["saturation_beta"]["kwargs"],
             )
 
-            return pm.Deterministic(
-                "channel_contributions",
-                var=hill_saturation(
-                    x=data,
-                    sigma=saturation_sigma,
-                    beta=saturation_beta,
-                    lam=saturation_lambda,
-                ),
-                dims=("date", "channel"),
+            return hill_saturation(
+                x=data,
+                sigma=saturation_sigma,
+                beta=saturation_beta,
+                lam=saturation_lambda,
             )
 
 
@@ -143,7 +173,9 @@ class MentenSaturationComponent(BaseFunction):
         "saturation_lambda",
     ]
 
-    def __init__(self, model, model_config):
+    def __init__(
+        self, model: Optional[pm.Model] = None, model_config: Optional[Dict] = None
+    ):
         """
         Initialize the MentenSaturationComponent.
 
@@ -155,10 +187,35 @@ class MentenSaturationComponent(BaseFunction):
             A dictionary containing the configuration parameters for the model.
         """
         self.model = model
-        self.model_config = model_config
-        _validate_model_config(
-            required_keys=self.REQUIRED_KEYS, model_config=self.model_config
-        )
+        if model_config is not None and not all(
+            key in model_config for key in self.REQUIRED_KEYS
+        ):
+            self.model_config = {**model_config, **self._default_saturation_config}
+        elif model_config is None:
+            self.model_config = self._default_saturation_config
+        else:
+            self.model_config = model_config
+
+    @property
+    def _default_saturation_config(self) -> Dict:
+        return {
+            "saturation_alpha": {
+                "dist": "HalfNormal",
+                "kwargs": {"sigma": 2},
+            },
+            "saturation_lambda": {
+                "dist": "Gamma",
+                "kwargs": {"mu": 1, "sigma": 2},
+            },
+        }
+
+    @property
+    def variable_mapping(self) -> Dict[str, str]:
+        """The mapping from saturation function parameters to variables in a model."""
+        return {
+            "lam": "saturation_lambda",
+            "alpha": "saturation_alpha",
+        }
 
     def apply(self, data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
         """
@@ -197,12 +254,8 @@ class MentenSaturationComponent(BaseFunction):
                 dims=("channel"),
             )
 
-            return pm.Deterministic(
-                "channel_contributions",
-                var=michaelis_menten(
-                    x=data, alpha=saturation_alpha, lam=saturation_lambda
-                ),
-                dims=("date", "channel"),
+            return michaelis_menten(
+                x=data, alpha=saturation_alpha, lam=saturation_lambda
             )
 
 
@@ -234,9 +287,11 @@ class LogisticSaturationComponent(BaseFunction):
         "saturation_lambda",
     ]
 
-    def __init__(self, model, model_config):
+    def __init__(
+        self, model: Optional[pm.Model] = None, model_config: Optional[Dict] = None
+    ):
         """
-        Initialize the LogisticSaturationComponent.
+        Initialize the MentenSaturationComponent.
 
         Parameters:
         -----------
@@ -246,10 +301,35 @@ class LogisticSaturationComponent(BaseFunction):
             A dictionary containing the configuration parameters for the model.
         """
         self.model = model
-        self.model_config = model_config
-        _validate_model_config(
-            required_keys=self.REQUIRED_KEYS, model_config=self.model_config
-        )
+        if model_config is not None and not all(
+            key in model_config for key in self.REQUIRED_KEYS
+        ):
+            self.model_config = {**model_config, **self._default_saturation_config}
+        elif model_config is None:
+            self.model_config = self._default_saturation_config
+        else:
+            self.model_config = model_config
+
+    @property
+    def _default_saturation_config(self) -> Dict:
+        return {
+            "saturation_beta": {
+                "dist": "HalfNormal",
+                "kwargs": {"sigma": 2},
+            },
+            "saturation_lambda": {
+                "dist": "Gamma",
+                "kwargs": {"alpha": 3, "beta": 1},
+            },
+        }
+
+    @property
+    def variable_mapping(self) -> Dict[str, str]:
+        """The mapping from saturation function parameters to variables in a model."""
+        return {
+            "lam": "saturation_lambda",
+            "beta": "saturation_beta",
+        }
 
     def apply(self, data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
         """
@@ -288,16 +368,11 @@ class LogisticSaturationComponent(BaseFunction):
                 dims=("channel"),
             )
 
-            return pm.Deterministic(
-                name="channel_contributions",
-                var=logistic_saturation(x=data, lam=saturation_lambda)
-                * saturation_beta,
-                dims=("date", "channel"),
-            )
+            return logistic_saturation(x=data, lam=saturation_lambda) * saturation_beta
 
 
 def _get_saturation_function(
-    name: str, model: pm.Model, model_config: Optional[Dict] = None
+    name: str, model: Optional[pm.Model] = None, model_config: Optional[Dict] = None
 ):
     """
     Get the saturation function based on the given name.
@@ -329,6 +404,6 @@ def _get_saturation_function(
     }
 
     if name in saturation_functions:
-        return saturation_functions[name](model, model_config)
+        return saturation_functions[name](model=model, model_config=model_config)
     else:
         raise ValueError(f"Saturation function {name} not recognized.")
