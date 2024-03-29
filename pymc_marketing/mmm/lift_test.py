@@ -68,13 +68,13 @@ def lift_test_indices(df_lift_test: pd.DataFrame, model: pm.Model) -> Indices:
     }
 
 
-def empirical_lift_measurements(
+def calculate_lift_measurements_from_curve(
     x_before: npt.NDArray[np.float_],
     x_after: npt.NDArray[np.float_],
     saturation_curve: Callable[[npt.NDArray[np.float_]], npt.NDArray[np.float_]],
     pt=pt,
 ) -> npt.NDArray[np.float_]:
-    """Calculate the empirical lift measurements at two spends.
+    """Calculate the lift measurements at two spends.
 
     Parameters
     ----------
@@ -89,7 +89,7 @@ def empirical_lift_measurements(
     Returns
     -------
     npt.NDArray[float]
-        Array of empirical lift measurements.
+        Array of lift measurements based on a given saturation curve
 
     """
     return pt.diff(
@@ -274,13 +274,13 @@ def add_lift_measurements_to_likelihood(
     }
 
     partial_saturation_function = partial(saturation_function, **kwargs)
-    empirical_lift = empirical_lift_measurements(
+    model_estimated_lift = calculate_lift_measurements_from_curve(
         x_before, x_after, partial_saturation_function
     )
 
     dist(
         name=name,
-        mu=empirical_lift,
+        mu=model_estimated_lift,
         sigma=df_lift_test["sigma"].to_numpy(),
         observed=df_lift_test["delta_y"].to_numpy(),
     )
