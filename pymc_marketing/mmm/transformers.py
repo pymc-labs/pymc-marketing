@@ -373,38 +373,49 @@ def weibull_adstock(
 
 def hill_function(x, ec, slope):
     """
-    Implements the Hill function, a sigmoidal model often used to describe saturation effects in various contexts,
-    such as biochemical reactions, pharmacological dose-response relationships, and media spend efficiency in marketing.
-    The function is characterized by a flexible sigmoidal curve that can model a range of response shapes from hyperbolic
-    to S-shaped, depending on the parameters.
-    The Hill function is given by:
-        f(x) = 1 / (1 + (x / ec)^(-slope))
-    where:
-    - x is the input variable representing the level of an independent factor (e.g., substrate concentration in biochemistry,
-      dose in pharmacology, or media spend in marketing).
-    - ec is the "half saturation point" or the "effective concentration" at which the function value is half of its maximum,
-      indicating a point of inflection where the response starts to exhibit diminishing returns.
-    - slope (often denoted as the Hill coefficient in biochemical contexts) is a dimensionless parameter that controls the
-      steepness of the curve. It provides insight into the cooperativity or the intensity of the saturation effect:
-        - slope < 1 indicates a more gradual increase (concave curve) leading to saturation,
-        - slope = 1 represents a hyperbolic response similar to Michaelis-Menten kinetics in enzyme activity,
-        - slope > 1 yields an S-shaped curve indicating a sharper transition between the phases of low and high response.
-    Parameters:
-    - x (float): Input variable (e.g., media spend, dose, substrate concentration) which the response depends on.
-    - ec (float): Half saturation point, a critical value of 'x' where the response is half of its maximal value. It must be
-                 greater than 0 to avoid division by zero and ensure a meaningful inflection point.
-    - slope (float): Shape control parameter that affects the curve's steepness and the responsiveness of the system to changes
-                     in 'x'. A positive value is required to maintain the sigmoidal nature of the function.
-    Returns:
-    - float: The output of the Hill function, representing the saturation effect or response level for the given input 'x'.
-             The return value is bounded between 0 (as x approaches 0) and 1 (as x approaches infinity), representing the
-             fraction of the maximal possible response.
-    Example:
-    - To model the effect of increasing media spend on the return on investment with diminishing returns beyond a certain point,
-      one might use the Hill function with appropriate 'ec' and 'slope' values to capture the saturation effect.
+    Estimates the sales effect of marketing spend using the Hill function, designed to model the diminishing returns on sales beyond a certain level of spend.
+
+    The Hill function provides a sigmoidal response curve, which is especially useful for capturing the saturation effect in sales as marketing spend increases. The parameter `ec` represents the spend level at which the sales effect is half of its maximum potential, serving as a pivotal point for optimizing marketing budgets. The `slope` parameter influences the curve's steepness, indicating the rate at which sales approach saturation with increasing spend.
+
+    Parameters
+    ----------
+    x : float
+        The marketing spend for which the sales effect is being calculated.
+    ec : float
+        The spend level at which the sales effect reaches half of its maximal potential, highlighting the efficiency breakpoint of marketing investments.
+    slope : float
+        Dictates the curve's steepness, with higher values depicting a more abrupt transition to the saturation phase of sales.
+
+    Returns
+    -------
+    float
+        The fractional saturation level of the sales effect given the marketing spend, scaled between 0 (minimal spend) and 1 (maximum sales potential).
+
+    Example
+    -------
+    To illustrate how the Hill function models the diminishing returns on sales with increased marketing spend:
+
+    .. plot::
+            :context: close-figs
+
+            x = np.linspace(0, 1000, 100)
+            ec_values = [200, 500, 800]
+            plt.figure(figsize=(12, 4))
+            for i, ec in enumerate(ec_values):
+                plt.subplot(1, 3, i+1)
+                y = hill_function(x, ec, 2)
+                plt.plot(x, y)
+                plt.xlabel('Marketing Spend ($)')
+                plt.ylabel('Sales Effect')
+                plt.title(f'EC = {ec}, Slope = 2')
+            plt.tight_layout()
+            plt.show()
+
+    Notes
+    -----
+    The function's output, ranging from 0 to 1, indicates the proportion of the maximum potential sales effect achieved for a given marketing spend. To convert this to actual sales figures, the output should be multiplied by the maximum possible sales increase attributable to marketing activities.
     """
     return 1 / (1 + (x / ec) ** (-slope))
-
 
 def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
     """Logistic saturation transformation.
