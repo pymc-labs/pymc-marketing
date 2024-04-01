@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import NamedTuple, Union
+from typing import Any, NamedTuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -661,3 +661,90 @@ def tanh_saturation_baselined(
     Developed by Max Kochurov and Aziz Al-Maeeni doing innovative work in `PyMC Labs <pymc-labs.com>`_.
     """
     return gain * x0 * pt.tanh(x * pt.arctanh(r) / x0) / r
+
+
+def michaelis_menten(
+    x: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
+) -> Union[float, Any]:
+    r"""
+    Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
+
+    The Michaelis-Menten function models enzyme kinetics and describes how the rate of a chemical reaction increases with substrate concentration until it reaches its maximum value.
+
+    .. math::
+        \alpha \cdot \frac{x}{\lambda + x}
+
+    where:
+     - :math:`x`: Channel spend or substrate concentration.
+     - :math:`\alpha`: Maximum contribution or efficiency factor.
+     - :math:`\lambda` (k): Michaelis constant, representing the threshold substrate concentration.
+
+    .. plot::
+        :context: close-figs
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from pymc_marketing.mmm.transformers import michaelis_menten
+
+        x = np.linspace(0, 100, 500)
+        alpha = 10
+        lam = 50
+        y = michaelis_menten(x, alpha, lam)
+
+        plt.plot(x, y)
+        plt.xlabel('Spend/Impressions (x)')
+        plt.ylabel('Contribution (y)')
+        plt.title('Michaelis-Menten Function')
+        plt.show()
+
+    .. plot::
+        :context: close-figs
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from pymc_marketing.mmm.transformers import michaelis_menten
+
+        x = np.linspace(0, 100, 500)
+        alpha_values = [5, 10, 15]  # Different values of alpha
+        lam_values = [25, 50, 75]  # Different values of lam
+
+        # Plot varying lam
+        plt.figure(figsize=(8, 6))
+        for lam in lam_values:
+            y = michaelis_menten(x, alpha_values[0], lam)
+            plt.plot(x, y, label=f"lam={lam}")
+        plt.xlabel('Spend/Impressions (x)')
+        plt.ylabel('Contribution (y)')
+        plt.title('Michaelis-Menten Function (Varying lam)')
+        plt.legend()
+        plt.show()
+
+        # Plot varying alpha
+        plt.figure(figsize=(8, 6))
+        for alpha in alpha_values:
+            y = michaelis_menten(x, alpha, lam_values[0])
+            plt.plot(x, y, label=f"alpha={alpha}")
+        plt.xlabel('Spend/Impressions (x)')
+        plt.ylabel('Contribution (y)')
+        plt.title('Michaelis-Menten Function (Varying alpha)')
+        plt.legend()
+        plt.show()
+
+    Parameters
+    ----------
+    x : float
+        The spent on a channel.
+    alpha : float
+        The maximum contribution a channel can make.
+    lam : float
+        The Michaelis constant for the given enzyme-substrate system.
+
+    Returns
+    -------
+    float
+        The value of the Michaelis-Menten function given the parameters.
+    """
+
+    return alpha * x / (lam + x)
