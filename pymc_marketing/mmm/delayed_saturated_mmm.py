@@ -13,14 +13,12 @@ from pytensor.tensor import TensorVariable
 from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.base import MMM
-from pymc_marketing.mmm.models.components.lagging import _get_lagging_function
-from pymc_marketing.mmm.models.components.saturation import _get_saturation_function
-
 from pymc_marketing.mmm.lift_test import (
     add_logistic_empirical_lift_measurements_to_likelihood,
     scale_lift_measurements,
 )
-
+from pymc_marketing.mmm.models.components.lagging import _get_lagging_function
+from pymc_marketing.mmm.models.components.saturation import _get_saturation_function
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.mmm.utils import (
