@@ -19,7 +19,7 @@ dependencies = [
     # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
     "pymc>=5.10.4",
     "scikit-learn>=1.1.1",
-    "scipy<1.13.0"
+    "scipy<1.13.0",
     "seaborn>=0.12.2",
     "xarray",
     "xarray-einstats>=0.5.1",
