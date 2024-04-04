@@ -1,3 +1,5 @@
+"""Media Mix Model with delayed adstock and logistic saturation class."""
+
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -30,6 +32,13 @@ __all__ = ["DelayedSaturatedMMM"]
 
 
 class BaseDelayedSaturatedMMM(MMM):
+    """Base class for a media mix model with delayed adstock and logistic saturation class (see [1]_).
+
+    References
+    ----------
+    .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
+    """
+
     _model_type = "DelayedSaturatedMMM"
     version = "0.0.2"
 
@@ -45,7 +54,7 @@ class BaseDelayedSaturatedMMM(MMM):
         yearly_seasonality: Optional[int] = None,
         **kwargs,
     ) -> None:
-        """Media Mix Model with delayed adstock and logistic saturation class (see [1]_).
+        """Constructor method.
 
         Parameters
         ----------
@@ -65,10 +74,6 @@ class BaseDelayedSaturatedMMM(MMM):
             Number of lags to consider in the adstock transformation, by default 4
         yearly_seasonality : Optional[int], optional
             Number of Fourier modes to model yearly seasonality, by default None.
-
-        References
-        ----------
-        .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
         """
         self.control_columns = control_columns
         self.adstock_max_lag = adstock_max_lag
@@ -706,7 +711,65 @@ class DelayedSaturatedMMM(
     ValidateControlColumns,
     BaseDelayedSaturatedMMM,
 ):
-    ...
+    """Media Mix Model with delayed adstock and logistic saturation class (see [1]_).
+
+    Given a time series target variable :math:`y_{t}` (e.g. sales on conversions), media variables
+    :math:`x_{m, t}` (e.g. impressions, clicks or costs) and a set of control covariates :math:`z_{c, t}` (e.g. holidays, special events)
+    we consider a Bayesian linear model of the form:
+
+    .. math::
+        y_{t} = \\alpha + \\sum_{m=1}^{M}\\beta_{m}f(x_{m, t}) +  \\sum_{c=1}^{C}\\gamma_{c}z_{c, t} + \\varepsilon_{t},
+
+    where :math:`\\alpha` is the intercept, :math:`f` is a media transformation function and :math:`\\varepsilon_{t}` is the error therm
+    which we assume is normally distributed. The function :math:`f` encodes the contribution of media on the target variable.
+    Typically we consider two types of transformation: adstock (carry-over) and saturation effects.
+
+    Notes
+    -----
+    Here are some important notes about the model:
+
+    1. Before fitting the model, we scale the target variable and the media channels using the maximum absolute value of each variable.
+    This enable us to have a more stable model and better convergence. If control variables are present, we do not scale them!
+    If needed please do it before passing the data to the model.
+
+    2. We allow to add yearly seasonality controls as Fourier modes. You can use the `yearly_seasonality` parameter to specify the number of Fourier modes to include.
+
+    3. This class also allow us to calibrate the model using:
+
+    - Custom priors for the parameters via the `model_config` parameter. You can also set the likelihood distribution.
+    - Adding lift tests to the likelihood function via the :meth:`add_lift_test_measurements <pymc_marketing.mmm.delayed_saturated_mmm.DelayedSaturatedMMM.add_lift_test_measurements>` method.
+
+    For details on a vanilla implementation in PyMC, see [2]_.
+
+    Examples
+    --------
+    Here is an example of how to instantiate the model with the default configuration:
+
+    .. code-block:: python
+
+        import pandas as pd
+        from pymc_marketing.mmm import DelayedSaturatedMMM
+
+        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/datasets/mmm_example.csv"
+        data = pd.read_csv(data_url, parse_dates=['date_week'])
+
+        mmm = DelayedSaturatedMMM(
+            date_column="date_week",
+            channel_columns=["x1", "x2"],
+            control_columns=[
+                "event_1",
+                "event_2",
+                "t",
+            ],
+            adstock_max_lag=8,
+            yearly_seasonality=2,
+        )
+
+    References
+    ----------
+    .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
+    .. [2] Orduz, J. `"Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns" <https://juanitorduz.github.io/pymc_mmm/>`_.
+    """
 
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float_]
@@ -782,6 +845,7 @@ class DelayedSaturatedMMM(
         **plt_kwargs: Any,
     ) -> plt.Figure:
         """Plots a grid of scaled channel contributions for a given grid of share values.
+
         Parameters
         ----------
         start : float
