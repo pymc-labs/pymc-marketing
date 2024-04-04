@@ -101,9 +101,9 @@ class BaseDelayedSaturatedMMM(MMM):
     def _generate_and_preprocess_model_data(  # type: ignore
         self, X: Union[pd.DataFrame, pd.Series], y: Union[pd.Series, np.ndarray]
     ) -> None:
-        """
-        Applies preprocessing to the data before fitting the model.
-        if validate is True, it will check if the data is valid for the model.
+        """Applies preprocessing to the data before fitting the model.
+
+        If validate is True, it will check if the data is valid for the model.
         sets self.model_coords based on provided dataset
 
         Parameters
@@ -390,6 +390,7 @@ class BaseDelayedSaturatedMMM(MMM):
             )
 
             mu_var = intercept + channel_contributions.sum(axis=-1)
+
             if (
                 self.control_columns is not None
                 and len(self.control_columns) > 0
@@ -417,6 +418,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 )
 
                 mu_var += control_contributions.sum(axis=-1)
+
             if (
                 hasattr(self, "fourier_columns")
                 and self.fourier_columns is not None
@@ -494,10 +496,12 @@ class BaseDelayedSaturatedMMM(MMM):
         self, channel_data: npt.NDArray[np.float_]
     ) -> npt.NDArray[np.float_]:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
+
         Parameters
         ----------
         channel_data : array-like
             Input channel data. Result of all the preprocessing steps.
+
         Returns
         -------
         array-like
@@ -753,7 +757,7 @@ class DelayedSaturatedMMM(
         from pymc_marketing.mmm import DelayedSaturatedMMM
 
         data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/datasets/mmm_example.csv"
-        data = pd.read_csv(data_url, parse_dates=['date_week'])
+        data = pd.read_csv(data_url, parse_dates=["date_week"])
 
         mmm = DelayedSaturatedMMM(
             date_column="date_week",
@@ -833,6 +837,7 @@ class DelayedSaturatedMMM(
     ) -> npt.NDArray[np.float_]:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
         We return the contribution in the original scale of the target variable.
+
         Parameters
         ----------
         channel_data : array-like
@@ -855,7 +860,8 @@ class DelayedSaturatedMMM(
     def get_channel_contributions_forward_pass_grid(
         self, start: float, stop: float, num: int
     ) -> DataArray:
-        """Generate a grid of scaled channel contributions for a given grid of share values.
+        """Generate a grid of scaled channel contributions for a given grid of shared values.
+
         Parameters
         ----------
         start : float
@@ -914,6 +920,7 @@ class DelayedSaturatedMMM(
         absolute_xrange : bool, optional
             If True, the x-axis is in absolute values (input units), otherwise it is in
             relative percentage values, by default False.
+
         Returns
         -------
         plt.Figure
