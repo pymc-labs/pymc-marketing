@@ -747,7 +747,9 @@ class DelayedSaturatedMMM(
 
     .. code-block:: python
 
+        import numpy as np
         import pandas as pd
+
         from pymc_marketing.mmm import DelayedSaturatedMMM
 
         data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/datasets/mmm_example.csv"
@@ -764,6 +766,61 @@ class DelayedSaturatedMMM(
             adstock_max_lag=8,
             yearly_seasonality=2,
         )
+
+    Now we can fit the model with the data:
+
+    .. code-block:: python
+
+        # Set features and target
+        X = data.drop("y", axis=1)
+        y = data["y"]
+
+        # Fit the model
+        idata = mmm.fit(X, y)
+
+    We can also define custom priors for the model:
+
+    .. code-block:: python
+
+        my_model_config = {
+            "beta_channel": {
+                "dist": "LogNormal",
+                "kwargs": {"mu": np.array([2, 1]), "sigma": 1},
+            },
+            "likelihood": {
+                "dist": "Normal",
+                "kwargs": {"sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}}},
+            },
+        }
+
+        mmm = DelayedSaturatedMMM(
+            model_config=my_model_config,
+            date_column="date_week",
+            channel_columns=["x1", "x2"],
+            control_columns=[
+                "event_1",
+                "event_2",
+                "t",
+            ],
+            adstock_max_lag=8,
+            yearly_seasonality=2,
+        )
+
+    Observe can choose the distribution and all parameters of the model.
+
+    The `fit` method accepts keyword arguments that are passed to the PyMC sampling method.
+    For example, to change the number of samples and chains, and using a JAX implementation of NUTS we can do:
+
+    .. code-block:: python
+
+        sampler_kwargs = {
+            "draws": 2_000,
+            "target_accept": 0.9,
+            "chains": 5,
+            "random_seed": 42,
+        }
+
+        idata = mmm.fit(X, y, nuts_sampler="numpyro", **sampler_kwargs)
 
     References
     ----------
