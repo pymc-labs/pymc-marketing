@@ -13,6 +13,10 @@ from pytensor.tensor import TensorVariable
 from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.base import MMM
+from pymc_marketing.mmm.lift_test import (
+    add_logistic_empirical_lift_measurements_to_likelihood,
+    scale_lift_measurements,
+)
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.mmm.tvp import time_varying_prior
@@ -1234,3 +1238,113 @@ class DelayedSaturatedMMM(
             )
 
         return posterior_predictive_samples
+
+    def add_lift_test_measurements(
+        self,
+        df_lift_test: pd.DataFrame,
+        dist: pm.Distribution = pm.Gamma,
+        name: str = "lift_measurements",
+    ) -> None:
+        """Add lift tests to the model.
+
+        The model difference of a channel's saturation curve is created
+        from `x` and `x + delta_x` for each channel. This random variable is
+        then conditioned using the empirical lift, `delta_y`, and `sigma` of the lift test
+        with the specified distribution `dist`.
+
+        The sudo code for the lift test is as follows:
+
+        .. code-block:: python
+
+            model_estimated_lift = (
+                saturation_curve(x + delta_x)
+                - saturation_curve(x)
+            )
+            empirical_lift = delta_y
+            dist(model_estimated_lift, sigma=sigma, observed=empirical_lift)
+
+
+        The model has to be built before adding the lift tests.
+
+        Parameters
+        ----------
+        df_lift_test : pd.DataFrame
+            DataFrame with lift test results with at least the following columns:
+                * `channel`: channel name. Must be present in `channel_columns`.
+                * `x`: x axis value of the lift test.
+                * `delta_x`: change in x axis value of the lift test.
+                * `delta_y`: change in y axis value of the lift test.
+                * `sigma`: standard deviation of the lift test.
+        dist : pm.Distribution, optional
+            The distribution to use for the likelihood, by default pm.Gamma
+        name : str, optional
+            The name of the likelihood of the lift test contribution(s),
+            by default "lift_measurements". Name change required if calling
+            this method multiple times.
+
+        Raises
+        ------
+        RuntimeError
+            If the model has not been built yet.
+        KeyError
+            If the 'channel' column is not present in df_lift_test.
+
+        Examples
+        --------
+        Build the model first then add lift test measurements.
+
+        .. code-block:: python
+
+            model = DelayedSaturatedMMM(
+                date_column="date_week",
+                channel_columns=["x1", "x2"],
+                control_columns=[
+                    "event_1",
+                    "event_2",
+                ],
+                adstock_max_lag=8,
+                yearly_seasonality=2,
+            )
+
+            X: pd.DataFrame = ...
+            y: np.ndarray = ...
+
+            model.build_model(X, y)
+
+            df_lift_test = pd.DataFrame({
+                "channel": ["x1", "x1"],
+                "x": [1, 1],
+                "delta_x": [0.1, 0.2],
+                "delta_y": [0.1, 0.1],
+                "sigma": [0.1, 0.1],
+            })
+
+            model.add_lift_test_measurements(df_lift_test)
+
+        """
+        if self.model is None:
+            raise RuntimeError(
+                "The model has not been built yet. Please, build the model first."
+            )
+
+        if "channel" not in df_lift_test.columns:
+            raise KeyError(
+                "The 'channel' column is required to map the lift measurements to the model."
+            )
+
+        df_lift_test_scaled = scale_lift_measurements(
+            df_lift_test=df_lift_test,
+            channel_col="channel",
+            channel_columns=self.channel_columns,  # type: ignore
+            channel_transform=self.channel_transformer.transform,
+            target_transform=self.target_transformer.transform,
+        )
+        with self.model:
+            add_logistic_empirical_lift_measurements_to_likelihood(
+                df_lift_test=df_lift_test_scaled,
+                # Based on the model
+                lam_name="lam",
+                beta_name="beta_channel",
+                dist=dist,
+                name=name,
+            )
