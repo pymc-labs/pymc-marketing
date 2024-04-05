@@ -810,7 +810,7 @@ class DelayedSaturatedMMM(
             yearly_seasonality=2,
         )
 
-    We can choose the distribution and all parameters and likelihood of the model through the `model_config` parameter.
+    As you can see, we can configure all prior and likelihood distributions via the `model_config`.
 
     The `fit` method accepts keyword arguments that are passed to the PyMC sampling method.
     For example, to change the number of samples and chains, and using a JAX implementation of NUTS we can do:
