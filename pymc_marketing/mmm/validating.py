@@ -1,3 +1,5 @@
+"""Validating methods for MMM classes."""
+
 from typing import Callable, List, Optional, Tuple, Union
 
 import pandas as pd

@@ -1,3 +1,5 @@
+"""Media transformation functions for Marketing Mix Models."""
+
 from enum import Enum
 from typing import Any, NamedTuple, Union
 
