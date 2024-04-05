@@ -1,3 +1,5 @@
+"""Preprocessing methods for the Marketing Mix Model."""
+
 from typing import Any, Callable, List, Tuple, Union
 
 import numpy as np

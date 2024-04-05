@@ -17,7 +17,6 @@
 
 ## Marketing Analytics Tools from [PyMC Labs](https://www.pymc-labs.com)
 
-
 Unlock the power of **Marketing Mix Modeling (MMM)** and **Customer Lifetime Value (CLV)** analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
 
 ## Quick Installation Guide for Marketing Mix Modeling (MMM) & CLV
@@ -42,11 +41,11 @@ Leverage our Bayesian MMM API to tailor your marketing strategies effectively. B
 - **Adstock Transformation**: Optimize the carry-over effects in your marketing channels.
 - **Saturation Effects**: Understand the diminishing returns in media investments.
 - **Budget Optimization**: Allocate your marketing spend efficiently across various channels for maximum ROI.
-- **Experiment Calibration**: Fine-tune your model based on empirical experiments for more unified view of marketing.
+- **Experiment Calibration**: Fine-tune your model based on empirical experiments for a more unified view of marketing.
 
 Explore a hands-on [simulated example](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
 
-### Essential Reading for Marketing Mix Modeling (MMM):
+### Essential Reading for Marketing Mix Modeling (MMM)
 
 - [Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization/)
 - [Improving the Speed and Accuracy of Bayesian Marketing Mix Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)
@@ -77,7 +76,7 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 
 PyMC-Marketing is and will always be free for commercial use, licensed under [Apache 2.0](LICENSE). Developed by core developers behind the popular PyMC package and marketing experts, it provides state-of-the-art measurements and analytics for marketing teams.
 
-Due to its open source nature and active contributor base, new features get added constantly. Missing a feature or want to contribute? Fork our repository and submit a pull request. For any questions, feel free to [open an issue](https://github.com/your-repo/issues).
+Due to its open-source nature and active contributor base, new features are added constantly. Missing a feature or want to contribute? Fork our repository and submit a pull request. For any questions, feel free to [open an issue](https://github.com/your-repo/issues).
 
 ## Marketing AI Assistant: MMM-GPT with PyMC-Marketing
 
@@ -95,7 +94,7 @@ For businesses looking to integrate PyMC-Marketing into their operational framew
 
 We provide the following professional services:
 
-- **Custom Models**: We tailor niche marketing anayltics models to fit your organization's unique needs.
-- **Build Within PyMC-Marketing**: Our team are experts leveraging the capabilities of PyMC-Marketing to create robust marketing models for precise insights.
+- **Custom Models**: We tailor niche marketing analytics models to fit your organization's unique needs.
+- **Build Within PyMC-Marketing**: Our team members are experts leveraging the capabilities of PyMC-Marketing to create robust marketing models for precise insights.
 - **SLA & Coaching**: Get guaranteed support levels and personalized coaching to ensure your team is well-equipped and confident in using our tools and approaches.
 - **SaaS Solutions**: Harness the power of our state-of-the-art software solutions to streamline your data-driven marketing initiatives.

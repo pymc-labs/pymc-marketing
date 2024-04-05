@@ -1,3 +1,5 @@
+"""Utility functions for the Marketing Mix Modeling module."""
+
 import re
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
