@@ -810,7 +810,7 @@ class DelayedSaturatedMMM(
             yearly_seasonality=2,
         )
 
-    Observe can choose the distribution and all parameters of the model.
+    Observe we can choose the distribution and all parameters of the model.
 
     The `fit` method accepts keyword arguments that are passed to the PyMC sampling method.
     For example, to change the number of samples and chains, and using a JAX implementation of NUTS we can do:
