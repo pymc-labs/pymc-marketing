@@ -1,3 +1,5 @@
+"""Base class for Marketing Mix Models (MMM)."""
+
 import warnings
 from inspect import (
     getattr_static,

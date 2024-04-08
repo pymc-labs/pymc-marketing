@@ -951,3 +951,43 @@ def test_mmm_fit_better_than_naive_model(actually_fit_mmm, toy_X, toy_y) -> None
     mmm_sample_is_better = mse_mmm_model < mse_mean_model
 
     assert mmm_sample_is_better.all()
+
+    
+@pytest.fixture
+def df_lift_test() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "channel": ["channel_1", "channel_1"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+        }
+    )
+
+
+def test_add_lift_test_measurements(mmm, toy_X, toy_y, df_lift_test) -> None:
+    mmm.build_model(X=toy_X, y=toy_y)
+
+    name = "lift_measurements"
+    assert name not in mmm.model
+
+    mmm.add_lift_test_measurements(
+        df_lift_test,
+        name=name,
+    )
+
+    assert name in mmm.model
+
+
+def test_add_lift_test_measurements_no_model() -> None:
+    mmm = DelayedSaturatedMMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        adstock_max_lag=4,
+        control_columns=["control_1", "control_2"],
+    )
+    with pytest.raises(RuntimeError, match="The model has not been built yet."):
+        mmm.add_lift_test_measurements(
+            pd.DataFrame(),
+        )
