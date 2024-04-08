@@ -68,7 +68,8 @@ class ParetoNBDModel(CLVModel):
         DataFrame containing the following columns:
             * `frequency`: number of repeat purchases
             * `recency`: time between the first and the last purchase
-            * `T`: time between the first purchase and the end of the observation period; model assumptions require T >= recency
+            * `T`: time between the first purchase and the end of the observation period.
+                Model assumptions require T >= recency
             * `customer_id`: unique customer identifier
         Along with optional covariate columns.
 
@@ -829,7 +830,8 @@ class ParetoNBDModel(CLVModel):
             "recency_frequency",
         ),
     ) -> xarray.Dataset:
-        """Utility function for posterior predictive sampling of dropout, purchase rate and frequency/recency of new customers.
+        """Utility function for posterior predictive sampling of dropout, purchase rate
+        and frequency/recency of new customers.
 
         In a model with covariates, if `data` is not specified, the dataset used for fitting will be used.
         A prediction will be computed for a new customer with each set of covariates.

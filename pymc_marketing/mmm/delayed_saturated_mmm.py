@@ -602,7 +602,10 @@ class BaseDelayedSaturatedMMM(MMM):
         # All previously used data is in idata.
         if model.id != idata.attrs["id"]:
             raise ValueError(
-                f"The file '{fname}' does not contain an inference data of the same model or configuration as '{cls._model_type}'"
+                f"""
+                The file '{fname}' does not contain an inference data of the same model
+                or configuration as '{cls._model_type}'
+                """
             )
 
         return model
@@ -697,8 +700,9 @@ class BaseDelayedSaturatedMMM(MMM):
     @classmethod
     def _model_config_formatting(cls, model_config: Dict) -> Dict:
         """
-        Because of json serialization, model_config values that were originally tuples or numpy are being encoded as lists.
-        This function converts them back to tuples and numpy arrays to ensure correct id encoding.
+        Because of json serialization, model_config values that were originally tuples
+        or numpy are being encoded as lists. This function converts them back to tuples
+        and numpy arrays to ensure correct id encoding.
         """
 
         def format_nested_dict(d: Dict) -> Dict:
@@ -1247,8 +1251,8 @@ class DelayedSaturatedMMM(
             data in order to carry over costs with the adstock transformation.
             Assumes that X_pred are the next predictions following the training data.
             Defaults to False.
-        original_scale: Boolean determining whether to return the predictions in the original scale of the target variable.
-            Defaults to True.
+        original_scale: Boolean determining whether to return the predictions in the original scale
+            of the target variable. Defaults to True.
         **sample_posterior_predictive_kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
 
         Returns

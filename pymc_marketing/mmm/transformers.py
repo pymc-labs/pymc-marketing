@@ -288,7 +288,8 @@ def weibull_adstock(
 ):
     R"""Weibull Adstocking Transformation.
 
-    This transformation is similar to geometric adstock transformation but has more degrees of freedom, adding more flexibility.
+    This transformation is similar to geometric adstock transformation but has more
+    degrees of freedom, adding more flexibility.
 
     .. plot::
         :context: close-figs

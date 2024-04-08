@@ -62,7 +62,7 @@ repository = "https://github.com/pymc-labs/pymc-marketing"
 select = ["E", "F", "I", "W"]
 
 [tool.ruff.lint.pycodestyle]
-max-line-length = 130
+max-line-length = 120
 
 [tool.pytest.ini_options]
 addopts = [

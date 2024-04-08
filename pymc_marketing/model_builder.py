@@ -351,8 +351,9 @@ class ModelBuilder(ABC):
     @classmethod
     def _model_config_formatting(cls, model_config: Dict) -> Dict:
         """
-        Because of json serialization, model_config values that were originally tuples or numpy are being encoded as lists.
-        This function converts them back to tuples and numpy arrays to ensure correct id encoding.
+        Because of json serialization, model_config values that were originally tuples
+        or numpy are being encoded as lists. This function converts them back to tuples
+        and numpy arrays to ensure correct id encoding.
         """
         for key in model_config:
             if isinstance(model_config[key], dict):
@@ -415,7 +416,10 @@ class ModelBuilder(ABC):
 
         if model.id != idata.attrs["id"]:
             raise ValueError(
-                f"The file '{fname}' does not contain an inference data of the same model or configuration as '{cls._model_type}'"
+                f"""
+                The file '{fname}' does not contain an inference data of the same model
+                or configuration as '{cls._model_type}'
+                """
             )
 
         return model
@@ -717,8 +721,8 @@ class ModelBuilder(ABC):
         """
         Generate a unique hash value for the model.
 
-        The hash value is created using the last 16 characters of the SHA256 hash encoding, based on the model configuration,
-        version, and model type.
+        The hash value is created using the last 16 characters of the SHA256 hash encoding,
+        based on the model configuration, version, and model type.
 
         Returns
         -------

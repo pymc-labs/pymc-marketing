@@ -216,8 +216,8 @@ def standardize_scenarios_dict_keys(d: Dict, keywords: List[str]):
     """
     Standardize the keys in a dictionary based on a list of keywords.
 
-    This function iterates over the keys in the dictionary and the keywords. If a keyword is found in a key (case-insensitive),
-    the key is replaced with the keyword.
+    This function iterates over the keys in the dictionary and the keywords.
+    If a keyword is found in a key (case-insensitive), the key is replaced with the keyword.
 
     Parameters
     ----------

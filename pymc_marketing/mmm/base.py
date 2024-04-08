@@ -89,9 +89,9 @@ class BaseMMM(ModelBuilder):
         A property that provides validation methods for features ("X") and the target variable ("y").
 
         This property scans the methods of the object and returns those marked for validation.
-        The methods are marked by having a _tags dictionary attribute, with either "validation_X" or "validation_y" set to True.
-        The "validation_X" tag indicates a method used for validating features, and "validation_y" indicates a method
-        used for validating the target variable.
+        The methods are marked by having a _tags dictionary attribute,with either "validation_X" or "validation_y"
+        set to True. The "validation_X" tag indicates a method used for validating features, and "validation_y"
+        indicates a method used for validating the target variable.
 
         Returns
         -------
@@ -511,7 +511,8 @@ class BaseMMM(ModelBuilder):
         and calculates the lower and upper bounds of the contribution fit.
 
         The function is used in the `plot_budget_scenearios` function to estimate the contribution fit for each channel
-        and budget scenario. The estimated fit is then used to plot the contribution optimization bounds for each scenario.
+        and budget scenario. The estimated fit is then used to plot the contribution optimization bounds
+        for each scenario.
 
         Parameters
         ----------
@@ -741,12 +742,14 @@ class BaseMMM(ModelBuilder):
         Plot the curve fit for the given channel based on the estimation of the parameters.
 
         The function computes the mean channel contributions, estimates the parameters based on the specified method
-        (either 'sigmoid' or 'michaelis-menten'), and plots the curve fit. An inflection point on the curve is also highlighted.
+        (either 'sigmoid' or 'michaelis-menten'), and plots the curve fit. An inflection point on the curve is
+        also highlighted.
 
         Parameters
         ----------
         x : np.ndarray
-            The x-axis data, usually representing the amount of input (e.g., substrate concentration in enzymology terms).
+            The x-axis data, usually representing the amount of
+            input (e.g., substrate concentration in enzymology terms).
         ax : plt.Axes
             The matplotlib axes object where the plot should be drawn.
         channel : str
