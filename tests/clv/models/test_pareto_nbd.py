@@ -9,7 +9,7 @@ from lifetimes import ParetoNBDFitter
 
 from pymc_marketing.clv import ParetoNBDModel
 from pymc_marketing.clv.distributions import ParetoNBD
-from tests.clv.utils import set_model_fit
+from tests.conftest import set_model_fit
 
 
 class TestParetoNBDModel:
