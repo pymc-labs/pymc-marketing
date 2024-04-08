@@ -741,7 +741,8 @@ class DelayedSaturatedMMM(
     3. This class also allow us to calibrate the model using:
 
     - Custom priors for the parameters via the `model_config` parameter. You can also set the likelihood distribution.
-    - Adding lift tests to the likelihood function via the :meth:`add_lift_test_measurements <pymc_marketing.mmm.delayed_saturated_mmm.DelayedSaturatedMMM.add_lift_test_measurements>` method.
+    - Adding lift tests to the likelihood function via the
+    :meth:`add_lift_test_measurements <pymc_marketing.mmm.delayed_saturated_mmm.DelayedSaturatedMMM.add_lift_test_measurements>` method.
 
     For details on a vanilla implementation in PyMC, see [2]_.
 

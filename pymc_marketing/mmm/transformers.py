@@ -65,11 +65,13 @@ def batched_convolution(
     axis : int
         The axis of ``x`` along witch to apply the convolution
     mode : ConvMode, optional
-        The convolution mode determines how the convolution is applied at the boundaries of the input signal, denoted as "x." The default mode is ConvMode.Before.
+        The convolution mode determines how the convolution is applied at the boundaries
+        of the input signal, denoted as "x." The default mode is ConvMode.Before.
 
         - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
         - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect similar to the wow factor.
-        - ConvMode.Overlap: Applies the convolution with both "Pull-Forward" and "Pull-Backward" effects, where the effect overlaps with both preceding and succeeding elements.
+        - ConvMode.Overlap: Applies the convolution with both "Pull-Forward" and "Pull-Backward" effects,
+            where the effect overlaps with both preceding and succeeding elements.
 
     Returns
     -------
@@ -673,7 +675,9 @@ def michaelis_menten(
     r"""
     Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
 
-    The Michaelis-Menten function models enzyme kinetics and describes how the rate of a chemical reaction increases with substrate concentration until it reaches its maximum value.
+    The Michaelis-Menten function models enzyme kinetics and describes how the rate of
+    a chemical reaction increases with substrate concentration until it reaches its
+    maximum value.
 
     .. math::
         \alpha \cdot \frac{x}{\lambda + x}

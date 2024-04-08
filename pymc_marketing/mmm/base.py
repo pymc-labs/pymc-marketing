@@ -913,8 +913,9 @@ class BaseMMM(ModelBuilder):
         """
         Experimental: Estimate the parameters for the saturating function of each channel's contribution.
 
-        The function estimates the parameters (alpha, constant) for each channel based on the specified method (either 'sigmoid' or 'michaelis-menten').
-        These parameters represent the maximum possible contribution (alpha) and the constant parameter which vary their definition based on the function (constant) for each channel.
+        The function estimates the parameters (alpha, constant) for each channel based on the specified method
+        (either 'sigmoid' or 'michaelis-menten'). These parameters represent the maximum possible contribution (alpha)
+        and the constant parameter which vary their definition based on the function (constant) for each channel.
 
         Parameters
         ----------
