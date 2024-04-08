@@ -109,6 +109,7 @@ def mmm_with_fourier_features() -> DelayedSaturatedMMM:
 
 def mock_fit(model, X: pd.DataFrame, y: np.ndarray, **kwargs):
     model.build_model(X=X, y=y)
+
     with model.model:
         idata = pm.sample_prior_predictive(random_seed=rng, **kwargs)
 
@@ -302,26 +303,29 @@ class TestDelayedSaturatedMMM:
         fourier_terms: int = 2 * mmm.yearly_seasonality
         mmm = mock_fit(mmm, toy_X, toy_y.to_numpy())
         idata: az.InferenceData = mmm.fit_result
+
+        chains = 1
+        draws = 500
         assert (
             az.extract(data=idata, var_names=["intercept"], combined=True)
             .to_numpy()
             .size
-            == 500
+            == chains * draws
         )
         assert az.extract(
             data=idata, var_names=["beta_channel"], combined=True
-        ).to_numpy().shape == (n_channel, 500)
+        ).to_numpy().shape == (n_channel, chains * draws)
         assert az.extract(
             data=idata, var_names=["alpha"], combined=True
-        ).to_numpy().shape == (n_channel, 500)
+        ).to_numpy().shape == (n_channel, chains * draws)
         assert az.extract(
             data=idata, var_names=["lam"], combined=True
-        ).to_numpy().shape == (n_channel, 500)
+        ).to_numpy().shape == (n_channel, chains * draws)
         assert az.extract(
             data=idata, var_names=["gamma_control"], combined=True
         ).to_numpy().shape == (
             n_channel,
-            500,
+            chains * draws,
         )
 
         mean_model_contributions_ts = mmm.compute_mean_contributions_over_time(
@@ -437,10 +441,12 @@ class TestDelayedSaturatedMMM:
         contributions = mmm_fitted.get_channel_contributions_forward_pass_grid(
             start=0, stop=1.5, num=grid_size
         )
+        chains = 1
+        draws = 500
         assert contributions.shape == (
             grid_size,
-            1,
-            500,
+            chains,
+            draws,
             data_range,
             n_channels,
         )
@@ -952,7 +958,7 @@ def test_mmm_fit_better_than_naive_model(actually_fit_mmm, toy_X, toy_y) -> None
 
     assert mmm_sample_is_better.all()
 
-    
+
 @pytest.fixture
 def df_lift_test() -> pd.DataFrame:
     return pd.DataFrame(
