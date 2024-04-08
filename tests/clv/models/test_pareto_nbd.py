@@ -394,7 +394,7 @@ class TestParetoNBDModelWithCovariates:
             dropout_coefficient=np.array([3.0]),
         )
 
-        cls.data = data = pd.read_csv("datasets/clv_quickstart.csv").iloc[:500]
+        cls.data = data = pd.read_csv("data/clv_quickstart.csv").iloc[:500]
         data["customer_id"] = data.index
 
         # Create two purchase covariates and one dropout covariate
