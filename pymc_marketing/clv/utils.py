@@ -513,8 +513,8 @@ def rfm_train_test_split(
     if training_transactions.empty:
         raise ValueError(
             """
-            No data available. Check `test_transactions` and  `train_period_end` and confirm values in`transactions`
-            occur prior to those time periods.
+            No data available. Check `test_transactions` and  `train_period_end` and confirm values in
+            `transactions` occur prior to those time periods.
             """
         )
 
