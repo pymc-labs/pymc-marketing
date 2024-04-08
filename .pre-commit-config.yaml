@@ -3,7 +3,7 @@ ci:
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.3.4
+    rev: v0.3.5
     hooks:
       - id: ruff
         args: ["--fix", "--output-format=full"]
@@ -23,7 +23,7 @@ repos:
       files: ^docs/source/notebooks/
       exclude: ^docs/source/notebooks/clv/dev/
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.6.0
     hooks:
       - id: debug-statements
       - id: trailing-whitespace
