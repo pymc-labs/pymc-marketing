@@ -415,12 +415,9 @@ class ModelBuilder(ABC):
         # All previously used data is in idata.
 
         if model.id != idata.attrs["id"]:
-            raise ValueError(
-                f"""
-                The file '{fname}' does not contain an inference data of the same model
-                or configuration as '{cls._model_type}'
-                """
-            )
+            error_msg = f"""The file '{fname}' does not contain an inference data of the same model
+            or configuration as '{cls._model_type}'"""
+            raise ValueError(error_msg)
 
         return model
 
