@@ -442,7 +442,8 @@ class ModelBuilder(ABC):
             Specifies whether the fit progressbar should be displayed
         predictor_names: Optional[List[str]] = None,
             Allows for custom naming of predictors given in a form of 2dArray
-            allows for naming of predictors when given in a form of np.ndarray, if not provided the predictors will be named like predictor1, predictor2...
+            Allows for naming of predictors when given in a form of np.ndarray, if not provided
+            the predictors will be named like predictor1, predictor2...
         random_seed : Optional[RandomState]
             Provides sampler with initial random seed for obtaining reproducible samples
         **kwargs : Any

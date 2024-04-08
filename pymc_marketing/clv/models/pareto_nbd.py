@@ -328,7 +328,10 @@ class ParetoNBDModel(CLVModel):
             # Suppress annoying warning
             with warnings.catch_warnings():
                 warnings.filterwarnings(
-                    message="Optimization Warning: The Op hyp2f1 does not provide a C implementation. As well as being potentially slow, this also disables loop fusion.",
+                    message="""
+                    Optimization Warning: The Op hyp2f1 does not provide a C implementation.
+                    As well as being potentially slow, this also disables loop fusion.
+                    """,
                     action="ignore",
                     category=UserWarning,
                 )

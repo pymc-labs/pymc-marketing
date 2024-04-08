@@ -210,7 +210,10 @@ class BaseDelayedSaturatedMMM(MMM):
 
         if dist["dist"] not in allowed_distributions:
             raise ValueError(
-                f"The distribution used for the likelihood is not allowed. Please, use one of the following distributions: {allowed_distributions}."
+                f"""
+                The distribution used for the likelihood is not allowed.
+                Please, use one of the following distributions: {allowed_distributions}.
+                """
             )
 
         # Validate that 'kwargs' is present and is a dictionary
@@ -736,13 +739,14 @@ class DelayedSaturatedMMM(
     This enable us to have a more stable model and better convergence. If control variables are present, we do not scale them!
     If needed please do it before passing the data to the model.
 
-    2. We allow to add yearly seasonality controls as Fourier modes. You can use the `yearly_seasonality` parameter to specify the number of Fourier modes to include.
+    2. We allow to add yearly seasonality controls as Fourier modes.
+    You can use the `yearly_seasonality` parameter to specify the number of Fourier modes to include.
 
     3. This class also allow us to calibrate the model using:
 
-    - Custom priors for the parameters via the `model_config` parameter. You can also set the likelihood distribution.
-    - Adding lift tests to the likelihood function via the
-    :meth:`add_lift_test_measurements <pymc_marketing.mmm.delayed_saturated_mmm.DelayedSaturatedMMM.add_lift_test_measurements>` method.
+        * Custom priors for the parameters via the `model_config` parameter. You can also set the likelihood distribution.
+
+        * Adding lift tests to the likelihood function via the :meth:`add_lift_test_measurements <pymc_marketing.mmm.delayed_saturated_mmm.DelayedSaturatedMMM.add_lift_test_measurements>` method.
 
     For details on a vanilla implementation in PyMC, see [2]_.
 
@@ -831,7 +835,7 @@ class DelayedSaturatedMMM(
     ----------
     .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
     .. [2] Orduz, J. `"Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns" <https://juanitorduz.github.io/pymc_mmm/>`_.
-    """
+    """  # noqa: E501
 
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float_]
