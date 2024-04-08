@@ -63,9 +63,11 @@ class BaseDelayedSaturatedMMM(MMM):
         channel_columns : List[str]
             Column names of the media channel variables.
         model_config : Dictionary, optional
-            dictionary of parameters that initialise model configuration. Class-default defined by the user default_model_config method.
+            dictionary of parameters that initialise model configuration.
+            Class-default defined by the user default_model_config method.
         sampler_config : Dictionary, optional
-            dictionary of parameters that initialise sampler configuration. Class-default defined by the user default_sampler_config method.
+            dictionary of parameters that initialise sampler configuration.
+            Class-default defined by the user default_sampler_config method.
         validate_data : bool, optional
             Whether to validate the data before fitting to model, by default True.
         control_columns : Optional[List[str]], optional
@@ -245,7 +247,10 @@ class BaseDelayedSaturatedMMM(MMM):
                 parameter_distributions[param] = param_config
             else:
                 raise ValueError(
-                    f"Invalid parameter configuration for '{param}'. It must be either a dictionary with a 'dist' key or a numeric value."
+                    f"""
+                    Invalid parameter configuration for '{param}'.
+                    It must be either a dictionary with a 'dist' key or a numeric value.
+                    """
                 )
 
         # Extract the likelihood distribution name and instantiate it

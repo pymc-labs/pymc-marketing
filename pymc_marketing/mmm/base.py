@@ -166,9 +166,9 @@ class BaseMMM(ModelBuilder):
         A property that provides preprocessing methods for features ("X") and the target variable ("y").
 
         This property scans the methods of the object and returns those marked for preprocessing.
-        The methods are marked by having a _tags dictionary attribute, with either "preprocessing_X" or "preprocessing_y" set to True.
-        The "preprocessing_X" tag indicates a method used for preprocessing features, and "preprocessing_y" indicates
-        a method used for preprocessing the target variable.
+        The methods are marked by having a _tags dictionary attribute, with either "preprocessing_X"
+        or "preprocessing_y" set to True. The "preprocessing_X" tag indicates a method used for preprocessing
+        features, and "preprocessing_y" indicates a method used for preprocessing the target variable.
 
         Returns
         -------
@@ -516,7 +516,8 @@ class BaseMMM(ModelBuilder):
         Parameters
         ----------
         method : str
-            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
+            The method used to fit the contribution & spent non-linear relationship.
+            It can be either 'sigmoid' or 'michaelis-menten'.
         channel : str
             The name of the channel for which the contribution fit is being estimated.
         budget : float
@@ -580,7 +581,8 @@ class BaseMMM(ModelBuilder):
         ax : matplotlib.axes.Axes
             The axes on which to plot the scenario.
         data : dict
-            Dictionary containing the data for the scenario. Keys are the names of the channels and values are the corresponding values.
+            Dictionary containing the data for the scenario.
+            Keys are the names of the channels and values are the corresponding values.
         label : str
             Label for the scenario.
         color : str
@@ -754,7 +756,8 @@ class BaseMMM(ModelBuilder):
         xlim_max: int
             The maximum value to be plot on the X-axis
         method: str
-            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
+            The method used to fit the contribution & spent non-linear relationship.
+            It can be either 'sigmoid' or 'michaelis-menten'.
 
         Returns
         -------
@@ -862,18 +865,21 @@ class BaseMMM(ModelBuilder):
         parameters: Dict[str, Tuple[float, float]],
     ) -> pd.DataFrame:
         """
-        Experimental: Optimize the allocation of a given total budget across multiple channels to maximize the expected contribution.
+        Experimental: Optimize the allocation of a given total budget across multiple
+        channels to maximize the expected contribution.
 
         The optimization is based on the method provided, where each channel's contribution
         follows a saturating function of its allocated budget. The function seeks the budget allocation
-        that maximizes the total expected contribution across all channels. The method can be either 'sigmoid' or 'michaelis-menten'.
+        that maximizes the total expected contribution across all channels.
+        The method can be either 'sigmoid' or 'michaelis-menten'.
 
         Parameters
         ----------
         total_budget : int, required
             The total budget to be distributed across channels.
         method : str, required
-            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
+            The method used to fit the contribution & spent non-linear relationship.
+            It can be either 'sigmoid' or 'michaelis-menten'.
         parameters : Dict, required
             A dictionary where keys are channel names and values are tuples (L, k) representing the
             parameters for each channel based on the method used.
@@ -927,7 +933,8 @@ class BaseMMM(ModelBuilder):
         Parameters
         ----------
         method : str, required
-            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
+            The method used to fit the contribution & spent non-linear relationship.
+            It can be either 'sigmoid' or 'michaelis-menten'.
 
         Returns
         -------

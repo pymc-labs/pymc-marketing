@@ -69,7 +69,8 @@ def batched_convolution(
         of the input signal, denoted as "x." The default mode is ConvMode.Before.
 
         - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
-        - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect similar to the wow factor.
+        - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
+            similar to the wow factor.
         - ConvMode.Overlap: Applies the convolution with both "Pull-Forward" and "Pull-Backward" effects,
             where the effect overlaps with both preceding and succeeding elements.
 

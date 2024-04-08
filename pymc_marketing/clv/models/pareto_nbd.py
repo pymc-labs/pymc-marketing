@@ -463,7 +463,8 @@ class ParetoNBDModel(CLVModel):
                 * `customer_id`: unique customer identifier
                 * `frequency`: number of repeat purchases
                 * `recency`: time between the first and the last purchase
-                * `T`: time between the first purchase and the end of the observation period, model assumptions require T >= recency
+                * `T`: time between the first purchase and the end of the observation period.
+                    Model assumptions require T >= recency
                 * `future_t`: Number of time periods to predict expected purchases.
                 * covariates: Purchase and dropout covariate columns if original model had any.
             If not provided, the method will use the fit dataset.
@@ -535,7 +536,8 @@ class ParetoNBDModel(CLVModel):
                 * `customer_id`: unique customer identifier
                 * `frequency`: number of repeat purchases
                 * `recency`: time between the first and the last purchase
-                * `T`: time between the first purchase and the end of the observation period, model assumptions require T >= recency
+                * `T`: time between the first purchase and the end of the observation period.
+                    Model assumptions require T >= recency
                 * `future_t`: Number of time periods in the future to estimate alive probability; defaults to 0.
                 * covariates: Purchase and dropout covariate columns if original model had any.
             If not provided, the method will use the fit dataset.
@@ -605,9 +607,11 @@ class ParetoNBDModel(CLVModel):
                 * `customer_id`: unique customer identifier
                 * `frequency`: number of repeat purchases
                 * `recency`: time between the first and the last purchase
-                * `T`: time between the first purchase and the end of the observation period, model assumptions require T >= recency
+                * `T`: time between the first purchase and the end of the observation period.
+                    Model assumptions require T >= recency
                 * `future_t`: Number of time periods to predict expected purchases.
-                * `n_purchases`: Number of purchases to predict probability for. Currently restricted to the same number for all customers.
+                * `n_purchases`: Number of purchases to predict probability for.
+                    Currently restricted to the same number for all customers.
                 * covariates: Purchase and dropout covariate columns if original model had any.
             If not provided, the method will use the fit dataset.
         n_purchases: int, optional

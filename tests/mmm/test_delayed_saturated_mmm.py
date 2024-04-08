@@ -539,7 +539,10 @@ class TestDelayedSaturatedMMM:
         monkeypatch.setattr(DelayedSaturatedMMM, "id", property(mock_property))
         with pytest.raises(
             ValueError,
-            match="The file 'test_model' does not contain an inference data of the same model or configuration as 'DelayedSaturatedMMM'",
+            match="""
+            The file 'test_model' does not contain an inference data of the same model
+            or configuration as 'DelayedSaturatedMMM'
+            """,
         ):
             DelayedSaturatedMMM.load("test_model")
         os.remove("test_model")

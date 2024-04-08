@@ -65,9 +65,11 @@ class ModelBuilder(ABC):
         data : Dictionary, optional
             It is the data we need to train the model on.
         model_config : Dictionary, optional
-            dictionary of parameters that initialise model configuration. Class-default defined by the user default_model_config method.
+            dictionary of parameters that initialise model configuration.
+            Class-default defined by the user default_model_config method.
         sampler_config : Dictionary, optional
-            dictionary of parameters that initialise sampler configuration. Class-default defined by the user default_sampler_config method.
+            dictionary of parameters that initialise sampler configuration.
+            Class-default defined by the user default_sampler_config method.
         Examples
         --------
         >>> class MyModel(ModelBuilder):
