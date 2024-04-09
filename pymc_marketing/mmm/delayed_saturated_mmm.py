@@ -756,7 +756,7 @@ class DelayedSaturatedMMM(
 
         from pymc_marketing.mmm import DelayedSaturatedMMM
 
-        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/datasets/mmm_example.csv"
+        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
         data = pd.read_csv(data_url, parse_dates=["date_week"])
 
         mmm = DelayedSaturatedMMM(
