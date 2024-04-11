@@ -49,7 +49,7 @@ def cdnow_trans() -> pd.DataFrame:
 
     Data source: https://www.brucehardie.com/datasets/
     """
-    return pd.read_csv("datasets/cdnow_transactions.csv")
+    return pd.read_csv("data/cdnow_transactions.csv")
 
 
 @pytest.fixture(scope="module")
