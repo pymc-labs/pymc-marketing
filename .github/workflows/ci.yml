@@ -61,7 +61,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        notebook-path: [ {mmm_example: "docs/source/notebooks/mmm/mmm_example.ipynb"}]
+        notebook: [
+          {path: "docs/source/notebooks/mmm/mmm_example.ipynb"},
+          {path: "docs/source/notebooks/clv/bg_nbd_example.ipynb"},
+        ]
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
@@ -77,7 +80,7 @@ jobs:
           SECRETS: ${{ toJson(secrets) }}
           GITHUB: ${{ toJson(github) }}
         with:
-            notebook: ${{ matrix.notebook-path }}
+            notebook: ${{ matrix.notebook.path }}
 
 
   all:
