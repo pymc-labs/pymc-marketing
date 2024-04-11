@@ -30,6 +30,7 @@ docs = [
     "ipython!=8.7.0",
     "fastprogress",
     "graphviz",
+    "lifetimes",
     "myst-parser",
     "myst-nb",
     "pydata-sphinx-theme>=0.12.0.dev0",
