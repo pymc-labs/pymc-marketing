@@ -68,8 +68,12 @@ jobs:
       - name: Install dependencies
         run: pip install -e .[docs]
       - uses: yaananth/run-notebook@v2
+        env:
+          RUNNER: ${{ toJson(runner) }}
+          SECRETS: ${{ toJson(secrets) }}
+          GITHUB: ${{ toJson(github) }}
         with:
-          notebook: "docs/source/notebooks/mmm/mmm_example.ipynb"
+            notebook: "docs/source/notebooks/mmm/mmm_example.ipynb"
 
 
   all:
