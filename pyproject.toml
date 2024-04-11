@@ -28,6 +28,7 @@ dependencies = [
 docs = [
     "sphinx",
     "ipython!=8.7.0",
+    "graphviz",
     "myst-parser",
     "myst-nb",
     "pydata-sphinx-theme>=0.12.0.dev0",
@@ -36,6 +37,7 @@ docs = [
     "sphinxext-opengraph",
     "sphinx-notfound-page",
     "sphinx-design",
+    "watermark",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = ["lifetimes==0.11.3", "pytest==7.0.1", "pytest-cov==3.0.0"]

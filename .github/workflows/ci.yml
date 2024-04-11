@@ -59,6 +59,9 @@ jobs:
 
   test-notebooks:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        notebook-path: [ {mmm_example: "docs/source/notebooks/mmm/mmm_example.ipynb"}]
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
@@ -68,14 +71,13 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -e .[docs]
-          pip install graphviz
       - uses: yaananth/run-notebook@v2
         env:
           RUNNER: ${{ toJson(runner) }}
           SECRETS: ${{ toJson(secrets) }}
           GITHUB: ${{ toJson(github) }}
         with:
-            notebook: "docs/source/notebooks/mmm/mmm_example.ipynb"
+            notebook: ${{ matrix.notebook-path }}
 
 
   all:
