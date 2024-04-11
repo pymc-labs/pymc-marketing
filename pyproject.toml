@@ -28,6 +28,7 @@ dependencies = [
 docs = [
     "sphinx",
     "ipython!=8.7.0",
+    "fastprogress",
     "graphviz",
     "myst-parser",
     "myst-nb",
