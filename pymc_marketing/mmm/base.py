@@ -1136,7 +1136,7 @@ class BaseMMM(ModelBuilder):
             )
 
         if getattr(self, "yearly_seasonality", None):
-            contributions_fourier_over_time = (
+            contributions_fourier_over_time = pd.DataFrame(
                 az.extract(
                     self.fit_result,
                     var_names=["fourier_contributions"],
@@ -1146,6 +1146,8 @@ class BaseMMM(ModelBuilder):
                 .to_dataframe()
                 .squeeze()
                 .unstack()
+                .sum(axis=1),
+                columns=["yearly_seasonality"],
             )
         else:
             contributions_fourier_over_time = pd.DataFrame(
@@ -1300,18 +1302,6 @@ class BaseMMM(ModelBuilder):
         # Sort the dataframe in ascending order of contribution for the waterfall plot
         dataframe = self.compute_mean_contributions_over_time(
             original_scale=original_scale
-        )
-
-        dataframe["seasonal"] = (
-            dataframe["sin_order_1"]
-            + dataframe["sin_order_2"]
-            + dataframe["cos_order_1"]
-            + dataframe["cos_order_2"]
-        )
-        dataframe.drop(
-            ["sin_order_1", "sin_order_2", "cos_order_1", "cos_order_2"],
-            axis=1,
-            inplace=True,
         )
 
         stack_dataframe = dataframe.stack().reset_index()

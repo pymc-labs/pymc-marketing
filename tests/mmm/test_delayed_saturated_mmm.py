@@ -323,17 +323,14 @@ class TestDelayedSaturatedMMM:
         )
         assert mean_model_contributions_ts.shape == (
             toy_X.shape[0],
-            n_channel + n_control + fourier_terms + 1,
+            n_channel + n_control + 2, # 2 for yearly seasonality (+1) and intercept (+)
         )
         assert mean_model_contributions_ts.columns.tolist() == [
             "channel_1",
             "channel_2",
             "control_1",
             "control_2",
-            "sin_order_1",
-            "cos_order_1",
-            "sin_order_2",
-            "cos_order_2",
+            "yearly_seasonality",
             "intercept",
         ]
 
