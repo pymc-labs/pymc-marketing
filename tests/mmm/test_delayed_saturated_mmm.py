@@ -872,27 +872,39 @@ def test_plot_new_spend_contributions_prior_select_channels(
 @pytest.fixture(scope="module")
 def fixed_model_parameters() -> dict[str, Union[float, list[float]]]:
     return {
-        "intercept": 2.5,
-        "beta_channel": [0.5, 0.5],
+        "intercept": 5.0,
+        "beta_channel": [0.15, 0.5],
         "alpha": [0.5, 0.5],
         "lam": [0.5, 0.5],
         "likelihood_sigma": 0.25,
-        "gamma_control": [0.5, 0.5],
+        "gamma_control": [0.0001, 0.005],
     }
 
 
+def random_mask(df: pd.DataFrame, mask_value: float = 0.0) -> pd.DataFrame:
+    shape = df.shape
+
+    mask = rng.choice([0, 1], size=shape, p=[0.75, 0.25])
+    return df.mul(mask)
+
+
 @pytest.fixture(scope="module")
-def model_generated_y(mmm, toy_X, fixed_model_parameters) -> np.ndarray:
-    fake_y = np.ones(len(toy_X))
-    mmm.build_model(toy_X, fake_y)
+def masked_toy_X(toy_X) -> pd.DataFrame:
+    return toy_X.set_index("date").pipe(random_mask).reset_index()
+
+
+@pytest.fixture(scope="module")
+def model_generated_y(mmm, masked_toy_X, fixed_model_parameters) -> np.ndarray:
+    fake_y = np.ones(len(masked_toy_X))
+    mmm.build_model(masked_toy_X, fake_y)
 
     fixed_model = pm.do(mmm.model, fixed_model_parameters)
     return pm.draw(fixed_model["y"], random_seed=rng)
 
 
 @pytest.fixture(scope="module")
-def actually_fit_mmm(mmm, toy_X, model_generated_y) -> DelayedSaturatedMMM:
-    mmm.fit(toy_X, model_generated_y, random_seed=rng)
+def actually_fit_mmm(mmm, masked_toy_X, model_generated_y) -> DelayedSaturatedMMM:
+    mmm.fit(masked_toy_X, model_generated_y, random_seed=rng)
     return mmm
 
 
