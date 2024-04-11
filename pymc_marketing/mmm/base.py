@@ -1274,6 +1274,124 @@ class BaseMMM(ModelBuilder):
     def graphviz(self, **kwargs):
         return pm.model_to_graphviz(self.model, **kwargs)
 
+    def plot_waterfall_components_decomposition(
+        self, original_scale: bool = True, figsize: Tuple = (14, 7), **kwargs
+    ):
+        """
+        This function creates a waterfall plot. The plot shows the decomposition of the target into its components.
+
+        Parameters
+        ----------
+        original_scale : bool, optional
+            If True, the contributions are plotted in the original scale of the target.
+        figsize : Tuple, optional
+            The size of the figure. The default is (14, 7).
+        **kwargs
+            Additional keyword arguments to pass to the matplotlib `subplots` function.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The matplotlib figure object.
+        ax : matplotlib.axes.Axes
+            The matplotlib axes object.
+        """
+
+        # Sort the dataframe in ascending order of contribution for the waterfall plot
+        dataframe = self.compute_mean_contributions_over_time(
+            original_scale=original_scale
+        )
+
+        dataframe["seasonal"] = (
+            dataframe["sin_order_1"]
+            + dataframe["sin_order_2"]
+            + dataframe["cos_order_1"]
+            + dataframe["cos_order_2"]
+        )
+        dataframe.drop(
+            ["sin_order_1", "sin_order_2", "cos_order_1", "cos_order_2"],
+            axis=1,
+            inplace=True,
+        )
+
+        stack_dataframe = dataframe.stack().reset_index()
+        stack_dataframe.columns = pd.Index(["date", "component", "contribution"])
+        stack_dataframe.set_index(["date", "component"], inplace=True)
+        dataframe = stack_dataframe.groupby("component").sum()
+        dataframe.sort_values(by="contribution", ascending=True, inplace=True)
+        dataframe.reset_index(inplace=True)
+
+        # Calculate the percentage of each contribution
+        total_contribution = dataframe["contribution"].sum()
+        dataframe["percentage"] = (dataframe["contribution"] / total_contribution) * 100
+
+        # Initialize the matplotlib figure and axis
+        fig, ax = plt.subplots(figsize=figsize, **kwargs)
+
+        # Initialize the starting point for the first bar
+        cumulative_contribution = 0
+
+        # Plot each bar with the updated order
+        for index, row in dataframe.iterrows():
+            # Choose the color based on the sign of the contribution
+            color = "lightblue" if row["contribution"] >= 0 else "salmon"
+
+            # For negative contributions, start the bar at the cumulative sum minus the contribution
+            bar_start = (
+                cumulative_contribution + row["contribution"]
+                if row["contribution"] < 0
+                else cumulative_contribution
+            )
+            ax.barh(row["component"], row["contribution"], left=bar_start, color=color)
+
+            # Only add to the cumulative sum if the contribution is positive
+            if row["contribution"] > 0:
+                cumulative_contribution += row["contribution"]
+
+            # Label positioning
+            label_pos = bar_start + (row["contribution"] / 2)
+            # Ensure that the label is always inside the bar for visibility
+            if row["contribution"] < 0:
+                label_pos = bar_start - (row["contribution"] / 2)
+
+            # Add labels on top of the bars for the contribution values and percentages
+            ax.text(
+                label_pos,
+                index,
+                f"{row['contribution']:,.0f}\n({row['percentage']:.1f}%)",
+                ha="center",
+                va="center",
+                color="black",
+                fontsize=10,
+            )
+
+        # Set the title and labels
+        ax.set_title("Response Decomposition Waterfall by Components")
+        ax.set_xlabel("Cumulative Contribution")
+        ax.set_ylabel("Components")
+
+        # Adjust x-axis to show the percentage
+        xticks = np.linspace(
+            0, total_contribution, num=11
+        )  # 10 equally spaced ticks from 0 to total
+        xticklabels = [
+            f"{(x/total_contribution)*100:.0f}%" for x in xticks
+        ]  # Convert to percentages
+        ax.set_xticks(xticks)
+        ax.set_xticklabels(xticklabels)
+
+        # Hide the right, top, and left spines for a cleaner look
+        ax.spines["right"].set_visible(False)
+        ax.spines["top"].set_visible(False)
+        ax.spines["left"].set_visible(False)
+
+        # Add labels on the left to identify the predictor channels, corresponding to the y-ticks
+        ax.set_yticks(np.arange(len(dataframe)))
+        ax.set_yticklabels(dataframe["component"])
+
+        plt.tight_layout()
+        return fig
+
 
 class MMM(BaseMMM, ValidateTargetColumn, ValidateDateColumn, ValidateChannelColumns):
     pass
