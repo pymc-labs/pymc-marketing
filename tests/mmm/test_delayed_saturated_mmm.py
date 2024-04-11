@@ -286,7 +286,7 @@ class TestDelayedSaturatedMMM:
         assert mmm.model_config is not None
         n_channel: int = len(mmm.channel_columns)
         n_control: int = len(mmm.control_columns)
-        fourier_terms: int = 2 * mmm.yearly_seasonality
+        # fourier_terms: int = 2 * mmm.yearly_seasonality
         mmm.fit(
             X=toy_X,
             y=toy_y,
@@ -323,7 +323,9 @@ class TestDelayedSaturatedMMM:
         )
         assert mean_model_contributions_ts.shape == (
             toy_X.shape[0],
-            n_channel + n_control + 2, # 2 for yearly seasonality (+1) and intercept (+)
+            n_channel
+            + n_control
+            + 2,  # 2 for yearly seasonality (+1) and intercept (+)
         )
         assert mean_model_contributions_ts.columns.tolist() == [
             "channel_1",
