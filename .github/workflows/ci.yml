@@ -57,6 +57,24 @@ jobs:
           name: "test_slow"
           fail_ci_if_error: false
 
+  test-notebooks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+      - name: Run MMM Notebooks
+        run: |
+          pip install -e .[docs]
+          jupyter excecute notebooks/docs/source/notebooks/mmm/*.ipynb
+      - name: Run CLV Notebooks
+        run: |
+          pip install -e .[docs]
+          jupyter excecute notebooks/docs/source/notebooks/clv/*.ipynb
+
+
   all:
     if: ${{ always() }}
     runs-on: ubuntu-latest
