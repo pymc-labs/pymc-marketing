@@ -57,6 +57,7 @@ jobs:
           name: "test_slow"
           fail_ci_if_error: false
 
+  # just to test on PR branch
   test-notebooks:
     runs-on: ubuntu-latest
     strategy:
@@ -82,6 +83,7 @@ jobs:
           GITHUB: ${{ toJson(github) }}
         with:
             notebook: ${{ matrix.notebook.path }}
+            poll: True
 
 
   all:
