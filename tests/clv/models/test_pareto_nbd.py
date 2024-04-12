@@ -9,7 +9,7 @@ from lifetimes import ParetoNBDFitter
 
 from pymc_marketing.clv import ParetoNBDModel
 from pymc_marketing.clv.distributions import ParetoNBD
-from tests.clv.utils import set_model_fit
+from tests.conftest import set_model_fit
 
 
 class TestParetoNBDModel:
@@ -26,7 +26,7 @@ class TestParetoNBDModel:
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
         # TODO: Create a pytest fixture for this
-        test_data = pd.read_csv("datasets/clv_quickstart.csv")
+        test_data = pd.read_csv("data/clv_quickstart.csv")
         test_data["customer_id"] = test_data.index
 
         cls.data = test_data
@@ -358,7 +358,7 @@ class TestParetoNBDModel:
 
     def test_save_load_pareto_nbd(self):
         # TODO: Create a pytest fixture for this
-        test_data = pd.read_csv("datasets/clv_quickstart.csv")
+        test_data = pd.read_csv("data/clv_quickstart.csv")
         test_data["customer_id"] = test_data.index
         model = ParetoNBDModel(
             data=test_data,
@@ -394,7 +394,7 @@ class TestParetoNBDModelWithCovariates:
             dropout_coefficient=np.array([3.0]),
         )
 
-        cls.data = data = pd.read_csv("datasets/clv_quickstart.csv").iloc[:500]
+        cls.data = data = pd.read_csv("data/clv_quickstart.csv").iloc[:500]
         data["customer_id"] = data.index
 
         # Create two purchase covariates and one dropout covariate

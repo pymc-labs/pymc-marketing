@@ -183,7 +183,7 @@ class TestShiftedBetaGeoModel:
     def test_distribution_customer_churn_time(self):
         dataset = pd.DataFrame(
             {
-                "customer_id": [1, 2, 3],
+                "customer_id": [0, 1, 2],
                 "t_churn": [10, 10, 10],
                 "T": 10,
             }
@@ -195,11 +195,13 @@ class TestShiftedBetaGeoModel:
         model.fit(fit_method="map")
         customer_thetas = np.array([0.1, 0.5, 0.9])
         model.idata = az.from_dict(
-            {
+            posterior={
                 "alpha": np.ones((2, 500)),  # Two chains, 500 draws each
                 "beta": np.ones((2, 500)),
                 "theta": np.full((2, 500, 3), customer_thetas),
-            }
+            },
+            coords={"customer_id": [0, 1, 2]},
+            dims={"theta": ["customer_id"]},
         )
 
         res = model.distribution_customer_churn_time(

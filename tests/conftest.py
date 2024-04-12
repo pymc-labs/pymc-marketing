@@ -1,5 +1,12 @@
+from typing import Union
+
+import numpy as np
 import pandas as pd
 import pytest
+from arviz import InferenceData
+from xarray import Dataset
+
+from pymc_marketing.clv.models import CLVModel
 
 
 def pytest_addoption(parser):
@@ -42,4 +49,25 @@ def cdnow_trans() -> pd.DataFrame:
 
     Data source: https://www.brucehardie.com/datasets/
     """
-    return pd.read_csv("datasets/cdnow_transactions.csv")
+    return pd.read_csv("data/cdnow_transactions.csv")
+
+
+@pytest.fixture(scope="module")
+def test_summary_data() -> pd.DataFrame:
+    rng = np.random.default_rng(14)
+    df = pd.read_csv("tests/clv/datasets/test_summary_data.csv", index_col=0)
+    df["monetary_value"] = rng.lognormal(size=(len(df)))
+    df["customer_id"] = df.index
+    return df
+
+
+def set_model_fit(model: CLVModel, fit: Union[InferenceData, Dataset]):
+    if isinstance(fit, InferenceData):
+        assert "posterior" in fit.groups()
+    else:
+        fit = InferenceData(posterior=fit)
+    if model.model is None:
+        model.build_model()
+    model.idata = fit
+    model.idata.add_groups(fit_data=model.data.to_xarray())
+    model.set_idata_attrs(fit)

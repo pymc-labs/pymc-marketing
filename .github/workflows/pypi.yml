@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.9
+          python-version: "3.10"
       - name: Build the sdist and the wheel
         run: |
           pip install build
@@ -62,7 +62,7 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.9
+          python-version: "3.10"
       - name: Test pip install from test.pypi
         run: |
           python -m venv venv-test-pypi
