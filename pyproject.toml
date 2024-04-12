@@ -64,9 +64,9 @@ repository = "https://github.com/pymc-labs/pymc-marketing"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
-ignore = [
-    "E501", # Line too long
-]
+
+[tool.ruff.lint.pycodestyle]
+max-line-length = 120
 
 [tool.pytest.ini_options]
 addopts = [

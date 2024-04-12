@@ -31,7 +31,8 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
         observation period
             * `T`: Maximum observed time period (starting at 0)
     model_config: dict, optional
-        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
+        `default_model_config` class attribute.
     sampler_config: dict, optional
         Dictionary of sampler parameters. Defaults to None.
 
