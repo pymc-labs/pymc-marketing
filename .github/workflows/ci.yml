@@ -73,7 +73,7 @@ jobs:
           pip install -e .[docs]
           pip install papermill
       - name: Run notebooks
-        run: python -m scripts/run_notebooks/runner.py
+        run: python scripts/run_notebooks/runner.py
 
 
   all:
