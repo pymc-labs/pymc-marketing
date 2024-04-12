@@ -22,8 +22,9 @@ def get_notebooks_names() -> list[str]:
         "clv/clv_quickstart.ipynb",
         "clv/gamma_gamma.ipynb",
         "clv/sBG.ipynb",
-        "mmm/mmm_lift_test.ipynb",
+        "mmm/mmm_budget_allocation_example.ipynb",
         "mmm/mmm_example.ipynb",
+        "mmm/mmm_lift_test.ipynb",
     ]
 
 
