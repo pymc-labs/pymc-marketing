@@ -37,10 +37,12 @@ class BetaGeoModel(CLVModel):
         DataFrame containing the following columns:
             * `frequency`: number of repeat purchases (with possible values 0, 1, 2, ...)
             * `recency`: time between the first and the last purchase (with possible values 0, 1, 2, ...)
-            * `T`: time between the first purchase and the end of the observation period (with possible values 0, 1, 2, ...)
+            * `T`: time between the first purchase and the end of the observation
+                period (with possible values 0, 1, 2, ...)
             * `customer_id`: unique customer identifier
     model_config: dict, optional
-        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in
+        the `default_model_config` class attribute.
     sampler_config: dict, optional
         Dictionary of sampler parameters. Defaults to None.
 

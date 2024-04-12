@@ -511,9 +511,9 @@ def rfm_train_test_split(
     ]
 
     if training_transactions.empty:
-        raise ValueError(
-            "No data available. Check `test_transactions` and  `train_period_end` and confirm values in `transactions` occur prior to those time periods."
-        )
+        error_msg = """No data available. Check `test_transactions` and `train_period_end`
+        and confirm values in `transactions` occur prior to those time periods."""
+        raise ValueError(error_msg)
 
     training_rfm_data = rfm_summary(
         training_transactions,
@@ -535,9 +535,9 @@ def rfm_train_test_split(
     ].copy()
 
     if test_transactions.empty:
-        raise ValueError(
-            "No data available. Check `test_transactions` and  `train_period_end` and confirm values in `transactions` occur prior to those time periods."
-        )
+        error_msg = """No data available. Check `test_transactions` and `train_period_end`
+        and confirm values in `transactions` occur prior to those time periods."""
+        raise ValueError(error_msg)
 
     test_transactions[datetime_col] = test_transactions[datetime_col].dt.to_period(
         time_unit

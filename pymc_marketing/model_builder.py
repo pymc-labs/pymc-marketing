@@ -65,9 +65,11 @@ class ModelBuilder(ABC):
         data : Dictionary, optional
             It is the data we need to train the model on.
         model_config : Dictionary, optional
-            dictionary of parameters that initialise model configuration. Class-default defined by the user default_model_config method.
+            dictionary of parameters that initialise model configuration.
+            Class-default defined by the user default_model_config method.
         sampler_config : Dictionary, optional
-            dictionary of parameters that initialise sampler configuration. Class-default defined by the user default_sampler_config method.
+            dictionary of parameters that initialise sampler configuration.
+            Class-default defined by the user default_sampler_config method.
         Examples
         --------
         >>> class MyModel(ModelBuilder):
@@ -349,8 +351,9 @@ class ModelBuilder(ABC):
     @classmethod
     def _model_config_formatting(cls, model_config: Dict) -> Dict:
         """
-        Because of json serialization, model_config values that were originally tuples or numpy are being encoded as lists.
-        This function converts them back to tuples and numpy arrays to ensure correct id encoding.
+        Because of json serialization, model_config values that were originally tuples
+        or numpy are being encoded as lists. This function converts them back to tuples
+        and numpy arrays to ensure correct id encoding.
         """
         for key in model_config:
             if isinstance(model_config[key], dict):
@@ -412,9 +415,9 @@ class ModelBuilder(ABC):
         # All previously used data is in idata.
 
         if model.id != idata.attrs["id"]:
-            raise ValueError(
-                f"The file '{fname}' does not contain an inference data of the same model or configuration as '{cls._model_type}'"
-            )
+            error_msg = f"""The file '{fname}' does not contain an inference data of the same model
+            or configuration as '{cls._model_type}'"""
+            raise ValueError(error_msg)
 
         return model
 
@@ -442,7 +445,8 @@ class ModelBuilder(ABC):
             Specifies whether the fit progressbar should be displayed
         predictor_names: Optional[List[str]] = None,
             Allows for custom naming of predictors given in a form of 2dArray
-            allows for naming of predictors when given in a form of np.ndarray, if not provided the predictors will be named like predictor1, predictor2...
+            Allows for naming of predictors when given in a form of np.ndarray, if not provided
+            the predictors will be named like predictor1, predictor2...
         random_seed : Optional[RandomState]
             Provides sampler with initial random seed for obtaining reproducible samples
         **kwargs : Any
@@ -714,8 +718,8 @@ class ModelBuilder(ABC):
         """
         Generate a unique hash value for the model.
 
-        The hash value is created using the last 16 characters of the SHA256 hash encoding, based on the model configuration,
-        version, and model type.
+        The hash value is created using the last 16 characters of the SHA256 hash encoding,
+        based on the model configuration, version, and model type.
 
         Returns
         -------

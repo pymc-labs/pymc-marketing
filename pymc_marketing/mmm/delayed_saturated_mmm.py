@@ -63,9 +63,11 @@ class BaseDelayedSaturatedMMM(MMM):
         channel_columns : List[str]
             Column names of the media channel variables.
         model_config : Dictionary, optional
-            dictionary of parameters that initialise model configuration. Class-default defined by the user default_model_config method.
+            dictionary of parameters that initialise model configuration.
+            Class-default defined by the user default_model_config method.
         sampler_config : Dictionary, optional
-            dictionary of parameters that initialise sampler configuration. Class-default defined by the user default_sampler_config method.
+            dictionary of parameters that initialise sampler configuration.
+            Class-default defined by the user default_sampler_config method.
         validate_data : bool, optional
             Whether to validate the data before fitting to model, by default True.
         control_columns : Optional[List[str]], optional
@@ -210,7 +212,10 @@ class BaseDelayedSaturatedMMM(MMM):
 
         if dist["dist"] not in allowed_distributions:
             raise ValueError(
-                f"The distribution used for the likelihood is not allowed. Please, use one of the following distributions: {allowed_distributions}."
+                f"""
+                The distribution used for the likelihood is not allowed.
+                Please, use one of the following distributions: {allowed_distributions}.
+                """
             )
 
         # Validate that 'kwargs' is present and is a dictionary
@@ -242,7 +247,10 @@ class BaseDelayedSaturatedMMM(MMM):
                 parameter_distributions[param] = param_config
             else:
                 raise ValueError(
-                    f"Invalid parameter configuration for '{param}'. It must be either a dictionary with a 'dist' key or a numeric value."
+                    f"""
+                    Invalid parameter configuration for '{param}'.
+                    It must be either a dictionary with a 'dist' key or a numeric value.
+                    """
                 )
 
         # Extract the likelihood distribution name and instantiate it
@@ -593,9 +601,9 @@ class BaseDelayedSaturatedMMM(MMM):
         model.build_model(X, y)
         # All previously used data is in idata.
         if model.id != idata.attrs["id"]:
-            raise ValueError(
-                f"The file '{fname}' does not contain an inference data of the same model or configuration as '{cls._model_type}'"
-            )
+            error_msg = f"""The file '{fname}' does not contain an inference data of the same model
+        or configuration as '{cls._model_type}'"""
+            raise ValueError(error_msg)
 
         return model
 
@@ -689,8 +697,9 @@ class BaseDelayedSaturatedMMM(MMM):
     @classmethod
     def _model_config_formatting(cls, model_config: Dict) -> Dict:
         """
-        Because of json serialization, model_config values that were originally tuples or numpy are being encoded as lists.
-        This function converts them back to tuples and numpy arrays to ensure correct id encoding.
+        Because of json serialization, model_config values that were originally tuples
+        or numpy are being encoded as lists. This function converts them back to tuples
+        and numpy arrays to ensure correct id encoding.
         """
 
         def format_nested_dict(d: Dict) -> Dict:
@@ -736,12 +745,14 @@ class DelayedSaturatedMMM(
     This enable us to have a more stable model and better convergence. If control variables are present, we do not scale them!
     If needed please do it before passing the data to the model.
 
-    2. We allow to add yearly seasonality controls as Fourier modes. You can use the `yearly_seasonality` parameter to specify the number of Fourier modes to include.
+    2. We allow to add yearly seasonality controls as Fourier modes.
+    You can use the `yearly_seasonality` parameter to specify the number of Fourier modes to include.
 
     3. This class also allow us to calibrate the model using:
 
-    - Custom priors for the parameters via the `model_config` parameter. You can also set the likelihood distribution.
-    - Adding lift tests to the likelihood function via the :meth:`add_lift_test_measurements <pymc_marketing.mmm.delayed_saturated_mmm.DelayedSaturatedMMM.add_lift_test_measurements>` method.
+        * Custom priors for the parameters via the `model_config` parameter. You can also set the likelihood distribution.
+
+        * Adding lift tests to the likelihood function via the :meth:`add_lift_test_measurements <pymc_marketing.mmm.delayed_saturated_mmm.DelayedSaturatedMMM.add_lift_test_measurements>` method.
 
     For details on a vanilla implementation in PyMC, see [2]_.
 
@@ -830,7 +841,7 @@ class DelayedSaturatedMMM(
     ----------
     .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
     .. [2] Orduz, J. `"Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns" <https://juanitorduz.github.io/pymc_mmm/>`_.
-    """
+    """  # noqa: E501
 
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float_]
@@ -1237,8 +1248,8 @@ class DelayedSaturatedMMM(
             data in order to carry over costs with the adstock transformation.
             Assumes that X_pred are the next predictions following the training data.
             Defaults to False.
-        original_scale: Boolean determining whether to return the predictions in the original scale of the target variable.
-            Defaults to True.
+        original_scale: Boolean determining whether to return the predictions in the original scale
+            of the target variable. Defaults to True.
         **sample_posterior_predictive_kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
 
         Returns

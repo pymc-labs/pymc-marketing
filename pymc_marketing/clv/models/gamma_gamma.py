@@ -52,8 +52,8 @@ class BaseGammaGammaModel(CLVModel):
 
         Eq 5 from [1], p.3
 
-        Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117  # noqa: E501
-        """
+        Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117
+        """  # noqa: E501
 
         mean_transaction_value, frequency = to_xarray(
             customer_id, mean_transaction_value, frequency
@@ -162,7 +162,8 @@ class GammaGammaModel(BaseGammaGammaModel):
             - mean_transaction_value: Mean transaction value of each customer.
             - frequency: Number of transactions observed for each customer.
     model_config: dict, optional
-        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
+        `default_model_config` class attribute.
     sampler_config: dict, optional
         Dictionary of sampler parameters. Defaults to None.
 
@@ -295,7 +296,8 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         coming from the same customer.
             - individual_transaction_value: Value of individual transactions.
     model_config: dict, optional
-        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
+        `default_model_config` class attribute.
     sampler_config: dict, optional
         Dictionary of sampler parameters. Defaults to None.
 
