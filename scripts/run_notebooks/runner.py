@@ -5,6 +5,7 @@ import os
 import papermill as pm
 from tqdm import tqdm
 
+KERNEL_NAME: str = "pymc-marketing-dev"
 NOTEBOOKS_PATH: str = "docs/source/notebooks"
 OUTPUT_PATH: str = "scripts/run_notebooks/outputs"
 
@@ -49,6 +50,7 @@ def run_notebook(notebook_path: str) -> None:
     pm.execute_notebook(
         input_path=notebook_path,
         output_path=output_path,
+        kernel_name=KERNEL_NAME,
     )
 
 
