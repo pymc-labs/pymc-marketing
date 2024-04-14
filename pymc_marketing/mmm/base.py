@@ -89,13 +89,15 @@ class BaseMMM(ModelBuilder):
         A property that provides validation methods for features ("X") and the target variable ("y").
 
         This property scans the methods of the object and returns those marked for validation.
-        The methods are marked by having a _tags dictionary attribute, with either "validation_X" or "validation_y" set to True.
-        The "validation_X" tag indicates a method used for validating features, and "validation_y" indicates a method used for validating the target variable.
+        The methods are marked by having a _tags dictionary attribute,with either "validation_X" or "validation_y"
+        set to True. The "validation_X" tag indicates a method used for validating features, and "validation_y"
+        indicates a method used for validating the target variable.
 
         Returns
         -------
         tuple of list of Callable[["BaseMMM", pd.DataFrame], None]
-            A tuple where the first element is a list of methods for "X" validation, and the second element is a list of methods for "y" validation.
+            A tuple where the first element is a list of methods for "X" validation, and the second element is
+            a list of methods for "y" validation.
 
         """
         return (
@@ -164,13 +166,15 @@ class BaseMMM(ModelBuilder):
         A property that provides preprocessing methods for features ("X") and the target variable ("y").
 
         This property scans the methods of the object and returns those marked for preprocessing.
-        The methods are marked by having a _tags dictionary attribute, with either "preprocessing_X" or "preprocessing_y" set to True.
-        The "preprocessing_X" tag indicates a method used for preprocessing features, and "preprocessing_y" indicates a method used for preprocessing the target variable.
+        The methods are marked by having a _tags dictionary attribute, with either "preprocessing_X"
+        or "preprocessing_y" set to True. The "preprocessing_X" tag indicates a method used for preprocessing
+        features, and "preprocessing_y" indicates a method used for preprocessing the target variable.
 
         Returns
         -------
         tuple of list of Callable[["BaseMMM", pd.DataFrame], pd.DataFrame]
-            A tuple where the first element is a list of methods for "X" preprocessing, and the second element is a list of methods for "y" preprocessing.
+            A tuple where the first element is a list of methods for "X" preprocessing, and the second element is a
+            list of methods for "y" preprocessing.
         """
         return (
             [
@@ -191,8 +195,9 @@ class BaseMMM(ModelBuilder):
         """
         Preprocess the provided data according to the specified target.
 
-        This method applies preprocessing methods to the data ("X" or "y"), which are specified in the preprocessing_methods property of this object.
-        It iteratively applies each method in the appropriate list (either for "X" or "y") to the data.
+        This method applies preprocessing methods to the data ("X" or "y"), which are specified in the
+        preprocessing_methods property of this object. It iteratively applies each method in the appropriate
+        list (either for "X" or "y") to the data.
 
         Parameters
         ----------
@@ -506,12 +511,14 @@ class BaseMMM(ModelBuilder):
         and calculates the lower and upper bounds of the contribution fit.
 
         The function is used in the `plot_budget_scenearios` function to estimate the contribution fit for each channel
-        and budget scenario. The estimated fit is then used to plot the contribution optimization bounds for each scenario.
+        and budget scenario. The estimated fit is then used to plot the contribution optimization bounds
+        for each scenario.
 
         Parameters
         ----------
         method : str
-            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
+            The method used to fit the contribution & spent non-linear relationship.
+            It can be either 'sigmoid' or 'michaelis-menten'.
         channel : str
             The name of the channel for which the contribution fit is being estimated.
         budget : float
@@ -575,7 +582,8 @@ class BaseMMM(ModelBuilder):
         ax : matplotlib.axes.Axes
             The axes on which to plot the scenario.
         data : dict
-            Dictionary containing the data for the scenario. Keys are the names of the channels and values are the corresponding values.
+            Dictionary containing the data for the scenario.
+            Keys are the names of the channels and values are the corresponding values.
         label : str
             Label for the scenario.
         color : str
@@ -585,9 +593,11 @@ class BaseMMM(ModelBuilder):
         bar_width: float
             Bar width.
         upper_bound : dict, optional
-            Dictionary containing the upper bounds for the data. Keys should match those in the `data` dictionary. Only used if `contribution` is True.
+            Dictionary containing the upper bounds for the data. Keys should match those in the `data` dictionary.
+            Only used if `contribution` is True.
         lower_bound : dict, optional
-            Dictionary containing the lower bounds for the data. Keys should match those in the `data` dictionary. Only used if `contribution` is True.
+            Dictionary containing the lower bounds for the data. Keys should match those in the `data` dictionary.
+            Only used if `contribution` is True.
         contribution : bool, optional
             If True, plot the upper and lower bounds for the data. Default is False.
 
@@ -731,13 +741,15 @@ class BaseMMM(ModelBuilder):
         """
         Plot the curve fit for the given channel based on the estimation of the parameters.
 
-        The function computes the mean channel contributions, estimates the parameters based on the specified method (either 'sigmoid' or 'michaelis-menten'), and plots
-        the curve fit. An inflection point on the curve is also highlighted.
+        The function computes the mean channel contributions, estimates the parameters based on the specified method
+        (either 'sigmoid' or 'michaelis-menten'), and plots the curve fit. An inflection point on the curve is
+        also highlighted.
 
         Parameters
         ----------
         x : np.ndarray
-            The x-axis data, usually representing the amount of input (e.g., substrate concentration in enzymology terms).
+            The x-axis data, usually representing the amount of
+            input (e.g., substrate concentration in enzymology terms).
         ax : plt.Axes
             The matplotlib axes object where the plot should be drawn.
         channel : str
@@ -747,7 +759,8 @@ class BaseMMM(ModelBuilder):
         xlim_max: int
             The maximum value to be plot on the X-axis
         method: str
-            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
+            The method used to fit the contribution & spent non-linear relationship.
+            It can be either 'sigmoid' or 'michaelis-menten'.
 
         Returns
         -------
@@ -855,18 +868,21 @@ class BaseMMM(ModelBuilder):
         parameters: Dict[str, Tuple[float, float]],
     ) -> pd.DataFrame:
         """
-        Experimental: Optimize the allocation of a given total budget across multiple channels to maximize the expected contribution.
+        Experimental: Optimize the allocation of a given total budget across multiple
+        channels to maximize the expected contribution.
 
         The optimization is based on the method provided, where each channel's contribution
         follows a saturating function of its allocated budget. The function seeks the budget allocation
-        that maximizes the total expected contribution across all channels. The method can be either 'sigmoid' or 'michaelis-menten'.
+        that maximizes the total expected contribution across all channels.
+        The method can be either 'sigmoid' or 'michaelis-menten'.
 
         Parameters
         ----------
         total_budget : int, required
             The total budget to be distributed across channels.
         method : str, required
-            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
+            The method used to fit the contribution & spent non-linear relationship.
+            It can be either 'sigmoid' or 'michaelis-menten'.
         parameters : Dict, required
             A dictionary where keys are channel names and values are tuples (L, k) representing the
             parameters for each channel based on the method used.
@@ -913,13 +929,15 @@ class BaseMMM(ModelBuilder):
         """
         Experimental: Estimate the parameters for the saturating function of each channel's contribution.
 
-        The function estimates the parameters (alpha, constant) for each channel based on the specified method (either 'sigmoid' or 'michaelis-menten').
-        These parameters represent the maximum possible contribution (alpha) and the constant parameter which vary their definition based on the function (constant) for each channel.
+        The function estimates the parameters (alpha, constant) for each channel based on the specified method
+        (either 'sigmoid' or 'michaelis-menten'). These parameters represent the maximum possible contribution (alpha)
+        and the constant parameter which vary their definition based on the function (constant) for each channel.
 
         Parameters
         ----------
         method : str, required
-            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
+            The method used to fit the contribution & spent non-linear relationship.
+            It can be either 'sigmoid' or 'michaelis-menten'.
 
         Returns
         -------
@@ -967,7 +985,8 @@ class BaseMMM(ModelBuilder):
         xlim_max : int, optional
             The maximum value to be plot on the X-axis. If not provided, the maximum value in the data will be used.
         method : str, optional
-            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'. Defaults to 'sigmoid'.
+            The method used to fit the contribution & spent non-linear relationship.
+            It can be either 'sigmoid' or 'michaelis-menten'. Defaults to 'sigmoid'.
         channels : List[str], optional
             A list of channels to plot. If not provided, all channels will be plotted.
         same_axes : bool, optional

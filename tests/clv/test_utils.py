@@ -763,10 +763,10 @@ class TestRFM:
 
         test_end = "2014-02-07"
 
-        with pytest.raises(
-            ValueError,
-            match="No data available. Check `test_transactions` and  `train_period_end` and confirm values in `transactions` occur prior to those time periods.",
-        ):
+        error_msg = """No data available. Check `test_transactions` and `train_period_end`
+        and confirm values in `transactions` occur prior to those time periods."""
+
+        with pytest.raises(ValueError, match=error_msg):
             rfm_train_test_split(
                 transaction_data, "id", "date", train_end, test_period_end=test_end
             )
