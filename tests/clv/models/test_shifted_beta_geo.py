@@ -65,25 +65,21 @@ class TestShiftedBetaGeoModel:
             }
         )
 
-    def test_missing_customer_id(self, data):
+    def test_missing_cols(self, data):
         # Create a version of the data that's missing the 'customer_id' column
         data_invalid = data.drop(columns="customer_id")
 
-        with pytest.raises(KeyError, match="data must contain a 'customer_id' column"):
+        with pytest.raises(ValueError, match="Required column customer_id missing"):
             ShiftedBetaGeoModelIndividual(data=data_invalid)
 
-    def test_missing_t_churn(self, data):
-        # Create a version of the data that's missing the 'frequency' column
         data_invalid = data.drop(columns="t_churn")
 
-        with pytest.raises(KeyError, match="data must contain a 't_churn' column"):
+        with pytest.raises(ValueError, match="Required column t_churn missing"):
             ShiftedBetaGeoModelIndividual(data=data_invalid)
 
-    def test_missing_T(self, data):
-        # Create a version of the data that's missing the 'recency' column
         data_invalid = data.drop(columns="T")
 
-        with pytest.raises(KeyError, match="data must contain a 'T' column"):
+        with pytest.raises(ValueError, match="Required column T missing"):
             ShiftedBetaGeoModelIndividual(data=data_invalid)
 
     def test_model_repr(self, default_model_config):
@@ -187,7 +183,7 @@ class TestShiftedBetaGeoModel:
     def test_distribution_customer_churn_time(self):
         dataset = pd.DataFrame(
             {
-                "customer_id": [1, 2, 3],
+                "customer_id": [0, 1, 2],
                 "t_churn": [10, 10, 10],
                 "T": 10,
             }
@@ -199,11 +195,13 @@ class TestShiftedBetaGeoModel:
         model.fit(fit_method="map")
         customer_thetas = np.array([0.1, 0.5, 0.9])
         model.idata = az.from_dict(
-            {
+            posterior={
                 "alpha": np.ones((2, 500)),  # Two chains, 500 draws each
                 "beta": np.ones((2, 500)),
                 "theta": np.full((2, 500, 3), customer_thetas),
-            }
+            },
+            coords={"customer_id": [0, 1, 2]},
+            dims={"theta": ["customer_id"]},
         )
 
         res = model.distribution_customer_churn_time(
@@ -246,23 +244,19 @@ class TestShiftedBetaGeoModel:
             rtol=0.05,
         )
 
-    def test_save_load_beta_geo(self, data):
+    def test_save_load(self, data):
         model = ShiftedBetaGeoModelIndividual(
             data=data,
         )
         model.build_model()
-        model.fit("map")
+        model.fit("map", maxeval=1)
         model.save("test_model")
         # Testing the valid case.
         model2 = ShiftedBetaGeoModelIndividual.load("test_model")
         # Check if the loaded model is indeed an instance of the class
         assert isinstance(model, ShiftedBetaGeoModelIndividual)
         # Check if the loaded data matches with the model data
-        np.testing.assert_array_equal(
-            model2.customer_id.values, model.customer_id.values
-        )
-        np.testing.assert_array_equal(model2.t_churn, model.t_churn)
-        np.testing.assert_array_equal(model2.T, model.T)
+        pd.testing.assert_frame_equal(model.data, model2.data, check_names=False)
         assert model.model_config == model2.model_config
         assert model.sampler_config == model2.sampler_config
         assert model.idata == model2.idata

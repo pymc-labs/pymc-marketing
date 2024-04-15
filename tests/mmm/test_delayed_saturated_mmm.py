@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+import xarray as xr
 from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.delayed_saturated_mmm import (
@@ -110,7 +111,7 @@ def mmm_with_fourier_features() -> DelayedSaturatedMMM:
 def mmm_fitted(
     mmm: DelayedSaturatedMMM, toy_X: pd.DataFrame, toy_y: pd.Series
 ) -> DelayedSaturatedMMM:
-    mmm.fit(X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2)
+    mmm.fit(X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2, random_seed=rng)
     return mmm
 
 
@@ -121,7 +122,7 @@ def mmm_fitted_with_fourier_features(
     toy_y: pd.Series,
 ) -> DelayedSaturatedMMM:
     mmm_with_fourier_features.fit(
-        X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2
+        X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2, random_seed=rng
     )
     return mmm_with_fourier_features
 
@@ -285,7 +286,7 @@ class TestDelayedSaturatedMMM:
         assert mmm.model_config is not None
         n_channel: int = len(mmm.channel_columns)
         n_control: int = len(mmm.control_columns)
-        fourier_terms: int = 2 * mmm.yearly_seasonality
+        # fourier_terms: int = 2 * mmm.yearly_seasonality
         mmm.fit(
             X=toy_X,
             y=toy_y,
@@ -322,17 +323,16 @@ class TestDelayedSaturatedMMM:
         )
         assert mean_model_contributions_ts.shape == (
             toy_X.shape[0],
-            n_channel + n_control + fourier_terms + 1,
+            n_channel
+            + n_control
+            + 2,  # 2 for yearly seasonality (+1) and intercept (+)
         )
         assert mean_model_contributions_ts.columns.tolist() == [
             "channel_1",
             "channel_2",
             "control_1",
             "control_2",
-            "sin_order_1",
-            "cos_order_1",
-            "sin_order_2",
-            "cos_order_2",
+            "yearly_seasonality",
             "intercept",
         ]
 
@@ -706,6 +706,7 @@ def test_new_data_predict_method(
     X_pred = generate_data(new_dates)
 
     posterior_predictive_mean = mmm.predict(X_pred=X_pred)
+
     assert isinstance(posterior_predictive_mean, np.ndarray)
     assert posterior_predictive_mean.shape[0] == new_dates.size
     # Original scale constraint
@@ -760,4 +761,139 @@ def test_create_likelihood_mu_in_top_level_kwargs(mmm):
             mu=np.array([0]),
             observed=np.random.randn(100),
             dims="obs_dim",
+        )
+
+
+def new_contributions_property_checks(new_contributions, X, model):
+    assert isinstance(new_contributions, xr.DataArray)
+
+    coords = new_contributions.coords
+    assert coords["channel"].values.tolist() == model.channel_columns
+    np.testing.assert_allclose(
+        coords["time_since_spend"].values,
+        np.arange(-model.adstock_max_lag, model.adstock_max_lag + 1),
+    )
+
+    # Channel contributions are non-negative
+    assert (new_contributions >= 0).all()
+
+
+def test_new_spend_contributions(mmm_fitted) -> None:
+    new_spend = np.ones(len(mmm_fitted.channel_columns))
+    new_contributions = mmm_fitted.new_spend_contributions(new_spend)
+
+    new_contributions_property_checks(new_contributions, mmm_fitted.X, mmm_fitted)
+
+
+def test_new_spend_contributions_prior_error(mmm) -> None:
+    new_spend = np.ones(len(mmm.channel_columns))
+    match = "sample_prior_predictive"
+    with pytest.raises(RuntimeError, match=match):
+        mmm.new_spend_contributions(new_spend, prior=True)
+
+
+@pytest.mark.parametrize("original_scale", [True, False])
+def test_new_spend_contributions_prior(original_scale, mmm, toy_X) -> None:
+    mmm.sample_prior_predictive(
+        X_pred=toy_X,
+        extend_idata=True,
+    )
+
+    new_spend = np.ones(len(mmm.channel_columns))
+    new_contributions = mmm.new_spend_contributions(
+        new_spend, prior=True, original_scale=original_scale, random_seed=0
+    )
+
+    new_contributions_property_checks(new_contributions, toy_X, mmm)
+
+
+def test_plot_new_spend_contributions_original_scale(mmm_fitted) -> None:
+    ax = mmm_fitted.plot_new_spend_contributions(
+        spend_amount=1, original_scale=True, random_seed=0
+    )
+
+    assert isinstance(ax, plt.Axes)
+
+
+@pytest.fixture(scope="module")
+def mmm_with_prior(mmm) -> DelayedSaturatedMMM:
+    n_chains = 1
+    n_samples = 100
+
+    channels = mmm.channel_columns
+    n_channels = len(channels)
+
+    idata = az.from_dict(
+        prior={
+            # Arbitrary but close to the default parameterization
+            "alpha": rng.uniform(size=(n_chains, n_samples, n_channels)),
+            "lam": rng.exponential(size=(n_chains, n_samples, n_channels)),
+            "beta_channel": np.abs(rng.normal(size=(n_chains, n_samples, n_channels))),
+        },
+        coords={"channel": channels},
+        dims={
+            "alpha": ["chain", "draw", "channel"],
+            "lam": ["chain", "draw", "channel"],
+            "beta_channel": ["chain", "draw", "channel"],
+        },
+    )
+    mmm.idata = idata
+
+    return mmm
+
+
+def test_plot_new_spend_contributions_prior(mmm_with_prior) -> None:
+    ax = mmm_with_prior.plot_new_spend_contributions(
+        spend_amount=1, prior=True, random_seed=0
+    )
+    assert isinstance(ax, plt.Axes)
+
+
+def test_plot_new_spend_contributions_prior_select_channels(
+    mmm_with_prior,
+) -> None:
+    ax = mmm_with_prior.plot_new_spend_contributions(
+        spend_amount=1, prior=True, channels=["channel_2"], random_seed=0
+    )
+
+    assert isinstance(ax, plt.Axes)
+
+
+@pytest.fixture
+def df_lift_test() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "channel": ["channel_1", "channel_1"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+        }
+    )
+
+
+def test_add_lift_test_measurements(mmm, toy_X, toy_y, df_lift_test) -> None:
+    mmm.build_model(X=toy_X, y=toy_y)
+
+    name = "lift_measurements"
+    assert name not in mmm.model
+
+    mmm.add_lift_test_measurements(
+        df_lift_test,
+        name=name,
+    )
+
+    assert name in mmm.model
+
+
+def test_add_lift_test_measurements_no_model() -> None:
+    mmm = DelayedSaturatedMMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        adstock_max_lag=4,
+        control_columns=["control_1", "control_2"],
+    )
+    with pytest.raises(RuntimeError, match="The model has not been built yet."):
+        mmm.add_lift_test_measurements(
+            pd.DataFrame(),
         )

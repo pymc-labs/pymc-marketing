@@ -1,0 +1,40 @@
+# to be used by devs in setting their local environments
+name: pymc-marketing-dev
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+# Base dependencies
+- arviz>=0.13.0
+- matplotlib>=3.5.1
+- numpy>=1.17
+- pandas
+- pip
+# NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
+- pymc>=5.12.0
+- scikit-learn>=1.1.1
+- seaborn>=0.12.2
+- xarray
+- xarray-einstats>=0.5.1
+# Extra dependencies for lint, testing and docs build
+# docs
+- sphinx
+- ipython!=8.7.0
+- myst-parser
+- myst-nb
+- pydata-sphinx-theme>=0.12.0.dev0
+- sphinx-copybutton
+- sphinx-autodoc-typehints
+- sphinxext-opengraph
+- sphinx-notfound-page
+- sphinx-design
+- watermark
+# lint
+- mypy
+- pandas-stubs
+- pre-commit>=2.19.0
+- ruff>=0.1.4
+# test
+- lifetimes==0.11.3
+- pytest==7.0.1
+- pytest-cov==3.0.0

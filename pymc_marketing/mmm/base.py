@@ -1,3 +1,5 @@
+"""Base class for Marketing Mix Models (MMM)."""
+
 import warnings
 from inspect import (
     getattr_static,
@@ -21,12 +23,12 @@ from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.budget_optimizer import budget_allocator
+from pymc_marketing.mmm.transformers import michaelis_menten
 from pymc_marketing.mmm.utils import (
     estimate_menten_parameters,
     estimate_sigmoid_parameters,
-    extense_sigmoid,
     find_sigmoid_inflection_point,
-    michaelis_menten,
+    sigmoid_saturation,
     standardize_scenarios_dict_keys,
 )
 from pymc_marketing.mmm.validating import (
@@ -232,6 +234,14 @@ class BaseMMM(ModelBuilder):
         except AttributeError:
             identity_transformer = FunctionTransformer()
             return Pipeline(steps=[("scaler", identity_transformer)])
+
+    @property
+    def prior(self) -> Dataset:
+        if self.idata is None or "prior" not in self.idata:
+            raise RuntimeError(
+                "The model hasn't been fit yet, call .sample_prior_predictive() with extend_idata=True first"
+            )
+        return self.idata["prior"]
 
     @property
     def prior_predictive(self) -> az.InferenceData:
@@ -526,7 +536,7 @@ class BaseMMM(ModelBuilder):
         # Estimate parameters based on the method
         if method == "sigmoid":
             estimate_function = estimate_sigmoid_parameters
-            fit_function = extense_sigmoid
+            fit_function = sigmoid_saturation
         elif method == "michaelis-menten":
             estimate_function = estimate_menten_parameters
             fit_function = michaelis_menten
@@ -778,7 +788,7 @@ class BaseMMM(ModelBuilder):
             x_inflection, y_inflection = find_sigmoid_inflection_point(
                 alpha=alpha_limit, lam=lam_constant
             )
-            fit_function = extense_sigmoid
+            fit_function = sigmoid_saturation
         elif method == "michaelis-menten":
             alpha_limit, lam_constant = estimate_menten_parameters(
                 channel=channel,
@@ -1126,7 +1136,7 @@ class BaseMMM(ModelBuilder):
             )
 
         if getattr(self, "yearly_seasonality", None):
-            contributions_fourier_over_time = (
+            contributions_fourier_over_time = pd.DataFrame(
                 az.extract(
                     self.fit_result,
                     var_names=["fourier_contributions"],
@@ -1136,6 +1146,8 @@ class BaseMMM(ModelBuilder):
                 .to_dataframe()
                 .squeeze()
                 .unstack()
+                .sum(axis=1),
+                columns=["yearly_seasonality"],
             )
         else:
             contributions_fourier_over_time = pd.DataFrame(
@@ -1263,6 +1275,112 @@ class BaseMMM(ModelBuilder):
 
     def graphviz(self, **kwargs):
         return pm.model_to_graphviz(self.model, **kwargs)
+
+    def plot_waterfall_components_decomposition(
+        self, original_scale: bool = True, figsize: Tuple = (14, 7), **kwargs
+    ):
+        """
+        This function creates a waterfall plot. The plot shows the decomposition of the target into its components.
+
+        Parameters
+        ----------
+        original_scale : bool, optional
+            If True, the contributions are plotted in the original scale of the target.
+        figsize : Tuple, optional
+            The size of the figure. The default is (14, 7).
+        **kwargs
+            Additional keyword arguments to pass to the matplotlib `subplots` function.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The matplotlib figure object.
+        ax : matplotlib.axes.Axes
+            The matplotlib axes object.
+        """
+
+        # Sort the dataframe in ascending order of contribution for the waterfall plot
+        dataframe = self.compute_mean_contributions_over_time(
+            original_scale=original_scale
+        )
+
+        stack_dataframe = dataframe.stack().reset_index()
+        stack_dataframe.columns = pd.Index(["date", "component", "contribution"])
+        stack_dataframe.set_index(["date", "component"], inplace=True)
+        dataframe = stack_dataframe.groupby("component").sum()
+        dataframe.sort_values(by="contribution", ascending=True, inplace=True)
+        dataframe.reset_index(inplace=True)
+
+        # Calculate the percentage of each contribution
+        total_contribution = dataframe["contribution"].sum()
+        dataframe["percentage"] = (dataframe["contribution"] / total_contribution) * 100
+
+        # Initialize the matplotlib figure and axis
+        fig, ax = plt.subplots(figsize=figsize, **kwargs)
+
+        # Initialize the starting point for the first bar
+        cumulative_contribution = 0
+
+        # Plot each bar with the updated order
+        for index, row in dataframe.iterrows():
+            # Choose the color based on the sign of the contribution
+            color = "lightblue" if row["contribution"] >= 0 else "salmon"
+
+            # For negative contributions, start the bar at the cumulative sum minus the contribution
+            bar_start = (
+                cumulative_contribution + row["contribution"]
+                if row["contribution"] < 0
+                else cumulative_contribution
+            )
+            ax.barh(row["component"], row["contribution"], left=bar_start, color=color)
+
+            # Only add to the cumulative sum if the contribution is positive
+            if row["contribution"] > 0:
+                cumulative_contribution += row["contribution"]
+
+            # Label positioning
+            label_pos = bar_start + (row["contribution"] / 2)
+            # Ensure that the label is always inside the bar for visibility
+            if row["contribution"] < 0:
+                label_pos = bar_start - (row["contribution"] / 2)
+
+            # Add labels on top of the bars for the contribution values and percentages
+            ax.text(
+                label_pos,
+                index,
+                f"{row['contribution']:,.0f}\n({row['percentage']:.1f}%)",
+                ha="center",
+                va="center",
+                color="black",
+                fontsize=10,
+            )
+
+        # Set the title and labels
+        ax.set_title("Response Decomposition Waterfall by Components")
+        ax.set_xlabel("Cumulative Contribution")
+        ax.set_ylabel("Components")
+
+        # Adjust x-axis to show the percentage
+        xticks = np.linspace(
+            0, total_contribution, num=11
+        )  # 10 equally spaced ticks from 0 to total
+        xticklabels = [
+            f"{(x/total_contribution)*100:.0f}%" for x in xticks
+        ]  # Convert to percentages
+        ax.set_xticks(xticks)
+        ax.set_xticklabels(xticklabels)
+
+        # Hide the right, top, and left spines for a cleaner look
+        ax.spines["right"].set_visible(False)
+        ax.spines["top"].set_visible(False)
+        ax.spines["left"].set_visible(False)
+
+        # Add labels on the left to identify the predictor channels, corresponding to the y-ticks
+        ax.set_yticks(np.arange(len(dataframe)))
+        ax.set_yticklabels(dataframe["component"])
+
+        plt.tight_layout()
+        return fig
 
 
 class MMM(BaseMMM, ValidateTargetColumn, ValidateDateColumn, ValidateChannelColumns):

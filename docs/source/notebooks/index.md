@@ -1,5 +1,5 @@
-(clv_examples)=
-# Examples
+(howto)=
+# How-to
 
 
 :::{toctree}
@@ -8,6 +8,7 @@
 
 mmm/mmm_example
 mmm/mmm_budget_allocation_example
+mmm/mmm_lift_test
 :::
 
 :::{toctree}
@@ -18,4 +19,11 @@ clv/clv_quickstart
 clv/bg_nbd
 clv/gamma_gamma
 clv/sBG
+:::
+
+:::{toctree}
+:caption: General
+:maxdepth: 1
+
+general/other_nuts_samplers
 :::

@@ -1,5 +1,8 @@
+"""Preprocessing methods for the Marketing Mix Model."""
+
 from typing import Any, Callable, List, Tuple, Union
 
+import numpy as np
 import pandas as pd
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler, StandardScaler
@@ -31,7 +34,12 @@ class MaxAbsScaleTarget:
     target_transformer: Pipeline
 
     @preprocessing_method_y
-    def max_abs_scale_target_data(self, data: pd.Series) -> pd.Series:
+    def max_abs_scale_target_data(
+        self, data: Union[pd.Series, np.ndarray]
+    ) -> Union[np.ndarray, pd.Series]:
+        if isinstance(data, pd.Series):
+            data = data.to_numpy()
+
         target_vector = data.reshape(-1, 1)
         transformers = [("scaler", MaxAbsScaler())]
         pipeline = Pipeline(steps=transformers)

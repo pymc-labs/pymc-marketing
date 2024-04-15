@@ -115,38 +115,30 @@ class TestBetaGeoModel:
                 "r_log__": (),
             }
 
-    def test_missing_customer_id(self, data):
-        # Create a version of the data that's missing the 'customer_id' column
+    def test_missing_cols(self, data):
         data_invalid = data.drop(columns="customer_id")
 
-        with pytest.raises(KeyError, match="customer_id column is missing from data"):
+        with pytest.raises(ValueError, match="Required column customer_id missing"):
             BetaGeoModel(data=data_invalid)
 
-    def test_missing_frequency(self, data):
-        # Create a version of the data that's missing the 'frequency' column
         data_invalid = data.drop(columns="frequency")
 
-        with pytest.raises(KeyError, match="frequency column is missing from data"):
+        with pytest.raises(ValueError, match="Required column frequency missing"):
             BetaGeoModel(data=data_invalid)
 
-    def test_missing_recency(self, data):
-        # Create a version of the data that's missing the 'recency' column
         data_invalid = data.drop(columns="recency")
 
-        with pytest.raises(KeyError, match="recency column is missing from data"):
+        with pytest.raises(ValueError, match="Required column recency missing"):
             BetaGeoModel(data=data_invalid)
 
-    def test_missing_T(self, data):
-        # Create a version of the data that's missing the 'T' column
         data_invalid = data.drop(columns="T")
 
-        with pytest.raises(KeyError, match="T column is missing from data"):
+        with pytest.raises(ValueError, match="Required column T missing"):
             BetaGeoModel(data=data_invalid)
 
-    def test_customer_id_warning(self):
+    def test_customer_id_duplicate(self):
         with pytest.raises(
-            ValueError,
-            match="The BetaGeoModel expects exactly one entry per customer. More than one entry is currently provided per customer id.",
+            ValueError, match="Column customer_id has duplicate entries"
         ):
             data = pd.DataFrame(
                 {
@@ -491,12 +483,12 @@ class TestBetaGeoModel:
             rtol=rtol,
         )
 
-    def test_save_load_beta_geo(self, data):
+    def test_save_load(self, data):
         model = BetaGeoModel(
             data=data,
         )
         model.build_model()
-        model.fit("map")
+        model.fit("map", maxeval=1)
         model.save("test_model")
         # Testing the valid case.
 
@@ -505,12 +497,7 @@ class TestBetaGeoModel:
         # Check if the loaded model is indeed an instance of the class
         assert isinstance(model, BetaGeoModel)
         # Check if the loaded data matches with the model data
-        np.testing.assert_array_equal(
-            model2.customer_id.values, model.customer_id.values
-        )
-        np.testing.assert_array_equal(model2.frequency.values, model.frequency.values)
-        np.testing.assert_array_equal(model2.T.values, model.T.values)
-        np.testing.assert_array_equal(model2.recency.values, model.recency.values)
+        pd.testing.assert_frame_equal(model.data, model2.data, check_names=False)
         assert model.model_config == model2.model_config
         assert model.sampler_config == model2.sampler_config
         assert model.idata == model2.idata

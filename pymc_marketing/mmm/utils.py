@@ -1,11 +1,15 @@
+"""Utility functions for the Marketing Mix Modeling module."""
+
 import re
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import xarray as xr
 from scipy.optimize import curve_fit, minimize_scalar
+
+from pymc_marketing.mmm.transformers import michaelis_menten
 
 
 def generate_fourier_modes(
@@ -38,61 +42,6 @@ def generate_fourier_modes(
             for func in ("sin", "cos")
         }
     )
-
-
-def michaelis_menten(
-    x: Union[float, np.ndarray, npt.NDArray[np.float64]],
-    alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
-    lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
-) -> Union[float, Any]:
-    """
-    Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
-
-    The Michaelis-Menten function is a type of mathematical saturation function commonly used in
-    enzyme kinetics, but it's also applicable in marketing mix models to describe
-    how different channels contribute to a certain outcome (e.g., sales or conversions)
-    as the spending on that channel increases and the contribution saturates.
-
-    Mathematically, it is described as:
-    α * x / (λ + x)
-
-    Parameters
-    ----------
-    x : float
-        The spent on a channel.
-    alpha (Limit/Vmax) : float
-        The maximum contribution a channel can make.
-    lam (k) : float
-        The elbow on the function in `x` (Point where the curve change their direction).
-
-    Returns
-    -------
-    float
-        The value of the Michaelis-Menten function given the parameters.
-    """
-
-    return alpha * x / (lam + x)
-
-
-def extense_sigmoid(
-    x: Union[float, np.ndarray, npt.NDArray[np.float64]],
-    alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
-    lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
-) -> Union[float, Any]:
-    """
-    Parameters
-    ----------
-    - alpha
-        α (alpha): Represent the Asymptotic Maximum or Ceiling Value.
-    - lam
-        λ (lambda): affects how quickly the function approaches its upper and lower asymptotes. A higher value of
-        lam makes the curve steeper, while a lower value makes it more gradual.
-    """
-
-    if alpha <= 0 or lam <= 0:
-        raise ValueError("alpha and lam must be greater than 0")
-
-    return (alpha - alpha * np.exp(-lam * x)) / (1 + np.exp(-lam * x))
 
 
 def estimate_menten_parameters(
@@ -180,7 +129,7 @@ def estimate_sigmoid_parameters(
 
     parameter_bounds_modified = ([0, 0], [alpha_initial_estimate, np.inf])
     popt, _ = curve_fit(
-        extense_sigmoid,
+        sigmoid_saturation,
         x,
         y,
         p0=[alpha_initial_estimate, lam_initial_estimate],
@@ -258,7 +207,7 @@ def find_sigmoid_inflection_point(
 
     # Evaluate the original function at the inflection point
     x_inflection = result.x
-    y_inflection = extense_sigmoid(x_inflection, alpha, lam)
+    y_inflection = sigmoid_saturation(x_inflection, alpha, lam)
 
     return x_inflection, y_inflection
 
@@ -289,9 +238,10 @@ def standardize_scenarios_dict_keys(d: Dict, keywords: List[str]):
                 break
 
 
-def apply_sklearn_transformer_across_date(
+def apply_sklearn_transformer_across_dim(
     data: xr.DataArray,
     func: Callable[[np.ndarray], np.ndarray],
+    dim_name: str,
     combined: bool = False,
 ) -> xr.DataArray:
     """Helper function in order to use scikit-learn functions with the xarray target.
@@ -300,6 +250,7 @@ def apply_sklearn_transformer_across_date(
     ----------
     data :
     func : scikit-learn method to apply to the data
+    dim_name : Name of the dimension to apply the function to
     combined : Flag to indicate if the data coords have been combined or not
 
     Returns
@@ -318,11 +269,120 @@ def apply_sklearn_transformer_across_date(
         data = xr.apply_ufunc(
             func,
             data.expand_dims(dim={"_": 1}, axis=1),
-            input_core_dims=[["date", "_"]],
-            output_core_dims=[["date", "_"]],
+            input_core_dims=[[dim_name, "_"]],
+            output_core_dims=[[dim_name, "_"]],
             vectorize=True,
         ).squeeze(dim="_")
 
     data.attrs = attrs
 
     return data
+
+
+def sigmoid_saturation(
+    x: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
+    lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
+) -> Union[float, Any]:
+    """
+    Parameters
+    ----------
+    alpha
+        α (alpha): Represent the Asymptotic Maximum or Ceiling Value.
+    lam
+        λ (lambda): affects how quickly the function approaches its upper and lower asymptotes. A higher value of
+        lam makes the curve steeper, while a lower value makes it more gradual.
+    """
+
+    if alpha <= 0 or lam <= 0:
+        raise ValueError("alpha and lam must be greater than 0")
+
+    return (alpha - alpha * np.exp(-lam * x)) / (1 + np.exp(-lam * x))
+
+
+def create_new_spend_data(
+    spend: np.ndarray,
+    adstock_max_lag: int,
+    one_time: bool,
+    spend_leading_up: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    """Create new spend data for the channel forward pass.
+
+    Spends must be the same length as the number of channels.
+
+    .. plot::
+        :context: close-figs
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        import arviz as az
+
+        from pymc_marketing.mmm.utils import create_new_spend_data
+        az.style.use("arviz-white")
+
+        spend = np.array([1, 2])
+        adstock_max_lag = 3
+        one_time = True
+        spend_leading_up = np.array([4, 3])
+        channel_spend = create_new_spend_data(spend, adstock_max_lag, one_time, spend_leading_up)
+
+        time_since_spend = np.arange(-adstock_max_lag, adstock_max_lag + 1)
+
+        ax = plt.subplot()
+        ax.plot(
+            time_since_spend,
+            channel_spend,
+            "o",
+            label=["Channel 1", "Channel 2"]
+        )
+        ax.legend()
+        ax.set(
+            xticks=time_since_spend,
+            yticks=np.arange(0, channel_spend.max() + 1),
+            xlabel="Time since spend",
+            ylabel="Spend",
+            title="One time spend with spends leading up",
+        )
+        plt.show()
+
+
+    Parameters
+    ---------
+    spend : np.ndarray
+        The spend data for the channels.
+    adstock_max_lag : int
+        The maximum lag for the adstock transformation.
+    one_time: bool, optional
+        If the spend is one-time, by default True.
+    spend_leading_up : np.ndarray, optional
+        The spend leading up to the first observation, by default None or 0.
+
+    Returns
+    -------
+    np.ndarray
+        The new spend data for the channel forward pass.
+    """
+    n_channels = len(spend)
+
+    if spend_leading_up is None:
+        spend_leading_up = np.zeros_like(spend)
+
+    if len(spend_leading_up) != n_channels:
+        raise ValueError("spend_leading_up must be the same length as the spend")
+
+    spend_leading_up = np.tile(spend_leading_up, adstock_max_lag).reshape(
+        adstock_max_lag, -1
+    )
+
+    spend = (
+        np.vstack([spend, np.zeros((adstock_max_lag, n_channels))])
+        if one_time
+        else np.ones((adstock_max_lag + 1, n_channels)) * spend
+    )
+
+    return np.vstack(
+        [
+            spend_leading_up,
+            spend,
+        ]
+    )

@@ -68,11 +68,11 @@ def toy_mmm(request, toy_X, toy_y):
 
         @property
         def default_model_config(self):
-            pass
+            return {}
 
         @property
         def default_sampler_config(self):
-            pass
+            return {}
 
         @property
         def output_var(self):
@@ -269,3 +269,17 @@ def test_calling_fit_result_before_fit_raises_error(test_mmm, toy_X, toy_y):
     test_mmm.fit_result
     assert test_mmm.idata is not None
     assert "posterior" in test_mmm.idata
+
+
+def test_calling_prior_before_sample_prior_predictive_raises_error(
+    test_mmm, toy_X, toy_y
+):
+    # Arrange
+    test_mmm.idata = None
+    with pytest.raises(
+        RuntimeError,
+        match=re.escape(
+            "The model hasn't been fit yet, call .sample_prior_predictive() with extend_idata=True first"
+        ),
+    ):
+        test_mmm.prior

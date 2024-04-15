@@ -1,11 +1,13 @@
-# optimization_utils.py
+"""Budget optimization module."""
+
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from pandas import DataFrame
 from scipy.optimize import minimize
 
-from pymc_marketing.mmm.utils import extense_sigmoid, michaelis_menten
+from pymc_marketing.mmm.transformers import michaelis_menten
+from pymc_marketing.mmm.utils import sigmoid_saturation
 
 
 def calculate_expected_contribution(
@@ -59,7 +61,7 @@ def calculate_expected_contribution(
 
         elif method == "sigmoid":
             alpha, lam = parameters[channel]
-            contributions[channel] = extense_sigmoid(channe_budget, alpha, lam)
+            contributions[channel] = sigmoid_saturation(channe_budget, alpha, lam)
 
         else:
             raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")
@@ -108,7 +110,7 @@ def objective_distribution(
 
         elif method == "sigmoid":
             alpha, lam = parameters[channel]
-            sum_contributions += extense_sigmoid(budget, alpha, lam)
+            sum_contributions += sigmoid_saturation(budget, alpha, lam)
 
         else:
             raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")

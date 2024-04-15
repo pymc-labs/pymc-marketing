@@ -9,6 +9,7 @@ from lifetimes import ParetoNBDFitter
 
 from pymc_marketing.clv import ParetoNBDModel
 from pymc_marketing.clv.distributions import ParetoNBD
+from tests.conftest import set_model_fit
 
 
 class TestParetoNBDModel:
@@ -25,7 +26,7 @@ class TestParetoNBDModel:
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
         # TODO: Create a pytest fixture for this
-        test_data = pd.read_csv("datasets/clv_quickstart.csv")
+        test_data = pd.read_csv("data/clv_quickstart.csv")
         test_data["customer_id"] = test_data.index
 
         cls.data = test_data
@@ -36,8 +37,6 @@ class TestParetoNBDModel:
 
         # Instantiate model with CDNOW data for testing
         cls.model = ParetoNBDModel(cls.data)
-        # TODO: This can be removed after build_model() is called internally with __init__
-        cls.model.build_model()
 
         # Also instantiate lifetimes model for comparison
         cls.lifetimes_model = ParetoNBDFitter()
@@ -64,8 +63,7 @@ class TestParetoNBDModel:
                 ),
             }
         )
-
-        cls.model.idata = cls.mock_fit
+        set_model_fit(cls.model, cls.mock_fit)
 
     @pytest.fixture(scope="class")
     def model_config(self):
@@ -87,7 +85,7 @@ class TestParetoNBDModel:
 
     def test_model(self, model_config, default_model_config):
         for config in (model_config, default_model_config):
-            model = ParetoNBDModel(self.data, config)
+            model = ParetoNBDModel(self.data, model_config=config)
 
             # TODO: This can be removed after build_model() is called internally with __init__
             model.build_model()
@@ -128,36 +126,31 @@ class TestParetoNBDModel:
                 "s_log__": (),
             }
 
-    def test_missing_customer_id(self):
-        # Create a version of the data that's missing the 'customer_id' column
+    def test_missing_cols(self):
         data_invalid = self.data.drop(columns="customer_id")
 
-        with pytest.raises(KeyError, match="customer_id column is missing from data"):
+        with pytest.raises(ValueError, match="Required column customer_id missing"):
             ParetoNBDModel(data=data_invalid)
 
-    def test_missing_frequency(self):
-        # Create a version of the data that's missing the 'frequency' column
         data_invalid = self.data.drop(columns="frequency")
 
-        with pytest.raises(KeyError, match="frequency column is missing from data"):
+        with pytest.raises(ValueError, match="Required column frequency missing"):
             ParetoNBDModel(data=data_invalid)
 
-    def test_missing_recency(self):
-        # Create a version of the data that's missing the 'recency' column
         data_invalid = self.data.drop(columns="recency")
 
-        with pytest.raises(KeyError, match="recency column is missing from data"):
+        with pytest.raises(ValueError, match="Required column recency missing"):
             ParetoNBDModel(data=data_invalid)
 
-    def test_missing_T(self):
-        # Create a version of the data that's missing the 'T' column
         data_invalid = self.data.drop(columns="T")
 
-        with pytest.raises(KeyError, match="T column is missing from data"):
+        with pytest.raises(ValueError, match="Required column T missing"):
             ParetoNBDModel(data=data_invalid)
 
-    def test_customer_id_warning(self):
-        with pytest.raises(ValueError, match="Customers must have unique ID labels."):
+    def test_customer_id_error(self):
+        with pytest.raises(
+            ValueError, match="Column customer_id has duplicate entries"
+        ):
             test_data = pd.DataFrame(
                 {
                     "customer_id": np.array([1, 2, 2]),
@@ -201,21 +194,22 @@ class TestParetoNBDModel:
             "\nalpha~Weibull(2,10)"
             "\ns~Weibull(2,1)"
             "\nbeta~Weibull(2,10)"
-            "\nlikelihood~ParetoNBD(r,alpha,s,beta,<constant>)"
+            "\nrecency_frequency~ParetoNBD(r,alpha,s,beta,<constant>)"
         )
 
-    @pytest.mark.parametrize("test_t", [1, 2, 3, 4, 5, 6])
-    def test_expected_purchases(self, test_t):
+    @pytest.mark.parametrize("future_t", [1, 3, 6])
+    def test_expected_purchases(self, future_t):
         true_purchases = (
             self.lifetimes_model.conditional_expected_number_of_purchases_up_to_time(
-                t=test_t,
+                t=future_t,
                 frequency=self.frequency,
                 recency=self.recency,
                 T=self.T,
             )
         )
 
-        est_num_purchases = self.model.expected_purchases(test_t)
+        data = self.model.data.assign(future_t=future_t)
+        est_num_purchases = self.model.expected_purchases(data)
 
         assert est_num_purchases.shape == (self.chains, self.draws, self.N)
         assert est_num_purchases.dims == ("chain", "draw", "customer_id")
@@ -226,18 +220,19 @@ class TestParetoNBDModel:
             rtol=0.001,
         )
 
-    @pytest.mark.parametrize("test_t", [1, 2, 3, 4, 5, 6])
-    def test_expected_purchases_new_customer(self, test_t):
+    @pytest.mark.parametrize("t", [1, 3, 6])
+    def test_expected_purchases_new_customer(self, t):
         true_purchases_new = (
             self.lifetimes_model.expected_number_of_purchases_up_to_time(
-                t=test_t,
+                t=t,
             )
         )
 
-        est_purchases_new = self.model.expected_purchases_new_customer(test_t)
+        data = pd.DataFrame({"customer_id": [0], "t": [t]})
+        est_purchases_new = self.model.expected_purchases_new_customer(data)
 
-        assert est_purchases_new.shape == (self.chains, self.draws)
-        assert est_purchases_new.dims == ("chain", "draw")
+        assert est_purchases_new.shape == (self.chains, self.draws, 1)
+        assert est_purchases_new.dims == ("chain", "draw", "customer_id")
 
         np.testing.assert_allclose(
             true_purchases_new,
@@ -252,7 +247,8 @@ class TestParetoNBDModel:
             T=self.T,
         )
 
-        est_prob_alive = self.model.expected_probability_alive()
+        data = self.model.data
+        est_prob_alive = self.model.expected_probability_alive(data)
 
         assert est_prob_alive.shape == (self.chains, self.draws, self.N)
         assert est_prob_alive.dims == ("chain", "draw", "customer_id")
@@ -262,24 +258,24 @@ class TestParetoNBDModel:
             rtol=0.001,
         )
 
-        est_prob_alive_t = self.model.expected_probability_alive(future_t=4.5)
+        alt_data = data.assign(future_t=4.5)
+        est_prob_alive_t = self.model.expected_probability_alive(alt_data)
         assert est_prob_alive.mean() > est_prob_alive_t.mean()
 
-    @pytest.mark.parametrize("test_n, test_t", [(0, 0), (1, 1), (2, 2)])
-    def test_expected_purchase_probability(self, test_n, test_t):
+    @pytest.mark.parametrize("n_purchases, future_t", [(0, 0), (1, 1), (2, 2)])
+    def test_expected_purchase_probability(self, n_purchases, future_t):
         true_prob_purchase = (
             self.lifetimes_model.conditional_probability_of_n_purchases_up_to_time(
-                test_n,
-                test_t,
+                n_purchases,
+                future_t,
                 frequency=self.frequency,
                 recency=self.recency,
                 T=self.T,
             )
         )
 
-        est_purchases_new_customer = self.model.expected_purchase_probability(
-            test_n, test_t, self.data
-        )
+        data = self.model.data.assign(n_purchases=n_purchases, future_t=future_t)
+        est_purchases_new_customer = self.model.expected_purchase_probability(data)
 
         assert est_purchases_new_customer.shape == (self.chains, self.draws, self.N)
         assert est_purchases_new_customer.dims == ("chain", "draw", "customer_id")
@@ -290,96 +286,79 @@ class TestParetoNBDModel:
             rtol=0.001,
         )
 
-    @pytest.mark.parametrize(
-        "fake_fit, T",
-        [
-            ("map", None),
-            ("mcmc", None),
-            ("map", np.tile(100, 1000)),
-            ("mcmc", np.tile(100, 1000)),
-        ],
-    )
-    def test_posterior_distributions(self, fake_fit, T) -> None:
+    @pytest.mark.parametrize("fit_type", ("map", "mcmc"))
+    def test_posterior_distributions(self, fit_type) -> None:
         rng = np.random.default_rng(42)
-        rtol = 0.45
-        dim_T = 2357 if T is None else len(T)
-        N = 1000
+        dim_T = 2357
 
-        if T is None:
-            T = self.T
-
-        # Reset fit result and expected shapes between tests
-        if fake_fit == "map":
-            map_fit = az.from_dict(
-                {
-                    "r": [self.r_true],
-                    "alpha": [self.alpha_true],
-                    "s": [self.s_true],
-                    "beta": [self.beta_true],
-                }
+        if fit_type == "map":
+            map_idata = self.model.idata.copy()
+            map_idata.posterior = map_idata.posterior.isel(
+                chain=slice(None, 1), draw=slice(None, 1)
             )
-            self.model.idata = map_fit
-            expected_shape = (1, 1, N)
-            expected_pop_dims = (1, 1, dim_T, 2)
+            model = self.model._build_with_idata(map_idata)
+            # We expect 1000 draws to be sampled with MAP
+            expected_shape = (1, 1000)
+            expected_pop_dims = (1, 1000, dim_T, 2)
         else:
-            self.model.idata = self.mock_fit
+            model = self.model
             expected_shape = (self.chains, self.draws)
             expected_pop_dims = (self.chains, self.draws, dim_T, 2)
 
-        customer_dropout = self.model.distribution_new_customer_dropout(random_seed=rng)
-        customer_purchase_rate = self.model.distribution_new_customer_purchase_rate(
-            random_seed=rng
+        data = model.data
+        customer_dropout = model.distribution_new_customer_dropout(
+            data, random_seed=rng
         )
-        customer_rec_freq = self.model.distribution_customer_population(
-            random_seed=rng, T=T
+        customer_purchase_rate = model.distribution_new_customer_purchase_rate(
+            data, random_seed=rng
         )
+        customer_rec_freq = model.distribution_new_customer_recency_frequency(
+            data, random_seed=rng
+        )
+        customer_rec = customer_rec_freq.sel(obs_var="recency")
+        customer_freq = customer_rec_freq.sel(obs_var="frequency")
 
         assert customer_dropout.shape == expected_shape
         assert customer_purchase_rate.shape == expected_shape
         assert customer_rec_freq.shape == expected_pop_dims
 
-        lam = pm.Gamma.dist(alpha=self.r_true, beta=1 / self.alpha_true, size=N)
-        mu = pm.Gamma.dist(alpha=self.s_true, beta=1 / self.beta_true, size=N)
-
-        rec_freq = ParetoNBD.dist(
-            r=self.r_true,
-            alpha=self.alpha_true,
-            s=self.s_true,
-            beta=self.beta_true,
-            T=T,
-        )
+        lam_mean = self.r_true / self.alpha_true
+        lam_std = np.sqrt(self.r_true) / self.alpha_true
+        mu_mean = self.s_true / self.beta_true
+        mu_std = np.sqrt(self.s_true) / self.beta_true
+        ref_rec, ref_freq = pm.draw(
+            ParetoNBD.dist(
+                r=self.r_true,
+                alpha=self.alpha_true,
+                s=self.s_true,
+                beta=self.beta_true,
+                T=self.T,
+            ),
+            random_seed=rng,
+        ).T
 
         np.testing.assert_allclose(
             customer_purchase_rate.mean(),
-            pm.draw(lam.mean(), random_seed=rng),
-            rtol=rtol,
+            lam_mean,
+            rtol=0.5,
         )
         np.testing.assert_allclose(
-            customer_purchase_rate.var(),
-            pm.draw(lam.var(), random_seed=rng),
-            rtol=rtol,
+            customer_purchase_rate.std(),
+            lam_std,
+            rtol=0.5,
         )
-        np.testing.assert_allclose(
-            customer_dropout.mean(), pm.draw(mu.mean(), random_seed=rng), rtol=rtol
-        )
-        np.testing.assert_allclose(
-            customer_dropout.var(), pm.draw(mu.var(), random_seed=rng), rtol=rtol
-        )
+        np.testing.assert_allclose(customer_dropout.mean(), mu_mean, rtol=0.5)
+        np.testing.assert_allclose(customer_dropout.std(), mu_std, rtol=0.5)
 
-        np.testing.assert_allclose(
-            customer_rec_freq.mean(),
-            pm.draw(rec_freq.mean(), random_seed=rng),
-            rtol=rtol,
-        )
-        np.testing.assert_allclose(
-            customer_rec_freq.var(),
-            pm.draw(rec_freq.var(), random_seed=self.rng),
-            rtol=rtol,
-        )
+        np.testing.assert_allclose(customer_rec.mean(), ref_rec.mean(), rtol=0.5)
+        np.testing.assert_allclose(customer_rec.std(), ref_rec.std(), rtol=0.5)
+
+        np.testing.assert_allclose(customer_freq.mean(), ref_freq.mean(), rtol=0.5)
+        np.testing.assert_allclose(customer_freq.std(), ref_freq.std(), rtol=0.5)
 
     def test_save_load_pareto_nbd(self):
         # TODO: Create a pytest fixture for this
-        test_data = pd.read_csv("datasets/clv_quickstart.csv")
+        test_data = pd.read_csv("data/clv_quickstart.csv")
         test_data["customer_id"] = test_data.index
         model = ParetoNBDModel(
             data=test_data,
@@ -394,15 +373,316 @@ class TestParetoNBDModel:
         # Check if the loaded model is indeed an instance of the class
         assert isinstance(loaded_model, ParetoNBDModel)
         # Check if the loaded data matches with the model data
-        np.testing.assert_array_equal(
-            loaded_model.customer_id.values, model.customer_id.values
-        )
-        np.testing.assert_array_equal(
-            loaded_model.frequency.values, model.frequency.values
-        )
-        np.testing.assert_array_equal(loaded_model.T.values, model.T.values)
-        np.testing.assert_array_equal(loaded_model.recency.values, model.recency.values)
+        pd.testing.assert_frame_equal(model.data, loaded_model.data, check_names=False)
         assert model.model_config == loaded_model.model_config
         assert model.sampler_config == loaded_model.sampler_config
         assert model.idata == loaded_model.idata
         os.remove("test_model")
+
+
+class TestParetoNBDModelWithCovariates:
+    @classmethod
+    def setup_class(cls):
+        rng = np.random.default_rng(34)
+
+        cls.true_params = dict(
+            r=5.0,
+            alpha_scale=10.0,
+            s=1.0,
+            beta_scale=10.0,
+            purchase_coefficient=np.array([1.0, -2.0]),
+            dropout_coefficient=np.array([3.0]),
+        )
+
+        cls.data = data = pd.read_csv("data/clv_quickstart.csv").iloc[:500]
+        data["customer_id"] = data.index
+
+        # Create two purchase covariates and one dropout covariate
+        # We standardize so that the coefficient * covariates have similar variance
+        N = data.shape[0]
+        data["purchase_cov1"] = rng.normal(size=N) / 2
+        data["purchase_cov2"] = rng.normal(size=N) / 4
+        data["dropout_cov"] = rng.normal(size=N) / 6
+
+        purchase_covariate_cols = ["purchase_cov1", "purchase_cov2"]
+        dropout_covariate_cols = ["dropout_cov"]
+        covariate_config = dict(
+            purchase_covariate_cols=purchase_covariate_cols,
+            dropout_covariate_cols=dropout_covariate_cols,
+        )
+        cls.model_with_covariates = ParetoNBDModel(
+            data,
+            model_config=covariate_config,
+        )
+
+        # Mock an idata object for tests requiring a fitted model
+        chains = 2
+        draws = 200
+        n_purchase_covariates = len(purchase_covariate_cols)
+        n_dropout_covariates = len(dropout_covariate_cols)
+        mock_fit_dict = {
+            "r": rng.normal(cls.true_params["r"], 1e-3, size=(chains, draws)),
+            "alpha_scale": rng.normal(
+                cls.true_params["alpha_scale"], 1e-3, size=(chains, draws)
+            ),
+            "s": rng.normal(cls.true_params["s"], 1e-3, size=(chains, draws)),
+            "beta_scale": rng.normal(
+                cls.true_params["beta_scale"], 1e-3, size=(chains, draws)
+            ),
+            "purchase_coefficient": rng.normal(
+                cls.true_params["purchase_coefficient"],
+                1e-3,
+                size=(chains, draws, n_purchase_covariates),
+            ),
+            "dropout_coefficient": rng.normal(
+                cls.true_params["dropout_coefficient"],
+                1e-3,
+                size=(chains, draws, n_dropout_covariates),
+            ),
+        }
+        mock_fit_with_covariates = az.from_dict(
+            mock_fit_dict,
+            dims={
+                "purchase_coefficient": ["purchase_covariate"],
+                "dropout_coefficient": ["dropout_covariate"],
+            },
+            coords={
+                "purchase_covariate": purchase_covariate_cols,
+                "dropout_covariate": dropout_covariate_cols,
+            },
+        )
+        set_model_fit(cls.model_with_covariates, mock_fit_with_covariates)
+
+        # Create a reference model without covariates
+        cls.model_without_covariates = ParetoNBDModel(data)
+        mock_fit_without_covariates = az.from_dict(
+            {
+                "r": mock_fit_dict["r"],
+                "alpha": mock_fit_dict["alpha_scale"],
+                "s": mock_fit_dict["s"],
+                "beta": mock_fit_dict["beta_scale"],
+            }
+        )
+        set_model_fit(cls.model_without_covariates, mock_fit_without_covariates)
+
+    def test_extract_predictive_covariates(self):
+        """Test that alpha/beta computed from the model and helper match."""
+        model = self.model_with_covariates
+        with model.model:
+            trace = pm.sample_posterior_predictive(
+                model.idata, var_names=["alpha", "beta"]
+            ).posterior_predictive
+            alpha_model = trace["alpha"]
+            beta_model = trace["beta"]
+
+        variables = model._extract_predictive_variables(data=self.data)
+        alpha_helper = variables["alpha"]
+        beta_helper = variables["beta"]
+
+        np.testing.assert_allclose(alpha_model, alpha_helper)
+        np.testing.assert_allclose(beta_model, beta_helper)
+
+        new_data = self.data.assign(
+            purchase_cov1=1.0,
+            dropout_cov=1.0,
+            customer_id=self.data["customer_id"] + 1,
+        )
+        different_vars = model._extract_predictive_variables(data=new_data)
+
+        different_alpha = different_vars["alpha"]
+        assert np.all(
+            different_alpha.customer_id.values == alpha_model.customer_id.values + 1
+        )
+        assert not np.allclose(alpha_model, different_alpha)
+
+        different_beta = different_vars["beta"]
+        assert np.all(
+            different_beta.customer_id.values == beta_model.customer_id.values + 1
+        )
+        assert not np.allclose(beta_model, different_beta)
+
+    def test_logp(self):
+        """Compare logp matches model without covariates when coefficients are zero, and does not otherwise"""
+        model_with_covariates = self.model_with_covariates
+        model_likelihood_fn = model_with_covariates.model.compile_logp(
+            vars=model_with_covariates.model.observed_RVs
+        )
+        ip = model_with_covariates.model.initial_point()
+
+        model_without_covariates = self.model_without_covariates
+        ref_model_likelihood_fn = model_without_covariates.model.compile_logp(
+            vars=model_without_covariates.model.observed_RVs
+        )
+        ref_ip = model_without_covariates.model.initial_point()
+
+        ip["purchase_coefficient"] = np.array([1.0, 2.0])
+        ip["dropout_coefficient"] = np.array([3.0])
+        assert model_likelihood_fn(ip) < ref_model_likelihood_fn(ref_ip)
+
+        ip["purchase_coefficient"] = np.array([0.0, 0.0])
+        ip["dropout_coefficient"] = np.array([0.0])
+        np.testing.assert_allclose(
+            model_likelihood_fn(ip),
+            ref_model_likelihood_fn(ref_ip),
+        )
+
+    def test_expectation_method(self):
+        """Test that predictive methods work with covariates"""
+        # Higher covariates with positive coefficients -> higher change of death and vice-versa
+        # Zero-d covariates should match the vanilla model
+        model = self.model_with_covariates
+
+        # Use patterns that are compatible with customer still being alive
+        test_data_zero = pd.DataFrame(
+            {
+                "customer_id": [0, 1, 2],
+                "frequency": [12, 14, 10],
+                "recency": [19, 18, 16],
+                "purchase_cov1": [0, 0, 0],
+                "purchase_cov2": [0, 0, 0],
+                "dropout_cov": [0, 0, 0],
+                "T": [20, 19, 20],
+                "future_t": [10, 13, 15],
+            }
+        )
+
+        # Probability should match model without covariates, when covariates are all zero
+        res_zero = model.expected_purchases(test_data_zero).mean(("chain", "draw"))
+        res_zero_ref = self.model_without_covariates.expected_purchases(
+            test_data_zero
+        ).mean(("chain", "draw"))
+        np.testing.assert_allclose(res_zero, res_zero_ref, rtol=1e-3)
+
+        # Probability should go up if purchase covariate1 goes up (coefficient is positive)
+        test_data_high = test_data_zero.assign(purchase_cov1=1.0)
+        res_high_purchase1 = model.expected_purchases(test_data_high).mean(
+            ("chain", "draw")
+        )
+        assert (res_zero < res_high_purchase1).all()
+
+        # Probability should go down if purchase covariate2 goes up (coefficient is negative)
+        test_data_low = test_data_zero.assign(purchase_cov2=1.0)
+        res_high_purchase2 = model.expected_purchases(test_data_low).mean(
+            ("chain", "draw")
+        )
+        assert (res_zero > res_high_purchase2).all()
+
+        # Probability should go down if dropout covariate goes up (coefficient is positive)
+        test_data_low = test_data_zero.assign(dropout_cov=1.0)
+        res_high_drop = model.expected_purchases(test_data_low).mean(("chain", "draw"))
+        assert (res_zero > res_high_drop).all()
+
+    def test_distribution_method(self):
+        model = self.model_with_covariates
+
+        reps = 30
+        test_data_zero = pd.DataFrame(
+            {
+                "customer_id": range(3 * reps),
+                "frequency": [1, 2, 0] * reps,
+                "recency": [7, 5, 2] * reps,
+                "purchase_cov1": [0, 0, 0] * reps,
+                "purchase_cov2": [0, 0, 0] * reps,
+                "dropout_cov": [0, 0, 0] * reps,
+                "T": [20, 20, 20] * reps,
+                "future_t": [2, 3, 4] * reps,
+                "n_purchases": [2, 1, 4] * reps,
+            }
+        )
+
+        # Probability should match model without covariates, when covariates are all zero
+        res_zero = model.distribution_new_customer(test_data_zero).mean(
+            ("chain", "draw")
+        )
+        res_zero_ref = self.model_without_covariates.distribution_new_customer(
+            test_data_zero
+        ).mean(("chain", "draw"))
+        np.testing.assert_allclose(
+            res_zero["dropout"].mean("customer_id"), res_zero_ref["dropout"], rtol=0.3
+        )
+        np.testing.assert_allclose(
+            res_zero["purchase_rate"].mean("customer_id"),
+            res_zero_ref["purchase_rate"],
+            rtol=0.3,
+        )
+        np.testing.assert_allclose(
+            res_zero["recency_frequency"].sel(obs_var="recency").mean("customer_id"),
+            res_zero_ref["recency_frequency"]
+            .sel(obs_var="recency")
+            .mean("customer_id"),
+            rtol=0.3,
+        )
+        np.testing.assert_allclose(
+            res_zero["recency_frequency"].sel(obs_var="frequency").mean("customer_id"),
+            res_zero_ref["recency_frequency"]
+            .sel(obs_var="frequency")
+            .mean("customer_id"),
+            rtol=0.3,
+        )
+
+        # Test case where transaction behavior should increase
+        test_data_alt = test_data_zero.assign(
+            purchase_cov=1.0,  # positive coefficient
+            purchase_cov2=-1,  # negative coefficient
+            dropout_cov=-1,  # positive coefficient
+        )
+        res_high = model.distribution_new_customer(test_data_alt).mean(
+            ("chain", "draw")
+        )
+        assert (res_zero["purchase_rate"] < res_high["purchase_rate"]).all()
+        assert (res_zero["dropout"] > res_high["dropout"]).all()
+        assert (
+            res_zero["recency_frequency"].sel(obs_var="frequency")
+            < res_high["recency_frequency"].sel(obs_var="frequency")
+        ).all()
+        assert (
+            res_zero["recency_frequency"].sel(obs_var="recency")
+            < res_high["recency_frequency"].sel(obs_var="recency")
+        ).all()
+
+    def test_model_convergence(self):
+        """Test that we can recover the true parameters with MAP fitting"""
+        rng = np.random.default_rng(627)
+
+        # Create synthetic data from "true" params
+        default_model = self.model_with_covariates.model
+        with pm.do(default_model, self.true_params):
+            prior_pred = pm.sample_prior_predictive(
+                samples=1, random_seed=rng
+            ).prior_predictive
+        synthetic_obs = prior_pred["recency_frequency"].squeeze()
+
+        synthetic_data = self.data.assign(
+            recency=synthetic_obs.sel(obs_var="recency"),
+            frequency=synthetic_obs.sel(obs_var="frequency"),
+        )
+        # The default parameter priors are very informative. We use something more broad here
+        custom_priors = {
+            "r_prior": {"dist": "Exponential", "kwargs": {"scale": 10}},
+            "alpha_prior": {"dist": "Exponential", "kwargs": {"scale": 10}},
+            "s_prior": {"dist": "Exponential", "kwargs": {"scale": 10}},
+            "beta_prior": {"dist": "Exponential", "kwargs": {"scale": 10}},
+            "purchase_coefficient_prior": {
+                "dist": "Normal",
+                "kwargs": {"mu": 0, "sigma": 6},
+            },
+            "dropout_coefficient_prior": {
+                "dist": "Normal",
+                "kwargs": {"mu": 0, "sigma": 3},
+            },
+        }
+        new_model = ParetoNBDModel(
+            synthetic_data,
+            model_config=self.model_with_covariates.model_config | custom_priors,
+        )
+        new_model.fit(fit_method="map")
+
+        result = new_model.fit_result
+        for var in default_model.free_RVs:
+            var_name = var.name
+            np.testing.assert_allclose(
+                result[var_name].squeeze(("chain", "draw")),
+                self.true_params[var_name],
+                err_msg=f"Tolerance exceeded for variable {var_name}",
+                rtol=0.2,
+            )

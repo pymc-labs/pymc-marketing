@@ -1,3 +1,5 @@
+"""Media Mix Model with delayed adstock and logistic saturation class."""
+
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -10,13 +12,18 @@ import pandas as pd
 import pymc as pm
 import seaborn as sns
 from pytensor.tensor import TensorVariable
-from xarray import DataArray
+from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.base import MMM
+from pymc_marketing.mmm.lift_test import (
+    add_logistic_empirical_lift_measurements_to_likelihood,
+    scale_lift_measurements,
+)
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.mmm.utils import (
-    apply_sklearn_transformer_across_date,
+    apply_sklearn_transformer_across_dim,
+    create_new_spend_data,
     generate_fourier_modes,
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
@@ -25,6 +32,13 @@ __all__ = ["DelayedSaturatedMMM"]
 
 
 class BaseDelayedSaturatedMMM(MMM):
+    """Base class for a media mix model with delayed adstock and logistic saturation class (see [1]_).
+
+    References
+    ----------
+    .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
+    """
+
     _model_type = "DelayedSaturatedMMM"
     version = "0.0.2"
 
@@ -40,7 +54,7 @@ class BaseDelayedSaturatedMMM(MMM):
         yearly_seasonality: Optional[int] = None,
         **kwargs,
     ) -> None:
-        """Media Mix Model with delayed adstock and logistic saturation class (see [1]_).
+        """Constructor method.
 
         Parameters
         ----------
@@ -60,10 +74,6 @@ class BaseDelayedSaturatedMMM(MMM):
             Number of lags to consider in the adstock transformation, by default 4
         yearly_seasonality : Optional[int], optional
             Number of Fourier modes to model yearly seasonality, by default None.
-
-        References
-        ----------
-        .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
         """
         self.control_columns = control_columns
         self.adstock_max_lag = adstock_max_lag
@@ -91,9 +101,9 @@ class BaseDelayedSaturatedMMM(MMM):
     def _generate_and_preprocess_model_data(  # type: ignore
         self, X: Union[pd.DataFrame, pd.Series], y: Union[pd.Series, np.ndarray]
     ) -> None:
-        """
-        Applies preprocessing to the data before fitting the model.
-        if validate is True, it will check if the data is valid for the model.
+        """Applies preprocessing to the data before fitting the model.
+
+        If validate is True, it will check if the data is valid for the model.
         sets self.model_coords based on provided dataset
 
         Parameters
@@ -380,6 +390,7 @@ class BaseDelayedSaturatedMMM(MMM):
             )
 
             mu_var = intercept + channel_contributions.sum(axis=-1)
+
             if (
                 self.control_columns is not None
                 and len(self.control_columns) > 0
@@ -407,6 +418,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 )
 
                 mu_var += control_contributions.sum(axis=-1)
+
             if (
                 hasattr(self, "fourier_columns")
                 and self.fourier_columns is not None
@@ -484,10 +496,12 @@ class BaseDelayedSaturatedMMM(MMM):
         self, channel_data: npt.NDArray[np.float_]
     ) -> npt.NDArray[np.float_]:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
+
         Parameters
         ----------
         channel_data : array-like
             Input channel data. Result of all the preprocessing steps.
+
         Returns
         -------
         array-like
@@ -644,7 +658,6 @@ class BaseDelayedSaturatedMMM(MMM):
         data: Dict[str, Union[np.ndarray, Any]] = {
             "channel_data": channel_transformation(new_channel_data)
         }
-
         if self.control_columns is not None:
             control_data = X[self.control_columns].to_numpy()
             control_transformation = (
@@ -659,9 +672,9 @@ class BaseDelayedSaturatedMMM(MMM):
 
         if y is not None:
             if isinstance(y, pd.Series):
-                data[
-                    "target"
-                ] = y.to_numpy()  # convert Series to numpy array explicitly
+                data["target"] = (
+                    y.to_numpy()
+                )  # convert Series to numpy array explicitly
             elif isinstance(y, np.ndarray):
                 data["target"] = y
             else:
@@ -702,13 +715,129 @@ class DelayedSaturatedMMM(
     ValidateControlColumns,
     BaseDelayedSaturatedMMM,
 ):
-    ...
+    """Media Mix Model with delayed adstock and logistic saturation class (see [1]_).
+
+    Given a time series target variable :math:`y_{t}` (e.g. sales on conversions), media variables
+    :math:`x_{m, t}` (e.g. impressions, clicks or costs) and a set of control covariates :math:`z_{c, t}` (e.g. holidays, special events)
+    we consider a Bayesian linear model of the form:
+
+    .. math::
+        y_{t} = \\alpha + \\sum_{m=1}^{M}\\beta_{m}f(x_{m, t}) +  \\sum_{c=1}^{C}\\gamma_{c}z_{c, t} + \\varepsilon_{t},
+
+    where :math:`\\alpha` is the intercept, :math:`f` is a media transformation function and :math:`\\varepsilon_{t}` is the error therm
+    which we assume is normally distributed. The function :math:`f` encodes the contribution of media on the target variable.
+    Typically we consider two types of transformation: adstock (carry-over) and saturation effects.
+
+    Notes
+    -----
+    Here are some important notes about the model:
+
+    1. Before fitting the model, we scale the target variable and the media channels using the maximum absolute value of each variable.
+    This enable us to have a more stable model and better convergence. If control variables are present, we do not scale them!
+    If needed please do it before passing the data to the model.
+
+    2. We allow to add yearly seasonality controls as Fourier modes. You can use the `yearly_seasonality` parameter to specify the number of Fourier modes to include.
+
+    3. This class also allow us to calibrate the model using:
+
+    - Custom priors for the parameters via the `model_config` parameter. You can also set the likelihood distribution.
+    - Adding lift tests to the likelihood function via the :meth:`add_lift_test_measurements <pymc_marketing.mmm.delayed_saturated_mmm.DelayedSaturatedMMM.add_lift_test_measurements>` method.
+
+    For details on a vanilla implementation in PyMC, see [2]_.
+
+    Examples
+    --------
+    Here is an example of how to instantiate the model with the default configuration:
+
+    .. code-block:: python
+
+        import numpy as np
+        import pandas as pd
+
+        from pymc_marketing.mmm import DelayedSaturatedMMM
+
+        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
+        data = pd.read_csv(data_url, parse_dates=["date_week"])
+
+        mmm = DelayedSaturatedMMM(
+            date_column="date_week",
+            channel_columns=["x1", "x2"],
+            control_columns=[
+                "event_1",
+                "event_2",
+                "t",
+            ],
+            adstock_max_lag=8,
+            yearly_seasonality=2,
+        )
+
+    Now we can fit the model with the data:
+
+    .. code-block:: python
+
+        # Set features and target
+        X = data.drop("y", axis=1)
+        y = data["y"]
+
+        # Fit the model
+        idata = mmm.fit(X, y)
+
+    We can also define custom priors for the model:
+
+    .. code-block:: python
+
+        my_model_config = {
+            "beta_channel": {
+                "dist": "LogNormal",
+                "kwargs": {"mu": np.array([2, 1]), "sigma": 1},
+            },
+            "likelihood": {
+                "dist": "Normal",
+                "kwargs": {"sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}}},
+            },
+        }
+
+        mmm = DelayedSaturatedMMM(
+            model_config=my_model_config,
+            date_column="date_week",
+            channel_columns=["x1", "x2"],
+            control_columns=[
+                "event_1",
+                "event_2",
+                "t",
+            ],
+            adstock_max_lag=8,
+            yearly_seasonality=2,
+        )
+
+    As you can see, we can configure all prior and likelihood distributions via the `model_config`.
+
+    The `fit` method accepts keyword arguments that are passed to the PyMC sampling method.
+    For example, to change the number of samples and chains, and using a JAX implementation of NUTS we can do:
+
+    .. code-block:: python
+
+        sampler_kwargs = {
+            "draws": 2_000,
+            "target_accept": 0.9,
+            "chains": 5,
+            "random_seed": 42,
+        }
+
+        idata = mmm.fit(X, y, nuts_sampler="numpyro", **sampler_kwargs)
+
+    References
+    ----------
+    .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
+    .. [2] Orduz, J. `"Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns" <https://juanitorduz.github.io/pymc_mmm/>`_.
+    """
 
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float_]
     ) -> npt.NDArray[np.float_]:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
         We return the contribution in the original scale of the target variable.
+
         Parameters
         ----------
         channel_data : array-like
@@ -731,7 +860,8 @@ class DelayedSaturatedMMM(
     def get_channel_contributions_forward_pass_grid(
         self, start: float, stop: float, num: int
     ) -> DataArray:
-        """Generate a grid of scaled channel contributions for a given grid of share values.
+        """Generate a grid of scaled channel contributions for a given grid of shared values.
+
         Parameters
         ----------
         start : float
@@ -778,6 +908,7 @@ class DelayedSaturatedMMM(
         **plt_kwargs: Any,
     ) -> plt.Figure:
         """Plots a grid of scaled channel contributions for a given grid of share values.
+
         Parameters
         ----------
         start : float
@@ -789,6 +920,7 @@ class DelayedSaturatedMMM(
         absolute_xrange : bool, optional
             If True, the x-axis is in absolute values (input units), otherwise it is in
             relative percentage values, by default False.
+
         Returns
         -------
         plt.Figure
@@ -850,6 +982,234 @@ class DelayedSaturatedMMM(
         )
         return fig
 
+    def new_spend_contributions(
+        self,
+        spend: Optional[np.ndarray] = None,
+        one_time: bool = True,
+        spend_leading_up: Optional[np.ndarray] = None,
+        prior: bool = False,
+        original_scale: bool = True,
+        **sample_posterior_predictive_kwargs,
+    ) -> DataArray:
+        """Return the upcoming contributions for a given spend.
+
+        The spend can be one time or constant over the period. The spend leading up to the
+        period can also be specified in order account for the lagged effect of the spend.
+
+        Parameters
+        ----------
+        spend : np.ndarray, optional
+            Array of spend for each channel. If None, the average spend for each channel is used, by default None.
+        one_time : bool, optional
+            Whether the spends for each channel are only at the start of the period.
+            If True, all spends after the initial spend are zero.
+            If False, all spends after the initial spend are the same as the initial spend.
+            By default True.
+        spend_leading_up : np.array, optional
+            Array of spend for each channel leading up to the spend, by default None or 0 for each channel.
+            Use this parameter to account for the lagged effect of the spend.
+        prior : bool, optional
+            Whether to use the prior or posterior, by default False (posterior)
+        **sample_posterior_predictive_kwargs
+            Additional keyword arguments passed to pm.sample_posterior_predictive
+
+        Returns
+        -------
+        DataArray
+            Upcoming contributions for each channel
+
+        Examples
+        --------
+        Channel contributions from 1 unit on each channel only once.
+
+        .. code-block:: python
+
+            n_channels = len(model.channel_columns)
+            spend = np.ones(n_channels)
+            new_spend_contributions = model.new_spend_contributions(spend=spend)
+
+        Channel contributions from continuously spending 1 unit on each channel.
+
+        .. code-block:: python
+
+            n_channels = len(model.channel_columns)
+            spend = np.ones(n_channels)
+            new_spend_contributions = model.new_spend_contributions(spend=spend, one_time=False)
+
+        Channel contributions from 1 unit on each channel only once but with 1 unit leading up to the spend.
+
+        .. code-block:: python
+
+            n_channels = len(model.channel_columns)
+            spend = np.ones(n_channels)
+            spend_leading_up = np.ones(n_channels)
+            new_spend_contributions = model.new_spend_contributions(spend=spend, spend_leading_up=spend_leading_up)
+        """
+        if spend is None:
+            spend = self.X.loc[:, self.channel_columns].mean().to_numpy()  # type: ignore
+
+        n_channels = len(self.channel_columns)
+        if len(spend) != n_channels:
+            raise ValueError("spend must be the same length as the number of channels")
+
+        new_data = create_new_spend_data(
+            spend=spend,
+            adstock_max_lag=self.adstock_max_lag,
+            one_time=one_time,
+            spend_leading_up=spend_leading_up,
+        )
+
+        new_data = (
+            self.channel_transformer.transform(new_data) if not prior else new_data
+        )
+
+        idata: Dataset = self.fit_result if not prior else self.prior
+
+        coords = {
+            "time_since_spend": np.arange(
+                -self.adstock_max_lag, self.adstock_max_lag + 1
+            ),
+            "channel": self.channel_columns,
+        }
+        with pm.Model(coords=coords):
+            alpha = pm.Uniform("alpha", lower=0, upper=1, dims=("channel",))
+            lam = pm.HalfFlat("lam", dims=("channel",))
+            beta_channel = pm.HalfFlat("beta_channel", dims=("channel",))
+
+            # Same as the forward pass of the model
+            channel_adstock = geometric_adstock(
+                x=new_data,
+                alpha=alpha,
+                l_max=self.adstock_max_lag,
+                normalize=True,
+                axis=0,
+            )
+            channel_adstock_saturated = logistic_saturation(x=channel_adstock, lam=lam)
+            pm.Deterministic(
+                name="channel_contributions",
+                var=channel_adstock_saturated * beta_channel,
+                dims=("time_since_spend", "channel"),
+            )
+
+            samples = pm.sample_posterior_predictive(
+                idata,
+                var_names=["channel_contributions"],
+                **sample_posterior_predictive_kwargs,
+            )
+
+        channel_contributions = samples.posterior_predictive["channel_contributions"]
+
+        if original_scale:
+            channel_contributions = apply_sklearn_transformer_across_dim(
+                data=channel_contributions,
+                func=self.get_target_transformer().inverse_transform,
+                dim_name="time_since_spend",
+                combined=False,
+            )
+
+        return channel_contributions
+
+    def plot_new_spend_contributions(
+        self,
+        spend_amount: float,
+        one_time: bool = True,
+        lower: float = 0.025,
+        upper: float = 0.975,
+        ylabel: str = "Sales",
+        idx: Optional[slice] = None,
+        channels: Optional[List[str]] = None,
+        prior: bool = False,
+        original_scale: bool = True,
+        ax: Optional[plt.Axes] = None,
+        **sample_posterior_predictive_kwargs,
+    ) -> plt.Axes:
+        """Plot the upcoming sales for a given spend amount.
+
+        Calls the new_spend_contributions method and plots the results. For more
+        control over the plot, use new_spend_contributions directly.
+
+        Parameters
+        ----------
+        spend_amount : float
+            The amount of spend for each channel
+        one_time : bool, optional
+            Whether the spend are one time (at start of period) or constant (over period), by default True (one time)
+        lower : float, optional
+            The lower quantile for the confidence interval, by default 0.025
+        upper : float, optional
+            The upper quantile for the confidence interval, by default 0.975
+        ylabel : str, optional
+            The label for the y-axis, by default "Sales"
+        idx : slice, optional
+            The index slice of days to plot, by default None or only the positive days.
+            More specifically, slice(0, None, None)
+        channels : List[str], optional
+            The channels to plot, by default None or all channels
+        prior : bool, optional
+            Whether to use the prior or posterior, by default False (posterior)
+        original_scale : bool, optional
+            Whether to plot in the original scale of the target variable, by default True
+        ax : plt.Axes, optional
+            The axes to plot on, by default None or current axes
+        **sample_posterior_predictive_kwargs
+            Additional keyword arguments passed to pm.sample_posterior_predictive
+
+        Returns
+        -------
+        plt.Axes
+            The plot of upcoming sales for the given spend amount
+
+        """
+        for value in [lower, upper]:
+            if value < 0 or value > 1:
+                raise ValueError("lower and upper must be between 0 and 1")
+        if lower > upper:
+            raise ValueError("lower must be less than or equal to upper")
+
+        ax = ax or plt.gca()
+        total_channels = len(self.channel_columns)
+        contributions = self.new_spend_contributions(
+            np.ones(total_channels) * spend_amount,
+            one_time=one_time,
+            spend_leading_up=np.ones(total_channels) * spend_amount,
+            prior=prior,
+            original_scale=original_scale,
+            **sample_posterior_predictive_kwargs,
+        )
+
+        contributions_groupby = contributions.to_series().groupby(
+            level=["time_since_spend", "channel"]
+        )
+
+        idx = idx or pd.IndexSlice[0:]
+
+        conf = (
+            contributions_groupby.quantile([lower, upper])
+            .unstack("channel")
+            .unstack()
+            .loc[idx]
+        )
+
+        channels = channels or self.channel_columns  # type: ignore
+        for channel in channels:  # type: ignore
+            ax.fill_between(
+                conf.index,
+                conf[channel][lower],
+                conf[channel][upper],
+                label=f"{channel} {100 * (upper - lower):.0f}% CI",
+                alpha=0.5,
+            )
+        mean = contributions_groupby.mean().unstack("channel").loc[idx, channels]
+        color = [f"C{i}" for i in range(len(channels))]  # type: ignore
+        mean.add_suffix(" mean").plot(ax=ax, color=color, alpha=0.75)
+        ax.legend().set_title("Channel")
+        ax.set(
+            xlabel="Time since spend",
+            ylabel=ylabel,
+            title=f"Upcoming sales for {spend_amount:.02f} spend",
+        )
+        return ax
+
     def _validate_data(self, X, y=None):
         return X
 
@@ -910,10 +1270,121 @@ class DelayedSaturatedMMM(
             )
 
         if original_scale:
-            posterior_predictive_samples = apply_sklearn_transformer_across_date(
+            posterior_predictive_samples = apply_sklearn_transformer_across_dim(
                 data=posterior_predictive_samples,
                 func=self.get_target_transformer().inverse_transform,
+                dim_name="date",
                 combined=combined,
             )
 
         return posterior_predictive_samples
+
+    def add_lift_test_measurements(
+        self,
+        df_lift_test: pd.DataFrame,
+        dist: pm.Distribution = pm.Gamma,
+        name: str = "lift_measurements",
+    ) -> None:
+        """Add lift tests to the model.
+
+        The model difference of a channel's saturation curve is created
+        from `x` and `x + delta_x` for each channel. This random variable is
+        then conditioned using the empirical lift, `delta_y`, and `sigma` of the lift test
+        with the specified distribution `dist`.
+
+        The sudo code for the lift test is as follows:
+
+        .. code-block:: python
+
+            model_estimated_lift = (
+                saturation_curve(x + delta_x)
+                - saturation_curve(x)
+            )
+            empirical_lift = delta_y
+            dist(model_estimated_lift, sigma=sigma, observed=empirical_lift)
+
+
+        The model has to be built before adding the lift tests.
+
+        Parameters
+        ----------
+        df_lift_test : pd.DataFrame
+            DataFrame with lift test results with at least the following columns:
+                * `channel`: channel name. Must be present in `channel_columns`.
+                * `x`: x axis value of the lift test.
+                * `delta_x`: change in x axis value of the lift test.
+                * `delta_y`: change in y axis value of the lift test.
+                * `sigma`: standard deviation of the lift test.
+        dist : pm.Distribution, optional
+            The distribution to use for the likelihood, by default pm.Gamma
+        name : str, optional
+            The name of the likelihood of the lift test contribution(s),
+            by default "lift_measurements". Name change required if calling
+            this method multiple times.
+
+        Raises
+        ------
+        RuntimeError
+            If the model has not been built yet.
+        KeyError
+            If the 'channel' column is not present in df_lift_test.
+
+        Examples
+        --------
+        Build the model first then add lift test measurements.
+
+        .. code-block:: python
+
+            model = DelayedSaturatedMMM(
+                date_column="date_week",
+                channel_columns=["x1", "x2"],
+                control_columns=[
+                    "event_1",
+                    "event_2",
+                ],
+                adstock_max_lag=8,
+                yearly_seasonality=2,
+            )
+
+            X: pd.DataFrame = ...
+            y: np.ndarray = ...
+
+            model.build_model(X, y)
+
+            df_lift_test = pd.DataFrame({
+                "channel": ["x1", "x1"],
+                "x": [1, 1],
+                "delta_x": [0.1, 0.2],
+                "delta_y": [0.1, 0.1],
+                "sigma": [0.1, 0.1],
+            })
+
+            model.add_lift_test_measurements(df_lift_test)
+
+        """
+        if self.model is None:
+            raise RuntimeError(
+                "The model has not been built yet. Please, build the model first."
+            )
+
+        if "channel" not in df_lift_test.columns:
+            raise KeyError(
+                "The 'channel' column is required to map the lift measurements to the model."
+            )
+
+        df_lift_test_scaled = scale_lift_measurements(
+            df_lift_test=df_lift_test,
+            channel_col="channel",
+            channel_columns=self.channel_columns,  # type: ignore
+            channel_transform=self.channel_transformer.transform,
+            target_transform=self.target_transformer.transform,
+        )
+        with self.model:
+            add_logistic_empirical_lift_measurements_to_likelihood(
+                df_lift_test=df_lift_test_scaled,
+                # Based on the model
+                lam_name="lam",
+                beta_name="beta_channel",
+                dist=dist,
+                name=name,
+            )

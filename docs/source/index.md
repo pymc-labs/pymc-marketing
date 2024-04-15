@@ -69,6 +69,9 @@ conda create -c conda-forge -n marketing_env pymc-marketing
 conda activate marketing_env
 ```
 
+### Installation for developers
+If you are a developer of pymc-marketing, or want to start contributing, [refer to the contributing guide](https://github.com/pymc-labs/pymc-marketing/blob/main/CONTRIBUTING.md) to get started.
+
 See the official [PyMC installation guide](https://www.pymc.io/projects/docs/en/latest/installation.html) if more detail is needed.
 
 ## Quickstart
@@ -101,7 +104,7 @@ import pandas as pd
 from pymc_marketing.mmm import DelayedSaturatedMMM
 
 
-data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/datasets/mmm_example.csv"
+data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
 data = pd.read_csv(data_url, parse_dates=['date_week'])
 
 mmm = DelayedSaturatedMMM(
@@ -137,7 +140,7 @@ import seaborn as sns
 from pymc_marketing import clv
 
 
-data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/datasets/clv_quickstart.csv"
+data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
 data = pd.read_csv(data_url)
 data['customer_id'] = data.index
 

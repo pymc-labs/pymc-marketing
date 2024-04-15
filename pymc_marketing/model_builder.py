@@ -75,15 +75,19 @@ class ModelBuilder(ABC):
         >>> model = MyModel(model_config, sampler_config)
         """
         if sampler_config is None:
-            sampler_config = self.default_sampler_config
+            sampler_config = {}
         if model_config is None:
-            model_config = self.default_model_config
-        self.sampler_config = sampler_config
-        self.model_config = model_config  # parameters for priors etc.
+            model_config = {}
+        self.sampler_config = (
+            self.default_sampler_config | sampler_config
+        )  # Parameters for fit sampling
+        self.model_config = (
+            self.default_model_config | model_config
+        )  # parameters for priors etc.
         self.model: Optional[pm.Model] = None  # Set by build_model
-        self.idata: Optional[
-            az.InferenceData
-        ] = None  # idata is generated during fitting
+        self.idata: Optional[az.InferenceData] = (
+            None  # idata is generated during fitting
+        )
         self.is_fitted_ = False
 
     def _validate_data(self, X, y=None):
@@ -463,7 +467,9 @@ class ModelBuilder(ABC):
         self._generate_and_preprocess_model_data(X, y_df.values.flatten())
         if self.X is None or self.y is None:
             raise ValueError("X and y must be set before calling build_model!")
-        self.build_model(self.X, self.y)
+
+        if self.model is None:
+            self.build_model(self.X, self.y)
 
         sampler_config = self.sampler_config.copy()
         sampler_config["progressbar"] = progressbar
