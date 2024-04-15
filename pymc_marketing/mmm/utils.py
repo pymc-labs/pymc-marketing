@@ -278,10 +278,10 @@ def apply_sklearn_transformer_across_dim(
 
     return data
 
-  
+
 def softplus(x: pt.TensorVariable) -> pt.TensorVariable:
     return pm.math.log(1 + pm.math.exp(x))
-  
+
 
 def sigmoid_saturation(
     x: Union[float, np.ndarray, npt.NDArray[np.float64]],

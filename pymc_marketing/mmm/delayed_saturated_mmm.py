@@ -31,6 +31,7 @@ __all__ = ["DelayedSaturatedMMM"]
 
 DAYS_IN_YEAR = 365.25
 
+
 class BaseDelayedSaturatedMMM(MMM):
     _model_type = "DelayedSaturatedMMM"
     version = "0.0.2"
@@ -392,7 +393,9 @@ class BaseDelayedSaturatedMMM(MMM):
                     X_mid=self._time_index_mid,
                     positive=True,
                     m=200,
-                    L=[self._time_index_mid + DAYS_IN_YEAR / self._time_resolution],
+                    L=self._time_index_mid
+                    + DAYS_IN_YEAR
+                    / self._time_resolution,  # This extends the HSGP basis-functions one year into the future (and past)
                     ls_mu=DAYS_IN_YEAR / self._time_resolution * 2,
                     ls_sigma=10,
                     eta_lam=1,
@@ -418,7 +421,7 @@ class BaseDelayedSaturatedMMM(MMM):
                     X_mid=self._time_index_mid,
                     positive=True,
                     m=200,
-                    L=[self._time_index_mid + DAYS_IN_YEAR / self._time_resolution],
+                    L=self._time_index_mid + DAYS_IN_YEAR / self._time_resolution,
                     ls_mu=DAYS_IN_YEAR / self._time_resolution * 2,
                     ls_sigma=10,
                     eta_lam=1,
@@ -462,9 +465,9 @@ class BaseDelayedSaturatedMMM(MMM):
             if self.time_varying_media_effect:
                 channel_contributions_var *= tv_multiplier_media[:, None]
             channel_contributions = pm.Deterministic(
-                name="channel_contributions", 
-                var=channel_contributions_var, 
-                dims=("date", "channel"), 
+                name="channel_contributions",
+                var=channel_contributions_var,
+                dims=("date", "channel"),
             )
 
             mu_var = intercept + channel_contributions.sum(axis=-1)
@@ -562,7 +565,9 @@ class BaseDelayedSaturatedMMM(MMM):
         date_data: pd.Series = pd.to_datetime(
             arg=X[self.date_column], format="%Y-%m-%d"
         )
-        periods: npt.NDArray[np.float_] = date_data.dt.dayofyear.to_numpy() / DAYS_IN_YEAR
+        periods: npt.NDArray[np.float_] = (
+            date_data.dt.dayofyear.to_numpy() / DAYS_IN_YEAR
+        )
         return generate_fourier_modes(
             periods=periods,
             n_order=self.yearly_seasonality,

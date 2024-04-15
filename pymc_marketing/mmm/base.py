@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import seaborn as sns
+from numpy.typing import NDArray
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
@@ -60,11 +61,11 @@ class BaseMMM(ModelBuilder):
         self.X: Optional[pd.DataFrame] = None
         self.y: Optional[Union[pd.Series, np.ndarray]] = None
 
-        self._time_resolution: Optional[int] = None
-        self._time_index: Optional[np.ndarray[int]] = None
-        self._time_index_mid: Optional[int] = None
-        self._fit_result: Optional[az.InferenceData] = None
-        self._posterior_predictive: Optional[az.InferenceData] = None
+        self._time_resolution: int
+        self._time_index: NDArray[np.int_]
+        self._time_index_mid: int | float
+        self._fit_result: az.InferenceData
+        self._posterior_predictive: az.InferenceData
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
     @property
@@ -351,7 +352,9 @@ class BaseMMM(ModelBuilder):
             )
 
             target_to_plot = np.asarray(
-                self.y if original_scale else self.get_target_transformer().transform(self.y[:, None]).flatten()  # type: ignore
+                self.y
+                if original_scale
+                else self.get_target_transformer().transform(self.y[:, None]).flatten()  # type: ignore
             )
 
             assert len(target_to_plot) == len(posterior_predictive_data.date), (

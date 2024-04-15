@@ -1,6 +1,7 @@
 from typing import Optional
 
 import pymc as pm
+
 from pymc_marketing.mmm.utils import softplus
 
 
@@ -11,11 +12,11 @@ def time_varying_prior(
     positive: bool = False,
     dims: Optional[tuple[str, str] | str] = None,
     m: int = 40,
-    L: int = 100,
+    L: int | float = 100,
     eta_lam: float = 1,
     ls_mu: float = 5,
     ls_sigma: float = 5,
-    cov_func: Optional[pm.gp.cov.Prod] = None,
+    cov_func: Optional[pm.gp.cov.Covariance] = None,
     model: Optional[pm.Model] = None,
 ) -> pm.Deterministic:
     """Time varying prior, based the Hilbert Space Gaussian Process (HSGP).
@@ -35,7 +36,8 @@ def time_varying_prior(
     m : int
         Number of basis functions.
     L : int
-        Number of quadrature points.
+        Extent of basis functions. Set this to reflect the expected range of
+        in+out-of-sample data (considering that time-indices are zero-centered)
     eta_lam : float
         Exponential prior for the variance.
     ls_mu : float
@@ -59,11 +61,11 @@ def time_varying_prior(
             ls = pm.InverseGamma(f"ls_{name}", mu=ls_mu, sigma=ls_sigma)
             cov_func = eta**2 * pm.gp.cov.Matern52(1, ls=ls)
 
+        hsgp_size: int | tuple[int, int] = m
         if type(dims) is tuple:
             n_columns = len(model.coords[dims[1]])
             hsgp_size = (n_columns, m)
-        else:
-            hsgp_size = m
+
         gp = pm.gp.HSGP(m=[m], L=[L], cov_func=cov_func)
         phi, sqrt_psd = gp.prior_linearized(Xs=X[:, None] - X_mid)
         hsgp_coefs = pm.Normal(f"_hsgp_coefs_{name}", size=hsgp_size)
