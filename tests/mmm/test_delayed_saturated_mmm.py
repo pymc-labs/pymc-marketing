@@ -327,6 +327,13 @@ class TestDelayedSaturatedMMM:
             + n_control
             + 2,  # 2 for yearly seasonality (+1) and intercept (+)
         )
+
+        processed_df = mmm._process_decomposition_components(
+            data=mean_model_contributions_ts
+        )
+
+        assert processed_df.shape == (n_channel + n_control + 2, 3)
+
         assert mean_model_contributions_ts.columns.tolist() == [
             "channel_1",
             "channel_2",

@@ -1276,8 +1276,38 @@ class BaseMMM(ModelBuilder):
     def graphviz(self, **kwargs):
         return pm.model_to_graphviz(self.model, **kwargs)
 
+    def _process_decomposition_components(self, data: pd.DataFrame):
+        """
+        Process data to compute the sum of contributions by component and calculate their percentages.
+
+        Parameters
+        ----------
+        dataframe : pd.DataFrame
+            Dataframe containing the time series data.
+
+        Returns
+        -------
+        dataframe : pd.DataFrame
+            A dataframe with contributions summed up by component, sorted, and with percentages.
+        """
+        dataframe = data.copy()
+        stack_dataframe = dataframe.stack().reset_index()
+        stack_dataframe.columns = pd.Index(["date", "component", "contribution"])
+        stack_dataframe.set_index(["date", "component"], inplace=True)
+        dataframe = stack_dataframe.groupby("component").sum()
+        dataframe.sort_values(by="contribution", ascending=True, inplace=True)
+        dataframe.reset_index(inplace=True)
+
+        total_contribution = dataframe["contribution"].sum()
+        dataframe["percentage"] = (dataframe["contribution"] / total_contribution) * 100
+
+        return dataframe
+
     def plot_waterfall_components_decomposition(
-        self, original_scale: bool = True, figsize: Tuple = (14, 7), **kwargs
+        self,
+        original_scale: bool = True,
+        figsize: Tuple = (14, 7),
+        **kwargs,
     ):
         """
         This function creates a waterfall plot. The plot shows the decomposition of the target into its components.
@@ -1295,8 +1325,6 @@ class BaseMMM(ModelBuilder):
         -------
         fig : matplotlib.figure.Figure
             The matplotlib figure object.
-        ax : matplotlib.axes.Axes
-            The matplotlib axes object.
         """
 
         # Sort the dataframe in ascending order of contribution for the waterfall plot
@@ -1304,16 +1332,8 @@ class BaseMMM(ModelBuilder):
             original_scale=original_scale
         )
 
-        stack_dataframe = dataframe.stack().reset_index()
-        stack_dataframe.columns = pd.Index(["date", "component", "contribution"])
-        stack_dataframe.set_index(["date", "component"], inplace=True)
-        dataframe = stack_dataframe.groupby("component").sum()
-        dataframe.sort_values(by="contribution", ascending=True, inplace=True)
-        dataframe.reset_index(inplace=True)
-
-        # Calculate the percentage of each contribution
+        dataframe = self._process_decomposition_components(data=dataframe)
         total_contribution = dataframe["contribution"].sum()
-        dataframe["percentage"] = (dataframe["contribution"] / total_contribution) * 100
 
         # Initialize the matplotlib figure and axis
         fig, ax = plt.subplots(figsize=figsize, **kwargs)
