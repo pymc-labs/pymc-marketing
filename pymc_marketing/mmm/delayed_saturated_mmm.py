@@ -19,9 +19,12 @@ from pymc_marketing.mmm.lift_test import (
     add_logistic_empirical_lift_measurements_to_likelihood,
     scale_lift_measurements,
 )
+from pymc_marketing.mmm.models.components.lagging import _get_lagging_function
+from pymc_marketing.mmm.models.components.saturation import _get_saturation_function
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.mmm.utils import (
+    _get_distribution,
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
     generate_fourier_modes,
@@ -52,6 +55,8 @@ class BaseDelayedSaturatedMMM(MMM):
         validate_data: bool = True,
         control_columns: Optional[List[str]] = None,
         yearly_seasonality: Optional[int] = None,
+        adstock: Union[str, Any] = "geometric",
+        saturation: Union[str, Any] = "logistic",
         **kwargs,
     ) -> None:
         """Constructor method.
@@ -82,6 +87,8 @@ class BaseDelayedSaturatedMMM(MMM):
         self.yearly_seasonality = yearly_seasonality
         self.date_column = date_column
         self.validate_data = validate_data
+        self.adstock = adstock
+        self.saturation = saturation
 
         super().__init__(
             date_column=date_column,
@@ -239,9 +246,9 @@ class BaseDelayedSaturatedMMM(MMM):
                         f"The parameter configuration for '{param}' must contain 'kwargs'."
                     )
 
-                parameter_distributions[param] = self._get_distribution(
-                    dist=param_config
-                )(**param_config["kwargs"], name=f"likelihood_{param}")
+                parameter_distributions[param] = _get_distribution(dist=param_config)(
+                    **param_config["kwargs"], name=f"likelihood_{param}"
+                )
             elif isinstance(param_config, (int, float)):
                 # Use the value directly
                 parameter_distributions[param] = param_config
@@ -255,7 +262,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
         # Extract the likelihood distribution name and instantiate it
         likelihood_dist_name = dist["dist"]
-        likelihood_dist = self._get_distribution(dist={"dist": likelihood_dist_name})
+        likelihood_dist = _get_distribution(dist={"dist": likelihood_dist_name})
 
         return likelihood_dist(
             name=self.output_var,
@@ -299,9 +306,9 @@ class BaseDelayedSaturatedMMM(MMM):
         --------
         custom_config = {
             'intercept': {'dist': 'Normal', 'kwargs': {'mu': 0, 'sigma': 2}},
-            'beta_channel': {'dist': 'LogNormal', 'kwargs': {'mu': 1, 'sigma': 3}},
-            'alpha': {'dist': 'Beta', 'kwargs': {'alpha': 1, 'beta': 3}},
-            'lam': {'dist': 'Gamma', 'kwargs': {'alpha': 3, 'beta': 1}},
+            'saturation_beta': {'dist': 'Gamma', 'kwargs': {'mu': 1, 'sigma': 3}},
+            'saturation_lambda': {'dist': 'Beta', 'kwargs': {'alpha': 3, 'beta': 1}},
+            'adstock_alpha': {'dist': 'Beta', 'kwargs': {'alpha': 1, 'beta': 3}},
             'likelihood': {'dist': 'Normal',
                 'kwargs': {'sigma': {'dist': 'HalfNormal', 'kwargs': {'sigma': 2}}}
             },
@@ -323,18 +330,11 @@ class BaseDelayedSaturatedMMM(MMM):
                 )
         """
 
-        self.intercept_dist = self._get_distribution(
-            dist=self.model_config["intercept"]
-        )
-        self.beta_channel_dist = self._get_distribution(
-            dist=self.model_config["beta_channel"]
-        )
-        self.lam_dist = self._get_distribution(dist=self.model_config["lam"])
-        self.alpha_dist = self._get_distribution(dist=self.model_config["alpha"])
-        self.gamma_control_dist = self._get_distribution(
+        self.intercept_dist = _get_distribution(dist=self.model_config["intercept"])
+        self.gamma_control_dist = _get_distribution(
             dist=self.model_config["gamma_control"]
         )
-        self.gamma_fourier_dist = self._get_distribution(
+        self.gamma_fourier_dist = _get_distribution(
             dist=self.model_config["gamma_fourier"]
         )
 
@@ -343,6 +343,32 @@ class BaseDelayedSaturatedMMM(MMM):
             coords=self.model_coords,
             coords_mutable=self.coords_mutable,
         ) as self.model:
+            if isinstance(self.adstock, str):
+                self.lag_function = _get_lagging_function(
+                    name=self.adstock,
+                    max_lagging=self.adstock_max_lag,
+                    model_config=self.model_config,
+                    model=self.model,
+                )
+            else:
+                self.lag_function = self.adstock(
+                    max_lagging=self.adstock_max_lag,
+                    model_config=self.model_config,
+                    model=self.model,
+                )
+
+            if isinstance(self.saturation, str):
+                self.sat_function = _get_saturation_function(
+                    name=self.saturation,
+                    model_config=self.model_config,
+                    model=self.model,
+                )
+            else:
+                self.sat_function = self.saturation(
+                    model_config=self.model_config,
+                    model=self.model,
+                )
+
             channel_data_ = pm.MutableData(
                 name="channel_data",
                 value=self.preprocessed_data["X"][self.channel_columns],
@@ -359,41 +385,17 @@ class BaseDelayedSaturatedMMM(MMM):
                 name="intercept", **self.model_config["intercept"]["kwargs"]
             )
 
-            beta_channel = self.beta_channel_dist(
-                name="beta_channel",
-                **self.model_config["beta_channel"]["kwargs"],
-                dims=("channel",),
-            )
-            alpha = self.alpha_dist(
-                name="alpha",
-                dims="channel",
-                **self.model_config["alpha"]["kwargs"],
-            )
-            lam = self.lam_dist(
-                name="lam",
-                dims="channel",
-                **self.model_config["lam"]["kwargs"],
-            )
-
+            # Adstock
             channel_adstock = pm.Deterministic(
                 name="channel_adstock",
-                var=geometric_adstock(
-                    x=channel_data_,
-                    alpha=alpha,
-                    l_max=self.adstock_max_lag,
-                    normalize=True,
-                    axis=0,
-                ),
+                var=self.lag_function.apply(data=channel_data_),
                 dims=("date", "channel"),
             )
-            channel_adstock_saturated = pm.Deterministic(
-                name="channel_adstock_saturated",
-                var=logistic_saturation(x=channel_adstock, lam=lam),
-                dims=("date", "channel"),
-            )
+
+            # Saturation
             channel_contributions = pm.Deterministic(
                 name="channel_contributions",
-                var=channel_adstock_saturated * beta_channel,
+                var=self.sat_function.apply(data=channel_adstock),
                 dims=("date", "channel"),
             )
 
@@ -454,7 +456,13 @@ class BaseDelayedSaturatedMMM(MMM):
                     dims=("date", "fourier_mode"),
                 )
 
-                mu_var += fourier_contribution.sum(axis=-1)
+                yearly_seasonality_contribution = pm.Deterministic(
+                    name="yearly_seasonality_contribution",
+                    var=fourier_contribution.sum(axis=-1),
+                    dims=("date"),
+                )
+
+                mu_var += yearly_seasonality_contribution
 
             mu = pm.Deterministic(name="mu", var=mu_var, dims="date")
 
@@ -467,11 +475,8 @@ class BaseDelayedSaturatedMMM(MMM):
 
     @property
     def default_model_config(self) -> Dict:
-        return {
+        base_config = {
             "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
-            "beta_channel": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
-            "alpha": {"dist": "Beta", "kwargs": {"alpha": 1, "beta": 3}},
-            "lam": {"dist": "Gamma", "kwargs": {"alpha": 3, "beta": 1}},
             "likelihood": {
                 "dist": "Normal",
                 "kwargs": {
@@ -481,6 +486,42 @@ class BaseDelayedSaturatedMMM(MMM):
             "gamma_control": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
             "gamma_fourier": {"dist": "Laplace", "kwargs": {"mu": 0, "b": 1}},
         }
+
+        if isinstance(self.adstock, str):
+            base_config = {
+                **base_config,
+                **_get_lagging_function(
+                    name=self.adstock,
+                    max_lagging=self.adstock_max_lag,
+                    model_config={},
+                ).model_config,
+            }
+        else:
+            base_config = {
+                **base_config,
+                **self.adstock(
+                    max_lagging=self.adstock_max_lag,
+                    model_config={},
+                ).model_config,
+            }
+
+        if isinstance(self.saturation, str):
+            base_config = {
+                **base_config,
+                **_get_saturation_function(
+                    name=self.saturation,
+                    model_config={},
+                ).model_config,
+            }
+        else:
+            base_config = {
+                **base_config,
+                **self.saturation(
+                    model_config={},
+                ).model_config,
+            }
+
+        return base_config
 
     def _get_fourier_models_data(self, X) -> pd.DataFrame:
         """Generates fourier modes to model seasonality.

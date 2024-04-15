@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import pymc as pm
 import xarray as xr
 from scipy.optimize import curve_fit, minimize_scalar
 
@@ -386,3 +387,32 @@ def create_new_spend_data(
             spend,
         ]
     )
+
+
+def _get_distribution(dist: Dict) -> Callable:
+    """
+    Retrieve a PyMC distribution callable based on the provided dictionary.
+
+    Parameters
+    ----------
+    dist : Dict
+        A dictionary containing the key 'dist' which should correspond to the
+        name of a PyMC distribution.
+
+    Returns
+    -------
+    Callable
+        A PyMC distribution callable that can be used to instantiate a random
+        variable.
+
+    Raises
+    ------
+    ValueError
+        If the specified distribution name in the dictionary does not correspond
+        to any distribution in PyMC.
+    """
+    try:
+        prior_distribution = getattr(pm, dist["dist"])
+    except AttributeError:
+        raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
+    return prior_distribution
