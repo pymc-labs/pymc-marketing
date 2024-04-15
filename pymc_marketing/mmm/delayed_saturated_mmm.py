@@ -21,6 +21,7 @@ from pymc_marketing.mmm.lift_test import (
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
+from pymc_marketing.mmm.tvp import time_varying_prior
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
@@ -29,6 +30,8 @@ from pymc_marketing.mmm.utils import (
 from pymc_marketing.mmm.validating import ValidateControlColumns
 
 __all__ = ["DelayedSaturatedMMM"]
+
+DAYS_IN_YEAR = 365.25
 
 
 class BaseDelayedSaturatedMMM(MMM):
@@ -47,6 +50,8 @@ class BaseDelayedSaturatedMMM(MMM):
         date_column: str,
         channel_columns: List[str],
         adstock_max_lag: int,
+        time_varying_media_effect: bool = False,
+        time_varying_intercept: bool = False,
         model_config: Optional[Dict] = None,
         sampler_config: Optional[Dict] = None,
         validate_data: bool = True,
@@ -62,6 +67,12 @@ class BaseDelayedSaturatedMMM(MMM):
             Column name of the date variable.
         channel_columns : List[str]
             Column names of the media channel variables.
+        adstock_max_lag : int
+            Number of lags to consider in the adstock transformation.
+        time_varying_media_effect : bool, optional
+            Whether to consider time-varying media effects, by default False.
+        time_varying_intercept : bool, optional
+            Whether to consider time-varying intercept, by default False.
         model_config : Dictionary, optional
             dictionary of parameters that initialise model configuration.
             Class-default defined by the user default_model_config method.
@@ -79,6 +90,8 @@ class BaseDelayedSaturatedMMM(MMM):
         """
         self.control_columns = control_columns
         self.adstock_max_lag = adstock_max_lag
+        self.time_varying_media_effect = time_varying_media_effect
+        self.time_varying_intercept = time_varying_intercept
         self.yearly_seasonality = yearly_seasonality
         self.date_column = date_column
         self.validate_data = validate_data
@@ -112,6 +125,24 @@ class BaseDelayedSaturatedMMM(MMM):
         ----------
         X : Union[pd.DataFrame, pd.Series], shape (n_obs, n_features)
         y : Union[pd.Series, np.ndarray], shape (n_obs,)
+
+        Sets
+        ----
+        preprocessed_data : Dict[str, Union[pd.DataFrame, pd.Series]]
+            Preprocessed data for the model.
+        X : pd.DataFrame
+            A filtered version of the input `X`, such that it is guaranteed that
+            it contains only the `date_column`, the columns that are specified
+            in the `channel_columns` and `control_columns`, and fourier features
+            if `yearly_seasonality=True`.
+        y : Union[pd.Series, np.ndarray]
+            The target variable for the model (as provided).
+        _time_index : np.ndarray
+            The index of the date column. Used by TVP
+        _time_index_mid : int
+            The middle index of the date index. Used by TVP.
+        _time_resolution: int
+            The time resolution of the date index. Used by TVP.
         """
         date_data = X[self.date_column]
         channel_data = X[self.channel_columns]
@@ -151,6 +182,11 @@ class BaseDelayedSaturatedMMM(MMM):
         }
         self.X: pd.DataFrame = X_data
         self.y: Union[pd.Series, np.ndarray] = y
+        self._time_index = np.arange(0, X.shape[0])
+        self._time_index_mid = X.shape[0] // 2
+        self._time_resolution = (
+            self.X[self.date_column].iloc[1] - self.X[self.date_column].iloc[0]
+        ).days
 
     def _save_input_params(self, idata) -> None:
         """Saves input parameters to the attrs of idata."""
@@ -355,9 +391,52 @@ class BaseDelayedSaturatedMMM(MMM):
                 dims="date",
             )
 
-            intercept = self.intercept_dist(
-                name="intercept", **self.model_config["intercept"]["kwargs"]
-            )
+            if self.time_varying_intercept or self.time_varying_media_effect:
+                time_index = pm.MutableData(
+                    "time_index",
+                    self._time_index,
+                    dims="date",
+                )
+
+            if self.time_varying_intercept:
+                tv_multiplier_intercept = time_varying_prior(
+                    name="tv_multiplier_intercept",
+                    X=time_index,
+                    X_mid=self._time_index_mid,
+                    positive=True,
+                    m=200,
+                    L=self._time_index_mid + DAYS_IN_YEAR / self._time_resolution,
+                    ls_mu=DAYS_IN_YEAR / self._time_resolution * 2,
+                    ls_sigma=10,
+                    eta_lam=1,
+                    dims="date",
+                )
+                intercept_base = self.intercept_dist(
+                    name="intercept_base", **self.model_config["intercept"]["kwargs"]
+                )
+                intercept = pm.Deterministic(
+                    name="intercept",
+                    var=intercept_base * tv_multiplier_intercept,
+                    dims="date",
+                )
+            else:
+                intercept = self.intercept_dist(
+                    name="intercept", **self.model_config["intercept"]["kwargs"]
+                )
+
+            if self.time_varying_media_effect:
+                tv_multiplier_media = time_varying_prior(
+                    name="tv_multiplier_media",
+                    X=time_index,
+                    X_mid=self._time_index_mid,
+                    positive=True,
+                    m=200,
+                    L=self._time_index_mid + DAYS_IN_YEAR / self._time_resolution,
+                    ls_mu=DAYS_IN_YEAR / self._time_resolution * 2,
+                    ls_sigma=10,
+                    eta_lam=1,
+                    dims="date",
+                )
 
             beta_channel = self.beta_channel_dist(
                 name="beta_channel",
@@ -391,9 +470,13 @@ class BaseDelayedSaturatedMMM(MMM):
                 var=logistic_saturation(x=channel_adstock, lam=lam),
                 dims=("date", "channel"),
             )
+
+            channel_contributions_var = channel_adstock_saturated * beta_channel
+            if self.time_varying_media_effect:
+                channel_contributions_var *= tv_multiplier_media[:, None]
             channel_contributions = pm.Deterministic(
                 name="channel_contributions",
-                var=channel_adstock_saturated * beta_channel,
+                var=channel_contributions_var,
                 dims=("date", "channel"),
             )
 
@@ -494,7 +577,9 @@ class BaseDelayedSaturatedMMM(MMM):
         date_data: pd.Series = pd.to_datetime(
             arg=X[self.date_column], format="%Y-%m-%d"
         )
-        periods: npt.NDArray[np.float_] = date_data.dt.dayofyear.to_numpy() / 365.25
+        periods: npt.NDArray[np.float_] = (
+            date_data.dt.dayofyear.to_numpy() / DAYS_IN_YEAR
+        )
         return generate_fourier_modes(
             periods=periods,
             n_order=self.yearly_seasonality,
@@ -677,6 +762,11 @@ class BaseDelayedSaturatedMMM(MMM):
 
         if hasattr(self, "fourier_columns"):
             data["fourier_data"] = self._get_fourier_models_data(X)
+
+        if self.time_varying_intercept or self.time_varying_media_effect:
+            data["time_index"] = np.arange(
+                self._time_index[-1], self._time_index[-1] + X.shape[0]
+            )
 
         if y is not None:
             if isinstance(y, pd.Series):
