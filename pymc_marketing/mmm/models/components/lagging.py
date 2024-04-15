@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import pymc as pm
 
@@ -7,9 +7,33 @@ from pymc_marketing.mmm.utils import _get_distribution
 
 
 class BaseFunction:
-    def __init__(self, max_lagging: int = 4, model: Optional[pm.Model] = None):
+    REQUIRED_KEYS: List[str] = []
+
+    def __init__(
+        self,
+        max_lagging: int = 4,
+        model: Optional[pm.Model] = None,
+        model_config: Optional[Dict] = None,
+    ):
         self.max_lagging = max_lagging
         self.model = model
+        self.model_config = self.initialize_model_config(model_config)
+
+    def initialize_model_config(self, model_config: Optional[Dict]) -> Dict:
+        if model_config is not None and not all(
+            key in model_config for key in self.REQUIRED_KEYS
+        ):
+            update_model_config = {**model_config, **self._default_lagging_config}
+        elif model_config is None:
+            update_model_config = self._default_lagging_config
+        else:
+            update_model_config = model_config
+
+        return update_model_config
+
+    @property
+    def _default_lagging_config(self) -> Dict:
+        raise NotImplementedError("Subclasses should implement this method.")
 
     def apply(self, data):
         raise NotImplementedError("Subclasses must implement this method.")
@@ -53,16 +77,7 @@ class GeometricAdstockComponent(BaseFunction):
         model: Optional[pm.Model] = None,
         model_config: Optional[Dict] = None,
     ):
-        self.max_lagging = max_lagging
-        self.model = model
-        if model_config is not None and not all(
-            key in model_config for key in self.REQUIRED_KEYS
-        ):
-            self.model_config = {**model_config, **self._default_lagging_config}
-        elif model_config is None:
-            self.model_config = self._default_lagging_config
-        else:
-            self.model_config = model_config
+        super().__init__(max_lagging, model, model_config)
 
     @property
     def _default_lagging_config(self) -> Dict[str, Dict]:
@@ -148,16 +163,7 @@ class WeibullPDFAdstockComponent(BaseFunction):
         model: Optional[pm.Model] = None,
         model_config: Optional[Dict] = None,
     ):
-        self.max_lagging = max_lagging
-        self.model = model
-        if model_config is not None and not all(
-            key in model_config for key in self.REQUIRED_KEYS
-        ):
-            self.model_config = {**model_config, **self._default_lagging_config}
-        elif model_config is None:
-            self.model_config = self._default_lagging_config
-        else:
-            self.model_config = model_config
+        super().__init__(max_lagging, model, model_config)
 
     @property
     def _default_lagging_config(self) -> Dict[str, Dict]:
@@ -271,16 +277,7 @@ class WeibullCDFAdstockComponent(BaseFunction):
             The configuration dictionary for the model.
 
         """
-        self.max_lagging = max_lagging
-        self.model = model
-        if model_config is not None and not all(
-            key in model_config for key in self.REQUIRED_KEYS
-        ):
-            self.model_config = {**model_config, **self._default_lagging_config}
-        elif model_config is None:
-            self.model_config = self._default_lagging_config
-        else:
-            self.model_config = model_config
+        super().__init__(max_lagging, model, model_config)
 
     @property
     def _default_lagging_config(self) -> Dict[str, Dict]:

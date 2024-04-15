@@ -46,8 +46,8 @@ class BaseDelayedSaturatedMMM(MMM):
         validate_data: bool = True,
         control_columns: Optional[List[str]] = None,
         yearly_seasonality: Optional[int] = None,
-        adstock_type: str = "geometric",
-        saturation_type: str = "logistic",
+        adstock: Union[str, Any] = "geometric",
+        saturation: Union[str, Any] = "logistic",
         **kwargs,
     ) -> None:
         """Media Mix Model with delayed adstock and logistic saturation class (see [1]_).
@@ -80,8 +80,8 @@ class BaseDelayedSaturatedMMM(MMM):
         self.yearly_seasonality = yearly_seasonality
         self.date_column = date_column
         self.validate_data = validate_data
-        self.adstock_type = adstock_type
-        self.saturation_type = saturation_type
+        self.adstock = adstock
+        self.saturation = saturation
 
         super().__init__(
             date_column=date_column,
@@ -330,18 +330,31 @@ class BaseDelayedSaturatedMMM(MMM):
             coords=self.model_coords,
             coords_mutable=self.coords_mutable,
         ) as self.model:
-            self.lag_function = _get_lagging_function(
-                name=self.adstock_type,
-                max_lagging=self.adstock_max_lag,
-                model_config=self.model_config,
-                model=self.model,
-            )
+            if isinstance(self.adstock, str):
+                self.lag_function = _get_lagging_function(
+                    name=self.adstock,
+                    max_lagging=self.adstock_max_lag,
+                    model_config=self.model_config,
+                    model=self.model,
+                )
+            else:
+                self.lag_function = self.adstock(
+                    max_lagging=self.adstock_max_lag,
+                    model_config=self.model_config,
+                    model=self.model,
+                )
 
-            self.sat_function = _get_saturation_function(
-                name=self.saturation_type,
-                model_config=self.model_config,
-                model=self.model,
-            )
+            if isinstance(self.saturation, str):
+                self.sat_function = _get_saturation_function(
+                    name=self.saturation,
+                    model_config=self.model_config,
+                    model=self.model,
+                )
+            else:
+                self.sat_function = self.saturation(
+                    model_config=self.model_config,
+                    model=self.model,
+                )
 
             channel_data_ = pm.MutableData(
                 name="channel_data",
@@ -372,44 +385,6 @@ class BaseDelayedSaturatedMMM(MMM):
                 var=self.sat_function.apply(data=channel_adstock),
                 dims=("date", "channel"),
             )
-
-            # beta_channel = self.beta_channel_dist(
-            #     name="beta_channel",
-            #     **self.model_config["beta_channel"]["kwargs"],
-            #     dims=("channel",),
-            # )
-            # alpha = self.alpha_dist(
-            #     name="alpha",
-            #     dims="channel",
-            #     **self.model_config["alpha"]["kwargs"],
-            # )
-            # lam = self.lam_dist(
-            #     name="lam",
-            #     dims="channel",
-            #     **self.model_config["lam"]["kwargs"],
-            # )
-
-            # channel_adstock = pm.Deterministic(
-            #     name="channel_adstock",
-            #     var=geometric_adstock(
-            #         x=channel_data_,
-            #         alpha=alpha,
-            #         l_max=self.adstock_max_lag,
-            #         normalize=True,
-            #         axis=0,
-            #     ),
-            #     dims=("date", "channel"),
-            # )
-            # channel_adstock_saturated = pm.Deterministic(
-            #     name="channel_adstock_saturated",
-            #     var=logistic_saturation(x=channel_adstock, lam=lam),
-            #     dims=("date", "channel"),
-            # )
-            # channel_contributions = pm.Deterministic(
-            #     name="channel_contributions",
-            #     var=channel_adstock_saturated * beta_channel,
-            #     dims=("date", "channel"),
-            # )
 
             mu_var = intercept + channel_contributions.sum(axis=-1)
             if (
@@ -491,18 +466,39 @@ class BaseDelayedSaturatedMMM(MMM):
             "gamma_fourier": {"dist": "Laplace", "kwargs": {"mu": 0, "b": 1}},
         }
 
-        base_config = {
-            **base_config,
-            **_get_lagging_function(
-                name=self.adstock_type,
-                max_lagging=self.adstock_max_lag,
-                model_config={},
-            ).model_config,
-            **_get_saturation_function(
-                name=self.saturation_type,
-                model_config={},
-            ).model_config,
-        }
+        if isinstance(self.adstock, str):
+            base_config = {
+                **base_config,
+                **_get_lagging_function(
+                    name=self.adstock,
+                    max_lagging=self.adstock_max_lag,
+                    model_config={},
+                ).model_config,
+            }
+        else:
+            base_config = {
+                **base_config,
+                **self.adstock(
+                    max_lagging=self.adstock_max_lag,
+                    model_config={},
+                ).model_config,
+            }
+
+        if isinstance(self.saturation, str):
+            base_config = {
+                **base_config,
+                **_get_saturation_function(
+                    name=self.saturation,
+                    model_config={},
+                ).model_config,
+            }
+        else:
+            base_config = {
+                **base_config,
+                **self.saturation(
+                    model_config={},
+                ).model_config,
+            }
 
         return base_config
 
