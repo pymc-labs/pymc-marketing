@@ -486,7 +486,8 @@ class ModelBuilder(ABC):
 
         X_df = pd.DataFrame(X, columns=X.columns)
         combined_data = pd.concat([X_df, y_df], axis=1)
-        assert all(combined_data.columns), "All columns must have non-empty names"
+        if not all(combined_data.columns):
+            raise ValueError("All columns must have non-empty names")
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",

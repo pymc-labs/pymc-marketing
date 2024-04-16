@@ -51,15 +51,16 @@ class BaseGammaGammaModel(CLVModel):
         Eq 5 from [1], p.3
 
         Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117
-        """  # noqa: E501
+        """
 
         mean_transaction_value, frequency = to_xarray(
             customer_id, mean_transaction_value, frequency
         )
-        assert self.idata is not None, "Model must be fitted first"
-        p = self.idata.posterior["p"]
-        q = self.idata.posterior["q"]
-        v = self.idata.posterior["v"]
+        posterior = self.fit_result
+
+        p = posterior["p"]
+        q = posterior["q"]
+        v = posterior["v"]
 
         individual_weight = p * frequency / (p * frequency + q - 1)
         population_mean = v * p / (q - 1)
@@ -89,10 +90,10 @@ class BaseGammaGammaModel(CLVModel):
     def expected_new_customer_spend(self) -> xarray.DataArray:
         """Expected transaction value for a new customer"""
 
-        assert self.idata is not None, "Model must be fitted first"
-        p_mean = self.idata.posterior["p"]
-        q_mean = self.idata.posterior["q"]
-        v_mean = self.idata.posterior["v"]
+        posterior = self.fit_result
+        p_mean = posterior["p"]
+        q_mean = posterior["q"]
+        v_mean = posterior["v"]
 
         # Closed form solution to the posterior of nu
         # Eq 3 from [1], p.3
