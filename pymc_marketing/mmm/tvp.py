@@ -1,17 +1,16 @@
 from typing import Optional
 
 import pymc as pm
-
-from pymc_marketing.mmm.utils import softplus
+from pytensor.tensor import softplus
 
 
 def time_varying_prior(
     name: str,
     X: pm.Deterministic,
     X_mid: int | float,
-    dims: Optional[tuple[str, str] | str] = None,
-    m: int = 40,
-    L: int | float = 100,
+    dims: tuple[str, str] | str,
+    m: int,
+    L: int | float,
     eta_lam: float = 1,
     ls_mu: float = 5,
     ls_sigma: float = 5,
