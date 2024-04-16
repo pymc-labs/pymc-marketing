@@ -56,7 +56,8 @@ class BaseGammaGammaModel(CLVModel):
         mean_transaction_value, frequency = to_xarray(
             customer_id, mean_transaction_value, frequency
         )
-        assert self.idata is not None, "Model must be fitted first"
+        if self.idata is None:
+            raise ValueError("Model must be fitted first")
         p = self.idata.posterior["p"]
         q = self.idata.posterior["q"]
         v = self.idata.posterior["v"]
@@ -89,7 +90,8 @@ class BaseGammaGammaModel(CLVModel):
     def expected_new_customer_spend(self) -> xarray.DataArray:
         """Expected transaction value for a new customer"""
 
-        assert self.idata is not None, "Model must be fitted first"
+        if self.idata is None:
+            raise ValueError("Model must be fitted first")
         p_mean = self.idata.posterior["p"]
         q_mean = self.idata.posterior["q"]
         v_mean = self.idata.posterior["v"]
