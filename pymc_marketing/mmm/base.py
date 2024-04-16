@@ -665,7 +665,7 @@ class BaseMMM(ModelBuilder):
         standardize_scenarios_dict_keys(base_data, ["contribution", "budget"])
 
         fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(15, 6))
-        scenarios = [base_data] + list(scenarios_data)
+        scenarios = [base_data, *list(scenarios_data)]
         num_scenarios = len(scenarios)
         bar_width = (
             0.8 / num_scenarios
