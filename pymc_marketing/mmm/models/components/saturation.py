@@ -227,6 +227,13 @@ class MentenSaturationComponent(BaseFunction):
             "alpha": "saturation_alpha",
         }
 
+    def saturation_function(self, x, alpha, lam):
+        return michaelis_menten(
+            x=x,
+            alpha=alpha,
+            lam=lam,
+        )
+
     def apply(self, data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
         """
         Apply the Menten Saturation component to the given data.
@@ -264,9 +271,12 @@ class MentenSaturationComponent(BaseFunction):
                 dims=("channel"),
             )
 
-            return michaelis_menten(
-                x=data, alpha=saturation_alpha, lam=saturation_lambda
-            )
+            kwargs = {
+                "alpha": saturation_alpha,
+                "lam": saturation_lambda,
+            }
+
+            return self.saturation_function(x=data, **kwargs)
 
 
 class LogisticSaturationComponent(BaseFunction):
