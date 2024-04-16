@@ -16,7 +16,6 @@ import hashlib
 import json
 import sys
 import tempfile
-from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -142,7 +141,7 @@ class ModelBuilderTest(ModelBuilder):
         self.y = y
 
     @property
-    def default_model_config(self) -> Dict:
+    def default_model_config(self) -> dict:
         return {
             "a": {"loc": 0, "scale": 10, "dims": ("numbers",)},
             "b": {"loc": 0, "scale": 10},
@@ -150,7 +149,7 @@ class ModelBuilderTest(ModelBuilder):
         }
 
     @property
-    def default_sampler_config(self) -> Dict:
+    def default_sampler_config(self) -> dict:
         return {
             "draws": 1_000,
             "tune": 1_000,
