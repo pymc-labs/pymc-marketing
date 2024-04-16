@@ -1,7 +1,8 @@
 import json
 import warnings
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Dict, Optional, Sequence, cast
+from typing import cast
 
 import arviz as az
 import pandas as pd
@@ -21,8 +22,8 @@ class CLVModel(ModelBuilder):
         self,
         data: pd.DataFrame,
         *,
-        model_config: Optional[Dict] = None,
-        sampler_config: Optional[Dict] = None,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
     ):
         super().__init__(model_config, sampler_config)
         self.data = data
@@ -211,18 +212,18 @@ class CLVModel(ModelBuilder):
         return type(self)._build_with_idata(new_idata)
 
     @staticmethod
-    def _create_distribution(dist: Dict, shape=()):
+    def _create_distribution(dist: dict, shape=()):
         try:
             return getattr(pm, dist["dist"]).dist(**dist.get("kwargs", {}), shape=shape)
         except AttributeError:
             raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
 
     @property
-    def default_sampler_config(self) -> Dict:
+    def default_sampler_config(self) -> dict:
         return {}
 
     @property
-    def _serializable_model_config(self) -> Dict:
+    def _serializable_model_config(self) -> dict:
         return self.model_config
 
     @property
