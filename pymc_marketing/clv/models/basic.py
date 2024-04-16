@@ -206,7 +206,8 @@ class CLVModel(ModelBuilder):
             )
 
         """
-        self.fit_result  # Raise Error if fit didn't happen yet
+        if not hasattr(self, "fit_result"):
+            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         assert self.idata is not None
         new_idata = self.idata.isel(draw=slice(None, None, keep_every)).copy()
         return type(self)._build_with_idata(new_idata)
@@ -215,8 +216,10 @@ class CLVModel(ModelBuilder):
     def _create_distribution(dist: dict, shape=()):
         try:
             return getattr(pm, dist["dist"]).dist(**dist.get("kwargs", {}), shape=shape)
-        except AttributeError:
-            raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
+        except AttributeError as err:
+            raise ValueError(
+                f"Distribution {dist['dist']} does not exist in PyMC"
+            ) from err
 
     @property
     def default_sampler_config(self) -> dict:
@@ -237,7 +240,7 @@ class CLVModel(ModelBuilder):
         if self.idata is None:
             self.idata = res
         elif "posterior" in self.idata:
-            warnings.warn("Overriding pre-existing fit_result")
+            warnings.warn("Overriding pre-existing fit_result")  # noqa: B028
             self.idata.posterior = res
         else:
             self.idata.posterior = res

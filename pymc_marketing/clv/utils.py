@@ -270,7 +270,7 @@ def _find_first_transactions(
 
 
 def clv_summary(*args, **kwargs):
-    warnings.warn("clv_summary was renamed to rfm_summary", UserWarning)
+    warnings.warn("clv_summary was renamed to rfm_summary", UserWarning, stacklevel=1)
     return rfm_summary(*args, **kwargs)
 
 

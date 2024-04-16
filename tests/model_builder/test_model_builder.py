@@ -224,7 +224,10 @@ def test_fit(fitted_model_instance):
     post_pred = fitted_model_instance.sample_posterior_predictive(
         prediction_data["input"], extend_idata=True, combined=True
     )
-    post_pred[fitted_model_instance.output_var].shape[0] == prediction_data.input.shape
+    assert (
+        post_pred[fitted_model_instance.output_var].shape[0]
+        == prediction_data.input.shape
+    )
 
 
 def test_fit_no_y(toy_X):

@@ -392,6 +392,7 @@ class BaseMMM(ModelBuilder):
         for arg, var_contribution in zip(
             ["control_columns", "yearly_seasonality"],
             ["control_contributions", "fourier_contributions"],
+            strict=True,
         ):
             if getattr(self, arg, None):
                 contributions = self._format_model_contributions(
@@ -413,6 +414,7 @@ class BaseMMM(ModelBuilder):
                     "control_contribution",
                     "fourier_contribution",
                 ],
+                strict=False,
             )
         ):
             if self.X is not None:
@@ -688,7 +690,7 @@ class BaseMMM(ModelBuilder):
 
         # Plot all scenarios
         for i, (scenario, upper_bound, lower_bound) in enumerate(
-            zip(scenarios, upper_bounds, lower_bounds)
+            zip(scenarios, upper_bounds, lower_bounds, strict=False)
         ):
             color = f"C{i}"
             offset = i * bar_width - 0.4 + bar_width / 2
@@ -914,7 +916,9 @@ class BaseMMM(ModelBuilder):
                 "The 'parameters' argument (keyword-only) must be provided and non-empty."
             )
 
-        warnings.warn("This budget allocator method is experimental", UserWarning)
+        warnings.warn(
+            "This budget allocator method is experimental", UserWarning, stacklevel=1
+        )
 
         return budget_allocator(
             method=method,
@@ -947,7 +951,9 @@ class BaseMMM(ModelBuilder):
             parameters for each channel based on the method used.
         """
         warnings.warn(
-            "The curve optimization parameters method is experimental", UserWarning
+            "The curve optimization parameters method is experimental",
+            UserWarning,
+            stacklevel=1,
         )
 
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
@@ -1044,7 +1050,7 @@ class BaseMMM(ModelBuilder):
         axes_channels = (
             zip(repeat(axes), channels_to_plot)
             if same_axes
-            else zip(np.ravel(axes), channels_to_plot)
+            else zip(np.ravel(axes), channels_to_plot, strict=False)
         )
 
         for i, (ax, channel) in enumerate(axes_channels):
@@ -1104,8 +1110,10 @@ class BaseMMM(ModelBuilder):
         """
         try:
             prior_distribution = getattr(pm, dist["dist"])
-        except AttributeError:
-            raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
+        except AttributeError as err:
+            raise ValueError(
+                f"Distribution {dist['dist']} does not exist in PyMC"
+            ) from err
         return prior_distribution
 
     def compute_mean_contributions_over_time(
