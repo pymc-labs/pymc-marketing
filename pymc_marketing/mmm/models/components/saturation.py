@@ -324,6 +324,9 @@ class LogisticSaturationComponent(BaseFunction):
             "beta": "saturation_beta",
         }
 
+    def saturation_function(self, x, beta, lam):
+        return beta * logistic_saturation(x=x, lam=lam)
+
     def apply(self, data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
         """
         Apply the Logistic Saturation component to the given data.
@@ -361,7 +364,12 @@ class LogisticSaturationComponent(BaseFunction):
                 dims=("channel"),
             )
 
-            return logistic_saturation(x=data, lam=saturation_lambda) * saturation_beta
+            kwargs = {
+                "lam": saturation_lambda,
+                "beta": saturation_beta,
+            }
+
+            return self.saturation_function(x=data, **kwargs)
 
 
 def _get_saturation_function(
