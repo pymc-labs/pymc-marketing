@@ -99,6 +99,14 @@ class HillSaturationComponent(BaseFunction):
             "sigma": "saturation_sigma",
         }
 
+    def saturation_function(self, x, sigma, beta, lam):
+        return hill_saturation(
+            x=x,
+            sigma=sigma,
+            beta=beta,
+            lam=lam,
+        )
+
     def apply(self, data: Union[pm.Data, pm.MutableData]) -> pm.Deterministic:
         """
         Apply the Hill Saturation component to the given data.
@@ -146,12 +154,13 @@ class HillSaturationComponent(BaseFunction):
                 **self.model_config["saturation_beta"]["kwargs"],
             )
 
-            return hill_saturation(
-                x=data,
-                sigma=saturation_sigma,
-                beta=saturation_beta,
-                lam=saturation_lambda,
-            )
+            kwargs = {
+                "sigma": saturation_sigma,
+                "beta": saturation_beta,
+                "lam": saturation_lambda,
+            }
+
+            return self.saturation_function(x=data, **kwargs)
 
 
 class MentenSaturationComponent(BaseFunction):

@@ -16,7 +16,7 @@ from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.lift_test import (
-    add_logistic_empirical_lift_measurements_to_likelihood,
+    add_lift_measurements_to_likelihood,
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.models.components.lagging import _get_lagging_function
@@ -1432,11 +1432,10 @@ class DelayedSaturatedMMM(
             target_transform=self.target_transformer.transform,
         )
         with self.model:
-            add_logistic_empirical_lift_measurements_to_likelihood(
+            add_lift_measurements_to_likelihood(
                 df_lift_test=df_lift_test_scaled,
-                # Based on the model
-                lam_name="lam",
-                beta_name="beta_channel",
+                variable_mapping=self.sat_function.variable_mapping,
+                saturation_function=self.sat_function.saturation_function,
                 dist=dist,
                 name=name,
             )
