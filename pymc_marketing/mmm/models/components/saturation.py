@@ -81,7 +81,7 @@ class BaseSaturationFunction:
                 name=variable_name,
                 dims=("channel",),
                 **self.model_config[variable_name]["kwargs"],
-            )  # noqa
+            )
 
         return distributions
 
