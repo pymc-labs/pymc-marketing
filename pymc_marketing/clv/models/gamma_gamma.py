@@ -51,7 +51,7 @@ class BaseGammaGammaModel(CLVModel):
         Eq 5 from [1], p.3
 
         Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117
-        """  # noqa: E501
+        """
 
         mean_transaction_value, frequency = to_xarray(
             customer_id, mean_transaction_value, frequency

@@ -59,7 +59,12 @@ repository = "https://github.com/pymc-labs/pymc-marketing"
 #changelog = ""
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W", "UP"]
+select = ["E", "F", "I", "W", "UP", "RUF"]
+ignore = [
+    "RUF001", # String contains ambiguous character (such as Greek letters)
+    "RUF002", # Docstring contains ambiguous character (such as Greek letters)
+    "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
+]
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 120

@@ -107,7 +107,7 @@ class BetaGeoModel(CLVModel):
     .. [2] Fader, P. S., Hardie, B. G., & Lee, K. L. (2008). Computing
            P (alive) using the BG/NBD model. Research Note available via
            http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
-    .. [3] Fader, P. S. & Hardie, B. G. (2013) Overcoming the BG/NBD Model’s #NUM!
+    .. [3] Fader, P. S. & Hardie, B. G. (2013) Overcoming the BG/NBD Model's #NUM!
            Error Problem. Research Note available via
            http://brucehardie.com/notes/027/bgnbd_num_error.pdf.
     """

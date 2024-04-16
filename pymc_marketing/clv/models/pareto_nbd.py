@@ -190,8 +190,13 @@ class ParetoNBDModel(CLVModel):
         self.covariate_cols = self.purchase_covariate_cols + self.dropout_covariate_cols
         self._validate_cols(
             data,
-            required_cols=["customer_id", "frequency", "recency", "T"]
-            + self.covariate_cols,
+            required_cols=[
+                "customer_id",
+                "frequency",
+                "recency",
+                "T",
+                *self.covariate_cols,
+            ],
             must_be_unique=["customer_id"],
         )
 
