@@ -22,28 +22,42 @@ class MissingSaturationParameters(Exception):
 
 ### SATURATION FUNCTIONS
 class BaseSaturationFunction:
+    """Core logic for checks for all saturation functions.
+
+    Subclasses need to define three items:
+
+    - saturation_function: Method representation of the saturation function
+    - variable_mapping: The mapping from saturation function parameters to model variable names
+    - default_saturation_config: The mapping from model variable names to prior distributions
+
+    """
+
     def __init__(
         self, model: Optional[pm.Model] = None, model_config: Optional[Dict] = None
     ):
         self.model = model
-        self.model_config = self.initialize_model_config(model_config)
+        self.model_config = self._initialize_model_config(model_config)
 
-    def initialize_model_config(self, model_config: Optional[Dict]) -> Dict:
-        REQUIRED_KEYS = list(self._default_saturation_config.keys())
+    def _initialize_model_config(self, model_config: Optional[Dict]) -> Dict:
+        REQUIRED_KEYS = list(self.default_saturation_config.keys())
 
         if model_config is not None and not all(
             key in model_config for key in REQUIRED_KEYS
         ):
-            update_model_config = {**model_config, **self._default_saturation_config}
+            update_model_config = {**model_config, **self.default_saturation_config}
         elif model_config is None:
-            update_model_config = self._default_saturation_config
+            update_model_config = self.default_saturation_config
         else:
             update_model_config = model_config
         return update_model_config
 
     @property
-    def _default_saturation_config(self) -> Dict:
-        raise NotImplementedError("Subclasses should implement this method.")
+    def default_saturation_config(self) -> Dict:
+        msg = (
+            "Subclasses should implement this method."
+            " This contains the model variable name and their distributions."
+        )
+        raise NotImplementedError(msg)
 
     @property
     def variable_mapping(self) -> dict[str, str]:
@@ -109,7 +123,7 @@ class HillSaturationComponent(BaseSaturationFunction):
     """
 
     @property
-    def _default_saturation_config(self) -> Dict:
+    def default_saturation_config(self) -> Dict:
         return {
             "saturation_sigma": {
                 "dist": "HalfNormal",
@@ -162,7 +176,7 @@ class MentenSaturationComponent(BaseSaturationFunction):
     """
 
     @property
-    def _default_saturation_config(self) -> Dict:
+    def default_saturation_config(self) -> Dict:
         return {
             "saturation_alpha": {
                 "dist": "HalfNormal",
@@ -209,7 +223,7 @@ class LogisticSaturationComponent(BaseSaturationFunction):
     """
 
     @property
-    def _default_saturation_config(self) -> Dict:
+    def default_saturation_config(self) -> Dict:
         return {
             "saturation_beta": {
                 "dist": "HalfNormal",
