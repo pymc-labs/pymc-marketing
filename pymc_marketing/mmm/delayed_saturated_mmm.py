@@ -178,11 +178,13 @@ class BaseDelayedSaturatedMMM(MMM):
         }
         self.X: pd.DataFrame = X_data
         self.y: Union[pd.Series, np.ndarray] = y
-        self._time_index = np.arange(0, X.shape[0])
-        self._time_index_mid = X.shape[0] // 2
-        self._time_resolution = (
-            self.X[self.date_column].iloc[1] - self.X[self.date_column].iloc[0]
-        ).days
+
+        if self.time_varying_intercept:
+            self._time_index = np.arange(0, X.shape[0])
+            self._time_index_mid = X.shape[0] // 2
+            self._time_resolution = (
+                self.X[self.date_column].iloc[1] - self.X[self.date_column].iloc[0]
+            ).days
 
     def _save_input_params(self, idata) -> None:
         """Saves input parameters to the attrs of idata."""
@@ -388,7 +390,7 @@ class BaseDelayedSaturatedMMM(MMM):
             )
 
             if self.time_varying_intercept:
-                time_index = pm.MutableData(
+                time_index = pm.Data(
                     "time_index",
                     self._time_index,
                     dims="date",

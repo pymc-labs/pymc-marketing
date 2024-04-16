@@ -9,6 +9,7 @@
 mmm/mmm_example
 mmm/mmm_budget_allocation_example
 mmm/mmm_lift_test
+mmm/mmm_tvp_example
 :::
 
 :::{toctree}

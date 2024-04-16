@@ -364,11 +364,12 @@ class BaseMMM(ModelBuilder):
                 else self.get_target_transformer().transform(self.y[:, None]).flatten()  # type: ignore
             )
 
-            assert len(target_to_plot) == len(posterior_predictive_data.date), (
-                "The length of the target variable doesn't match the length of the date column. "
-                "If you are predicting out-of-sample, please overwrite `self.y` with the "
-                "corresponding (non-transformed) target variable."
-            )
+            if len(target_to_plot) != len(posterior_predictive_data.date):
+                raise ValueError(
+                    "The length of the target variable doesn't match the length of the date column. "
+                    "If you are predicting out-of-sample, please overwrite `self.y` with the "
+                    "corresponding (non-transformed) target variable."
+                )
 
             ax.plot(
                 np.asarray(posterior_predictive_data.date),

@@ -18,6 +18,8 @@ def time_varying_prior(
 ) -> pm.Deterministic:
     """Time varying prior, based the Hilbert Space Gaussian Process (HSGP).
 
+    For more information see [pymc.gp.HSGP](https://www.pymc.io/projects/docs/en/stable/api/gp/generated/pymc.gp.HSGP.html).
+
     Parameters
     ----------
     name : str
@@ -46,6 +48,14 @@ def time_varying_prior(
     -------
     pm.Deterministic
         Time-varying prior.
+
+    References
+    ----------
+    -   Ruitort-Mayol, G., and Anderson, M., and Solin, A., and Vehtari, A. (2022). Practical
+        Hilbert Space Approximate Bayesian Gaussian Processes for Probabilistic Programming
+
+    -   Solin, A., Sarkka, S. (2019) Hilbert Space Methods for Reduced-Rank Gaussian Process
+        Regression.
     """  # noqa: W605
 
     with pm.modelcontext(None) as model:
@@ -55,7 +65,7 @@ def time_varying_prior(
             cov_func = eta**2 * pm.gp.cov.Matern52(1, ls=ls)
 
         hsgp_size: int | tuple[int, int] = m
-        if type(dims) is tuple:
+        if isinstance(dims, tuple):
             n_columns = len(model.coords[dims[1]])
             hsgp_size = (n_columns, m)
 
