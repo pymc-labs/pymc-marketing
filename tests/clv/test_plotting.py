@@ -1,5 +1,3 @@
-from typing import Union
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -18,9 +16,7 @@ class MockModel:
     def __init__(self, data: pd.DataFrame):
         self.data = data
 
-    def _mock_posterior(
-        self, customer_id: Union[np.ndarray, pd.Series]
-    ) -> xr.DataArray:
+    def _mock_posterior(self, customer_id: np.ndarray | pd.Series) -> xr.DataArray:
         n_customers = len(customer_id)
         n_chains = 4
         n_draws = 10
@@ -34,30 +30,30 @@ class MockModel:
 
     def expected_probability_alive(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        frequency: Union[np.ndarray, pd.Series],
-        recency: Union[np.ndarray, pd.Series],
-        T: Union[np.ndarray, pd.Series],
+        customer_id: np.ndarray | pd.Series,
+        frequency: np.ndarray | pd.Series,
+        recency: np.ndarray | pd.Series,
+        T: np.ndarray | pd.Series,
     ):
         return self._mock_posterior(customer_id)
 
     def expected_purchases(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
+        customer_id: np.ndarray | pd.Series,
         data: pd.DataFrame,
         *,
-        future_t: Union[np.ndarray, pd.Series, TensorVariable],
+        future_t: np.ndarray | pd.Series | TensorVariable,
     ):
         return self._mock_posterior(customer_id)
 
     # TODO: This is required until CLV API is standardized.
     def expected_num_purchases(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        t: Union[np.ndarray, pd.Series, TensorVariable],
-        frequency: Union[np.ndarray, pd.Series, TensorVariable],
-        recency: Union[np.ndarray, pd.Series, TensorVariable],
-        T: Union[np.ndarray, pd.Series, TensorVariable],
+        customer_id: np.ndarray | pd.Series,
+        t: np.ndarray | pd.Series | TensorVariable,
+        frequency: np.ndarray | pd.Series | TensorVariable,
+        recency: np.ndarray | pd.Series | TensorVariable,
+        T: np.ndarray | pd.Series | TensorVariable,
     ):
         return self._mock_posterior(customer_id)
 

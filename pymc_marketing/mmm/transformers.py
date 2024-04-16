@@ -1,7 +1,7 @@
 """Media transformation functions for Marketing Mix Models."""
 
 from enum import Enum
-from typing import Any, NamedTuple, Union
+from typing import Any, NamedTuple
 
 import numpy as np
 import numpy.typing as npt
@@ -27,7 +27,7 @@ def batched_convolution(
     x,
     w,
     axis: int = 0,
-    mode: Union[ConvMode, str] = ConvMode.After,
+    mode: ConvMode | str = ConvMode.After,
 ):
     R"""Apply a 1D convolution in a vectorized way across multiple batch dimensions.
 
@@ -284,7 +284,7 @@ def weibull_adstock(
     k=1,
     l_max: int = 12,
     axis: int = 0,
-    type: Union[WeibullType, str] = WeibullType.PDF,
+    type: WeibullType | str = WeibullType.PDF,
 ):
     R"""Weibull Adstocking Transformation.
 
@@ -377,7 +377,7 @@ def weibull_adstock(
     return batched_convolution(x, w, axis=axis)
 
 
-def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
+def logistic_saturation(x, lam: npt.NDArray[np.float_] | float = 0.5):
     """Logistic saturation transformation.
 
     .. math::
@@ -670,10 +670,10 @@ def tanh_saturation_baselined(
 
 
 def michaelis_menten(
-    x: Union[float, np.ndarray, npt.NDArray[np.float64]],
-    alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
-    lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
-) -> Union[float, Any]:
+    x: float | np.ndarray | npt.NDArray[np.float64],
+    alpha: float | np.ndarray | npt.NDArray[np.float64],
+    lam: float | np.ndarray | npt.NDArray[np.float64],
+) -> float | Any:
     r"""
     Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
 
