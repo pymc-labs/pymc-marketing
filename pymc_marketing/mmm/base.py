@@ -917,7 +917,7 @@ class BaseMMM(ModelBuilder):
             )
 
         warnings.warn(
-            "This budget allocator method is experimental", UserWarning, stacklevel=1
+            "This budget allocator method is experimental", UserWarning, stacklevel=2
         )
 
         return budget_allocator(
