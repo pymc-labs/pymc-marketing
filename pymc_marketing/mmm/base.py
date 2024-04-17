@@ -31,6 +31,7 @@ from pymc_marketing.mmm.utils import (
     find_sigmoid_inflection_point,
     sigmoid_saturation,
     standardize_scenarios_dict_keys,
+    transform_1d_array,
 )
 from pymc_marketing.mmm.validating import (
     ValidateChannelColumns,
@@ -60,8 +61,8 @@ class BaseMMM(ModelBuilder):
 
         self.n_channel: int = len(channel_columns)
 
-        self.X: Optional[pd.DataFrame] = None
-        self.y: Optional[Union[pd.Series, np.ndarray]] = None
+        self.X: pd.DataFrame
+        self.y: Union[pd.Series, np.ndarray]
 
         self._time_resolution: int
         self._time_index: NDArray[np.int_]
@@ -363,7 +364,7 @@ class BaseMMM(ModelBuilder):
             target_to_plot = np.asarray(
                 self.y
                 if original_scale
-                else self.get_target_transformer().transform(self.y[:, None]).flatten()  # type: ignore
+                else transform_1d_array(self.get_target_transformer().transform, self.y)
             )
 
             if len(target_to_plot) != len(posterior_predictive_data.date):

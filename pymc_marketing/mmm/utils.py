@@ -279,6 +279,26 @@ def apply_sklearn_transformer_across_dim(
     return data
 
 
+def transform_1d_array(
+    transform: Callable[[pd.Series | np.ndarray], np.ndarray], y: pd.Series | np.ndarray
+) -> np.ndarray:
+    """Transform a 1D array using a scikit-learn transformer.
+
+    Parameters
+    ----------
+    transform : scikit-learn transformer
+        The transformer to apply to the data.
+    y : np.ndarray
+        The data to transform.
+
+    Returns
+    -------
+    np.ndarray
+        The transformed data.
+    """
+    return transform(y[:, None]).flatten()
+
+
 def sigmoid_saturation(
     x: Union[float, np.ndarray, npt.NDArray[np.float64]],
     alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
