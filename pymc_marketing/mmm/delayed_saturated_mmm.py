@@ -651,8 +651,8 @@ class BaseDelayedSaturatedMMM(MMM):
 
         try:
             new_channel_data = X[self.channel_columns].to_numpy()
-        except KeyError as e:
-            raise RuntimeError("New data must contain channel_data!") from e
+        except KeyError:
+            raise RuntimeError("New data must contain channel_data!")
 
         def identity(x):
             return x

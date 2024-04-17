@@ -1110,10 +1110,8 @@ class BaseMMM(ModelBuilder):
         """
         try:
             prior_distribution = getattr(pm, dist["dist"])
-        except AttributeError as err:
-            raise ValueError(
-                f"Distribution {dist['dist']} does not exist in PyMC"
-            ) from err
+        except AttributeError:
+            raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
         return prior_distribution
 
     def compute_mean_contributions_over_time(

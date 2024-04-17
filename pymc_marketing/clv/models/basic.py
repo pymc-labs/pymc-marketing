@@ -218,10 +218,8 @@ class CLVModel(ModelBuilder):
     def _create_distribution(dist: dict, shape=()):
         try:
             return getattr(pm, dist["dist"]).dist(**dist.get("kwargs", {}), shape=shape)
-        except AttributeError as err:
-            raise ValueError(
-                f"Distribution {dist['dist']} does not exist in PyMC"
-            ) from err
+        except AttributeError:
+            raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
 
     @property
     def default_sampler_config(self) -> dict:
