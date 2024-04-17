@@ -396,12 +396,12 @@ class BaseDelayedSaturatedMMM(MMM):
                     dims="date",
                 )
 
-                if self.model_config["tvp_kwargs"]["L"] is None:
-                    self.model_config["tvp_kwargs"]["L"] = (
+                if self.model_config["intercept_tvp_kwargs"]["L"] is None:
+                    self.model_config["intercept_tvp_kwargs"]["L"] = (
                         self._time_index_mid + DAYS_IN_YEAR / self._time_resolution
                     )
-                if self.model_config["tvp_kwargs"]["ls_mu"] is None:
-                    self.model_config["tvp_kwargs"]["ls_mu"] = (
+                if self.model_config["intercept_tvp_kwargs"]["ls_mu"] is None:
+                    self.model_config["intercept_tvp_kwargs"]["ls_mu"] = (
                         DAYS_IN_YEAR / self._time_resolution * 2
                     )
 
@@ -410,7 +410,7 @@ class BaseDelayedSaturatedMMM(MMM):
                     X=time_index,
                     X_mid=self._time_index_mid,
                     dims="date",
-                    **self.model_config["tvp_kwargs"],
+                    **self.model_config["intercept_tvp_kwargs"],
                 )
                 intercept_base = self.intercept_dist(
                     name="intercept_base", **self.model_config["intercept"]["kwargs"]
@@ -551,7 +551,7 @@ class BaseDelayedSaturatedMMM(MMM):
             },
             "gamma_control": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
             "gamma_fourier": {"dist": "Laplace", "kwargs": {"mu": 0, "b": 1}},
-            "tvp_kwargs": {
+            "intercept_tvp_kwargs": {
                 "m": 200,
                 "L": None,
                 "eta_lam": 1,
