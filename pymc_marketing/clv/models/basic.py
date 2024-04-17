@@ -242,7 +242,7 @@ class CLVModel(ModelBuilder):
         if self.idata is None:
             self.idata = res
         elif "posterior" in self.idata:
-            warnings.warn("Overriding pre-existing fit_result", stacklevel=2)
+            warnings.warn("Overriding pre-existing fit_result", stacklevel=1)
             self.idata.posterior = res
         else:
             self.idata.posterior = res
