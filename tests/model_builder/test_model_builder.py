@@ -226,11 +226,11 @@ def test_fit(fitted_model_instance):
     )
     assert (
         post_pred[fitted_model_instance.output_var].shape[0]
-        == prediction_data.input.shape
+        == prediction_data.input.shape[0]
     )
 
 
-def test_fit_no_y(toy_X):
+def test_fit_no_t(toy_X):
     model_builder = ModelBuilderTest()
     model_builder.idata = model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
     assert model_builder.model is not None
