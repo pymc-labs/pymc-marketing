@@ -1,5 +1,3 @@
-from typing import Optional
-
 import pymc as pm
 from pytensor.tensor import softplus
 
@@ -14,7 +12,7 @@ def time_varying_prior(
     eta_lam: float = 1,
     ls_mu: float = 5,
     ls_sigma: float = 5,
-    cov_func: Optional[pm.gp.cov.Covariance] = None,
+    cov_func: pm.gp.cov.Covariance | None = None,
 ) -> pm.Deterministic:
     """Time varying prior, based the Hilbert Space Gaussian Process (HSGP).
 
@@ -56,7 +54,7 @@ def time_varying_prior(
 
     -   Solin, A., Sarkka, S. (2019) Hilbert Space Methods for Reduced-Rank Gaussian Process
         Regression.
-    """  # noqa: W605
+    """
 
     with pm.modelcontext(None) as model:
         if cov_func is None:
