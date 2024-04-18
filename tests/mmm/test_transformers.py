@@ -41,7 +41,7 @@ def dummy_design_matrix():
 )
 def convolution_inputs(request):
     x_val = np.ones((3, 4, 5))
-    w_val = np.ones((2))
+    w_val = np.ones(2)
     if request.param == "ndarray":
         return x_val, w_val, None, None
     elif request.param == "TensorConstant":

@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -49,14 +49,14 @@ class BaseDelayedSaturatedMMM(MMM):
     def __init__(
         self,
         date_column: str,
-        channel_columns: List[str],
+        channel_columns: list[str],
         adstock_max_lag: int,
         time_varying_intercept: bool = False,
-        model_config: Optional[Dict] = None,
-        sampler_config: Optional[Dict] = None,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
         validate_data: bool = True,
-        control_columns: Optional[List[str]] = None,
-        yearly_seasonality: Optional[int] = None,
+        control_columns: list[str] | None = None,
+        yearly_seasonality: int | None = None,
         **kwargs,
     ) -> None:
         """Constructor method.
@@ -102,7 +102,7 @@ class BaseDelayedSaturatedMMM(MMM):
         )
 
     @property
-    def default_sampler_config(self) -> Dict:
+    def default_sampler_config(self) -> dict:
         return {}
 
     @property
@@ -111,7 +111,7 @@ class BaseDelayedSaturatedMMM(MMM):
         return "y"
 
     def _generate_and_preprocess_model_data(  # type: ignore
-        self, X: Union[pd.DataFrame, pd.Series], y: Union[pd.Series, np.ndarray]
+        self, X: pd.DataFrame | pd.Series, y: pd.Series | np.ndarray
     ) -> None:
         """Applies preprocessing to the data before fitting the model.
 
@@ -144,10 +144,10 @@ class BaseDelayedSaturatedMMM(MMM):
         date_data = X[self.date_column]
         channel_data = X[self.channel_columns]
 
-        self.coords_mutable: Dict[str, Any] = {
+        self.coords_mutable: dict[str, Any] = {
             "date": date_data,
         }
-        coords: Dict[str, Any] = {
+        coords: dict[str, Any] = {
             "channel": self.channel_columns,
         }
 
@@ -156,13 +156,13 @@ class BaseDelayedSaturatedMMM(MMM):
         }
         X_data = pd.DataFrame.from_dict(new_X_dict)
         X_data = pd.concat([X_data, channel_data], axis=1)
-        control_data: Optional[Union[pd.DataFrame, pd.Series]] = None
+        control_data: pd.DataFrame | pd.Series | None = None
         if self.control_columns is not None:
             control_data = X[self.control_columns]
             coords["control"] = self.control_columns
             X_data = pd.concat([X_data, control_data], axis=1)
 
-        fourier_features: Optional[pd.DataFrame] = None
+        fourier_features: pd.DataFrame | None = None
         if self.yearly_seasonality is not None:
             fourier_features = self._get_fourier_models_data(X=X)
             self.fourier_columns = fourier_features.columns
@@ -173,12 +173,12 @@ class BaseDelayedSaturatedMMM(MMM):
         if self.validate_data:
             self.validate("X", X_data)
             self.validate("y", y)
-        self.preprocessed_data: Dict[str, Union[pd.DataFrame, pd.Series]] = {
+        self.preprocessed_data: dict[str, pd.DataFrame | pd.Series] = {
             "X": self.preprocess("X", X_data),  # type: ignore
             "y": self.preprocess("y", y),  # type: ignore
         }
         self.X: pd.DataFrame = X_data
-        self.y: Union[pd.Series, np.ndarray] = y
+        self.y: pd.Series | np.ndarray = y
 
         if self.time_varying_intercept:
             self._time_index = np.arange(0, X.shape[0])
@@ -198,9 +198,9 @@ class BaseDelayedSaturatedMMM(MMM):
 
     def _create_likelihood_distribution(
         self,
-        dist: Dict,
+        dist: dict,
         mu: TensorVariable,
-        observed: Union[np.ndarray, pd.Series],
+        observed: np.ndarray | pd.Series,
         dims: str,
     ) -> TensorVariable:
         """
@@ -277,7 +277,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 parameter_distributions[param] = self._get_distribution(
                     dist=param_config
                 )(**param_config["kwargs"], name=f"likelihood_{param}")
-            elif isinstance(param_config, (int, float)):
+            elif isinstance(param_config, int | float):
                 # Use the value directly
                 parameter_distributions[param] = param_config
             else:
@@ -303,7 +303,7 @@ class BaseDelayedSaturatedMMM(MMM):
     def build_model(
         self,
         X: pd.DataFrame,
-        y: Union[pd.Series, np.ndarray],
+        y: pd.Series | np.ndarray,
         **kwargs,
     ) -> None:
         """
@@ -535,7 +535,7 @@ class BaseDelayedSaturatedMMM(MMM):
             )
 
     @property
-    def default_model_config(self) -> Dict:
+    def default_model_config(self) -> dict:
         return {
             "intercept": {
                 "dist": "Normal",
@@ -626,8 +626,8 @@ class BaseDelayedSaturatedMMM(MMM):
         return channel_contribution_forward_pass.eval()
 
     @property
-    def _serializable_model_config(self) -> Dict[str, Any]:
-        def ndarray_to_list(d: Dict) -> Dict:
+    def _serializable_model_config(self) -> dict[str, Any]:
+        def ndarray_to_list(d: dict) -> dict:
             new_d = d.copy()  # Copy the dictionary to avoid mutating the original one
             for key, value in new_d.items():
                 if isinstance(value, np.ndarray):
@@ -691,8 +691,8 @@ class BaseDelayedSaturatedMMM(MMM):
 
     def _data_setter(
         self,
-        X: Union[np.ndarray, pd.DataFrame],
-        y: Optional[Union[np.ndarray, pd.Series]] = None,
+        X: np.ndarray | pd.DataFrame,
+        y: np.ndarray | pd.Series | None = None,
     ) -> None:
         """
         Sets new data in the model.
@@ -728,7 +728,7 @@ class BaseDelayedSaturatedMMM(MMM):
             msg = "X must be a pandas DataFrame in order to access the columns"
             raise TypeError(msg)
 
-        new_channel_data: Optional[np.ndarray] = None
+        new_channel_data: np.ndarray | None = None
         coords = {"date": X[self.date_column].to_numpy()}
 
         try:
@@ -745,7 +745,7 @@ class BaseDelayedSaturatedMMM(MMM):
             else self.channel_transformer.transform
         )
 
-        data: Dict[str, Union[np.ndarray, Any]] = {
+        data: dict[str, np.ndarray | Any] = {
             "channel_data": channel_transformation(new_channel_data)
         }
         if self.control_columns is not None:
@@ -782,14 +782,14 @@ class BaseDelayedSaturatedMMM(MMM):
             pm.set_data(data, coords=coords)
 
     @classmethod
-    def _model_config_formatting(cls, model_config: Dict) -> Dict:
+    def _model_config_formatting(cls, model_config: dict) -> dict:
         """
         Because of json serialization, model_config values that were originally tuples
         or numpy are being encoded as lists. This function converts them back to tuples
         and numpy arrays to ensure correct id encoding.
         """
 
-        def format_nested_dict(d: Dict) -> Dict:
+        def format_nested_dict(d: dict) -> dict:
             for key, value in d.items():
                 if isinstance(value, dict):
                     d[key] = format_nested_dict(value)
@@ -1082,9 +1082,9 @@ class DelayedSaturatedMMM(
 
     def new_spend_contributions(
         self,
-        spend: Optional[np.ndarray] = None,
+        spend: np.ndarray | None = None,
         one_time: bool = True,
-        spend_leading_up: Optional[np.ndarray] = None,
+        spend_leading_up: np.ndarray | None = None,
         prior: bool = False,
         original_scale: bool = True,
         **sample_posterior_predictive_kwargs,
@@ -1214,11 +1214,11 @@ class DelayedSaturatedMMM(
         lower: float = 0.025,
         upper: float = 0.975,
         ylabel: str = "Sales",
-        idx: Optional[slice] = None,
-        channels: Optional[List[str]] = None,
+        idx: slice | None = None,
+        channels: list[str] | None = None,
         prior: bool = False,
         original_scale: bool = True,
-        ax: Optional[plt.Axes] = None,
+        ax: plt.Axes | None = None,
         **sample_posterior_predictive_kwargs,
     ) -> plt.Axes:
         """Plot the upcoming sales for a given spend amount.

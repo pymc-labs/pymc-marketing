@@ -1,7 +1,5 @@
 """Budget optimization module."""
 
-from typing import Dict, List, Optional, Tuple
-
 import numpy as np
 from pandas import DataFrame
 from scipy.optimize import minimize
@@ -12,9 +10,9 @@ from pymc_marketing.mmm.utils import sigmoid_saturation
 
 def calculate_expected_contribution(
     method: str,
-    parameters: Dict[str, Tuple[float, float]],
-    budget: Dict[str, float],
-) -> Dict[str, float]:
+    parameters: dict[str, tuple[float, float]],
+    budget: dict[str, float],
+) -> dict[str, float]:
     """
     Calculate expected contributions using the specified model.
 
@@ -74,10 +72,10 @@ def calculate_expected_contribution(
 
 
 def objective_distribution(
-    x: List[float],
+    x: list[float],
     method: str,
-    channels: List[str],
-    parameters: Dict[str, Tuple[float, float]],
+    channels: list[str],
+    parameters: dict[str, tuple[float, float]],
 ) -> float:
     """
     Compute the total contribution for a given budget distribution.
@@ -121,10 +119,10 @@ def objective_distribution(
 def optimize_budget_distribution(
     method: str,
     total_budget: int,
-    budget_ranges: Optional[Dict[str, Tuple[float, float]]],
-    parameters: Dict[str, Tuple[float, float]],
-    channels: List[str],
-) -> Dict[str, float]:
+    budget_ranges: dict[str, tuple[float, float]] | None,
+    parameters: dict[str, tuple[float, float]],
+    channels: list[str],
+) -> dict[str, float]:
     """
     Optimize the budget allocation across channels to maximize total contribution.
 
@@ -161,7 +159,7 @@ def optimize_budget_distribution(
     """
 
     # Check if budget_ranges is the correct type
-    if not isinstance(budget_ranges, (dict, type(None))):
+    if not isinstance(budget_ranges, dict | type(None)):
         raise TypeError("`budget_ranges` should be a dictionary or None.")
 
     if budget_ranges is None:
@@ -190,9 +188,9 @@ def optimize_budget_distribution(
 def budget_allocator(
     method: str,
     total_budget: int,
-    channels: List[str],
-    parameters: Dict[str, Tuple[float, float]],
-    budget_ranges: Optional[Dict[str, Tuple[float, float]]],
+    channels: list[str],
+    parameters: dict[str, tuple[float, float]],
+    budget_ranges: dict[str, tuple[float, float]] | None,
 ) -> DataFrame:
     optimal_budget = optimize_budget_distribution(
         method=method,

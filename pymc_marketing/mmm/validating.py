@@ -1,6 +1,6 @@
 """Validating methods for MMM classes."""
 
-from typing import Callable, List, Optional, Tuple, Union
+from collections.abc import Callable
 
 import pandas as pd
 
@@ -47,11 +47,11 @@ class ValidateDateColumn:
 
 
 class ValidateChannelColumns:
-    channel_columns: Union[List[str], Tuple[str]]
+    channel_columns: list[str] | tuple[str]
 
     @validation_method_X
     def validate_channel_columns(self, data: pd.DataFrame) -> None:
-        if not isinstance(self.channel_columns, (list, tuple)):
+        if not isinstance(self.channel_columns, list | tuple):
             raise ValueError("channel_columns must be a list or tuple")
         if len(self.channel_columns) == 0:
             raise ValueError("channel_columns must not be empty")
@@ -68,13 +68,13 @@ class ValidateChannelColumns:
 
 
 class ValidateControlColumns:
-    control_columns: Optional[List[str]]
+    control_columns: list[str] | None
 
     @validation_method_X
     def validate_control_columns(self, data: pd.DataFrame) -> None:
         if self.control_columns is None:
             return None
-        if not isinstance(self.control_columns, (list, tuple)):
+        if not isinstance(self.control_columns, list | tuple):
             raise ValueError("control_columns must be None, a list or tuple")
         if len(self.control_columns) == 0:
             raise ValueError(

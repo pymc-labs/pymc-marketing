@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Sequence, Union
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
@@ -90,8 +90,8 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
     def __init__(
         self,
         data: pd.DataFrame,
-        model_config: Optional[Dict] = None,
-        sampler_config: Optional[Dict] = None,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
     ):
         self._validate_cols(
             data,
@@ -113,7 +113,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
         )
 
     @property
-    def default_model_config(self) -> Dict:
+    def default_model_config(self) -> dict:
         return {
             "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
             "beta_prior": {"dist": "HalfFlat", "kwargs": {}},
@@ -141,7 +141,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             )
 
     def distribution_customer_churn_time(
-        self, customer_id: Union[np.ndarray, pd.Series], random_seed: RandomState = None
+        self, customer_id: np.ndarray | pd.Series, random_seed: RandomState = None
     ) -> DataArray:
         """Sample distribution of churn time for existing customers.
 
