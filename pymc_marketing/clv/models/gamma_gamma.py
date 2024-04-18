@@ -90,9 +90,7 @@ class BaseGammaGammaModel(CLVModel):
     def expected_new_customer_spend(self) -> xarray.DataArray:
         """Expected transaction value for a new customer"""
 
-        if (posterior := self.fit_result) is None:
-            raise ValueError("Model must be fitted first")
-
+        posterior = self.fit_result
         p_mean = posterior["p"]
         q_mean = posterior["q"]
         v_mean = posterior["v"]
