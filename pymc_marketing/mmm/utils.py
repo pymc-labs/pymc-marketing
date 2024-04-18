@@ -296,7 +296,7 @@ def transform_1d_array(
     np.ndarray
         The transformed data.
     """
-    return transform(y[:, None]).flatten()
+    return transform(np.array(y)[:, None]).flatten()
 
 
 def sigmoid_saturation(

@@ -322,7 +322,7 @@ class BaseMMM(ModelBuilder):
 
     def plot_posterior_predictive(
         self, original_scale: bool = False, ax: plt.Axes = None, **plt_kwargs: Any
-    ) -> tuple[plt.Figure, plt.Axes]:
+    ) -> plt.Figure:
         posterior_predictive_data: Dataset = self.posterior_predictive
         likelihood_hdi_94: DataArray = az.hdi(
             ary=posterior_predictive_data, hdi_prob=0.94
@@ -341,6 +341,8 @@ class BaseMMM(ModelBuilder):
 
         if ax is None:
             fig, ax = plt.subplots(**plt_kwargs)
+        else:
+            fig = ax.figure
 
         if self.X is not None and self.y is not None:
             ax.fill_between(
@@ -386,7 +388,7 @@ class BaseMMM(ModelBuilder):
             )
         else:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        return fig, ax
+        return fig
 
     def _format_model_contributions(self, var_contribution: str) -> DataArray:
         contributions = az.extract(
