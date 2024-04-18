@@ -25,8 +25,6 @@ import xarray as xr
 
 from pymc_marketing.model_builder import ModelBuilder
 
-rng = np.random.default_rng(42)
-
 
 @pytest.fixture(scope="module")
 def toy_X():
@@ -36,6 +34,7 @@ def toy_X():
 
 @pytest.fixture(scope="module")
 def toy_y(toy_X):
+    rng = np.random.default_rng(42)
     y = 5 * toy_X["input"] + 3
     y = y + rng.normal(0, 1, size=len(toy_X))
     y = pd.Series(y, name="output")
@@ -175,6 +174,7 @@ def test_save_input_params(fitted_model_instance):
 
 
 def test_save_load(fitted_model_instance):
+    rng = np.random.default_rng(42)
     temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
     fitted_model_instance.save(temp.name)
     test_builder2 = ModelBuilderTest.load(temp.name)
@@ -211,6 +211,7 @@ def test_empty_sampler_config_fit(toy_X, toy_y):
 
 
 def test_fit(fitted_model_instance):
+    rng = np.random.default_rng(42)
     assert fitted_model_instance.idata is not None
     assert "posterior" in fitted_model_instance.idata.groups()
     assert fitted_model_instance.idata.posterior.dims["draw"] == 100
@@ -239,6 +240,7 @@ def test_fit_no_t(toy_X):
     reason="Permissions for temp files not granted on windows CI.",
 )
 def test_predict(fitted_model_instance):
+    rng = np.random.default_rng(42)
     x_pred = rng.uniform(low=0, high=1, size=100)
     prediction_data = pd.DataFrame({"input": x_pred})
     pred = fitted_model_instance.predict(prediction_data["input"])
@@ -249,6 +251,7 @@ def test_predict(fitted_model_instance):
 
 @pytest.mark.parametrize("combined", [True, False])
 def test_sample_posterior_predictive(fitted_model_instance, combined):
+    rng = np.random.default_rng(42)
     n_pred = 100
     x_pred = rng.uniform(low=0, high=1, size=n_pred)
     prediction_data = pd.DataFrame({"input": x_pred})
@@ -293,6 +296,7 @@ def test_id():
 def test_sample_xxx_predictive_keeps_second(
     fitted_model_instance, toy_X, name: str
 ) -> None:
+    rng = np.random.default_rng(42)
     method_name = f"sample_{name}"
     method = getattr(fitted_model_instance, method_name)
 

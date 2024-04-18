@@ -57,8 +57,7 @@ class CLVModel(ModelBuilder):
                 category=UserWarning,
                 message="The group fit_data is not defined in the InferenceData scheme",
             )
-            if self.idata is None:
-                raise ValueError("idata is not defined")
+            assert self.idata is not None  # noqa: S101
             self.idata.add_groups(fit_data=data.to_xarray())
 
     def fit(  # type: ignore
@@ -207,10 +206,8 @@ class CLVModel(ModelBuilder):
             )
 
         """
-        if not hasattr(self, "fit_result"):
-            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        if self.idata is None:
-            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
+        self.fit_result  # noqa: B018 (Raise Error if fit didn't happen yet)
+        assert self.idata is not None  # noqa: S101
         new_idata = self.idata.isel(draw=slice(None, None, keep_every)).copy()
         return type(self)._build_with_idata(new_idata)
 
