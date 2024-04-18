@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
+from sklearn.preprocessing import StandardScaler
 
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
@@ -11,7 +12,9 @@ from pymc_marketing.mmm.utils import (
     estimate_sigmoid_parameters,
     find_sigmoid_inflection_point,
     generate_fourier_modes,
+    infer_time_index,
     sigmoid_saturation,
+    transform_1d_array,
 )
 
 
@@ -229,6 +232,29 @@ def test_apply_sklearn_function_across_dim_error(
         )
 
 
+def test_transform_1d_array_with_ndarray():
+    transform = StandardScaler()
+    y = np.array([1, 2, 3, 4, 5])
+    expected = transform.fit_transform(y[:, None]).flatten()
+    result = transform_1d_array(transform, y)
+    np.testing.assert_allclose(result, expected)
+
+
+def test_transform_1d_array_with_series():
+    transform = StandardScaler()
+    y = pd.Series([1, 2, 3, 4, 5])
+    expected = transform.fit_transform(y[:, None]).flatten()
+    result = transform_1d_array(transform, y)
+    np.testing.assert_allclose(result, expected)
+
+
+def test_transform_1d_array_with_invalid_input():
+    transform = StandardScaler()
+    y = "invalid"
+    with pytest.raises(TypeError):
+        transform_1d_array(transform, y)
+
+
 @pytest.mark.parametrize(
     "x, alpha, lam, expected",
     [
@@ -319,3 +345,30 @@ def test_create_new_spend_data(
         new_spend_data,
         np.array(expected_result),
     )
+
+
+@pytest.mark.parametrize("freq, time_resolution", [("D", 1), ("W", 7)])
+def test_infer_time_index_in_sample(freq, time_resolution):
+    date_series = pd.Series(pd.date_range(start="1/1/2022", periods=5, freq=freq))
+    date_series_new = date_series
+    expected = np.arange(0, 5)
+    result = infer_time_index(date_series_new, date_series, time_resolution)
+    np.testing.assert_array_equal(result, expected)
+
+
+@pytest.mark.parametrize("freq, time_resolution", [("D", 1), ("W", 7)])
+def test_infer_time_index_oos_forward(freq, time_resolution):
+    date_series = pd.Series(pd.date_range(start="1/1/2022", periods=5, freq=freq))
+    date_series_new = date_series + pd.Timedelta(5, unit=freq)
+    expected = np.arange(5, 10)
+    result = infer_time_index(date_series_new, date_series, time_resolution)
+    np.testing.assert_array_equal(result, expected)
+
+
+@pytest.mark.parametrize("freq, time_resolution", [("D", 1), ("W", 7)])
+def test_infer_time_index_oos_backward(freq, time_resolution):
+    date_series = pd.Series(pd.date_range(start="1/1/2022", periods=5, freq=freq))
+    date_series_new = date_series - pd.Timedelta(5, unit=freq)
+    expected = np.arange(-5, 0)
+    result = infer_time_index(date_series_new, date_series, time_resolution)
+    np.testing.assert_array_equal(result, expected)
