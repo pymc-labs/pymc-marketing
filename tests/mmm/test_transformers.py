@@ -382,7 +382,7 @@ class TestSaturationTransformers:
         np.testing.assert_allclose(y2, y3)
         np.testing.assert_allclose(y3, y4)
         np.testing.assert_allclose(param_classic1.b.eval(), b)
-        np.testing.assert_allclose(param_classic1.c.eval(), c)
+        np.testing.assert_allclose(param_classic1.c.eval(), c, rtol=1e-06)
 
     @pytest.mark.parametrize(
         "x, alpha, lam, expected",

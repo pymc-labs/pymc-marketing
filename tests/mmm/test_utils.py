@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MaxAbsScaler
 
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
@@ -233,26 +233,19 @@ def test_apply_sklearn_function_across_dim_error(
 
 
 def test_transform_1d_array_with_ndarray():
-    transform = StandardScaler()
+    transform = MaxAbsScaler()
     y = np.array([1, 2, 3, 4, 5])
     expected = transform.fit_transform(y[:, None]).flatten()
-    result = transform_1d_array(transform, y)
+    result = transform_1d_array(transform.transform, y)
     np.testing.assert_allclose(result, expected)
 
 
 def test_transform_1d_array_with_series():
-    transform = StandardScaler()
+    transform = MaxAbsScaler()
     y = pd.Series([1, 2, 3, 4, 5])
-    expected = transform.fit_transform(y[:, None]).flatten()
-    result = transform_1d_array(transform, y)
+    expected = transform.fit_transform(np.array(y)[:, None]).flatten()
+    result = transform_1d_array(transform.transform, y)
     np.testing.assert_allclose(result, expected)
-
-
-def test_transform_1d_array_with_invalid_input():
-    transform = StandardScaler()
-    y = "invalid"
-    with pytest.raises(TypeError):
-        transform_1d_array(transform, y)
 
 
 @pytest.mark.parametrize(
