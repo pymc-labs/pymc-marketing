@@ -406,3 +406,13 @@ def create_new_spend_data(
             spend,
         ]
     )
+
+
+def infer_time_index(
+    date_series_new: pd.Series, date_series: pd.Series, time_resolution: int
+) -> npt.NDArray[np.int_]:
+    """Infer the time-index given a new dataset.
+
+    Infers the time-indices by calculating the number of days since the first date in the dataset.
+    """
+    return (date_series_new - date_series[0]).dt.days.values // time_resolution

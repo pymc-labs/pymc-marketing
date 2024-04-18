@@ -26,6 +26,7 @@ from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
     generate_fourier_modes,
+    infer_time_index,
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
 
@@ -581,15 +582,6 @@ class BaseDelayedSaturatedMMM(MMM):
             n_order=self.yearly_seasonality,
         )
 
-    def _infer_time_index(self, X) -> npt.NDArray[np.int_]:
-        """Infer the time-index given a new dataset.
-
-        Infers the time-indices by calculating the number of days since the first date in the dataset.
-        """
-        return (
-            X[self.date_column] - self.X[self.date_column][0]
-        ).dt.days.values // self._time_resolution
-
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float_]
     ) -> npt.NDArray[np.float_]:
@@ -769,7 +761,9 @@ class BaseDelayedSaturatedMMM(MMM):
             data["fourier_data"] = self._get_fourier_models_data(X)
 
         if self.time_varying_intercept:
-            data["time_index"] = self._infer_time_index(X)
+            data["time_index"] = infer_time_index(
+                X[self.date_column], self.X[self.date_column], self._time_resolution
+            )
 
         if y is not None:
             if isinstance(y, pd.Series):
