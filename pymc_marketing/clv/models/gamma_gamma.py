@@ -56,8 +56,7 @@ class BaseGammaGammaModel(CLVModel):
         mean_transaction_value, frequency = to_xarray(
             customer_id, mean_transaction_value, frequency
         )
-        if (posterior := self.fit_result) is None:
-            raise ValueError("Model must be fitted first")
+        posterior = self.fit_result
 
         p = posterior["p"]
         q = posterior["q"]
