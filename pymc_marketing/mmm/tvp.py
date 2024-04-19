@@ -120,8 +120,8 @@ def create_time_varying_intercept(
                 DAYS_IN_YEAR / time_resolution * 2
             )
 
-        tv_multiplier_intercept = time_varying_prior(
-            name="tv_multiplier_intercept",
+        multiplier = time_varying_prior(
+            name="intercept_time_varying_multiplier",
             X=time_index,
             dims="date",
             X_mid=time_index_mid,
@@ -132,7 +132,7 @@ def create_time_varying_intercept(
         )
         return pm.Deterministic(
             name="intercept",
-            var=intercept_base * tv_multiplier_intercept,
+            var=intercept_base * multiplier,
             dims="date",
         )
 
