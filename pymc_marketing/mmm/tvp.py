@@ -1,4 +1,6 @@
 import numpy as np
+import numpy.typing as npt
+import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 from pytensor.tensor import softplus
@@ -133,3 +135,13 @@ def create_time_varying_intercept(
             var=intercept_base * tv_multiplier_intercept,
             dims="date",
         )
+
+
+def infer_time_index(
+    date_series_new: pd.Series, date_series: pd.Series, time_resolution: int
+) -> npt.NDArray[np.int_]:
+    """Infer the time-index given a new dataset.
+
+    Infers the time-indices by calculating the number of days since the first date in the dataset.
+    """
+    return (date_series_new - date_series[0]).dt.days.values // time_resolution

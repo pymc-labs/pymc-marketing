@@ -21,12 +21,11 @@ from pymc_marketing.mmm.lift_test import (
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
-from pymc_marketing.mmm.tvp import create_time_varying_intercept
+from pymc_marketing.mmm.tvp import create_time_varying_intercept, infer_time_index
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
     generate_fourier_modes,
-    infer_time_index,
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
 

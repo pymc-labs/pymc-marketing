@@ -12,7 +12,6 @@ from pymc_marketing.mmm.utils import (
     estimate_sigmoid_parameters,
     find_sigmoid_inflection_point,
     generate_fourier_modes,
-    infer_time_index,
     sigmoid_saturation,
     transform_1d_array,
 )
@@ -332,30 +331,3 @@ def test_create_new_spend_data(
         new_spend_data,
         np.array(expected_result),
     )
-
-
-@pytest.mark.parametrize("freq, time_resolution", [("D", 1), ("W", 7)])
-def test_infer_time_index_in_sample(freq, time_resolution):
-    date_series = pd.Series(pd.date_range(start="1/1/2022", periods=5, freq=freq))
-    date_series_new = date_series
-    expected = np.arange(0, 5)
-    result = infer_time_index(date_series_new, date_series, time_resolution)
-    np.testing.assert_array_equal(result, expected)
-
-
-@pytest.mark.parametrize("freq, time_resolution", [("D", 1), ("W", 7)])
-def test_infer_time_index_oos_forward(freq, time_resolution):
-    date_series = pd.Series(pd.date_range(start="1/1/2022", periods=5, freq=freq))
-    date_series_new = date_series + pd.Timedelta(5, unit=freq)
-    expected = np.arange(5, 10)
-    result = infer_time_index(date_series_new, date_series, time_resolution)
-    np.testing.assert_array_equal(result, expected)
-
-
-@pytest.mark.parametrize("freq, time_resolution", [("D", 1), ("W", 7)])
-def test_infer_time_index_oos_backward(freq, time_resolution):
-    date_series = pd.Series(pd.date_range(start="1/1/2022", periods=5, freq=freq))
-    date_series_new = date_series - pd.Timedelta(5, unit=freq)
-    expected = np.arange(-5, 0)
-    result = infer_time_index(date_series_new, date_series, time_resolution)
-    np.testing.assert_array_equal(result, expected)

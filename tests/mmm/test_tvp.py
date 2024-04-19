@@ -4,7 +4,7 @@ import pymc as pm
 import pytensor.tensor as pt
 import pytest
 
-from pymc_marketing.mmm.tvp import time_varying_prior
+from pymc_marketing.mmm.tvp import infer_time_index, time_varying_prior
 
 
 @pytest.fixture
@@ -43,3 +43,30 @@ def test_integration_with_model(coords):
         pm.Normal("obs", mu=prior, sigma=1, observed=np.random.randn(5))
         # This should compile the model without errors, indicating successful integration
         pm.sample(50, tune=50, chains=1)
+
+
+@pytest.mark.parametrize("freq, time_resolution", [("D", 1), ("W", 7)])
+def test_infer_time_index_in_sample(freq, time_resolution):
+    date_series = pd.Series(pd.date_range(start="1/1/2022", periods=5, freq=freq))
+    date_series_new = date_series
+    expected = np.arange(0, 5)
+    result = infer_time_index(date_series_new, date_series, time_resolution)
+    np.testing.assert_array_equal(result, expected)
+
+
+@pytest.mark.parametrize("freq, time_resolution", [("D", 1), ("W", 7)])
+def test_infer_time_index_oos_forward(freq, time_resolution):
+    date_series = pd.Series(pd.date_range(start="1/1/2022", periods=5, freq=freq))
+    date_series_new = date_series + pd.Timedelta(5, unit=freq)
+    expected = np.arange(5, 10)
+    result = infer_time_index(date_series_new, date_series, time_resolution)
+    np.testing.assert_array_equal(result, expected)
+
+
+@pytest.mark.parametrize("freq, time_resolution", [("D", 1), ("W", 7)])
+def test_infer_time_index_oos_backward(freq, time_resolution):
+    date_series = pd.Series(pd.date_range(start="1/1/2022", periods=5, freq=freq))
+    date_series_new = date_series - pd.Timedelta(5, unit=freq)
+    expected = np.arange(-5, 0)
+    result = infer_time_index(date_series_new, date_series, time_resolution)
+    np.testing.assert_array_equal(result, expected)
