@@ -80,7 +80,8 @@ def time_varying_prior(
         model.add_coord("m", np.arange(m))  # type: ignore
         hsgp_dims: str | tuple[str, str] = "m"
         if isinstance(dims, tuple):
-            hsgp_dims = (dims[0], "m")
+            model.add_coord(dims[1], model.coords[dims[1]])
+            hsgp_dims = (dims[1], "m")
 
         gp = pm.gp.HSGP(m=[m], L=[L], cov_func=cov_func)
         phi, sqrt_psd = gp.prior_linearized(Xs=X[:, None] - X_mid)
