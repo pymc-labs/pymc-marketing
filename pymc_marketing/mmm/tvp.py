@@ -3,7 +3,6 @@ import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
-from pytensor.tensor import softplus
 
 from pymc_marketing.constants import DAYS_IN_YEAR
 
@@ -86,8 +85,9 @@ def time_varying_prior(
         gp = pm.gp.HSGP(m=[m], L=[L], cov_func=cov_func)
         phi, sqrt_psd = gp.prior_linearized(Xs=X[:, None] - X_mid)
         hsgp_coefs = pm.Normal(f"{name}_hsgp_coefs", dims=hsgp_dims)
-        f = softplus(phi @ (hsgp_coefs * sqrt_psd).T)
-        return pm.Deterministic(name, f, dims=dims)
+        f = phi @ (hsgp_coefs * sqrt_psd).T
+        centered_f = f - f.mean(axis=0) + 1
+        return pm.Deterministic(name, centered_f, dims=dims)
 
 
 def create_time_varying_intercept(
