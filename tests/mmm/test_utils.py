@@ -232,18 +232,12 @@ def test_apply_sklearn_function_across_dim_error(
         )
 
 
-def test_transform_1d_array_with_ndarray():
+@pytest.mark.parametrize("constructor", [pd.Series, np.array])
+def test_transform_1d_array(constructor):
     transform = MaxAbsScaler()
-    y = np.array([1, 2, 3, 4, 5])
-    expected = transform.fit_transform(y[:, None]).flatten()
-    result = transform_1d_array(transform.transform, y)
-    np.testing.assert_allclose(result, expected)
-
-
-def test_transform_1d_array_with_series():
-    transform = MaxAbsScaler()
-    y = pd.Series([1, 2, 3, 4, 5])
-    expected = transform.fit_transform(np.array(y)[:, None]).flatten()
+    y = constructor([1, 2, 3, 4, 5])
+    transform.fit(np.array(y)[:, None])
+    expected = np.array([1, 2, 3, 4, 5]) / 5
     result = transform_1d_array(transform.transform, y)
     np.testing.assert_allclose(result, expected)
 
