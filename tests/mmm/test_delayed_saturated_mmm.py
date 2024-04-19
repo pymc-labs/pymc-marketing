@@ -1,5 +1,4 @@
 import os
-from typing import Dict, List, Optional
 
 import arviz as az
 import numpy as np
@@ -48,7 +47,7 @@ def toy_X(generate_data) -> pd.DataFrame:
 
 
 @pytest.fixture(scope="class")
-def model_config_requiring_serialization() -> Dict:
+def model_config_requiring_serialization() -> dict:
     model_config = {
         "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
         "beta_channel": {
@@ -198,9 +197,9 @@ class TestDelayedSaturatedMMM:
         self,
         toy_X: pd.DataFrame,
         toy_y: pd.Series,
-        yearly_seasonality: Optional[int],
-        channel_columns: List[str],
-        control_columns: List[str],
+        yearly_seasonality: int | None,
+        channel_columns: list[str],
+        control_columns: list[str],
         adstock_max_lag: int,
     ) -> None:
         mmm = BaseDelayedSaturatedMMM(
@@ -343,7 +342,7 @@ class TestDelayedSaturatedMMM:
         ids=["no_yearly_seasonality", "yearly_seasonality=1", "yearly_seasonality=2"],
     )
     def test_get_fourier_models_data(
-        self, toy_X: pd.DataFrame, toy_y: pd.Series, yearly_seasonality: Optional[int]
+        self, toy_X: pd.DataFrame, toy_y: pd.Series, yearly_seasonality: int | None
     ) -> None:
         mmm = BaseDelayedSaturatedMMM(
             date_column="date",
@@ -357,7 +356,7 @@ class TestDelayedSaturatedMMM:
                 mmm._get_fourier_models_data(toy_X)
 
         else:
-            fourier_modes_data: Optional[pd.DataFrame] = mmm._get_fourier_models_data(
+            fourier_modes_data: pd.DataFrame | None = mmm._get_fourier_models_data(
                 toy_X
             )
             assert fourier_modes_data.shape == (
@@ -537,10 +536,11 @@ class TestDelayedSaturatedMMM:
         DSMMM.save("test_model")
         # Apply the monkeypatch for the property
         monkeypatch.setattr(DelayedSaturatedMMM, "id", property(mock_property))
-        with pytest.raises(
-            ValueError,
-            match="The file 'test_model' does not contain an inference data of the same model or configuration as 'DelayedSaturatedMMM'",
-        ):
+
+        error_msg = """The file 'test_model' does not contain an inference data of the same model
+        or configuration as 'DelayedSaturatedMMM'"""
+
+        with pytest.raises(ValueError, match=error_msg):
             DelayedSaturatedMMM.load("test_model")
         os.remove("test_model")
 
@@ -579,7 +579,7 @@ class TestDelayedSaturatedMMM:
         ids=["default_config", "custom_config"],
     )
     def test_model_config(
-        self, model_config: Dict, toy_X: pd.DataFrame, toy_y: pd.Series
+        self, model_config: dict, toy_X: pd.DataFrame, toy_y: pd.Series
     ):
         # Create model instance with specified config
         model = DelayedSaturatedMMM(

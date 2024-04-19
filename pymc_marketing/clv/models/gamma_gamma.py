@@ -1,5 +1,3 @@
-from typing import Dict, Optional, Union
-
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -15,10 +13,10 @@ from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
 class BaseGammaGammaModel(CLVModel):
     def distribution_customer_spend(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        mean_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
-        frequency: Union[np.ndarray, pd.Series, TensorVariable],
-        random_seed: Optional[RandomState] = None,
+        customer_id: np.ndarray | pd.Series,
+        mean_transaction_value: np.ndarray | pd.Series | TensorVariable,
+        frequency: np.ndarray | pd.Series | TensorVariable,
+        random_seed: RandomState | None = None,
     ) -> xarray.DataArray:
         """Posterior distribution of transaction value per customer"""
 
@@ -44,24 +42,25 @@ class BaseGammaGammaModel(CLVModel):
 
     def expected_customer_spend(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        mean_transaction_value: Union[np.ndarray, pd.Series],
-        frequency: Union[np.ndarray, pd.Series],
+        customer_id: np.ndarray | pd.Series,
+        mean_transaction_value: np.ndarray | pd.Series,
+        frequency: np.ndarray | pd.Series,
     ) -> xarray.DataArray:
         """Expected transaction value per customer
 
         Eq 5 from [1], p.3
 
-        Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117  # noqa: E501
+        Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117
         """
 
         mean_transaction_value, frequency = to_xarray(
             customer_id, mean_transaction_value, frequency
         )
-        assert self.idata is not None, "Model must be fitted first"
-        p = self.idata.posterior["p"]
-        q = self.idata.posterior["q"]
-        v = self.idata.posterior["v"]
+        posterior = self.fit_result
+
+        p = posterior["p"]
+        q = posterior["q"]
+        v = posterior["v"]
 
         individual_weight = p * frequency / (p * frequency + q - 1)
         population_mean = v * p / (q - 1)
@@ -91,10 +90,10 @@ class BaseGammaGammaModel(CLVModel):
     def expected_new_customer_spend(self) -> xarray.DataArray:
         """Expected transaction value for a new customer"""
 
-        assert self.idata is not None, "Model must be fitted first"
-        p_mean = self.idata.posterior["p"]
-        q_mean = self.idata.posterior["q"]
-        v_mean = self.idata.posterior["v"]
+        posterior = self.fit_result
+        p_mean = posterior["p"]
+        q_mean = posterior["q"]
+        v_mean = posterior["v"]
 
         # Closed form solution to the posterior of nu
         # Eq 3 from [1], p.3
@@ -107,11 +106,11 @@ class BaseGammaGammaModel(CLVModel):
     def expected_customer_lifetime_value(
         self,
         transaction_model: CLVModel,
-        customer_id: Union[np.ndarray, pd.Series],
-        mean_transaction_value: Union[np.ndarray, pd.Series],
-        frequency: Union[np.ndarray, pd.Series],
-        recency: Union[np.ndarray, pd.Series],
-        T: Union[np.ndarray, pd.Series],
+        customer_id: np.ndarray | pd.Series,
+        mean_transaction_value: np.ndarray | pd.Series,
+        frequency: np.ndarray | pd.Series,
+        recency: np.ndarray | pd.Series,
+        T: np.ndarray | pd.Series,
         time: int = 12,
         discount_rate: float = 0.01,
         freq: str = "D",
@@ -162,7 +161,8 @@ class GammaGammaModel(BaseGammaGammaModel):
             - mean_transaction_value: Mean transaction value of each customer.
             - frequency: Number of transactions observed for each customer.
     model_config: dict, optional
-        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
+        `default_model_config` class attribute.
     sampler_config: dict, optional
         Dictionary of sampler parameters. Defaults to None.
 
@@ -225,8 +225,8 @@ class GammaGammaModel(BaseGammaGammaModel):
     def __init__(
         self,
         data: pd.DataFrame,
-        model_config: Optional[Dict] = None,
-        sampler_config: Optional[Dict] = None,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
     ):
         self._validate_cols(
             data,
@@ -238,7 +238,7 @@ class GammaGammaModel(BaseGammaGammaModel):
         )
 
     @property
-    def default_model_config(self) -> Dict:
+    def default_model_config(self) -> dict:
         return {
             "p_prior": {"dist": "HalfFlat", "kwargs": {}},
             "q_prior": {"dist": "HalfFlat", "kwargs": {}},
@@ -295,7 +295,8 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         coming from the same customer.
             - individual_transaction_value: Value of individual transactions.
     model_config: dict, optional
-        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
+        `default_model_config` class attribute.
     sampler_config: dict, optional
         Dictionary of sampler parameters. Defaults to None.
 
@@ -360,8 +361,8 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     def __init__(
         self,
         data: pd.DataFrame,
-        model_config: Optional[Dict] = None,
-        sampler_config: Optional[Dict] = None,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
     ):
         self._validate_cols(
             data, required_cols=["customer_id", "individual_transaction_value"]
@@ -371,7 +372,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         )
 
     @property
-    def default_model_config(self) -> Dict:
+    def default_model_config(self) -> dict:
         return {
             "p_prior": {"dist": "HalfFlat", "kwargs": {}},
             "q_prior": {"dist": "HalfFlat", "kwargs": {}},
@@ -417,9 +418,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
     def distribution_customer_spend(  # type: ignore [override]
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
-        random_seed: Optional[RandomState] = None,
+        customer_id: np.ndarray | pd.Series,
+        individual_transaction_value: np.ndarray | pd.Series | TensorVariable,
+        random_seed: RandomState | None = None,
     ) -> xarray.DataArray:
         """Return distribution of transaction value per customer"""
 
@@ -436,9 +437,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
     def expected_customer_spend(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
-        random_seed: Optional[RandomState] = None,
+        customer_id: np.ndarray | pd.Series,
+        individual_transaction_value: np.ndarray | pd.Series | TensorVariable,
+        random_seed: RandomState | None = None,
     ) -> xarray.DataArray:
         """Return expected transaction value per customer"""
 
@@ -456,10 +457,10 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     def expected_customer_lifetime_value(  # type: ignore [override]
         self,
         transaction_model: CLVModel,
-        customer_id: Union[np.ndarray, pd.Series],
-        individual_transaction_value: Union[np.ndarray, pd.Series, TensorVariable],
-        recency: Union[np.ndarray, pd.Series],
-        T: Union[np.ndarray, pd.Series],
+        customer_id: np.ndarray | pd.Series,
+        individual_transaction_value: np.ndarray | pd.Series | TensorVariable,
+        recency: np.ndarray | pd.Series,
+        T: np.ndarray | pd.Series,
         time: int = 12,
         discount_rate: float = 0.01,
         freq: str = "D",

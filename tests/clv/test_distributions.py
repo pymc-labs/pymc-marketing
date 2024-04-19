@@ -84,7 +84,7 @@ class TestContNonContract:
             ContNonContract(name="cnc", lam=lam, p=p, T=10, size=cnc_size)
             prior = pm.sample_prior_predictive(samples=100)
 
-        assert prior["prior"]["cnc"][0].shape == (100,) + expected_size
+        assert prior["prior"]["cnc"][0].shape == (100,) + expected_size  # noqa: RUF005
 
 
 class TestContContract:
@@ -156,7 +156,7 @@ class TestContContract:
             ContContract(name="cc", lam=lam, p=p, T=10, size=cc_size)
             prior = pm.sample_prior_predictive(samples=100)
 
-        assert prior["prior"]["cc"][0].shape == (100,) + expected_size
+        assert prior["prior"]["cc"][0].shape == (100,) + expected_size  # noqa: RUF005
 
 
 class TestParetoNBD:

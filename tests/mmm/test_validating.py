@@ -97,13 +97,13 @@ def test_channel_columns():
         obj.validate_channel_columns(toy_X)
     with pytest.raises(
         ValueError,
-        match="channel_columns \['channel_1', 'channel_1'\] contains duplicates",  # noqa: E501, W605
+        match="channel_columns \['channel_1', 'channel_1'\] contains duplicates",  # noqa: W605
     ):
         obj.channel_columns = ["channel_1", "channel_1"]
         obj.validate_channel_columns(toy_X)
     with pytest.raises(
         ValueError,
-        match="channel_columns \['channel_1'\] contains negative values",  # noqa: E501, W605
+        match="channel_columns \['channel_1'\] contains negative values",  # noqa: W605
     ):
         new_toy_X = toy_X.copy()
         new_toy_X["channel_1"] -= 1e4
@@ -136,7 +136,7 @@ def test_control_columns():
         obj.validate_control_columns(toy_X)
     with pytest.raises(
         ValueError,
-        match="control_columns \['control_1', 'control_1'\] contains duplicates",  # noqa: E501, W605
+        match="control_columns \['control_1', 'control_1'\] contains duplicates",  # noqa: W605
     ):
         obj.control_columns = ["control_1", "control_1"]
         obj.validate_control_columns(toy_X)

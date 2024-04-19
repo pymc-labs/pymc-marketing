@@ -18,7 +18,7 @@ import json
 import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import arviz as az
 import numpy as np
@@ -49,13 +49,13 @@ class ModelBuilder(ABC):
     _model_type = "BaseClass"
     version = "None"
 
-    X: Optional[pd.DataFrame] = None
-    y: Optional[Union[pd.Series, np.ndarray]] = None
+    X: pd.DataFrame | None = None
+    y: pd.Series | np.ndarray | None = None
 
     def __init__(
         self,
-        model_config: Optional[Dict] = None,
-        sampler_config: Optional[Dict] = None,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
     ):
         """
         Initializes model configuration and sampler configuration for the model
@@ -65,9 +65,11 @@ class ModelBuilder(ABC):
         data : Dictionary, optional
             It is the data we need to train the model on.
         model_config : Dictionary, optional
-            dictionary of parameters that initialise model configuration. Class-default defined by the user default_model_config method.
+            dictionary of parameters that initialise model configuration.
+            Class-default defined by the user default_model_config method.
         sampler_config : Dictionary, optional
-            dictionary of parameters that initialise sampler configuration. Class-default defined by the user default_sampler_config method.
+            dictionary of parameters that initialise sampler configuration.
+            Class-default defined by the user default_sampler_config method.
         Examples
         --------
         >>> class MyModel(ModelBuilder):
@@ -84,10 +86,8 @@ class ModelBuilder(ABC):
         self.model_config = (
             self.default_model_config | model_config
         )  # parameters for priors etc.
-        self.model: Optional[pm.Model] = None  # Set by build_model
-        self.idata: Optional[az.InferenceData] = (
-            None  # idata is generated during fitting
-        )
+        self.model: pm.Model | None = None  # Set by build_model
+        self.idata: az.InferenceData | None = None  # idata is generated during fitting
         self.is_fitted_ = False
 
     def _validate_data(self, X, y=None):
@@ -101,8 +101,8 @@ class ModelBuilder(ABC):
     @abstractmethod
     def _data_setter(
         self,
-        X: Union[np.ndarray, pd.DataFrame],
-        y: Optional[Union[np.ndarray, pd.Series]] = None,
+        X: np.ndarray | pd.DataFrame,
+        y: np.ndarray | pd.Series | None = None,
     ) -> None:
         """
         Sets new data in the model.
@@ -147,7 +147,7 @@ class ModelBuilder(ABC):
 
     @property
     @abstractmethod
-    def default_model_config(self) -> Dict:
+    def default_model_config(self) -> dict:
         """
         Returns a class default config dict for model builder if no model_config is provided on class initialization
         Useful for understanding structure of required model_config to allow its customization by users
@@ -176,7 +176,7 @@ class ModelBuilder(ABC):
 
     @property
     @abstractmethod
-    def default_sampler_config(self) -> Dict:
+    def default_sampler_config(self) -> dict:
         """
         Returns a class default sampler dict for model builder if no sampler_config is provided on class initialization
         Useful for understanding structure of required sampler_config to allow its customization by users
@@ -200,7 +200,7 @@ class ModelBuilder(ABC):
 
     @abstractmethod
     def _generate_and_preprocess_model_data(
-        self, X: Union[pd.DataFrame, pd.Series], y: np.ndarray
+        self, X: pd.DataFrame | pd.Series, y: np.ndarray
     ) -> None:
         """
         Applies preprocessing to the data before fitting the model.
@@ -235,7 +235,7 @@ class ModelBuilder(ABC):
     def build_model(
         self,
         X: pd.DataFrame,
-        y: Union[pd.Series, np.ndarray],
+        y: pd.Series | np.ndarray,
         **kwargs,
     ) -> None:
         """
@@ -347,10 +347,11 @@ class ModelBuilder(ABC):
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
     @classmethod
-    def _model_config_formatting(cls, model_config: Dict) -> Dict:
+    def _model_config_formatting(cls, model_config: dict) -> dict:
         """
-        Because of json serialization, model_config values that were originally tuples or numpy are being encoded as lists.
-        This function converts them back to tuples and numpy arrays to ensure correct id encoding.
+        Because of json serialization, model_config values that were originally tuples
+        or numpy are being encoded as lists. This function converts them back to tuples
+        and numpy arrays to ensure correct id encoding.
         """
         for key in model_config:
             if isinstance(model_config[key], dict):
@@ -412,19 +413,19 @@ class ModelBuilder(ABC):
         # All previously used data is in idata.
 
         if model.id != idata.attrs["id"]:
-            raise ValueError(
-                f"The file '{fname}' does not contain an inference data of the same model or configuration as '{cls._model_type}'"
-            )
+            error_msg = f"""The file '{fname}' does not contain an inference data of the same model
+            or configuration as '{cls._model_type}'"""
+            raise ValueError(error_msg)
 
         return model
 
     def fit(
         self,
         X: pd.DataFrame,
-        y: Optional[Union[pd.Series, np.ndarray]] = None,
+        y: pd.Series | np.ndarray | None = None,
         progressbar: bool = True,
-        predictor_names: Optional[List[str]] = None,
-        random_seed: Optional[RandomState] = None,
+        predictor_names: list[str] | None = None,
+        random_seed: RandomState | None = None,
         **kwargs: Any,
     ) -> az.InferenceData:
         """
@@ -442,7 +443,8 @@ class ModelBuilder(ABC):
             Specifies whether the fit progressbar should be displayed
         predictor_names: Optional[List[str]] = None,
             Allows for custom naming of predictors given in a form of 2dArray
-            allows for naming of predictors when given in a form of np.ndarray, if not provided the predictors will be named like predictor1, predictor2...
+            Allows for naming of predictors when given in a form of np.ndarray, if not provided
+            the predictors will be named like predictor1, predictor2...
         random_seed : Optional[RandomState]
             Provides sampler with initial random seed for obtaining reproducible samples
         **kwargs : Any
@@ -484,7 +486,8 @@ class ModelBuilder(ABC):
 
         X_df = pd.DataFrame(X, columns=X.columns)
         combined_data = pd.concat([X_df, y_df], axis=1)
-        assert all(combined_data.columns), "All columns must have non-empty names"
+        if not all(combined_data.columns):
+            raise ValueError("All columns must have non-empty names")
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
@@ -497,7 +500,7 @@ class ModelBuilder(ABC):
 
     def predict(
         self,
-        X_pred: Union[np.ndarray, pd.DataFrame, pd.Series],
+        X_pred: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         **kwargs,
     ) -> np.ndarray:
@@ -545,7 +548,7 @@ class ModelBuilder(ABC):
         self,
         X_pred,
         y_pred=None,
-        samples: Optional[int] = None,
+        samples: int | None = None,
         extend_idata: bool = False,
         combined: bool = True,
         **kwargs,
@@ -650,7 +653,7 @@ class ModelBuilder(ABC):
 
     @property
     @abstractmethod
-    def _serializable_model_config(self) -> Dict[str, Union[int, float, Dict]]:
+    def _serializable_model_config(self) -> dict[str, int | float | dict]:
         """
         Converts non-serializable values from model_config to their serializable reversable equivalent.
         Data types like pandas DataFrame, Series or datetime aren't JSON serializable,
@@ -663,7 +666,7 @@ class ModelBuilder(ABC):
 
     def predict_proba(
         self,
-        X_pred: Union[np.ndarray, pd.DataFrame, pd.Series],
+        X_pred: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         combined: bool = False,
         **kwargs,
@@ -673,7 +676,7 @@ class ModelBuilder(ABC):
 
     def predict_posterior(
         self,
-        X_pred: Union[np.ndarray, pd.DataFrame, pd.Series],
+        X_pred: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         combined: bool = True,
         **kwargs,
@@ -714,8 +717,8 @@ class ModelBuilder(ABC):
         """
         Generate a unique hash value for the model.
 
-        The hash value is created using the last 16 characters of the SHA256 hash encoding, based on the model configuration,
-        version, and model type.
+        The hash value is created using the last 16 characters of the SHA256 hash encoding,
+        based on the model configuration, version, and model type.
 
         Returns
         -------

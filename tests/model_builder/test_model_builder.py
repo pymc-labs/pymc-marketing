@@ -16,7 +16,6 @@ import hashlib
 import json
 import sys
 import tempfile
-from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -26,26 +25,24 @@ import xarray as xr
 
 from pymc_marketing.model_builder import ModelBuilder
 
-rng = np.random.default_rng(42)
-
 
 @pytest.fixture(scope="module")
 def toy_X():
     x = np.linspace(start=0, stop=1, num=100)
-    X = pd.DataFrame({"input": x})
-    return X
+    return pd.DataFrame({"input": x})
 
 
 @pytest.fixture(scope="module")
 def toy_y(toy_X):
+    rng = np.random.default_rng(42)
     y = 5 * toy_X["input"] + 3
-    y = y + np.random.normal(0, 1, size=len(toy_X))
+    y = y + rng.normal(0, 1, size=len(toy_X))
     y = pd.Series(y, name="output")
     return y
 
 
 @pytest.fixture(scope="module")
-def fitted_model_instance(toy_X, toy_y):
+def fitted_model_instance(toy_X):
     sampler_config = {
         "draws": 100,
         "tune": 100,
@@ -72,19 +69,18 @@ def fitted_model_instance(toy_X, toy_y):
 
 
 @pytest.fixture(scope="module")
-def not_fitted_model_instance(toy_X, toy_y):
+def not_fitted_model_instance():
     sampler_config = {"draws": 100, "tune": 100, "chains": 2, "target_accept": 0.95}
     model_config = {
         "a": {"loc": 0, "scale": 10, "dims": ("numbers",)},
         "b": {"loc": 0, "scale": 10},
         "obs_error": 2,
     }
-    model = ModelBuilderTest(
+    return ModelBuilderTest(
         model_config=model_config,
         sampler_config=sampler_config,
         test_parameter="test_paramter",
     )
-    return model
 
 
 class ModelBuilderTest(ModelBuilder):
@@ -142,7 +138,7 @@ class ModelBuilderTest(ModelBuilder):
         self.y = y
 
     @property
-    def default_model_config(self) -> Dict:
+    def default_model_config(self) -> dict:
         return {
             "a": {"loc": 0, "scale": 10, "dims": ("numbers",)},
             "b": {"loc": 0, "scale": 10},
@@ -150,7 +146,7 @@ class ModelBuilderTest(ModelBuilder):
         }
 
     @property
-    def default_sampler_config(self) -> Dict:
+    def default_sampler_config(self) -> dict:
         return {
             "draws": 1_000,
             "tune": 1_000,
@@ -178,12 +174,13 @@ def test_save_input_params(fitted_model_instance):
 
 
 def test_save_load(fitted_model_instance):
+    rng = np.random.default_rng(42)
     temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
     fitted_model_instance.save(temp.name)
     test_builder2 = ModelBuilderTest.load(temp.name)
     assert fitted_model_instance.idata.groups() == test_builder2.idata.groups()
     assert fitted_model_instance.id == test_builder2.id
-    x_pred = np.random.uniform(low=0, high=1, size=100)
+    x_pred = rng.uniform(low=0, high=1, size=100)
     prediction_data = pd.DataFrame({"input": x_pred})
     pred1 = fitted_model_instance.predict(prediction_data["input"])
     pred2 = test_builder2.predict(prediction_data["input"])
@@ -214,21 +211,23 @@ def test_empty_sampler_config_fit(toy_X, toy_y):
 
 
 def test_fit(fitted_model_instance):
+    rng = np.random.default_rng(42)
     assert fitted_model_instance.idata is not None
     assert "posterior" in fitted_model_instance.idata.groups()
     assert fitted_model_instance.idata.posterior.dims["draw"] == 100
 
-    prediction_data = pd.DataFrame(
-        {"input": np.random.uniform(low=0, high=1, size=100)}
-    )
+    prediction_data = pd.DataFrame({"input": rng.uniform(low=0, high=1, size=100)})
     fitted_model_instance.predict(prediction_data["input"])
     post_pred = fitted_model_instance.sample_posterior_predictive(
         prediction_data["input"], extend_idata=True, combined=True
     )
-    post_pred[fitted_model_instance.output_var].shape[0] == prediction_data.input.shape
+    assert (
+        post_pred[fitted_model_instance.output_var].shape[0]
+        == prediction_data.input.shape[0]
+    )
 
 
-def test_fit_no_y(toy_X):
+def test_fit_no_t(toy_X):
     model_builder = ModelBuilderTest()
     model_builder.idata = model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
     assert model_builder.model is not None
@@ -241,7 +240,8 @@ def test_fit_no_y(toy_X):
     reason="Permissions for temp files not granted on windows CI.",
 )
 def test_predict(fitted_model_instance):
-    x_pred = np.random.uniform(low=0, high=1, size=100)
+    rng = np.random.default_rng(42)
+    x_pred = rng.uniform(low=0, high=1, size=100)
     prediction_data = pd.DataFrame({"input": x_pred})
     pred = fitted_model_instance.predict(prediction_data["input"])
     # Perform elementwise comparison using numpy
@@ -251,8 +251,9 @@ def test_predict(fitted_model_instance):
 
 @pytest.mark.parametrize("combined", [True, False])
 def test_sample_posterior_predictive(fitted_model_instance, combined):
+    rng = np.random.default_rng(42)
     n_pred = 100
-    x_pred = np.random.uniform(low=0, high=1, size=n_pred)
+    x_pred = rng.uniform(low=0, high=1, size=n_pred)
     prediction_data = pd.DataFrame({"input": x_pred})
     pred = fitted_model_instance.sample_posterior_predictive(
         prediction_data["input"], combined=combined, extend_idata=True
@@ -295,6 +296,7 @@ def test_id():
 def test_sample_xxx_predictive_keeps_second(
     fitted_model_instance, toy_X, name: str
 ) -> None:
+    rng = np.random.default_rng(42)
     method_name = f"sample_{name}"
     method = getattr(fitted_model_instance, method_name)
 

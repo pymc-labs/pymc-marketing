@@ -1,7 +1,7 @@
 """Media transformation functions for Marketing Mix Models."""
 
 from enum import Enum
-from typing import Any, NamedTuple, Union
+from typing import Any, NamedTuple
 
 import numpy as np
 import numpy.typing as npt
@@ -27,7 +27,7 @@ def batched_convolution(
     x,
     w,
     axis: int = 0,
-    mode: Union[ConvMode, str] = ConvMode.After,
+    mode: ConvMode | str = ConvMode.After,
 ):
     R"""Apply a 1D convolution in a vectorized way across multiple batch dimensions.
 
@@ -65,11 +65,14 @@ def batched_convolution(
     axis : int
         The axis of ``x`` along witch to apply the convolution
     mode : ConvMode, optional
-        The convolution mode determines how the convolution is applied at the boundaries of the input signal, denoted as "x." The default mode is ConvMode.Before.
+        The convolution mode determines how the convolution is applied at the boundaries
+        of the input signal, denoted as "x." The default mode is ConvMode.Before.
 
         - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
-        - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect similar to the wow factor.
-        - ConvMode.Overlap: Applies the convolution with both "Pull-Forward" and "Pull-Backward" effects, where the effect overlaps with both preceding and succeeding elements.
+        - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
+            similar to the wow factor.
+        - ConvMode.Overlap: Applies the convolution with both "Pull-Forward" and "Pull-Backward" effects,
+            where the effect overlaps with both preceding and succeeding elements.
 
     Returns
     -------
@@ -89,7 +92,7 @@ def batched_convolution(
     if l_max is None:
         try:
             l_max = w.shape[-1].eval()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
     # Get the broadcast shapes of x and w but ignoring their last dimension.
     # The last dimension of x is the "time" axis, which doesn't get broadcast
@@ -281,11 +284,12 @@ def weibull_adstock(
     k=1,
     l_max: int = 12,
     axis: int = 0,
-    type: Union[WeibullType, str] = WeibullType.PDF,
+    type: WeibullType | str = WeibullType.PDF,
 ):
     R"""Weibull Adstocking Transformation.
 
-    This transformation is similar to geometric adstock transformation but has more degrees of freedom, adding more flexibility.
+    This transformation is similar to geometric adstock transformation but has more
+    degrees of freedom, adding more flexibility.
 
     .. plot::
         :context: close-figs
@@ -373,7 +377,7 @@ def weibull_adstock(
     return batched_convolution(x, w, axis=axis)
 
 
-def logistic_saturation(x, lam: Union[npt.NDArray[np.float_], float] = 0.5):
+def logistic_saturation(x, lam: npt.NDArray[np.float_] | float = 0.5):
     """Logistic saturation transformation.
 
     .. math::
@@ -509,7 +513,7 @@ def tanh_saturation(
     References
     ----------
     See https://www.pymc-labs.io/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/ # noqa: E501
-    """
+    """  # noqa: E501
     return b * pt.tanh(x / (b * c))
 
 
@@ -666,14 +670,16 @@ def tanh_saturation_baselined(
 
 
 def michaelis_menten(
-    x: Union[float, np.ndarray, npt.NDArray[np.float64]],
-    alpha: Union[float, np.ndarray, npt.NDArray[np.float64]],
-    lam: Union[float, np.ndarray, npt.NDArray[np.float64]],
-) -> Union[float, Any]:
+    x: float | np.ndarray | npt.NDArray[np.float64],
+    alpha: float | np.ndarray | npt.NDArray[np.float64],
+    lam: float | np.ndarray | npt.NDArray[np.float64],
+) -> float | Any:
     r"""
     Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
 
-    The Michaelis-Menten function models enzyme kinetics and describes how the rate of a chemical reaction increases with substrate concentration until it reaches its maximum value.
+    The Michaelis-Menten function models enzyme kinetics and describes how the rate of
+    a chemical reaction increases with substrate concentration until it reaches its
+    maximum value.
 
     .. math::
         \alpha \cdot \frac{x}{\lambda + x}
