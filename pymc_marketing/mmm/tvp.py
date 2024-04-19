@@ -3,6 +3,8 @@ import pymc as pm
 import pytensor.tensor as pt
 from pytensor.tensor import softplus
 
+from pymc_marketing.constants import DAYS_IN_YEAR
+
 
 def time_varying_prior(
     name: str,
@@ -83,3 +85,51 @@ def time_varying_prior(
         hsgp_coefs = pm.Normal(f"{name}_hsgp_coefs", dims=hsgp_dims)
         f = softplus(phi @ (hsgp_coefs * sqrt_psd).T)
         return pm.Deterministic(name, f, dims=dims)
+
+
+def create_time_varying_intercept(
+    time_index: pt.sharedvar.TensorSharedVariable,
+    time_index_mid: int,
+    time_resolution: int,
+    intercept_dist: pm.Distribution,
+    model_config: dict,
+) -> pt.TensorVariable:
+    """Create time-varying intercept.
+
+    Parameters
+    ----------
+    time_index : 1d array-like of int
+        Time points.
+    time_index_mid : int
+        Midpoint of the time points.
+    time_resolution : int
+        Time resolution.
+    model_config : dict
+        Model configuration.
+    """
+
+    with pm.modelcontext(None):
+        if model_config["intercept_tvp_kwargs"]["L"] is None:
+            model_config["intercept_tvp_kwargs"]["L"] = (
+                time_index_mid + DAYS_IN_YEAR / time_resolution
+            )
+        if model_config["intercept_tvp_kwargs"]["ls_mu"] is None:
+            model_config["intercept_tvp_kwargs"]["ls_mu"] = (
+                DAYS_IN_YEAR / time_resolution * 2
+            )
+
+        tv_multiplier_intercept = time_varying_prior(
+            name="tv_multiplier_intercept",
+            X=time_index,
+            dims="date",
+            X_mid=time_index_mid,
+            **model_config["intercept_tvp_kwargs"],
+        )
+        intercept_base = intercept_dist(
+            name="intercept_base", **model_config["intercept"]["kwargs"]
+        )
+        return pm.Deterministic(
+            name="intercept",
+            var=intercept_base * tv_multiplier_intercept,
+            dims="date",
+        )

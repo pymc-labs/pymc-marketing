@@ -21,7 +21,7 @@ from pymc_marketing.mmm.lift_test import (
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
-from pymc_marketing.mmm.tvp import time_varying_prior
+from pymc_marketing.mmm.tvp import create_time_varying_intercept
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
@@ -396,30 +396,12 @@ class BaseDelayedSaturatedMMM(MMM):
                     self._time_index,
                     dims="date",
                 )
-
-                if self.model_config["intercept_tvp_kwargs"]["L"] is None:
-                    self.model_config["intercept_tvp_kwargs"]["L"] = (
-                        self._time_index_mid + DAYS_IN_YEAR / self._time_resolution
-                    )
-                if self.model_config["intercept_tvp_kwargs"]["ls_mu"] is None:
-                    self.model_config["intercept_tvp_kwargs"]["ls_mu"] = (
-                        DAYS_IN_YEAR / self._time_resolution * 2
-                    )
-
-                tv_multiplier_intercept = time_varying_prior(
-                    name="tv_multiplier_intercept",
-                    X=time_index,
-                    X_mid=self._time_index_mid,
-                    dims="date",
-                    **self.model_config["intercept_tvp_kwargs"],
-                )
-                intercept_base = self.intercept_dist(
-                    name="intercept_base", **self.model_config["intercept"]["kwargs"]
-                )
-                intercept = pm.Deterministic(
-                    name="intercept",
-                    var=intercept_base * tv_multiplier_intercept,
-                    dims="date",
+                intercept = create_time_varying_intercept(
+                    time_index,
+                    self._time_index_mid,
+                    self._time_resolution,
+                    self.intercept_dist,
+                    self.model_config,
                 )
             else:
                 intercept = self.intercept_dist(

@@ -67,7 +67,7 @@ class BaseMMM(ModelBuilder):
 
         self._time_resolution: int
         self._time_index: NDArray[np.int_]
-        self._time_index_mid: int | float
+        self._time_index_mid: int
         self._fit_result: az.InferenceData
         self._posterior_predictive: az.InferenceData
         super().__init__(model_config=model_config, sampler_config=sampler_config)
