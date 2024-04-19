@@ -1,10 +1,11 @@
 import pymc as pm
+import pytensor.tensor as pt
 from pytensor.tensor import softplus
 
 
 def time_varying_prior(
     name: str,
-    X: pm.Deterministic,
+    X: pt.sharedvar.TensorSharedVariable,
     X_mid: int | float,
     dims: tuple[str, str] | str,
     m: int,
@@ -13,7 +14,7 @@ def time_varying_prior(
     ls_mu: float = 5,
     ls_sigma: float = 5,
     cov_func: pm.gp.cov.Covariance | None = None,
-) -> pm.Deterministic:
+) -> pt.TensorVariable:
     """Time varying prior, based the Hilbert Space Gaussian Process (HSGP).
 
     For more information see [pymc.gp.HSGP](https://www.pymc.io/projects/docs/en/stable/api/gp/generated/pymc.gp.HSGP.html).
