@@ -1,7 +1,8 @@
 import json
 import warnings
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Dict, Optional, Sequence, cast
+from typing import cast
 
 import arviz as az
 import pandas as pd
@@ -21,8 +22,8 @@ class CLVModel(ModelBuilder):
         self,
         data: pd.DataFrame,
         *,
-        model_config: Optional[Dict] = None,
-        sampler_config: Optional[Dict] = None,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
     ):
         super().__init__(model_config, sampler_config)
         self.data = data
@@ -56,7 +57,7 @@ class CLVModel(ModelBuilder):
                 category=UserWarning,
                 message="The group fit_data is not defined in the InferenceData scheme",
             )
-            assert self.idata is not None
+            assert self.idata is not None  # noqa: S101
             self.idata.add_groups(fit_data=data.to_xarray())
 
     def fit(  # type: ignore
@@ -205,24 +206,24 @@ class CLVModel(ModelBuilder):
             )
 
         """
-        self.fit_result  # Raise Error if fit didn't happen yet
-        assert self.idata is not None
+        self.fit_result  # noqa: B018 (Raise Error if fit didn't happen yet)
+        assert self.idata is not None  # noqa: S101
         new_idata = self.idata.isel(draw=slice(None, None, keep_every)).copy()
         return type(self)._build_with_idata(new_idata)
 
     @staticmethod
-    def _create_distribution(dist: Dict, shape=()):
+    def _create_distribution(dist: dict, shape=()):
         try:
             return getattr(pm, dist["dist"]).dist(**dist.get("kwargs", {}), shape=shape)
         except AttributeError:
             raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
 
     @property
-    def default_sampler_config(self) -> Dict:
+    def default_sampler_config(self) -> dict:
         return {}
 
     @property
-    def _serializable_model_config(self) -> Dict:
+    def _serializable_model_config(self) -> dict:
         return self.model_config
 
     @property
@@ -236,7 +237,7 @@ class CLVModel(ModelBuilder):
         if self.idata is None:
             self.idata = res
         elif "posterior" in self.idata:
-            warnings.warn("Overriding pre-existing fit_result")
+            warnings.warn("Overriding pre-existing fit_result", stacklevel=1)
             self.idata.posterior = res
         else:
             self.idata.posterior = res

@@ -1,6 +1,5 @@
 import warnings
 from datetime import date, datetime
-from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -29,11 +28,11 @@ def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
 
 def customer_lifetime_value(
     transaction_model,
-    customer_id: Union[pd.Series, np.ndarray],
-    frequency: Union[pd.Series, np.ndarray],
-    recency: Union[pd.Series, np.ndarray],
-    T: Union[pd.Series, np.ndarray],
-    monetary_value: Union[pd.Series, np.ndarray, xarray.DataArray],
+    customer_id: pd.Series | np.ndarray,
+    frequency: pd.Series | np.ndarray,
+    recency: pd.Series | np.ndarray,
+    T: pd.Series | np.ndarray,
+    monetary_value: pd.Series | np.ndarray | xarray.DataArray,
     time: int = 12,
     discount_rate: float = 0.01,
     freq: str = "D",
@@ -167,11 +166,11 @@ def _find_first_transactions(
     transactions: pd.DataFrame,
     customer_id_col: str,
     datetime_col: str,
-    monetary_value_col: Optional[str] = None,
-    datetime_format: Optional[str] = None,
-    observation_period_end: Optional[Union[str, pd.Period, datetime]] = None,
+    monetary_value_col: str | None = None,
+    datetime_format: str | None = None,
+    observation_period_end: str | pd.Period | datetime | None = None,
     time_unit: str = "D",
-    sort_transactions: Optional[bool] = True,
+    sort_transactions: bool | None = True,
 ) -> pd.DataFrame:
     """
     Return dataframe with first transactions.
@@ -271,7 +270,7 @@ def _find_first_transactions(
 
 
 def clv_summary(*args, **kwargs):
-    warnings.warn("clv_summary was renamed to rfm_summary", UserWarning)
+    warnings.warn("clv_summary was renamed to rfm_summary", UserWarning, stacklevel=1)
     return rfm_summary(*args, **kwargs)
 
 
@@ -279,13 +278,13 @@ def rfm_summary(
     transactions: pd.DataFrame,
     customer_id_col: str,
     datetime_col: str,
-    monetary_value_col: Optional[str] = None,
-    datetime_format: Optional[str] = None,
-    observation_period_end: Optional[Union[str, pd.Period, datetime]] = None,
+    monetary_value_col: str | None = None,
+    datetime_format: str | None = None,
+    observation_period_end: str | pd.Period | datetime | None = None,
     time_unit: str = "D",
-    time_scaler: Optional[float] = 1,
-    include_first_transaction: Optional[bool] = False,
-    sort_transactions: Optional[bool] = True,
+    time_scaler: float | None = 1,
+    include_first_transaction: bool | None = False,
+    sort_transactions: bool | None = True,
 ) -> pd.DataFrame:
     """
     Summarize transaction data for use in CLV modeling and/or RFM segmentation.
@@ -422,16 +421,14 @@ def rfm_train_test_split(
     transactions: pd.DataFrame,
     customer_id_col: str,
     datetime_col: str,
-    train_period_end: Union[Union[float, str], datetime, datetime64, date],
-    test_period_end: Optional[
-        Union[Union[float, str], datetime, datetime64, date]
-    ] = None,
+    train_period_end: float | str | datetime | datetime64 | date,
+    test_period_end: float | str | datetime | datetime64 | date | None = None,
     time_unit: str = "D",
-    time_scaler: Optional[float] = 1,
-    datetime_format: Optional[str] = None,
-    monetary_value_col: Optional[str] = None,
-    include_first_transaction: Optional[bool] = False,
-    sort_transactions: Optional[bool] = True,
+    time_scaler: float | None = 1,
+    datetime_format: str | None = None,
+    monetary_value_col: str | None = None,
+    include_first_transaction: bool | None = False,
+    sort_transactions: bool | None = True,
 ) -> pd.DataFrame:
     """
     Summarize transaction data and split into training and tests datasets for CLV modeling.

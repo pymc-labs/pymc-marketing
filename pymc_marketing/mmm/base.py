@@ -1,6 +1,7 @@
 """Base class for Marketing Mix Models (MMM)."""
 
 import warnings
+from collections.abc import Callable
 from inspect import (
     getattr_static,
     isdatadescriptor,
@@ -9,7 +10,7 @@ from inspect import (
     ismethoddescriptor,
 )
 from itertools import repeat
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -49,22 +50,22 @@ class BaseMMM(ModelBuilder):
     def __init__(
         self,
         date_column: str,
-        channel_columns: Union[List[str], Tuple[str]],
-        model_config: Optional[Dict] = None,
-        sampler_config: Optional[Dict] = None,
+        channel_columns: list[str] | tuple[str],
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
         **kwargs,
     ) -> None:
-        self.X: Optional[pd.DataFrame] = None
-        self.y: Optional[Union[pd.Series, np.ndarray]] = None
+        self.X: pd.DataFrame | None = None
+        self.y: pd.Series | np.ndarray | None = None
         self.date_column: str = date_column
-        self.channel_columns: Union[List[str], Tuple[str]] = channel_columns
+        self.channel_columns: list[str] | tuple[str] = channel_columns
         self.n_channel: int = len(channel_columns)
-        self._fit_result: Optional[az.InferenceData] = None
-        self._posterior_predictive: Optional[az.InferenceData] = None
+        self._fit_result: az.InferenceData | None = None
+        self._posterior_predictive: az.InferenceData | None = None
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
     @property
-    def methods(self) -> List[Any]:
+    def methods(self) -> list[Any]:
         maybe_methods = [getattr_static(self, attr) for attr in dir(self)]
         return [
             method
@@ -81,9 +82,9 @@ class BaseMMM(ModelBuilder):
     @property
     def validation_methods(
         self,
-    ) -> Tuple[
-        List[Callable[["BaseMMM", Union[pd.DataFrame, pd.Series, np.ndarray]], None]],
-        List[Callable[["BaseMMM", Union[pd.DataFrame, pd.Series, np.ndarray]], None]],
+    ) -> tuple[
+        list[Callable[["BaseMMM", pd.DataFrame | pd.Series | np.ndarray], None]],
+        list[Callable[["BaseMMM", pd.DataFrame | pd.Series | np.ndarray], None]],
     ]:
         """
         A property that provides validation methods for features ("X") and the target variable ("y").
@@ -114,7 +115,7 @@ class BaseMMM(ModelBuilder):
         )
 
     def validate(
-        self, target: str, data: Union[pd.DataFrame, pd.Series, np.ndarray]
+        self, target: str, data: pd.DataFrame | pd.Series | np.ndarray
     ) -> None:
         """
         Validates the input data based on the specified target type.
@@ -148,17 +149,17 @@ class BaseMMM(ModelBuilder):
     @property
     def preprocessing_methods(
         self,
-    ) -> Tuple[
-        List[
+    ) -> tuple[
+        list[
             Callable[
-                ["BaseMMM", Union[pd.DataFrame, pd.Series, np.ndarray]],
-                Union[pd.DataFrame, pd.Series, np.ndarray],
+                ["BaseMMM", pd.DataFrame | pd.Series | np.ndarray],
+                pd.DataFrame | pd.Series | np.ndarray,
             ]
         ],
-        List[
+        list[
             Callable[
-                ["BaseMMM", Union[pd.DataFrame, pd.Series, np.ndarray]],
-                Union[pd.DataFrame, pd.Series, np.ndarray],
+                ["BaseMMM", pd.DataFrame | pd.Series | np.ndarray],
+                pd.DataFrame | pd.Series | np.ndarray,
             ]
         ],
     ]:
@@ -190,8 +191,8 @@ class BaseMMM(ModelBuilder):
         )
 
     def preprocess(
-        self, target: str, data: Union[pd.DataFrame, pd.Series, np.ndarray]
-    ) -> Union[pd.DataFrame, pd.Series, np.ndarray]:
+        self, target: str, data: pd.DataFrame | pd.Series | np.ndarray
+    ) -> pd.DataFrame | pd.Series | np.ndarray:
         """
         Preprocess the provided data according to the specified target.
 
@@ -391,6 +392,7 @@ class BaseMMM(ModelBuilder):
         for arg, var_contribution in zip(
             ["control_columns", "yearly_seasonality"],
             ["control_contributions", "fourier_contributions"],
+            strict=True,
         ):
             if getattr(self, arg, None):
                 contributions = self._format_model_contributions(
@@ -412,6 +414,7 @@ class BaseMMM(ModelBuilder):
                     "control_contribution",
                     "fourier_contribution",
                 ],
+                strict=False,
             )
         ):
             if self.X is not None:
@@ -503,7 +506,7 @@ class BaseMMM(ModelBuilder):
 
     def _estimate_budget_contribution_fit(
         self, channel: str, budget: float, method: str = "sigmoid"
-    ) -> Tuple:
+    ) -> tuple:
         """
         Estimate the lower and upper bounds of the contribution fit for a given channel and budget.
         This function computes the quantiles (0.05 & 0.95) of the channel contributions, estimates
@@ -636,7 +639,7 @@ class BaseMMM(ModelBuilder):
             )
 
     def plot_budget_scenearios(
-        self, *, base_data: Dict, method: str = "sigmoid", **kwargs
+        self, *, base_data: dict, method: str = "sigmoid", **kwargs
     ) -> plt.Figure:
         """
         Experimental: Plots the budget and contribution bars side by side for multiple scenarios.
@@ -664,7 +667,7 @@ class BaseMMM(ModelBuilder):
         standardize_scenarios_dict_keys(base_data, ["contribution", "budget"])
 
         fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(15, 6))
-        scenarios = [base_data] + list(scenarios_data)
+        scenarios = [base_data, *list(scenarios_data)]
         num_scenarios = len(scenarios)
         bar_width = (
             0.8 / num_scenarios
@@ -687,7 +690,7 @@ class BaseMMM(ModelBuilder):
 
         # Plot all scenarios
         for i, (scenario, upper_bound, lower_bound) in enumerate(
-            zip(scenarios, upper_bounds, lower_bounds)
+            zip(scenarios, upper_bounds, lower_bounds, strict=False)
         ):
             color = f"C{i}"
             offset = i * bar_width - 0.4 + bar_width / 2
@@ -863,9 +866,9 @@ class BaseMMM(ModelBuilder):
         self,
         method: str,
         total_budget: int,
-        budget_bounds: Optional[Dict[str, Tuple[float, float]]] = None,
+        budget_bounds: dict[str, tuple[float, float]] | None = None,
         *,
-        parameters: Dict[str, Tuple[float, float]],
+        parameters: dict[str, tuple[float, float]],
     ) -> pd.DataFrame:
         """
         Experimental: Optimize the allocation of a given total budget across multiple
@@ -900,10 +903,10 @@ class BaseMMM(ModelBuilder):
         ValueError
             If any of the required parameters are not provided or have an incorrect type.
         """
-        if not isinstance(budget_bounds, (dict, type(None))):
+        if not isinstance(budget_bounds, dict | type(None)):
             raise TypeError("`budget_ranges` should be a dictionary or None.")
 
-        if not isinstance(total_budget, (int, float)):
+        if not isinstance(total_budget, int | float):
             raise ValueError(
                 "The 'total_budget' parameter must be an integer or float."
             )
@@ -913,7 +916,9 @@ class BaseMMM(ModelBuilder):
                 "The 'parameters' argument (keyword-only) must be provided and non-empty."
             )
 
-        warnings.warn("This budget allocator method is experimental", UserWarning)
+        warnings.warn(
+            "This budget allocator method is experimental", UserWarning, stacklevel=1
+        )
 
         return budget_allocator(
             method=method,
@@ -925,7 +930,7 @@ class BaseMMM(ModelBuilder):
 
     def compute_channel_curve_optimization_parameters_original_scale(
         self, method: str = "sigmoid"
-    ) -> Dict:
+    ) -> dict:
         """
         Experimental: Estimate the parameters for the saturating function of each channel's contribution.
 
@@ -946,7 +951,9 @@ class BaseMMM(ModelBuilder):
             parameters for each channel based on the method used.
         """
         warnings.warn(
-            "The curve optimization parameters method is experimental", UserWarning
+            "The curve optimization parameters method is experimental",
+            UserWarning,
+            stacklevel=1,
         )
 
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
@@ -970,7 +977,7 @@ class BaseMMM(ModelBuilder):
         show_fit: bool = False,
         xlim_max=None,
         method: str = "sigmoid",
-        channels: Optional[List[str]] = None,
+        channels: list[str] | None = None,
         same_axes: bool = False,
     ) -> plt.Figure:
         """
@@ -1043,7 +1050,7 @@ class BaseMMM(ModelBuilder):
         axes_channels = (
             zip(repeat(axes), channels_to_plot)
             if same_axes
-            else zip(np.ravel(axes), channels_to_plot)
+            else zip(np.ravel(axes), channels_to_plot, strict=False)
         )
 
         for i, (ax, channel) in enumerate(axes_channels):
@@ -1079,7 +1086,7 @@ class BaseMMM(ModelBuilder):
         fig.suptitle("Direct response curves", fontsize=16)
         return fig
 
-    def _get_distribution(self, dist: Dict) -> Callable:
+    def _get_distribution(self, dist: dict) -> Callable:
         """
         Retrieve a PyMC distribution callable based on the provided dictionary.
 
@@ -1204,9 +1211,9 @@ class BaseMMM(ModelBuilder):
 
     def plot_grouped_contribution_breakdown_over_time(
         self,
-        stack_groups: Optional[Dict[str, List[str]]] = None,
+        stack_groups: dict[str, list[str]] | None = None,
         original_scale: bool = False,
-        area_kwargs: Optional[Dict[str, Any]] = None,
+        area_kwargs: dict[str, Any] | None = None,
         **plt_kwargs: Any,
     ) -> plt.Figure:
         """Plot a time series area chart for all channel contributions.
