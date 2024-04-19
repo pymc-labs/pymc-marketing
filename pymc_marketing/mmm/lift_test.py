@@ -1,7 +1,8 @@
 """Lift test functions for the MMM."""
 
+from collections.abc import Callable
 from functools import partial
-from typing import Callable, Optional, Union
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -23,7 +24,7 @@ class MissingLiftTestError(Exception):
 
 Index = npt.NDArray[np.int_]
 Indices = dict[str, Index]
-Values = Union[npt.NDArray[np.int_], npt.NDArray[np.float_], npt.NDArray[np.str_]]
+Values = Union[npt.NDArray[np.int_], npt.NDArray[np.float_], npt.NDArray[np.str_]]  # noqa: UP007
 
 
 def _lift_test_index(lift_values: Values, model_values: Values) -> Index:
@@ -181,7 +182,7 @@ def add_lift_measurements_to_likelihood(
     df_lift_test: pd.DataFrame,
     variable_mapping,
     saturation_function,
-    model: Optional[pm.Model] = None,
+    model: pm.Model | None = None,
     dist=pm.Gamma,
     name: str = "lift_measurements",
 ) -> None:
@@ -291,7 +292,7 @@ def add_menten_empirical_lift_measurements_to_likelihood(
     alpha_name: str,
     lam_name: str,
     dist=pm.Gamma,
-    model: Optional[pm.Model] = None,
+    model: pm.Model | None = None,
     name: str = "lift_measurements",
 ) -> None:
     """Add empirical lift measurements to the likelihood of the model.
@@ -339,7 +340,7 @@ def add_logistic_empirical_lift_measurements_to_likelihood(
     lam_name: str,
     beta_name: str,
     dist: pm.Distribution = pm.Gamma,
-    model: Optional[pm.Model] = None,
+    model: pm.Model | None = None,
     name: str = "lift_measurements",
 ) -> None:
     """Add empirical lift measurements to the likelihood of the model.
