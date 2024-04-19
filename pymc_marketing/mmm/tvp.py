@@ -22,7 +22,7 @@ def time_varying_prior(
 ) -> pt.TensorVariable:
     """Time varying prior, based the Hilbert Space Gaussian Process (HSGP).
 
-    For more information see [pymc.gp.HSGP](https://www.pymc.io/projects/docs/en/stable/api/gp/generated/pymc.gp.HSGP.html).
+    For more information see `pymc.gp.HSGP <https://www.pymc.io/projects/docs/en/stable/api/gp/generated/pymc.gp.HSGP.html>`_.
 
     Parameters
     ----------
