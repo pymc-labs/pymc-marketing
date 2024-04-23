@@ -1,5 +1,6 @@
 import warnings
-from typing import Any, Dict, Literal, Optional, Sequence, Union, cast
+from collections.abc import Sequence
+from typing import Any, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -174,8 +175,8 @@ class ParetoNBDModel(CLVModel):
         self,
         data: pd.DataFrame,
         *,
-        model_config: Optional[Dict] = None,
-        sampler_config: Optional[Dict] = None,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
     ):
         super().__init__(
             data=data,
@@ -189,13 +190,18 @@ class ParetoNBDModel(CLVModel):
         self.covariate_cols = self.purchase_covariate_cols + self.dropout_covariate_cols
         self._validate_cols(
             data,
-            required_cols=["customer_id", "frequency", "recency", "T"]
-            + self.covariate_cols,
+            required_cols=[
+                "customer_id",
+                "frequency",
+                "recency",
+                "T",
+                *self.covariate_cols,
+            ],
             must_be_unique=["customer_id"],
         )
 
     @property
-    def default_model_config(self) -> Dict[str, Any]:
+    def default_model_config(self) -> dict[str, Any]:
         return {
             "r_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 1}},
             "alpha_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
@@ -446,9 +452,9 @@ class ParetoNBDModel(CLVModel):
 
     def expected_purchases(
         self,
-        data: Optional[pd.DataFrame] = None,
+        data: pd.DataFrame | None = None,
         *,
-        future_t: Optional[Union[int, np.ndarray, pd.Series]] = None,
+        future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
         """
         Given *recency*, *frequency*, and *T* for an individual customer, this method predicts the
@@ -520,9 +526,9 @@ class ParetoNBDModel(CLVModel):
 
     def expected_probability_alive(
         self,
-        data: Optional[pd.DataFrame] = None,
+        data: pd.DataFrame | None = None,
         *,
-        future_t: Optional[Union[int, np.ndarray, pd.Series]] = None,
+        future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
         """
         Compute the probability that a customer with history *frequency*, *recency*, and *T*
@@ -588,10 +594,10 @@ class ParetoNBDModel(CLVModel):
 
     def expected_purchase_probability(
         self,
-        data: Optional[pd.DataFrame] = None,
+        data: pd.DataFrame | None = None,
         *,
-        n_purchases: Optional[int] = None,
-        future_t: Optional[Union[int, np.ndarray, pd.Series]] = None,
+        n_purchases: int | None = None,
+        future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
         """
         Estimate probability of *n_purchases* over *future_t* time periods,
@@ -764,9 +770,9 @@ class ParetoNBDModel(CLVModel):
 
     def expected_purchases_new_customer(
         self,
-        data: Optional[pd.DataFrame] = None,
+        data: pd.DataFrame | None = None,
         *,
-        t: Optional[Union[int, np.ndarray, pd.Series]] = None,
+        t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
         """
         Expected number of purchases for a new customer across *t* time periods.
@@ -818,10 +824,10 @@ class ParetoNBDModel(CLVModel):
 
     def distribution_new_customer(
         self,
-        data: Optional[pd.DataFrame] = None,
+        data: pd.DataFrame | None = None,
         *,
-        T: Optional[Union[int, np.ndarray, pd.Series]] = None,
-        random_seed: Optional[RandomState] = None,
+        T: int | np.ndarray | pd.Series | None = None,
+        random_seed: RandomState | None = None,
         var_names: Sequence[
             Literal["dropout", "purchase_rate", "recency_frequency"]
         ] = (
@@ -915,9 +921,9 @@ class ParetoNBDModel(CLVModel):
 
     def distribution_new_customer_dropout(
         self,
-        data: Optional[pd.DataFrame] = None,
+        data: pd.DataFrame | None = None,
         *,
-        random_seed: Optional[RandomState] = None,
+        random_seed: RandomState | None = None,
     ) -> xarray.Dataset:
         """Sample from the Gamma distribution representing dropout times for new customers.
 
@@ -946,9 +952,9 @@ class ParetoNBDModel(CLVModel):
 
     def distribution_new_customer_purchase_rate(
         self,
-        data: Optional[pd.DataFrame] = None,
+        data: pd.DataFrame | None = None,
         *,
-        random_seed: Optional[RandomState] = None,
+        random_seed: RandomState | None = None,
     ) -> xarray.Dataset:
         """Sample from the Gamma distribution representing purchase rates for new customers.
 
@@ -978,10 +984,10 @@ class ParetoNBDModel(CLVModel):
 
     def distribution_new_customer_recency_frequency(
         self,
-        data: Optional[pd.DataFrame] = None,
+        data: pd.DataFrame | None = None,
         *,
-        T: Optional[Union[int, np.ndarray, pd.Series]] = None,
-        random_seed: Optional[RandomState] = None,
+        T: int | np.ndarray | pd.Series | None = None,
+        random_seed: RandomState | None = None,
     ) -> xarray.Dataset:
         """Pareto/NBD process representing purchases across the customer population.
 

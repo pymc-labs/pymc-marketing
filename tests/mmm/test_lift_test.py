@@ -98,7 +98,7 @@ def test_lift_tests_missing(df_lift_tests) -> None:
     with pytest.raises(MissingLiftTestError) as err:
         lift_test_indices(df_lift_tests, model)
 
-    err.value.missing_values.tolist() == [0]
+    assert err.value.missing_values.tolist() == [0]
 
 
 @pytest.fixture
