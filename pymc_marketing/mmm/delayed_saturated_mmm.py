@@ -16,11 +16,17 @@ from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.lift_test import (
-    add_logistic_empirical_lift_measurements_to_likelihood,
+    add_lift_measurements_to_likelihood,
     scale_lift_measurements,
 )
-from pymc_marketing.mmm.models.components.lagging import _get_lagging_function
-from pymc_marketing.mmm.models.components.saturation import _get_saturation_function
+from pymc_marketing.mmm.models.components.lagging import (
+    AdstockTransformation,
+    _get_lagging_function,
+)
+from pymc_marketing.mmm.models.components.saturation import (
+    SaturationTransformation,
+    _get_saturation_function,
+)
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.mmm.utils import (
@@ -55,8 +61,8 @@ class BaseDelayedSaturatedMMM(MMM):
         validate_data: bool = True,
         control_columns: Optional[List[str]] = None,
         yearly_seasonality: Optional[int] = None,
-        adstock: Union[str, Any] = "geometric",
-        saturation: Union[str, Any] = "logistic",
+        adstock: Union[str, AdstockTransformation] = "geometric",
+        saturation: Union[str, SaturationTransformation] = "logistic",
         **kwargs,
     ) -> None:
         """Constructor method.
@@ -87,8 +93,8 @@ class BaseDelayedSaturatedMMM(MMM):
         self.yearly_seasonality = yearly_seasonality
         self.date_column = date_column
         self.validate_data = validate_data
-        self.adstock = adstock
-        self.saturation = saturation
+        self.adstock = _get_lagging_function(function=adstock, l_max=adstock_max_lag)
+        self.saturation = _get_saturation_function(function=saturation)
 
         super().__init__(
             date_column=date_column,
@@ -343,32 +349,6 @@ class BaseDelayedSaturatedMMM(MMM):
             coords=self.model_coords,
             coords_mutable=self.coords_mutable,
         ) as self.model:
-            if isinstance(self.adstock, str):
-                self.lag_function = _get_lagging_function(
-                    name=self.adstock,
-                    max_lagging=self.adstock_max_lag,
-                    model_config=self.model_config,
-                    model=self.model,
-                )
-            else:
-                self.lag_function = self.adstock(
-                    max_lagging=self.adstock_max_lag,
-                    model_config=self.model_config,
-                    model=self.model,
-                )
-
-            if isinstance(self.saturation, str):
-                self.sat_function = _get_saturation_function(
-                    name=self.saturation,
-                    model_config=self.model_config,
-                    model=self.model,
-                )
-            else:
-                self.sat_function = self.saturation(
-                    model_config=self.model_config,
-                    model=self.model,
-                )
-
             channel_data_ = pm.MutableData(
                 name="channel_data",
                 value=self.preprocessed_data["X"][self.channel_columns],
@@ -388,14 +368,14 @@ class BaseDelayedSaturatedMMM(MMM):
             # Adstock
             channel_adstock = pm.Deterministic(
                 name="channel_adstock",
-                var=self.lag_function.apply(data=channel_data_),
+                var=self.adstock.apply(x=channel_data_),
                 dims=("date", "channel"),
             )
 
             # Saturation
             channel_contributions = pm.Deterministic(
                 name="channel_contributions",
-                var=self.sat_function.apply(data=channel_adstock),
+                var=self.saturation.apply(x=channel_adstock),
                 dims=("date", "channel"),
             )
 
@@ -487,41 +467,11 @@ class BaseDelayedSaturatedMMM(MMM):
             "gamma_fourier": {"dist": "Laplace", "kwargs": {"mu": 0, "b": 1}},
         }
 
-        if isinstance(self.adstock, str):
-            base_config = {
-                **base_config,
-                **_get_lagging_function(
-                    name=self.adstock,
-                    max_lagging=self.adstock_max_lag,
-                    model_config={},
-                ).model_config,
-            }
-        else:
-            base_config = {
-                **base_config,
-                **self.adstock(
-                    max_lagging=self.adstock_max_lag,
-                    model_config={},
-                ).model_config,
-            }
-
-        if isinstance(self.saturation, str):
-            base_config = {
-                **base_config,
-                **_get_saturation_function(
-                    name=self.saturation,
-                    model_config={},
-                ).model_config,
-            }
-        else:
-            base_config = {
-                **base_config,
-                **self.saturation(
-                    model_config={},
-                ).model_config,
-            }
-
-        return base_config
+        return {
+            **base_config,
+            **self.adstock.model_config,
+            **self.saturation.model_config,
+        }
 
     def _get_fourier_models_data(self, X) -> pd.DataFrame:
         """Generates fourier modes to model seasonality.
@@ -569,7 +519,7 @@ class BaseDelayedSaturatedMMM(MMM):
         geometric_adstock_posterior = geometric_adstock(
             x=channel_data,
             alpha=alpha_posterior,
-            l_max=self.adstock_max_lag,
+            l_max=self.adstock.l_max,
             normalize=True,
             axis=0,
         )
@@ -1118,28 +1068,13 @@ class DelayedSaturatedMMM(
         idata: Dataset = self.fit_result if not prior else self.prior
 
         coords = {
-            "time_since_spend": np.arange(
-                -self.adstock_max_lag, self.adstock_max_lag + 1
-            ),
+            "time_since_spend": np.arange(-self.adstock.l_max, self.adstock.l_max + 1),
             "channel": self.channel_columns,
         }
         with pm.Model(coords=coords):
-            alpha = pm.Uniform("alpha", lower=0, upper=1, dims=("channel",))
-            lam = pm.HalfFlat("lam", dims=("channel",))
-            beta_channel = pm.HalfFlat("beta_channel", dims=("channel",))
-
-            # Same as the forward pass of the model
-            channel_adstock = geometric_adstock(
-                x=new_data,
-                alpha=alpha,
-                l_max=self.adstock_max_lag,
-                normalize=True,
-                axis=0,
-            )
-            channel_adstock_saturated = logistic_saturation(x=channel_adstock, lam=lam)
             pm.Deterministic(
-                name="channel_contributions",
-                var=channel_adstock_saturated * beta_channel,
+                "channel_contributions",
+                self.saturation.apply(self.adstock.apply(new_data)),
                 dims=("time_since_spend", "channel"),
             )
 
@@ -1432,11 +1367,10 @@ class DelayedSaturatedMMM(
             target_transform=self.target_transformer.transform,
         )
         with self.model:
-            add_logistic_empirical_lift_measurements_to_likelihood(
+            add_lift_measurements_to_likelihood(
                 df_lift_test=df_lift_test_scaled,
-                # Based on the model
-                lam_name="lam",
-                beta_name="beta_channel",
+                variable_mapping=self.saturation.variable_mapping,
+                saturation_function=self.saturation.function,
                 dist=dist,
                 name=name,
             )
