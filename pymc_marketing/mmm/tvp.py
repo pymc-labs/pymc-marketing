@@ -70,24 +70,24 @@ def time_varying_prior(
     if L is None:
         L = X_mid * 2
 
-    with pm.modelcontext(None) as model:
-        if cov_func is None:
-            eta = pm.Exponential(f"{name}_eta", lam=eta_lam)
-            ls = pm.InverseGamma(f"{name}_ls", mu=ls_mu, sigma=ls_sigma)
-            cov_func = eta**2 * pm.gp.cov.Matern52(1, ls=ls)
+    model = pm.modelcontext(None)
 
-        model.add_coord("m", np.arange(m))  # type: ignore
-        hsgp_dims: str | tuple[str, str] = "m"
-        if isinstance(dims, tuple):
-            model.add_coord(dims[1], model.coords[dims[1]])
-            hsgp_dims = (dims[1], "m")
+    if cov_func is None:
+        eta = pm.Exponential(f"{name}_eta", lam=eta_lam)
+        ls = pm.InverseGamma(f"{name}_ls", mu=ls_mu, sigma=ls_sigma)
+        cov_func = eta**2 * pm.gp.cov.Matern52(1, ls=ls)
 
-        gp = pm.gp.HSGP(m=[m], L=[L], cov_func=cov_func)
-        phi, sqrt_psd = gp.prior_linearized(Xs=X[:, None] - X_mid)
-        hsgp_coefs = pm.Normal(f"{name}_hsgp_coefs", dims=hsgp_dims)
-        f = phi @ (hsgp_coefs * sqrt_psd).T
-        centered_f = f - f.mean(axis=0) + 1
-        return pm.Deterministic(name, centered_f, dims=dims)
+    model.add_coord("m", np.arange(m))  # type: ignore
+    hsgp_dims: str | tuple[str, str] = "m"
+    if isinstance(dims, tuple):
+        hsgp_dims = (dims[1], "m")
+
+    gp = pm.gp.HSGP(m=[m], L=[L], cov_func=cov_func)
+    phi, sqrt_psd = gp.prior_linearized(Xs=X[:, None] - X_mid)
+    hsgp_coefs = pm.Normal(f"{name}_hsgp_coefs", dims=hsgp_dims)
+    f = phi @ (hsgp_coefs * sqrt_psd).T
+    centered_f = f - f.mean(axis=0) + 1
+    return pm.Deterministic(name, centered_f, dims=dims)
 
 
 def create_time_varying_intercept(

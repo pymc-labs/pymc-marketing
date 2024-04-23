@@ -14,6 +14,7 @@ import seaborn as sns
 from pytensor.tensor import TensorVariable
 from xarray import DataArray, Dataset
 
+from pymc_marketing.constants import DAYS_IN_YEAR
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.lift_test import (
     add_logistic_empirical_lift_measurements_to_likelihood,
@@ -30,8 +31,6 @@ from pymc_marketing.mmm.utils import (
 from pymc_marketing.mmm.validating import ValidateControlColumns
 
 __all__ = ["DelayedSaturatedMMM"]
-
-DAYS_IN_YEAR = 365.25
 
 
 class BaseDelayedSaturatedMMM(MMM):
