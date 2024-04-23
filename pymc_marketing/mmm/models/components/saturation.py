@@ -79,6 +79,6 @@ def _get_saturation_function(
     function: str | SaturationTransformation,
 ) -> SaturationTransformation:
     if isinstance(function, str):
-        return SATURATION_TRANSFORMATIONS[function]()  # type: ignore
+        return SATURATION_TRANSFORMATIONS[function]()
 
     return function

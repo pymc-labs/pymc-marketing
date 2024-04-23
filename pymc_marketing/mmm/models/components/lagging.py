@@ -87,6 +87,6 @@ def _get_lagging_function(
         )
 
     if isinstance(function, str):
-        return ADSTOCK_TRANSFORMATIONS[function](**kwargs)  # type: ignore
+        return ADSTOCK_TRANSFORMATIONS[function](**kwargs)
 
     return function
