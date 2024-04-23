@@ -62,7 +62,7 @@ class BaseDelayedSaturatedMMM(MMM):
         control_columns: Optional[List[str]] = None,
         yearly_seasonality: Optional[int] = None,
         adstock: Union[str, AdstockTransformation] = "geometric",
-        saturation: Union[str, SaturationTransformation] = "logistic_saturation",
+        saturation: Union[str, SaturationTransformation] = "logistic",
         **kwargs,
     ) -> None:
         """Constructor method.

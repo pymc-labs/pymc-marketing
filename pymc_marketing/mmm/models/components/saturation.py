@@ -67,7 +67,7 @@ class HillSaturation(SaturationTransformation):
 
 
 SATURATION_TRANSFORMATIONS: Dict[str, Type[SaturationTransformation]] = {
-    "logistic_saturation": LogisticSaturation,
+    "logistic": LogisticSaturation,
     "tanh": TanhSaturation,
     "hill": HillSaturation,
     "tanh_baselined": TanhSaturationBaselined,
