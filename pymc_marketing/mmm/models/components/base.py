@@ -48,6 +48,13 @@ class Transformation:
         priors = priors or {}
         self.function_priors = {**self.default_priors, **priors}
 
+    @property
+    def model_config(self) -> dict[str, Any]:
+        return {
+            variable_name: self.function_priors[parameter_name]
+            for parameter_name, variable_name in self.variable_mapping.items()
+        }
+
     def _checks(self) -> None:
         self._has_all_attributes()
         self._function_works_on_instances()

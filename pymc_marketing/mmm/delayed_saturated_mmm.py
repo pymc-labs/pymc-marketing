@@ -469,8 +469,8 @@ class BaseDelayedSaturatedMMM(MMM):
 
         return {
             **base_config,
-            **self.adstock.function_priors,
-            **self.saturation.function_priors,
+            **self.adstock.model_config,
+            **self.saturation.model_config,
         }
 
     def _get_fourier_models_data(self, X) -> pd.DataFrame:
