@@ -19,7 +19,7 @@ def time_varying_prior(
     ls_sigma: float = 5,
     cov_func: pm.gp.cov.Covariance | None = None,
 ) -> pt.TensorVariable:
-    """Time varying prior, based the Hilbert Space Gaussian Process (HSGP).
+    """Time varying prior, based on the Hilbert Space Gaussian Process (HSGP).
 
     For more information see `pymc.gp.HSGP <https://www.pymc.io/projects/docs/en/stable/api/gp/generated/pymc.gp.HSGP.html>`_.
 
