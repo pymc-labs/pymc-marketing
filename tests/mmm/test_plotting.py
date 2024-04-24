@@ -90,6 +90,7 @@ class TestBasePlotting:
             ("plot_prior_predictive", {"samples": 3}),
             ("plot_posterior_predictive", {}),
             ("plot_posterior_predictive", {"original_scale": True}),
+            ("plot_posterior_predictive", {"ax": plt.subplots()[1]}),
             ("plot_components_contributions", {}),
             ("plot_channel_parameter", {"param_name": "alpha"}),
             ("plot_direct_contribution_curves", {}),
