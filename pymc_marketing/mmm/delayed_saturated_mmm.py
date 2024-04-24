@@ -28,7 +28,6 @@ from pymc_marketing.mmm.models.components.saturation import (
     _get_saturation_function,
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
-from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.mmm.utils import (
     _get_distribution,
     apply_sklearn_transformer_across_dim,
@@ -59,10 +58,11 @@ class BaseDelayedSaturatedMMM(MMM):
         model_config: dict | None = None,
         sampler_config: dict | None = None,
         validate_data: bool = True,
-        control_columns: Optional[List[str]] = None,
-        yearly_seasonality: Optional[int] = None,
-        adstock: Union[str, AdstockTransformation] = "geometric",
-        saturation: Union[str, SaturationTransformation] = "logistic",
+        control_columns: list[str] | None = None,
+        yearly_seasonality: int | None = None,
+        adstock: str | AdstockTransformation = "geometric",
+        saturation: str | SaturationTransformation = "logistic",
+        adstock_first: bool = True,
         **kwargs,
     ) -> None:
         """Constructor method.
@@ -255,7 +255,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 parameter_distributions[param] = _get_distribution(dist=param_config)(
                     **param_config["kwargs"], name=f"likelihood_{param}"
                 )
-            elif isinstance(param_config, (int, float)):
+            elif isinstance(param_config, int | float):
                 # Use the value directly
                 parameter_distributions[param] = param_config
             else:
@@ -277,6 +277,15 @@ class BaseDelayedSaturatedMMM(MMM):
             dims=dims,
             **parameter_distributions,
         )
+
+    def forward_pass(self, x):
+        first, second = (
+            (self.adstock, self.saturation)
+            if self.adstock_first
+            else (self.saturation, self.adstock)
+        )
+
+        return second.apply(x=first.apply(x=x))
 
     def build_model(
         self,
@@ -365,17 +374,9 @@ class BaseDelayedSaturatedMMM(MMM):
                 name="intercept", **self.model_config["intercept"]["kwargs"]
             )
 
-            # Adstock
-            channel_adstock = pm.Deterministic(
-                name="channel_adstock",
-                var=self.adstock.apply(x=channel_data_),
-                dims=("date", "channel"),
-            )
-
-            # Saturation
             channel_contributions = pm.Deterministic(
-                name="channel_contributions",
-                var=self.saturation.apply(x=channel_adstock),
+                "channel_contributions",
+                self.forward_pass(x=channel_data_),
                 dims=("date", "channel"),
             )
 
@@ -455,7 +456,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
     @property
     def default_model_config(self) -> dict:
-        return {
+        base_config = {
             "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
             "likelihood": {
                 "dist": "Normal",
@@ -506,33 +507,22 @@ class BaseDelayedSaturatedMMM(MMM):
         array-like
             Transformed channel data.
         """
-        alpha_posterior = self.fit_result["alpha"].to_numpy()
+        coords = {
+            **self.model_coords,
+            **self.coords_mutable,
+        }
+        with pm.Model(coords=coords):
+            pm.Deterministic(
+                "channel_contributions",
+                self.forward_pass(x=channel_data),
+                dims=("date", "channel"),
+            )
 
-        lam_posterior = self.fit_result["lam"].to_numpy()
-        lam_posterior_expanded = np.expand_dims(a=lam_posterior, axis=2)
+            idata = pm.sample_posterior_predictive(
+                self.fit_result, var_names=["channel_contributions"]
+            )
 
-        beta_channel_posterior = self.fit_result["beta_channel"].to_numpy()
-        beta_channel_posterior_expanded = np.expand_dims(
-            a=beta_channel_posterior, axis=2
-        )
-
-        geometric_adstock_posterior = geometric_adstock(
-            x=channel_data,
-            alpha=alpha_posterior,
-            l_max=self.adstock.l_max,
-            normalize=True,
-            axis=0,
-        )
-
-        logistic_saturation_posterior = logistic_saturation(
-            x=geometric_adstock_posterior,
-            lam=lam_posterior_expanded,
-        )
-
-        channel_contribution_forward_pass = (
-            beta_channel_posterior_expanded * logistic_saturation_posterior
-        )
-        return channel_contribution_forward_pass.eval()
+        return idata.posterior_predictive.channel_contributions.to_numpy()
 
     @property
     def _serializable_model_config(self) -> dict[str, Any]:
@@ -1056,7 +1046,7 @@ class DelayedSaturatedMMM(
 
         new_data = create_new_spend_data(
             spend=spend,
-            adstock_max_lag=self.adstock_max_lag,
+            adstock_max_lag=self.adstock.l_max,
             one_time=one_time,
             spend_leading_up=spend_leading_up,
         )
@@ -1074,7 +1064,7 @@ class DelayedSaturatedMMM(
         with pm.Model(coords=coords):
             pm.Deterministic(
                 "channel_contributions",
-                self.saturation.apply(self.adstock.apply(new_data)),
+                self.forward_pass(x=new_data),
                 dims=("time_since_spend", "channel"),
             )
 
@@ -1235,7 +1225,7 @@ class DelayedSaturatedMMM(
         """
         if include_last_observations:
             X_pred = pd.concat(
-                [self.X.iloc[-self.adstock_max_lag :, :], X_pred], axis=0
+                [self.X.iloc[-self.adstock.l_max :, :], X_pred], axis=0
             ).sort_values(by=self.date_column)
 
         self._data_setter(X_pred)
@@ -1253,7 +1243,7 @@ class DelayedSaturatedMMM(
 
         if include_last_observations:
             posterior_predictive_samples = posterior_predictive_samples.isel(
-                date=slice(self.adstock_max_lag, None)
+                date=slice(self.adstock.l_max, None)
             )
 
         if original_scale:
