@@ -31,9 +31,9 @@ def test_dependency_checks(coords):
         X = np.array([0, 1, 2, 3, 4])
         _ = time_varying_prior(name="test", X=X, X_mid=2, dims="time", m=3, L=10)
         # Assert default cov_func is used when none is provided
-        assert "eta_test" in model.named_vars
-        assert "ls_test" in model.named_vars
-        assert "_hsgp_coefs_test" in model.named_vars
+        assert "test_eta" in model.named_vars
+        assert "test_ls" in model.named_vars
+        assert "test_hsgp_coefs" in model.named_vars
 
 
 def test_integration_with_model(coords):
