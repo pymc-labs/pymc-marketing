@@ -19,8 +19,8 @@ class LogisticSaturation(SaturationTransformation):
         return beta * logistic_saturation(x, lam)
 
     default_priors = {
-        "lam": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-        "beta": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "lam": {"dist": "Gamma", "kwargs": {"alpha": 3, "beta": 1}},
+        "beta": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
     }
 
 
@@ -51,7 +51,7 @@ class MichaelisMentenSaturation(SaturationTransformation):
     function = michaelis_menten
 
     default_priors = {
-        "alpha": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "alpha": {"dist": "Gamma", "kwargs": {"mu":2, "sigma": 1}},
         "lam": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
     }
 
@@ -60,9 +60,9 @@ class HillSaturation(SaturationTransformation):
     function = hill_saturation
 
     default_priors = {
-        "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-        "beta": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-        "lam": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+        "beta": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+        "lam": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
     }
 
 

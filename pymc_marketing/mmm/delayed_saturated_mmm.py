@@ -93,8 +93,14 @@ class BaseDelayedSaturatedMMM(MMM):
         self.yearly_seasonality = yearly_seasonality
         self.date_column = date_column
         self.validate_data = validate_data
+
+        self.adstock_first = adstock_first
         self.adstock = _get_lagging_function(function=adstock, l_max=adstock_max_lag)
         self.saturation = _get_saturation_function(function=saturation)
+
+        if model_config is not None:
+            self.adstock.update_priors({**self.default_model_config , **model_config})
+            self.saturation.update_priors({**self.default_model_config , **model_config})
 
         super().__init__(
             date_column=date_column,
@@ -519,7 +525,8 @@ class BaseDelayedSaturatedMMM(MMM):
             )
 
             idata = pm.sample_posterior_predictive(
-                self.fit_result, var_names=["channel_contributions"]
+                self.fit_result, var_names=["channel_contributions"],
+                progressbar=False,
             )
 
         return idata.posterior_predictive.channel_contributions.to_numpy()

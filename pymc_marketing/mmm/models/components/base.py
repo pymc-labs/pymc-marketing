@@ -1,6 +1,8 @@
 from inspect import signature
 from typing import Any, Optional
 
+import warnings
+
 from pytensor import tensor as pt
 
 from pymc_marketing.mmm.utils import _get_distribution
@@ -47,6 +49,29 @@ class Transformation:
 
         priors = priors or {}
         self.function_priors = {**self.default_priors, **priors}
+
+    def update_priors(self, priors: dict[str, Any]) -> None:
+        """
+
+        model_config = {
+            "saturation_lam": {"dist": "Gamma", "kwargs": {"alpha": 3, "beta": 1}},
+            "lam": {"dist": "Gamma", "kwargs": {"alpha": 3, "beta": 1}},
+        }
+
+        class MMM: 
+            def __init__(self, model_config):     
+                adstock.update_priors(model_config)
+        
+        """
+        new_priors = {
+            parameter_name: priors[variable_name]
+            for parameter_name, variable_name in self.variable_mapping.items()
+        }
+        if not new_priors: 
+            available_priors = list(self.variable_mapping.values())
+            warnings.warn(f"No priors were updated. Available parameters are {available_priors}", UserWarning)
+
+        self.function_priors.update(new_priors)
 
     @property
     def model_config(self) -> dict[str, Any]:

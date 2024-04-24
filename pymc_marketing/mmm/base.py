@@ -467,8 +467,6 @@ class BaseMMM(ModelBuilder):
         return fig
 
     def plot_channel_parameter(self, param_name: str, **plt_kwargs: Any) -> plt.Figure:
-        if param_name not in ["alpha", "lam", "beta_channel"]:
-            raise ValueError(f"Invalid parameter name: {param_name}")
 
         param_samples_df = pd.DataFrame(
             data=az.extract(data=self.fit_result, var_names=[param_name]).T,
