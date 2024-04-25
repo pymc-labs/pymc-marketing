@@ -7,6 +7,9 @@ from pymc_marketing.mmm.preprocessing import (
 )
 from pymc_marketing.mmm.validating import validation_method_X, validation_method_y
 
+from pymc_marketing.mmm.models.components.lagging import AdstockTransformation, DelayedAdstock, GeometricAdstock, WeibullAdstock
+from pymc_marketing.mmm.models.components.saturation import SaturationTransformation, MichaelisMentenSaturation, HillSaturation, LogisticSaturation, TanhSaturation, TanhSaturationBaselined
+
 __all__ = [
     "base",
     "delayed_saturated_mmm",
@@ -19,4 +22,14 @@ __all__ = [
     "preprocessing_method_y",
     "validation_method_X",
     "validation_method_y",
+    "AdstockTransformation",
+    "DelayedAdstock",
+    "GeometricAdstock",
+    "WeibullAdstock",
+    "SaturationTransformation",
+    "MichaelisMentenSaturation",
+    "HillSaturation",
+    "LogisticSaturation",
+    "TanhSaturation",
+    "TanhSaturationBaselined",
 ]
