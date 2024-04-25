@@ -107,9 +107,7 @@ def mmm_with_fourier_features() -> Philly:
 
 
 @pytest.fixture(scope="module")
-def mmm_fitted(
-    mmm: Philly, toy_X: pd.DataFrame, toy_y: pd.Series
-) -> Philly:
+def mmm_fitted(mmm: Philly, toy_X: pd.DataFrame, toy_y: pd.Series) -> Philly:
     mmm.fit(X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2, random_seed=rng)
     return mmm
 
