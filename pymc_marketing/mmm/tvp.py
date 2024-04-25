@@ -53,7 +53,7 @@ def time_varying_prior(
 
     Returns
     -------
-    pm.Deterministic
+    pt.TensorVariable
         Time-varying prior.
 
     References
