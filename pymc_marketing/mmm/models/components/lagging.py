@@ -1,5 +1,4 @@
 import warnings
-from typing import Optional, Type
 
 from pymc_marketing.mmm.models.components.base import Transformation
 from pymc_marketing.mmm.transformers import (
@@ -16,7 +15,7 @@ class AdstockTransformation(Transformation):
     prefix: str = "adstock"
 
     def __init__(
-        self, l_max: int = 10, normalize: bool = False, priors: Optional[dict] = None
+        self, l_max: int = 10, normalize: bool = False, priors: dict | None = None
     ) -> None:
         self.l_max = l_max
         self.normalize = normalize
@@ -47,7 +46,7 @@ class WeibullAdstock(AdstockTransformation):
         l_max: int = 10,
         normalize: bool = False,
         kind=WeibullType.PDF,
-        priors: Optional[dict] = None,
+        priors: dict | None = None,
     ) -> None:
         self.kind = kind
 
@@ -68,7 +67,7 @@ class WeibullAdstock(AdstockTransformation):
     }
 
 
-ADSTOCK_TRANSFORMATIONS: dict[str, Type[AdstockTransformation]] = {  # type: ignore
+ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {  # type: ignore
     "geometric": GeometricAdstock,
     "delayed": DelayedAdstock,
     "weibull": WeibullAdstock,
