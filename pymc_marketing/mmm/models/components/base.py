@@ -1,7 +1,6 @@
-from inspect import signature
-from typing import Any, Optional
-
 import warnings
+from inspect import signature
+from typing import Any
 
 from pytensor import tensor as pt
 
@@ -44,7 +43,7 @@ class Transformation:
     default_priors: dict[str, Any]
     function: Any
 
-    def __init__(self, priors: Optional[dict] = None) -> None:
+    def __init__(self, priors: dict | None = None) -> None:
         self._checks()
 
         priors = priors or {}
@@ -58,18 +57,21 @@ class Transformation:
             "lam": {"dist": "Gamma", "kwargs": {"alpha": 3, "beta": 1}},
         }
 
-        class MMM: 
-            def __init__(self, model_config):     
+        class MMM:
+            def __init__(self, model_config):
                 adstock.update_priors(model_config)
-        
+
         """
         new_priors = {
             parameter_name: priors[variable_name]
             for parameter_name, variable_name in self.variable_mapping.items()
         }
-        if not new_priors: 
+        if not new_priors:
             available_priors = list(self.variable_mapping.values())
-            warnings.warn(f"No priors were updated. Available parameters are {available_priors}", UserWarning)
+            warnings.warn(
+                f"No priors were updated. Available parameters are {available_priors}",
+                UserWarning,
+            )
 
         self.function_priors.update(new_priors)
 
@@ -120,7 +122,7 @@ class Transformation:
         if n_parameters - 1 == n_default_parameters:
             return
 
-        setattr(self, "function", self.__class__.function)
+        self.function = self.__class__.function
 
     @property
     def variable_mapping(self) -> dict[str, str]:

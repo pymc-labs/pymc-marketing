@@ -834,9 +834,7 @@ def mmm_with_prior(mmm) -> DelayedSaturatedMMM:
         prior={
             # Arbitrary but close to the default parameterization
             "adstock_alpha": rng.uniform(size=(n_chains, n_samples, n_channels)),
-            "saturation_lam": rng.exponential(
-                size=(n_chains, n_samples, n_channels)
-            ),
+            "saturation_lam": rng.exponential(size=(n_chains, n_samples, n_channels)),
             "saturation_beta": np.abs(
                 rng.normal(size=(n_chains, n_samples, n_channels))
             ),

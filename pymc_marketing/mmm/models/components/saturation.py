@@ -1,5 +1,3 @@
-from typing import Dict, Type
-
 from pymc_marketing.mmm.models.components.base import Transformation
 from pymc_marketing.mmm.transformers import (
     hill_saturation,
@@ -51,7 +49,7 @@ class MichaelisMentenSaturation(SaturationTransformation):
     function = michaelis_menten
 
     default_priors = {
-        "alpha": {"dist": "Gamma", "kwargs": {"mu":2, "sigma": 1}},
+        "alpha": {"dist": "Gamma", "kwargs": {"mu": 2, "sigma": 1}},
         "lam": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
     }
 
@@ -66,7 +64,7 @@ class HillSaturation(SaturationTransformation):
     }
 
 
-SATURATION_TRANSFORMATIONS: Dict[str, Type[SaturationTransformation]] = {
+SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
     "logistic": LogisticSaturation,
     "tanh": TanhSaturation,
     "hill": HillSaturation,
