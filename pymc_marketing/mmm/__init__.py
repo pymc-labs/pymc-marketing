@@ -1,6 +1,6 @@
 from pymc_marketing.mmm import base, delayed_saturated_mmm, preprocessing, validating
 from pymc_marketing.mmm.base import MMM, BaseMMM
-from pymc_marketing.mmm.delayed_saturated_mmm import DelayedSaturatedMMM
+from pymc_marketing.mmm.delayed_saturated_mmm import Philly
 from pymc_marketing.mmm.models.components.lagging import (
     AdstockTransformation,
     DelayedAdstock,
@@ -28,7 +28,7 @@ __all__ = [
     "validating",
     "MMM",
     "BaseMMM",
-    "DelayedSaturatedMMM",
+    "Philly",
     "preprocessing_method_X",
     "preprocessing_method_y",
     "validation_method_X",

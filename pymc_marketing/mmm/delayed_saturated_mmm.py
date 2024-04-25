@@ -36,10 +36,10 @@ from pymc_marketing.mmm.utils import (
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
 
-__all__ = ["DelayedSaturatedMMM"]
+__all__ = ["BasePhilly"]
 
 
-class BaseDelayedSaturatedMMM(MMM):
+class BasePhilly(MMM):
     """Base class for a media mix model with delayed adstock and logistic saturation class (see [1]_).
 
     References
@@ -47,7 +47,7 @@ class BaseDelayedSaturatedMMM(MMM):
     .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
     """
 
-    _model_type = "DelayedSaturatedMMM"
+    _model_type = "Philly"
     version = "0.0.2"
 
     def __init__(
@@ -337,7 +337,7 @@ class BaseDelayedSaturatedMMM(MMM):
             'gamma_fourier': {'dist': 'Laplace', 'kwargs': {'mu': 0, 'b': 1}}
         }
 
-        model = DelayedSaturatedMMM(
+        model = Philly(
                     date_column="date_week",
                     channel_columns=["x1", "x2"],
                     control_columns=[
@@ -549,7 +549,7 @@ class BaseDelayedSaturatedMMM(MMM):
     @classmethod
     def load(cls, fname: str):
         """
-        Creates a DelayedSaturatedMMM instance from a file,
+        Creates a Philly instance from a file,
         instantiating the model with the saved original input parameters.
         Loads inference data for the model.
 
@@ -560,7 +560,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
         Returns
         -------
-        Returns an instance of DelayedSaturatedMMM.
+        Returns an instance of Philly.
 
         Raises
         ------
@@ -707,11 +707,11 @@ class BaseDelayedSaturatedMMM(MMM):
         return format_nested_dict(model_config.copy())
 
 
-class DelayedSaturatedMMM(
+class Philly(
     MaxAbsScaleTarget,
     MaxAbsScaleChannels,
     ValidateControlColumns,
-    BaseDelayedSaturatedMMM,
+    BasePhilly,
 ):
     """Media Mix Model with delayed adstock and logistic saturation class (see [1]_).
 
@@ -741,7 +741,7 @@ class DelayedSaturatedMMM(
 
         * Custom priors for the parameters via the `model_config` parameter. You can also set the likelihood distribution.
 
-        * Adding lift tests to the likelihood function via the :meth:`add_lift_test_measurements <pymc_marketing.mmm.delayed_saturated_mmm.DelayedSaturatedMMM.add_lift_test_measurements>` method.
+        * Adding lift tests to the likelihood function via the :meth:`add_lift_test_measurements <pymc_marketing.mmm.delayed_saturated_mmm.Philly.add_lift_test_measurements>` method.
 
     For details on a vanilla implementation in PyMC, see [2]_.
 
@@ -754,12 +754,12 @@ class DelayedSaturatedMMM(
         import numpy as np
         import pandas as pd
 
-        from pymc_marketing.mmm import DelayedSaturatedMMM
+        from pymc_marketing.mmm import Philly
 
         data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
         data = pd.read_csv(data_url, parse_dates=["date_week"])
 
-        mmm = DelayedSaturatedMMM(
+        mmm = Philly(
             date_column="date_week",
             channel_columns=["x1", "x2"],
             control_columns=[
@@ -797,7 +797,7 @@ class DelayedSaturatedMMM(
             },
         }
 
-        mmm = DelayedSaturatedMMM(
+        mmm = Philly(
             model_config=my_model_config,
             date_column="date_week",
             channel_columns=["x1", "x2"],
@@ -1320,7 +1320,7 @@ class DelayedSaturatedMMM(
 
         .. code-block:: python
 
-            model = DelayedSaturatedMMM(
+            model = Philly(
                 date_column="date_week",
                 channel_columns=["x1", "x2"],
                 control_columns=[
