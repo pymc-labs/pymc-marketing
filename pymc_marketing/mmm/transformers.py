@@ -836,4 +836,4 @@ def hill_saturation(x, sigma, beta, lam):
     float or array-like
         The value of the Hill function for each input value of x.
     """
-    return sigma / (1 + np.exp(-beta * (x - lam)))
+    return sigma / (1 + pt.exp(-beta * (x - lam)))
