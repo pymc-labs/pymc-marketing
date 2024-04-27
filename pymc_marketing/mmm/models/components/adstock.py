@@ -74,7 +74,7 @@ ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {  # type: ign
 }
 
 
-def _get_lagging_function(
+def _get_adstock_function(
     function: str | AdstockTransformation,
     **kwargs,
 ) -> AdstockTransformation:

@@ -19,9 +19,9 @@ from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood,
     scale_lift_measurements,
 )
-from pymc_marketing.mmm.models.components.lagging import (
+from pymc_marketing.mmm.models.components.adstock import (
     AdstockTransformation,
-    _get_lagging_function,
+    _get_adstock_function,
 )
 from pymc_marketing.mmm.models.components.saturation import (
     SaturationTransformation,
@@ -95,7 +95,7 @@ class BasePhilly(MMM):
         self.validate_data = validate_data
 
         self.adstock_first = adstock_first
-        self.adstock = _get_lagging_function(function=adstock, l_max=adstock_max_lag)
+        self.adstock = _get_adstock_function(function=adstock, l_max=adstock_max_lag)
         self.saturation = _get_saturation_function(function=saturation)
 
         if model_config is not None:
@@ -898,6 +898,49 @@ class Philly(
                 "channel": self.channel_columns,
             },
         )
+
+    def plot_channel_parameter(self, param_name: str, **plt_kwargs: Any) -> plt.Figure:
+        """
+        Plot the posterior distribution of a specific parameter for each channel.
+
+        Parameters:
+        ----------
+        param_name : str
+            The name of the parameter to plot.
+        **plt_kwargs : Any
+            Additional keyword arguments to pass to the `plt.subplots` function.
+
+        Returns:
+        -------
+        plt.Figure
+            The matplotlib Figure object containing the plot.
+
+        Raises:
+        ------
+        ValueError
+            If the specified parameter name is invalid or not found in the model
+            saturation or adstock function.
+        """
+        saturation: SaturationTransformation = self.saturation
+        adstock: AdstockTransformation = self.adstock
+        
+        parameters_to_check = list(saturation.variable_mapping.values()) + list(adstock.variable_mapping.values())
+        if param_name not in parameters_to_check:
+            raise ValueError(f"Invalid parameter name: {param_name}")
+
+        param_samples_df = pd.DataFrame(
+            data=az.extract(data=self.fit_result, var_names=[param_name]).T,
+            columns=self.channel_columns,
+        )
+
+        fig, ax = plt.subplots(**plt_kwargs)
+        sns.violinplot(data=param_samples_df, orient="h", ax=ax)
+        ax.set(
+            title=f"Posterior Distribution: {param_name} Parameter",
+            xlabel=param_name,
+            ylabel="channel",
+        )
+        return fig
 
     def plot_channel_contributions_grid(
         self,

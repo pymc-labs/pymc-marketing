@@ -18,7 +18,6 @@ import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
 import pymc as pm
-import seaborn as sns
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
@@ -464,21 +463,6 @@ class BaseMMM(ModelBuilder):
                 xlabel="date",
                 ylabel=self.output_var,
             )
-        return fig
-
-    def plot_channel_parameter(self, param_name: str, **plt_kwargs: Any) -> plt.Figure:
-        param_samples_df = pd.DataFrame(
-            data=az.extract(data=self.fit_result, var_names=[param_name]).T,
-            columns=self.channel_columns,
-        )
-
-        fig, ax = plt.subplots(**plt_kwargs)
-        sns.violinplot(data=param_samples_df, orient="h", ax=ax)
-        ax.set(
-            title=f"Posterior Distribution: {param_name} Parameter",
-            xlabel=param_name,
-            ylabel="channel",
-        )
         return fig
 
     def compute_channel_contribution_original_scale(self) -> DataArray:
