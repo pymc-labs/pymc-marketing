@@ -10,7 +10,16 @@ from pymc_marketing.mmm.transformers import (
 
 
 class AdstockTransformation(Transformation):
-    """Subclass for all adstock functions."""
+    """Subclass for all adstock functions.
+    
+    In order to use a custom saturation function, inherit from this class and define:
+    
+    - `function`: a function that takes x to adstock x
+    - `default_priors`: dictionary with priors for every parameter in function 
+    
+    Consider the predefined subclasses  as examples.
+    
+    """
 
     prefix: str = "adstock"
 
