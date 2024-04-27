@@ -34,7 +34,7 @@ class Transformation:
     - prefix: The prefix for the variables that will be created.
     - default_priors: The default priors for the parameters of the function.
 
-    In order to make a new saturation or adstock function, this subclass would
+    In order to make a new saturation or adstock function, this class would not be used but rather `SaturationTransformation` and `AdstockTransformation`
     not be used. Instead, the subclasses would be used.
 
     """
