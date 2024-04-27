@@ -1302,18 +1302,23 @@ class BaseMMM(ModelBuilder):
     def graphviz(self, **kwargs):
         return pm.model_to_graphviz(self.model, **kwargs)
 
-    def _process_decomposition_components(self, data: pd.DataFrame):
+    def _process_decomposition_components(self, data: pd.DataFrame) -> pd.DataFrame:
         """
         Process data to compute the sum of contributions by component and calculate their percentages.
+        The output dataframe will have columns for "component", "contribution", and "percentage".
+
         Parameters
         ----------
-        dataframe : pd.DataFrame
-            Dataframe containing the time series data.
+        data : pd.DataFrame
+            Dataframe containing the contribution by component from the function "compute_mean_contributions_over_time".
+
         Returns
         -------
-        dataframe : pd.DataFrame
-            A dataframe with contributions summed up by component, sorted, and with percentages.
+        pd.DataFrame
+            A dataframe with contributions summed up by component, sorted by contribution in ascending order.
+            With an additional column showing the percentage contribution of each component.
         """
+
         dataframe = data.copy()
         stack_dataframe = dataframe.stack().reset_index()
         stack_dataframe.columns = pd.Index(["date", "component", "contribution"])
@@ -1332,7 +1337,7 @@ class BaseMMM(ModelBuilder):
         original_scale: bool = True,
         figsize: tuple[int, int] = (14, 7),
         **kwargs,
-    ):
+    ) -> plt.Figure:
         """
         This function creates a waterfall plot. The plot shows the decomposition of the target into its components.
 
