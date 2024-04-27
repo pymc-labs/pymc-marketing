@@ -92,7 +92,7 @@ def batched_convolution(
     if l_max is None:
         try:
             l_max = w.shape[-1].eval()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
     # Get the broadcast shapes of x and w but ignoring their last dimension.
     # The last dimension of x is the "time" axis, which doesn't get broadcast

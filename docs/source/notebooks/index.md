@@ -18,6 +18,7 @@ mmm/mmm_lift_test
 clv/clv_quickstart
 clv/bg_nbd
 clv/gamma_gamma
+clv/pareto_nbd
 clv/sBG
 :::
 
