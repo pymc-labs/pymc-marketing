@@ -686,6 +686,7 @@ def test_new_data_include_last_observation_same_dims(
         X_pred,
         include_last_observations=True,
     )
+
     assert pp_without.coords.equals(pp_with.coords)
     pd.testing.assert_index_equal(
         pd.DatetimeIndex(pp_without.coords["date"]),
