@@ -923,8 +923,10 @@ class Philly(
         """
         saturation: SaturationTransformation = self.saturation
         adstock: AdstockTransformation = self.adstock
-        
-        parameters_to_check = list(saturation.variable_mapping.values()) + list(adstock.variable_mapping.values())
+
+        parameters_to_check = list(saturation.variable_mapping.values()) + list(
+            adstock.variable_mapping.values()
+        )
         if param_name not in parameters_to_check:
             raise ValueError(f"Invalid parameter name: {param_name}")
 

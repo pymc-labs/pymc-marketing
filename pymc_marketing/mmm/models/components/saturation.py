@@ -9,31 +9,32 @@ from pymc_marketing.mmm.transformers import (
 
 
 class SaturationTransformation(Transformation):
-    """Subclass for all saturation transformations. 
-    
-    In order to use a custom saturation transformation, subclass and define: 
-    
+    """Subclass for all saturation transformations.
+
+    In order to use a custom saturation transformation, subclass and define:
+
     - `function`: function to take x to contributions
     - `default_priors`: default distributions for each parameter in function
-    
+
     By subclassing from this method, lift test integration will come for free!
-    
+
     Examples
     ----------
     Make a non-saturating saturation transformation
-    
+
     .. code-block:: python
-        
-        def infinite_returns(x, b): 
+
+        def infinite_returns(x, b):
             return b * x
-            
-            
-        class InfiniteReturns(SaturationTransformation): 
+
+
+        class InfiniteReturns(SaturationTransformation):
             function = infinite_returns
-            
+
             default_priors = {"b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}}}
-    
+
     """
+
     prefix: str = "saturation"
 
 
