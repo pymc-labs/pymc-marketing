@@ -1324,7 +1324,7 @@ class BaseMMM(ModelBuilder):
     def plot_waterfall_components_decomposition(
         self,
         original_scale: bool = True,
-        figsize: Tuple = (14, 7),
+        figsize: tuple[int, int] = (14, 7),
         **kwargs,
     ):
         """
@@ -1345,7 +1345,6 @@ class BaseMMM(ModelBuilder):
             The matplotlib figure object.
         """
 
-        # Sort the dataframe in ascending order of contribution for the waterfall plot
         dataframe = self.compute_mean_contributions_over_time(
             original_scale=original_scale
         )
@@ -1353,18 +1352,13 @@ class BaseMMM(ModelBuilder):
         dataframe = self._process_decomposition_components(data=dataframe)
         total_contribution = dataframe["contribution"].sum()
 
-        # Initialize the matplotlib figure and axis
-        fig, ax = plt.subplots(figsize=figsize, **kwargs)
+        fig, ax = plt.subplots(figsize=figsize, layout="constrained", **kwargs)
 
-        # Initialize the starting point for the first bar
         cumulative_contribution = 0
 
-        # Plot each bar with the updated order
         for index, row in dataframe.iterrows():
-            # Choose the color based on the sign of the contribution
             color = "lightblue" if row["contribution"] >= 0 else "salmon"
 
-            # For negative contributions, start the bar at the cumulative sum minus the contribution
             bar_start = (
                 cumulative_contribution + row["contribution"]
                 if row["contribution"] < 0
@@ -1372,17 +1366,14 @@ class BaseMMM(ModelBuilder):
             )
             ax.barh(row["component"], row["contribution"], left=bar_start, color=color)
 
-            # Only add to the cumulative sum if the contribution is positive
             if row["contribution"] > 0:
                 cumulative_contribution += row["contribution"]
 
-            # Label positioning
             label_pos = bar_start + (row["contribution"] / 2)
-            # Ensure that the label is always inside the bar for visibility
+
             if row["contribution"] < 0:
                 label_pos = bar_start - (row["contribution"] / 2)
 
-            # Add labels on top of the bars for the contribution values and percentages
             ax.text(
                 label_pos,
                 index,
@@ -1393,31 +1384,22 @@ class BaseMMM(ModelBuilder):
                 fontsize=10,
             )
 
-        # Set the title and labels
         ax.set_title("Response Decomposition Waterfall by Components")
         ax.set_xlabel("Cumulative Contribution")
         ax.set_ylabel("Components")
 
-        # Adjust x-axis to show the percentage
-        xticks = np.linspace(
-            0, total_contribution, num=11
-        )  # 10 equally spaced ticks from 0 to total
-        xticklabels = [
-            f"{(x/total_contribution)*100:.0f}%" for x in xticks
-        ]  # Convert to percentages
+        xticks = np.linspace(0, total_contribution, num=11)
+        xticklabels = [f"{(x/total_contribution)*100:.0f}%" for x in xticks]
         ax.set_xticks(xticks)
         ax.set_xticklabels(xticklabels)
 
-        # Hide the right, top, and left spines for a cleaner look
         ax.spines["right"].set_visible(False)
         ax.spines["top"].set_visible(False)
         ax.spines["left"].set_visible(False)
 
-        # Add labels on the left to identify the predictor channels, corresponding to the y-ticks
         ax.set_yticks(np.arange(len(dataframe)))
         ax.set_yticklabels(dataframe["component"])
 
-        plt.tight_layout()
         return fig
 
 

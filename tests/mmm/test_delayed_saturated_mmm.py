@@ -285,7 +285,6 @@ class TestDelayedSaturatedMMM:
         assert mmm.model_config is not None
         n_channel: int = len(mmm.channel_columns)
         n_control: int = len(mmm.control_columns)
-        # fourier_terms: int = 2 * mmm.yearly_seasonality
         mmm.fit(
             X=toy_X,
             y=toy_y,
