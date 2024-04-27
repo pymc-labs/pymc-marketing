@@ -308,7 +308,7 @@ class ParetoNBDRV(RandomVariable):
         beta = np.broadcast_to(beta, size)
         T = np.broadcast_to(T, size)
 
-        output = np.zeros(shape=size + (2,))
+        output = np.zeros(shape=size + (2,))  # noqa:RUF005
 
         lam = rng.gamma(shape=r, scale=1 / alpha, size=size)
         mu = rng.gamma(shape=s, scale=1 / beta, size=size)

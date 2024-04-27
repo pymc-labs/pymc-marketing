@@ -101,7 +101,7 @@ def objective_distribution(
 
     sum_contributions = 0.0
 
-    for channel, budget in zip(channels, x):
+    for channel, budget in zip(channels, x, strict=False):
         if method == "michaelis-menten":
             L, k = parameters[channel]
             sum_contributions += michaelis_menten(budget, L, k)
@@ -182,7 +182,9 @@ def optimize_budget_distribution(
         constraints=constraints,
     )
 
-    return {channel: budget for channel, budget in zip(channels, result.x)}
+    return {
+        channel: budget for channel, budget in zip(channels, result.x, strict=False)
+    }
 
 
 def budget_allocator(

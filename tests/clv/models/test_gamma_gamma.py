@@ -178,7 +178,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             preds.mean(("draw", "chain")), self.z_mean, rtol=0.05
         )
 
-        # Closed formula solution for the mean and var of the population spend (eqs 3, 4 from [1])  # noqa: E501
+        # Closed formula solution for the mean and var of the population spend (eqs 3, 4 from [1])
         expected_preds_mean = p_mean * v_mean / (q_mean - 1)
         expected_preds_std = np.sqrt(
             (p_mean**2 * v_mean**2) / ((q_mean - 1) ** 2 * (q_mean - 2))
@@ -234,7 +234,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             samples=1000, model=model.model, random_seed=self.rng
         )
         set_model_fit(model, fake_fit.prior)
-        # Closed formula solution for the mean and var of the population spend (eqs 3, 4 from [1])  # noqa: E501
+        # Closed formula solution for the mean and var of the population spend (eqs 3, 4 from [1])
         expected_preds_mean = p_mean * v_mean / (q_mean - 1)
         expected_preds_std = np.sqrt(
             (p_mean**2 * v_mean**2) / ((q_mean - 1) ** 2 * (q_mean - 2))
