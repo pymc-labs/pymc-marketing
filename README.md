@@ -62,7 +62,7 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 
 - [CLV Quickstart](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/clv_quickstart.html)
 - [BG/NBD model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/bg_nbd.html)
-- [Pareto model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/pareto_nbd.html)
+- [Pareto/NBD model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/pareto_nbd.html)
 - [Gamma-Gamma model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/gamma_gamma.html)
 
 ### Examples
@@ -72,7 +72,7 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 | **Continuous** | Buying groceries    | Audible                         |
 | **Discrete**   | Cinema ticket       | Monthly or yearly subscriptions |
 
----
+----
 
 ## Why PyMC-Marketing vs other solutions?
 
@@ -85,8 +85,6 @@ Due to its open-source nature and active contributor base, new features are adde
 Not sure how to start or have questions? MMM-GPT is an AI that answers questions and provides expert advice on marketing analytics using PyMC-Marketing.
 
 **[Try MMM-GPT here.](https://mmm-gpt.com/)**
-
-
 
 ## 📞 Schedule a Free Consultation for MMM & CLV Strategy
 
