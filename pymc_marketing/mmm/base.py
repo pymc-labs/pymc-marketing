@@ -1067,7 +1067,7 @@ class BaseMMM(ModelBuilder):
         fig.suptitle("Direct response curves", fontsize=16)
         return fig
 
-    def _get_distribution(self, dist: dict) -> Callable:
+    def _get_distribution_from_dict(self, dist: dict) -> Callable:
         """
         Retrieve a PyMC distribution callable based on the provided dictionary.
 

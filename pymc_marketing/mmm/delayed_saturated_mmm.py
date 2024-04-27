@@ -15,21 +15,21 @@ from pytensor.tensor import TensorVariable
 from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.base import MMM
+from pymc_marketing.mmm.components.adstock import (
+    AdstockTransformation,
+    _get_adstock_function,
+)
+from pymc_marketing.mmm.components.saturation import (
+    SaturationTransformation,
+    _get_saturation_function,
+)
 from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood,
     scale_lift_measurements,
 )
-from pymc_marketing.mmm.models.components.adstock import (
-    AdstockTransformation,
-    _get_adstock_function,
-)
-from pymc_marketing.mmm.models.components.saturation import (
-    SaturationTransformation,
-    _get_saturation_function,
-)
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.utils import (
-    _get_distribution,
+    _get_distribution_from_dict,
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
     generate_fourier_modes,
@@ -258,9 +258,9 @@ class BasePhilly(MMM):
                         f"The parameter configuration for '{param}' must contain 'kwargs'."
                     )
 
-                parameter_distributions[param] = _get_distribution(dist=param_config)(
-                    **param_config["kwargs"], name=f"likelihood_{param}"
-                )
+                parameter_distributions[param] = _get_distribution_from_dict(
+                    dist=param_config
+                )(**param_config["kwargs"], name=f"likelihood_{param}")
             elif isinstance(param_config, int | float):
                 # Use the value directly
                 parameter_distributions[param] = param_config
@@ -274,7 +274,9 @@ class BasePhilly(MMM):
 
         # Extract the likelihood distribution name and instantiate it
         likelihood_dist_name = dist["dist"]
-        likelihood_dist = _get_distribution(dist={"dist": likelihood_dist_name})
+        likelihood_dist = _get_distribution_from_dict(
+            dist={"dist": likelihood_dist_name}
+        )
 
         return likelihood_dist(
             name=self.output_var,
@@ -351,11 +353,13 @@ class BasePhilly(MMM):
                 )
         """
 
-        self.intercept_dist = _get_distribution(dist=self.model_config["intercept"])
-        self.gamma_control_dist = _get_distribution(
+        self.intercept_dist = _get_distribution_from_dict(
+            dist=self.model_config["intercept"]
+        )
+        self.gamma_control_dist = _get_distribution_from_dict(
             dist=self.model_config["gamma_control"]
         )
-        self.gamma_fourier_dist = _get_distribution(
+        self.gamma_fourier_dist = _get_distribution_from_dict(
             dist=self.model_config["gamma_fourier"]
         )
 

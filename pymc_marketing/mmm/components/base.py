@@ -4,7 +4,7 @@ from typing import Any
 
 from pytensor import tensor as pt
 
-from pymc_marketing.mmm.utils import _get_distribution
+from pymc_marketing.mmm.utils import _get_distribution_from_dict
 
 
 class ParameterPriorException(Exception):
@@ -137,7 +137,7 @@ class Transformation:
         for parameter_name, variable_name in self.variable_mapping.items():
             parameter_prior = self.function_priors[parameter_name]
 
-            distribution = _get_distribution(
+            distribution = _get_distribution_from_dict(
                 dist=parameter_prior,
             )
 

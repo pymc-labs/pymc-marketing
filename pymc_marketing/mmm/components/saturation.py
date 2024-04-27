@@ -1,4 +1,4 @@
-from pymc_marketing.mmm.models.components.base import Transformation
+from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.transformers import (
     hill_saturation,
     logistic_saturation,

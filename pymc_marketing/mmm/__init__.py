@@ -1,13 +1,12 @@
 from pymc_marketing.mmm import base, delayed_saturated_mmm, preprocessing, validating
 from pymc_marketing.mmm.base import MMM, BaseMMM
-from pymc_marketing.mmm.delayed_saturated_mmm import Philly
-from pymc_marketing.mmm.models.components.adstock import (
+from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     DelayedAdstock,
     GeometricAdstock,
     WeibullAdstock,
 )
-from pymc_marketing.mmm.models.components.saturation import (
+from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
     LogisticSaturation,
     MichaelisMentenSaturation,
@@ -15,6 +14,7 @@ from pymc_marketing.mmm.models.components.saturation import (
     TanhSaturation,
     TanhSaturationBaselined,
 )
+from pymc_marketing.mmm.delayed_saturated_mmm import Philly
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,

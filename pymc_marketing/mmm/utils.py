@@ -390,7 +390,7 @@ def create_new_spend_data(
     )
 
 
-def _get_distribution(dist: dict) -> Callable:
+def _get_distribution_from_dict(dist: dict) -> Callable:
     """
     Retrieve a PyMC distribution callable based on the provided dictionary.
 
