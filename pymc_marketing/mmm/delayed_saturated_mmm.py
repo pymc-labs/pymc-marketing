@@ -286,7 +286,21 @@ class BasePhilly(MMM):
             **parameter_distributions,
         )
 
-    def forward_pass(self, x):
+    def forward_pass(self, x: pm.Data):
+        """
+        Performs a forward pass through the Philly MMM model,
+        defining the order of the saturation and adstock functions.
+
+        Parameters
+        ----------
+        x : pm.Data
+            The input data.
+
+        Returns
+        -------
+        pm.Data
+            The output data after applying the transformations in the desired order.
+        """
         first, second = (
             (self.adstock, self.saturation)
             if self.adstock_first
@@ -368,16 +382,18 @@ class BasePhilly(MMM):
             coords=self.model_coords,
             coords_mutable=self.coords_mutable,
         ) as self.model:
-            channel_data_ = pm.MutableData(
+            channel_data_ = pm.Data(
                 name="channel_data",
                 value=self.preprocessed_data["X"][self.channel_columns],
                 dims=("date", "channel"),
+                mutable=True,
             )
 
-            target_ = pm.MutableData(
+            target_ = pm.Data(
                 name="target",
                 value=self.preprocessed_data["y"],
                 dims="date",
+                mutable=True,
             )
 
             intercept = self.intercept_dist(
@@ -385,8 +401,8 @@ class BasePhilly(MMM):
             )
 
             channel_contributions = pm.Deterministic(
-                "channel_contributions",
-                self.forward_pass(x=channel_data_),
+                name="channel_contributions",
+                var=self.forward_pass(x=channel_data_),
                 dims=("date", "channel"),
             )
 
@@ -406,10 +422,11 @@ class BasePhilly(MMM):
                     **self.model_config["gamma_control"]["kwargs"],
                 )
 
-                control_data_ = pm.MutableData(
+                control_data_ = pm.Data(
                     name="control_data",
                     value=self.preprocessed_data["X"][self.control_columns],
                     dims=("date", "control"),
+                    mutable=True,
                 )
 
                 control_contributions = pm.Deterministic(
@@ -429,10 +446,11 @@ class BasePhilly(MMM):
                     for column in self.fourier_columns
                 )
             ):
-                fourier_data_ = pm.MutableData(
+                fourier_data_ = pm.Data(
                     name="fourier_data",
                     value=self.preprocessed_data["X"][self.fourier_columns],
                     dims=("date", "fourier_mode"),
+                    mutable=True,
                 )
 
                 gamma_fourier = self.gamma_fourier_dist(

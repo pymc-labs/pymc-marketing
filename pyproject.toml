@@ -45,7 +45,7 @@ packages = [
     "pymc_marketing",
     "pymc_marketing.mmm",
     "pymc_marketing.mmm.models",
-    "pymc_marketing.mmm.models.components",
+    "pymc_marketing.mmm.components",
     "pymc_marketing.clv",
     "pymc_marketing.clv.models",
 ]
