@@ -92,6 +92,7 @@ class TestBasePlotting:
             ("plot_posterior_predictive", {"original_scale": True}),
             ("plot_components_contributions", {}),
             ("plot_channel_parameter", {"param_name": "alpha"}),
+            ("plot_waterfall_components_decomposition", {"original_scale": True}),
             ("plot_direct_contribution_curves", {}),
             ("plot_direct_contribution_curves", {"same_axes": True}),
             ("plot_direct_contribution_curves", {"channels": ["channel_2"]}),
