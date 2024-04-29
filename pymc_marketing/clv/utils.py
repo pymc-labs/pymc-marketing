@@ -587,5 +587,76 @@ def rfm_train_test_split(
     return train_test_rfm_data
 
 
-def rfm_segments():
+# TODO: docstrings
+def rfm_segments(
+    rfm_data: pd.DataFrame,
+    segments: dict[str, str] | None = None,
+):
+    """
+    Assign customers to RFM segments based on spending behavior.  Use clv.rfm_summary
+
+    Parameters
+    ----------
+    rfm_data: :obj: DataFrame
+        A Pandas DataFrame containing customer_id, frequency, recency, and monetary_value columns.
+
+    Returns
+    -------
+    :obj: DataFrame:
+        customer_id, frequency, recency, [, T], monetary_value, segment
+    """
+
+    # # TODO: rfm_summary(*args, include_first_transaction=True) is required. Use raw data and return pd.Series instead?
+    # rfm_data = rfm_summary(rfm_data,
+    #                      customer_id_col="INST_KEY",
+    #                      datetime_col="ORDER_DATE",
+    #                      monetary_value_col="M_NET_SALES",
+    #                      time_unit="W",  # "M" & "Y" are unsupported TimeDelta units in pandas,
+    #                      time_scaler=52,  # so Weeks must be rescaled into Years
+    #                      include_first_transaction=True,  # set to True for RFM Segmentation, False for modeling
+    #                      )
+    # # TODO: Raise an exception for zero values
+    #
+    # # Change recency to RFM rather than modeling definition
+    # rfm_df["recency"] = rfm_df["T"] - rfm_df["recency"]
+    #
+    # # Recency labels must be reversed as lower values are more desirable, unlike frequency and monetary value
+    # rec_labels = list(
+    #     reversed(
+    #         list(
+    #             range(
+    #                 1, 5
+    #             )
+    #         )
+    #     )
+    # )
+    #
+    # # TODO: Will need a try or if-else block if error raised and change q=4 to q=5 is needed
+    # # TODO: Try to do these as pd.Series rather than dataframe assignments
+    # rfm_df['r_quartile'] = pd.qcut(rfm_df['recency'], q=4, labels=rec_labels, duplicates='raise')
+    # # q=5 for frequency if getting bin labels error
+    # rfm_df['f_quartile'] = pd.qcut(rfm_df['frequency'], q=5, labels=range(1, 5), duplicates='drop')
+    # rfm_df['m_quartile'] = pd.qcut(rfm_df['monetary_value'], q=4, labels=range(1, 5), duplicates='drop')
+    #
+    # rfm_df['r_quartile'] = rfm_df['r_quartile'].astype(str)
+    # rfm_df['f_quartile'] = rfm_df['f_quartile'].astype(str)
+    # rfm_df['m_quartile'] = rfm_df['m_quartile'].astype(str)
+    # rfm_df['RFM_score'] = rfm_df['r_quartile'] + rfm_df['f_quartile'] + rfm_df['m_quartile']
+    # # TODO: Rename to 'segment', or leave as-is?
+    # rfm_df['customer_segment'] = 'Low Spender'  # renamed from "Other"
+    #
+    # # TODO: This can be a list comp and save many lines of code
+    # rfm_df.loc[rfm_df['RFM_score'].isin(['334', '443', '444', '344', '434', '433', '343', '333']),
+    #                                      'customer_segment'] = 'Premium Customer'  # nothing <= 2
+    # rfm_df.loc[rfm_df['RFM_score'].isin(['244', '234', '232', '332', '143', '233', '243']),
+    #                                       'customer_segment'] = 'Repeat Customer'  # f >= 3 & r or m >=3
+    # rfm_df.loc[rfm_df['RFM_score'].isin(
+    #     ['424', '414', '144', '314', '324', '124', '224', '423', '413', '133', '323', '313', '134']),
+    #      'customer_segment'] = 'Top Spender'  # m >= 3 & f or m >=3
+    # rfm_df.loc[rfm_df['RFM_score'].isin(['422', '223', '212', '122', '222', '132', '322', '312', '412', '123',
+    #                                      '214']),
+    #                                      'customer_segment'] = 'At Risk Customer'  # two or more  <=2
+    # rfm_df.loc[rfm_df['RFM_score'].isin(
+    #     ['411', '111', '113', '114', '112', '211', '311']),
+    #     'customer_segment'] = 'Inactive Customer'  # two or more  =1
     pass
