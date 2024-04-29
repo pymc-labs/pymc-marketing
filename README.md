@@ -20,6 +20,18 @@
 
 Unlock the power of **Marketing Mix Modeling (MMM)** and **Customer Lifetime Value (CLV)** analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
 
+----
+
+This repository is supported by [PyMC Labs](https://www.pymc-labs.com).
+
+<center>
+    <img src="docs/source/_static/labs-logo-light.png" width="50%" />
+</center>
+
+For businesses looking to integrate PyMC-Marketing into their operational framework, [PyMC Labs](https://www.pymc-labs.com) offers expert consulting and training. Our team is proficient in state-of-the-art Bayesian modeling techniques, with a focus on Marketing Mix Models (MMMs) and Customer Lifetime Value (CLV). For more information see [here](#-schedule-a-free-consultation-for-mmm--clv-strategy).
+
+Explore these topics further by watching our video on [Bayesian Marketing Mix Models: State of the Art](https://www.youtube.com/watch?v=xVx91prC81g).
+
 ## Quick Installation Guide for Marketing Mix Modeling (MMM) & CLV
 
 To dive into MMM and CLV analytics, set up a specialized environment, `marketing_env`, via conda-forge:
@@ -83,7 +95,9 @@ mmm.plot_components_contributions();
 
 Once the model is fitted, we can further optimize our budget allocation as are including diminishing returns and carry-over effects in our model.
 
-![](/docs/source/_static/mmm_plot_plot_channel_contributions_grid.png)
+<center>
+    <img src="/docs/source/_static/mmm_plot_plot_channel_contributions_grid.png" width="80%" />
+</center>
 
 Explore a hands-on [simulated example](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
 
@@ -154,8 +168,6 @@ Not sure how to start or have questions? MMM-GPT is an AI that answers questions
 ## 📞 Schedule a Free Consultation for MMM & CLV Strategy
 
 Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts. Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions.
-
-For businesses looking to integrate PyMC-Marketing into their operational framework, [PyMC Labs](https://www.pymc-labs.com) offers expert consulting and training. Our team is proficient in state-of-the-art Bayesian modeling techniques, with a focus on Marketing Mix Models (MMMs) and Customer Lifetime Value (CLV). Explore these topics further by watching our video on [Bayesian Marketing Mix Models: State of the Art](https://www.youtube.com/watch?v=xVx91prC81g).
 
 We provide the following professional services:
 
