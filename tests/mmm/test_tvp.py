@@ -54,13 +54,27 @@ def test_time_varying_prior(coords):
 
         # Test that model can compile and sample
         pm.Normal("obs", mu=prior, sigma=1, observed=np.random.randn(5))
-        pm.sample(50, tune=50, chains=1)
+        try: 
+            pm.sample(50, tune=50, chains=1)
+        except pm.SamplingError: 
+            pytest.fail("Time varying parameter didn't sample")
 
 
-def test_calling_without_default_args(coords):
-    with pm.Model(coords=coords):
+def test_calling_without_default_args(coords): 
+    with pm.Model(coords=coords) as model: 
         X = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
-        time_varying_prior(name="test", X=X, dims="date")
+        prior = time_varying_prior(name="test", X=X, dims="date")
+        
+        # Assert output verification
+        assert isinstance(prior, pt.TensorVariable)
+
+        # Assert internal parameters are created correctly
+        assert model.test_hsgp_coefs.eval().shape == (5,)
+
+        # Assert default cov_func is used when none is provided
+        assert "test_eta" in model.named_vars
+        assert "test_ls" in model.named_vars
+        assert "test_hsgp_coefs" in model.named_vars
 
 
 def test_multidimensional(coords):
@@ -75,7 +89,10 @@ def test_multidimensional(coords):
 
         # Test that model can compile and sample
         pm.Normal("obs", mu=prior, sigma=1, observed=np.random.randn(5, 3))
-        pm.sample(50, tune=50, chains=1)
+        try: 
+            pm.sample(50, tune=50, chains=1)
+        except pm.SamplingError: 
+            pytest.fail("Time varying parameter didn't sample")
 
 
 def test_calling_without_model():
