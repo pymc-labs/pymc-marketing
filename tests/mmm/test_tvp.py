@@ -54,7 +54,10 @@ def test_time_varying_prior(coords):
 
         # Test that model can compile and sample
         pm.Normal("obs", mu=prior, sigma=1, observed=np.random.randn(5))
-        pm.sample(50, tune=50, chains=1)
+        try: 
+            pm.sample(50, tune=50, chains=1)
+        except pm.SamplingError: 
+            pytest.fail("Time varying parameter didn't sample")
 
 
 def test_calling_without_default_args(coords):
