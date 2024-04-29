@@ -9,8 +9,10 @@ from sklearn.preprocessing import MaxAbsScaler
 
 from pymc_marketing.mmm.lift_test import (
     MissingLiftTestError,
+    NonMonotonicLiftError,
     add_logistic_empirical_lift_measurements_to_likelihood,
     add_menten_empirical_lift_measurements_to_likelihood,
+    check_increasing_assumption,
     index_variable,
     indices_from_lift_tests,
     lift_test_indices,
@@ -415,3 +417,48 @@ def test_scale_target_for_lift_measurements(mock_target_pipeline) -> None:
         result,
         pd.Series([0, 1, 2, 3], dtype="float64"),
     )
+
+
+def test_works_with_negative_delta(df_lift_tests_with_numerics) -> None:
+    df_lift_tests_with_numerics_negative = df_lift_tests_with_numerics.assign(
+        delta_x=lambda row: row["delta_x"] * -1,
+        delta_y=lambda row: row["delta_y"] * -1,
+    )
+
+    alpha_dims = "date"
+    dist = pm.Gamma
+
+    coords = {
+        "date": ["2020-01-01", "2020-01-02", "2020-01-03"],
+        "channel": ["organic", "paid", "social"],
+    }
+    with pm.Model(coords=coords) as model:
+        pm.HalfNormal("alpha", dims=alpha_dims)
+        pm.HalfNormal("lam", dims="channel")
+
+        add_menten_empirical_lift_measurements_to_likelihood(
+            df_lift_tests_with_numerics_negative,
+            alpha_name="alpha",
+            lam_name="lam",
+            dist=dist,
+        )
+
+    assert "lift_measurements" in model
+
+    try:
+        with model:
+            pm.sample(draws=10, tune=10)
+    except pm.SamplingError:
+        pytest.fail("Negative delta values caused a sampling error.")
+
+
+def test_check_increasing_assumption() -> None:
+    df = pd.DataFrame(
+        {
+            "delta_x": [1, 2, 3],
+            "delta_y": [1, -2, 3],
+        }
+    )
+
+    with pytest.raises(NonMonotonicLiftError):
+        check_increasing_assumption(df)

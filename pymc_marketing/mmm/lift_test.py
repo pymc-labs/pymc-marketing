@@ -28,7 +28,6 @@ Values = Union[npt.NDArray[np.int_], npt.NDArray[np.float_], npt.NDArray[np.str_
 
 
 def _lift_test_index(lift_values: Values, model_values: Values) -> Index:
-    # TODO: better support for datetime64 required for date coordinates
     same_value = lift_values[:, None] == model_values
     if not (same_value.sum(axis=1) == 1).all():
         missing_values = np.argwhere(same_value.sum(axis=1) == 0).flatten()
@@ -63,8 +62,19 @@ def lift_test_indices(df_lift_test: pd.DataFrame, model: pm.Model) -> Indices:
     """
 
     columns = df_lift_test.columns.tolist()
+
+    def _ensure_datetime_type_in_array(x: np.ndarray) -> np.ndarray:
+        first_value = x[0]
+        if isinstance(first_value, pd.Timestamp):
+            x = np.array(x, dtype="datetime64[ns]")
+
+        return x
+
     return {
-        col: _lift_test_index(df_lift_test[col].to_numpy(), np.array(model.coords[col]))
+        col: _lift_test_index(
+            _ensure_datetime_type_in_array(df_lift_test[col].to_numpy()),
+            _ensure_datetime_type_in_array(np.array(model.coords[col])),
+        )
         for col in columns
     }
 
@@ -178,6 +188,23 @@ def index_variable(
     return var.__getitem__(idx)
 
 
+class NonMonotonicLiftError(Exception):
+    """Raised when the lift test results do not satisfy the increasing assumption."""
+
+
+def check_increasing_assumption(df_lift_tests: pd.DataFrame) -> None:
+    """Checks if the lift test results satisfy the increasing assumption.
+
+    If delta_x is positive, delta_y must be positive, and vice versa.
+    """
+    increasing = df_lift_tests["delta_x"] * df_lift_tests["delta_y"] >= 0
+
+    if not increasing.all():
+        raise NonMonotonicLiftError(
+            "The lift test results do not satisfy the increasing assumption."
+        )
+
+
 def add_lift_measurements_to_likelihood(
     df_lift_test: pd.DataFrame,
     variable_mapping,
@@ -257,6 +284,8 @@ def add_lift_measurements_to_likelihood(
     if missing_cols:
         raise KeyError(f"Missing from DataFrame: {list(missing_cols)}")
 
+    check_increasing_assumption(df_lift_test)
+
     model = pm.modelcontext(model)
 
     var_names = list(variable_mapping.values())
@@ -281,9 +310,9 @@ def add_lift_measurements_to_likelihood(
 
     dist(
         name=name,
-        mu=model_estimated_lift,
+        mu=pt.abs(model_estimated_lift),
         sigma=df_lift_test["sigma"].to_numpy(),
-        observed=df_lift_test["delta_y"].to_numpy(),
+        observed=np.abs(df_lift_test["delta_y"].to_numpy()),
     )
 
 
