@@ -11,6 +11,7 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![docs](https://readthedocs.org/projects/pymc-marketing/badge/?version=latest)](https://docs.readthedocs.io/en/latest/)
 [![PyPI Version](https://img.shields.io/pypi/v/pymc-marketing.svg)](https://pypi.python.org/pypi/pymc-marketing)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/pymc-marketing.svg)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 # <span style="color:limegreen">PyMC-Marketing</span>: Bayesian Marketing Mix Modeling (MMM) & Customer Lifetime Value (CLV)
@@ -61,6 +62,7 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 
 - [CLV Quickstart](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/clv_quickstart.html)
 - [BG/NBD model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/bg_nbd.html)
+- [Pareto/NBD model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/pareto_nbd.html)
 - [Gamma-Gamma model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/gamma_gamma.html)
 
 ### Examples
@@ -70,7 +72,7 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 | **Continuous** | Buying groceries    | Audible                         |
 | **Discrete**   | Cinema ticket       | Monthly or yearly subscriptions |
 
----
+----
 
 ## Why PyMC-Marketing vs other solutions?
 
@@ -83,8 +85,6 @@ Due to its open-source nature and active contributor base, new features are adde
 Not sure how to start or have questions? MMM-GPT is an AI that answers questions and provides expert advice on marketing analytics using PyMC-Marketing.
 
 **[Try MMM-GPT here.](https://mmm-gpt.com/)**
-
-
 
 ## 📞 Schedule a Free Consultation for MMM & CLV Strategy
 
