@@ -93,7 +93,7 @@ mmm.plot_components_contributions();
 
 ![](/docs/source/_static/mmm_plot_components_contributions.png)
 
-Once the model is fitted, we can further optimize our budget allocation as are including diminishing returns and carry-over effects in our model.
+Once the model is fitted, we can further optimize our budget allocation as we are including diminishing returns and carry-over effects in our model.
 
 <center>
     <img src="/docs/source/_static/mmm_plot_plot_channel_contributions_grid.png" width="80%" />
