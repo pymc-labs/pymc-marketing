@@ -32,6 +32,11 @@ For businesses looking to integrate PyMC-Marketing into their operational framew
 
 Explore these topics further by watching our video on [Bayesian Marketing Mix Models: State of the Art](https://www.youtube.com/watch?v=xVx91prC81g).
 
+### Community Resources
+
+- [Bayesian discord server](https://discord.gg/swztKRaVKe)
+- [PyMC discourse](https://discourse.pymc.io/)
+
 ## Quick Installation Guide for Marketing Mix Modeling (MMM) & CLV
 
 To dive into MMM and CLV analytics, set up a specialized environment, `marketing_env`, via conda-forge:
