@@ -63,17 +63,12 @@ def lift_test_indices(df_lift_test: pd.DataFrame, model: pm.Model) -> Indices:
 
     columns = df_lift_test.columns.tolist()
 
-    def _ensure_datetime_type_in_array(x: np.ndarray) -> np.ndarray:
-        first_value = x[0]
-        if isinstance(first_value, pd.Timestamp):
-            x = np.array(x, dtype="datetime64[ns]")
-
-        return x
-
     return {
         col: _lift_test_index(
-            _ensure_datetime_type_in_array(df_lift_test[col].to_numpy()),
-            _ensure_datetime_type_in_array(np.array(model.coords[col])),
+            df_lift_test[col].to_numpy(),
+            # Coords in the model become tuples of pd.Timestamp
+            # Convert to Series stores them as np.datetime64
+            pd.Series(model.coords[col]).to_numpy(),
         )
         for col in columns
     }
