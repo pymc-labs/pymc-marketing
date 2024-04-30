@@ -1344,7 +1344,7 @@ class Philly(
         then conditioned using the empirical lift, `delta_y`, and `sigma` of the lift test
         with the specified distribution `dist`.
 
-        The sudo code for the lift test is as follows:
+        The pseudo-code for the lift test is as follows:
 
         .. code-block:: python
 
@@ -1353,7 +1353,7 @@ class Philly(
                 - saturation_curve(x)
             )
             empirical_lift = delta_y
-            dist(model_estimated_lift, sigma=sigma, observed=empirical_lift)
+            dist(abs(model_estimated_lift), sigma=sigma, observed=abs(empirical_lift))
 
 
         The model has to be built before adding the lift tests.
