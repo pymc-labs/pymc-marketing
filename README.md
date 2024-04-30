@@ -89,8 +89,8 @@ mmm = DelayedSaturatedMMM(
 Initiate fitting and get a visualization of some of the outputs with:
 
 ```python
-X = data.drop('y',axis=1)
-y = data['y']
+X = data.drop("y",axis=1)
+y = data["y"]
 mmm.fit(X,y)
 mmm.plot_components_contributions();
 ```
@@ -141,7 +141,7 @@ from pymc_marketing import clv
 
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
 data = pd.read_csv(data_url)
-data['customer_id'] = data.index
+data["customer_id"] = data.index
 
 beta_geo_model = clv.BetaGeoModel(data=data)
 
