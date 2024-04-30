@@ -70,7 +70,6 @@ Leverage our Bayesian MMM API to tailor your marketing strategies effectively. B
 import pandas as pd
 from pymc_marketing.mmm import DelayedSaturatedMMM
 
-
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
 data = pd.read_csv(data_url, parse_dates=['date_week'])
 
@@ -140,7 +139,6 @@ import pandas as pd
 import seaborn as sns
 from pymc_marketing import clv
 
-
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
 data = pd.read_csv(data_url)
 data['customer_id'] = data.index
@@ -155,8 +153,6 @@ Once fitted, we can use the model to predict the number of future purchases for 
 ![](/docs/source/_static/expected_purchases.png)
 
 See the Examples section for more on this.
-
-----
 
 ## Why PyMC-Marketing vs other solutions?
 
