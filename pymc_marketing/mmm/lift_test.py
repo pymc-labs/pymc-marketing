@@ -66,7 +66,9 @@ def lift_test_indices(df_lift_test: pd.DataFrame, model: pm.Model) -> Indices:
     return {
         col: _lift_test_index(
             df_lift_test[col].to_numpy(),
-            # Coords in the model become tuples of pd.Timestamp
+            # Coords in the model become tuples
+            # Reference: https://github.com/pymc-devs/pymc/blob/04b6881efa9f69711d604d2234c5645304f63d28/pymc/model/core.py#L998
+            # which become pd.Timestamp if from pandas objects
             # Convert to Series stores them as np.datetime64
             pd.Series(model.coords[col]).to_numpy(),
         )
