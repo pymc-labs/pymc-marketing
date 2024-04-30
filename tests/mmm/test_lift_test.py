@@ -75,34 +75,25 @@ def test_lift_test_indices_another_dim(df_lift_tests) -> None:
     assert indices["brand"].tolist() == [0, 0]
 
 
-@pytest.mark.parametrize("freq", ["D", "W", "W-MON", "W-SUN"])
-def test_lift_test_indices_with_dates_pandas(df_lift_tests, freq) -> None:
-    dates = pd.date_range("2020-01-01", periods=3, freq=freq)
-    coords = {
-        "actual_date": dates,
-        "channel": ["organic", "paid", "social"],
-    }
-    model = pm.Model(coords=coords)
-
-    df_actual_dates = df_lift_tests.assign(
-        actual_date=dates[[0, 2]],
-    )
-
-    indices = lift_test_indices(
-        df_actual_dates.loc[:, ["actual_date", "channel"]], model
-    )
-
-    assert indices["actual_date"].tolist() == [0, 2]
-    assert indices["channel"].tolist() == [0, 1]
-
-
 @pytest.mark.parametrize(
-    "datetime_type", ["datetime64", "datetime64[D]", "datetime64[s]"]
+    "dates",
+    [
+        pd.date_range("2023-01-01", periods=3, freq="D"),
+        pd.date_range("2023-01-01", periods=3, freq="W"),
+        pd.date_range("2023-01-01", periods=3, freq="W-MON"),
+        pd.date_range("2023-01-01", periods=3, freq="W-SUN"),
+        pd.date_range("2023-01-01", periods=3, freq="D")
+        .to_numpy()
+        .astype("datetime64"),
+        pd.date_range("2023-01-01", periods=3, freq="D")
+        .to_numpy()
+        .astype("datetime64[D]"),
+        pd.date_range("2023-01-01", periods=3, freq="D")
+        .to_numpy()
+        .astype("datetime64[s]"),
+    ],
 )
-def test_lift_test_indices_with_dates_numpy(df_lift_tests, datetime_type: str) -> None:
-    dates = pd.date_range("2020-01-01", periods=3)
-    dates = dates.to_numpy().astype(datetime_type)
-
+def test_lift_test_indices_with_dates(df_lift_tests, dates) -> None:
     coords = {
         "actual_date": dates,
         "channel": ["organic", "paid", "social"],
