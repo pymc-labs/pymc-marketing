@@ -19,6 +19,7 @@ mmm/mmm_tvp_example
 clv/clv_quickstart
 clv/bg_nbd
 clv/gamma_gamma
+clv/pareto_nbd
 clv/sBG
 :::
 

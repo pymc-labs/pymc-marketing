@@ -1192,7 +1192,7 @@ class BaseMMM(ModelBuilder):
             )
 
         if getattr(self, "yearly_seasonality", None):
-            contributions_fourier_over_time = (
+            contributions_fourier_over_time = pd.DataFrame(
                 az.extract(
                     self.fit_result,
                     var_names=["fourier_contributions"],
@@ -1202,6 +1202,8 @@ class BaseMMM(ModelBuilder):
                 .to_dataframe()
                 .squeeze()
                 .unstack()
+                .sum(axis=1),
+                columns=["yearly_seasonality"],
             )
         else:
             contributions_fourier_over_time = pd.DataFrame(
@@ -1329,6 +1331,117 @@ class BaseMMM(ModelBuilder):
 
     def graphviz(self, **kwargs):
         return pm.model_to_graphviz(self.model, **kwargs)
+
+    def _process_decomposition_components(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Process data to compute the sum of contributions by component and calculate their percentages.
+        The output dataframe will have columns for "component", "contribution", and "percentage".
+
+        Parameters
+        ----------
+        data : pd.DataFrame
+            Dataframe containing the contribution by component from the function "compute_mean_contributions_over_time".
+
+        Returns
+        -------
+        pd.DataFrame
+            A dataframe with contributions summed up by component, sorted by contribution in ascending order.
+            With an additional column showing the percentage contribution of each component.
+        """
+
+        dataframe = data.copy()
+        stack_dataframe = dataframe.stack().reset_index()
+        stack_dataframe.columns = pd.Index(["date", "component", "contribution"])
+        stack_dataframe.set_index(["date", "component"], inplace=True)
+        dataframe = stack_dataframe.groupby("component").sum()
+        dataframe.sort_values(by="contribution", ascending=True, inplace=True)
+        dataframe.reset_index(inplace=True)
+
+        total_contribution = dataframe["contribution"].sum()
+        dataframe["percentage"] = (dataframe["contribution"] / total_contribution) * 100
+
+        return dataframe
+
+    def plot_waterfall_components_decomposition(
+        self,
+        original_scale: bool = True,
+        figsize: tuple[int, int] = (14, 7),
+        **kwargs,
+    ) -> plt.Figure:
+        """
+        This function creates a waterfall plot. The plot shows the decomposition of the target into its components.
+
+        Parameters
+        ----------
+        original_scale : bool, optional
+            If True, the contributions are plotted in the original scale of the target.
+        figsize : Tuple, optional
+            The size of the figure. The default is (14, 7).
+        **kwargs
+            Additional keyword arguments to pass to the matplotlib `subplots` function.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The matplotlib figure object.
+        """
+
+        dataframe = self.compute_mean_contributions_over_time(
+            original_scale=original_scale
+        )
+
+        dataframe = self._process_decomposition_components(data=dataframe)
+        total_contribution = dataframe["contribution"].sum()
+
+        fig, ax = plt.subplots(figsize=figsize, layout="constrained", **kwargs)
+
+        cumulative_contribution = 0
+
+        for index, row in dataframe.iterrows():
+            color = "lightblue" if row["contribution"] >= 0 else "salmon"
+
+            bar_start = (
+                cumulative_contribution + row["contribution"]
+                if row["contribution"] < 0
+                else cumulative_contribution
+            )
+            ax.barh(row["component"], row["contribution"], left=bar_start, color=color)
+
+            if row["contribution"] > 0:
+                cumulative_contribution += row["contribution"]
+
+            label_pos = bar_start + (row["contribution"] / 2)
+
+            if row["contribution"] < 0:
+                label_pos = bar_start - (row["contribution"] / 2)
+
+            ax.text(
+                label_pos,
+                index,
+                f"{row['contribution']:,.0f}\n({row['percentage']:.1f}%)",
+                ha="center",
+                va="center",
+                color="black",
+                fontsize=10,
+            )
+
+        ax.set_title("Response Decomposition Waterfall by Components")
+        ax.set_xlabel("Cumulative Contribution")
+        ax.set_ylabel("Components")
+
+        xticks = np.linspace(0, total_contribution, num=11)
+        xticklabels = [f"{(x/total_contribution)*100:.0f}%" for x in xticks]
+        ax.set_xticks(xticks)
+        ax.set_xticklabels(xticklabels)
+
+        ax.spines["right"].set_visible(False)
+        ax.spines["top"].set_visible(False)
+        ax.spines["left"].set_visible(False)
+
+        ax.set_yticks(np.arange(len(dataframe)))
+        ax.set_yticklabels(dataframe["component"])
+
+        return fig
 
 
 class MMM(BaseMMM, ValidateTargetColumn, ValidateDateColumn, ValidateChannelColumns):
