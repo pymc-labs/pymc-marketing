@@ -89,8 +89,8 @@ mmm = DelayedSaturatedMMM(
 Initiate fitting and get a visualization of some of the outputs with:
 
 ```python
-X = data.drop('y',axis=1)
-y = data['y']
+X = data.drop("y",axis=1)
+y = data["y"]
 mmm.fit(X,y)
 mmm.plot_components_contributions();
 ```
@@ -141,7 +141,7 @@ from pymc_marketing import clv
 
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
 data = pd.read_csv(data_url)
-data['customer_id'] = data.index
+data["customer_id"] = data.index
 
 beta_geo_model = clv.BetaGeoModel(data=data)
 
@@ -158,7 +158,12 @@ See the Examples section for more on this.
 
 PyMC-Marketing is and will always be free for commercial use, licensed under [Apache 2.0](LICENSE). Developed by core developers behind the popular PyMC package and marketing experts, it provides state-of-the-art measurements and analytics for marketing teams.
 
-Due to its open-source nature and active contributor base, new features are added constantly. Missing a feature or want to contribute? Fork our repository and submit a pull request. For any questions, feel free to [open an issue](https://github.com/your-repo/issues).
+Due to its open-source nature and active contributor base, new features are constantly added. Are you missing a feature or want to contribute? Fork our repository and submit a pull request. If you have any questions, feel free to [open an issue](https://github.com/your-repo/issues).
+
+### Thanks to our contributors!
+
+[![https://github.com/pymc-devs/pymc/graphs/contributors](https://contrib.rocks/image?repo=pymc-labs/pymc-marketing)](https://github.com/pymc-labs/pymc-marketing/graphs/contributors)
+
 
 ## Marketing AI Assistant: MMM-GPT with PyMC-Marketing
 
