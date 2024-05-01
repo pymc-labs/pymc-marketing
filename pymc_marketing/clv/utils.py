@@ -622,7 +622,8 @@ def rfm_segments(
         Column in the transactions DataFrame that denotes the monetary value of the transaction.
         Optional; only needed for spend estimation models like the Gamma-Gamma model.
     segment_config: dict, optional
-        A dictionary containing segment names and list of RFM score assignments.
+        Dictionary containing segment names and list of RFM score assignments;
+        key/value pairs should be formatted as {"segment": ['111', '123', '321'], ...}.
         If not provided, the following segment names and definitions are used:
             "Premium Customer": Customers in top 2 quartiles for all variables.
             "Repeat Customer": Customers in top 2 quartiles for frequency, and either recency or monetary value.
