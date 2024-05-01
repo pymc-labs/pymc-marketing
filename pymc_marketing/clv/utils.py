@@ -587,76 +587,156 @@ def rfm_train_test_split(
     return train_test_rfm_data
 
 
-# TODO: docstrings
 def rfm_segments(
-    rfm_data: pd.DataFrame,
-    segments: dict[str, str] | None = None,
-):
+    transactions: pd.DataFrame,
+    customer_id_col: str,
+    datetime_col: str,
+    monetary_value_col: str,
+    segment_config: dict | None = None,
+    observation_period_end: str | pd.Period | datetime | None | None = None,
+    datetime_format: str | None | None = None,
+    time_unit: str = "D",
+    time_scaler: float | None | None = 1,
+    sort_transactions: bool | None | None = True,
+) -> pd.DataFrame:
     """
-    Assign customers to RFM segments based on spending behavior.  Use clv.rfm_summary
+    Assign customers to segments based on spending behavior derived from RFM quartiles.
+
+    This transforms a DataFrame of transaction data of the form:
+        customer_id, datetime, monetary_value
+    to a DataFrame of the form:
+        customer_id, frequency, recency, monetary_value, segment
+
+    The returned DataFrame cannot be used for modeling. If assigning model predictions to RFM segments,
+    Create a separate DataFrame for modeling and join by Customer ID.
 
     Parameters
     ----------
-    rfm_data: :obj: DataFrame
-        A Pandas DataFrame containing customer_id, frequency, recency, and monetary_value columns.
+    transactions: :obj: DataFrame
+        A Pandas DataFrame that contains the customer_id col and the datetime col.
+    customer_id_col: string
+        Column in the transactions DataFrame that denotes the customer_id.
+    datetime_col:  string
+        Column in the transactions DataFrame that denotes the datetime the purchase was made.
+    monetary_value_col: string, optional
+        Column in the transactions DataFrame that denotes the monetary value of the transaction.
+        Optional; only needed for spend estimation models like the Gamma-Gamma model.
+    segment_config: dict, optional
+        A dictionary containing segment names and list of RFM score assignments.
+        If not provided, the following segment names and definitions are used:
+            "Premium Customer": Customers in top 2 quartiles for all variables.
+            "Repeat Customer": Customers in top 2 quartiles for frequency, and either recency or monetary value.
+            "Top Spender": Customers in top 2 quartiles for monetary value, and either frequency or recency.
+            "At-Risk Customer": Customers in bottom 2 quartiles for two or more variables.
+            "Inactive Customer": Customers in bottom quartile for two or more variables.
+            "Other": Customers who do not fit in any of the above categories.
+    observation_period_end: Union[str, pd.Period, datetime], optional
+        A string or datetime to denote the final date of the study.
+        Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
+    datetime_format: string, optional
+        A string that represents the timestamp format. Useful if Pandas can't understand
+        the provided format.
+    time_unit: string, optional
+        Time granularity for study.
+        Default: 'D' for days. Possible values listed here:
+        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+    time_scaler: int, optional
+        Default: 1. Useful for scaling recency & T to a different time granularity. Example:
+        With freq='D' and freq_multiplier=1, we get recency=591 and T=632
+        With freq='h' and freq_multiplier=24, we get recency=590.125 and T=631.375
+        This is useful if predictions in a different time granularity are desired,
+        and can also help with model convergence for study periods of many years.
+    sort_transactions: bool, optional
+        Default: True
+        If raw data is already sorted in chronological order, set to `False` to improve computational efficiency.
 
     Returns
     -------
     :obj: DataFrame:
-        customer_id, frequency, recency, [, T], monetary_value, segment
+        customer_id, frequency, recency, T [, monetary_value]
     """
 
-    # # TODO: rfm_summary(*args, include_first_transaction=True) is required. Use raw data and return pd.Series instead?
-    # rfm_data = rfm_summary(rfm_data,
-    #                      customer_id_col="INST_KEY",
-    #                      datetime_col="ORDER_DATE",
-    #                      monetary_value_col="M_NET_SALES",
-    #                      time_unit="W",  # "M" & "Y" are unsupported TimeDelta units in pandas,
-    #                      time_scaler=52,  # so Weeks must be rescaled into Years
-    #                      include_first_transaction=True,  # set to True for RFM Segmentation, False for modeling
-    #                      )
-    # # TODO: Raise an exception for zero values
-    #
-    # # Change recency to RFM rather than modeling definition
-    # rfm_df["recency"] = rfm_df["T"] - rfm_df["recency"]
-    #
-    # # Recency labels must be reversed as lower values are more desirable, unlike frequency and monetary value
-    # rec_labels = list(
-    #     reversed(
-    #         list(
-    #             range(
-    #                 1, 5
-    #             )
-    #         )
-    #     )
-    # )
-    #
-    # # TODO: Will need a try or if-else block if error raised and change q=4 to q=5 is needed
-    # # TODO: Try to do these as pd.Series rather than dataframe assignments
-    # rfm_df['r_quartile'] = pd.qcut(rfm_df['recency'], q=4, labels=rec_labels, duplicates='raise')
-    # # q=5 for frequency if getting bin labels error
-    # rfm_df['f_quartile'] = pd.qcut(rfm_df['frequency'], q=5, labels=range(1, 5), duplicates='drop')
-    # rfm_df['m_quartile'] = pd.qcut(rfm_df['monetary_value'], q=4, labels=range(1, 5), duplicates='drop')
-    #
-    # rfm_df['r_quartile'] = rfm_df['r_quartile'].astype(str)
-    # rfm_df['f_quartile'] = rfm_df['f_quartile'].astype(str)
-    # rfm_df['m_quartile'] = rfm_df['m_quartile'].astype(str)
-    # rfm_df['RFM_score'] = rfm_df['r_quartile'] + rfm_df['f_quartile'] + rfm_df['m_quartile']
-    # # TODO: Rename to 'segment', or leave as-is?
-    # rfm_df['customer_segment'] = 'Low Spender'  # renamed from "Other"
-    #
-    # # TODO: This can be a list comp and save many lines of code
-    # rfm_df.loc[rfm_df['RFM_score'].isin(['334', '443', '444', '344', '434', '433', '343', '333']),
-    #                                      'customer_segment'] = 'Premium Customer'  # nothing <= 2
-    # rfm_df.loc[rfm_df['RFM_score'].isin(['244', '234', '232', '332', '143', '233', '243']),
-    #                                       'customer_segment'] = 'Repeat Customer'  # f >= 3 & r or m >=3
-    # rfm_df.loc[rfm_df['RFM_score'].isin(
-    #     ['424', '414', '144', '314', '324', '124', '224', '423', '413', '133', '323', '313', '134']),
-    #      'customer_segment'] = 'Top Spender'  # m >= 3 & f or m >=3
-    # rfm_df.loc[rfm_df['RFM_score'].isin(['422', '223', '212', '122', '222', '132', '322', '312', '412', '123',
-    #                                      '214']),
-    #                                      'customer_segment'] = 'At Risk Customer'  # two or more  <=2
-    # rfm_df.loc[rfm_df['RFM_score'].isin(
-    #     ['411', '111', '113', '114', '112', '211', '311']),
-    #     'customer_segment'] = 'Inactive Customer'  # two or more  =1
-    pass
+    rfm_data = rfm_summary(
+        transactions,
+        customer_id_col=customer_id_col,
+        datetime_col=datetime_col,
+        monetary_value_col=monetary_value_col,
+        observation_period_end=observation_period_end,
+        datetime_format=datetime_format,
+        time_unit=time_unit,
+        time_scaler=time_scaler,
+        include_first_transaction=True,
+        sort_transactions=sort_transactions,
+    )
+
+    # change recency to segmentation definition and drop T column
+    rfm_data["recency"] = rfm_data["T"] - rfm_data["recency"]
+    rfm_data = rfm_data.drop(columns="T")
+
+    # create recency labels, which must be reversed as lower values are more desirable
+    rec_labels = list(reversed(list(range(1, 5))))
+
+    # TODO: Will need a try or if-else block if error raised and change q=4 to q=5 is needed
+    r_quartile = pd.qcut(
+        rfm_data["recency"], q=4, labels=rec_labels, duplicates="raise"
+    ).astype(str)
+    f_quartile = pd.qcut(
+        rfm_data["frequency"], q=5, labels=range(1, 5), duplicates="drop"
+    ).astype(str)
+    m_quartile = pd.qcut(
+        rfm_data["monetary_value"], q=4, labels=range(1, 5), duplicates="drop"
+    ).astype(str)
+
+    rfm_score = r_quartile + f_quartile + m_quartile
+
+    if segment_config is None:
+        rfm_data["segment"] = "Other"
+
+        segment_config = {
+            "Premium Customer": [
+                "334",
+                "443",
+                "444",
+                "344",
+                "434",
+                "433",
+                "343",
+                "333",
+            ],
+            "Repeat Customer": ["244", "234", "232", "332", "143", "233", "243"],
+            "Top Spender": [
+                "424",
+                "414",
+                "144",
+                "314",
+                "324",
+                "124",
+                "224",
+                "423",
+                "413",
+                "133",
+                "323",
+                "313",
+                "134",
+            ],
+            "At Risk Customer": [
+                "422",
+                "223",
+                "212",
+                "122",
+                "222",
+                "132",
+                "322",
+                "312",
+                "412",
+                "123",
+                "214",
+            ],
+            "Inactive Customer": ["411", "111", "113", "114", "112", "211", "311"],
+        }
+
+    # TODO: This can be a list comp and save many lines of code
+    for key in segment_config.keys():
+        rfm_data["segment"] = rfm_score.loc[rfm_score.isin(segment_config[key]) == key]
+
+    return rfm_data
