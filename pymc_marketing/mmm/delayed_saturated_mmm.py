@@ -14,6 +14,7 @@ import seaborn as sns
 from pytensor.tensor import TensorVariable
 from xarray import DataArray, Dataset
 
+from pymc_marketing.constants import DAYS_IN_YEAR
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.lift_test import (
     add_logistic_empirical_lift_measurements_to_likelihood,
@@ -21,6 +22,7 @@ from pymc_marketing.mmm.lift_test import (
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
+from pymc_marketing.mmm.tvp import create_time_varying_intercept, infer_time_index
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
@@ -47,6 +49,7 @@ class BaseDelayedSaturatedMMM(MMM):
         date_column: str,
         channel_columns: list[str],
         adstock_max_lag: int,
+        time_varying_intercept: bool = False,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
         validate_data: bool = True,
@@ -62,6 +65,10 @@ class BaseDelayedSaturatedMMM(MMM):
             Column name of the date variable.
         channel_columns : List[str]
             Column names of the media channel variables.
+        adstock_max_lag : int
+            Number of lags to consider in the adstock transformation.
+        time_varying_intercept : bool, optional
+            Whether to consider time-varying intercept, by default False.
         model_config : Dictionary, optional
             dictionary of parameters that initialise model configuration.
             Class-default defined by the user default_model_config method.
@@ -79,6 +86,7 @@ class BaseDelayedSaturatedMMM(MMM):
         """
         self.control_columns = control_columns
         self.adstock_max_lag = adstock_max_lag
+        self.time_varying_intercept = time_varying_intercept
         self.yearly_seasonality = yearly_seasonality
         self.date_column = date_column
         self.validate_data = validate_data
@@ -112,6 +120,24 @@ class BaseDelayedSaturatedMMM(MMM):
         ----------
         X : Union[pd.DataFrame, pd.Series], shape (n_obs, n_features)
         y : Union[pd.Series, np.ndarray], shape (n_obs,)
+
+        Sets
+        ----
+        preprocessed_data : Dict[str, Union[pd.DataFrame, pd.Series]]
+            Preprocessed data for the model.
+        X : pd.DataFrame
+            A filtered version of the input `X`, such that it is guaranteed that
+            it contains only the `date_column`, the columns that are specified
+            in the `channel_columns` and `control_columns`, and fourier features
+            if `yearly_seasonality=True`.
+        y : Union[pd.Series, np.ndarray]
+            The target variable for the model (as provided).
+        _time_index : np.ndarray
+            The index of the date column. Used by TVP
+        _time_index_mid : int
+            The middle index of the date index. Used by TVP.
+        _time_resolution: int
+            The time resolution of the date index. Used by TVP.
         """
         date_data = X[self.date_column]
         channel_data = X[self.channel_columns]
@@ -151,6 +177,13 @@ class BaseDelayedSaturatedMMM(MMM):
         }
         self.X: pd.DataFrame = X_data
         self.y: pd.Series | np.ndarray = y
+
+        if self.time_varying_intercept:
+            self._time_index = np.arange(0, X.shape[0])
+            self._time_index_mid = X.shape[0] // 2
+            self._time_resolution = (
+                self.X[self.date_column].iloc[1] - self.X[self.date_column].iloc[0]
+            ).days
 
     def _save_input_params(self, idata) -> None:
         """Saves input parameters to the attrs of idata."""
@@ -355,9 +388,23 @@ class BaseDelayedSaturatedMMM(MMM):
                 dims="date",
             )
 
-            intercept = self.intercept_dist(
-                name="intercept", **self.model_config["intercept"]["kwargs"]
-            )
+            if self.time_varying_intercept:
+                time_index = pm.Data(
+                    "time_index",
+                    self._time_index,
+                    dims="date",
+                )
+                intercept = create_time_varying_intercept(
+                    time_index,
+                    self._time_index_mid,
+                    self._time_resolution,
+                    self.intercept_dist,
+                    self.model_config,
+                )
+            else:
+                intercept = self.intercept_dist(
+                    name="intercept", **self.model_config["intercept"]["kwargs"]
+                )
 
             beta_channel = self.beta_channel_dist(
                 name="beta_channel",
@@ -391,9 +438,11 @@ class BaseDelayedSaturatedMMM(MMM):
                 var=logistic_saturation(x=channel_adstock, lam=lam),
                 dims=("date", "channel"),
             )
+
+            channel_contributions_var = channel_adstock_saturated * beta_channel
             channel_contributions = pm.Deterministic(
                 name="channel_contributions",
-                var=channel_adstock_saturated * beta_channel,
+                var=channel_contributions_var,
                 dims=("date", "channel"),
             )
 
@@ -468,7 +517,10 @@ class BaseDelayedSaturatedMMM(MMM):
     @property
     def default_model_config(self) -> dict:
         return {
-            "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
+            "intercept": {
+                "dist": "Normal",
+                "kwargs": {"mu": 0, "sigma": 2},
+            },
             "beta_channel": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
             "alpha": {"dist": "Beta", "kwargs": {"alpha": 1, "beta": 3}},
             "lam": {"dist": "Gamma", "kwargs": {"alpha": 3, "beta": 1}},
@@ -480,6 +532,14 @@ class BaseDelayedSaturatedMMM(MMM):
             },
             "gamma_control": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
             "gamma_fourier": {"dist": "Laplace", "kwargs": {"mu": 0, "b": 1}},
+            "intercept_tvp_kwargs": {
+                "m": 200,
+                "L": None,
+                "eta_lam": 1,
+                "ls_mu": None,
+                "ls_sigma": 10,
+                "cov_func": None,
+            },
         }
 
     def _get_fourier_models_data(self, X) -> pd.DataFrame:
@@ -494,7 +554,9 @@ class BaseDelayedSaturatedMMM(MMM):
         date_data: pd.Series = pd.to_datetime(
             arg=X[self.date_column], format="%Y-%m-%d"
         )
-        periods: npt.NDArray[np.float_] = date_data.dt.dayofyear.to_numpy() / 365.25
+        periods: npt.NDArray[np.float_] = (
+            date_data.dt.dayofyear.to_numpy() / DAYS_IN_YEAR
+        )
         return generate_fourier_modes(
             periods=periods,
             n_order=self.yearly_seasonality,
@@ -677,6 +739,11 @@ class BaseDelayedSaturatedMMM(MMM):
 
         if hasattr(self, "fourier_columns"):
             data["fourier_data"] = self._get_fourier_models_data(X)
+
+        if self.time_varying_intercept:
+            data["time_index"] = infer_time_index(
+                X[self.date_column], self.X[self.date_column], self._time_resolution
+            )
 
         if y is not None:
             if isinstance(y, pd.Series):
@@ -1303,7 +1370,7 @@ class DelayedSaturatedMMM(
         then conditioned using the empirical lift, `delta_y`, and `sigma` of the lift test
         with the specified distribution `dist`.
 
-        The sudo code for the lift test is as follows:
+        The pseudo-code for the lift test is as follows:
 
         .. code-block:: python
 
@@ -1312,7 +1379,7 @@ class DelayedSaturatedMMM(
                 - saturation_curve(x)
             )
             empirical_lift = delta_y
-            dist(model_estimated_lift, sigma=sigma, observed=empirical_lift)
+            dist(abs(model_estimated_lift), sigma=sigma, observed=abs(empirical_lift))
 
 
         The model has to be built before adding the lift tests.
