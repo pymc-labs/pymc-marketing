@@ -89,3 +89,6 @@ addopts = [
 ]
 filterwarnings = ["ignore::DeprecationWarning:bokeh.core.property.primitive:37"]
 testpaths = "tests"
+
+[tool.coverage.report]
+exclude_lines = ["raise NotImplementedError"]
