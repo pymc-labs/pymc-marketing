@@ -150,6 +150,7 @@ beta_geo_model = clv.BetaGeoModel(
 
 beta_geo_model.fit()
 ```
+
 Once fitted, we can use the model to predict the number of future purchases for known customers, the probability that they are still alive, and get various visualizations plotted. See the Examples section for more on this.
 
 ## 📞 Schedule a Free Consultation for MMM & CLV Strategy

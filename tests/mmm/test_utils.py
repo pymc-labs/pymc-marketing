@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
+from sklearn.preprocessing import MaxAbsScaler
 
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
@@ -12,6 +13,7 @@ from pymc_marketing.mmm.utils import (
     find_sigmoid_inflection_point,
     generate_fourier_modes,
     sigmoid_saturation,
+    transform_1d_array,
 )
 
 
@@ -227,6 +229,16 @@ def test_apply_sklearn_function_across_dim_error(
             dim_name="date",
             combined=True,
         )
+
+
+@pytest.mark.parametrize("constructor", [pd.Series, np.array])
+def test_transform_1d_array(constructor):
+    transform = MaxAbsScaler()
+    y = constructor([1, 2, 3, 4, 5])
+    transform.fit(np.array(y)[:, None])
+    expected = np.array([1, 2, 3, 4, 5]) / 5
+    result = transform_1d_array(transform.transform, y)
+    np.testing.assert_allclose(result, expected)
 
 
 @pytest.mark.parametrize(
