@@ -623,14 +623,14 @@ def rfm_segments(
         Optional; only needed for spend estimation models like the Gamma-Gamma model.
     segment_config: dict, optional
         Dictionary containing segment names and list of RFM score assignments;
-        key/value pairs should be formatted as {"segment": ['111', '123', '321'], ...}.
+        key/value pairs should be formatted as `{"segment": ['111', '123', '321'], ...}`.
         If not provided, the following segment names and definitions are used:
             "Premium Customer": Customers in top 2 quartiles for all variables.
             "Repeat Customer": Customers in top 2 quartiles for frequency, and either recency or monetary value.
             "Top Spender": Customers in top 2 quartiles for monetary value, and either frequency or recency.
             "At-Risk Customer": Customers in bottom 2 quartiles for two or more variables.
             "Inactive Customer": Customers in bottom quartile for two or more variables.
-            "Other": Customers who do not fit in any of the above categories.
+        Customers with unspecified RFM scores will be assigned to a segment named "Other".
     observation_period_end: Union[str, pd.Period, datetime], optional
         A string or datetime to denote the final date of the study.
         Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
@@ -681,9 +681,15 @@ def rfm_segments(
     r_quartile = pd.qcut(
         rfm_data["recency"], q=4, labels=rec_labels, duplicates="raise"
     ).astype(str)
-    f_quartile = pd.qcut(
-        rfm_data["frequency"], q=5, labels=range(1, 5), duplicates="drop"
-    ).astype(str)
+
+    try:
+        f_quartile = pd.qcut(
+            rfm_data["frequency"], q=4, labels=range(1, 4), duplicates="drop"
+        ).astype(str)
+    except ValueError:
+        f_quartile = pd.qcut(
+            rfm_data["frequency"], q=5, labels=range(1, 5), duplicates="drop"
+        ).astype(str)
     m_quartile = pd.qcut(
         rfm_data["monetary_value"], q=4, labels=range(1, 5), duplicates="drop"
     ).astype(str)
@@ -691,8 +697,6 @@ def rfm_segments(
     rfm_score = r_quartile + f_quartile + m_quartile
 
     if segment_config is None:
-        rfm_data["segment"] = "Other"
-
         segment_config = {
             "Premium Customer": [
                 "334",
@@ -736,8 +740,12 @@ def rfm_segments(
             "Inactive Customer": ["411", "111", "113", "114", "112", "211", "311"],
         }
 
+    segment_names = list(segment_config.keys())
+
+    # create catch-all "Other" segment and assign defined segments from config
+    rfm_data["segment"] = "Other"
     # TODO: This can be a list comp and save many lines of code
-    for key in segment_config.keys():
+    for key in segment_names:
         rfm_data["segment"] = rfm_score.loc[rfm_score.isin(segment_config[key]) == key]
 
     return rfm_data
