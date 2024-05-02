@@ -258,11 +258,6 @@ class ModelBuilder(ABC):
         Returns
         -------
         None
-
-        Raises
-        ------
-        NotImplementedError
-            This is an abstract method and must be implemented in a subclass.
         """
 
     def set_idata_attrs(self, idata=None):
