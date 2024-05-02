@@ -10,7 +10,11 @@ from pymc_marketing.clv.plotting import (
     plot_frequency_recency_matrix,
     plot_probability_alive_matrix,
 )
-from pymc_marketing.clv.utils import customer_lifetime_value
+from pymc_marketing.clv.utils import (
+    customer_lifetime_value,
+    rfm_summary,
+    rfm_train_test_split,
+)
 
 __all__ = (
     "BetaGeoModel",
@@ -22,4 +26,6 @@ __all__ = (
     "plot_customer_exposure",
     "plot_frequency_recency_matrix",
     "plot_probability_alive_matrix",
+    "rfm_summary",
+    "rfm_train_test_split",
 )

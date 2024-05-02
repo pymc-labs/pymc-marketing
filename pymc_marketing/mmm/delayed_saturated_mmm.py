@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -14,6 +14,7 @@ import seaborn as sns
 from pytensor.tensor import TensorVariable
 from xarray import DataArray, Dataset
 
+from pymc_marketing.constants import DAYS_IN_YEAR
 from pymc_marketing.mmm.base import MMM
 from pymc_marketing.mmm.lift_test import (
     add_logistic_empirical_lift_measurements_to_likelihood,
@@ -21,6 +22,7 @@ from pymc_marketing.mmm.lift_test import (
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
+from pymc_marketing.mmm.tvp import create_time_varying_intercept, infer_time_index
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
@@ -45,13 +47,14 @@ class BaseDelayedSaturatedMMM(MMM):
     def __init__(
         self,
         date_column: str,
-        channel_columns: List[str],
+        channel_columns: list[str],
         adstock_max_lag: int,
-        model_config: Optional[Dict] = None,
-        sampler_config: Optional[Dict] = None,
+        time_varying_intercept: bool = False,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
         validate_data: bool = True,
-        control_columns: Optional[List[str]] = None,
-        yearly_seasonality: Optional[int] = None,
+        control_columns: list[str] | None = None,
+        yearly_seasonality: int | None = None,
         **kwargs,
     ) -> None:
         """Constructor method.
@@ -62,10 +65,16 @@ class BaseDelayedSaturatedMMM(MMM):
             Column name of the date variable.
         channel_columns : List[str]
             Column names of the media channel variables.
+        adstock_max_lag : int
+            Number of lags to consider in the adstock transformation.
+        time_varying_intercept : bool, optional
+            Whether to consider time-varying intercept, by default False.
         model_config : Dictionary, optional
-            dictionary of parameters that initialise model configuration. Class-default defined by the user default_model_config method.
+            dictionary of parameters that initialise model configuration.
+            Class-default defined by the user default_model_config method.
         sampler_config : Dictionary, optional
-            dictionary of parameters that initialise sampler configuration. Class-default defined by the user default_sampler_config method.
+            dictionary of parameters that initialise sampler configuration.
+            Class-default defined by the user default_sampler_config method.
         validate_data : bool, optional
             Whether to validate the data before fitting to model, by default True.
         control_columns : Optional[List[str]], optional
@@ -77,6 +86,7 @@ class BaseDelayedSaturatedMMM(MMM):
         """
         self.control_columns = control_columns
         self.adstock_max_lag = adstock_max_lag
+        self.time_varying_intercept = time_varying_intercept
         self.yearly_seasonality = yearly_seasonality
         self.date_column = date_column
         self.validate_data = validate_data
@@ -90,7 +100,7 @@ class BaseDelayedSaturatedMMM(MMM):
         )
 
     @property
-    def default_sampler_config(self) -> Dict:
+    def default_sampler_config(self) -> dict:
         return {}
 
     @property
@@ -99,7 +109,7 @@ class BaseDelayedSaturatedMMM(MMM):
         return "y"
 
     def _generate_and_preprocess_model_data(  # type: ignore
-        self, X: Union[pd.DataFrame, pd.Series], y: Union[pd.Series, np.ndarray]
+        self, X: pd.DataFrame | pd.Series, y: pd.Series | np.ndarray
     ) -> None:
         """Applies preprocessing to the data before fitting the model.
 
@@ -110,14 +120,32 @@ class BaseDelayedSaturatedMMM(MMM):
         ----------
         X : Union[pd.DataFrame, pd.Series], shape (n_obs, n_features)
         y : Union[pd.Series, np.ndarray], shape (n_obs,)
+
+        Sets
+        ----
+        preprocessed_data : Dict[str, Union[pd.DataFrame, pd.Series]]
+            Preprocessed data for the model.
+        X : pd.DataFrame
+            A filtered version of the input `X`, such that it is guaranteed that
+            it contains only the `date_column`, the columns that are specified
+            in the `channel_columns` and `control_columns`, and fourier features
+            if `yearly_seasonality=True`.
+        y : Union[pd.Series, np.ndarray]
+            The target variable for the model (as provided).
+        _time_index : np.ndarray
+            The index of the date column. Used by TVP
+        _time_index_mid : int
+            The middle index of the date index. Used by TVP.
+        _time_resolution: int
+            The time resolution of the date index. Used by TVP.
         """
         date_data = X[self.date_column]
         channel_data = X[self.channel_columns]
 
-        self.coords_mutable: Dict[str, Any] = {
+        self.coords_mutable: dict[str, Any] = {
             "date": date_data,
         }
-        coords: Dict[str, Any] = {
+        coords: dict[str, Any] = {
             "channel": self.channel_columns,
         }
 
@@ -126,13 +154,13 @@ class BaseDelayedSaturatedMMM(MMM):
         }
         X_data = pd.DataFrame.from_dict(new_X_dict)
         X_data = pd.concat([X_data, channel_data], axis=1)
-        control_data: Optional[Union[pd.DataFrame, pd.Series]] = None
+        control_data: pd.DataFrame | pd.Series | None = None
         if self.control_columns is not None:
             control_data = X[self.control_columns]
             coords["control"] = self.control_columns
             X_data = pd.concat([X_data, control_data], axis=1)
 
-        fourier_features: Optional[pd.DataFrame] = None
+        fourier_features: pd.DataFrame | None = None
         if self.yearly_seasonality is not None:
             fourier_features = self._get_fourier_models_data(X=X)
             self.fourier_columns = fourier_features.columns
@@ -143,12 +171,19 @@ class BaseDelayedSaturatedMMM(MMM):
         if self.validate_data:
             self.validate("X", X_data)
             self.validate("y", y)
-        self.preprocessed_data: Dict[str, Union[pd.DataFrame, pd.Series]] = {
+        self.preprocessed_data: dict[str, pd.DataFrame | pd.Series] = {
             "X": self.preprocess("X", X_data),  # type: ignore
             "y": self.preprocess("y", y),  # type: ignore
         }
         self.X: pd.DataFrame = X_data
-        self.y: Union[pd.Series, np.ndarray] = y
+        self.y: pd.Series | np.ndarray = y
+
+        if self.time_varying_intercept:
+            self._time_index = np.arange(0, X.shape[0])
+            self._time_index_mid = X.shape[0] // 2
+            self._time_resolution = (
+                self.X[self.date_column].iloc[1] - self.X[self.date_column].iloc[0]
+            ).days
 
     def _save_input_params(self, idata) -> None:
         """Saves input parameters to the attrs of idata."""
@@ -161,9 +196,9 @@ class BaseDelayedSaturatedMMM(MMM):
 
     def _create_likelihood_distribution(
         self,
-        dist: Dict,
+        dist: dict,
         mu: TensorVariable,
-        observed: Union[np.ndarray, pd.Series],
+        observed: np.ndarray | pd.Series,
         dims: str,
     ) -> TensorVariable:
         """
@@ -210,7 +245,10 @@ class BaseDelayedSaturatedMMM(MMM):
 
         if dist["dist"] not in allowed_distributions:
             raise ValueError(
-                f"The distribution used for the likelihood is not allowed. Please, use one of the following distributions: {allowed_distributions}."
+                f"""
+                The distribution used for the likelihood is not allowed.
+                Please, use one of the following distributions: {allowed_distributions}.
+                """
             )
 
         # Validate that 'kwargs' is present and is a dictionary
@@ -237,12 +275,15 @@ class BaseDelayedSaturatedMMM(MMM):
                 parameter_distributions[param] = self._get_distribution(
                     dist=param_config
                 )(**param_config["kwargs"], name=f"likelihood_{param}")
-            elif isinstance(param_config, (int, float)):
+            elif isinstance(param_config, int | float):
                 # Use the value directly
                 parameter_distributions[param] = param_config
             else:
                 raise ValueError(
-                    f"Invalid parameter configuration for '{param}'. It must be either a dictionary with a 'dist' key or a numeric value."
+                    f"""
+                    Invalid parameter configuration for '{param}'.
+                    It must be either a dictionary with a 'dist' key or a numeric value.
+                    """
                 )
 
         # Extract the likelihood distribution name and instantiate it
@@ -260,7 +301,7 @@ class BaseDelayedSaturatedMMM(MMM):
     def build_model(
         self,
         X: pd.DataFrame,
-        y: Union[pd.Series, np.ndarray],
+        y: pd.Series | np.ndarray,
         **kwargs,
     ) -> None:
         """
@@ -347,9 +388,23 @@ class BaseDelayedSaturatedMMM(MMM):
                 dims="date",
             )
 
-            intercept = self.intercept_dist(
-                name="intercept", **self.model_config["intercept"]["kwargs"]
-            )
+            if self.time_varying_intercept:
+                time_index = pm.Data(
+                    "time_index",
+                    self._time_index,
+                    dims="date",
+                )
+                intercept = create_time_varying_intercept(
+                    time_index,
+                    self._time_index_mid,
+                    self._time_resolution,
+                    self.intercept_dist,
+                    self.model_config,
+                )
+            else:
+                intercept = self.intercept_dist(
+                    name="intercept", **self.model_config["intercept"]["kwargs"]
+                )
 
             beta_channel = self.beta_channel_dist(
                 name="beta_channel",
@@ -383,9 +438,11 @@ class BaseDelayedSaturatedMMM(MMM):
                 var=logistic_saturation(x=channel_adstock, lam=lam),
                 dims=("date", "channel"),
             )
+
+            channel_contributions_var = channel_adstock_saturated * beta_channel
             channel_contributions = pm.Deterministic(
                 name="channel_contributions",
-                var=channel_adstock_saturated * beta_channel,
+                var=channel_contributions_var,
                 dims=("date", "channel"),
             )
 
@@ -458,9 +515,12 @@ class BaseDelayedSaturatedMMM(MMM):
             )
 
     @property
-    def default_model_config(self) -> Dict:
+    def default_model_config(self) -> dict:
         return {
-            "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
+            "intercept": {
+                "dist": "Normal",
+                "kwargs": {"mu": 0, "sigma": 2},
+            },
             "beta_channel": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
             "alpha": {"dist": "Beta", "kwargs": {"alpha": 1, "beta": 3}},
             "lam": {"dist": "Gamma", "kwargs": {"alpha": 3, "beta": 1}},
@@ -472,6 +532,14 @@ class BaseDelayedSaturatedMMM(MMM):
             },
             "gamma_control": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
             "gamma_fourier": {"dist": "Laplace", "kwargs": {"mu": 0, "b": 1}},
+            "intercept_tvp_kwargs": {
+                "m": 200,
+                "L": None,
+                "eta_lam": 1,
+                "ls_mu": None,
+                "ls_sigma": 10,
+                "cov_func": None,
+            },
         }
 
     def _get_fourier_models_data(self, X) -> pd.DataFrame:
@@ -486,7 +554,9 @@ class BaseDelayedSaturatedMMM(MMM):
         date_data: pd.Series = pd.to_datetime(
             arg=X[self.date_column], format="%Y-%m-%d"
         )
-        periods: npt.NDArray[np.float_] = date_data.dt.dayofyear.to_numpy() / 365.25
+        periods: npt.NDArray[np.float_] = (
+            date_data.dt.dayofyear.to_numpy() / DAYS_IN_YEAR
+        )
         return generate_fourier_modes(
             periods=periods,
             n_order=self.yearly_seasonality,
@@ -536,8 +606,8 @@ class BaseDelayedSaturatedMMM(MMM):
         return channel_contribution_forward_pass.eval()
 
     @property
-    def _serializable_model_config(self) -> Dict[str, Any]:
-        def ndarray_to_list(d: Dict) -> Dict:
+    def _serializable_model_config(self) -> dict[str, Any]:
+        def ndarray_to_list(d: dict) -> dict:
             new_d = d.copy()  # Copy the dictionary to avoid mutating the original one
             for key, value in new_d.items():
                 if isinstance(value, np.ndarray):
@@ -593,16 +663,16 @@ class BaseDelayedSaturatedMMM(MMM):
         model.build_model(X, y)
         # All previously used data is in idata.
         if model.id != idata.attrs["id"]:
-            raise ValueError(
-                f"The file '{fname}' does not contain an inference data of the same model or configuration as '{cls._model_type}'"
-            )
+            error_msg = f"""The file '{fname}' does not contain an inference data of the same model
+        or configuration as '{cls._model_type}'"""
+            raise ValueError(error_msg)
 
         return model
 
     def _data_setter(
         self,
-        X: Union[np.ndarray, pd.DataFrame],
-        y: Optional[Union[np.ndarray, pd.Series]] = None,
+        X: np.ndarray | pd.DataFrame,
+        y: np.ndarray | pd.Series | None = None,
     ) -> None:
         """
         Sets new data in the model.
@@ -638,13 +708,13 @@ class BaseDelayedSaturatedMMM(MMM):
             msg = "X must be a pandas DataFrame in order to access the columns"
             raise TypeError(msg)
 
-        new_channel_data: Optional[np.ndarray] = None
+        new_channel_data: np.ndarray | None = None
         coords = {"date": X[self.date_column].to_numpy()}
 
         try:
             new_channel_data = X[self.channel_columns].to_numpy()
         except KeyError as e:
-            raise RuntimeError("New data must contain channel_data!", e)
+            raise RuntimeError("New data must contain channel_data!") from e
 
         def identity(x):
             return x
@@ -655,7 +725,7 @@ class BaseDelayedSaturatedMMM(MMM):
             else self.channel_transformer.transform
         )
 
-        data: Dict[str, Union[np.ndarray, Any]] = {
+        data: dict[str, np.ndarray | Any] = {
             "channel_data": channel_transformation(new_channel_data)
         }
         if self.control_columns is not None:
@@ -669,6 +739,11 @@ class BaseDelayedSaturatedMMM(MMM):
 
         if hasattr(self, "fourier_columns"):
             data["fourier_data"] = self._get_fourier_models_data(X)
+
+        if self.time_varying_intercept:
+            data["time_index"] = infer_time_index(
+                X[self.date_column], self.X[self.date_column], self._time_resolution
+            )
 
         if y is not None:
             if isinstance(y, pd.Series):
@@ -687,13 +762,14 @@ class BaseDelayedSaturatedMMM(MMM):
             pm.set_data(data, coords=coords)
 
     @classmethod
-    def _model_config_formatting(cls, model_config: Dict) -> Dict:
+    def _model_config_formatting(cls, model_config: dict) -> dict:
         """
-        Because of json serialization, model_config values that were originally tuples or numpy are being encoded as lists.
-        This function converts them back to tuples and numpy arrays to ensure correct id encoding.
+        Because of json serialization, model_config values that were originally tuples
+        or numpy are being encoded as lists. This function converts them back to tuples
+        and numpy arrays to ensure correct id encoding.
         """
 
-        def format_nested_dict(d: Dict) -> Dict:
+        def format_nested_dict(d: dict) -> dict:
             for key, value in d.items():
                 if isinstance(value, dict):
                     d[key] = format_nested_dict(value)
@@ -736,12 +812,14 @@ class DelayedSaturatedMMM(
     This enable us to have a more stable model and better convergence. If control variables are present, we do not scale them!
     If needed please do it before passing the data to the model.
 
-    2. We allow to add yearly seasonality controls as Fourier modes. You can use the `yearly_seasonality` parameter to specify the number of Fourier modes to include.
+    2. We allow to add yearly seasonality controls as Fourier modes.
+    You can use the `yearly_seasonality` parameter to specify the number of Fourier modes to include.
 
     3. This class also allow us to calibrate the model using:
 
-    - Custom priors for the parameters via the `model_config` parameter. You can also set the likelihood distribution.
-    - Adding lift tests to the likelihood function via the :meth:`add_lift_test_measurements <pymc_marketing.mmm.delayed_saturated_mmm.DelayedSaturatedMMM.add_lift_test_measurements>` method.
+        * Custom priors for the parameters via the `model_config` parameter. You can also set the likelihood distribution.
+
+        * Adding lift tests to the likelihood function via the :meth:`add_lift_test_measurements <pymc_marketing.mmm.delayed_saturated_mmm.DelayedSaturatedMMM.add_lift_test_measurements>` method.
 
     For details on a vanilla implementation in PyMC, see [2]_.
 
@@ -756,7 +834,7 @@ class DelayedSaturatedMMM(
 
         from pymc_marketing.mmm import DelayedSaturatedMMM
 
-        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/datasets/mmm_example.csv"
+        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
         data = pd.read_csv(data_url, parse_dates=["date_week"])
 
         mmm = DelayedSaturatedMMM(
@@ -830,7 +908,7 @@ class DelayedSaturatedMMM(
     ----------
     .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
     .. [2] Orduz, J. `"Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns" <https://juanitorduz.github.io/pymc_mmm/>`_.
-    """
+    """  # noqa: E501
 
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float_]
@@ -984,9 +1062,9 @@ class DelayedSaturatedMMM(
 
     def new_spend_contributions(
         self,
-        spend: Optional[np.ndarray] = None,
+        spend: np.ndarray | None = None,
         one_time: bool = True,
-        spend_leading_up: Optional[np.ndarray] = None,
+        spend_leading_up: np.ndarray | None = None,
         prior: bool = False,
         original_scale: bool = True,
         **sample_posterior_predictive_kwargs,
@@ -1116,11 +1194,11 @@ class DelayedSaturatedMMM(
         lower: float = 0.025,
         upper: float = 0.975,
         ylabel: str = "Sales",
-        idx: Optional[slice] = None,
-        channels: Optional[List[str]] = None,
+        idx: slice | None = None,
+        channels: list[str] | None = None,
         prior: bool = False,
         original_scale: bool = True,
-        ax: Optional[plt.Axes] = None,
+        ax: plt.Axes | None = None,
         **sample_posterior_predictive_kwargs,
     ) -> plt.Axes:
         """Plot the upcoming sales for a given spend amount.
@@ -1237,8 +1315,8 @@ class DelayedSaturatedMMM(
             data in order to carry over costs with the adstock transformation.
             Assumes that X_pred are the next predictions following the training data.
             Defaults to False.
-        original_scale: Boolean determining whether to return the predictions in the original scale of the target variable.
-            Defaults to True.
+        original_scale: Boolean determining whether to return the predictions in the original scale
+            of the target variable. Defaults to True.
         **sample_posterior_predictive_kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
 
         Returns
@@ -1292,7 +1370,7 @@ class DelayedSaturatedMMM(
         then conditioned using the empirical lift, `delta_y`, and `sigma` of the lift test
         with the specified distribution `dist`.
 
-        The sudo code for the lift test is as follows:
+        The pseudo-code for the lift test is as follows:
 
         .. code-block:: python
 
@@ -1301,7 +1379,7 @@ class DelayedSaturatedMMM(
                 - saturation_curve(x)
             )
             empirical_lift = delta_y
-            dist(model_estimated_lift, sigma=sigma, observed=empirical_lift)
+            dist(abs(model_estimated_lift), sigma=sigma, observed=abs(empirical_lift))
 
 
         The model has to be built before adding the lift tests.

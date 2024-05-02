@@ -48,7 +48,7 @@ def toy_X(generate_data) -> pd.DataFrame:
 
 
 @pytest.fixture(scope="class")
-def model_config_requiring_serialization() -> Dict:
+def model_config_requiring_serialization() -> dict:
     model_config = {
         "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
         "beta_channel": {
@@ -211,14 +211,20 @@ class TestDelayedSaturatedMMM:
         argvalues=[None, 2],
         ids=["no_yearly_seasonality", "yearly_seasonality"],
     )
+    @pytest.mark.parametrize(
+        argnames="time_varying_intercept",
+        argvalues=[False, True],
+        ids=["no_time_varying_intercept", "time_varying_intercept"],
+    )
     def test_init(
         self,
         toy_X: pd.DataFrame,
         toy_y: pd.Series,
-        yearly_seasonality: Optional[int],
-        channel_columns: List[str],
-        control_columns: List[str],
+        yearly_seasonality: int | None,
+        channel_columns: list[str],
+        control_columns: list[str],
         adstock_max_lag: int,
+        time_varying_intercept: bool,
     ) -> None:
         mmm = BaseDelayedSaturatedMMM(
             date_column="date",
@@ -226,6 +232,7 @@ class TestDelayedSaturatedMMM:
             control_columns=control_columns,
             adstock_max_lag=adstock_max_lag,
             yearly_seasonality=yearly_seasonality,
+            time_varying_intercept=time_varying_intercept,
         )
         mmm.build_model(X=toy_X, y=toy_y)
         n_channel: int = len(mmm.channel_columns)
@@ -235,13 +242,10 @@ class TestDelayedSaturatedMMM:
                 samples=samples, random_seed=rng
             )
 
-        assert (
-            az.extract(
-                prior_predictive, group="prior", var_names=["intercept"], combined=True
-            )
-            .to_numpy()
-            .size
-            == samples
+        assert az.extract(
+            prior_predictive, group="prior", var_names=["intercept"], combined=True
+        ).to_numpy().shape == (
+            (samples,) if not time_varying_intercept else (toy_X.shape[0], samples)
         )
         assert az.extract(
             data=prior_predictive,
@@ -333,17 +337,23 @@ class TestDelayedSaturatedMMM:
         )
         assert mean_model_contributions_ts.shape == (
             toy_X.shape[0],
-            n_channel + n_control + fourier_terms + 1,
+            n_channel
+            + n_control
+            + 2,  # 2 for yearly seasonality (+1) and intercept (+)
         )
+
+        processed_df = mmm._process_decomposition_components(
+            data=mean_model_contributions_ts
+        )
+
+        assert processed_df.shape == (n_channel + n_control + 2, 3)
+
         assert mean_model_contributions_ts.columns.tolist() == [
             "channel_1",
             "channel_2",
             "control_1",
             "control_2",
-            "sin_order_1",
-            "cos_order_1",
-            "sin_order_2",
-            "cos_order_2",
+            "yearly_seasonality",
             "intercept",
         ]
 
@@ -353,7 +363,7 @@ class TestDelayedSaturatedMMM:
         ids=["no_yearly_seasonality", "yearly_seasonality=1", "yearly_seasonality=2"],
     )
     def test_get_fourier_models_data(
-        self, toy_X: pd.DataFrame, toy_y: pd.Series, yearly_seasonality: Optional[int]
+        self, toy_X: pd.DataFrame, toy_y: pd.Series, yearly_seasonality: int | None
     ) -> None:
         mmm = BaseDelayedSaturatedMMM(
             date_column="date",
@@ -367,7 +377,7 @@ class TestDelayedSaturatedMMM:
                 mmm._get_fourier_models_data(toy_X)
 
         else:
-            fourier_modes_data: Optional[pd.DataFrame] = mmm._get_fourier_models_data(
+            fourier_modes_data: pd.DataFrame | None = mmm._get_fourier_models_data(
                 toy_X
             )
             assert fourier_modes_data.shape == (
@@ -547,10 +557,11 @@ class TestDelayedSaturatedMMM:
         DSMMM.save("test_model")
         # Apply the monkeypatch for the property
         monkeypatch.setattr(DelayedSaturatedMMM, "id", property(mock_property))
-        with pytest.raises(
-            ValueError,
-            match="The file 'test_model' does not contain an inference data of the same model or configuration as 'DelayedSaturatedMMM'",
-        ):
+
+        error_msg = """The file 'test_model' does not contain an inference data of the same model
+        or configuration as 'DelayedSaturatedMMM'"""
+
+        with pytest.raises(ValueError, match=error_msg):
             DelayedSaturatedMMM.load("test_model")
         os.remove("test_model")
 
@@ -589,7 +600,7 @@ class TestDelayedSaturatedMMM:
         ids=["default_config", "custom_config"],
     )
     def test_model_config(
-        self, model_config: Dict, toy_X: pd.DataFrame, toy_y: pd.Series
+        self, model_config: dict, toy_X: pd.DataFrame, toy_y: pd.Series
     ):
         # Create model instance with specified config
         model = DelayedSaturatedMMM(

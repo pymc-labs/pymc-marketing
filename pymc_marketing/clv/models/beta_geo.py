@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Sequence, Union
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
@@ -37,10 +37,12 @@ class BetaGeoModel(CLVModel):
         DataFrame containing the following columns:
             * `frequency`: number of repeat purchases (with possible values 0, 1, 2, ...)
             * `recency`: time between the first and the last purchase (with possible values 0, 1, 2, ...)
-            * `T`: time between the first purchase and the end of the observation period (with possible values 0, 1, 2, ...)
+            * `T`: time between the first purchase and the end of the observation
+                period (with possible values 0, 1, 2, ...)
             * `customer_id`: unique customer identifier
     model_config: dict, optional
-        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in
+        the `default_model_config` class attribute.
     sampler_config: dict, optional
         Dictionary of sampler parameters. Defaults to None.
 
@@ -105,7 +107,7 @@ class BetaGeoModel(CLVModel):
     .. [2] Fader, P. S., Hardie, B. G., & Lee, K. L. (2008). Computing
            P (alive) using the BG/NBD model. Research Note available via
            http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
-    .. [3] Fader, P. S. & Hardie, B. G. (2013) Overcoming the BG/NBD Model’s #NUM!
+    .. [3] Fader, P. S. & Hardie, B. G. (2013) Overcoming the BG/NBD Model's #NUM!
            Error Problem. Research Note available via
            http://brucehardie.com/notes/027/bgnbd_num_error.pdf.
     """
@@ -115,8 +117,8 @@ class BetaGeoModel(CLVModel):
     def __init__(
         self,
         data: pd.DataFrame,
-        model_config: Optional[Dict] = None,
-        sampler_config: Optional[Dict] = None,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
     ):
         self._validate_cols(
             data,
@@ -130,7 +132,7 @@ class BetaGeoModel(CLVModel):
         )
 
     @property
-    def default_model_config(self) -> Dict[str, Dict]:
+    def default_model_config(self) -> dict[str, dict]:
         return {
             "a_prior": {"dist": "HalfFlat", "kwargs": {}},
             "b_prior": {"dist": "HalfFlat", "kwargs": {}},
@@ -209,11 +211,11 @@ class BetaGeoModel(CLVModel):
     # taken from https://lifetimes.readthedocs.io/en/latest/lifetimes.fitters.html
     def expected_num_purchases(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        t: Union[np.ndarray, pd.Series, TensorVariable],
-        frequency: Union[np.ndarray, pd.Series, TensorVariable],
-        recency: Union[np.ndarray, pd.Series, TensorVariable],
-        T: Union[np.ndarray, pd.Series, TensorVariable],
+        customer_id: np.ndarray | pd.Series,
+        t: np.ndarray | pd.Series | TensorVariable,
+        frequency: np.ndarray | pd.Series | TensorVariable,
+        recency: np.ndarray | pd.Series | TensorVariable,
+        T: np.ndarray | pd.Series | TensorVariable,
     ) -> xr.DataArray:
         r"""
         Given a purchase history/profile of :math:`x` and :math:`t_x` for an individual
@@ -271,10 +273,10 @@ class BetaGeoModel(CLVModel):
 
     def expected_probability_alive(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        frequency: Union[np.ndarray, pd.Series],
-        recency: Union[np.ndarray, pd.Series],
-        T: Union[np.ndarray, pd.Series],
+        customer_id: np.ndarray | pd.Series,
+        frequency: np.ndarray | pd.Series,
+        recency: np.ndarray | pd.Series,
+        T: np.ndarray | pd.Series,
     ) -> xr.DataArray:
         r"""
         Posterior expected value of the probability of being alive at time T. The
@@ -308,7 +310,7 @@ class BetaGeoModel(CLVModel):
 
     def expected_num_purchases_new_customer(
         self,
-        t: Union[np.ndarray, pd.Series],
+        t: np.ndarray | pd.Series,
     ):
         r"""
         Posterior expected number of purchases for any interval of length :math:`t`. See
@@ -343,7 +345,7 @@ class BetaGeoModel(CLVModel):
 
     def _distribution_new_customers(
         self,
-        random_seed: Optional[RandomState] = None,
+        random_seed: RandomState | None = None,
         var_names: Sequence[str] = ("population_dropout", "population_purchase_rate"),
     ) -> xr.Dataset:
         with pm.Model():
@@ -370,7 +372,7 @@ class BetaGeoModel(CLVModel):
 
     def distribution_new_customer_dropout(
         self,
-        random_seed: Optional[RandomState] = None,
+        random_seed: RandomState | None = None,
     ) -> xr.Dataset:
         """Sample the Beta distribution for the population-level dropout rate.
 
@@ -394,7 +396,7 @@ class BetaGeoModel(CLVModel):
 
     def distribution_new_customer_purchase_rate(
         self,
-        random_seed: Optional[RandomState] = None,
+        random_seed: RandomState | None = None,
     ) -> xr.Dataset:
         """Sample the Gamma distribution for the population-level purchase rate.
 

@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, Tuple, Union
+from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,12 +16,12 @@ __all__ = [
 
 def plot_customer_exposure(
     df: pd.DataFrame,
-    linewidth: Optional[float] = None,
-    size: Optional[float] = None,
-    labels: Optional[Sequence[str]] = None,
-    colors: Optional[Sequence[str]] = None,
+    linewidth: float | None = None,
+    size: float | None = None,
+    labels: Sequence[str] | None = None,
+    colors: Sequence[str] | None = None,
     padding: float = 0.25,
-    ax: Optional[plt.Axes] = None,
+    ax: plt.Axes | None = None,
 ) -> plt.Axes:
     """Plot the recency and T of DataFrame of customers.
 
@@ -149,7 +149,7 @@ def plot_customer_exposure(
 def _create_frequency_recency_meshes(
     max_frequency: int,
     max_recency: int,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     frequency = np.arange(max_frequency + 1)
     recency = np.arange(max_recency + 1)
     mesh_frequency, mesh_recency = np.meshgrid(frequency, recency)
@@ -158,14 +158,14 @@ def _create_frequency_recency_meshes(
 
 
 def plot_frequency_recency_matrix(
-    model: Union[BetaGeoModel, ParetoNBDModel],
+    model: BetaGeoModel | ParetoNBDModel,
     t=1,
-    max_frequency: Optional[int] = None,
-    max_recency: Optional[int] = None,
-    title: Optional[str] = None,
+    max_frequency: int | None = None,
+    max_recency: int | None = None,
+    title: str | None = None,
     xlabel: str = "Customer's Historical Frequency",
     ylabel: str = "Customer's Recency",
-    ax: Optional[plt.Axes] = None,
+    ax: plt.Axes | None = None,
     **kwargs,
 ) -> plt.Axes:
     """
@@ -269,13 +269,13 @@ def plot_frequency_recency_matrix(
 
 
 def plot_probability_alive_matrix(
-    model: Union[BetaGeoModel, ParetoNBDModel],
-    max_frequency: Optional[int] = None,
-    max_recency: Optional[int] = None,
+    model: BetaGeoModel | ParetoNBDModel,
+    max_frequency: int | None = None,
+    max_recency: int | None = None,
     title: str = "Probability Customer is Alive,\nby Frequency and Recency of a Customer",
     xlabel: str = "Customer's Historical Frequency",
     ylabel: str = "Customer's Recency",
-    ax: Optional[plt.Axes] = None,
+    ax: plt.Axes | None = None,
     **kwargs,
 ) -> plt.Axes:
     """

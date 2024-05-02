@@ -1,5 +1,3 @@
-from typing import Union
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -49,7 +47,7 @@ def cdnow_trans() -> pd.DataFrame:
 
     Data source: https://www.brucehardie.com/datasets/
     """
-    return pd.read_csv("datasets/cdnow_transactions.csv")
+    return pd.read_csv("data/cdnow_transactions.csv")
 
 
 @pytest.fixture(scope="module")
@@ -61,7 +59,7 @@ def test_summary_data() -> pd.DataFrame:
     return df
 
 
-def set_model_fit(model: CLVModel, fit: Union[InferenceData, Dataset]):
+def set_model_fit(model: CLVModel, fit: InferenceData | Dataset):
     if isinstance(fit, InferenceData):
         assert "posterior" in fit.groups()
     else:

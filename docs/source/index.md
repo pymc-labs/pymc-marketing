@@ -104,7 +104,7 @@ import pandas as pd
 from pymc_marketing.mmm import DelayedSaturatedMMM
 
 
-data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/datasets/mmm_example.csv"
+data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
 data = pd.read_csv(data_url, parse_dates=['date_week'])
 
 mmm = DelayedSaturatedMMM(
@@ -140,7 +140,7 @@ import seaborn as sns
 from pymc_marketing import clv
 
 
-data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/datasets/clv_quickstart.csv"
+data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
 data = pd.read_csv(data_url)
 data['customer_id'] = data.index
 
@@ -150,6 +150,7 @@ beta_geo_model = clv.BetaGeoModel(
 
 beta_geo_model.fit()
 ```
+
 Once fitted, we can use the model to predict the number of future purchases for known customers, the probability that they are still alive, and get various visualizations plotted. See the Examples section for more on this.
 
 ## 📞 Schedule a Free Consultation for MMM & CLV Strategy

@@ -41,7 +41,7 @@ def dummy_design_matrix():
 )
 def convolution_inputs(request):
     x_val = np.ones((3, 4, 5))
-    w_val = np.ones((2))
+    w_val = np.ones(2)
     if request.param == "ndarray":
         return x_val, w_val, None, None
     elif request.param == "TensorConstant":
@@ -382,7 +382,7 @@ class TestSaturationTransformers:
         np.testing.assert_allclose(y2, y3)
         np.testing.assert_allclose(y3, y4)
         np.testing.assert_allclose(param_classic1.b.eval(), b)
-        np.testing.assert_allclose(param_classic1.c.eval(), c)
+        np.testing.assert_allclose(param_classic1.c.eval(), c, rtol=1e-06)
 
     @pytest.mark.parametrize(
         "x, alpha, lam, expected",

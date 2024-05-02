@@ -1,7 +1,8 @@
 """Lift test functions for the MMM."""
 
+from collections.abc import Callable
 from functools import partial
-from typing import Callable, Optional, Union
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -23,11 +24,10 @@ class MissingLiftTestError(Exception):
 
 Index = npt.NDArray[np.int_]
 Indices = dict[str, Index]
-Values = Union[npt.NDArray[np.int_], npt.NDArray[np.float_], npt.NDArray[np.str_]]
+Values = Union[npt.NDArray[np.int_], npt.NDArray[np.float_], npt.NDArray[np.str_]]  # noqa: UP007
 
 
 def _lift_test_index(lift_values: Values, model_values: Values) -> Index:
-    # TODO: better support for datetime64 required for date coordinates
     same_value = lift_values[:, None] == model_values
     if not (same_value.sum(axis=1) == 1).all():
         missing_values = np.argwhere(same_value.sum(axis=1) == 0).flatten()
@@ -62,8 +62,16 @@ def lift_test_indices(df_lift_test: pd.DataFrame, model: pm.Model) -> Indices:
     """
 
     columns = df_lift_test.columns.tolist()
+
     return {
-        col: _lift_test_index(df_lift_test[col].to_numpy(), np.array(model.coords[col]))
+        col: _lift_test_index(
+            df_lift_test[col].to_numpy(),
+            # Coords in the model become tuples
+            # Reference: https://github.com/pymc-devs/pymc/blob/04b6881efa9f69711d604d2234c5645304f63d28/pymc/model/core.py#L998
+            # which become pd.Timestamp if from pandas objects
+            # Convert to Series stores them as np.datetime64
+            pd.Series(model.coords[col]).to_numpy(),
+        )
         for col in columns
     }
 
@@ -177,11 +185,28 @@ def index_variable(
     return var.__getitem__(idx)
 
 
+class NonMonotonicLiftError(Exception):
+    """Raised when the lift test results do not satisfy the increasing assumption."""
+
+
+def check_increasing_assumption(df_lift_tests: pd.DataFrame) -> None:
+    """Checks if the lift test results satisfy the increasing assumption.
+
+    If delta_x is positive, delta_y must be positive, and vice versa.
+    """
+    increasing = df_lift_tests["delta_x"] * df_lift_tests["delta_y"] >= 0
+
+    if not increasing.all():
+        raise NonMonotonicLiftError(
+            "The lift test results do not satisfy the increasing assumption."
+        )
+
+
 def add_lift_measurements_to_likelihood(
     df_lift_test: pd.DataFrame,
     variable_mapping,
     saturation_function,
-    model: Optional[pm.Model] = None,
+    model: pm.Model | None = None,
     dist=pm.Gamma,
     name: str = "lift_measurements",
 ) -> None:
@@ -256,6 +281,8 @@ def add_lift_measurements_to_likelihood(
     if missing_cols:
         raise KeyError(f"Missing from DataFrame: {list(missing_cols)}")
 
+    check_increasing_assumption(df_lift_test)
+
     model = pm.modelcontext(model)
 
     var_names = list(variable_mapping.values())
@@ -280,9 +307,9 @@ def add_lift_measurements_to_likelihood(
 
     dist(
         name=name,
-        mu=model_estimated_lift,
+        mu=pt.abs(model_estimated_lift),
         sigma=df_lift_test["sigma"].to_numpy(),
-        observed=df_lift_test["delta_y"].to_numpy(),
+        observed=np.abs(df_lift_test["delta_y"].to_numpy()),
     )
 
 
@@ -291,7 +318,7 @@ def add_menten_empirical_lift_measurements_to_likelihood(
     alpha_name: str,
     lam_name: str,
     dist=pm.Gamma,
-    model: Optional[pm.Model] = None,
+    model: pm.Model | None = None,
     name: str = "lift_measurements",
 ) -> None:
     """Add empirical lift measurements to the likelihood of the model.
@@ -339,7 +366,7 @@ def add_logistic_empirical_lift_measurements_to_likelihood(
     lam_name: str,
     beta_name: str,
     dist: pm.Distribution = pm.Gamma,
-    model: Optional[pm.Model] = None,
+    model: pm.Model | None = None,
     name: str = "lift_measurements",
 ) -> None:
     """Add empirical lift measurements to the likelihood of the model.

@@ -1,6 +1,7 @@
 """Base class for Marketing Mix Models (MMM)."""
 
 import warnings
+from collections.abc import Callable
 from inspect import (
     getattr_static,
     isdatadescriptor,
@@ -9,7 +10,7 @@ from inspect import (
     ismethoddescriptor,
 )
 from itertools import repeat
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -18,6 +19,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import seaborn as sns
+from numpy.typing import NDArray
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
@@ -30,6 +32,7 @@ from pymc_marketing.mmm.utils import (
     find_sigmoid_inflection_point,
     sigmoid_saturation,
     standardize_scenarios_dict_keys,
+    transform_1d_array,
 )
 from pymc_marketing.mmm.validating import (
     ValidateChannelColumns,
@@ -49,22 +52,28 @@ class BaseMMM(ModelBuilder):
     def __init__(
         self,
         date_column: str,
-        channel_columns: Union[List[str], Tuple[str]],
-        model_config: Optional[Dict] = None,
-        sampler_config: Optional[Dict] = None,
+        channel_columns: list[str] | tuple[str],
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
         **kwargs,
     ) -> None:
-        self.X: Optional[pd.DataFrame] = None
-        self.y: Optional[Union[pd.Series, np.ndarray]] = None
         self.date_column: str = date_column
-        self.channel_columns: Union[List[str], Tuple[str]] = channel_columns
+        self.channel_columns: list[str] | tuple[str] = channel_columns
+
         self.n_channel: int = len(channel_columns)
-        self._fit_result: Optional[az.InferenceData] = None
-        self._posterior_predictive: Optional[az.InferenceData] = None
+
+        self.X: pd.DataFrame
+        self.y: pd.Series | np.ndarray
+
+        self._time_resolution: int
+        self._time_index: NDArray[np.int_]
+        self._time_index_mid: int
+        self._fit_result: az.InferenceData
+        self._posterior_predictive: az.InferenceData
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
     @property
-    def methods(self) -> List[Any]:
+    def methods(self) -> list[Any]:
         maybe_methods = [getattr_static(self, attr) for attr in dir(self)]
         return [
             method
@@ -81,21 +90,23 @@ class BaseMMM(ModelBuilder):
     @property
     def validation_methods(
         self,
-    ) -> Tuple[
-        List[Callable[["BaseMMM", Union[pd.DataFrame, pd.Series, np.ndarray]], None]],
-        List[Callable[["BaseMMM", Union[pd.DataFrame, pd.Series, np.ndarray]], None]],
+    ) -> tuple[
+        list[Callable[["BaseMMM", pd.DataFrame | pd.Series | np.ndarray], None]],
+        list[Callable[["BaseMMM", pd.DataFrame | pd.Series | np.ndarray], None]],
     ]:
         """
         A property that provides validation methods for features ("X") and the target variable ("y").
 
         This property scans the methods of the object and returns those marked for validation.
-        The methods are marked by having a _tags dictionary attribute, with either "validation_X" or "validation_y" set to True.
-        The "validation_X" tag indicates a method used for validating features, and "validation_y" indicates a method used for validating the target variable.
+        The methods are marked by having a _tags dictionary attribute,with either "validation_X" or "validation_y"
+        set to True. The "validation_X" tag indicates a method used for validating features, and "validation_y"
+        indicates a method used for validating the target variable.
 
         Returns
         -------
         tuple of list of Callable[["BaseMMM", pd.DataFrame], None]
-            A tuple where the first element is a list of methods for "X" validation, and the second element is a list of methods for "y" validation.
+            A tuple where the first element is a list of methods for "X" validation, and the second element is
+            a list of methods for "y" validation.
 
         """
         return (
@@ -112,7 +123,7 @@ class BaseMMM(ModelBuilder):
         )
 
     def validate(
-        self, target: str, data: Union[pd.DataFrame, pd.Series, np.ndarray]
+        self, target: str, data: pd.DataFrame | pd.Series | np.ndarray
     ) -> None:
         """
         Validates the input data based on the specified target type.
@@ -146,17 +157,17 @@ class BaseMMM(ModelBuilder):
     @property
     def preprocessing_methods(
         self,
-    ) -> Tuple[
-        List[
+    ) -> tuple[
+        list[
             Callable[
-                ["BaseMMM", Union[pd.DataFrame, pd.Series, np.ndarray]],
-                Union[pd.DataFrame, pd.Series, np.ndarray],
+                ["BaseMMM", pd.DataFrame | pd.Series | np.ndarray],
+                pd.DataFrame | pd.Series | np.ndarray,
             ]
         ],
-        List[
+        list[
             Callable[
-                ["BaseMMM", Union[pd.DataFrame, pd.Series, np.ndarray]],
-                Union[pd.DataFrame, pd.Series, np.ndarray],
+                ["BaseMMM", pd.DataFrame | pd.Series | np.ndarray],
+                pd.DataFrame | pd.Series | np.ndarray,
             ]
         ],
     ]:
@@ -164,13 +175,15 @@ class BaseMMM(ModelBuilder):
         A property that provides preprocessing methods for features ("X") and the target variable ("y").
 
         This property scans the methods of the object and returns those marked for preprocessing.
-        The methods are marked by having a _tags dictionary attribute, with either "preprocessing_X" or "preprocessing_y" set to True.
-        The "preprocessing_X" tag indicates a method used for preprocessing features, and "preprocessing_y" indicates a method used for preprocessing the target variable.
+        The methods are marked by having a _tags dictionary attribute, with either "preprocessing_X"
+        or "preprocessing_y" set to True. The "preprocessing_X" tag indicates a method used for preprocessing
+        features, and "preprocessing_y" indicates a method used for preprocessing the target variable.
 
         Returns
         -------
         tuple of list of Callable[["BaseMMM", pd.DataFrame], pd.DataFrame]
-            A tuple where the first element is a list of methods for "X" preprocessing, and the second element is a list of methods for "y" preprocessing.
+            A tuple where the first element is a list of methods for "X" preprocessing, and the second element is a
+            list of methods for "y" preprocessing.
         """
         return (
             [
@@ -186,13 +199,14 @@ class BaseMMM(ModelBuilder):
         )
 
     def preprocess(
-        self, target: str, data: Union[pd.DataFrame, pd.Series, np.ndarray]
-    ) -> Union[pd.DataFrame, pd.Series, np.ndarray]:
+        self, target: str, data: pd.DataFrame | pd.Series | np.ndarray
+    ) -> pd.DataFrame | pd.Series | np.ndarray:
         """
         Preprocess the provided data according to the specified target.
 
-        This method applies preprocessing methods to the data ("X" or "y"), which are specified in the preprocessing_methods property of this object.
-        It iteratively applies each method in the appropriate list (either for "X" or "y") to the data.
+        This method applies preprocessing methods to the data ("X" or "y"), which are specified in the
+        preprocessing_methods property of this object. It iteratively applies each method in the appropriate
+        list (either for "X" or "y") to the data.
 
         Parameters
         ----------
@@ -308,7 +322,7 @@ class BaseMMM(ModelBuilder):
         return fig
 
     def plot_posterior_predictive(
-        self, original_scale: bool = False, **plt_kwargs: Any
+        self, original_scale: bool = False, ax: plt.Axes = None, **plt_kwargs: Any
     ) -> plt.Figure:
         posterior_predictive_data: Dataset = self.posterior_predictive
         likelihood_hdi_94: DataArray = az.hdi(
@@ -326,10 +340,14 @@ class BaseMMM(ModelBuilder):
                 Xt=likelihood_hdi_50
             )
 
-        fig, ax = plt.subplots(**plt_kwargs)
+        if ax is None:
+            fig, ax = plt.subplots(**plt_kwargs)
+        else:
+            fig = ax.figure
+
         if self.X is not None and self.y is not None:
             ax.fill_between(
-                x=self.X[self.date_column],
+                x=posterior_predictive_data.date,
                 y1=likelihood_hdi_94[:, 0],
                 y2=likelihood_hdi_94[:, 1],
                 color="C0",
@@ -338,7 +356,7 @@ class BaseMMM(ModelBuilder):
             )
 
             ax.fill_between(
-                x=self.X[self.date_column],
+                x=posterior_predictive_data.date,
                 y1=likelihood_hdi_50[:, 0],
                 y2=likelihood_hdi_50[:, 1],
                 color="C0",
@@ -346,11 +364,21 @@ class BaseMMM(ModelBuilder):
                 label="$50\%$ HDI",  # noqa: W605
             )
 
-            target_to_plot: np.ndarray = np.asarray(
-                self.y if original_scale else self.preprocessed_data["y"]  # type: ignore
+            target_to_plot = np.asarray(
+                self.y
+                if original_scale
+                else transform_1d_array(self.get_target_transformer().transform, self.y)
             )
+
+            if len(target_to_plot) != len(posterior_predictive_data.date):
+                raise ValueError(
+                    "The length of the target variable doesn't match the length of the date column. "
+                    "If you are predicting out-of-sample, please overwrite `self.y` with the "
+                    "corresponding (non-transformed) target variable."
+                )
+
             ax.plot(
-                np.asarray(self.X[self.date_column]),
+                np.asarray(posterior_predictive_data.date),
                 target_to_plot,
                 color="black",
             )
@@ -386,6 +414,7 @@ class BaseMMM(ModelBuilder):
         for arg, var_contribution in zip(
             ["control_columns", "yearly_seasonality"],
             ["control_contributions", "fourier_contributions"],
+            strict=True,
         ):
             if getattr(self, arg, None):
                 contributions = self._format_model_contributions(
@@ -407,6 +436,7 @@ class BaseMMM(ModelBuilder):
                     "control_contribution",
                     "fourier_contribution",
                 ],
+                strict=False,
             )
         ):
             if self.X is not None:
@@ -427,11 +457,18 @@ class BaseMMM(ModelBuilder):
             intercept = az.extract(
                 self.fit_result, var_names=["intercept"], combined=False
             )
-            intercept_hdi = np.repeat(
-                a=az.hdi(intercept).intercept.data[None, ...],
-                repeats=self.X[self.date_column].shape[0],
-                axis=0,
-            )
+
+            if intercept.ndim == 2:
+                # Intercept has a stationary prior
+                intercept_hdi = np.repeat(
+                    a=az.hdi(intercept).intercept.data[None, ...],
+                    repeats=self.X[self.date_column].shape[0],
+                    axis=0,
+                )
+            elif intercept.ndim == 3:
+                # Intercept has a time-varying prior
+                intercept_hdi = az.hdi(intercept).intercept.data
+
             ax.plot(
                 np.asarray(self.X[self.date_column]),
                 np.full(len(self.X[self.date_column]), intercept.mean().data),
@@ -498,7 +535,7 @@ class BaseMMM(ModelBuilder):
 
     def _estimate_budget_contribution_fit(
         self, channel: str, budget: float, method: str = "sigmoid"
-    ) -> Tuple:
+    ) -> tuple:
         """
         Estimate the lower and upper bounds of the contribution fit for a given channel and budget.
         This function computes the quantiles (0.05 & 0.95) of the channel contributions, estimates
@@ -506,12 +543,14 @@ class BaseMMM(ModelBuilder):
         and calculates the lower and upper bounds of the contribution fit.
 
         The function is used in the `plot_budget_scenearios` function to estimate the contribution fit for each channel
-        and budget scenario. The estimated fit is then used to plot the contribution optimization bounds for each scenario.
+        and budget scenario. The estimated fit is then used to plot the contribution optimization bounds
+        for each scenario.
 
         Parameters
         ----------
         method : str
-            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
+            The method used to fit the contribution & spent non-linear relationship.
+            It can be either 'sigmoid' or 'michaelis-menten'.
         channel : str
             The name of the channel for which the contribution fit is being estimated.
         budget : float
@@ -575,7 +614,8 @@ class BaseMMM(ModelBuilder):
         ax : matplotlib.axes.Axes
             The axes on which to plot the scenario.
         data : dict
-            Dictionary containing the data for the scenario. Keys are the names of the channels and values are the corresponding values.
+            Dictionary containing the data for the scenario.
+            Keys are the names of the channels and values are the corresponding values.
         label : str
             Label for the scenario.
         color : str
@@ -585,9 +625,11 @@ class BaseMMM(ModelBuilder):
         bar_width: float
             Bar width.
         upper_bound : dict, optional
-            Dictionary containing the upper bounds for the data. Keys should match those in the `data` dictionary. Only used if `contribution` is True.
+            Dictionary containing the upper bounds for the data. Keys should match those in the `data` dictionary.
+            Only used if `contribution` is True.
         lower_bound : dict, optional
-            Dictionary containing the lower bounds for the data. Keys should match those in the `data` dictionary. Only used if `contribution` is True.
+            Dictionary containing the lower bounds for the data. Keys should match those in the `data` dictionary.
+            Only used if `contribution` is True.
         contribution : bool, optional
             If True, plot the upper and lower bounds for the data. Default is False.
 
@@ -626,7 +668,7 @@ class BaseMMM(ModelBuilder):
             )
 
     def plot_budget_scenearios(
-        self, *, base_data: Dict, method: str = "sigmoid", **kwargs
+        self, *, base_data: dict, method: str = "sigmoid", **kwargs
     ) -> plt.Figure:
         """
         Experimental: Plots the budget and contribution bars side by side for multiple scenarios.
@@ -654,7 +696,7 @@ class BaseMMM(ModelBuilder):
         standardize_scenarios_dict_keys(base_data, ["contribution", "budget"])
 
         fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(15, 6))
-        scenarios = [base_data] + list(scenarios_data)
+        scenarios = [base_data, *list(scenarios_data)]
         num_scenarios = len(scenarios)
         bar_width = (
             0.8 / num_scenarios
@@ -677,7 +719,7 @@ class BaseMMM(ModelBuilder):
 
         # Plot all scenarios
         for i, (scenario, upper_bound, lower_bound) in enumerate(
-            zip(scenarios, upper_bounds, lower_bounds)
+            zip(scenarios, upper_bounds, lower_bounds, strict=False)
         ):
             color = f"C{i}"
             offset = i * bar_width - 0.4 + bar_width / 2
@@ -731,13 +773,15 @@ class BaseMMM(ModelBuilder):
         """
         Plot the curve fit for the given channel based on the estimation of the parameters.
 
-        The function computes the mean channel contributions, estimates the parameters based on the specified method (either 'sigmoid' or 'michaelis-menten'), and plots
-        the curve fit. An inflection point on the curve is also highlighted.
+        The function computes the mean channel contributions, estimates the parameters based on the specified method
+        (either 'sigmoid' or 'michaelis-menten'), and plots the curve fit. An inflection point on the curve is
+        also highlighted.
 
         Parameters
         ----------
         x : np.ndarray
-            The x-axis data, usually representing the amount of input (e.g., substrate concentration in enzymology terms).
+            The x-axis data, usually representing the amount of
+            input (e.g., substrate concentration in enzymology terms).
         ax : plt.Axes
             The matplotlib axes object where the plot should be drawn.
         channel : str
@@ -747,7 +791,8 @@ class BaseMMM(ModelBuilder):
         xlim_max: int
             The maximum value to be plot on the X-axis
         method: str
-            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
+            The method used to fit the contribution & spent non-linear relationship.
+            It can be either 'sigmoid' or 'michaelis-menten'.
 
         Returns
         -------
@@ -850,23 +895,26 @@ class BaseMMM(ModelBuilder):
         self,
         method: str,
         total_budget: int,
-        budget_bounds: Optional[Dict[str, Tuple[float, float]]] = None,
+        budget_bounds: dict[str, tuple[float, float]] | None = None,
         *,
-        parameters: Dict[str, Tuple[float, float]],
+        parameters: dict[str, tuple[float, float]],
     ) -> pd.DataFrame:
         """
-        Experimental: Optimize the allocation of a given total budget across multiple channels to maximize the expected contribution.
+        Experimental: Optimize the allocation of a given total budget across multiple
+        channels to maximize the expected contribution.
 
         The optimization is based on the method provided, where each channel's contribution
         follows a saturating function of its allocated budget. The function seeks the budget allocation
-        that maximizes the total expected contribution across all channels. The method can be either 'sigmoid' or 'michaelis-menten'.
+        that maximizes the total expected contribution across all channels.
+        The method can be either 'sigmoid' or 'michaelis-menten'.
 
         Parameters
         ----------
         total_budget : int, required
             The total budget to be distributed across channels.
         method : str, required
-            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
+            The method used to fit the contribution & spent non-linear relationship.
+            It can be either 'sigmoid' or 'michaelis-menten'.
         parameters : Dict, required
             A dictionary where keys are channel names and values are tuples (L, k) representing the
             parameters for each channel based on the method used.
@@ -884,10 +932,10 @@ class BaseMMM(ModelBuilder):
         ValueError
             If any of the required parameters are not provided or have an incorrect type.
         """
-        if not isinstance(budget_bounds, (dict, type(None))):
+        if not isinstance(budget_bounds, dict | type(None)):
             raise TypeError("`budget_ranges` should be a dictionary or None.")
 
-        if not isinstance(total_budget, (int, float)):
+        if not isinstance(total_budget, int | float):
             raise ValueError(
                 "The 'total_budget' parameter must be an integer or float."
             )
@@ -897,7 +945,9 @@ class BaseMMM(ModelBuilder):
                 "The 'parameters' argument (keyword-only) must be provided and non-empty."
             )
 
-        warnings.warn("This budget allocator method is experimental", UserWarning)
+        warnings.warn(
+            "This budget allocator method is experimental", UserWarning, stacklevel=1
+        )
 
         return budget_allocator(
             method=method,
@@ -909,17 +959,19 @@ class BaseMMM(ModelBuilder):
 
     def compute_channel_curve_optimization_parameters_original_scale(
         self, method: str = "sigmoid"
-    ) -> Dict:
+    ) -> dict:
         """
         Experimental: Estimate the parameters for the saturating function of each channel's contribution.
 
-        The function estimates the parameters (alpha, constant) for each channel based on the specified method (either 'sigmoid' or 'michaelis-menten').
-        These parameters represent the maximum possible contribution (alpha) and the constant parameter which vary their definition based on the function (constant) for each channel.
+        The function estimates the parameters (alpha, constant) for each channel based on the specified method
+        (either 'sigmoid' or 'michaelis-menten'). These parameters represent the maximum possible contribution (alpha)
+        and the constant parameter which vary their definition based on the function (constant) for each channel.
 
         Parameters
         ----------
         method : str, required
-            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'.
+            The method used to fit the contribution & spent non-linear relationship.
+            It can be either 'sigmoid' or 'michaelis-menten'.
 
         Returns
         -------
@@ -928,7 +980,9 @@ class BaseMMM(ModelBuilder):
             parameters for each channel based on the method used.
         """
         warnings.warn(
-            "The curve optimization parameters method is experimental", UserWarning
+            "The curve optimization parameters method is experimental",
+            UserWarning,
+            stacklevel=1,
         )
 
         channel_contributions = self.compute_channel_contribution_original_scale().mean(
@@ -952,7 +1006,7 @@ class BaseMMM(ModelBuilder):
         show_fit: bool = False,
         xlim_max=None,
         method: str = "sigmoid",
-        channels: Optional[List[str]] = None,
+        channels: list[str] | None = None,
         same_axes: bool = False,
     ) -> plt.Figure:
         """
@@ -967,7 +1021,8 @@ class BaseMMM(ModelBuilder):
         xlim_max : int, optional
             The maximum value to be plot on the X-axis. If not provided, the maximum value in the data will be used.
         method : str, optional
-            The method used to fit the contribution & spent non-linear relationship. It can be either 'sigmoid' or 'michaelis-menten'. Defaults to 'sigmoid'.
+            The method used to fit the contribution & spent non-linear relationship.
+            It can be either 'sigmoid' or 'michaelis-menten'. Defaults to 'sigmoid'.
         channels : List[str], optional
             A list of channels to plot. If not provided, all channels will be plotted.
         same_axes : bool, optional
@@ -1002,6 +1057,7 @@ class BaseMMM(ModelBuilder):
 
             def legend_title_func(channel):
                 return "Legend"
+
         else:
             nrows = len(channels_to_plot)
             figsize = (12, 4 * len(channels_to_plot))
@@ -1024,7 +1080,7 @@ class BaseMMM(ModelBuilder):
         axes_channels = (
             zip(repeat(axes), channels_to_plot)
             if same_axes
-            else zip(np.ravel(axes), channels_to_plot)
+            else zip(np.ravel(axes), channels_to_plot, strict=False)
         )
 
         for i, (ax, channel) in enumerate(axes_channels):
@@ -1060,7 +1116,7 @@ class BaseMMM(ModelBuilder):
         fig.suptitle("Direct response curves", fontsize=16)
         return fig
 
-    def _get_distribution(self, dist: Dict) -> Callable:
+    def _get_distribution(self, dist: dict) -> Callable:
         """
         Retrieve a PyMC distribution callable based on the provided dictionary.
 
@@ -1136,7 +1192,7 @@ class BaseMMM(ModelBuilder):
             )
 
         if getattr(self, "yearly_seasonality", None):
-            contributions_fourier_over_time = (
+            contributions_fourier_over_time = pd.DataFrame(
                 az.extract(
                     self.fit_result,
                     var_names=["fourier_contributions"],
@@ -1146,6 +1202,8 @@ class BaseMMM(ModelBuilder):
                 .to_dataframe()
                 .squeeze()
                 .unstack()
+                .sum(axis=1),
+                columns=["yearly_seasonality"],
             )
         else:
             contributions_fourier_over_time = pd.DataFrame(
@@ -1185,9 +1243,9 @@ class BaseMMM(ModelBuilder):
 
     def plot_grouped_contribution_breakdown_over_time(
         self,
-        stack_groups: Optional[Dict[str, List[str]]] = None,
+        stack_groups: dict[str, list[str]] | None = None,
         original_scale: bool = False,
-        area_kwargs: Optional[Dict[str, Any]] = None,
+        area_kwargs: dict[str, Any] | None = None,
         **plt_kwargs: Any,
     ) -> plt.Figure:
         """Plot a time series area chart for all channel contributions.
@@ -1273,6 +1331,117 @@ class BaseMMM(ModelBuilder):
 
     def graphviz(self, **kwargs):
         return pm.model_to_graphviz(self.model, **kwargs)
+
+    def _process_decomposition_components(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Process data to compute the sum of contributions by component and calculate their percentages.
+        The output dataframe will have columns for "component", "contribution", and "percentage".
+
+        Parameters
+        ----------
+        data : pd.DataFrame
+            Dataframe containing the contribution by component from the function "compute_mean_contributions_over_time".
+
+        Returns
+        -------
+        pd.DataFrame
+            A dataframe with contributions summed up by component, sorted by contribution in ascending order.
+            With an additional column showing the percentage contribution of each component.
+        """
+
+        dataframe = data.copy()
+        stack_dataframe = dataframe.stack().reset_index()
+        stack_dataframe.columns = pd.Index(["date", "component", "contribution"])
+        stack_dataframe.set_index(["date", "component"], inplace=True)
+        dataframe = stack_dataframe.groupby("component").sum()
+        dataframe.sort_values(by="contribution", ascending=True, inplace=True)
+        dataframe.reset_index(inplace=True)
+
+        total_contribution = dataframe["contribution"].sum()
+        dataframe["percentage"] = (dataframe["contribution"] / total_contribution) * 100
+
+        return dataframe
+
+    def plot_waterfall_components_decomposition(
+        self,
+        original_scale: bool = True,
+        figsize: tuple[int, int] = (14, 7),
+        **kwargs,
+    ) -> plt.Figure:
+        """
+        This function creates a waterfall plot. The plot shows the decomposition of the target into its components.
+
+        Parameters
+        ----------
+        original_scale : bool, optional
+            If True, the contributions are plotted in the original scale of the target.
+        figsize : Tuple, optional
+            The size of the figure. The default is (14, 7).
+        **kwargs
+            Additional keyword arguments to pass to the matplotlib `subplots` function.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The matplotlib figure object.
+        """
+
+        dataframe = self.compute_mean_contributions_over_time(
+            original_scale=original_scale
+        )
+
+        dataframe = self._process_decomposition_components(data=dataframe)
+        total_contribution = dataframe["contribution"].sum()
+
+        fig, ax = plt.subplots(figsize=figsize, layout="constrained", **kwargs)
+
+        cumulative_contribution = 0
+
+        for index, row in dataframe.iterrows():
+            color = "lightblue" if row["contribution"] >= 0 else "salmon"
+
+            bar_start = (
+                cumulative_contribution + row["contribution"]
+                if row["contribution"] < 0
+                else cumulative_contribution
+            )
+            ax.barh(row["component"], row["contribution"], left=bar_start, color=color)
+
+            if row["contribution"] > 0:
+                cumulative_contribution += row["contribution"]
+
+            label_pos = bar_start + (row["contribution"] / 2)
+
+            if row["contribution"] < 0:
+                label_pos = bar_start - (row["contribution"] / 2)
+
+            ax.text(
+                label_pos,
+                index,
+                f"{row['contribution']:,.0f}\n({row['percentage']:.1f}%)",
+                ha="center",
+                va="center",
+                color="black",
+                fontsize=10,
+            )
+
+        ax.set_title("Response Decomposition Waterfall by Components")
+        ax.set_xlabel("Cumulative Contribution")
+        ax.set_ylabel("Components")
+
+        xticks = np.linspace(0, total_contribution, num=11)
+        xticklabels = [f"{(x/total_contribution)*100:.0f}%" for x in xticks]
+        ax.set_xticks(xticks)
+        ax.set_xticklabels(xticklabels)
+
+        ax.spines["right"].set_visible(False)
+        ax.spines["top"].set_visible(False)
+        ax.spines["left"].set_visible(False)
+
+        ax.set_yticks(np.arange(len(dataframe)))
+        ax.set_yticklabels(dataframe["component"])
+
+        return fig
 
 
 class MMM(BaseMMM, ValidateTargetColumn, ValidateDateColumn, ValidateChannelColumns):
