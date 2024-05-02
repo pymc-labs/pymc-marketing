@@ -191,6 +191,11 @@ class TestPhilly:
         argvalues=[None, 2],
         ids=["no_yearly_seasonality", "yearly_seasonality"],
     )
+    @pytest.mark.parametrize(
+        argnames="time_varying_intercept",
+        argvalues=[False, True],
+        ids=["no_time_varying_intercept", "time_varying_intercept"],
+    )
     def test_init(
         self,
         toy_X: pd.DataFrame,
@@ -199,6 +204,7 @@ class TestPhilly:
         channel_columns: list[str],
         control_columns: list[str],
         adstock_max_lag: int,
+        time_varying_intercept: bool,
     ) -> None:
         mmm = BasePhilly(
             date_column="date",
@@ -206,6 +212,7 @@ class TestPhilly:
             control_columns=control_columns,
             adstock_max_lag=adstock_max_lag,
             yearly_seasonality=yearly_seasonality,
+            time_varying_intercept=time_varying_intercept,
         )
         mmm.build_model(X=toy_X, y=toy_y)
         n_channel: int = len(mmm.channel_columns)
@@ -215,13 +222,10 @@ class TestPhilly:
                 samples=samples, random_seed=rng
             )
 
-        assert (
-            az.extract(
-                prior_predictive, group="prior", var_names=["intercept"], combined=True
-            )
-            .to_numpy()
-            .size
-            == samples
+        assert az.extract(
+            prior_predictive, group="prior", var_names=["intercept"], combined=True
+        ).to_numpy().shape == (
+            (samples,) if not time_varying_intercept else (toy_X.shape[0], samples)
         )
         assert az.extract(
             data=prior_predictive,

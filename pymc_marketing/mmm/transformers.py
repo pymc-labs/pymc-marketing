@@ -420,15 +420,34 @@ def logistic_saturation(x, lam: npt.NDArray[np.float_] | float = 0.5):
 
 
 class TanhSaturationParameters(NamedTuple):
-    b: pt.TensorLike
-    """Saturation.
-    """
-    c: pt.TensorLike
-    """Customer Aquisition Cost at 0.
+    """Container for tanh saturation parameters.
+
+    Parameters
+    ----------
+    b : pt.TensorLike
+        Saturation
+    c : pt.TensorLike
+        Customer Aquisition Cost at 0.
+
     """
 
+    b: pt.TensorLike
+    c: pt.TensorLike
+
     def baseline(self, x0: pt.TensorLike) -> "TanhSaturationBaselinedParameters":
-        """Change the parameterization to baselined at :math:`x_0`."""
+        """Change the parameterization to baselined at :math:`x_0`.
+
+        Parameters
+        ----------
+        x0 : pt.TensorLike
+            Baseline spend.
+
+        Returns
+        -------
+        TanhSaturationBaselinedParameters
+            Baselined parameters.
+
+        """
         y_ref = tanh_saturation(x0, self.b, self.c)
         gain_ref = y_ref / x0
         r_ref = y_ref / self.b
@@ -436,18 +455,32 @@ class TanhSaturationParameters(NamedTuple):
 
 
 class TanhSaturationBaselinedParameters(NamedTuple):
-    x0: pt.TensorLike
-    """Baseline spend.
-    """
-    gain: pt.TensorLike
-    """ROAS at :math:`x_0`.
-    """
-    r: pt.TensorLike
-    """Overspend Fraction.
+    """Representation of tanh saturation parameters in baselined form.
+
+    Parameters
+    ----------
+    x0 : pt.TensorLike
+        Baseline spend.
+    gain : pt.TensorLike
+        ROAS at :math:`x_0`.
+    r : pt.TensorLike
+        Overspend Fraction.
+
     """
 
+    x0: pt.TensorLike
+    gain: pt.TensorLike
+    r: pt.TensorLike
+
     def debaseline(self) -> TanhSaturationParameters:
-        """Change the parameterization to baselined to be classic saturation and cac."""
+        """Change the parameterization to baselined to be classic saturation and cac.
+
+        Returns
+        -------
+        TanhSaturationParameters
+            Classic saturation and cac parameters.
+
+        """
         saturation = (self.gain * self.x0) / self.r
         cac = self.r / (self.gain * pt.arctanh(self.r))
         return TanhSaturationParameters(saturation, cac)
