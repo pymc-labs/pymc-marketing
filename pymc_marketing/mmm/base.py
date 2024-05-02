@@ -1398,14 +1398,20 @@ class BaseMMM(ModelBuilder):
         cumulative_contribution = 0
 
         for index, row in dataframe.iterrows():
-            color = "lightblue" if row["contribution"] >= 0 else "salmon"
+            color = "C0" if row["contribution"] >= 0 else "C3"
 
             bar_start = (
                 cumulative_contribution + row["contribution"]
                 if row["contribution"] < 0
                 else cumulative_contribution
             )
-            ax.barh(row["component"], row["contribution"], left=bar_start, color=color)
+            ax.barh(
+                row["component"],
+                row["contribution"],
+                left=bar_start,
+                color=color,
+                alpha=0.5,
+            )
 
             if row["contribution"] > 0:
                 cumulative_contribution += row["contribution"]
