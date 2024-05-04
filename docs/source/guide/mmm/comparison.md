@@ -11,7 +11,8 @@ Given the popularity of the Media Mix Modelling (MMM) approach, there are many p
 | Open source| ✅                  | ✅              | ✅                    | ✅       | ❌                 |
 | Model   | 🏗️ Build            | 🏗️ Build        |  🏗️ Build       | 🏗️ Build        | 🛒 Buy               |
 | Budget optimizer | ✅ | ✅ |   ✅        |   ❌        |    ✅                  |
-| Time-varying parameters | coming soon | ❌ | ❌ | ✅ | ✅ |
+| Time-varying intercept | ✅ | ❌ | ❌ | ✅ | ✅ |
+| Time-varying coefficients | coming soon | ❌ | ❌ | ✅ | ✅ |
 | Custom priors | ✅ | ✅ | ❌ | ❌ | ✅ |
 | Lift-test calibration | ✅  | ❌ | ✅ | ❌ | ✅ |
 | Out of sample predictions | ✅ | ✅ | ❌ | ✅ | ✅ |
