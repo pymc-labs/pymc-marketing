@@ -43,11 +43,11 @@ class Transformation:
     default_priors: dict[str, Any]
     function: Any
 
-    def __init__(self, priors: dict | None = None) -> None:
+    def __init__(self, priors: dict | None = None, prefix: str | None = None) -> None:
         self._checks()
-
         priors = priors or {}
         self.function_priors = {**self.default_priors, **priors}
+        self.prefix = prefix or self.prefix
 
     def update_priors(self, priors: dict[str, Any]) -> None:
         """

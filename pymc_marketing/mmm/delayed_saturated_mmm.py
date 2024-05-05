@@ -13,6 +13,7 @@ import pandas as pd
 import pymc as pm
 import seaborn as sns
 from pytensor.tensor import TensorVariable
+import pytensor.tensor as pt
 from xarray import DataArray, Dataset
 
 from pymc_marketing.constants import DAYS_IN_YEAR
@@ -326,20 +327,24 @@ class BaseDelayedSaturatedMMM(MMM):
             **parameter_distributions,
         )
 
-    def forward_pass(self, x: pm.Data):
-        """
-        Performs a forward pass through the DelayedSaturatedMMM MMM model,
-        defining the order of the saturation and adstock functions.
-
+    def forward_pass(self, x: pt.TensorVariable | npt.NDArray[np.float_]) -> pt.TensorVariable:
+        """Transforms channel input into target contributions of each channel.
+    
+        This method handles the ordering of the adstock and saturation 
+        transformations.
+        
+        This method must be called from without a pm.Model context but not 
+        necessarily in the instance's model. A dim named "channel" is required 
+        associated with the number of columns of `x`.
+        
         Parameters
-        ----------
-        x : pm.Data
-            The input data.
-
+        ------------
+        x : pt.TensorVariable | npt.NDArray[np.float_]
+            The channel input which could be spends or impressions
+            
         Returns
-        -------
-        pm.Data
-            The output data after applying the transformations in the desired order.
+        --------
+        The contributions associated with the channel input
         """
         first, second = (
             (self.adstock, self.saturation)
