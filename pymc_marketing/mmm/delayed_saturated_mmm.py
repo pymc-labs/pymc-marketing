@@ -1,4 +1,5 @@
 """Media Mix Model with delayed adstock and logistic saturation class."""
+import warnings
 
 import json
 from pathlib import Path
@@ -38,10 +39,10 @@ from pymc_marketing.mmm.utils import (
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
 
-__all__ = ["BasePhilly"]
+__all__ = ["BaseDelayedSaturatedMMM"]
 
 
-class BasePhilly(MMM):
+class BaseDelayedSaturatedMMM(MMM):
     """Base class for a media mix model with delayed adstock and logistic saturation class (see [1]_).
 
     References
@@ -49,7 +50,7 @@ class BasePhilly(MMM):
     .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
     """
 
-    _model_type = "Philly"
+    _model_type = "DelayedSaturatedMMM"
     version = "0.0.2"
 
     def __init__(
@@ -116,6 +117,12 @@ class BasePhilly(MMM):
             model_config=model_config,
             sampler_config=sampler_config,
             adstock_max_lag=adstock_max_lag,
+        )
+
+        warnings.warn(
+            "The class name DelayedSaturatedMMM will be deprecated.",
+            DeprecationWarning,
+            stacklevel=2,
         )
 
     @property
@@ -321,7 +328,7 @@ class BasePhilly(MMM):
 
     def forward_pass(self, x: pm.Data):
         """
-        Performs a forward pass through the Philly MMM model,
+        Performs a forward pass through the DelayedSaturatedMMM MMM model,
         defining the order of the saturation and adstock functions.
 
         Parameters
@@ -386,7 +393,7 @@ class BasePhilly(MMM):
             'gamma_fourier': {'dist': 'Laplace', 'kwargs': {'mu': 0, 'b': 1}}
         }
 
-        model = Philly(
+        model = DelayedSaturatedMMM(
                     date_column="date_week",
                     channel_columns=["x1", "x2"],
                     control_columns=[
@@ -628,7 +635,7 @@ class BasePhilly(MMM):
     @classmethod
     def load(cls, fname: str):
         """
-        Creates a Philly instance from a file,
+        Creates a DelayedSaturatedMMM instance from a file,
         instantiating the model with the saved original input parameters.
         Loads inference data for the model.
 
@@ -639,7 +646,7 @@ class BasePhilly(MMM):
 
         Returns
         -------
-        Returns an instance of Philly.
+        Returns an instance of DelayedSaturatedMMM.
 
         Raises
         ------
@@ -791,11 +798,11 @@ class BasePhilly(MMM):
         return format_nested_dict(model_config.copy())
 
 
-class Philly(
+class DelayedSaturatedMMM(
     MaxAbsScaleTarget,
     MaxAbsScaleChannels,
     ValidateControlColumns,
-    BasePhilly,
+    BaseDelayedSaturatedMMM,
 ):
     """Media Mix Model with delayed adstock and logistic saturation class (see [1]_).
 
@@ -825,7 +832,7 @@ class Philly(
 
         * Custom priors for the parameters via the `model_config` parameter. You can also set the likelihood distribution.
 
-        * Adding lift tests to the likelihood function via the :meth:`add_lift_test_measurements <pymc_marketing.mmm.delayed_saturated_mmm.Philly.add_lift_test_measurements>` method.
+        * Adding lift tests to the likelihood function via the :meth:`add_lift_test_measurements <pymc_marketing.mmm.delayed_saturated_mmm.DelayedSaturatedMMM.add_lift_test_measurements>` method.
 
     For details on a vanilla implementation in PyMC, see [2]_.
 
@@ -838,12 +845,12 @@ class Philly(
         import numpy as np
         import pandas as pd
 
-        from pymc_marketing.mmm import Philly
+        from pymc_marketing.mmm import DelayedSaturatedMMM
 
         data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
         data = pd.read_csv(data_url, parse_dates=["date_week"])
 
-        mmm = Philly(
+        mmm = DelayedSaturatedMMM(
             date_column="date_week",
             channel_columns=["x1", "x2"],
             control_columns=[
@@ -881,7 +888,7 @@ class Philly(
             },
         }
 
-        mmm = Philly(
+        mmm = DelayedSaturatedMMM(
             model_config=my_model_config,
             date_column="date_week",
             channel_columns=["x1", "x2"],
@@ -1449,7 +1456,7 @@ class Philly(
 
         .. code-block:: python
 
-            model = Philly(
+            model = DelayedSaturatedMMM(
                 date_column="date_week",
                 channel_columns=["x1", "x2"],
                 control_columns=[

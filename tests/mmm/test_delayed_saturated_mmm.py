@@ -9,8 +9,8 @@ import xarray as xr
 from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.delayed_saturated_mmm import (
-    BasePhilly,
-    Philly,
+    BaseDelayedSaturatedMMM,
+    DelayedSaturatedMMM,
 )
 
 seed: int = sum(map(ord, "pymc_marketing"))
@@ -86,8 +86,8 @@ def toy_y(toy_X: pd.DataFrame) -> pd.Series:
 
 
 @pytest.fixture(scope="module")
-def mmm() -> Philly:
-    return Philly(
+def mmm() -> DelayedSaturatedMMM:
+    return DelayedSaturatedMMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
         adstock_max_lag=4,
@@ -96,8 +96,8 @@ def mmm() -> Philly:
 
 
 @pytest.fixture(scope="module")
-def mmm_with_fourier_features() -> Philly:
-    return Philly(
+def mmm_with_fourier_features() -> DelayedSaturatedMMM:
+    return DelayedSaturatedMMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
         adstock_max_lag=4,
@@ -107,24 +107,24 @@ def mmm_with_fourier_features() -> Philly:
 
 
 @pytest.fixture(scope="module")
-def mmm_fitted(mmm: Philly, toy_X: pd.DataFrame, toy_y: pd.Series) -> Philly:
+def mmm_fitted(mmm: DelayedSaturatedMMM, toy_X: pd.DataFrame, toy_y: pd.Series) -> DelayedSaturatedMMM:
     mmm.fit(X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2, random_seed=rng)
     return mmm
 
 
 @pytest.fixture(scope="module")
 def mmm_fitted_with_fourier_features(
-    mmm_with_fourier_features: Philly,
+    mmm_with_fourier_features: DelayedSaturatedMMM,
     toy_X: pd.DataFrame,
     toy_y: pd.Series,
-) -> Philly:
+) -> DelayedSaturatedMMM:
     mmm_with_fourier_features.fit(
         X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2, random_seed=rng
     )
     return mmm_with_fourier_features
 
 
-class TestPhilly:
+class TestDelayedSaturatedMMM:
     def test_save_load_with_not_serializable_model_config(
         self, model_config_requiring_serialization, toy_X, toy_y
     ):
@@ -143,7 +143,7 @@ class TestPhilly:
                         return False
             return True
 
-        model = Philly(
+        model = DelayedSaturatedMMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
             adstock_max_lag=4,
@@ -153,7 +153,7 @@ class TestPhilly:
             toy_X, toy_y, target_accept=0.81, draws=100, chains=2, random_seed=rng
         )
         model.save("test_save_load")
-        model2 = Philly.load("test_save_load")
+        model2 = DelayedSaturatedMMM.load("test_save_load")
         assert model.date_column == model2.date_column
         assert model.control_columns == model2.control_columns
         assert model.channel_columns == model2.channel_columns
@@ -206,7 +206,7 @@ class TestPhilly:
         adstock_max_lag: int,
         time_varying_intercept: bool,
     ) -> None:
-        mmm = BasePhilly(
+        mmm = BaseDelayedSaturatedMMM(
             date_column="date",
             channel_columns=channel_columns,
             control_columns=control_columns,
@@ -281,7 +281,7 @@ class TestPhilly:
         draws: int = 100
         chains: int = 2
 
-        mmm = BasePhilly(
+        mmm = BaseDelayedSaturatedMMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
             control_columns=["control_1", "control_2"],
@@ -289,7 +289,7 @@ class TestPhilly:
             yearly_seasonality=2,
         )
         assert mmm.version == "0.0.2"
-        assert mmm._model_type == "Philly"
+        assert mmm._model_type == "DelayedSaturatedMMM"
         assert mmm.model_config is not None
         n_channel: int = len(mmm.channel_columns)
         n_control: int = len(mmm.control_columns)
@@ -357,7 +357,7 @@ class TestPhilly:
     def test_get_fourier_models_data(
         self, toy_X: pd.DataFrame, toy_y: pd.Series, yearly_seasonality: int | None
     ) -> None:
-        mmm = BasePhilly(
+        mmm = BaseDelayedSaturatedMMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
             control_columns=["control_1", "control_2"],
@@ -380,7 +380,7 @@ class TestPhilly:
             assert fourier_modes_data.min().min() >= -1
 
     def test_channel_contributions_forward_pass_recovers_contribution(
-        self, mmm_fitted: Philly
+        self, mmm_fitted: DelayedSaturatedMMM
     ) -> None:
         channel_data = mmm_fitted.preprocessed_data["X"][
             mmm_fitted.channel_columns
@@ -407,7 +407,7 @@ class TestPhilly:
         )
 
     def test_channel_contributions_forward_pass_is_consistent(
-        self, mmm_fitted: Philly
+        self, mmm_fitted: DelayedSaturatedMMM
     ) -> None:
         channel_data = mmm_fitted.preprocessed_data["X"][
             mmm_fitted.channel_columns
@@ -435,7 +435,7 @@ class TestPhilly:
         ).all()
 
     def test_get_channel_contributions_forward_pass_grid_shapes(
-        self, mmm_fitted: Philly
+        self, mmm_fitted: DelayedSaturatedMMM
     ) -> None:
         n_channels = len(mmm_fitted.channel_columns)
         data_range = mmm_fitted.X.shape[0]
@@ -454,7 +454,7 @@ class TestPhilly:
         )
 
     def test_bad_start_get_channel_contributions_forward_pass_grid(
-        self, mmm_fitted: Philly
+        self, mmm_fitted: DelayedSaturatedMMM
     ) -> None:
         with pytest.raises(
             expected_exception=ValueError,
@@ -470,7 +470,7 @@ class TestPhilly:
         ids=["relative_xrange", "absolute_xrange"],
     )
     def test_plot_channel_contributions_grid(
-        self, mmm_fitted: Philly, absolute_xrange: bool
+        self, mmm_fitted: DelayedSaturatedMMM, absolute_xrange: bool
     ) -> None:
         fig = mmm_fitted.plot_channel_contributions_grid(
             start=0, stop=1.5, num=2, absolute_xrange=absolute_xrange
@@ -478,7 +478,7 @@ class TestPhilly:
         assert isinstance(fig, plt.Figure)
 
     def test_data_setter(self, toy_X, toy_y):
-        base_delayed_saturated_mmm = BasePhilly(
+        base_delayed_saturated_mmm = BaseDelayedSaturatedMMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
             adstock_max_lag=4,
@@ -519,7 +519,7 @@ class TestPhilly:
         model = mmm_fitted
 
         model.save("test_save_load")
-        model2 = BasePhilly.load("test_save_load")
+        model2 = BaseDelayedSaturatedMMM.load("test_save_load")
         assert model.date_column == model2.date_column
         assert model.control_columns == model2.control_columns
         assert model.channel_columns == model2.channel_columns
@@ -536,7 +536,7 @@ class TestPhilly:
             return "for sure not correct id"
 
         # Now create an instance of MyClass
-        DSMMM = Philly(
+        DSMMM = DelayedSaturatedMMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
             adstock_max_lag=4,
@@ -548,13 +548,13 @@ class TestPhilly:
         )
         DSMMM.save("test_model")
         # Apply the monkeypatch for the property
-        monkeypatch.setattr(Philly, "id", property(mock_property))
+        monkeypatch.setattr(DelayedSaturatedMMM, "id", property(mock_property))
 
         error_msg = """The file 'test_model' does not contain an inference data of the same model
-        or configuration as 'Philly'"""
+        or configuration as 'DelayedSaturatedMMM'"""
 
         with pytest.raises(ValueError, match=error_msg):
-            Philly.load("test_model")
+            DelayedSaturatedMMM.load("test_model")
         os.remove("test_model")
 
     @pytest.mark.parametrize(
@@ -595,7 +595,7 @@ class TestPhilly:
         self, model_config: dict, toy_X: pd.DataFrame, toy_y: pd.Series
     ):
         # Create model instance with specified config
-        model = Philly(
+        model = DelayedSaturatedMMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
             adstock_max_lag=2,
@@ -831,7 +831,7 @@ def test_plot_new_spend_contributions_original_scale(mmm_fitted) -> None:
 
 
 @pytest.fixture(scope="module")
-def mmm_with_prior(mmm) -> Philly:
+def mmm_with_prior(mmm) -> DelayedSaturatedMMM:
     n_chains = 1
     n_samples = 100
 
@@ -904,7 +904,7 @@ def test_add_lift_test_measurements(mmm, toy_X, toy_y, df_lift_test) -> None:
 
 
 def test_add_lift_test_measurements_no_model() -> None:
-    mmm = Philly(
+    mmm = DelayedSaturatedMMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
         adstock_max_lag=4,
