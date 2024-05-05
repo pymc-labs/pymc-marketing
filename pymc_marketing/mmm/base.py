@@ -590,214 +590,214 @@ class BaseMMM(ModelBuilder):
     def _channel_map_scales(self) -> dict:
         return dict(zip(self.channel_columns, self.channel_transformer["scaler"].scale_))
 
-    def _estimate_budget_contribution_fit(
-        self, channel: str, budget: float,
-    ) -> tuple:
-        """
-        Estimate the lower and upper bounds of the contribution fit for a given channel and budget.
-        This function computes the quantiles (0.05 & 0.95) of the channel contributions, estimates
-        the parameters of the fit function based on the specified method (either 'sigmoid' or 'michaelis-menten'),
-        and calculates the lower and upper bounds of the contribution fit.
+    # def _estimate_budget_contribution_fit(
+    #     self, channel: str, budget: float,
+    # ) -> tuple:
+    #     """
+    #     Estimate the lower and upper bounds of the contribution fit for a given channel and budget.
+    #     This function computes the quantiles (0.05 & 0.95) of the channel contributions, estimates
+    #     the parameters of the fit function based on the specified method (either 'sigmoid' or 'michaelis-menten'),
+    #     and calculates the lower and upper bounds of the contribution fit.
 
-        The function is used in the `plot_budget_scenearios` function to estimate the contribution fit for each channel
-        and budget scenario. The estimated fit is then used to plot the contribution optimization bounds
-        for each scenario.
+    #     The function is used in the `plot_budget_scenearios` function to estimate the contribution fit for each channel
+    #     and budget scenario. The estimated fit is then used to plot the contribution optimization bounds
+    #     for each scenario.
 
-        Parameters
-        ----------
-        method : str
-            The method used to fit the contribution & spent non-linear relationship.
-            It can be either 'sigmoid' or 'michaelis-menten'.
-        channel : str
-            The name of the channel for which the contribution fit is being estimated.
-        budget : float
-            The budget for the channel.
+    #     Parameters
+    #     ----------
+    #     method : str
+    #         The method used to fit the contribution & spent non-linear relationship.
+    #         It can be either 'sigmoid' or 'michaelis-menten'.
+    #     channel : str
+    #         The name of the channel for which the contribution fit is being estimated.
+    #     budget : float
+    #         The budget for the channel.
 
-        Returns
-        -------
-        tuple
-            A tuple containing the lower and upper bounds of the contribution fit.
+    #     Returns
+    #     -------
+    #     tuple
+    #         A tuple containing the lower and upper bounds of the contribution fit.
 
-        Raises
-        ------
-        ValueError
-            If the method is not 'sigmoid' or 'michaelis-menten'.
-        """
+    #     Raises
+    #     ------
+    #     ValueError
+    #         If the method is not 'sigmoid' or 'michaelis-menten'.
+    #     """
 
-        upper_params = self.format_recovered_transformation_parameters(quantile=.95)
-        lower_params = self.format_recovered_transformation_parameters(quantile=.05)
+    #     upper_params = self.format_recovered_transformation_parameters(quantile=.95)
+    #     lower_params = self.format_recovered_transformation_parameters(quantile=.05)
 
-        y_fit_lower = self.saturation.function(x=budget, **lower_params[channel]["saturation_params"]).eval()
-        y_fit_upper = self.saturation.function(x=budget, **upper_params[channel]["saturation_params"]).eval()
+    #     y_fit_lower = self.saturation.function(x=budget, **lower_params[channel]["saturation_params"]).eval()
+    #     y_fit_upper = self.saturation.function(x=budget, **upper_params[channel]["saturation_params"]).eval()
 
-        y_fit_lower = self.get_target_transformer().inverse_transform(y_fit_lower.reshape(-1, 1)).flatten()
-        y_fit_upper = self.get_target_transformer().inverse_transform(y_fit_upper.reshape(-1, 1)).flatten()
+    #     y_fit_lower = self.get_target_transformer().inverse_transform(y_fit_lower.reshape(-1, 1)).flatten()
+    #     y_fit_upper = self.get_target_transformer().inverse_transform(y_fit_upper.reshape(-1, 1)).flatten()
 
-        return y_fit_lower, y_fit_upper
+    #     return y_fit_lower, y_fit_upper
 
-    def _plot_scenario(
-        self,
-        ax,
-        data,
-        label,
-        color,
-        offset,
-        bar_width,
-        upper_bound=None,
-        lower_bound=None,
-        contribution=False,
-    ):
-        """
-        Plot a single scenario (bar-plot) on a given axes.
+    # def _plot_scenario(
+    #     self,
+    #     ax,
+    #     data,
+    #     label,
+    #     color,
+    #     offset,
+    #     bar_width,
+    #     upper_bound=None,
+    #     lower_bound=None,
+    #     contribution=False,
+    # ):
+    #     """
+    #     Plot a single scenario (bar-plot) on a given axes.
 
-        Parameters
-        ----------
-        ax : matplotlib.axes.Axes
-            The axes on which to plot the scenario.
-        data : dict
-            Dictionary containing the data for the scenario.
-            Keys are the names of the channels and values are the corresponding values.
-        label : str
-            Label for the scenario.
-        color : str
-            Color to use for the bars in the plot.
-        offset : float
-            Offset to apply to the positions of the bars in the plot.
-        bar_width: float
-            Bar width.
-        upper_bound : dict, optional
-            Dictionary containing the upper bounds for the data. Keys should match those in the `data` dictionary.
-            Only used if `contribution` is True.
-        lower_bound : dict, optional
-            Dictionary containing the lower bounds for the data. Keys should match those in the `data` dictionary.
-            Only used if `contribution` is True.
-        contribution : bool, optional
-            If True, plot the upper and lower bounds for the data. Default is False.
+    #     Parameters
+    #     ----------
+    #     ax : matplotlib.axes.Axes
+    #         The axes on which to plot the scenario.
+    #     data : dict
+    #         Dictionary containing the data for the scenario.
+    #         Keys are the names of the channels and values are the corresponding values.
+    #     label : str
+    #         Label for the scenario.
+    #     color : str
+    #         Color to use for the bars in the plot.
+    #     offset : float
+    #         Offset to apply to the positions of the bars in the plot.
+    #     bar_width: float
+    #         Bar width.
+    #     upper_bound : dict, optional
+    #         Dictionary containing the upper bounds for the data. Keys should match those in the `data` dictionary.
+    #         Only used if `contribution` is True.
+    #     lower_bound : dict, optional
+    #         Dictionary containing the lower bounds for the data. Keys should match those in the `data` dictionary.
+    #         Only used if `contribution` is True.
+    #     contribution : bool, optional
+    #         If True, plot the upper and lower bounds for the data. Default is False.
 
-        Returns
-        -------
-        None
-            The function adds a plot to the provided axes object in-place and doesn't return any object.
-        """
-        keys = sorted(k for k in data.keys() if k != "total")
-        positions = [i + offset for i in range(len(keys))]
-        values = [data[k] for k in keys]
+    #     Returns
+    #     -------
+    #     None
+    #         The function adds a plot to the provided axes object in-place and doesn't return any object.
+    #     """
+    #     keys = sorted(k for k in data.keys() if k != "total")
+    #     positions = [i + offset for i in range(len(keys))]
+    #     values = [data[k] for k in keys]
 
-        if contribution:
-            upper_values = [upper_bound[k] for k in keys]
-            lower_values = [lower_bound[k] for k in keys]
+    #     if contribution:
+    #         upper_values = [upper_bound[k] for k in keys]
+    #         lower_values = [lower_bound[k] for k in keys]
 
-            ax.barh(positions, upper_values, height=bar_width, alpha=0.25, color=color)
+    #         ax.barh(positions, upper_values, height=bar_width, alpha=0.25, color=color)
 
-            ax.barh(
-                positions,
-                values,
-                height=bar_width,
-                color=color,
-                alpha=0.25,
-            )
+    #         ax.barh(
+    #             positions,
+    #             values,
+    #             height=bar_width,
+    #             color=color,
+    #             alpha=0.25,
+    #         )
 
-            ax.barh(positions, lower_values, height=bar_width, alpha=0.35, color=color)
-        else:
-            ax.barh(
-                positions,
-                values,
-                height=bar_width,
-                label=label,
-                color=color,
-                alpha=0.85,
-            )
+    #         ax.barh(positions, lower_values, height=bar_width, alpha=0.35, color=color)
+    #     else:
+    #         ax.barh(
+    #             positions,
+    #             values,
+    #             height=bar_width,
+    #             label=label,
+    #             color=color,
+    #             alpha=0.85,
+    #         )
 
-    def plot_budget_scenearios(
-        self, *, base_data: dict, **kwargs
-    ) -> plt.Figure:
-        """
-        Experimental: Plots the budget and contribution bars side by side for multiple scenarios.
+    # def plot_budget_scenearios(
+    #     self, *, base_data: dict, **kwargs
+    # ) -> plt.Figure:
+    #     """
+    #     Experimental: Plots the budget and contribution bars side by side for multiple scenarios.
 
-        Parameters
-        ----------
-        base_data : dict
-            Base dictionary containing 'budget' and 'contribution'.
-        scenarios_data : list of dict, optional
-            Additional dictionaries containing other scenarios.
+    #     Parameters
+    #     ----------
+    #     base_data : dict
+    #         Base dictionary containing 'budget' and 'contribution'.
+    #     scenarios_data : list of dict, optional
+    #         Additional dictionaries containing other scenarios.
 
-        Returns
-        -------
-        matplotlib.figure.Figure
-            The resulting figure object.
+    #     Returns
+    #     -------
+    #     matplotlib.figure.Figure
+    #         The resulting figure object.
 
-        """
+    #     """
 
-        scenarios_data = kwargs.get("scenarios_data", [])
-        for scenario in scenarios_data:
-            standardize_scenarios_dict_keys(scenario, ["contribution", "budget"])
+    #     scenarios_data = kwargs.get("scenarios_data", [])
+    #     for scenario in scenarios_data:
+    #         standardize_scenarios_dict_keys(scenario, ["contribution", "budget"])
 
-        standardize_scenarios_dict_keys(base_data, ["contribution", "budget"])
+    #     standardize_scenarios_dict_keys(base_data, ["contribution", "budget"])
 
-        fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(15, 6))
-        scenarios = [base_data, *list(scenarios_data)]
-        num_scenarios = len(scenarios)
-        bar_width = (
-            0.8 / num_scenarios
-        )  # bar width calculated based on the number of scenarios
-        num_channels = len(base_data["contribution"]) - 1
+    #     fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(15, 6))
+    #     scenarios = [base_data, *list(scenarios_data)]
+    #     num_scenarios = len(scenarios)
+    #     bar_width = (
+    #         0.8 / num_scenarios
+    #     )  # bar width calculated based on the number of scenarios
+    #     num_channels = len(base_data["contribution"]) - 1
 
-        # Generate upper_bound and lower_bound dictionaries for each scenario
-        upper_bounds, lower_bounds = [], []
-        for scenario in scenarios:
-            upper_bound, lower_bound = {}, {}
-            for channel, budget in scenario["budget"].items():
-                if channel != "total":
-                    y_fit_lower, y_fit_upper = self._estimate_budget_contribution_fit(
-                        channel=channel, budget=budget
-                    )
-                    upper_bound[channel] = y_fit_upper
-                    lower_bound[channel] = y_fit_lower
-            upper_bounds.append(upper_bound)
-            lower_bounds.append(lower_bound)
+    #     # Generate upper_bound and lower_bound dictionaries for each scenario
+    #     upper_bounds, lower_bounds = [], []
+    #     for scenario in scenarios:
+    #         upper_bound, lower_bound = {}, {}
+    #         for channel, budget in scenario["budget"].items():
+    #             if channel != "total":
+    #                 y_fit_lower, y_fit_upper = self._estimate_budget_contribution_fit(
+    #                     channel=channel, budget=budget
+    #                 )
+    #                 upper_bound[channel] = y_fit_upper
+    #                 lower_bound[channel] = y_fit_lower
+    #         upper_bounds.append(upper_bound)
+    #         lower_bounds.append(lower_bound)
 
-        # Plot all scenarios
-        for i, (scenario, upper_bound, lower_bound) in enumerate(
-            zip(scenarios, upper_bounds, lower_bounds, strict=False)
-        ):
-            color = f"C{i}"
-            offset = i * bar_width - 0.4 + bar_width / 2
-            label = f"Scenario {i+1}" if i else "Initial"
-            self._plot_scenario(
-                axes[0], scenario["budget"], label, color, offset, bar_width
-            )
-            self._plot_scenario(
-                axes[1],
-                scenario["contribution"],
-                label,
-                color,
-                offset,
-                bar_width,
-                upper_bound,
-                lower_bound,
-                True,
-            )
+    #     # Plot all scenarios
+    #     for i, (scenario, upper_bound, lower_bound) in enumerate(
+    #         zip(scenarios, upper_bounds, lower_bounds, strict=False)
+    #     ):
+    #         color = f"C{i}"
+    #         offset = i * bar_width - 0.4 + bar_width / 2
+    #         label = f"Scenario {i+1}" if i else "Initial"
+    #         self._plot_scenario(
+    #             axes[0], scenario["budget"], label, color, offset, bar_width
+    #         )
+    #         self._plot_scenario(
+    #             axes[1],
+    #             scenario["contribution"],
+    #             label,
+    #             color,
+    #             offset,
+    #             bar_width,
+    #             upper_bound,
+    #             lower_bound,
+    #             True,
+    #         )
 
-        axes[0].set_title("Budget Optimization")
-        axes[0].set_xlabel("Budget")
-        axes[0].set_yticks(range(num_channels))
-        axes[0].set_yticklabels(
-            [k for k in sorted(base_data["budget"].keys()) if k != "total"]
-        )
+    #     axes[0].set_title("Budget Optimization")
+    #     axes[0].set_xlabel("Budget")
+    #     axes[0].set_yticks(range(num_channels))
+    #     axes[0].set_yticklabels(
+    #         [k for k in sorted(base_data["budget"].keys()) if k != "total"]
+    #     )
 
-        axes[1].set_title("Contribution Optimization")
-        axes[1].set_xlabel("Contribution")
-        axes[1].set_yticks(range(num_channels))
-        axes[1].set_yticklabels(
-            [k for k in sorted(base_data["contribution"].keys()) if k != "total"]
-        )
+    #     axes[1].set_title("Contribution Optimization")
+    #     axes[1].set_xlabel("Contribution")
+    #     axes[1].set_yticks(range(num_channels))
+    #     axes[1].set_yticklabels(
+    #         [k for k in sorted(base_data["contribution"].keys()) if k != "total"]
+    #     )
 
-        fig.suptitle("Budget and Contribution Optimization", fontsize=16, y=1.18)
-        fig.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=4)
+    #     fig.suptitle("Budget and Contribution Optimization", fontsize=16, y=1.18)
+    #     fig.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=4)
 
-        plt.tight_layout(rect=[0, 0, 1, 0.98])
+    #     plt.tight_layout(rect=[0, 0, 1, 0.98])
 
-        return fig
+    #     return fig
 
     def _plot_response_curve_fit(
         self,
