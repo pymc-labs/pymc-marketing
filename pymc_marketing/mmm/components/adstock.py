@@ -24,10 +24,13 @@ class AdstockTransformation(Transformation):
     prefix: str = "adstock"
 
     def __init__(
-        self, l_max: int = 10, normalize: bool = False, priors: dict | None = None
+        self, l_max: int = 10, normalize: bool = False, 
+        mode = ConvMode.After,
+        priors: dict | None = None
     ) -> None:
         self.l_max = l_max
         self.normalize = normalize
+        self.mode = mode
 
         super().__init__(priors)
 
