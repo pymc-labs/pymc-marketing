@@ -14,7 +14,7 @@ from pymc_marketing.mmm.components.saturation import (
     TanhSaturation,
     TanhSaturationBaselined,
 )
-from pymc_marketing.mmm.delayed_saturated_mmm import Philly
+from pymc_marketing.mmm.delayed_saturated_mmm import DelayedSaturatedMMM
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
@@ -28,7 +28,7 @@ __all__ = [
     "validating",
     "MMM",
     "BaseMMM",
-    "Philly",
+    "DelayedSaturatedMMM",
     "preprocessing_method_X",
     "preprocessing_method_y",
     "validation_method_X",

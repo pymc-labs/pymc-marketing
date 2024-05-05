@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 from matplotlib import pyplot as plt
 
-from pymc_marketing.mmm.delayed_saturated_mmm import BasePhilly
+from pymc_marketing.mmm.delayed_saturated_mmm import BaseDelayedSaturatedMMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleTarget
 
 seed: int = sum(map(ord, "pymc_marketing"))
@@ -50,12 +50,12 @@ class TestBasePlotting:
         control, transform = request.param.split("-")
         if transform == "default_transform":
 
-            class ToyMMM(BasePhilly):
+            class ToyMMM(BaseDelayedSaturatedMMM):
                 pass
 
         elif transform == "target_transform":
 
-            class ToyMMM(BasePhilly, MaxAbsScaleTarget):
+            class ToyMMM(BaseDelayedSaturatedMMM, MaxAbsScaleTarget):
                 pass
 
         if control == "without_controls":

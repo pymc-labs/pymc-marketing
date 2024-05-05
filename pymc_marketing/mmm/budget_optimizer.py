@@ -7,6 +7,43 @@ from scipy.optimize import minimize
 from pymc_marketing.mmm.transformers import michaelis_menten
 from pymc_marketing.mmm.utils import sigmoid_saturation
 
+class BudgetOptimizer:
+    def __init__(self, adstock, saturation, num_days, channels, l_max, adstock_first=True):
+        self.adstock = adstock
+        self.saturation = saturation
+        self.num_days = num_days
+        self.channels = channels
+        self.l_max = l_max
+        self.adstock_first = adstock_first
+
+    def objective(self, budgets):
+        total_response = 0
+        first_transform, second_transform = (
+            (self.adstock, self.saturation) if self.adstock_first else (self.saturation, self.adstock)
+        )
+        for idx, (channel, params) in enumerate(self.channels.items()):
+            budget = budgets[idx]
+            first_params = params['adstock_params'] if self.adstock_first else params['saturation_params']
+            second_params = params['saturation_params'] if self.adstock_first else params['adstock_params']
+            spend = np.full(self.num_days, budget)
+            spend_extended = np.concatenate([spend, np.zeros(self.l_max)])
+            transformed_spend = second_transform.function(first_transform.function(spend_extended, **first_params).eval(), **second_params).eval()
+            total_response += np.sum(transformed_spend)
+        return -total_response
+
+    def allocate_budget(self, total_budget, budget_bounds=None):
+        constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - total_budget})
+        num_channels = len(self.channels)
+        initial_guess = np.full(num_channels, total_budget / num_channels)
+        bounds = [(budget_bounds[channel][0] if budget_bounds and channel in budget_bounds else 0,
+                   budget_bounds[channel][1] if budget_bounds and channel in budget_bounds else total_budget) for channel in self.channels]
+        result = minimize(self.objective, x0=initial_guess, bounds=bounds, constraints=constraints, method='SLSQP')
+        if result.success:
+            optimal_budgets = {name: budget for name, budget in zip(self.channels.keys(), result.x)}
+            return optimal_budgets, -result.fun
+        else:
+            raise Exception("Optimization failed: " + result.message)
+
 
 def calculate_expected_contribution(
     method: str,
@@ -99,22 +136,35 @@ def objective_distribution(
         Negative of the total expected contribution for the given budget distribution.
     """
 
-    sum_contributions = 0.0
+    total_response = 0
+    num_days = len(budgets)  # Assuming budgets array corresponds to the days
 
-    for channel, budget in zip(channels, x, strict=False):
-        if method == "michaelis-menten":
-            L, k = parameters[channel]
-            sum_contributions += michaelis_menten(budget, L, k)
+    # Dynamic function and parameter assignment based on adstock_first flag
+    first_transform, second_transform = (
+        (mmm.adstock, mmm.saturation) if adstock_first else (mmm.saturation, mmm.adstock)
+    )
 
-        elif method == "sigmoid":
-            alpha, lam = parameters[channel]
-            sum_contributions += sigmoid_saturation(budget, alpha, lam)
+    for idx, (channel, params) in enumerate(channels.items()):
+        budget = budgets[idx]
 
-        else:
-            raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")
+        # Define parameters for each transformation
+        first_params = params['adstock_params'] if adstock_first else params['saturation_params']
+        second_params = params['saturation_params'] if adstock_first else params['adstock_params']
 
-    return -1 * sum_contributions
+        # Prepare input data for the transformations
+        spend = np.full(num_days, budget)
+        spend_extended = np.concatenate([spend, np.zeros(first_params.get('l_max', 0))])  # Assuming l_max for length of zeros to append
 
+        # Applying first transformation
+        first_output = first_transform.function(spend_extended, **first_params).eval()
+
+        # Applying second transformation
+        transformed_spend = second_transform.function(first_output, **second_params).eval()
+
+        # Summing up the response
+        total_response += np.sum(transformed_spend)
+
+    return -total_response
 
 def optimize_budget_distribution(
     method: str,

@@ -24,8 +24,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from xarray import DataArray, Dataset
 
-from pymc_marketing.mmm.budget_optimizer import budget_allocator
-from pymc_marketing.mmm.transformers import michaelis_menten
+from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+
 from pymc_marketing.mmm.utils import (
     estimate_menten_parameters,
     estimate_sigmoid_parameters,
@@ -514,9 +514,84 @@ class BaseMMM(ModelBuilder):
             dims=channel_contribution.dims,
             coords=channel_contribution.coords,
         )
+    
+    def format_recovered_transformation_parameters(self, quantile: float = .5) -> dict[str, dict[str, dict[str, float]]]:
+        """
+        Format the recovered transformation parameters for each channel.
+
+        This function retrieves the quantile of the parameters for each channel and formats them into a dictionary
+        containing the channel name, the saturation parameters, and the adstock parameters.
+
+        Parameters
+        ----------
+        quantile : float, optional
+            The quantile to retrieve from the posterior distribution of the parameters. Default is 0.5.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the channel names as keys and the corresponding saturation and adstock parameters
+            as values.
+
+        Example
+        -------
+        >>> self.format_recovered_transformation_parameters(quantile=.5)
+        >>> Output: 
+        {
+            'x1': {
+                'saturation_params': {
+                    'lam': 2.4761893929757077,
+                    'beta': 0.360226791880304
+                },
+            'adstock_params': {
+                'alpha': 0.39910387900504796
+                }
+            },
+            'x2': {
+                'saturation_params': {
+                    'lam': 2.6485978655163436,
+                    'beta': 0.2399381337197204
+                },
+            'adstock_params': {
+                'alpha': 0.18859423763437405
+                }
+            }
+        }
+        """
+        # Retrieve channel names
+        channels = self.fit_result.channel.values
+        
+        # Initialize the dictionary to store channel information
+        channels_info = {}
+
+        # Define the parameter groups for consolidation
+        param_groups = {
+            'saturation_params': self.saturation.model_config.keys(),
+            'adstock_params': self.adstock.model_config.keys()
+        }
+
+        # Iterate through each channel to fetch and store parameters
+        for channel in channels:
+            channel_info = {}
+
+            # Process each group of parameters (saturation and adstock)
+            for group_name, params in param_groups.items():
+                # Build dictionary for the current group of parameters
+                param_dict = {
+                    param.replace(group_name[:-7] + "_", ""): self.fit_result[param].quantile(quantile, dim=["chain", "draw"]).to_pandas().to_dict()[channel]
+                    for param in params if param in self.fit_result
+                }
+                channel_info[group_name] = param_dict
+
+            channels_info[channel] = channel_info
+
+        return channels_info
+    
+    def _channel_map_scales(self) -> dict:
+        return dict(zip(self.channel_columns, self.channel_transformer["scaler"].scale_))
 
     def _estimate_budget_contribution_fit(
-        self, channel: str, budget: float, method: str = "sigmoid"
+        self, channel: str, budget: float,
     ) -> tuple:
         """
         Estimate the lower and upper bounds of the contribution fit for a given channel and budget.
@@ -548,31 +623,15 @@ class BaseMMM(ModelBuilder):
         ValueError
             If the method is not 'sigmoid' or 'michaelis-menten'.
         """
-        channel_contributions_quantiles = (
-            self.compute_channel_contribution_original_scale().quantile(
-                q=[0.05, 0.95], dim=["chain", "draw"]
-            )
-        )
 
-        # Estimate parameters based on the method
-        if method == "sigmoid":
-            estimate_function = estimate_sigmoid_parameters
-            fit_function = sigmoid_saturation
-        elif method == "michaelis-menten":
-            estimate_function = estimate_menten_parameters
-            fit_function = michaelis_menten
-        else:
-            raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")
+        upper_params = self.format_recovered_transformation_parameters(quantile=.95)
+        lower_params = self.format_recovered_transformation_parameters(quantile=.05)
 
-        alpha_limit_upper, lam_constant_upper = estimate_function(
-            channel, self.X, channel_contributions_quantiles.sel(quantile=0.95)
-        )
-        alpha_limit_lower, lam_constant_lower = estimate_function(
-            channel, self.X, channel_contributions_quantiles.sel(quantile=0.05)
-        )
+        y_fit_lower = self.saturation.function(x=budget, **lower_params[channel]["saturation_params"]).eval()
+        y_fit_upper = self.saturation.function(x=budget, **upper_params[channel]["saturation_params"]).eval()
 
-        y_fit_lower = fit_function(budget, alpha_limit_lower, lam_constant_lower)
-        y_fit_upper = fit_function(budget, alpha_limit_upper, lam_constant_upper)
+        y_fit_lower = self.get_target_transformer().inverse_transform(y_fit_lower.reshape(-1, 1)).flatten()
+        y_fit_upper = self.get_target_transformer().inverse_transform(y_fit_upper.reshape(-1, 1)).flatten()
 
         return y_fit_lower, y_fit_upper
 
@@ -650,7 +709,7 @@ class BaseMMM(ModelBuilder):
             )
 
     def plot_budget_scenearios(
-        self, *, base_data: dict, method: str = "sigmoid", **kwargs
+        self, *, base_data: dict, **kwargs
     ) -> plt.Figure:
         """
         Experimental: Plots the budget and contribution bars side by side for multiple scenarios.
@@ -659,8 +718,6 @@ class BaseMMM(ModelBuilder):
         ----------
         base_data : dict
             Base dictionary containing 'budget' and 'contribution'.
-        method : str
-            The method to use for estimating contribution fit ('sigmoid' or 'michaelis-menten').
         scenarios_data : list of dict, optional
             Additional dictionaries containing other scenarios.
 
@@ -692,7 +749,7 @@ class BaseMMM(ModelBuilder):
             for channel, budget in scenario["budget"].items():
                 if channel != "total":
                     y_fit_lower, y_fit_upper = self._estimate_budget_contribution_fit(
-                        method=method, channel=channel, budget=budget
+                        channel=channel, budget=budget
                     )
                     upper_bound[channel] = y_fit_upper
                     lower_bound[channel] = y_fit_lower
@@ -744,12 +801,10 @@ class BaseMMM(ModelBuilder):
 
     def _plot_response_curve_fit(
         self,
-        x: np.ndarray,
         ax: plt.Axes,
         channel: str,
         color_index: int,
         xlim_max: int,
-        method: str = "sigmoid",
         label: str = "Fit Curve",
     ) -> None:
         """
@@ -781,63 +836,9 @@ class BaseMMM(ModelBuilder):
         None
             The function modifies the given axes object in-place and doesn't return any object.
         """
-        channel_contributions = self.compute_channel_contribution_original_scale().mean(
-            ["chain", "draw"]
-        )
-
-        channel_contributions_quantiles = (
-            self.compute_channel_contribution_original_scale().quantile(
-                q=[0.05, 0.95], dim=["chain", "draw"]
-            )
-        )
 
         if self.X is not None:
             x_mean = np.max(self.X[channel])
-
-        # Estimate parameters based on the method
-        if method == "sigmoid":
-            alpha_limit, lam_constant = estimate_sigmoid_parameters(
-                channel=channel,
-                original_dataframe=self.X,
-                contributions=channel_contributions,
-            )
-            alpha_limit_upper, lam_constant_upper = estimate_sigmoid_parameters(
-                channel=channel,
-                original_dataframe=self.X,
-                contributions=channel_contributions_quantiles.sel(quantile=0.95),
-            )
-            alpha_limit_lower, lam_constant_lower = estimate_sigmoid_parameters(
-                channel=channel,
-                original_dataframe=self.X,
-                contributions=channel_contributions_quantiles.sel(quantile=0.05),
-            )
-
-            x_inflection, y_inflection = find_sigmoid_inflection_point(
-                alpha=alpha_limit, lam=lam_constant
-            )
-            fit_function = sigmoid_saturation
-        elif method == "michaelis-menten":
-            alpha_limit, lam_constant = estimate_menten_parameters(
-                channel=channel,
-                original_dataframe=self.X,
-                contributions=channel_contributions,
-            )
-            alpha_limit_upper, lam_constant_upper = estimate_menten_parameters(
-                channel=channel,
-                original_dataframe=self.X,
-                contributions=channel_contributions_quantiles.sel(quantile=0.95),
-            )
-            alpha_limit_lower, lam_constant_lower = estimate_menten_parameters(
-                channel=channel,
-                original_dataframe=self.X,
-                contributions=channel_contributions_quantiles.sel(quantile=0.05),
-            )
-
-            y_inflection = michaelis_menten(lam_constant, alpha_limit, lam_constant)
-            x_inflection = lam_constant
-            fit_function = michaelis_menten
-        else:
-            raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")
 
         # Set x_limit based on the method or xlim_max
         if xlim_max is not None:
@@ -847,147 +848,34 @@ class BaseMMM(ModelBuilder):
 
         # Generate x_fit and y_fit
         x_fit = np.linspace(0, x_limit, 1000)
-        y_fit = fit_function(x_fit, alpha_limit, lam_constant)
-        y_fit_lower = fit_function(x_fit, alpha_limit_lower, lam_constant_lower)
-        y_fit_upper = fit_function(x_fit, alpha_limit_upper, lam_constant_upper)
+        upper_params = self.format_recovered_transformation_parameters(quantile=.95)
+        lower_params = self.format_recovered_transformation_parameters(quantile=.05)
+        mid_params = self.format_recovered_transformation_parameters(quantile=.5)
+        y_fit = self.saturation.function(x=x_fit, **mid_params[channel]["saturation_params"]).eval()
+
+        y_fit_lower = self.saturation.function(x=x_fit, **lower_params[channel]["saturation_params"]).eval()
+        y_fit_upper = self.saturation.function(x=x_fit, **upper_params[channel]["saturation_params"]).eval()
+
+        # scale all y fit values to the original scale using `mmm.target_transformer.named_steps["scaler"].scale_.item()`
+        y_fit = self.get_target_transformer().inverse_transform(y_fit.reshape(-1, 1)).flatten()
+        y_fit_lower = self.get_target_transformer().inverse_transform(y_fit_lower.reshape(-1, 1)).flatten()
+        y_fit_upper = self.get_target_transformer().inverse_transform(y_fit_upper.reshape(-1, 1)).flatten()
+
+        # scale x fit values
+        x_fit = self._channel_map_scales()[channel] * x_fit
 
         ax.fill_between(
             x_fit, y_fit_lower, y_fit_upper, color=f"C{color_index}", alpha=0.25
         )
         ax.plot(x_fit, y_fit, color=f"C{color_index}", label=label, alpha=0.6)
-        ax.plot(
-            x_inflection,
-            y_inflection,
-            color=f"C{color_index}",
-            markerfacecolor="white",
-        )
-
-        ax.text(
-            x_mean,
-            ax.get_ylim()[1] / 1.25,
-            f"α: {alpha_limit:.5f}",
-            fontsize=9,
-            bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.5"),
-        )
 
         ax.set(xlabel="Spent", ylabel="Contribution")
         ax.legend()
-
-    def optimize_channel_budget_for_maximum_contribution(
-        self,
-        method: str,
-        total_budget: int,
-        budget_bounds: dict[str, tuple[float, float]] | None = None,
-        *,
-        parameters: dict[str, tuple[float, float]],
-    ) -> pd.DataFrame:
-        """
-        Experimental: Optimize the allocation of a given total budget across multiple
-        channels to maximize the expected contribution.
-
-        The optimization is based on the method provided, where each channel's contribution
-        follows a saturating function of its allocated budget. The function seeks the budget allocation
-        that maximizes the total expected contribution across all channels.
-        The method can be either 'sigmoid' or 'michaelis-menten'.
-
-        Parameters
-        ----------
-        total_budget : int, required
-            The total budget to be distributed across channels.
-        method : str, required
-            The method used to fit the contribution & spent non-linear relationship.
-            It can be either 'sigmoid' or 'michaelis-menten'.
-        parameters : Dict, required
-            A dictionary where keys are channel names and values are tuples (L, k) representing the
-            parameters for each channel based on the method used.
-        budget_bounds : Dict, optional
-            An optional dictionary defining the minimum and maximum budget for each channel.
-            If not provided, the budget for each channel is constrained between 0 and its L value.
-
-        Returns
-        -------
-        DataFrame
-            A pandas DataFrame containing the allocated budget and contribution information.
-
-        Raises
-        ------
-        ValueError
-            If any of the required parameters are not provided or have an incorrect type.
-        """
-        if not isinstance(budget_bounds, dict | type(None)):
-            raise TypeError("`budget_ranges` should be a dictionary or None.")
-
-        if not isinstance(total_budget, int | float):
-            raise ValueError(
-                "The 'total_budget' parameter must be an integer or float."
-            )
-
-        if not parameters:
-            raise ValueError(
-                "The 'parameters' argument (keyword-only) must be provided and non-empty."
-            )
-
-        warnings.warn(
-            "This budget allocator method is experimental", UserWarning, stacklevel=1
-        )
-
-        return budget_allocator(
-            method=method,
-            total_budget=total_budget,
-            channels=list(self.channel_columns),
-            parameters=parameters,
-            budget_ranges=budget_bounds,
-        )
-
-    def compute_channel_curve_optimization_parameters_original_scale(
-        self, method: str = "sigmoid"
-    ) -> dict:
-        """
-        Experimental: Estimate the parameters for the saturating function of each channel's contribution.
-
-        The function estimates the parameters (alpha, constant) for each channel based on the specified method
-        (either 'sigmoid' or 'michaelis-menten'). These parameters represent the maximum possible contribution (alpha)
-        and the constant parameter which vary their definition based on the function (constant) for each channel.
-
-        Parameters
-        ----------
-        method : str, required
-            The method used to fit the contribution & spent non-linear relationship.
-            It can be either 'sigmoid' or 'michaelis-menten'.
-
-        Returns
-        -------
-        Dict
-            A dictionary where keys are channel names and values are tuples (L, k) representing the
-            parameters for each channel based on the method used.
-        """
-        warnings.warn(
-            "The curve optimization parameters method is experimental",
-            UserWarning,
-            stacklevel=1,
-        )
-
-        channel_contributions = self.compute_channel_contribution_original_scale().mean(
-            ["chain", "draw"]
-        )
-
-        if method == "michaelis-menten":
-            fit_function = estimate_menten_parameters
-        elif method == "sigmoid":
-            fit_function = estimate_sigmoid_parameters
-        else:
-            raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")
-
-        return {
-            channel: fit_function(channel, self.X, channel_contributions)
-            for channel in self.channel_columns
-        }
 
     def plot_direct_contribution_curves(
         self,
         show_fit: bool = False,
         xlim_max=None,
-        method: str = "sigmoid",
         channels: list[str] | None = None,
         same_axes: bool = False,
     ) -> plt.Figure:
@@ -1002,9 +890,6 @@ class BaseMMM(ModelBuilder):
             If True, the function will also plot the curve fit based on the specified method. Defaults to False.
         xlim_max : int, optional
             The maximum value to be plot on the X-axis. If not provided, the maximum value in the data will be used.
-        method : str, optional
-            The method used to fit the contribution & spent non-linear relationship.
-            It can be either 'sigmoid' or 'michaelis-menten'. Defaults to 'sigmoid'.
         channels : List[str], optional
             A list of channels to plot. If not provided, all channels will be plotted.
         same_axes : bool, optional
@@ -1076,12 +961,10 @@ class BaseMMM(ModelBuilder):
                 if show_fit:
                     label = f"{channel} Fit Curve" if same_axes else "Fit Curve"
                     self._plot_response_curve_fit(
-                        x=x,
                         ax=ax,
                         channel=channel,
                         color_index=i,
                         xlim_max=xlim_max,
-                        method=method,
                         label=label,
                     )
 
