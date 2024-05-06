@@ -17,10 +17,26 @@ class ParameterPriorException(Exception):
         msg = "The function parameters and priors don't line up."
 
         if self.priors:
-            msg = f"{msg} Missing prior: {self.priors}."
+            msg = f"{msg} Missing default prior: {self.priors}."
 
         if self.parameters:
-            msg = f"{msg} Missing parameter: {self.parameters}."
+            msg = f"{msg} Missing function parameter: {self.parameters}."
+
+        super().__init__(msg)
+
+
+RESERVED_DATA_PARAMETER_NAMES = {"x", "data"}
+
+
+class MissingDataParameter(Exception):
+    """Error if the function doesn't have a data parameter."""
+
+    def __init__(self) -> None:
+        msg = (
+            f"The function must have a data parameter."
+            " The first parameter is assumed to be the data"
+            f" with name being one of: {RESERVED_DATA_PARAMETER_NAMES}"
+        )
 
         super().__init__(msg)
 
@@ -103,7 +119,7 @@ class Transformation:
     def _has_defaults_for_all_arguments(self) -> None:
         function_signature = signature(self.function)
 
-        # Remove the first one
+        # Remove the first one as assumed to be the data
         parameters_that_need_priors = set(
             list(function_signature.parameters.keys())[1:]
         )
@@ -116,14 +132,22 @@ class Transformation:
             raise ParameterPriorException(missing_priors, missing_parameters)
 
     def _function_works_on_instances(self) -> None:
-        n_parameters = len(signature(self.function).parameters)
+        class_function = self.__class__.function
+        function_parameters = list(signature(class_function).parameters)
 
-        n_default_parameters = len(self.default_priors)
+        is_method = function_parameters[0] == "self"
+        data_parameter_idx = 1 if is_method else 0
 
-        if n_parameters - 1 == n_default_parameters:
+        has_data_parameter = (
+            function_parameters[data_parameter_idx] in RESERVED_DATA_PARAMETER_NAMES
+        )
+        if not has_data_parameter:
+            raise MissingDataParameter()
+
+        if is_method:
             return
 
-        self.function = self.__class__.function
+        self.function = class_function
 
     @property
     def variable_mapping(self) -> dict[str, str]:
