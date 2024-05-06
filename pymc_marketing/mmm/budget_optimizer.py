@@ -1,4 +1,5 @@
 """Budget optimization module."""
+import warnings
 
 import numpy as np
 from pandas import DataFrame
@@ -31,12 +32,29 @@ class BudgetOptimizer:
             total_response += np.sum(transformed_spend)
         return -total_response
 
-    def allocate_budget(self, total_budget, budget_bounds=None):
-        constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - total_budget})
+    def allocate_budget(self, total_budget, budget_bounds=None, custom_constraints=None):
+       
+        if budget_bounds is None:
+            budget_bounds = {channel: (0, total_budget) for channel in self.channels}
+            warnings.warn("No budget bounds provided. Using default bounds (0, total_budget) for each channel.")
+        else:
+            if not isinstance(budget_bounds, dict):
+                raise TypeError("`budget_bounds` should be a dictionary.")
+        
+        if custom_constraints is None:
+            constraints = {'type': 'eq', 'fun': lambda x: np.sum(x) - total_budget}
+            warnings.warn("No custom constraints provided. Using default equaliy constraint: The sum of all budgets should be equal to the total budget.")
+        else:
+            if not isinstance(custom_constraints, dict):
+                raise TypeError("`custom_constraints` should be a dictionary.")
+            else:
+                constraints = custom_constraints
+
         num_channels = len(self.channels)
         initial_guess = np.full(num_channels, total_budget / num_channels)
-        bounds = [(budget_bounds[channel][0] if budget_bounds and channel in budget_bounds else 0,
-                   budget_bounds[channel][1] if budget_bounds and channel in budget_bounds else total_budget) for channel in self.channels]
+        bounds = bounds = [(budget_bounds[channel][0], budget_bounds[channel][1]) 
+                           if channel in budget_bounds else (0, total_budget) 
+                           for channel in self.channels]
         result = minimize(self.objective, x0=initial_guess, bounds=bounds, constraints=constraints, method='SLSQP')
         if result.success:
             optimal_budgets = {name: budget for name, budget in zip(self.channels.keys(), result.x)}
