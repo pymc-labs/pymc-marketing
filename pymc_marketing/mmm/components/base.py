@@ -1,3 +1,25 @@
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+"""Base class for adstock and saturation functions used in MMM.
+
+Use the subclasses directly for custom transformations:
+
+- Adstock Transformations: :class:`pymc_marketing.mmm.components.adstock.AdstockTransformation`
+- Saturation Transformations: :class:`pymc_marketing.mmm.components.saturation.SaturationTransformation`
+
+"""
+
 import warnings
 from inspect import signature
 from typing import Any
@@ -50,8 +72,21 @@ class Transformation:
     - prefix: The prefix for the variables that will be created.
     - default_priors: The default priors for the parameters of the function.
 
-    In order to make a new saturation or adstock function, this class would not be used but rather
-    **SaturationTransformation** and **AdstockTransformation** not be used. Instead, the subclasses would be used.
+    In order to make a new saturation or adstock function, use the specific subclasses:
+
+    - :class:`pymc_marketing.mmm.components.saturation.SaturationTransformation`
+    - :class:`pymc_marketing.mmm.components.adstock.AdstockTransformation`
+
+    View the documentation for those classes for more information.
+
+    Parameters
+    ----------
+    priors : dict, optional
+        Dictionary with the priors for the parameters of the function. The keys should be the
+        parameter names and the values should be dictionaries with the distribution and kwargs.
+    prefix : str, optional
+        The prefix for the variables that will be created. If not provided, it will use the prefix
+        from the subclass.
 
     """
 
@@ -66,16 +101,31 @@ class Transformation:
         self.prefix = prefix or self.prefix
 
     def update_priors(self, priors: dict[str, Any]) -> None:
-        """
+        """Helper to update the priors for a function after initialization.
 
-        model_config = {
-            "saturation_lam": {"dist": "Gamma", "kwargs": {"alpha": 3, "beta": 1}},
-            "lam": {"dist": "Gamma", "kwargs": {"alpha": 3, "beta": 1}},
-        }
+        Uses {prefix}_{parameter_name} as the key for the priors instead of the parameter name
+        in order to be used in the larger MMM.
 
-        class MMM:
-            def __init__(self, model_config):
-                adstock.update_priors(model_config)
+        Parameters
+        ----------
+        priors : dict
+            Dictionary with the new priors for the parameters of the function.
+
+        Examples
+        --------
+        Update the priors for a transformation after initialization.
+
+        .. code-block:: python
+
+            class MyTransformation(Transformation):
+                prefix: str = "transformation"
+                function = lambda x, lam: x * lam
+                default_priors = {"lam": {"dist": "Gamma", "kwargs": {"alpha": 3, "beta": 1}}}
+
+            transformation = MyTransformation()
+            transformation.update_priors(
+                {"transformation_lam": {"dist": "HalfNormal", "kwargs": {"sigma": 1}}}
+            )
 
         """
         new_priors = {
@@ -94,6 +144,7 @@ class Transformation:
 
     @property
     def model_config(self) -> dict[str, Any]:
+        """Mapping from variable name to prior for the model."""
         return {
             variable_name: self.function_priors[parameter_name]
             for parameter_name, variable_name in self.variable_mapping.items()
@@ -151,6 +202,7 @@ class Transformation:
 
     @property
     def variable_mapping(self) -> dict[str, str]:
+        """Mapping from parameter name to variable name in the model."""
         return {
             parameter: f"{self.prefix}_{parameter}"
             for parameter in self.default_priors.keys()
@@ -173,7 +225,37 @@ class Transformation:
 
         return distributions
 
-    def apply(self, x):
-        """Called within a model context."""
-        kwargs = self._create_distributions(dim_name="channel")
+    def apply(self, x: pt.TensorLike, dim_name: str = "channel") -> pt.TensorVariable:
+        """Called within a model context.
+
+        Used internally of the MMM to apply the transformation to the data.
+
+        Parameters
+        ----------
+        x : pt.TensorLike
+            The data to be transformed.
+        dim_name : str, optional
+            The name of the dimension associated with the columns of the data.
+            Defaults to "channel".
+
+        Returns
+        -------
+        pt.TensorVariable
+            The transformed data.
+
+
+        Examples
+        --------
+        Call the function for custom use-case
+
+        .. code-block:: python
+
+            transformation = ...
+
+            coords = {"channel": ["TV", "Radio", "Digital"]}
+            with pm.Model(coords=coords):
+                transformed_data = transformation.apply(data, dim_name="channel")
+
+        """
+        kwargs = self._create_distributions(dim_name=dim_name)
         return self.function(x, **kwargs)
