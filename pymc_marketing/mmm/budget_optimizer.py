@@ -22,12 +22,11 @@ from pymc_marketing.mmm.transformers import michaelis_menten
 from pymc_marketing.mmm.utils import sigmoid_saturation
 
 class BudgetOptimizer:
-    def __init__(self, adstock, saturation, num_days, channels, l_max, adstock_first=True):
+    def __init__(self, adstock, saturation, num_days, channels, adstock_first=True):
         self.adstock = adstock
         self.saturation = saturation
         self.num_days = num_days
         self.channels = channels
-        self.l_max = l_max
         self.adstock_first = adstock_first
 
     def objective(self, budgets):
@@ -40,8 +39,8 @@ class BudgetOptimizer:
             first_params = params['adstock_params'] if self.adstock_first else params['saturation_params']
             second_params = params['saturation_params'] if self.adstock_first else params['adstock_params']
             spend = np.full(self.num_days, budget)
-            spend_extended = np.concatenate([spend, np.zeros(self.l_max)])
-            transformed_spend = second_transform.function(first_transform.function(spend_extended, **first_params).eval(), **second_params).eval()
+            spend_extended = np.concatenate([spend, np.zeros(self.adstock.l_max)])
+            transformed_spend = second_transform.function(x=first_transform.function(x=spend_extended, **first_params).eval(), **second_params).eval()
             total_response += np.sum(transformed_spend)
         return -total_response
 
