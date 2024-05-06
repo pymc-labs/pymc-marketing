@@ -1,4 +1,4 @@
-#   Copyright 2023 The PyMC Developers
+#   Copyright 2024 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -130,8 +130,6 @@ class ModelBuilder(ABC):
 
         """
 
-        raise NotImplementedError
-
     @property
     @abstractmethod
     def output_var(self):
@@ -143,7 +141,6 @@ class ModelBuilder(ABC):
         output_var : str
             Name of the output variable of the model.
         """
-        raise NotImplementedError
 
     @property
     @abstractmethod
@@ -172,7 +169,6 @@ class ModelBuilder(ABC):
         model_config : dict
             A set of default parameters for predictor distributions that allow to save and recreate the model.
         """
-        raise NotImplementedError
 
     @property
     @abstractmethod
@@ -196,7 +192,6 @@ class ModelBuilder(ABC):
         sampler_config : dict
             A set of default settings for used by model in fit process.
         """
-        raise NotImplementedError
 
     @abstractmethod
     def _generate_and_preprocess_model_data(
@@ -229,7 +224,6 @@ class ModelBuilder(ABC):
         None
 
         """
-        raise NotImplementedError
 
     @abstractmethod
     def build_model(
@@ -264,13 +258,7 @@ class ModelBuilder(ABC):
         Returns
         -------
         None
-
-        Raises
-        ------
-        NotImplementedError
-            This is an abstract method and must be implemented in a subclass.
         """
-        raise NotImplementedError
 
     def set_idata_attrs(self, idata=None):
         """

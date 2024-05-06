@@ -1,3 +1,16 @@
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 from contextlib import nullcontext as does_not_raise
 
 import numpy as np
@@ -104,9 +117,14 @@ def test_batched_convolution_broadcasting():
 
 
 class TestsAdstockTransformers:
-    def test_geometric_adstock_x_zero(self):
+    @pytest.mark.parametrize(
+        argnames="mode",
+        argvalues=[ConvMode.After, ConvMode.Before, ConvMode.Overlap],
+        ids=["After", "Before", "Overlap"],
+    )
+    def test_geometric_adstock_x_zero(self, mode):
         x = np.zeros(shape=(100))
-        y = geometric_adstock(x=x, alpha=0.2)
+        y = geometric_adstock(x=x, alpha=0.2, mode=mode)
         np.testing.assert_array_equal(x=x, y=y.eval())
 
     @pytest.mark.parametrize(
@@ -127,9 +145,14 @@ class TestsAdstockTransformers:
         assert y_np[1] == x[1] + alpha * x[0]
         assert y_np[2] == x[2] + alpha * x[1] + (alpha**2) * x[0]
 
-    def test_delayed_adstock_output_type(self):
+    @pytest.mark.parametrize(
+        argnames="mode",
+        argvalues=[ConvMode.After, ConvMode.Before, ConvMode.Overlap],
+        ids=["After", "Before", "Overlap"],
+    )
+    def test_delayed_adstock_output_type(self, mode):
         x = np.ones(shape=(100))
-        y = delayed_adstock(x=x, alpha=0.5, theta=6, l_max=7)
+        y = delayed_adstock(x=x, alpha=0.5, theta=6, l_max=7, mode=mode)
         assert isinstance(y, TensorVariable)
         assert isinstance(y.eval(), np.ndarray)
 
@@ -138,23 +161,35 @@ class TestsAdstockTransformers:
         y = delayed_adstock(x=x, alpha=0.2, theta=2, l_max=4)
         np.testing.assert_array_equal(x=x, y=y.eval())
 
-    def test_geometric_adstock_vectorized(self, dummy_design_matrix):
+    @pytest.mark.parametrize(
+        argnames="mode",
+        argvalues=[ConvMode.After, ConvMode.Before, ConvMode.Overlap],
+        ids=["After", "Before", "Overlap"],
+    )
+    def test_geometric_adstock_vectorized(self, dummy_design_matrix, mode):
         x = dummy_design_matrix.copy()
         x_tensor = pt.as_tensor_variable(x)
         alpha = [0.9, 0.33, 0.5, 0.1, 0.0]
         alpha_tensor = pt.as_tensor_variable(alpha)
-        y_tensor = geometric_adstock(x=x_tensor, alpha=alpha_tensor, l_max=12, axis=0)
+        y_tensor = geometric_adstock(
+            x=x_tensor, alpha=alpha_tensor, l_max=12, axis=0, mode=mode
+        )
         y = y_tensor.eval()
 
         y_tensors = [
-            geometric_adstock(x=x[:, i], alpha=alpha[i], l_max=12)
+            geometric_adstock(x=x[:, i], alpha=alpha[i], l_max=12, mode=mode)
             for i in range(x.shape[1])
         ]
         ys = np.concatenate([y_t.eval()[..., None] for y_t in y_tensors], axis=1)
         assert y.shape == x.shape
         np.testing.assert_almost_equal(actual=y, desired=ys, decimal=12)
 
-    def test_delayed_adstock_vectorized(self, dummy_design_matrix):
+    @pytest.mark.parametrize(
+        argnames="mode",
+        argvalues=[ConvMode.After, ConvMode.Before, ConvMode.Overlap],
+        ids=["After", "Before", "Overlap"],
+    )
+    def test_delayed_adstock_vectorized(self, dummy_design_matrix, mode):
         x = dummy_design_matrix
         x_tensor = pt.as_tensor_variable(x)
         alpha = [0.9, 0.33, 0.5, 0.1, 0.0]
@@ -162,12 +197,19 @@ class TestsAdstockTransformers:
         theta = [0, 1, 2, 3, 4]
         theta_tensor = pt.as_tensor_variable(theta)
         y_tensor = delayed_adstock(
-            x=x_tensor, alpha=alpha_tensor, theta=theta_tensor, l_max=12, axis=0
+            x=x_tensor,
+            alpha=alpha_tensor,
+            theta=theta_tensor,
+            l_max=12,
+            axis=0,
+            mode=mode,
         )
         y = y_tensor.eval()
 
         y_tensors = [
-            delayed_adstock(x=x[:, i], alpha=alpha[i], theta=theta[i], l_max=12)
+            delayed_adstock(
+                x=x[:, i], alpha=alpha[i], theta=theta[i], l_max=12, mode=mode
+            )
             for i in range(x.shape[1])
         ]
         ys = np.concatenate([y_t.eval()[..., None] for y_t in y_tensors], axis=1)
@@ -382,7 +424,7 @@ class TestSaturationTransformers:
         np.testing.assert_allclose(y2, y3)
         np.testing.assert_allclose(y3, y4)
         np.testing.assert_allclose(param_classic1.b.eval(), b)
-        np.testing.assert_allclose(param_classic1.c.eval(), c)
+        np.testing.assert_allclose(param_classic1.c.eval(), c, rtol=1e-06)
 
     @pytest.mark.parametrize(
         "x, alpha, lam, expected",

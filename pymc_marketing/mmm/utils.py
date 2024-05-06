@@ -1,3 +1,16 @@
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 """Utility functions for the Marketing Mix Modeling module."""
 
 import re
@@ -278,6 +291,26 @@ def apply_sklearn_transformer_across_dim(
     data.attrs = attrs
 
     return data
+
+
+def transform_1d_array(
+    transform: Callable[[pd.Series | np.ndarray], np.ndarray], y: pd.Series | np.ndarray
+) -> np.ndarray:
+    """Transform a 1D array using a scikit-learn transformer.
+
+    Parameters
+    ----------
+    transform : scikit-learn transformer
+        The transformer to apply to the data.
+    y : np.ndarray
+        The data to transform.
+
+    Returns
+    -------
+    np.ndarray
+        The transformed data.
+    """
+    return transform(np.array(y)[:, None]).flatten()
 
 
 def sigmoid_saturation(

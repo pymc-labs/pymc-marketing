@@ -59,6 +59,7 @@ Leverage our Bayesian MMM API to tailor your marketing strategies effectively. B
 - **Custom Priors and Likelihoods**: Tailor your model to your specific business needs by including domain knowledge via prior distributions.
 - **Adstock Transformation**: Optimize the carry-over effects in your marketing channels.
 - **Saturation Effects**: Understand the diminishing returns in media investments.
+- **Time-varying Intercept:** Capture time-varying baseline contributions in your model (using modern and efficient Gaussian processes approximation methods).
 - **Visualization and Model Diagnostics**: Get a comprehensive view of your model's performance and insights.
 - **Out-of-sample Predictions**: Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.
 - **Budget Optimization**: Allocate your marketing spend efficiently across various channels for maximum ROI.
@@ -89,8 +90,8 @@ mmm = DelayedSaturatedMMM(
 Initiate fitting and get a visualization of some of the outputs with:
 
 ```python
-X = data.drop('y',axis=1)
-y = data['y']
+X = data.drop("y",axis=1)
+y = data["y"]
 mmm.fit(X,y)
 mmm.plot_components_contributions();
 ```
@@ -111,7 +112,7 @@ Explore a hands-on [simulated example](https://pymc-marketing.readthedocs.io/en/
 - [Improving the Speed and Accuracy of Bayesian Marketing Mix Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)
 - [Johns, Michael and Wang,  Zhenyu. "A Bayesian Approach to Media Mix Modeling"](https://www.youtube.com/watch?v=UznM_-_760Y)
 - [Orduz, Juan. "Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns"](https://juanitorduz.github.io/pymc_mmm/)
-- [A Comprehensive Guide to Bayesian Marketing Mix Modeling](https://1749.io/resource-center/f/a-comprehensive-guide-to-bayesian-marketing-mix-modeling)
+- [A Comprehensive Guide to Bayesian Marketing Mix Modeling](https://1749.io/learn/f/a-comprehensive-guide-to-bayesian-marketing-mix-modeling)
 
 ## Unlock Customer Lifetime Value (CLV) with PyMC
 
@@ -141,7 +142,7 @@ from pymc_marketing import clv
 
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
 data = pd.read_csv(data_url)
-data['customer_id'] = data.index
+data["customer_id"] = data.index
 
 beta_geo_model = clv.BetaGeoModel(data=data)
 
@@ -158,7 +159,12 @@ See the Examples section for more on this.
 
 PyMC-Marketing is and will always be free for commercial use, licensed under [Apache 2.0](LICENSE). Developed by core developers behind the popular PyMC package and marketing experts, it provides state-of-the-art measurements and analytics for marketing teams.
 
-Due to its open-source nature and active contributor base, new features are added constantly. Missing a feature or want to contribute? Fork our repository and submit a pull request. For any questions, feel free to [open an issue](https://github.com/your-repo/issues).
+Due to its open-source nature and active contributor base, new features are constantly added. Are you missing a feature or want to contribute? Fork our repository and submit a pull request. If you have any questions, feel free to [open an issue](https://github.com/your-repo/issues).
+
+### Thanks to our contributors!
+
+[![https://github.com/pymc-devs/pymc/graphs/contributors](https://contrib.rocks/image?repo=pymc-labs/pymc-marketing)](https://github.com/pymc-labs/pymc-marketing/graphs/contributors)
+
 
 ## Marketing AI Assistant: MMM-GPT with PyMC-Marketing
 
