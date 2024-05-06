@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from pymc_marketing.mmm.components.base import (
@@ -59,9 +60,13 @@ def test_new_transformation_function_works_on_instances(function) -> None:
         function = function
 
     try:
-        NewTransformation()
+        new_transformation = NewTransformation()
     except Exception as e:
         pytest.fail(f"Error: {e}")
+
+    x = np.array([1, 2, 3])
+    expected = np.array([2, 3, 4])
+    np.testing.assert_allclose(new_transformation.function(x, 1), expected)
 
 
 def test_new_transformation_missing_data_parameter() -> None:
@@ -100,3 +105,55 @@ def test_new_transformation_missing_parameter() -> None:
         ParameterPriorException, match="Missing function parameter: {'b'}"
     ):
         NewTransformation()
+
+
+@pytest.fixture
+def new_transformation_class() -> type[Transformation]:
+    class NewTransformation(Transformation):
+        prefix = "new"
+
+        def function(self, x, a, b):
+            return a * b * x
+
+        default_priors = {
+            "a": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+            "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        }
+
+    return NewTransformation
+
+
+@pytest.fixture
+def new_transformation(new_transformation_class) -> Transformation:
+    return new_transformation_class()
+
+
+def test_new_transformation_function_priors(new_transformation) -> None:
+    assert new_transformation.function_priors == {
+        "a": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+    }
+
+
+def test_new_transformation_update_priors(new_transformation_class) -> None:
+    new_prior = {"a": {"dist": "HalfNormal", "kwargs": {"sigma": 2}}}
+    new_transformation = new_transformation_class(priors=new_prior)
+    assert new_transformation.function_priors == {
+        "a": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+        "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+    }
+
+
+def test_new_transformation_variable_mapping(new_transformation) -> None:
+    assert new_transformation.variable_mapping == {"a": "new_a", "b": "new_b"}
+
+
+def test_new_transformation_access_function(new_transformation) -> None:
+    x = np.array([1, 2, 3])
+    expected = np.array([6, 12, 18])
+    np.testing.assert_allclose(new_transformation.function(x, 2, 3), expected)
+
+
+def test_new_transformation_apply_outside_model(new_transformation) -> None:
+    with pytest.raises(TypeError, match="on context stack"):
+        new_transformation.apply(1)
