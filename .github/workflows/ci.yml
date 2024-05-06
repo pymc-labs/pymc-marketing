@@ -7,7 +7,8 @@ on:
     branches: [main]
 
 env:
-  OLDEST_PYMC_VERSION: "5.12.0"
+  # The lower bound from the pyproject.toml file
+  OLDEST_PYMC_VERSION: "$(grep -E 'pymc *>' pyproject.toml | sed 's/[^0-9\\.]*//g')"
 
 jobs:
   test:
