@@ -358,7 +358,7 @@ class BaseMMM(ModelBuilder):
 
         except Exception as e:
             raise RuntimeError(
-                "The model hasn't been fit yet, call .fit() first"
+                "Make sure the model has bin fitted and the posterior predictive has been sampled!"
             ) from e
 
         target_to_plot = np.asarray(
@@ -430,7 +430,7 @@ class BaseMMM(ModelBuilder):
 
         except Exception as e:
             raise RuntimeError(
-                "The model hasn't been fit yet, call .fit() first"
+                "Make sure the model has bin fitted and the posterior predictive has been sampled!"
             ) from e
 
         target = np.asarray(

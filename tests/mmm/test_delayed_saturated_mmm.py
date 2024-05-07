@@ -128,6 +128,15 @@ def mmm_fitted(
 
 
 @pytest.fixture(scope="module")
+def mmm_fitted_with_posterior_predictive(
+    mmm_fitted: DelayedSaturatedMMM,
+    toy_X: pd.DataFrame,
+) -> DelayedSaturatedMMM:
+    _ = mmm_fitted.sample_posterior_predictive(toy_X, extend_idata=True, combined=True)
+    return mmm_fitted
+
+
+@pytest.fixture(scope="module")
 def mmm_fitted_with_fourier_features(
     mmm_with_fourier_features: DelayedSaturatedMMM,
     toy_X: pd.DataFrame,
@@ -414,6 +423,41 @@ class TestDelayedSaturatedMMM:
             x=channel_contributions_forward_pass_mean / channel_contributions_mean,
             y=mmm_fitted.y.max(),
         )
+
+    @pytest.mark.parametrize(
+        argnames="original_scale",
+        argvalues=[False, True],
+        ids=["raw", "original-scale"],
+    )
+    def test_get_errors(
+        self,
+        mmm_fitted_with_posterior_predictive: DelayedSaturatedMMM,
+        original_scale: bool,
+    ) -> None:
+        errors = mmm_fitted_with_posterior_predictive.get_errors(
+            original_scale=original_scale
+        )
+        assert isinstance(errors, xr.DataArray)
+        assert errors.name == "errors"
+        assert errors.shape == (2, 3, mmm_fitted_with_posterior_predictive.y.shape[0])
+
+    def test_get_errors_raises_not_fitted(self, mmm: DelayedSaturatedMMM) -> None:
+        with pytest.raises(RuntimeError, match="The model has not been fitted yet."):
+            mmm.get_errors()
+
+    def test_get_errors_raises_not_posterior_predictive(
+        self, mmm_fitted: DelayedSaturatedMMM
+    ) -> None:
+        with pytest.raises(RuntimeError, match="The model has not been fitted yet."):
+            mmm_fitted.get_errors()
+
+    def test_get_errors_bad_y_length(
+        self,
+        mmm_fitted_with_posterior_predictive: DelayedSaturatedMMM,
+    ):
+        mmm_fitted_with_posterior_predictive.y = np.array([1, 2])
+        with pytest.raises(ValueError):
+            mmm_fitted_with_posterior_predictive.get_errors()
 
     def test_channel_contributions_forward_pass_is_consistent(
         self, mmm_fitted: DelayedSaturatedMMM
