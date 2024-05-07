@@ -433,22 +433,24 @@ class BaseMMM(ModelBuilder):
                 "Make sure the model has bin fitted and the posterior predictive has been sampled!"
             ) from e
 
-        target = np.asarray(
+        target_array = np.asarray(
             transform_1d_array(self.get_target_transformer().transform, self.y)
         )
 
-        if len(target) != len(posterior_predictive_data.date):
+        if len(target_array) != len(posterior_predictive_data.date):
             raise ValueError(
                 "The length of the target variable doesn't match the length of the date column. "
                 "If you are computing out-of-sample errors, please overwrite `self.y` with the "
                 "corresponding (non-transformed) target variable."
             )
 
-        target_broadcast = np.atleast_1d(target)[np.newaxis, np.newaxis, ...]
-
-        errors = (target_broadcast - posterior_predictive_data)[self.output_var].rename(
-            "errors"
+        target = (
+            pd.Series(target_array, index=self.posterior_predictive.date)
+            .rename_axis("date")
+            .to_xarray()
         )
+
+        errors = (target - posterior_predictive_data)[self.output_var].rename("errors")
 
         if original_scale:
             return apply_sklearn_transformer_across_dim(
