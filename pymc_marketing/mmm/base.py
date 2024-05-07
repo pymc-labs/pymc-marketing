@@ -416,6 +416,8 @@ class BaseMMM(ModelBuilder):
     def get_errors(self, original_scale: bool = False) -> DataArray:
         """Get model errors posterior distribution.
 
+        errors = true values - predicted
+
         Parameters
         ----------
         original_scale : bool, optional
@@ -465,6 +467,8 @@ class BaseMMM(ModelBuilder):
         self, original_scale: bool = False, ax: plt.Axes = None, **plt_kwargs: Any
     ) -> plt.Figure:
         """Plot model errors by taking the difference between true values and predicted.
+
+        errors = true values - predicted
 
         Parameters
         ----------
