@@ -441,15 +441,18 @@ class TestDelayedSaturatedMMM:
         assert errors.name == "errors"
         assert errors.shape == (2, 3, mmm_fitted_with_posterior_predictive.y.shape[0])
 
-    def test_get_errors_raises_not_fitted(self, mmm: DelayedSaturatedMMM) -> None:
-        with pytest.raises(RuntimeError, match="The model has not been fitted yet."):
-            mmm.get_errors()
-
-    def test_get_errors_raises_not_posterior_predictive(
-        self, mmm_fitted: DelayedSaturatedMMM
-    ) -> None:
-        with pytest.raises(RuntimeError, match="The model has not been fitted yet."):
-            mmm_fitted.get_errors()
+    def test_get_errors_raises_not_fitted(self) -> None:
+        my_mmm = DelayedSaturatedMMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock_max_lag=4,
+            control_columns=["control_1", "control_2"],
+        )
+        with pytest.raises(
+            RuntimeError,
+            match="Make sure the model has bin fitted and the posterior predictive has been sampled!",
+        ):
+            my_mmm.get_errors()
 
     def test_get_errors_bad_y_length(
         self,
