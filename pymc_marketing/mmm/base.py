@@ -420,6 +420,52 @@ class BaseMMM(ModelBuilder):
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         return fig
 
+    def get_errors(self, original_scale: bool = False) -> DataArray:
+        """Get model errors posterior distribution.
+
+        Parameters
+        ----------
+        original_scale : bool, optional
+            Whether to plot in the original scale.
+
+        Returns
+        -------
+        DataArray
+        """
+        try:
+            posterior_predictive_data: Dataset = self.posterior_predictive
+
+        except Exception as e:
+            raise RuntimeError(
+                "The model hasn't been fit yet, call .fit() first"
+            ) from e
+
+        target = np.asarray(
+            transform_1d_array(self.get_target_transformer().transform, self.y)
+        )
+
+        if len(target) != len(posterior_predictive_data.date):
+            raise ValueError(
+                "The length of the target variable doesn't match the length of the date column. "
+                "If you are computing out-of-sample errors, please overwrite `self.y` with the "
+                "corresponding (non-transformed) target variable."
+            )
+
+        target_broadcast = np.atleast_1d(target)[np.newaxis, np.newaxis, ...]
+
+        errors = (target_broadcast - posterior_predictive_data)[self.output_var].rename(
+            "errors"
+        )
+
+        if original_scale:
+            return apply_sklearn_transformer_across_dim(
+                data=errors,
+                func=self.get_target_transformer().inverse_transform,
+                dim_name="date",
+            )
+
+        return errors
+
     def plot_errors(
         self, original_scale: bool = False, ax: plt.Axes = None, **plt_kwargs: Any
     ) -> plt.Figure:
@@ -436,38 +482,7 @@ class BaseMMM(ModelBuilder):
         -------
         plt.Figure
         """
-        posterior_predictive_data: Dataset = self.posterior_predictive
-
-        target = np.asarray(
-            transform_1d_array(self.get_target_transformer().transform, self.y)
-        )
-
-        if len(target) != len(posterior_predictive_data.date):
-            raise ValueError(
-                "The length of the target variable doesn't match the length of the date column. "
-                "If you are computing out-of-sample errors, please overwrite `self.y` with the "
-                "corresponding (non-transformed) target variable."
-            )
-
-        target_broadcast = np.atleast_1d(target)[np.newaxis, np.newaxis, ...]
-        errors = target_broadcast - posterior_predictive_data
-
-        errors_hdi_94: DataArray = az.hdi(ary=errors, hdi_prob=0.94)[self.output_var]
-        errors_hdi_50: DataArray = az.hdi(ary=errors, hdi_prob=0.50)[self.output_var]
-
-        if original_scale:
-            errors = apply_sklearn_transformer_across_dim(
-                data=errors,
-                func=self.get_target_transformer().inverse_transform,
-                dim_name="date",
-            )
-
-            errors_hdi_94 = self.get_target_transformer().inverse_transform(
-                Xt=errors_hdi_94
-            )
-            errors_hdi_50 = self.get_target_transformer().inverse_transform(
-                Xt=errors_hdi_50
-            )
+        errors = self.get_errors(original_scale=original_scale)
 
         if ax is None:
             fig, ax = plt.subplots(**plt_kwargs)
@@ -475,27 +490,21 @@ class BaseMMM(ModelBuilder):
             fig = ax.figure
 
         if self.X is not None and self.y is not None:
-            ax.fill_between(
-                x=posterior_predictive_data.date,
-                y1=errors_hdi_94[:, 0],
-                y2=errors_hdi_94[:, 1],
-                color="C3",
-                alpha=0.2,
-                label="$94\%$ HDI",  # noqa: W605
-            )
+            for hdi_prob in (0.94, 0.50):
+                errors_hdi = az.hdi(ary=errors, hdi_prob=hdi_prob)
 
-            ax.fill_between(
-                x=posterior_predictive_data.date,
-                y1=errors_hdi_50[:, 0],
-                y2=errors_hdi_50[:, 1],
-                color="C3",
-                alpha=0.3,
-                label="$50\%$ HDI",  # noqa: W605
-            )
+                ax.fill_between(
+                    x=self.posterior_predictive.date,
+                    y1=errors_hdi["errors"].sel(hdi="lower"),
+                    y2=errors_hdi["errors"].sel(hdi="higher"),
+                    color="C3",
+                    alpha=0.2,
+                    label=f"${100 * hdi_prob}\%$ HDI",  # noqa: W605
+                )
 
             ax.plot(
-                posterior_predictive_data.date,
-                errors[self.output_var].mean(dim=("chain", "draw")).to_numpy(),
+                self.posterior_predictive.date,
+                errors.mean(dim=("chain", "draw")).to_numpy(),
                 color="C3",
                 label="Errors Mean",
             )
