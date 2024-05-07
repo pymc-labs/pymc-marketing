@@ -439,7 +439,7 @@ class TestDelayedSaturatedMMM:
         )
         assert isinstance(errors, xr.DataArray)
         assert errors.name == "errors"
-        assert errors.shape == (2, 3, mmm_fitted_with_posterior_predictive.y.shape[0])
+        assert errors.shape == (mmm_fitted_with_posterior_predictive.y.shape[0], 2, 3)
 
     def test_get_errors_raises_not_fitted(self) -> None:
         my_mmm = DelayedSaturatedMMM(
