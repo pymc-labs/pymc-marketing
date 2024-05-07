@@ -338,7 +338,7 @@ class BaseMMM(ModelBuilder):
     def plot_posterior_predictive(
         self, original_scale: bool = False, ax: plt.Axes = None, **plt_kwargs: Any
     ) -> plt.Figure:
-        """Plot posterior distribution from the modele fit.
+        """Plot posterior distribution from the model fit.
 
         Parameters
         ----------
