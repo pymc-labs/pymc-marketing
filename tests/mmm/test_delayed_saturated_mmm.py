@@ -437,9 +437,15 @@ class TestDelayedSaturatedMMM:
         errors = mmm_fitted_with_posterior_predictive.get_errors(
             original_scale=original_scale
         )
+        n_chains = 2
+        n_draws = 3
         assert isinstance(errors, xr.DataArray)
         assert errors.name == "errors"
-        assert errors.shape == (mmm_fitted_with_posterior_predictive.y.shape[0], 2, 3)
+        assert errors.shape == (
+            n_chains,
+            n_draws,
+            mmm_fitted_with_posterior_predictive.y.shape[0],
+        )
 
     def test_get_errors_raises_not_fitted(self) -> None:
         my_mmm = DelayedSaturatedMMM(

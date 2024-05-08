@@ -452,7 +452,11 @@ class BaseMMM(ModelBuilder):
             .to_xarray()
         )
 
-        errors = (target - posterior_predictive_data)[self.output_var].rename("errors")
+        errors = (
+            (target - posterior_predictive_data)[self.output_var]
+            .rename("errors")
+            .transpose(..., "date")
+        )
 
         if original_scale:
             return apply_sklearn_transformer_across_dim(
