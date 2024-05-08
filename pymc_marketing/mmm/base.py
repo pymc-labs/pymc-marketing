@@ -40,6 +40,7 @@ from xarray import DataArray, Dataset
 from pymc_marketing.mmm.budget_optimizer import budget_allocator
 from pymc_marketing.mmm.transformers import michaelis_menten
 from pymc_marketing.mmm.utils import (
+    apply_sklearn_transformer_across_dim,
     estimate_menten_parameters,
     estimate_sigmoid_parameters,
     find_sigmoid_inflection_point,
@@ -337,20 +338,40 @@ class BaseMMM(ModelBuilder):
     def plot_posterior_predictive(
         self, original_scale: bool = False, ax: plt.Axes = None, **plt_kwargs: Any
     ) -> plt.Figure:
-        posterior_predictive_data: Dataset = self.posterior_predictive
-        likelihood_hdi_94: DataArray = az.hdi(
-            ary=posterior_predictive_data, hdi_prob=0.94
-        )[self.output_var]
-        likelihood_hdi_50: DataArray = az.hdi(
-            ary=posterior_predictive_data, hdi_prob=0.50
-        )[self.output_var]
+        """Plot posterior distribution from the model fit.
 
-        if original_scale:
-            likelihood_hdi_94 = self.get_target_transformer().inverse_transform(
-                Xt=likelihood_hdi_94
-            )
-            likelihood_hdi_50 = self.get_target_transformer().inverse_transform(
-                Xt=likelihood_hdi_50
+        Parameters
+        ----------
+        original_scale : bool, optional
+            Whether to plot in the original scale.
+        ax : plt.Axes, optional
+            Matplotlib axis object.
+        **plt_kwargs
+            Keyword arguments passed to `plt.subplots`.
+
+        Returns
+        -------
+        plt.Figure
+        """
+        try:
+            posterior_predictive_data: Dataset = self.posterior_predictive
+
+        except Exception as e:
+            raise RuntimeError(
+                "Make sure the model has bin fitted and the posterior predictive has been sampled!"
+            ) from e
+
+        target_to_plot = np.asarray(
+            self.y
+            if original_scale
+            else transform_1d_array(self.get_target_transformer().transform, self.y)
+        )
+
+        if len(target_to_plot) != len(posterior_predictive_data.date):
+            raise ValueError(
+                "The length of the target variable doesn't match the length of the date column. "
+                "If you are predicting out-of-sample, please overwrite `self.y` with the "
+                "corresponding (non-transformed) target variable."
             )
 
         if ax is None:
@@ -358,50 +379,147 @@ class BaseMMM(ModelBuilder):
         else:
             fig = ax.figure
 
-        if self.X is not None and self.y is not None:
-            ax.fill_between(
-                x=posterior_predictive_data.date,
-                y1=likelihood_hdi_94[:, 0],
-                y2=likelihood_hdi_94[:, 1],
-                color="C0",
-                alpha=0.2,
-                label="$94\%$ HDI",  # noqa: W605
-            )
+        for hdi_prob, alpha in zip((0.94, 0.50), (0.2, 0.4), strict=True):
+            likelihood_hdi: DataArray = az.hdi(
+                ary=posterior_predictive_data, hdi_prob=hdi_prob
+            )[self.output_var]
 
-            ax.fill_between(
-                x=posterior_predictive_data.date,
-                y1=likelihood_hdi_50[:, 0],
-                y2=likelihood_hdi_50[:, 1],
-                color="C0",
-                alpha=0.3,
-                label="$50\%$ HDI",  # noqa: W605
-            )
-
-            target_to_plot = np.asarray(
-                self.y
-                if original_scale
-                else transform_1d_array(self.get_target_transformer().transform, self.y)
-            )
-
-            if len(target_to_plot) != len(posterior_predictive_data.date):
-                raise ValueError(
-                    "The length of the target variable doesn't match the length of the date column. "
-                    "If you are predicting out-of-sample, please overwrite `self.y` with the "
-                    "corresponding (non-transformed) target variable."
+            if original_scale:
+                likelihood_hdi = self.get_target_transformer().inverse_transform(
+                    Xt=likelihood_hdi
                 )
 
-            ax.plot(
-                np.asarray(posterior_predictive_data.date),
-                target_to_plot,
-                color="black",
+            ax.fill_between(
+                x=posterior_predictive_data.date,
+                y1=likelihood_hdi[:, 0],
+                y2=likelihood_hdi[:, 1],
+                color="C0",
+                alpha=alpha,
+                label=f"${100 * hdi_prob}\%$ HDI",  # noqa: W605
             )
-            ax.set(
-                title="Posterior Predictive Check",
-                xlabel="date",
-                ylabel=self.output_var,
+
+        ax.plot(
+            np.asarray(posterior_predictive_data.date),
+            target_to_plot,
+            color="black",
+            label="Observed",
+        )
+        ax.legend()
+        ax.set(
+            title="Posterior Predictive Check",
+            xlabel="date",
+            ylabel=self.output_var,
+        )
+
+        return fig
+
+    def get_errors(self, original_scale: bool = False) -> DataArray:
+        """Get model errors posterior distribution.
+
+        errors = true values - predicted
+
+        Parameters
+        ----------
+        original_scale : bool, optional
+            Whether to plot in the original scale.
+
+        Returns
+        -------
+        DataArray
+        """
+        try:
+            posterior_predictive_data: Dataset = self.posterior_predictive
+
+        except Exception as e:
+            raise RuntimeError(
+                "Make sure the model has bin fitted and the posterior predictive has been sampled!"
+            ) from e
+
+        target_array = np.asarray(
+            transform_1d_array(self.get_target_transformer().transform, self.y)
+        )
+
+        if len(target_array) != len(posterior_predictive_data.date):
+            raise ValueError(
+                "The length of the target variable doesn't match the length of the date column. "
+                "If you are computing out-of-sample errors, please overwrite `self.y` with the "
+                "corresponding (non-transformed) target variable."
             )
+
+        target = (
+            pd.Series(target_array, index=self.posterior_predictive.date)
+            .rename_axis("date")
+            .to_xarray()
+        )
+
+        errors = (
+            (target - posterior_predictive_data)[self.output_var]
+            .rename("errors")
+            .transpose(..., "date")
+        )
+
+        if original_scale:
+            return apply_sklearn_transformer_across_dim(
+                data=errors,
+                func=self.get_target_transformer().inverse_transform,
+                dim_name="date",
+            )
+
+        return errors
+
+    def plot_errors(
+        self, original_scale: bool = False, ax: plt.Axes = None, **plt_kwargs: Any
+    ) -> plt.Figure:
+        """Plot model errors by taking the difference between true values and predicted.
+
+        errors = true values - predicted
+
+        Parameters
+        ----------
+        original_scale : bool, optional
+            Whether to plot in the original scale.
+        ax : plt.Axes, optional
+            Matplotlib axis object.
+        **plt_kwargs
+            Keyword arguments passed to `plt.subplots`.
+
+        Returns
+        -------
+        plt.Figure
+        """
+        errors = self.get_errors(original_scale=original_scale)
+
+        if ax is None:
+            fig, ax = plt.subplots(**plt_kwargs)
         else:
-            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
+            fig = ax.figure
+
+        for hdi_prob, alpha in zip((0.94, 0.50), (0.2, 0.4), strict=True):
+            errors_hdi = az.hdi(ary=errors, hdi_prob=hdi_prob)
+
+            ax.fill_between(
+                x=self.posterior_predictive.date,
+                y1=errors_hdi["errors"].sel(hdi="lower"),
+                y2=errors_hdi["errors"].sel(hdi="higher"),
+                color="C3",
+                alpha=alpha,
+                label=f"${100 * hdi_prob}\%$ HDI",  # noqa: W605
+            )
+
+        ax.plot(
+            self.posterior_predictive.date,
+            errors.mean(dim=("chain", "draw")).to_numpy(),
+            color="C3",
+            label="Errors Mean",
+        )
+
+        ax.axhline(y=0.0, linestyle="--", color="black", label="zero")
+        ax.legend()
+        ax.set(
+            title="Errors Posterior Distribution",
+            xlabel="date",
+            ylabel="true - predictions",
+        )
         return fig
 
     def _format_model_contributions(self, var_contribution: str) -> DataArray:
@@ -1411,14 +1529,20 @@ class BaseMMM(ModelBuilder):
         cumulative_contribution = 0
 
         for index, row in dataframe.iterrows():
-            color = "lightblue" if row["contribution"] >= 0 else "salmon"
+            color = "C0" if row["contribution"] >= 0 else "C3"
 
             bar_start = (
                 cumulative_contribution + row["contribution"]
                 if row["contribution"] < 0
                 else cumulative_contribution
             )
-            ax.barh(row["component"], row["contribution"], left=bar_start, color=color)
+            ax.barh(
+                row["component"],
+                row["contribution"],
+                left=bar_start,
+                color=color,
+                alpha=0.5,
+            )
 
             if row["contribution"] > 0:
                 cumulative_contribution += row["contribution"]
