@@ -18,6 +18,11 @@ import pandas as pd
 import plotly.graph_objects as go
 
 import streamlit as st
+from pymc_marketing.mmm.transformers import (
+    logistic_saturation,
+    michaelis_menten,
+    tanh_saturation,
+)
 
 # -------------------------- TOP OF PAGE INFORMATION -------------------------
 
@@ -61,15 +66,15 @@ dummy_root = asf.root_saturation(media_spending, alpha=0.3) + np.random.normal(
 dummy_hill = asf.threshold_hill_saturation(
     media_spending, alpha=8, gamma=400, threshold=200
 ) + np.random.normal(0, 0.05, num_points)
-dummy_logistic = asf.logistic_saturation(media_spending, lam=0.01) + np.random.normal(
-    0, 0.1, num_points
-)
-dummy_tanh = asf.tanh_saturation(media_spending, b=10, c=20) + np.random.normal(
+dummy_logistic = logistic_saturation(
+    media_spending, lam=0.01
+).eval() + np.random.normal(0, 0.1, num_points)
+dummy_tanh = tanh_saturation(media_spending, b=10, c=20).eval() + np.random.normal(
     0, 0.75, num_points
 )
-dummy_m_m = asf.michaelis_menten_saturation(
-    media_spending, alpha=20, lam=200
-) + np.random.normal(0, 2, num_points)
+dummy_m_m = michaelis_menten(media_spending, alpha=20, lam=200) + np.random.normal(
+    0, 2, num_points
+)
 
 # Create tabs for Root and Hill plots
 tab1, tab2, tab3, tab4, tab5 = st.tabs(
@@ -220,7 +225,7 @@ with tab3:
     logistic_lam = logistic_lam / 10000
 
     # Calculate the user created response curve
-    user_logistic = asf.logistic_saturation(media_spending, lam=logistic_lam)
+    user_logistic = logistic_saturation(media_spending, lam=logistic_lam).eval()
 
     # Tidy the simulated dataset for plotting
     plot_data = pd.DataFrame(
@@ -280,7 +285,7 @@ with tab4:
     tanh_c = st.slider(":orange[Tanh Curve $\\text{c}$]:", 0, 100, 50)
 
     # Calculate the user created response curve
-    user_tanh = asf.tanh_saturation(media_spending, b=tanh_b, c=tanh_c)
+    user_tanh = tanh_saturation(media_spending, b=tanh_b, c=tanh_c).eval()
 
     # Tidy the simulated dataset for plotting
     plot_data = pd.DataFrame(
@@ -340,9 +345,7 @@ with tab5:
     m_m_lambda = st.slider(":violet[Michaelis-Menten Curve $\\lambda$:]", 0, 500, 50)
 
     # Calculate the user created response curve
-    user_m_m = asf.michaelis_menten_saturation(
-        media_spending, alpha=m_m_alpha, lam=m_m_lambda
-    )
+    user_m_m = michaelis_menten(media_spending, alpha=m_m_alpha, lam=m_m_lambda)
 
     # Tidy the simulated dataset for plotting
     plot_data = pd.DataFrame(
