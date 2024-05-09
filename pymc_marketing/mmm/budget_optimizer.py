@@ -21,20 +21,71 @@ from scipy.optimize import minimize
 from pymc_marketing.mmm.transformers import michaelis_menten
 from pymc_marketing.mmm.utils import sigmoid_saturation
 
+from pymc_marketing.mmm.components.adstock import (
+    AdstockTransformation
+)
+from pymc_marketing.mmm.components.saturation import (
+    SaturationTransformation
+)
+
 class BudgetOptimizer:
-    def __init__(self, adstock, saturation, num_days, channels, adstock_first=True):
+    """
+    A class for optimizing budget allocation in a marketing mix model.
+
+    Parameters:
+    ----------
+    adstock : AdstockTransformation
+        The adstock parameter.
+    saturation : SaturationTransformation
+        The saturation parameter.
+    num_days : int
+        The number of days.
+    parameters : dict
+        A dictionary of parameters for each channel.
+    adstock_first : bool, optional
+        Whether to apply adstock transformation first or saturation transformation first. 
+        Default is True.
+
+    Methods:
+    -------
+    objective(budgets):
+        Calculate the objective function value given the budgets.
+    allocate_budget(total_budget, budget_bounds=None, custom_constraints=None):
+        Allocate the budget based on the total budget, budget bounds, and custom constraints.
+    """
+
+    def __init__(self, 
+        adstock: AdstockTransformation, 
+        saturation: SaturationTransformation, 
+        num_days: int, 
+        parameters: dict[str, dict[str, dict[str, float]]],
+        adstock_first: bool = True
+    ):
         self.adstock = adstock
         self.saturation = saturation
         self.num_days = num_days
-        self.channels = channels
+        self.parameters = parameters
         self.adstock_first = adstock_first
 
     def objective(self, budgets):
+        """
+        Objective function for the allocation.
+
+        Parameters:
+        ----------
+        budgets : array_like
+            The budgets for each channel.
+
+        Returns:
+        -------
+        float
+            The negative total response value.
+        """
         total_response = 0
         first_transform, second_transform = (
             (self.adstock, self.saturation) if self.adstock_first else (self.saturation, self.adstock)
         )
-        for idx, (channel, params) in enumerate(self.channels.items()):
+        for idx, (channel, params) in enumerate(self.parameters.items()):
             budget = budgets[idx]
             first_params = params['adstock_params'] if self.adstock_first else params['saturation_params']
             second_params = params['saturation_params'] if self.adstock_first else params['adstock_params']
@@ -45,9 +96,27 @@ class BudgetOptimizer:
         return -total_response
 
     def allocate_budget(self, total_budget, budget_bounds=None, custom_constraints=None):
-       
+        """
+        Allocate the budget based on the total budget, budget bounds, and custom constraints.
+
+        Parameters:
+        ----------
+        total_budget : float
+            The total budget.
+        budget_bounds : dict, optional
+            The budget bounds for each channel. Default is None.
+        custom_constraints : dict, optional
+            Custom constraints for the optimization. Default is None.
+
+        Returns:
+        -------
+        dict
+            The optimal budgets for each channel.
+        float
+            The negative total response value.
+        """
         if budget_bounds is None:
-            budget_bounds = {channel: (0, total_budget) for channel in self.channels}
+            budget_bounds = {channel: (0, total_budget) for channel in self.parameters}
             warnings.warn("No budget bounds provided. Using default bounds (0, total_budget) for each channel.")
         else:
             if not isinstance(budget_bounds, dict):
@@ -62,14 +131,14 @@ class BudgetOptimizer:
             else:
                 constraints = custom_constraints
 
-        num_channels = len(self.channels)
+        num_channels = len(self.parameters.keys())
         initial_guess = np.full(num_channels, total_budget / num_channels)
         bounds = bounds = [(budget_bounds[channel][0], budget_bounds[channel][1]) 
                            if channel in budget_bounds else (0, total_budget) 
-                           for channel in self.channels]
+                           for channel in self.parameters]
         result = minimize(self.objective, x0=initial_guess, bounds=bounds, constraints=constraints, method='SLSQP')
         if result.success:
-            optimal_budgets = {name: budget for name, budget in zip(self.channels.keys(), result.x)}
+            optimal_budgets = {name: budget for name, budget in zip(self.parameters.keys(), result.x)}
             return optimal_budgets, -result.fun
         else:
             raise Exception("Optimization failed: " + result.message)
