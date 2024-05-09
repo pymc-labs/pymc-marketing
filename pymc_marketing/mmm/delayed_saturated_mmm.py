@@ -53,6 +53,8 @@ from pymc_marketing.mmm.utils import (
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
 
+from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+
 __all__ = ["BaseDelayedSaturatedMMM"]
 
 
@@ -1526,3 +1528,90 @@ class DelayedSaturatedMMM(
                 dist=dist,
                 name=name,
             )
+
+
+    def _create_synth_dataset(
+        self,
+        df,
+        date_column, 
+        allocation_strategy, 
+        channels, 
+        controls,
+        target_col, 
+        time_granularity='daily',
+        time_length=7,
+        ):
+        # Mapping time granularities to pd.DateOffset attributes
+        time_offsets = {
+            'daily': {'days': 1},
+            'weekly': {'weeks': 1},
+            'monthly': {'months': 1},
+            'quarterly': {'months': 3},
+            'yearly': {'years': 1}
+        }
+        
+        # Validate time granularity input
+        if time_granularity not in time_offsets:
+            raise ValueError("Unsupported time granularity. Choose from 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'.")
+
+        # Determine new date based on the last date in df
+        last_date = pd.to_datetime(df[date_column]).max()
+        new_dates = [last_date + pd.DateOffset(**{k: v * i for k, v in time_offsets[time_granularity].items()}) for i in range(1, time_length + 1)]
+        
+        # Generate new rows
+        new_rows = [
+            {
+                'date': new_date,
+                **{channel: allocation_strategy.get(channel, 0) + np.random.normal(0, 0.1 * allocation_strategy.get(channel, 0)) for channel in channels},
+                **{control: 0 for control in controls},
+                target_col: 0
+            }
+            for new_date in new_dates
+        ]
+        
+        return pd.DataFrame(new_rows)
+
+    def allocate_budget(self, budget, quantile: float = .5, num_days: int = 8, time_granularity: str = 'daily', budget_bounds=None, custom_constraints=None):
+
+        parameters_mid = self.format_recovered_transformation_parameters(quantile=quantile)
+
+        scale_budget = budget / self.channel_transformer["scaler"].scale_.max()
+
+        if isinstance(budget_bounds, dict):
+            #budget bounds structure {"a":[1,2],..."z":[5,6]}
+            scale_budget_bounds = {k: [v[0] / self.channel_transformer["scaler"].scale_.max(), v[1] / self.channel_transformer["scaler"].scale_.max()] for k, v in budget_bounds.items()}
+        else:
+            scale_budget_bounds = None
+
+        allocator = BudgetOptimizer(
+            adstock=self.adstock, 
+            saturation=self.saturation, 
+            channels=parameters_mid,  
+            adstock_first=self.adstock_first,
+            num_days=num_days, 
+        )
+
+        self.optimal_allocation_dict, _ = allocator.allocate_budget(
+            total_budget=scale_budget, 
+            budget_bounds=scale_budget_bounds, 
+            custom_constraints=custom_constraints
+        )
+
+        
+        scaled_channel_spend = self.channel_transformer.inverse_transform(np.array([list(self.optimal_allocation_dict.values())]))
+        scale_allocation_dict = {k: v for k, v in zip(self.optimal_allocation_dict.keys(), scaled_channel_spend[0])}
+
+        synth_dataset = self._create_synth_dataset(
+            df=self.X,
+            date_column=self.date_column, 
+            allocation_strategy=scale_allocation_dict, 
+            channels=self.channel_columns, 
+            controls=self.control_columns,
+            target_col=self.output_var, 
+            time_granularity=time_granularity,
+            time_length=num_days,
+        )
+
+        return self.sample_posterior_predictive(
+            X_pred=synth_dataset, extend_idata=False, include_last_observations=True
+        )
