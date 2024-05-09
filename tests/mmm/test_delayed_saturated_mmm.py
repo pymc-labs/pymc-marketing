@@ -128,6 +128,15 @@ def mmm_fitted(
 
 
 @pytest.fixture(scope="module")
+def mmm_fitted_with_posterior_predictive(
+    mmm_fitted: DelayedSaturatedMMM,
+    toy_X: pd.DataFrame,
+) -> DelayedSaturatedMMM:
+    _ = mmm_fitted.sample_posterior_predictive(toy_X, extend_idata=True, combined=True)
+    return mmm_fitted
+
+
+@pytest.fixture(scope="module")
 def mmm_fitted_with_fourier_features(
     mmm_with_fourier_features: DelayedSaturatedMMM,
     toy_X: pd.DataFrame,
@@ -414,6 +423,71 @@ class TestDelayedSaturatedMMM:
             x=channel_contributions_forward_pass_mean / channel_contributions_mean,
             y=mmm_fitted.y.max(),
         )
+
+    @pytest.mark.parametrize(
+        argnames="original_scale",
+        argvalues=[False, True],
+        ids=["scaled", "original-scale"],
+    )
+    def test_get_errors(
+        self,
+        mmm_fitted_with_posterior_predictive: DelayedSaturatedMMM,
+        original_scale: bool,
+    ) -> None:
+        errors = mmm_fitted_with_posterior_predictive.get_errors(
+            original_scale=original_scale
+        )
+        n_chains = 2
+        n_draws = 3
+        assert isinstance(errors, xr.DataArray)
+        assert errors.name == "errors"
+        assert errors.shape == (
+            n_chains,
+            n_draws,
+            mmm_fitted_with_posterior_predictive.y.shape[0],
+        )
+
+    def test_get_errors_raises_not_fitted(self) -> None:
+        my_mmm = DelayedSaturatedMMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock_max_lag=4,
+            control_columns=["control_1", "control_2"],
+        )
+        with pytest.raises(
+            RuntimeError,
+            match="Make sure the model has bin fitted and the posterior predictive has been sampled!",
+        ):
+            my_mmm.get_errors()
+
+    def test_posterior_predictive_raises_not_fitted(self) -> None:
+        my_mmm = DelayedSaturatedMMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock_max_lag=4,
+            control_columns=["control_1", "control_2"],
+        )
+        with pytest.raises(
+            RuntimeError,
+            match="Make sure the model has bin fitted and the posterior predictive has been sampled!",
+        ):
+            my_mmm.plot_posterior_predictive()
+
+    def test_get_errors_bad_y_length(
+        self,
+        mmm_fitted_with_posterior_predictive: DelayedSaturatedMMM,
+    ):
+        mmm_fitted_with_posterior_predictive.y = np.array([1, 2])
+        with pytest.raises(ValueError):
+            mmm_fitted_with_posterior_predictive.get_errors()
+
+    def test_plot_posterior_predictive_bad_y_length(
+        self,
+        mmm_fitted_with_posterior_predictive: DelayedSaturatedMMM,
+    ):
+        mmm_fitted_with_posterior_predictive.y = np.array([1, 2])
+        with pytest.raises(ValueError):
+            mmm_fitted_with_posterior_predictive.plot_posterior_predictive()
 
     def test_channel_contributions_forward_pass_is_consistent(
         self, mmm_fitted: DelayedSaturatedMMM
