@@ -1039,7 +1039,7 @@ class DelayedSaturatedMMM(
             adstock.variable_mapping.values()
         )
         if param_name not in parameters_to_check:
-            raise ValueError(f"Invalid parameter name: {param_name}")
+            raise ValueError(f"Invalid parameter name: {param_name}. Choose from {parameters_to_check}")
 
         param_samples_df = pd.DataFrame(
             data=az.extract(data=self.fit_result, var_names=[param_name]).T,
