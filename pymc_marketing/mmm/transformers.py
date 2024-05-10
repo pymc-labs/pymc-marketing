@@ -1,3 +1,16 @@
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 """Media transformation functions for Marketing Mix Models."""
 
 from enum import Enum
@@ -139,7 +152,12 @@ def batched_convolution(
 
 
 def geometric_adstock(
-    x, alpha: float = 0.0, l_max: int = 12, normalize: bool = False, axis: int = 0
+    x,
+    alpha: float = 0.0,
+    l_max: int = 12,
+    normalize: bool = False,
+    axis: int = 0,
+    mode: ConvMode = ConvMode.After,
 ):
     R"""Geometric adstock transformation.
 
@@ -189,6 +207,17 @@ def geometric_adstock(
         Maximum duration of carryover effect.
     normalize : bool, by default False
         Whether to normalize the weights.
+    axis : int
+        The axis of ``x`` along witch to apply the convolution
+    mode : ConvMode, optional
+        The convolution mode determines how the convolution is applied at the boundaries
+        of the input signal, denoted as "x." The default mode is ConvMode.Before.
+
+        - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
+        - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
+            similar to the wow factor.
+        - ConvMode.Overlap: Applies the convolution with both "Pull-Forward" and "Pull-Backward" effects,
+            where the effect overlaps with both preceding and succeeding elements.
 
     Returns
     -------
@@ -203,7 +232,7 @@ def geometric_adstock(
 
     w = pt.power(pt.as_tensor(alpha)[..., None], pt.arange(l_max, dtype=x.dtype))
     w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
-    return batched_convolution(x, w, axis=axis, mode=ConvMode.After)
+    return batched_convolution(x, w, axis=axis, mode=mode)
 
 
 def delayed_adstock(
@@ -213,6 +242,7 @@ def delayed_adstock(
     l_max: int = 12,
     normalize: bool = False,
     axis: int = 0,
+    mode: ConvMode = ConvMode.After,
 ):
     R"""Delayed adstock transformation.
 
@@ -259,6 +289,17 @@ def delayed_adstock(
         Maximum duration of carryover effect.
     normalize : bool, by default False
         Whether to normalize the weights.
+    axis : int
+        The axis of ``x`` along witch to apply the convolution
+    mode : ConvMode, optional
+        The convolution mode determines how the convolution is applied at the boundaries
+        of the input signal, denoted as "x." The default mode is ConvMode.Before.
+
+        - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
+        - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
+            similar to the wow factor.
+        - ConvMode.Overlap: Applies the convolution with both "Pull-Forward" and "Pull-Backward" effects,
+            where the effect overlaps with both preceding and succeeding elements.
 
     Returns
     -------
@@ -275,7 +316,7 @@ def delayed_adstock(
         (pt.arange(l_max, dtype=x.dtype) - pt.as_tensor(theta)[..., None]) ** 2,
     )
     w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
-    return batched_convolution(x, w, axis=axis, mode=ConvMode.After)
+    return batched_convolution(x, w, axis=axis, mode=mode)
 
 
 def weibull_adstock(
@@ -284,6 +325,7 @@ def weibull_adstock(
     k=1,
     l_max: int = 12,
     axis: int = 0,
+    mode: ConvMode = ConvMode.After,
     type: WeibullType | str = WeibullType.PDF,
 ):
     R"""Weibull Adstocking Transformation.
@@ -349,6 +391,17 @@ def weibull_adstock(
         Shape parameter of the Weibull distribution. Must be positive.
     l_max : int, by default 12
         Maximum duration of carryover effect.
+    axis : int
+        The axis of ``x`` along witch to apply the convolution
+    mode : ConvMode, optional
+        The convolution mode determines how the convolution is applied at the boundaries
+        of the input signal, denoted as "x." The default mode is ConvMode.Before.
+
+        - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
+        - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
+            similar to the wow factor.
+        - ConvMode.Overlap: Applies the convolution with both "Pull-Forward" and "Pull-Backward" effects,
+            where the effect overlaps with both preceding and succeeding elements.
     type : WeibullType or str, by default WeibullType.PDF
         Type of Weibull adstock transformation to be applied (PDF or CDF).
 
@@ -374,7 +427,7 @@ def weibull_adstock(
         w = pt.cumprod(padded_w, axis=-1)
     else:
         raise ValueError(f"Wrong WeibullType: {type}, expected of WeibullType")
-    return batched_convolution(x, w, axis=axis)
+    return batched_convolution(x, w, axis=axis, mode=mode)
 
 
 def logistic_saturation(x, lam: npt.NDArray[np.float_] | float = 0.5):
