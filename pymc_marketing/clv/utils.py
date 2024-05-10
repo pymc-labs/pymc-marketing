@@ -686,44 +686,40 @@ def rfm_segments(
     # change recency to segmentation definition
     rfm_data["recency"] = rfm_data["T"] - rfm_data["recency"]
 
-    # # create recency labels, which must be reversed as lower values are more desirable
-    # rec_labels = list(reversed(list(range(1, 5))))
+    for column_name in zip(
+        ["r_quartile", "f_quartile", "m_quartile"],
+        ["recency", "frequency", "monetary_value"],
+        strict=False,
+    ):
 
-    for column_name in zip(["r_quartile","f_quartile", "m_quartile"], ["recency","frequency","monetary_value"]):
-        # recency labels must be reversed because lower values are more desirable
-        if column_name[0] == "r_quartile":
-            labels = list(reversed(list(range(1, 5))))
-        else:
-            labels = range(1, 5)
+        def _quartile_labels(column_name, max_label_range):
+            # recency labels must be reversed because lower values are more desirable
+            if column_name == "r_quartile":
+                return list(reversed(list(range(1, max_label_range))))
+            else:
+                return range(1, max_label_range)
 
         try:
+            labels = _quartile_labels(column_name[0], 4)
             rfm_data[column_name[0]] = pd.qcut(
                 rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
             ).astype(str)
         except ValueError:
-            rfm_data[column_name[0]] = pd.qcut(
-                rfm_data[column_name[1]], q=5, labels=labels, duplicates="drop"
-            ).astype(str)
+            try:
+                labels = _quartile_labels(column_name[0], 3)
+                rfm_data[column_name[0]] = pd.qcut(
+                    rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
+                ).astype(str)
+            except ValueError:
+                labels = _quartile_labels(column_name[0], 5)
+                rfm_data[column_name[0]] = pd.qcut(
+                    rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
+                ).astype(str)
 
-    rfm_data["rfm_score"] = rfm_data["r_quartile"] + rfm_data["f_quartile"] + rfm_data["m_quartile"]
-
-    # r_quartile = pd.qcut(
-    #     rfm_data["recency"], q=4, labels=rec_labels, duplicates="raise"
-    # ).astype(str)
-    #
-    # try:
-    #     f_quartile = pd.qcut(
-    #         rfm_data["frequency"], q=4, labels=range(1, 4), duplicates="drop"
-    #     ).astype(str)
-    # except ValueError:
-    #     f_quartile = pd.qcut(
-    #         rfm_data["frequency"], q=5, labels=range(1, 5), duplicates="drop"
-    #     ).astype(str)
-    # m_quartile = pd.qcut(
-    #     rfm_data["monetary_value"], q=4, labels=range(1, 5), duplicates="drop"
-    # ).astype(str)
-    #
-    # rfm_score = r_quartile + f_quartile + m_quartile
+    # TODO: Is `finally` block also needed?
+    rfm_data["rfm_score"] = (
+        rfm_data["r_quartile"] + rfm_data["f_quartile"] + rfm_data["m_quartile"]
+    )
 
     if segment_config is None:
         segment_config = {
@@ -773,12 +769,14 @@ def rfm_segments(
 
     # create catch-all "Other" segment and assign defined segments from config
     rfm_data["segment"] = "Other"
-    # TODO: This can be a list comp and save many lines of code
+
     for key in segment_names:
-        rfm_data["segment"] = rfm_data.loc[rfm_data["rfm_score"].isin(segment_config[key]) == key]
+        rfm_data.loc[rfm_data["rfm_score"].isin(segment_config[key]), "segment"] = key
 
     # drop unnecessary columns
     # TODO: Is dropping the rfm_score column prudent?
-    rfm_data = rfm_data.drop(columns=["r_quartile","f_quartile", "m_quartile", "rfm_score","T"])
+    rfm_data = rfm_data.drop(
+        columns=["r_quartile", "f_quartile", "m_quartile", "rfm_score", "T"]
+    )
 
     return rfm_data
