@@ -25,6 +25,7 @@ from pymc_marketing.clv.utils import (
     _find_first_transactions,
     clv_summary,
     customer_lifetime_value,
+    rfm_segments,
     rfm_summary,
     rfm_train_test_split,
     to_xarray,
@@ -849,4 +850,34 @@ class TestRFM:
         assert (actual["monetary_value"] == [0, 0, 3, 0, 4.5]).all()
         assert (actual["test_monetary_value"] == [2, 0, 0, 6, 0]).all()
 
-        # check test_monetary_value is being aggregated correctly for time periods with multiple purchases
+    @pytest.mark.parametrize("config", (None, "custom"))
+    def test_rfm_segmentation_config(self, transaction_data, config):
+        if config is not None:
+            config = {
+                "Test Segment": [
+                    "111",
+                    "222",
+                    "333",
+                    "444",
+                ]
+            }
+            expected = ["Other", "Test Segment", "Other", "Other", "Other", "Other"]
+        else:
+            expected = [
+                "Other",
+                "Inactive Customer",
+                "At Risk Customer",
+                "Premium Customer",
+                "Repeat Customer",
+                "Top Spender",
+            ]
+
+        actual = rfm_segments(
+            transaction_data,
+            "id",
+            "date",
+            "monetary_value",
+            segment_config=config,
+        )
+
+        assert (actual["segment"] == expected).all()
