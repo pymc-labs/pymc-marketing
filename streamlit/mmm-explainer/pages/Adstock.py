@@ -420,7 +420,7 @@ with tab3:
     )
 
     # Create plotting df
-    weibull_pdf_df = adstock_df_A.copy()
+    weibull_cdf_df = adstock_df_A.copy()
 
     # Plot 2nd line if user desires values
     st.markdown("**Would you like to add a second line to the plot?**")
@@ -460,12 +460,12 @@ with tab3:
             }
         )
         # Create plotting df
-        weibull_pdf_df = pd.concat([adstock_df_A, adstock_df_B])
+        weibull_cdf_df = pd.concat([adstock_df_A, adstock_df_B])
 
     # Multiply by 100 to get back to scale of initial impact (100 FB impressions)
-    weibull_pdf_df.Adstock = weibull_pdf_df.Adstock
+    weibull_cdf_df.Adstock = weibull_cdf_df.Adstock
     # Format adstock labels for neater plotting
-    weibull_pdf_df["Adstock Labels"] = weibull_pdf_df.Adstock.map("{:,.0f}".format)
+    weibull_cdf_df["Adstock Labels"] = weibull_cdf_df.Adstock.map("{:,.0f}".format)
 
     # Plot adstock values
     # Annotate the plot if user wants it
@@ -473,7 +473,7 @@ with tab3:
     annotate = st.checkbox("Yes please! :pray:", key="Weibull CDF Annotate")
     if annotate:
         fig = px.line(
-            weibull_pdf_df,
+            weibull_cdf_df,
             x="Week",
             y="Adstock",
             text="Adstock Labels",
@@ -485,7 +485,7 @@ with tab3:
         fig.update_traces(textposition="bottom left")
     else:
         fig = px.line(
-            weibull_pdf_df,
+            weibull_cdf_df,
             x="Week",
             y="Adstock",
             markers=True,
