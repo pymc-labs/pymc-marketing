@@ -13,10 +13,14 @@
 #   limitations under the License.
 # Import custom functions
 import adstock_saturation_functions as asf
+import numpy as np
 import pandas as pd
 import plotly.express as px
 
 import streamlit as st
+from pymc_marketing.mmm.transformers import (
+    geometric_adstock,
+)
 
 # -------------------------- TOP OF PAGE INFORMATION -------------------------
 
@@ -29,7 +33,7 @@ st.set_page_config(
 # Give some context for what the page displays
 st.title("Adstock Transformations")
 st.markdown(
-    "This page demonstrates the effect of various adstock \
+    """This page demonstrates the effect of various adstock \
             transformations on a variable.  \nFor these examples, let's imagine \
             that we have _some variable that represents a quantity of a particlar_ \
             _advertising channel_.  \n\nFor example, this could be the number of impressions\
@@ -42,7 +46,7 @@ st.markdown(
             \n\n :green[So, at the start of our example (_Week 1_), we may have the impact of **0 Gross Rating Points (TV viewership metric)**, \
             but 7 weeks later those TV ads might reach their full impact of **100 Gross Rating Points**.]\
             \n\n**_:violet[We will use this starting value of 100 for all of our adstock examples]_**. \
-            "
+            """  # noqa: E501
 )
 
 st.markdown(
@@ -64,11 +68,11 @@ with tab1:
     st.header(":blue[Geometric Adstock Transformation]")
     st.divider()
     st.markdown(
-        "___Geometric adstock is the simplest adstock function, it depends on a single parameter $\\beta > 0$ which represents the fixed-rate decay.___ \n \
-                \n __The geometric adstock function takes the following form :__"
+        """___Geometric adstock is the simplest adstock function, it depends on a single parameter $\\alpha > 0$ which represents the fixed-rate decay.___ \n \
+                \n __The geometric adstock function takes the following form :__"""  # noqa: E501
     )
     st.latex(r"""
-        x_t^{\textrm{transf}} = x_t + \beta x_{t-1}^{\textrm{transf}}
+        x_t^{\textrm{transf}} = x_t + \alpha x_{t-1}^{\textrm{transf}}
         """)
     st.divider()
     st.markdown(
@@ -90,16 +94,23 @@ with tab1:
         20,
         key="Geometric",
     )
+    # Set l_max to same length of periods for demo purposes
+    l_max = num_periods
+    # Make array zeroes with only the first value as 100
+    # to demo the decay purely
+    inputs = np.zeros(num_periods)
+    inputs[0] = 100
+
     # Let user choose decay rates to plot with
-    decay_rate_1 = st.slider(":blue[Beta 1 : ]", 0.0, 1.0, 0.3)
+    decay_rate_1 = st.slider(":blue[Alpha 1 : ]", 0.0, 1.0, 0.3)
     # Add up to 2 more lines if the user wants it
     st.markdown("**Would you like to show multiple (3) decay lines on the plot**")
     multi_plot = st.checkbox("Okay! :grin:")
     # Create a list of decay rates
     if multi_plot:
         # Let user choose additional decay rates to plot with
-        decay_rate_2 = st.slider(":red[Beta 2 : ]", 0.0, 1.0, 0.6)
-        decay_rate_3 = st.slider(":green[Beta 3: ]", 0.0, 1.0, 0.9)
+        decay_rate_2 = st.slider(":red[Alpha 2 : ]", 0.0, 1.0, 0.6)
+        decay_rate_3 = st.slider(":green[Alpha 3: ]", 0.0, 1.0, 0.9)
         decay_rates = [decay_rate_1, decay_rate_2, decay_rate_3]
     else:
         decay_rates = [decay_rate_1]
@@ -107,24 +118,24 @@ with tab1:
     # Create df to store each adstock in
     all_adstocks = pd.DataFrame()
     # Iterate through decay rates and generate df of values to plot
-    for i, beta in enumerate(decay_rates):
+    for i, alpha in enumerate(decay_rates):
         # Get geometric adstock values, decayed over time
         adstock_df = pd.DataFrame(
             {
                 "Week": range(1, (num_periods + 1)),
                 ## Calculate adstock values
-                "Adstock": asf.geometric_adstock_decay(
-                    initial_impact, beta, num_periods
-                ),
+                "Adstock": geometric_adstock(
+                    x=inputs, alpha=alpha, l_max=num_periods, normalize=False
+                ).eval(),
                 ## Format adstock labels for neater plotting
                 "Adstock Labels": [
                     f"{x:,.0f}"
-                    for x in asf.geometric_adstock_decay(
-                        initial_impact, beta, num_periods
-                    )
+                    for x in geometric_adstock(
+                        x=inputs, alpha=alpha, l_max=num_periods, normalize=False
+                    ).eval()
                 ],
                 ## Create column to label each adstock
-                "Beta": f"Beta {i + 1}",
+                "Alpha": f"Alpha {i + 1}",
             }
         )
 
@@ -141,12 +152,12 @@ with tab1:
             y="Adstock",
             text="Adstock Labels",
             markers=True,
-            color="Beta",
+            color="Alpha",
             # Replaces default color mapping by value
             color_discrete_map={
-                "Beta 1": "#636EFA",
-                "Beta 2": "#EF553B",
-                "Beta 3": "#00CC96",
+                "Alpha 1": "#636EFA",
+                "Alpha 2": "#EF553B",
+                "Alpha 3": "#00CC96",
             },
         )
         fig.update_traces(textposition="bottom left")
@@ -156,12 +167,12 @@ with tab1:
             x="Week",
             y="Adstock",
             markers=True,
-            color="Beta",
+            color="Alpha",
             # Replaces default color mapping by value
             color_discrete_map={
-                "Beta 1": "#636EFA",
-                "Beta 2": "#EF553B",
-                "Beta 3": "#00CC96",
+                "Alpha 1": "#636EFA",
+                "Alpha 2": "#EF553B",
+                "Alpha 3": "#00CC96",
             },
         )
     # Format plot
@@ -177,17 +188,17 @@ with tab2:
     st.header(":red[Delayed Geometric Adstock Transformation]")
     st.divider()
     st.markdown(
-        "___Delayed geometric adstock builds on geometric adstock___ \
+        """___Delayed geometric adstock builds on geometric adstock___ \
                  ___by adding in a delay $\\theta$ before the maximum adstock is observed (this happens at week 0 for the plain geometric decay).___ \
                 \n ___It also adds a maximum duration for the carryover/adstock  $L_{max}$,  such that adstock after this point is 0.___ \n \
-                \n __The delayed geometric adstock function takes the following form :__"
+                \n __The delayed geometric adstock function takes the following form :__"""  # noqa: E501
     )
     st.latex(r"""
-        x_t^{\textrm{transf}} = \sum_{i=0}^{L_{\max}-1} \left( \beta^{|i-\theta|} \cdot x_{t-i} \right) \\""")
+        x_t^{\textrm{transf}} = \sum_{i=0}^{L_{\max}-1} \left( \alpha^{|i-\theta|} \cdot x_{t-i} \right) \\""")
     st.markdown(
-        "- $x_t^{\\textrm{transf}}$ refers to the transformed value at time $t$ after applying the delayed adstock transformation"
+        "- $x_t^{\\textrm{transf}}$ refers to the transformed value at time $t$ after applying the delayed adstock transformation"  # noqa: E501
     )
-    st.markdown("- $\\beta$ is the retention rate of the ad effect")
+    st.markdown("- $\\alpha$ is the retention rate of the ad effect")
     st.markdown("- $\\theta$ represents the delay before the peak effect occurs")
     st.markdown("- $L_{max}$ is the maximum duration of the carryover effect")
     st.divider()
@@ -218,7 +229,7 @@ with tab2:
         key="delayed_geom_L",
     )
     # Let user choose decay rates to plot with
-    decay_rate_1 = st.slider(":red[Beta 1: ]", 0.0, 1.0, 0.5, key="delay_decay")
+    decay_rate_1 = st.slider(":red[Alpha 1: ]", 0.0, 1.0, 0.5, key="delay_decay")
 
     # Add up to 2 more lines if the user wants it
     st.markdown("**Would you like to show multiple (3) decay lines on the plot**")
@@ -226,7 +237,7 @@ with tab2:
     # Create a list of decay rates
     if multi_plot:
         # Let user choose additional decay rates, lags and peaks to plot with
-        decay_rate_2 = st.slider(":blue[Beta 2: ]", 0.0, 1.0, 0.6, key="delay_decay2")
+        decay_rate_2 = st.slider(":blue[Alpha 2: ]", 0.0, 1.0, 0.6, key="delay_decay2")
         max_peak_2 = st.slider(
             ":blue[Number of weeks after impressions first received that max impact occurs :thermometer: :]",
             1,
@@ -241,7 +252,7 @@ with tab2:
             20,
             key="Delayed Geometric 2 ",
         )
-        decay_rate_3 = st.slider(":green[Beta 3: ]", 0.0, 1.0, 0.9, key="delay_decay3")
+        decay_rate_3 = st.slider(":green[Alpha 3: ]", 0.0, 1.0, 0.9, key="delay_decay3")
         max_lag_3 = st.slider(
             ":green[Number of weeks after impressions first received :alarm_clock: : ]",
             1,
@@ -270,24 +281,24 @@ with tab2:
     # Create df to store each adstock in
     all_adstocks = pd.DataFrame()
     # Iterate through decay rates and generate df of values to plot
-    for i, beta in enumerate(decay_rates):
+    for i, alpha in enumerate(decay_rates):
         # Get geometric adstock values, decayed over time
         adstock_df = pd.DataFrame(
             {
                 "Week": range(1, (lags[i] + 1)),
                 ## Calculate adstock values
                 "Adstock": asf.delayed_geometric_decay(
-                    impact=initial_impact, decay_factor=beta, theta=peaks[i], L=lags[i]
+                    impact=initial_impact, decay_factor=alpha, theta=peaks[i], L=lags[i]
                 ),
                 ## Format adstock labels for neater plotting
                 "Adstock Labels": [
                     f"{x:,.0f}"
                     for x in asf.delayed_geometric_decay(
-                        initial_impact, beta, peaks[i], lags[i]
+                        initial_impact, alpha, peaks[i], lags[i]
                     )
                 ],
                 ## Create column to label each adstock
-                "Beta": f"Beta {i + 1}",
+                "Alpha": f"Alpha {i + 1}",
             }
         )
 
@@ -304,12 +315,12 @@ with tab2:
             y="Adstock",
             text="Adstock Labels",
             markers=True,
-            color="Beta",
+            color="Alpha",
             # Replaces default color mapping by value
             color_discrete_map={
-                "Beta 1": "#636EFA",
-                "Beta 2": "#EF553B",
-                "Beta 3": "#00CC96",
+                "Alpha 1": "#636EFA",
+                "Alpha 2": "#EF553B",
+                "Alpha 3": "#00CC96",
             },
         )
         fig.update_traces(textposition="bottom left")
@@ -319,12 +330,12 @@ with tab2:
             x="Week",
             y="Adstock",
             markers=True,
-            color="Beta",
+            color="Alpha",
             # Replaces default color mapping by value
             color_discrete_map={
-                "Beta 1": "#636EFA",
-                "Beta 2": "#EF553B",
-                "Beta 3": "#00CC96",
+                "Alpha 1": "#636EFA",
+                "Alpha 2": "#EF553B",
+                "Alpha 3": "#00CC96",
             },
         )
     # Format plot
@@ -340,22 +351,22 @@ with tab3:
     st.header(":green[Weibull CDF Adstock Transformation]")
     st.divider()
     st.markdown(
-        "___The Weibull CDF is a function depending on two variables, $k$ (known as the **shape**) and $\\lambda$ (known as the **scale**)___.  \n  \
-                The idea is closely related to geometric adstock but with one important difference : the rate of decay (what we called $\\beta$ in the geometric adstock equation)  \
+        """___The Weibull CDF is a function depending on two variables, $k$ (known as the **shape**) and $\\lambda$ (known as the **scale**)___.  \n  \
+                The idea is closely related to geometric adstock but with one important difference : the rate of decay (what we called $\\alpha$ in the geometric adstock equation)  \
                  is no longer fixed. Instead it’s **time-dependent**. \
-                \n \n **The Weibull CDF adstock function therefore takes the form :**"
+                \n \n **The Weibull CDF adstock function therefore takes the form :**"""  # noqa: E501
     )
     st.latex(r"""
-        x_t^{\textrm{transf}} = x_t + \beta_t x_{t-1}^{\textrm{transf}}""")
-    st.markdown("- where $\\beta_t$ is now a function of time $t$")
+        x_t^{\textrm{transf}} = x_t + \alpha_t x_{t-1}^{\textrm{transf}}""")
+    st.markdown("- where $\\alpha_t$ is now a function of time $t$")
     st.markdown(
-        "**The Weibull CDF is actually used to build the $\\beta_t$’s, and it takes the form :**"
+        "**The Weibull CDF is actually used to build the $\\alpha_t$’s, and it takes the form :**"
     )
     st.latex(r"""
              F_{k, \lambda}(t) = 1 - e^{-(\frac{t}{\lambda})^k}""")
-    st.markdown("Then, $\\beta_t$ is computed as : ")
+    st.markdown("Then, $\\alpha_t$ is computed as : ")
     st.latex(r"""
-        \beta_t = 1 - F_{k,\lambda}(t)""")
+        \alpha_t = 1 - F_{k,\lambda}(t)""")
     st.divider()
     # User inputs
     st.subheader(":green[User Inputs]")
@@ -486,17 +497,17 @@ with tab4:
     st.header(":violet[Weibull PDF Adstock Transformation]")
     st.divider()
     st.markdown(
-        "___The Weibull PDF is also a function depending on two variables, $k$ (shape) and $\\lambda$ (scale) \
+        """___The Weibull PDF is also a function depending on two variables, $k$ (shape) and $\\lambda$ (scale) \
                  and the same remarks for Weibull CDF apply to Weibull PDF.___ \
                 \n The key difference is that Weibull PDF \
                  allows for lagged effects to be taken into account - the **time delay effect**. \
-                \n \n **The Weibull PDF adstock function therefore takes the form :**"
+                \n \n **The Weibull PDF adstock function therefore takes the form :**"""
     )
     st.latex(r"""
-        x_t^{\textrm{transf}} = x_t + \beta_t x_{t-1}^{\textrm{transf}}""")
-    st.markdown("- where $\\beta_t$ is now a function of time $t$")
+        x_t^{\textrm{transf}} = x_t + \alpha_t x_{t-1}^{\textrm{transf}}""")
+    st.markdown("- where $\\alpha_t$ is now a function of time $t$")
     st.markdown(
-        "**The Weibull PDF is actually used to build the $\\beta_t$’s, and it takes the form :**"
+        "**The Weibull PDF is actually used to build the $\\alpha_t$’s, and it takes the form :**"
     )
     st.latex(r"""
              G_{k,\lambda}(t) = \frac{k}{\lambda}\Big(\frac{t}{\lambda} \Big)^{k-1}e^{-(\frac{t}{\lambda})^k}""")
