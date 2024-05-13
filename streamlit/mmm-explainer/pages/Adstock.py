@@ -12,7 +12,6 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 # Import custom functions
-import adstock_saturation_functions as asf
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -535,24 +534,31 @@ with tab4:
     # Params for Line A
     shape_parameter_A = st.slider(
         ":triangular_ruler: :blue[Shape $k$ of Line A : ]",
-        0.0,
+        0.1,
         10.0,
         2.0,
         key="Weibull PDF Shape A",
     )
     scale_parameter_A = st.slider(
-        r":blue[Scale $\lambda$ of Line A : ]", 0.0, 1.0, 0.5, key="Weibull PDF Scale A"
+        r":blue[Scale $\lambda$ of Line A : ]",
+        0.1,
+        50.0,
+        0.5,
+        key="Weibull PDF Scale A",
     )
+    # Make array zeroes with only the first value as 100
+    # to demo the decay purely
+    inputs = np.zeros(num_periods_3)
+    inputs[0] = 100
 
     # Calculate weibull pdf adstock values, decayed over time for both sets of params
-    adstock_series_A = asf.weibull_adstock_decay(
-        initial_impact,
-        shape_parameter_A,
-        scale_parameter_A,
-        num_periods_3,
-        adstock_type="pdf",
-        normalised=True,
-    )
+    adstock_series_A = weibull_adstock(
+        x=inputs,
+        lam=scale_parameter_A,
+        k=shape_parameter_A,
+        l_max=num_periods_3,
+        type="PDF",
+    ).eval()
 
     # Create df of adstock values, to plot with
     adstock_df_A = pd.DataFrame(
@@ -574,28 +580,27 @@ with tab4:
         # Params for Line B
         shape_parameter_B = st.slider(
             ":triangular_ruler: :red[Shape $k$ of Line B : ]",
-            0.0,
+            0.1,
             10.0,
             0.5,
             key="Weibull PDF Shape B",
         )
         scale_parameter_B = st.slider(
             r":red[Scale $\lambda$ of Line B : ]",
-            0.0,
-            1.0,
-            0.01,
+            0.1,
+            50.0,
+            0.1,
             key="Weibull PDF Scale B",
         )
 
         # Calculate weibull pdf adstock values, decayed over time for both sets of params
-        adstock_series_B = asf.weibull_adstock_decay(
-            initial_impact,
-            shape_parameter_B,
-            scale_parameter_B,
-            num_periods_3,
-            adstock_type="pdf",
-            normalised=True,
-        )
+        adstock_series_B = weibull_adstock(
+            x=inputs,
+            lam=scale_parameter_B,
+            k=shape_parameter_B,
+            l_max=num_periods_3,
+            type="PDF",
+        ).eval()
 
         # Create df of adstock values, to plot with
         adstock_df_B = pd.DataFrame(
