@@ -19,6 +19,7 @@ import plotly.express as px
 
 import streamlit as st
 from pymc_marketing.mmm.transformers import (
+    delayed_adstock,
     geometric_adstock,
 )
 
@@ -282,20 +283,25 @@ with tab2:
     all_adstocks = pd.DataFrame()
     # Iterate through decay rates and generate df of values to plot
     for i, alpha in enumerate(decay_rates):
+        # Make array zeroes with only the max lagged value as 100
+        # to demo the decay purely
+        inputs = np.zeros(lags[i])
+        inputs[peaks[i]] = 100
+
         # Get geometric adstock values, decayed over time
         adstock_df = pd.DataFrame(
             {
                 "Week": range(1, (lags[i] + 1)),
                 ## Calculate adstock values
-                "Adstock": asf.delayed_geometric_decay(
-                    impact=initial_impact, decay_factor=alpha, theta=peaks[i], L=lags[i]
-                ),
+                "Adstock": delayed_adstock(
+                    x=inputs, alpha=alpha, theta=peaks[i], l_max=lags[i]
+                ).eval(),
                 ## Format adstock labels for neater plotting
                 "Adstock Labels": [
                     f"{x:,.0f}"
-                    for x in asf.delayed_geometric_decay(
-                        initial_impact, alpha, peaks[i], lags[i]
-                    )
+                    for x in delayed_adstock(
+                        x=inputs, alpha=alpha, theta=peaks[i], l_max=lags[i]
+                    ).eval()
                 ],
                 ## Create column to label each adstock
                 "Alpha": f"Alpha {i + 1}",
