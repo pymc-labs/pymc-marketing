@@ -23,6 +23,10 @@ from pymc_marketing.mmm.transformers import (
     tanh_saturation,
 )
 
+# Constants
+PLOT_HEIGHT = 500
+PLOT_WIDTH = 1000
+
 # -------------------------- TOP OF PAGE INFORMATION -------------------------
 
 # Set browser / tab config
@@ -131,8 +135,8 @@ with tab1:
         title_text="Logistic Saturation Curve",
         xaxis_title="Media Spend",
         yaxis_title="Conversions",
-        height=500,
-        width=1000,
+        height=PLOT_HEIGHT,
+        width=PLOT_WIDTH,
     )
 
     st.plotly_chart(fig_root, use_container_width=True)
@@ -191,8 +195,8 @@ with tab2:
         title_text="Tanh Saturation Curve",
         xaxis_title="Media Spend",
         yaxis_title="Conversions",
-        height=500,
-        width=1000,
+        height=PLOT_HEIGHT,
+        width=PLOT_WIDTH,
     )
 
     st.plotly_chart(fig_root, use_container_width=True)
@@ -251,8 +255,8 @@ with tab3:
         title_text="Michaelis-Menten Saturation Curve",
         xaxis_title="Media Spend",
         yaxis_title="Conversions",
-        height=500,
-        width=1000,
+        height=PLOT_HEIGHT,
+        width=PLOT_WIDTH,
     )
 
     st.plotly_chart(fig_root, use_container_width=True)

@@ -23,6 +23,11 @@ from pymc_marketing.mmm.transformers import (
     weibull_adstock,
 )
 
+# Constants
+PLOT_HEIGHT = 600
+PLOT_WIDTH = 1000
+
+
 # -------------------------- TOP OF PAGE INFORMATION -------------------------
 
 # Set browser / tab config
@@ -177,8 +182,8 @@ with tab1:
             },
         )
     # Format plot
-    fig.layout.height = 600
-    fig.layout.width = 1000
+    fig.layout.height = PLOT_HEIGHT
+    fig.layout.width = PLOT_WIDTH
     fig.update_layout(
         title_text="Geometric Adstock Decayed Over Weeks", title_font=dict(size=30)
     )
@@ -345,8 +350,8 @@ with tab2:
             },
         )
     # Format plot
-    fig.layout.height = 600
-    fig.layout.width = 1000
+    fig.layout.height = PLOT_HEIGHT
+    fig.layout.width = PLOT_WIDTH
     fig.update_layout(
         title_text="Geometric Adstock Decayed Over Weeks", title_font=dict(size=30)
     )
@@ -493,8 +498,8 @@ with tab3:
             color_discrete_map={"Line A": "#636EFA", "Line B": "#EF553B"},
         )
     # Format plot
-    fig.layout.height = 600
-    fig.layout.width = 1000
+    fig.layout.height = PLOT_HEIGHT
+    fig.layout.width = PLOT_WIDTH
     fig.update_layout(
         title_text="Weibull CDF Adstock Decayed Over Weeks", title_font=dict(size=30)
     )
@@ -645,8 +650,8 @@ with tab4:
             color_discrete_map={"Line A": "#636EFA", "Line B": "#EF553B"},
         )
     # Format plot
-    fig.layout.height = 600
-    fig.layout.width = 1000
+    fig.layout.height = PLOT_HEIGHT
+    fig.layout.width = PLOT_WIDTH
     fig.update_layout(
         title_text="Weibull PDF Adstock Decayed Over Weeks", title_font=dict(size=30)
     )
