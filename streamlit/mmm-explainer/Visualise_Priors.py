@@ -13,9 +13,29 @@
 #   limitations under the License.
 # Import custom functions
 import prior_functions as pf
-import pymc as pm
 
 import streamlit as st
+
+# Constants
+SEED = 42
+N_DRAWS = 50_000
+# Specify the possible distributions and their paramaters you want to visualise
+DISTRIBUTIONS_DICT = {
+    "Beta": ["alpha", "beta"],
+    "Bernoulli": ["p"],
+    "Exponential": ["lam"],
+    "Gamma": ["alpha", "beta"],
+    "HalfNormal": ["sigma"],
+    "LogNormal": ["mu", "sigma"],
+    "Normal": ["mu", "sigma"],
+    "Poisson": ["mu"],
+    "StudentT": ["nu", "mu", "sigma"],
+    "TruncatedNormal": ["mu", "sigma", "lower", "upper"],
+    "Uniform": ["lower", "upper"],
+    "Weibull": ["alpha", "beta"],
+}
+PLOT_HEIGHT = 500
+PLOT_WIDTH = 1000
 
 # -------------------------- TOP OF PAGE INFORMATION -------------------------
 
@@ -28,225 +48,99 @@ st.set_page_config(
 # Give some context for what the page displays
 st.title("Bayesian Prior Distribution Demonstrator")
 
-# Use tabs for different distributions
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12 = st.tabs(
-    [
-        "🔵 Uniform",
-        "🟣 Normal",
-        "🟠 HalfNormal",
-        "🟢 Beta",
-        "🔴 Gamma",
-        "⚪ Poisson",
-        "🌈 Bernoulli",
-        "🔵 Exponential",
-        "🟣 Weibull",
-        "🟠 TruncatedNormal",
-        "🟢 StudentT",
-        "🔴 LogNormal",
-    ]
+# -------------------------- VISUALISE PRIOR -------------------------
+
+# Select the distribution to visualise
+dist_name = st.selectbox(
+    "Please select the distribution you would like to visualise:",
+    options=DISTRIBUTIONS_DICT.keys(),
 )
+st.header(f":blue[{dist_name} Distribution]")  # header
 
+# Variables need to be instantiated to avoid error where upper < lower
+lower = None
+upper = None
 
-# Set seed
-seed = 42
+# Initialize parameters with None
+params = {param: None for param in DISTRIBUTIONS_DICT[dist_name]}
 
-# -------------------------- UNIFORM DISTRIBUTION -------------------------
-with tab1:
-    st.header(":blue[Uniform Distribution]")
-
-    # User inputs for distribution parameters
-    st.subheader(":blue[User Inputs]")
-    lower = st.number_input("Lower Bound", value=0.0)
-    upper = st.number_input("Upper Bound", value=1.0)
-    # Check to ensure lower < upper
-    if lower >= upper:
-        st.error("Error: Lower bound must be less than upper bound.")
-    else:
-        # Draw samples
-        samples = pf.draw_samples_from_prior(
-            pm.Uniform, lower=lower, upper=upper, seed=seed
+# User inputs for distribution parameters
+for param in params.keys():
+    if param == "lower":
+        params[param] = st.number_input(
+            f"Please enter the value for {param.title()}:", key=param, value=0.0
+        )
+    elif param == "upper":
+        params[param] = st.number_input(
+            f"Please enter the value for {param.title()}:", key=param, value=2.0
+        )
+    elif param == "alpha":
+        params[param] = st.number_input(
+            f"Please enter the value for {param.title()}:",
+            key=param,
+            value=1.0,
+            min_value=0.01,
+        )
+    elif param == "beta":
+        params[param] = st.number_input(
+            f"Please enter the value for {param.title()}:",
+            key=param,
+            value=1.0,
+            min_value=0.01,
+        )
+    elif param == "sigma":
+        params[param] = st.number_input(
+            f"Please enter the value for {param.title()}:",
+            key=param,
+            value=1.0,
+            min_value=0.01,
+        )
+    # Poisson mu must be > 0
+    elif param == "mu" and dist_name == "Poisson":
+        params[param] = st.number_input(
+            f"Please enter the value for {param.title()}:",
+            key=param,
+            value=1.0,
+            min_value=0.01,
+        )
+    elif param == "mu":
+        params[param] = st.number_input(
+            f"Please enter the value for {param.title()}:", key=param, value=0.0
+        )
+    elif param == "p":
+        params[param] = st.number_input(
+            f"Please enter the value for {param.title()}:",
+            key=param,
+            value=0.5,
+            min_value=0.0,
+            max_value=1.0,
+        )
+    elif param == "lam":
+        params[param] = st.number_input(
+            f"Please enter the value for {param.title()}:",
+            key=param,
+            value=1.0,
+            min_value=0.01,
+        )
+    elif param == "nu":
+        params[param] = st.number_input(
+            f"Please enter the value for {param.title()}:",
+            key=param,
+            value=10.0,
+            min_value=0.01,
         )
 
-        # Plot distribution
-        fig_root = pf.plot_prior_distribution(
-            samples, title="Uniform Distribution Samples"
-        )
-        fig_root.update_layout(height=500, width=1000)
-        st.plotly_chart(fig_root, use_container_width=True)
 
-# -------------------------- NORMAL DISTRIBUTION -------------------------
-with tab2:
-    st.header(":violet[Normal Distribution]")
+# Check to ensure lower < upper
+if lower and lower >= upper:
+    st.error("Error: Lower bound must be less than upper bound.")
 
-    # User inputs for distribution parameters
-    st.subheader(":violet[User Inputs]")
-    mu = st.number_input("Mean (mu)", value=0.0)
-    sigma = st.number_input("Standard Deviation (sigma)", value=1.0, min_value=0.01)
+## Create the selected distribution and sample from it
+dist = pf.get_distribution(dist_name, **params)
+draws = dist.rvs(N_DRAWS, random_state=SEED)
 
-    # Draw samples
-    samples = pf.draw_samples_from_prior(pm.Normal, mu=mu, sigma=sigma, seed=seed)
 
-    # Plot distribution
-    fig = pf.plot_prior_distribution(samples, title="Normal Distribution Samples")
-    fig.update_layout(height=500, width=1000)
-    st.plotly_chart(fig, use_container_width=True)
-
-# -------------------------- HALF-NORMAL DISTRIBUTION -------------------------
-with tab3:
-    st.header(":orange[HalfNormal Distribution]")
-
-    st.subheader(":orange[User Inputs]")
-    sigma = st.number_input(
-        "Standard Deviation (sigma) for HalfNormal", value=1.0, min_value=0.01
-    )
-
-    # Draw samples
-    samples = pf.draw_samples_from_prior(pm.HalfNormal, sigma=sigma, seed=seed)
-
-    # Plot distribution
-    fig = pf.plot_prior_distribution(samples, title="HalfNormal Distribution Samples")
-    fig.update_layout(height=500, width=1000)
-    st.plotly_chart(fig, use_container_width=True)
-
-# -------------------------- BETA DISTRIBUTION -------------------------
-with tab4:
-    st.header(":green[Beta Distribution]")
-
-    st.subheader(":green[User Inputs]")
-    alpha = st.number_input("Alpha", value=1.0, min_value=0.01)
-    beta = st.number_input("Beta", value=1.0, min_value=0.01)
-
-    # Draw samples
-    samples = pf.draw_samples_from_prior(pm.Beta, alpha=alpha, beta=beta, seed=seed)
-
-    # Plot distribution
-    fig = pf.plot_prior_distribution(samples, title="Beta Distribution Samples")
-    fig.update_layout(height=500, width=1000)
-    st.plotly_chart(fig, use_container_width=True)
-
-# -------------------------- GAMMA DISTRIBUTION -------------------------
-with tab5:
-    st.header(":red[Gamma Distribution]")
-
-    st.subheader(":red[User Inputs]")
-    alpha = st.number_input("Alpha for Gamma", value=1.0, min_value=0.01)
-    beta = st.number_input("Beta for Gamma (rate)", value=1.0, min_value=0.01)
-
-    # Draw samples
-    samples = pf.draw_samples_from_prior(pm.Gamma, alpha=alpha, beta=beta, seed=seed)
-
-    # Plot distribution
-    fig = pf.plot_prior_distribution(samples, title="Gamma Distribution Samples")
-    fig.update_layout(height=500, width=1000)
-    st.plotly_chart(fig, use_container_width=True)
-
-# -------------------------- POISSON DISTRIBUTION -------------------------
-with tab6:
-    st.header(":grey[Poisson Distribution]")
-
-    st.subheader(":grey[User Inputs]")
-    mu = st.number_input("Lambda (mu)", value=1.0, min_value=0.01)
-
-    # Draw samples
-    samples = pf.draw_samples_from_prior(pm.Poisson, mu=mu, seed=seed)
-
-    # Plot distribution
-    fig = pf.plot_prior_distribution(samples, title="Poisson Distribution Samples")
-    fig.update_layout(height=500, width=1000)
-    st.plotly_chart(fig, use_container_width=True)
-
-# -------------------------- BERNOULLI DISTRIBUTION -------------------------
-with tab7:
-    st.header(":rainbow[Bernoulli Distribution]")
-
-    st.subheader(":rainbow[User Inputs]")
-    p = st.number_input(
-        "Probability of Success (p)", value=0.5, min_value=0.0, max_value=1.0
-    )
-
-    # Draw samples
-    samples = pf.draw_samples_from_prior(pm.Bernoulli, p=p, seed=seed)
-
-    # Plot distribution
-    fig = pf.plot_prior_distribution(samples, title="Bernoulli Distribution Samples")
-    fig.update_layout(height=500, width=1000)
-    st.plotly_chart(fig, use_container_width=True)
-
-# -------------------------- EXPONENTIAL DISTRIBUTION -------------------------
-with tab8:
-    st.header(":blue[Exponential Distribution]")
-
-    st.subheader(":blue[User Inputs]")
-    lam = st.number_input("Rate (lambda)", value=1.0, min_value=0.01)
-
-    # Draw samples
-    samples = pf.draw_samples_from_prior(pm.Exponential, lam=lam, seed=seed)
-
-    # Plot distribution
-    fig = pf.plot_prior_distribution(samples, title="Exponential Distribution Samples")
-    fig.update_layout(height=500, width=1000)
-    st.plotly_chart(fig, use_container_width=True)
-
-# -------------------------- WEIBULL DISTRIBUTION ---------------------------
-with tab9:
-    st.header(":violet[Weibull Distribution]")
-
-    st.subheader(":violet[User Inputs]")
-    alpha = st.number_input("Shape (alpha)", value=1.5, min_value=0.01)
-    beta = st.number_input("Scale (beta)", value=1.0, min_value=0.01)
-
-    samples = pf.draw_samples_from_prior(pm.Weibull, alpha=alpha, beta=beta, seed=seed)
-    fig = pf.plot_prior_distribution(samples, title="Weibull Distribution Samples")
-    st.plotly_chart(fig, use_container_width=True)
-
-# -------------------------- TRUNCATED NORMAL DISTRIBUTION ------------------
-with tab10:
-    st.header(":orange[TruncatedNormal Distribution]")
-
-    st.subheader(":orange[User Inputs]")
-    mu = st.number_input("Mean (mu) for TruncatedNormal", value=0.0)
-    sigma = st.number_input(
-        "Standard Deviation (sigma) for TruncatedNormal", value=1.0, min_value=0.01
-    )
-    lower = st.number_input("Lower Bound for TruncatedNormal", value=0.0)
-    upper = st.number_input("Upper Bound for TruncatedNormal", value=2.0)
-    # Check to ensure lower < upper
-    if lower >= upper:
-        st.error("Error: Lower bound must be less than upper bound.")
-    else:
-        samples = pf.draw_samples_from_prior(
-            pm.TruncatedNormal, mu=mu, sigma=sigma, lower=lower, upper=upper, seed=seed
-        )
-        fig = pf.plot_prior_distribution(
-            samples, title="TruncatedNormal Distribution Samples"
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-# -------------------------- STUDENT T DISTRIBUTION -------------------------
-with tab11:
-    st.header(":green[StudentT Distribution]")
-
-    st.subheader(":green[User Inputs]")
-    nu = st.number_input("Degrees of Freedom (nu)", value=10.0, min_value=0.01)
-    mu = st.number_input("Location (mu)", value=0.0)
-    sigma = st.number_input("Scale (sigma)", value=1.0, min_value=0.01)
-
-    samples = pf.draw_samples_from_prior(
-        pm.StudentT, nu=nu, mu=mu, sigma=sigma, seed=seed
-    )
-    fig = pf.plot_prior_distribution(samples, title="StudentT Distribution Samples")
-    st.plotly_chart(fig, use_container_width=True)
-
-# -------------------------- LOGNORMAL DISTRIBUTION -------------------------
-with tab12:
-    st.header(":red[LogNormal Distribution]")
-
-    st.subheader(":red[User Inputs]")
-    mu = st.number_input("Mean (mu) for LogNormal", value=0.0)
-    sigma = st.number_input(
-        "Standard Deviation (sigma) for LogNormal", value=1.0, min_value=0.01
-    )
-
-    samples = pf.draw_samples_from_prior(pm.Lognormal, mu=mu, sigma=sigma, seed=seed)
-    fig = pf.plot_prior_distribution(samples, title="LogNormal Distribution Samples")
-    st.plotly_chart(fig, use_container_width=True)
+# Plot distribution
+fig_root = pf.plot_prior_distribution(draws, title=f"{dist_name} Distribution Samples")
+fig_root.update_layout(height=PLOT_HEIGHT, width=PLOT_WIDTH)
+st.plotly_chart(fig_root, use_container_width=True)
