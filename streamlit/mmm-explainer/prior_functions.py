@@ -15,50 +15,35 @@
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import pymc as pm
+import preliz as pz
 from scipy.stats import gaussian_kde
 
 import streamlit as st
 
 
 @st.cache_data  # 👈 Add the caching decorator, make app run faster
-def draw_samples_from_prior(
-    dist: pm.Distribution, num_samples: int = 50_000, seed=None, **kwargs
-) -> np.ndarray:
+def get_distribution(distribution_name=pz.distributions, **params):
     """
-    Draws samples from the prior distribution of a given PyMC distribution.
+    Retrieve and create a distribution instance from the PreliZ library.
 
-    This function creates a PyMC model with a single variable, drawn from the specified
-    distribution, and then samples from the prior of this distribution.
+    Parameters:
+    distribution_name (str): The name of the distribution to create.
+    **params: Variable length dict of parameters and values required by the distribution.
 
-    Parameters
-    ----------
-    dist : pm.Distribution
-        The PyMC distribution from which to draw samples.
-    num_samples : int, optional
-        The number of samples to draw from the prior distribution. Default is 10,000.
-    seed : int or None, optional
-        The seed for the random number generator to ensure reproducibility. If None,
-        the results will vary between runs. Default is None.
-    **kwargs
-        Additional keyword arguments to pass to the distribution constructor.
-        e.g. sigma for Normal, alpha and beta for Beta.
-        See PyMC Distributions for more info: https://www.pymc.io/projects/docs/en/stable/api/distributions.html
-
-    Returns
-    -------
-    np.ndarray
-        An array of samples drawn from the specified prior distribution.
+    Returns:
+    object: An instance of the requested distribution.
     """
-    with pm.Model():
-        # Define a variable with the given distribution
-        my_dist = dist(name="my_dist", **kwargs)
-
-        # Sample from the prior distribution of the model
-        draws = pm.draw(my_dist, draws=num_samples, random_seed=seed)
-
-    # Return the drawn samples
-    return draws
+    try:
+        # Get the distribution class from preliz
+        dist_class = getattr(pz, distribution_name)
+        # Create an instance of the distribution with the provided parameters
+        return dist_class(**params)
+    except AttributeError:
+        raise ValueError(f"Distribution '{distribution_name}' is not found in preliz.")
+    except TypeError:
+        raise ValueError(
+            f"Incorrect parameters for the distribution '{distribution_name}'."
+        )
 
 
 def plot_prior_distribution(
