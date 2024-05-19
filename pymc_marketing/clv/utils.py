@@ -597,3 +597,136 @@ def rfm_train_test_split(
     train_test_rfm_data["test_T"] = time_delta / time_scaler  # type: ignore
 
     return train_test_rfm_data
+
+
+def expected_cumulative_transactions(
+    transaction_model, 
+    transactions: pd.DataFrame, 
+    datetime_col: str, 
+    customer_id_col: str, 
+    t: int, 
+    datetime_format: str | None = None, 
+    time_unit: str = "D",
+    freq_multiplier: int = 1,
+    set_index_date: bool = False,
+) -> pd.DataFrame: 
+    """Get expected and actual repeated cumulative transactions.
+
+    Uses the :method:`expected_number_of_purchases_up_to_time` method from the fitted
+    model to predict the cumulative number of purchases.
+
+    This function follows the forumulation on page 8 of [1]_.
+
+    In more detail, we take only the customers who have made their first
+    transaction before the specific date and then multiply them by the distribution of the 
+    ``expected_number_of_purchases_up_to_time`` for their whole future. Doing that for
+    all dates and then summing the distributions will give us the *complete cumulative purchases*.
+
+    Parameters
+    ----------
+    transaction_model
+        The model to predict future transactions
+    transactions : pd.DataFrame
+    datetime_col : str 
+        Column in the transactions DataFrame that denotes the datetime the purchase was made.
+    customer_id_col : str
+        Column in the transactions DataFrame that denotes the customer_id.
+    t : int
+        Number of time units to predict.
+    datetime_format : str, optional
+        A string that represents the timestamp format. Useful if Pandas can't understand
+        the provided format.
+    time_unit : str, optional
+        Time granularity for study.
+        Default: 'D' for days. Possible values listed here:
+        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+    freq_multiplier : int, optional
+        Default: 1. Useful for scaling recency & T to a different time granularity. Example:
+        With freq='D' and freq_multiplier=1, we get recency=591 and T=632
+        With freq='h' and freq_multiplier=24, we get recency=590.125 and T=631.375
+        This is useful if predictions in months or years are desired,
+        and can also help with model convergence for study periods of many years.
+    set_index_date : bool, optional
+        Default: False
+        If True, the index will be the date of the period being evaluated.
+        If False, the index will be the period number.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame with the actual and predicted cumulative transactions.
+
+    References
+    ----------
+    .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005),
+    A Note on Implementing the Pareto/NBD Model in MATLAB.
+    https://brucehardie.com/notes/008/
+    """ 
+    start_date = pd.to_datetime(transactions[datetime_col], format=datetime_format).min()
+    start_period = start_date.to_period(time_unit)
+    observation_period_end = start_period + t
+
+    # Has an extra column (besides the id and the date)
+    # with a boolean for when it is a first transaction
+    repeated_and_first_transactions: pd.DataFrame = _find_first_transactions(
+        transactions=transactions, 
+        customer_id_col=customer_id_col, 
+        datetime_col=datetime_col,
+        datetime_format=datetime_format,
+        observation_period_end=observation_period_end,
+        time_unit=time_unit,
+    )
+
+    # Mask, first transactions and repeated transactions
+    first_trans_mask = repeated_and_first_transactions["first"]
+    repeated_transactions = repeated_and_first_transactions.loc[~first_trans_mask, :]
+    first_transactions = repeated_and_first_transactions.loc[first_trans_mask, :]
+
+    date_range = pd.date_range(start_date, periods=t + 1, freq=time_unit)
+    date_periods = date_range.to_period(time_unit)
+
+    pred_cum_transactions = []
+
+    # First Transactions on Each Day/Freq
+    first_trans_size = first_transactions.groupby(datetime_col).size()
+
+    # In the loop below, we calculate the expected number of purchases for the
+    # customers who have made their first purchases on a date before the one being
+    # evaluated.
+    # Then we sum them to get the cumulative sum up to the specific period.
+    for i, period in enumerate(date_periods): # index of period and its date
+        if i % freq_multiplier == 0 and i > 0:
+            # Periods before the one being evaluated
+            times = np.array([d.n for d in period - first_trans_size.index])
+            times = times[times > 0].astype(float) / freq_multiplier
+
+            # Array of different expected number of purchases for different times
+            expected_trans_agg = transaction_model.expected_number_of_purchases_up_to_time(times)
+
+            # Mask for the number of customers with 1st transactions up to the period
+            mask = first_trans_size.index < period
+
+            # ``expected_trans`` is a float with the cumulative sum of expected transactions
+            expected_trans = sum(expected_trans_agg * first_trans_size[mask])
+
+            pred_cum_transactions.append(expected_trans)
+
+    act_trans = repeated_transactions.groupby(datetime_col).size()
+    act_tracking_transactions = act_trans.reindex(date_periods, fill_value=0)
+
+    act_cum_transactions = []
+    for j in range(1, t // freq_multiplier + 1):
+        sum_trans = sum(act_tracking_transactions.iloc[: j * freq_multiplier])
+        act_cum_transactions.append(sum_trans)
+
+    if set_index_date:
+        index = date_periods[freq_multiplier - 1 : -1 : freq_multiplier]
+    else:
+        index = range(0, t // freq_multiplier)
+
+    df_cum_transactions = pd.DataFrame(
+        {"actual": act_cum_transactions, "predicted": pred_cum_transactions}, 
+        index=index
+    )
+
+    return df_cum_transactions
