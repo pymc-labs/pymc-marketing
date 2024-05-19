@@ -600,16 +600,16 @@ def rfm_train_test_split(
 
 
 def expected_cumulative_transactions(
-    transaction_model, 
-    transactions: pd.DataFrame, 
-    datetime_col: str, 
-    customer_id_col: str, 
-    t: int, 
-    datetime_format: str | None = None, 
+    transaction_model,
+    transactions: pd.DataFrame,
+    datetime_col: str,
+    customer_id_col: str,
+    t: int,
+    datetime_format: str | None = None,
     time_unit: str = "D",
     freq_multiplier: int = 1,
     set_index_date: bool = False,
-) -> pd.DataFrame: 
+) -> pd.DataFrame:
     """Get expected and actual repeated cumulative transactions.
 
     Uses the :method:`expected_number_of_purchases_up_to_time` method from the fitted
@@ -618,7 +618,7 @@ def expected_cumulative_transactions(
     This function follows the forumulation on page 8 of [1]_.
 
     In more detail, we take only the customers who have made their first
-    transaction before the specific date and then multiply them by the distribution of the 
+    transaction before the specific date and then multiply them by the distribution of the
     ``expected_number_of_purchases_up_to_time`` for their whole future. Doing that for
     all dates and then summing the distributions will give us the *complete cumulative purchases*.
 
@@ -627,7 +627,7 @@ def expected_cumulative_transactions(
     transaction_model
         The model to predict future transactions
     transactions : pd.DataFrame
-    datetime_col : str 
+    datetime_col : str
         Column in the transactions DataFrame that denotes the datetime the purchase was made.
     customer_id_col : str
         Column in the transactions DataFrame that denotes the customer_id.
@@ -661,16 +661,18 @@ def expected_cumulative_transactions(
     .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005),
     A Note on Implementing the Pareto/NBD Model in MATLAB.
     https://brucehardie.com/notes/008/
-    """ 
-    start_date = pd.to_datetime(transactions[datetime_col], format=datetime_format).min()
+    """
+    start_date = pd.to_datetime(
+        transactions[datetime_col], format=datetime_format
+    ).min()
     start_period = start_date.to_period(time_unit)
     observation_period_end = start_period + t
 
     # Has an extra column (besides the id and the date)
     # with a boolean for when it is a first transaction
     repeated_and_first_transactions: pd.DataFrame = _find_first_transactions(
-        transactions=transactions, 
-        customer_id_col=customer_id_col, 
+        transactions=transactions,
+        customer_id_col=customer_id_col,
         datetime_col=datetime_col,
         datetime_format=datetime_format,
         observation_period_end=observation_period_end,
@@ -694,14 +696,16 @@ def expected_cumulative_transactions(
     # customers who have made their first purchases on a date before the one being
     # evaluated.
     # Then we sum them to get the cumulative sum up to the specific period.
-    for i, period in enumerate(date_periods): # index of period and its date
+    for i, period in enumerate(date_periods):  # index of period and its date
         if i % freq_multiplier == 0 and i > 0:
             # Periods before the one being evaluated
             times = np.array([d.n for d in period - first_trans_size.index])
             times = times[times > 0].astype(float) / freq_multiplier
 
             # Array of different expected number of purchases for different times
-            expected_trans_agg = transaction_model.expected_number_of_purchases_up_to_time(times)
+            expected_trans_agg = (
+                transaction_model.expected_number_of_purchases_up_to_time(times)
+            )
 
             # Mask for the number of customers with 1st transactions up to the period
             mask = first_trans_size.index < period
@@ -716,17 +720,18 @@ def expected_cumulative_transactions(
 
     act_cum_transactions = []
     for j in range(1, t // freq_multiplier + 1):
-        sum_trans = sum(act_tracking_transactions.iloc[: j * freq_multiplier])
+        sum_trans = act_tracking_transactions.iloc[: j * freq_multiplier].sum()
         act_cum_transactions.append(sum_trans)
 
+    index: pd.Index
     if set_index_date:
         index = date_periods[freq_multiplier - 1 : -1 : freq_multiplier]
     else:
-        index = range(0, t // freq_multiplier)
+        index = pd.Index(range(0, t // freq_multiplier))
 
     df_cum_transactions = pd.DataFrame(
-        {"actual": act_cum_transactions, "predicted": pred_cum_transactions}, 
-        index=index
+        {"actual": act_cum_transactions, "predicted": pred_cum_transactions},
+        index=index,
     )
 
     return df_cum_transactions
