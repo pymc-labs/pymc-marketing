@@ -267,7 +267,7 @@ class BetaGeoModel(CLVModel):
         Parameters
         ----------
         customer_id : np.ndarray | pd.Series
-            Unique customer identifier. Not required to be from data.
+            Customer identifier. Not required to be from data.
         t : np.ndarray | pd.Series | TensorVariable
             Time interval for which to predict the number of future purchases.
         frequency : np.ndarray | pd.Series | TensorVariable
