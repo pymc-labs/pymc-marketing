@@ -1,31 +1,41 @@
+ci:
+  autofix_prs: false
+
 repos:
-  - repo: https://github.com/psf/black
-    rev: 22.12.0
+  - repo: https://github.com/lucianopaz/head_of_apache
+    rev: "0.0.3"
     hooks:
-      - id: black
-  - repo: https://github.com/pycqa/flake8
-    rev: 6.0.0
+      - id: head_of_apache
+        args:
+          - --author=The PyMC Labs Developers
+          - --exclude=docs/
+          - --exclude=scripts/
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
     hooks:
-      - id: flake8
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
-        args: [--profile, black]
-        types: [python]
+      - id: ruff
+        args: ["--fix", "--output-format=full"]
+      - id: ruff-format
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.2.0
+    rev: v1.10.0
     hooks:
       - id: mypy
         args: [--ignore-missing-imports]
         files: ^pymc_marketing/
         additional_dependencies: [numpy>=1.20, pandas-stubs]
+  - repo: https://github.com/nbQA-dev/nbQA
+    rev: 1.8.5
+    hooks:
+      - id: nbqa-ruff
+        args: ["--fix", "--output-format=full"]
+        files: ^docs/source/notebooks/
+        exclude: ^docs/source/notebooks/clv/dev/
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.2.0
+    rev: v4.6.0
     hooks:
       - id: debug-statements
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
-        exclude: ^notebooks/
+        exclude: ^docs/source/notebooks/

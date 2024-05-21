@@ -1,4 +1,4 @@
-#   Copyright 2023 The PyMC Developers
+#   Copyright 2024 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ import json
 import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import arviz as az
 import numpy as np
@@ -49,13 +49,13 @@ class ModelBuilder(ABC):
     _model_type = "BaseClass"
     version = "None"
 
-    X: Optional[pd.DataFrame] = None
-    y: Optional[pd.Series] = None
+    X: pd.DataFrame | None = None
+    y: pd.Series | np.ndarray | None = None
 
     def __init__(
         self,
-        model_config: Optional[Dict] = None,
-        sampler_config: Optional[Dict] = None,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
     ):
         """
         Initializes model configuration and sampler configuration for the model
@@ -65,9 +65,11 @@ class ModelBuilder(ABC):
         data : Dictionary, optional
             It is the data we need to train the model on.
         model_config : Dictionary, optional
-            dictionary of parameters that initialise model configuration. Class-default defined by the user default_model_config method.
+            dictionary of parameters that initialise model configuration.
+            Class-default defined by the user default_model_config method.
         sampler_config : Dictionary, optional
-            dictionary of parameters that initialise sampler configuration. Class-default defined by the user default_sampler_config method.
+            dictionary of parameters that initialise sampler configuration.
+            Class-default defined by the user default_sampler_config method.
         Examples
         --------
         >>> class MyModel(ModelBuilder):
@@ -75,15 +77,17 @@ class ModelBuilder(ABC):
         >>> model = MyModel(model_config, sampler_config)
         """
         if sampler_config is None:
-            sampler_config = self.default_sampler_config
+            sampler_config = {}
         if model_config is None:
-            model_config = self.default_model_config
-        self.sampler_config = sampler_config
-        self.model_config = model_config  # parameters for priors etc.
-        self.model: Optional[pm.Model] = None  # Set by build_model
-        self.idata: Optional[
-            az.InferenceData
-        ] = None  # idata is generated during fitting
+            model_config = {}
+        self.sampler_config = (
+            self.default_sampler_config | sampler_config
+        )  # Parameters for fit sampling
+        self.model_config = (
+            self.default_model_config | model_config
+        )  # parameters for priors etc.
+        self.model: pm.Model | None = None  # Set by build_model
+        self.idata: az.InferenceData | None = None  # idata is generated during fitting
         self.is_fitted_ = False
 
     def _validate_data(self, X, y=None):
@@ -97,8 +101,8 @@ class ModelBuilder(ABC):
     @abstractmethod
     def _data_setter(
         self,
-        X: Union[np.ndarray, pd.DataFrame],
-        y: Optional[Union[np.ndarray, pd.Series]] = None,
+        X: np.ndarray | pd.DataFrame,
+        y: np.ndarray | pd.Series | None = None,
     ) -> None:
         """
         Sets new data in the model.
@@ -126,8 +130,6 @@ class ModelBuilder(ABC):
 
         """
 
-        raise NotImplementedError
-
     @property
     @abstractmethod
     def output_var(self):
@@ -139,11 +141,10 @@ class ModelBuilder(ABC):
         output_var : str
             Name of the output variable of the model.
         """
-        raise NotImplementedError
 
     @property
     @abstractmethod
-    def default_model_config(self) -> Dict:
+    def default_model_config(self) -> dict:
         """
         Returns a class default config dict for model builder if no model_config is provided on class initialization
         Useful for understanding structure of required model_config to allow its customization by users
@@ -168,11 +169,10 @@ class ModelBuilder(ABC):
         model_config : dict
             A set of default parameters for predictor distributions that allow to save and recreate the model.
         """
-        raise NotImplementedError
 
     @property
     @abstractmethod
-    def default_sampler_config(self) -> Dict:
+    def default_sampler_config(self) -> dict:
         """
         Returns a class default sampler dict for model builder if no sampler_config is provided on class initialization
         Useful for understanding structure of required sampler_config to allow its customization by users
@@ -192,18 +192,18 @@ class ModelBuilder(ABC):
         sampler_config : dict
             A set of default settings for used by model in fit process.
         """
-        raise NotImplementedError
 
     @abstractmethod
-    def generate_and_preprocess_model_data(
-        self,
-        X: Union[pd.DataFrame, pd.Series],
-        y: Union[pd.Series, np.ndarray[Any, Any]],
+    def _generate_and_preprocess_model_data(
+        self, X: pd.DataFrame | pd.Series, y: np.ndarray
     ) -> None:
         """
         Applies preprocessing to the data before fitting the model.
         if validate is True, it will check if the data is valid for the model.
         sets self.model_coords based on provided dataset
+
+        In case of optional parameters being passed into the model, this method should implement the conditional
+        logic responsible for correct handling of the optional parameters, and including them into the dataset.
 
         Parameters:
         X : array, shape (n_obs, n_features)
@@ -212,11 +212,10 @@ class ModelBuilder(ABC):
         Examples
         --------
         >>>     @classmethod
-        >>>     def generate_and_preprocess_model_data(self, X, y):
-        >>>         x = np.linspace(start=1, stop=50, num=100)
-        >>>         y = 5 * x + 3 + np.random.normal(0, 1, len(x)) * np.random.rand(100)*10 +  np.random.rand(100)*6.4
-        >>>         X = pd.DataFrame(x, columns=['x'])
-        >>>         y = pd.Series(y, name='y')
+        >>>     def _generate_and_preprocess_model_data(self, X, y):
+                    coords = {
+                        'x_dim': X.dim_variable,
+                    } #only include if applicable for your model
         >>>         self.X = X
         >>>         self.y = y
 
@@ -225,13 +224,12 @@ class ModelBuilder(ABC):
         None
 
         """
-        raise NotImplementedError
 
     @abstractmethod
     def build_model(
         self,
         X: pd.DataFrame,
-        y: pd.Series,
+        y: pd.Series | np.ndarray,
         **kwargs,
     ) -> None:
         """
@@ -246,7 +244,7 @@ class ModelBuilder(ABC):
             only contain the necessary data columns, not the entire available dataset, as this
             will be encoded into the data used to recreate the model.
 
-        y : pd.Series
+        y : Union[pd.Series, np.ndarray]
             The target data for the model. This should be a Series representing the output
             or dependent variable for the model.
 
@@ -260,56 +258,7 @@ class ModelBuilder(ABC):
         Returns
         -------
         None
-
-        Raises
-        ------
-        NotImplementedError
-            This is an abstract method and must be implemented in a subclass.
         """
-        raise NotImplementedError
-
-    def sample_model(self, **kwargs):
-        """
-        Sample from the PyMC model.
-
-        Parameters
-        ----------
-        **kwargs : dict
-            Additional keyword arguments to pass to the PyMC sampler.
-
-        Returns
-        -------
-        xarray.Dataset
-            The PyMC samples dataset.
-
-        Raises
-        ------
-        RuntimeError
-            If the PyMC model hasn't been built yet.
-
-        Examples
-        --------
-        >>> self.build_model()
-        >>> idata = self.sample_model(draws=100, tune=10)
-        >>> assert isinstance(idata, xr.Dataset)
-        >>> assert "posterior" in idata
-        >>> assert "prior" in idata
-        >>> assert "observed_data" in idata
-        >>> assert "log_likelihood" in idata
-        """
-        if self.model is None:
-            raise RuntimeError(
-                "The model hasn't been built yet, call .build_model() first or call .fit() instead."
-            )
-
-        with self.model:
-            sampler_args = {**self.sampler_config, **kwargs}
-            idata = pm.sample(**sampler_args)
-            idata.extend(pm.sample_prior_predictive())
-            idata.extend(pm.sample_posterior_predictive(idata))
-
-        idata = self.set_idata_attrs(idata)
-        return idata
 
     def set_idata_attrs(self, idata=None):
         """
@@ -334,11 +283,6 @@ class ModelBuilder(ABC):
         >>> model = MyModel(ModelBuilder)
         >>> idata = az.InferenceData(your_dataset)
         >>> model.set_idata_attrs(idata=idata)
-        >>> assert "id" in idata.attrs #this and the following lines are part of doctest, not user manual
-        >>> assert "model_type" in idata.attrs
-        >>> assert "version" in idata.attrs
-        >>> assert "sampler_config" in idata.attrs
-        >>> assert "model_config" in idata.attrs
         """
         if idata is None:
             idata = self.idata
@@ -381,7 +325,7 @@ class ModelBuilder(ABC):
         >>>     def __init__(self):
         >>>         super().__init__()
         >>> model = MyModel()
-        >>> model.fit(data)
+        >>> model.fit(X,y)
         >>> model.save('model_results.nc')  # This will call the overridden method in MyModel
         """
         if self.idata is not None and "posterior" in self.idata:
@@ -391,10 +335,11 @@ class ModelBuilder(ABC):
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
     @classmethod
-    def _model_config_formatting(cls, model_config: Dict) -> Dict:
+    def _model_config_formatting(cls, model_config: dict) -> dict:
         """
-        Because of json serialization, model_config values that were originally tuples or numpy are being encoded as lists.
-        This function converts them back to tuples and numpy arrays to ensure correct id encoding.
+        Because of json serialization, model_config values that were originally tuples
+        or numpy are being encoded as lists. This function converts them back to tuples
+        and numpy arrays to ensure correct id encoding.
         """
         for key in model_config:
             if isinstance(model_config[key], dict):
@@ -456,19 +401,19 @@ class ModelBuilder(ABC):
         # All previously used data is in idata.
 
         if model.id != idata.attrs["id"]:
-            raise ValueError(
-                f"The file '{fname}' does not contain an inference data of the same model or configuration as '{cls._model_type}'"
-            )
+            error_msg = f"""The file '{fname}' does not contain an inference data of the same model
+            or configuration as '{cls._model_type}'"""
+            raise ValueError(error_msg)
 
         return model
 
     def fit(
         self,
         X: pd.DataFrame,
-        y: Optional[Union[pd.Series, np.ndarray]] = None,
+        y: pd.Series | np.ndarray | None = None,
         progressbar: bool = True,
-        predictor_names: Optional[List[str]] = None,
-        random_seed: RandomState = None,
+        predictor_names: list[str] | None = None,
+        random_seed: RandomState | None = None,
         **kwargs: Any,
     ) -> az.InferenceData:
         """
@@ -484,10 +429,11 @@ class ModelBuilder(ABC):
             The target values (real numbers).
         progressbar : bool
             Specifies whether the fit progressbar should be displayed
-        predictor_names: List[str] = None,
+        predictor_names: Optional[List[str]] = None,
             Allows for custom naming of predictors given in a form of 2dArray
-            allows for naming of predictors when given in a form of np.ndarray, if not provided the predictors will be named like predictor1, predictor2...
-        random_seed : RandomState
+            Allows for naming of predictors when given in a form of np.ndarray, if not provided
+            the predictors will be named like predictor1, predictor2...
+        random_seed : Optional[RandomState]
             Provides sampler with initial random seed for obtaining reproducible samples
         **kwargs : Any
             Custom sampler settings can be provided in form of keyword arguments.
@@ -499,7 +445,7 @@ class ModelBuilder(ABC):
         Examples
         --------
         >>> model = MyModel()
-        >>> idata = model.fit(data)
+        >>> idata = model.fit(X,y)
         Auto-assigning NUTS sampler...
         Initializing NUTS using jitter+adapt_diag...
         """
@@ -508,20 +454,28 @@ class ModelBuilder(ABC):
         if y is None:
             y = np.zeros(X.shape[0])
         y_df = pd.DataFrame({self.output_var: y})
-        self.generate_and_preprocess_model_data(X, y_df.values.flatten())
+        self._generate_and_preprocess_model_data(X, y_df.values.flatten())
         if self.X is None or self.y is None:
             raise ValueError("X and y must be set before calling build_model!")
-        self.build_model(self.X, self.y)
+
+        if self.model is None:
+            self.build_model(self.X, self.y)
 
         sampler_config = self.sampler_config.copy()
         sampler_config["progressbar"] = progressbar
         sampler_config["random_seed"] = random_seed
         sampler_config.update(**kwargs)
-        self.idata = self.sample_model(**sampler_config)
+
+        sampler_config.update(**kwargs)
+        if self.model is not None:
+            with self.model:
+                sampler_args = {**self.sampler_config, **kwargs}
+                self.idata = pm.sample(**sampler_args)
 
         X_df = pd.DataFrame(X, columns=X.columns)
         combined_data = pd.concat([X_df, y_df], axis=1)
-        assert all(combined_data.columns), "All columns must have non-empty names"
+        if not all(combined_data.columns):
+            raise ValueError("All columns must have non-empty names")
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
@@ -529,12 +483,12 @@ class ModelBuilder(ABC):
                 message="The group fit_data is not defined in the InferenceData scheme",
             )
             self.idata.add_groups(fit_data=combined_data.to_xarray())  # type: ignore
-
+        self.set_idata_attrs(self.idata)
         return self.idata  # type: ignore
 
     def predict(
         self,
-        X_pred: Union[np.ndarray, pd.DataFrame, pd.Series],
+        X_pred: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         **kwargs,
     ) -> np.ndarray:
@@ -548,7 +502,7 @@ class ModelBuilder(ABC):
             The input data used for prediction.
         extend_idata : Boolean determining whether the predictions should be added to inference data object.
             Defaults to True.
-        **kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
+        **kwargs: Additional arguments to pass to sample_posterior_predictive method
 
         Returns
         -------
@@ -558,7 +512,7 @@ class ModelBuilder(ABC):
         Examples
         --------
         >>> model = MyModel()
-        >>> idata = model.fit(data)
+        >>> idata = model.fit(X,y)
         >>> x_pred = []
         >>> prediction_data = pd.DataFrame({'input':x_pred})
         >>> pred_mean = model.predict(prediction_data)
@@ -582,7 +536,7 @@ class ModelBuilder(ABC):
         self,
         X_pred,
         y_pred=None,
-        samples: Optional[int] = None,
+        samples: int | None = None,
         extend_idata: bool = False,
         combined: bool = True,
         **kwargs,
@@ -625,7 +579,7 @@ class ModelBuilder(ABC):
                 self.set_idata_attrs(prior_pred)
                 if extend_idata:
                     if self.idata is not None:
-                        self.idata.extend(prior_pred)
+                        self.idata.extend(prior_pred, join="right")
                     else:
                         self.idata = prior_pred
 
@@ -635,7 +589,9 @@ class ModelBuilder(ABC):
 
         return prior_predictive_samples
 
-    def sample_posterior_predictive(self, X_pred, extend_idata, combined, **kwargs):
+    def sample_posterior_predictive(
+        self, X_pred, extend_idata: bool = True, combined: bool = True, **kwargs
+    ):
         """
         Sample from the model's posterior predictive distribution.
 
@@ -644,7 +600,7 @@ class ModelBuilder(ABC):
         X_pred : array, shape (n_pred, n_features)
             The input data used for prediction using prior distribution..
         extend_idata : Boolean determining whether the predictions should be added to inference data object.
-            Defaults to False.
+            Defaults to True.
         combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
         **kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
@@ -656,10 +612,10 @@ class ModelBuilder(ABC):
         """
         self._data_setter(X_pred)
 
-        with self.model:  # sample with new input data
+        with self.model:  # type: ignore
             post_pred = pm.sample_posterior_predictive(self.idata, **kwargs)
             if extend_idata:
-                self.idata.extend(post_pred)
+                self.idata.extend(post_pred, join="right")  # type: ignore
 
         posterior_predictive_samples = az.extract(
             post_pred, "posterior_predictive", combined=combined
@@ -685,7 +641,7 @@ class ModelBuilder(ABC):
 
     @property
     @abstractmethod
-    def _serializable_model_config(self) -> Dict[str, Union[int, float, Dict]]:
+    def _serializable_model_config(self) -> dict[str, int | float | dict]:
         """
         Converts non-serializable values from model_config to their serializable reversable equivalent.
         Data types like pandas DataFrame, Series or datetime aren't JSON serializable,
@@ -698,7 +654,7 @@ class ModelBuilder(ABC):
 
     def predict_proba(
         self,
-        X_pred: Union[np.ndarray, pd.DataFrame, pd.Series],
+        X_pred: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         combined: bool = False,
         **kwargs,
@@ -708,7 +664,7 @@ class ModelBuilder(ABC):
 
     def predict_posterior(
         self,
-        X_pred: Union[np.ndarray, pd.DataFrame, pd.Series],
+        X_pred: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         combined: bool = True,
         **kwargs,
@@ -724,7 +680,7 @@ class ModelBuilder(ABC):
             Defaults to True.
         combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
-        **kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
+        **kwargs: Additional arguments to pass to sample_posterior_predictive method
 
         Returns
         -------
@@ -749,8 +705,8 @@ class ModelBuilder(ABC):
         """
         Generate a unique hash value for the model.
 
-        The hash value is created using the last 16 characters of the SHA256 hash encoding, based on the model configuration,
-        version, and model type.
+        The hash value is created using the last 16 characters of the SHA256 hash encoding,
+        based on the model configuration, version, and model type.
 
         Returns
         -------

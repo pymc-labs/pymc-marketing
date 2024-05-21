@@ -25,7 +25,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx_autodoc_typehints",
     # extensions provided by other packages
-    # "matplotlib.sphinxext.plot_directive",  # needed to plot in docstrings
+    "matplotlib.sphinxext.plot_directive",  # needed to plot in docstrings
     "myst_nb",
     "notfound.extension",
     "sphinx_copybutton",
@@ -79,7 +79,7 @@ nb_execution_mode = "auto"
 nb_execution_excludepatterns = ["*.ipynb"]
 nb_kernel_rgx_aliases = {".*": "python3"}
 myst_enable_extensions = ["colon_fence", "deflist", "dollarmath", "amsmath"]
-myst_heading_anchors = None
+myst_heading_anchors = 0
 
 # intersphinx configuration to ease linking arviz docs
 intersphinx_mapping = {

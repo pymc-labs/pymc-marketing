@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.9
+          python-version: "3.10"
       - name: Build the sdist and the wheel
         run: |
           pip install build
@@ -27,7 +27,7 @@ jobs:
           mkdir -p test-sdist
           cd test-sdist
           python -m venv venv-sdist
-          venv-sdist/bin/python -m pip install ../dist/pymc-marketing*.tar.gz
+          venv-sdist/bin/python -m pip install ../dist/pymc_marketing*.tar.gz
           echo "Checking import and version number (on release)"
           venv-sdist/bin/python -c "import pymc_marketing as pmm; assert pmm.__version__ == '${{  github.ref_name }}' if '${{ github.ref_type }}' == 'tag' else pmm.__version__; print(pmm.__version__)"
           cd ..
@@ -62,7 +62,7 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.9
+          python-version: "3.10"
       - name: Test pip install from test.pypi
         run: |
           python -m venv venv-test-pypi

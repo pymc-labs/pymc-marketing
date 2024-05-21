@@ -1,3 +1,16 @@
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 import os
 
 import numpy as np
@@ -7,31 +20,28 @@ import pytest
 from arviz import InferenceData, from_dict
 
 from pymc_marketing.clv.models.basic import CLVModel
+from tests.conftest import set_model_fit
 
 
 class CLVModelTest(CLVModel):
     _model_type = "CLVModelTest"
 
-    def __init__(self, dataset=None, model_config=None, sampler_config=None):
-        super().__init__()
-        self.data = pd.DataFrame({"y": np.random.randn(100)})
-        self.a = self._create_distribution(self.model_config["a"])
-        self._process_priors(self.a)
+    def __init__(self, data=None, **kwargs):
+        if data is None:
+            data = pd.DataFrame({"y": np.random.randn(10)})
+        super().__init__(data=data, **kwargs)
 
     @property
     def default_model_config(self):
         return {
-            "a": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}},
-            "b": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}},
+            "x": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}},
         }
 
     def build_model(self):
+        x_prior = self._create_distribution(self.model_config["x"])
         with pm.Model() as self.model:
-            self.a = pm.Normal("a", mu=0, sigma=1)
-            self.b = pm.Normal("b", mu=0, sigma=1)
-            self.y = pm.Normal(
-                "y", mu=self.a + self.b, sigma=1, observed=self.data["y"]
-            )
+            x = self.model.register_rv(x_prior, name="x")
+            pm.Normal("y", mu=x, sigma=1, observed=self.data["y"])
 
 
 @pytest.fixture(scope="module")
@@ -49,47 +59,19 @@ def posterior():
 class TestCLVModel:
     def test_repr(self):
         model = CLVModelTest()
+        assert model.__repr__() == "CLVModelTest"
+
         model.build_model()
-        assert (
-            model.__repr__()
-            == "CLVModelTest\na ~ Normal(0, 1)\nb ~ Normal(0, 1)\ny ~ Normal(f(a, b), 1)"
-        )
-
-    def test_check_prior_ndim(self):
-        prior = pm.Normal.dist(shape=(5,))  # ndim = 1
-        with pytest.raises(
-            ValueError, match="must be have 0 ndims, but it has 1 ndims"
-        ):
-            # Default ndim=0
-            CLVModel._check_prior_ndim(prior)
-        CLVModel._check_prior_ndim(prior, ndim=1)
-        with pytest.raises(
-            ValueError, match="must be have 2 ndims, but it has 1 ndims"
-        ):
-            CLVModel._check_prior_ndim(prior, ndim=2)
-
-    def test_process_priors(self):
-        prior1 = pm.Normal.dist()
-        prior2 = pm.HalfNormal.dist()
-
-        ret_prior1, ret_prior2 = CLVModel._process_priors(prior1, prior2)
-
-        assert ret_prior1 is prior1
-        assert ret_prior2 is prior2
-        assert ret_prior1.str_repr() == "Normal(0, 1)"
-        assert ret_prior2.str_repr() == "HalfNormal(0, 1)"
-
-        with pytest.raises(ValueError, match="Prior variables must be unique"):
-            CLVModel._process_priors(prior1, prior2, prior1)
+        assert model.__repr__() == "CLVModelTest\nx ~ Normal(0, 1)\ny ~ Normal(x, 1)"
 
     def test_create_distribution_from_wrong_prior(self):
         model = CLVModelTest()
         with pytest.raises(
             ValueError,
-            match="Distribution definately_not_PyMC_dist does not exist in PyMC",
+            match="Distribution definitely_not_PyMC_dist does not exist in PyMC",
         ):
             model._create_distribution(
-                {"dist": "definately_not_PyMC_dist", "kwargs": {"alpha": 1, "beta": 1}}
+                {"dist": "definitely_not_PyMC_dist", "kwargs": {"alpha": 1, "beta": 1}}
             )
 
     def test_fit_mcmc(self):
@@ -125,15 +107,9 @@ class TestCLVModel:
             ValueError,
             match=r"Fit method options are \['mcmc', 'map'\], got: wrong_method",
         ):
-
             model.fit(fit_method="wrong_method")
 
-    def test_sample_wihtout_build(self):
-        model = CLVModelTest()
-        with pytest.raises(RuntimeError, match="The model hasn't been built yet"):
-            model.sample_model()
-
-    def test_fit_no_model(self):
+    def test_fit_result_error(self):
         model = CLVModelTest()
         with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
             model.fit_result
@@ -141,7 +117,7 @@ class TestCLVModel:
     def test_load(self):
         model = CLVModelTest()
         model.build_model()
-        model.fit(target_accept=0.81, draws=100, chains=2, random_seed=1234)
+        model.fit(tune=0, chains=2, draws=5)
         model.save("test_model")
         model2 = model.load("test_model")
         assert model2.fit_result is not None
@@ -151,35 +127,6 @@ class TestCLVModel:
     def test_default_sampler_config(self):
         model = CLVModelTest()
         assert model.sampler_config == {}
-
-    def test_prior_predictive(self):
-        model = CLVModelTest()
-        model.build_model()
-        with pytest.raises(RuntimeError) as exc_info:
-            model.prior_predictive()
-        assert (
-            str(exc_info.value)
-            == "No prior predictive samples available, call sample_prior_predictive() first"
-        )
-        model.sample_prior_predictive(samples=1000, combined=False)
-        model.prior_predictive
-        model.idata = None
-        model.idata = pm.sample(
-            draws=50, tune=50, chains=2, model=model.model, random_seed=1234
-        )
-        model.sample_prior_predictive(samples=50, extend_idata=True)
-        assert "prior_predictive" in model.idata
-
-    @pytest.mark.skip(
-        reason="TODO: Still not decided whether posterior_predictive will stay"
-    )
-    def test_posterior_predictive(self):
-        model = CLVModelTest()
-        model.build_model()
-        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
-            model.posterior_predictive()
-        model.fit()
-        model.posterior_predictive
 
     def test_set_fit_result(self):
         model = CLVModelTest()
@@ -193,13 +140,12 @@ class TestCLVModel:
         with pytest.warns(UserWarning, match="Overriding pre-existing fit_result"):
             model.fit_result = fake_fit
         model.idata = None
-        model.sample_prior_predictive(samples=50, extend_idata=True)
         model.fit_result = fake_fit
 
     def test_fit_summary_for_mcmc(self):
         model = CLVModelTest()
         model.build_model()
-        model.fit()
+        model.fit(tune=0, chains=2, draws=5)
         summ = model.fit_summary()
         assert isinstance(summ, pd.DataFrame)
 
@@ -216,15 +162,29 @@ class TestCLVModel:
 
         # Now create an instance of MyClass
         mock_basic = CLVModelTest()
-
-        # Check that the property returns the new value
-        mock_basic.fit()
+        mock_basic.fit(tune=0, chains=2, draws=5)
         mock_basic.save("test_model")
+
         # Apply the monkeypatch for the property
         monkeypatch.setattr(CLVModelTest, "id", property(mock_property))
         with pytest.raises(
             ValueError,
-            match="The file 'test_model' does not contain an inference data of the same model or configuration as 'CLVModelTest'",
+            match="Inference data not compatible with CLVModelTest",
         ):
             CLVModelTest.load("test_model")
         os.remove("test_model")
+
+    def test_thin_fit_result(self):
+        data = pd.DataFrame(dict(y=[-3, -2, -1]))
+        model = CLVModelTest(data=data)
+        model.build_model()
+        fake_idata = from_dict(dict(x=np.random.normal(size=(4, 1000))))
+        set_model_fit(model, fake_idata)
+
+        thin_model = model.thin_fit_result(keep_every=20)
+        assert thin_model is not model
+        assert thin_model.idata is not model.idata
+        assert len(thin_model.idata.posterior["x"].chain) == 4
+        assert len(thin_model.idata.posterior["x"].draw) == 50
+        assert thin_model.data is not model.data
+        assert np.all(thin_model.data == model.data)

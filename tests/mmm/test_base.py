@@ -1,3 +1,16 @@
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 import re
 from unittest.mock import Mock, patch
 
@@ -58,7 +71,7 @@ def toy_mmm(request, toy_X, toy_y):
         def build_model(*args, **kwargs):
             pass
 
-        def generate_and_preprocess_model_data(self, X, y):
+        def _generate_and_preprocess_model_data(self, X, y):
             self.validate("X", X)
             self.validate("y", y)
             self.preprocessed_data["X"] = self.preprocess("X", X)
@@ -68,11 +81,11 @@ def toy_mmm(request, toy_X, toy_y):
 
         @property
         def default_model_config(self):
-            pass
+            return {}
 
         @property
         def default_sampler_config(self):
-            pass
+            return {}
 
         @property
         def output_var(self):
@@ -131,11 +144,10 @@ class TestMMM:
         toy_X,
         toy_y,
     ) -> None:
-
         validate_channel_columns.configure_mock(_tags={"validation_X": True})
         validate_date_col.configure_mock(_tags={"validation_X": True})
         validate_target.configure_mock(_tags={"validation_y": True})
-        toy_mmm.generate_and_preprocess_model_data(toy_X, toy_y)
+        toy_mmm._generate_and_preprocess_model_data(toy_X, toy_y)
         pd.testing.assert_frame_equal(toy_mmm.X, toy_X)
         pd.testing.assert_frame_equal(toy_mmm.preprocessed_data["X"], toy_X)
         pd.testing.assert_series_equal(toy_mmm.y, toy_y)
@@ -166,7 +178,7 @@ def test_mmm():
                 mu = intercept + slope
                 pm.Normal("y", mu=mu, sigma=sigma)
 
-        def generate_and_preprocess_model_data(self, toy_X, toy_y):
+        def _generate_and_preprocess_model_data(self, toy_X, toy_y):
             self.validate("X", toy_X)
             self.validate("y", toy_y)
             self.preprocessed_data["X"] = self.preprocess("X", toy_X)
@@ -208,7 +220,6 @@ class MyScaler(BaseEstimator, TransformerMixin):
 
 
 def test_validate_and_preprocess(toy_X, toy_y, test_mmm):
-
     test_mmm
 
     test_mmm.validate("X", toy_X)
@@ -271,3 +282,33 @@ def test_calling_fit_result_before_fit_raises_error(test_mmm, toy_X, toy_y):
     test_mmm.fit_result
     assert test_mmm.idata is not None
     assert "posterior" in test_mmm.idata
+
+
+def test_calling_prior_before_sample_prior_predictive_raises_error(
+    test_mmm, toy_X, toy_y
+):
+    # Arrange
+    test_mmm.idata = None
+    with pytest.raises(
+        RuntimeError,
+        match=re.escape(
+            "The model hasn't been fit yet, call .sample_prior_predictive() with extend_idata=True first"
+        ),
+    ):
+        test_mmm.prior
+
+
+def test_plot_posterior_predictive_no_fitted(test_mmm) -> None:
+    with pytest.raises(
+        RuntimeError,
+        match="Make sure the model has bin fitted and the posterior predictive has been sampled!",
+    ):
+        test_mmm.plot_posterior_predictive()
+
+
+def test_get_errors_raises_not_fitted(test_mmm) -> None:
+    with pytest.raises(
+        RuntimeError,
+        match="Make sure the model has bin fitted and the posterior predictive has been sampled!",
+    ):
+        test_mmm.get_errors()

@@ -1,3 +1,16 @@
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
@@ -89,6 +102,7 @@ class ContNonContract(PositiveContinuous):
            the easy way: An alternative to the Pareto/NBD model." Marketing science
            24.2 (2005): 275-284.
     """
+
     rv_op = continuous_non_contractual
 
     @classmethod
@@ -210,6 +224,7 @@ class ContContract(PositiveContinuous):
     ========  ===============================================
 
     """
+
     rv_op = continuous_contractual
 
     @classmethod
@@ -306,7 +321,7 @@ class ParetoNBDRV(RandomVariable):
         beta = np.broadcast_to(beta, size)
         T = np.broadcast_to(T, size)
 
-        output = np.zeros(shape=size + (2,))
+        output = np.zeros(shape=size + (2,))  # noqa:RUF005
 
         lam = rng.gamma(shape=r, scale=1 / alpha, size=size)
         mu = rng.gamma(shape=s, scale=1 / beta, size=size)
@@ -318,7 +333,8 @@ class ParetoNBDRV(RandomVariable):
             dropout_time = rng.exponential(scale=1 / mu)
             wait = rng.exponential(scale=1 / lam)
 
-            while t + wait < min(dropout_time, T):
+            final_t = min(dropout_time, T)
+            while (t + wait) < final_t:
                 t += wait
                 n += 1
                 wait = rng.exponential(scale=1 / lam)
@@ -347,7 +363,9 @@ class ParetoNBD(PositiveContinuous):
     Population-level distribution class for a continuous, non-contractual, Pareto/NBD process,
     based on Schmittlein, et al. in [2]_.
 
-    The likelihood function is derived from equations (22) and (23) of [3]_, with terms rearranged for numerical stability.
+    The likelihood function is derived from equations (22) and (23) of [3]_, with terms
+    rearranged for numerical stability.
+
     The modified expression is provided below:
 
     .. math::
@@ -386,7 +404,8 @@ class ParetoNBD(PositiveContinuous):
     .. [3] Fader, Peter & G. S. Hardie, Bruce (2005).
            "A Note on Deriving the Pareto/NBD Model and Related Expressions."
            http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
-    """
+    """  # noqa: E501
+
     rv_op = pareto_nbd
 
     @classmethod

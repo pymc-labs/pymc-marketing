@@ -1,60 +1,129 @@
 <div align="center">
-  <a href="https://github.com/pymc-labs/pymc-marketing"><img height="240px" src="docs/source/_static/marketing-logo-light.jpg"></a>
+
+![PyMC-Marketing Logo](docs/source/_static/marketing-logo-light.jpg)
+
 </div>
 
 ----
 
-![Build](https://github.com/pymc-labs/pymc-marketing/workflows/ci/badge.svg)
+![Build](https://github.com/pymc-labs/pymc-marketing/actions/workflows/ci.yml/badge.svg)
 [![codecov](https://codecov.io/gh/pymc-labs/pymc-marketing/branch/main/graph/badge.svg?token=OBV3BS5TYE)](https://codecov.io/gh/pymc-labs/pymc-marketing)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![docs](https://readthedocs.org/projects/pymc-marketing/badge/?version=latest)](https://docs.readthedocs.io/en/latest/)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![PyPI Version](https://img.shields.io/pypi/v/pymc-marketing.svg)](https://pypi.python.org/pypi/pymc-marketing)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/pymc-marketing.svg)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-# PyMC-Marketing
+# <span style="color:limegreen">PyMC-Marketing</span>: Bayesian Marketing Mix Modeling (MMM) & Customer Lifetime Value (CLV)
 
-**Unlock the power of marketing analytics with PyMC-Marketing – the open source solution for smarter decision-making.** Media mix modeling and customer lifetime value modules allow businesses to make data-driven decisions about their marketing campaigns. Optimize your marketing strategy and unlock the full potential of your customer data.
+## Marketing Analytics Tools from [PyMC Labs](https://www.pymc-labs.com)
 
-## Installation
+Unlock the power of **Marketing Mix Modeling (MMM)** and **Customer Lifetime Value (CLV)** analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
 
-Install and activate an environment (e.g. `marketing_env`) with the `pymc-marketing` package from [conda-forge](https://conda-forge.org). It may look something like the following:
+----
+
+This repository is supported by [PyMC Labs](https://www.pymc-labs.com).
+
+<center>
+    <img src="docs/source/_static/labs-logo-light.png" width="50%" />
+</center>
+
+For businesses looking to integrate PyMC-Marketing into their operational framework, [PyMC Labs](https://www.pymc-labs.com) offers expert consulting and training. Our team is proficient in state-of-the-art Bayesian modeling techniques, with a focus on Marketing Mix Models (MMMs) and Customer Lifetime Value (CLV). For more information see [here](#-schedule-a-free-consultation-for-mmm--clv-strategy).
+
+Explore these topics further by watching our video on [Bayesian Marketing Mix Models: State of the Art](https://www.youtube.com/watch?v=xVx91prC81g).
+
+### Community Resources
+
+- [Bayesian discord server](https://discord.gg/swztKRaVKe)
+- [PyMC discourse](https://discourse.pymc.io/)
+
+## Quick Installation Guide for Marketing Mix Modeling (MMM) & CLV
+
+To dive into MMM and CLV analytics, set up a specialized environment, `marketing_env`, via conda-forge:
 
 ```bash
-mamba create -c conda-forge -n marketing_env pymc-marketing
-mamba activate marketing_env
+conda create -c conda-forge -n marketing_env pymc-marketing
+conda activate marketing_env
 ```
 
-See the official [PyMC installation guide](https://www.pymc.io/projects/docs/en/latest/installation.html) if more detail is needed.
+For a comprehensive installation guide, refer to the [official PyMC installation documentation](https://www.pymc.io/projects/docs/en/latest/installation.html).
 
-## Bayesian Media Mix Models (MMMs) in PyMC
+### Docker
 
-In this package we provide an API for a Bayesian media mix model (MMM) specification following [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).](https://research.google/pubs/pub46001/) Concretely, given a time series target variable $y_{t}$ (e.g. sales on conversions), media variables $x_{m, t}$ (e.g. impressions, clicks or costs) and a set of control covariates $z_{c, t}$ (e.g. holidays, special events) we consider a linear model of the form
+We provide a `Dockerfile` to build a Docker image for PyMC-Marketing so that is accessible from a Jupyter Notebook. See [here](/scripts/docker/README.md) for more details.
 
-$$
-y_{t} = \alpha + \sum_{m=1}^{M}\beta_{m}f(x_{m, t}) +  \sum_{c=1}^{C}\gamma_{c}z_{c, t} + \varepsilon_{t},
-$$
+## In-depth Bayesian Marketing Mix Modeling (MMM) in PyMC
 
-where $\alpha$ is the intercept, $f$ is a media transformation function and $\varepsilon_{t}$ is the error therm which we assume is normally distributed. The function $f$ encodes the contribution of media on the target variable. Typically we consider two types of transformation: adstock (carry-over) and saturation effects.
+Leverage our Bayesian MMM API to tailor your marketing strategies effectively. Based on the research [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017)](https://research.google/pubs/pub46001/),  and integrating the expertise from core PyMC developers, our API provides:
 
-[Here](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) you can find a simulated example:
+- **Custom Priors and Likelihoods**: Tailor your model to your specific business needs by including domain knowledge via prior distributions.
+- **Adstock Transformation**: Optimize the carry-over effects in your marketing channels.
+- **Saturation Effects**: Understand the diminishing returns in media investments.
+- **Time-varying Intercept:** Capture time-varying baseline contributions in your model (using modern and efficient Gaussian processes approximation methods).
+- **Visualization and Model Diagnostics**: Get a comprehensive view of your model's performance and insights.
+- **Out-of-sample Predictions**: Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.
+- **Budget Optimization**: Allocate your marketing spend efficiently across various channels for maximum ROI.
+- **Experiment Calibration**: Fine-tune your model based on empirical experiments for a more unified view of marketing.
 
-1. First, we describe the data genaration process of a simulated dataset.
-2. Next, we describe how to specify and fit a media mix model (as described above) using the `pymc-marketing` MMM's API.
-3. Finally, we describe the model results: channel constribution and ROAS estimation. We also show how the model recovers the parameters from the data generation process step.
+### MMM Quickstart
 
-### References:
+```python
+import pandas as pd
+from pymc_marketing.mmm import DelayedSaturatedMMM
 
-- [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).](https://research.google/pubs/pub46001/)
-- PyMC Labs Blog:
-  - [Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-labs.io/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization/)
-  - [Improving the Speed and Accuracy of Bayesian Media Mix Models](https://www.pymc-labs.io/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)
+data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
+data = pd.read_csv(data_url, parse_dates=['date_week'])
+
+mmm = DelayedSaturatedMMM(
+    date_column="date_week",
+    channel_columns=["x1", "x2"],
+    control_columns=[
+        "event_1",
+        "event_2",
+        "t",
+    ],
+    adstock_max_lag=8,
+    yearly_seasonality=2,
+)
+```
+
+Initiate fitting and get a visualization of some of the outputs with:
+
+```python
+X = data.drop("y",axis=1)
+y = data["y"]
+mmm.fit(X,y)
+mmm.plot_components_contributions();
+```
+
+![](/docs/source/_static/mmm_plot_components_contributions.png)
+
+Once the model is fitted, we can further optimize our budget allocation as we are including diminishing returns and carry-over effects in our model.
+
+<center>
+    <img src="/docs/source/_static/mmm_plot_plot_channel_contributions_grid.png" width="80%" />
+</center>
+
+Explore a hands-on [simulated example](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
+
+### Essential Reading for Marketing Mix Modeling (MMM)
+
+- [Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization/)
+- [Improving the Speed and Accuracy of Bayesian Marketing Mix Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)
 - [Johns, Michael and Wang,  Zhenyu. "A Bayesian Approach to Media Mix Modeling"](https://www.youtube.com/watch?v=UznM_-_760Y)
 - [Orduz, Juan. "Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns"](https://juanitorduz.github.io/pymc_mmm/)
+- [A Comprehensive Guide to Bayesian Marketing Mix Modeling](https://1749.io/learn/f/a-comprehensive-guide-to-bayesian-marketing-mix-modeling)
 
----
+## Unlock Customer Lifetime Value (CLV) with PyMC
 
-## Bayesian CLVs in PyMC
-[Customer Lifetime Value](https://en.wikipedia.org/wiki/Customer_lifetime_value) (CLV) models are another important class of models. There are many different types of CLV models and it can be helpful to conceptualise them as fitting in a 2-dimensional grid as below. An excellent set of introduction slides to CLV's is provided in [Probability Models for Customer-Base Analysis](https://www.brucehardie.com/talks/ho_cba_tut_art_09.pdf) by Fader & Hardie (2009).
+Understand and optimize your customer's value with our **CLV models**. Our API supports various types of CLV models, catering to both contractual and non-contractual settings, as well as continuous and discrete transaction modes.
+
+Explore our detailed CLV examples using data from the [`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) package:
+
+- [CLV Quickstart](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/clv_quickstart.html)
+- [BG/NBD model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/bg_nbd.html)
+- [Pareto/NBD model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/pareto_nbd.html)
+- [Gamma-Gamma model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/gamma_gamma.html)
 
 ### Examples
 
@@ -63,29 +132,53 @@ where $\alpha$ is the intercept, $f$ is a media transformation function and $\va
 | **Continuous** | Buying groceries    | Audible                         |
 | **Discrete**   | Cinema ticket       | Monthly or yearly subscriptions |
 
-To explain further:
-- **Contractual:** In contractual settings, a customer has a contract which continues to be active until it is explicitly cancelled. Therefore, customer churn events are observed.
+### CLV Quickstart
 
-- **Non-contractual:** In non-contractual settings, there is no ongoing contract that a customer has with a company. Instead, purchases can be ad hoc and churn events are unobserved.
+```python
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+from pymc_marketing import clv
 
-- **Discrete:** Here, purchases are made at discrete points in time. This obviously depends upon the timescale that we are working on, but typically a relevant time period would be a month or year. However it could be more granualar than this - think of taking the 2nd of 4 inter-city train journeys offered per day.
+data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
+data = pd.read_csv(data_url)
+data["customer_id"] = data.index
 
-- **Continuous:** In the continuous-time domain, purchases can be made at any point within a firms opening hours. For online ordering, this could be any point within a 24 hour cycle, or purchases in physical stores could be made at any point during the trading day.
+beta_geo_model = clv.BetaGeoModel(data=data)
 
-In the documentation, we provide some examples on how to use the CLV API. We use the data from the [`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) package to illustrate the models.
+beta_geo_model.fit()
+```
 
-- [CLV Quickstart](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/clv_quickstart.html)
-- [BG/NBD model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/bg_nbd.html)
-- [Gamma-Gamma model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/gamma_gamma.html)
+Once fitted, we can use the model to predict the number of future purchases for known customers, the probability that they are still alive, and get various visualizations plotted.
 
----
+![](/docs/source/_static/expected_purchases.png)
 
-## 📞 Schedule a Consultation
-Unlock your potential with a free 30-minute strategy session with our PyMC experts. Discover how open source solutions and pymc-marketing can elevate your media-mix models and customer lifetime value analyses. Boost your career and organization by making smarter, data-driven decisions. Don't wait—[claim your complimentary session](https://calendly.com/niall-oulton) today and lead the way in marketing and data science innovation.
+See the Examples section for more on this.
 
-## Using PyMC-Marketing and how PyMC Labs can help you
-PyMC-Marketing uses the [Apache 2.0 licence](LICENSE) which permits commercial use, amongst other things.
+## Why PyMC-Marketing vs other solutions?
 
-If you want to build upon the package, please feel free to fork the repo and submit a pull request. If in doubt, please open an issue.
+PyMC-Marketing is and will always be free for commercial use, licensed under [Apache 2.0](LICENSE). Developed by core developers behind the popular PyMC package and marketing experts, it provides state-of-the-art measurements and analytics for marketing teams.
 
-For companies that want to use PyMC-Marketing in production, [PyMC Labs](https://www.pymc-labs.io) is available for consulting and training. We can help you build and deploy your models in production. We have experience with cutting edge Bayesian modelling techniques in general, and in particular with MMMs and CLVs. For example, see our video on [Bayesian Marketing Mix Models: State of the Art and their Future](https://www.youtube.com/watch?v=xVx91prC81g).
+Due to its open-source nature and active contributor base, new features are constantly added. Are you missing a feature or want to contribute? Fork our repository and submit a pull request. If you have any questions, feel free to [open an issue](https://github.com/your-repo/issues).
+
+### Thanks to our contributors!
+
+[![https://github.com/pymc-devs/pymc/graphs/contributors](https://contrib.rocks/image?repo=pymc-labs/pymc-marketing)](https://github.com/pymc-labs/pymc-marketing/graphs/contributors)
+
+
+## Marketing AI Assistant: MMM-GPT with PyMC-Marketing
+
+Not sure how to start or have questions? MMM-GPT is an AI that answers questions and provides expert advice on marketing analytics using PyMC-Marketing.
+
+**[Try MMM-GPT here.](https://mmm-gpt.com/)**
+
+## 📞 Schedule a Free Consultation for MMM & CLV Strategy
+
+Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts. Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions.
+
+We provide the following professional services:
+
+- **Custom Models**: We tailor niche marketing analytics models to fit your organization's unique needs.
+- **Build Within PyMC-Marketing**: Our team members are experts leveraging the capabilities of PyMC-Marketing to create robust marketing models for precise insights.
+- **SLA & Coaching**: Get guaranteed support levels and personalized coaching to ensure your team is well-equipped and confident in using our tools and approaches.
+- **SaaS Solutions**: Harness the power of our state-of-the-art software solutions to streamline your data-driven marketing initiatives.

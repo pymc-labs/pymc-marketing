@@ -5,9 +5,9 @@ requires = ["setuptools>=61.0"]
 [project]
 name = "pymc-marketing"
 description = "Marketing Statistical Models in PyMC"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 readme = "README.md"
-license = {file = "LICENSE"}
+license = { file = "LICENSE" }
 dynamic = ["version"]
 maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.io" }]
 
@@ -16,8 +16,8 @@ dependencies = [
     "matplotlib>=3.5.1",
     "numpy>=1.17",
     "pandas",
-    # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
-    "pymc>=5.6.1,<5.7.0",
+    # NOTE: Used as minimum pymc version with ci.yml `OLDEST_PYMC_VERSION`
+    "pymc>=5.12.0",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "xarray",
@@ -29,28 +29,16 @@ docs = [
     "sphinx",
     "ipython!=8.7.0",
     "myst-parser",
-    "myst-nb",
+    "myst-nb<=1.0.0",
     "pydata-sphinx-theme>=0.12.0.dev0",
     "sphinx-copybutton",
     "sphinx-autodoc-typehints",
     "sphinxext-opengraph",
     "sphinx-notfound-page",
-    "sphinx-design"
+    "sphinx-design",
 ]
-lint = [
-    "black>=22.3.0",
-    "flake8>=4.0.1",
-    "isort>=5.10.1",
-    "mypy",
-    "pandas-stubs",
-    "pre-commit>=2.19.0",
-    "pylint"
-]
-test = [
-    "lifetimes==0.11.3",
-    "pytest==7.0.1",
-    "pytest-cov==3.0.0"
-]
+lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
+test = ["lifetimes==0.11.3", "pytest==7.0.1", "pytest-cov==3.0.0"]
 
 [tool.setuptools]
 packages = [
@@ -61,7 +49,7 @@ packages = [
 ]
 
 [tool.setuptools.dynamic]
-version = {file = "pymc_marketing/version.txt"}
+version = { file = "pymc_marketing/version.txt" }
 
 [project.urls]
 repository = "https://github.com/pymc-labs/pymc-marketing"
@@ -70,8 +58,25 @@ repository = "https://github.com/pymc-labs/pymc-marketing"
 #documentation = ""
 #changelog = ""
 
-[tool.isort]
-profile = "black"
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "RUF", "S", "UP", "W"]
+ignore = [
+    "B904",   # raise-without-from-inside-except
+    "RUF001", # String contains ambiguous character (such as Greek letters)
+    "RUF002", # Docstring contains ambiguous character (such as Greek letters)
+    "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
+]
+[tool.ruff.lint.per-file-ignores]
+"docs/source/notebooks/*" = [
+    "B018", # Checks for "useless" expressions. Not useful for notebooks.
+]
+"tests/*" = [
+    "B018", # Checks for "useless" expressions. This is useful for tests.
+    "S101", # Use of assert
+]
+
+[tool.ruff.lint.pycodestyle]
+max-line-length = 120
 
 [tool.pytest.ini_options]
 addopts = [
@@ -82,7 +87,5 @@ addopts = [
     "--cov-report=term-missing",
     "--color=yes",
 ]
-filterwarnings = [
-    "ignore::DeprecationWarning:bokeh.core.property.primitive:37"
-]
+filterwarnings = ["ignore::DeprecationWarning:bokeh.core.property.primitive:37"]
 testpaths = "tests"

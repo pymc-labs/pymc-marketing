@@ -1,3 +1,16 @@
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 import numpy as np
 import pymc as pm
 import pytest
@@ -75,7 +88,7 @@ class TestContNonContract:
             ContNonContract(name="cnc", lam=lam, p=p, T=10, size=cnc_size)
             prior = pm.sample_prior_predictive(samples=100)
 
-        assert prior["prior"]["cnc"][0].shape == (100,) + expected_size
+        assert prior["prior"]["cnc"][0].shape == (100,) + expected_size  # noqa: RUF005
 
 
 class TestContContract:
@@ -147,7 +160,7 @@ class TestContContract:
             ContContract(name="cc", lam=lam, p=p, T=10, size=cc_size)
             prior = pm.sample_prior_predictive(samples=100)
 
-        assert prior["prior"]["cc"][0].shape == (100,) + expected_size
+        assert prior["prior"]["cc"][0].shape == (100,) + expected_size  # noqa: RUF005
 
 
 class TestParetoNBD:
@@ -252,4 +265,4 @@ class TestParetoNBD:
             )
             prior = pm.sample_prior_predictive(samples=100)
 
-        assert prior["prior"]["pareto_nbd"][0].shape == (100,) + expected_size
+        assert prior["prior"]["pareto_nbd"][0].shape == (100,) + expected_size  # noqa: RUF005

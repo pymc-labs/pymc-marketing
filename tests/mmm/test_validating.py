@@ -1,3 +1,16 @@
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 import numpy as np
 import pandas as pd
 import pytest
@@ -97,13 +110,13 @@ def test_channel_columns():
         obj.validate_channel_columns(toy_X)
     with pytest.raises(
         ValueError,
-        match="channel_columns \['channel_1', 'channel_1'\] contains duplicates",  # noqa: E501, W605
+        match="channel_columns \['channel_1', 'channel_1'\] contains duplicates",  # noqa: W605
     ):
         obj.channel_columns = ["channel_1", "channel_1"]
         obj.validate_channel_columns(toy_X)
     with pytest.raises(
         ValueError,
-        match="channel_columns \['channel_1'\] contains negative values",  # noqa: E501, W605
+        match="channel_columns \['channel_1'\] contains negative values",  # noqa: W605
     ):
         new_toy_X = toy_X.copy()
         new_toy_X["channel_1"] -= 1e4
@@ -136,7 +149,7 @@ def test_control_columns():
         obj.validate_control_columns(toy_X)
     with pytest.raises(
         ValueError,
-        match="control_columns \['control_1', 'control_1'\] contains duplicates",  # noqa: E501, W605
+        match="control_columns \['control_1', 'control_1'\] contains duplicates",  # noqa: W605
     ):
         obj.control_columns = ["control_1", "control_1"]
         obj.validate_control_columns(toy_X)

@@ -1,4 +1,19 @@
-from typing import Callable, List, Optional, Tuple, Union
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+"""Validating methods for MMM classes."""
+
+from collections.abc import Callable
 
 import pandas as pd
 
@@ -45,11 +60,11 @@ class ValidateDateColumn:
 
 
 class ValidateChannelColumns:
-    channel_columns: Union[List[str], Tuple[str]]
+    channel_columns: list[str] | tuple[str]
 
     @validation_method_X
     def validate_channel_columns(self, data: pd.DataFrame) -> None:
-        if not isinstance(self.channel_columns, (list, tuple)):
+        if not isinstance(self.channel_columns, list | tuple):
             raise ValueError("channel_columns must be a list or tuple")
         if len(self.channel_columns) == 0:
             raise ValueError("channel_columns must not be empty")
@@ -66,13 +81,13 @@ class ValidateChannelColumns:
 
 
 class ValidateControlColumns:
-    control_columns: Optional[List[str]]
+    control_columns: list[str] | None
 
     @validation_method_X
     def validate_control_columns(self, data: pd.DataFrame) -> None:
         if self.control_columns is None:
             return None
-        if not isinstance(self.control_columns, (list, tuple)):
+        if not isinstance(self.control_columns, list | tuple):
             raise ValueError("control_columns must be None, a list or tuple")
         if len(self.control_columns) == 0:
             raise ValueError(

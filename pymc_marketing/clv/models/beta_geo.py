@@ -1,4 +1,17 @@
-from typing import Dict, Optional, Sequence, Union
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
@@ -37,10 +50,12 @@ class BetaGeoModel(CLVModel):
         DataFrame containing the following columns:
             * `frequency`: number of repeat purchases (with possible values 0, 1, 2, ...)
             * `recency`: time between the first and the last purchase (with possible values 0, 1, 2, ...)
-            * `T`: time between the first purchase and the end of the observation period (with possible values 0, 1, 2, ...)
+            * `T`: time between the first purchase and the end of the observation
+                period (with possible values 0, 1, 2, ...)
             * `customer_id`: unique customer identifier
     model_config: dict, optional
-        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the `default_model_config` class attribute.
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in
+        the `default_model_config` class attribute.
     sampler_config: dict, optional
         Dictionary of sampler parameters. Defaults to None.
 
@@ -50,26 +65,32 @@ class BetaGeoModel(CLVModel):
 
     .. code-block:: python
 
+        import pandas as pd
+
         import pymc as pm
         from pymc_marketing.clv import BetaGeoModel
 
-        model = BetaGeoFitter(
-            data=pd.DataFrame({
-                "frequency"=[4, 0, 6, 3, ...],
-                "recency":[30.73, 1.72, 0., 0., ...]
-            }),
+        data = pd.DataFrame({
+            "frequency": [4, 0, 6, 3],
+            "recency": [30.73, 1.72, 0., 0.],
+            "T": [38.86, 38.86, 38.86, 38.86],
+        })
+        data["customer_id"] = data.index
+
+        prior_distribution = {"dist": "Gamma", "kwargs": {"alpha": 0.1, "beta": 0.1}}
+        model = BetaGeoModel(
+            data=data,
             model_config={
-                "r": pm.Gamma.dist(alpha=0.1, beta=0.1),
-                "alpha": pm.Gamma.dist(alpha=0.1, beta=0.1),
-                "a": pm.Gamma.dist(alpha=0.1, beta=0.1),
-                "b": pm.Gamma.dist(alpha=0.1, beta=0.1),
+                "r_prior": prior_distribution,
+                "alpha_prior": prior_distribution,
+                "a_prior": prior_distribution,
+                "b_prior": prior_distribution,
             },
             sampler_config={
                 "draws": 1000,
                 "tune": 1000,
                 "chains": 2,
                 "cores": 2,
-                "nuts_kwargs": {"target_accept": 0.95},
             },
         )
         model.build_model()
@@ -99,7 +120,7 @@ class BetaGeoModel(CLVModel):
     .. [2] Fader, P. S., Hardie, B. G., & Lee, K. L. (2008). Computing
            P (alive) using the BG/NBD model. Research Note available via
            http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
-    .. [3] Fader, P. S. & Hardie, B. G. (2013) Overcoming the BG/NBD Model’s #NUM!
+    .. [3] Fader, P. S. & Hardie, B. G. (2013) Overcoming the BG/NBD Model's #NUM!
            Error Problem. Research Note available via
            http://brucehardie.com/notes/027/bgnbd_num_error.pdf.
     """
@@ -109,45 +130,22 @@ class BetaGeoModel(CLVModel):
     def __init__(
         self,
         data: pd.DataFrame,
-        model_config: Optional[Dict] = None,
-        sampler_config: Optional[Dict] = None,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
     ):
-        try:
-            self.customer_id = data["customer_id"]
-        except KeyError:
-            raise KeyError("customer_id column is missing from data")
-        try:
-            self.frequency = data["frequency"]
-        except KeyError:
-            raise KeyError("frequency column is missing from data")
-        try:
-            self.recency = data["recency"]
-        except KeyError:
-            raise KeyError("recency column is missing from data")
-        try:
-            self.T = data["T"]
-        except KeyError:
-            raise KeyError("T column is missing from data")
+        self._validate_cols(
+            data,
+            required_cols=["customer_id", "frequency", "recency", "T"],
+            must_be_unique=["customer_id"],
+        )
         super().__init__(
+            data=data,
             model_config=model_config,
             sampler_config=sampler_config,
         )
-        self.data = data
-        self.a_prior = self._create_distribution(self.model_config["a_prior"])
-        self.b_prior = self._create_distribution(self.model_config["b_prior"])
-        self.alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
-        self.r_prior = self._create_distribution(self.model_config["r_prior"])
-        self._process_priors(self.a_prior, self.b_prior, self.alpha_prior, self.r_prior)
-        # each customer's information should be encapsulated by a single data entry
-        if len(np.unique(self.customer_id)) != len(self.customer_id):
-            raise ValueError(
-                "The BetaGeoModel expects exactly one entry per customer. More than"
-                " one entry is currently provided per customer id."
-            )
-        self.coords = {"customer_id": self.customer_id}
 
     @property
-    def default_model_config(self) -> Dict[str, Dict]:
+    def default_model_config(self) -> dict[str, dict]:
         return {
             "a_prior": {"dist": "HalfFlat", "kwargs": {}},
             "b_prior": {"dist": "HalfFlat", "kwargs": {}},
@@ -155,15 +153,19 @@ class BetaGeoModel(CLVModel):
             "r_prior": {"dist": "HalfFlat", "kwargs": {}},
         }
 
-    def build_model(  # type: ignore
-        self,
-    ) -> None:
-        with pm.Model(coords=self.coords) as self.model:
-            a = self.model.register_rv(self.a_prior, name="a")
-            b = self.model.register_rv(self.b_prior, name="b")
+    def build_model(self) -> None:  # type: ignore[override]
+        a_prior = self._create_distribution(self.model_config["a_prior"])
+        b_prior = self._create_distribution(self.model_config["b_prior"])
+        alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
+        r_prior = self._create_distribution(self.model_config["r_prior"])
 
-            alpha = self.model.register_rv(self.alpha_prior, name="alpha")
-            r = self.model.register_rv(self.r_prior, name="r")
+        coords = {"customer_id": self.data["customer_id"]}
+        with pm.Model(coords=coords) as self.model:
+            a = self.model.register_rv(a_prior, name="a")
+            b = self.model.register_rv(b_prior, name="b")
+
+            alpha = self.model.register_rv(alpha_prior, name="alpha")
+            r = self.model.register_rv(r_prior, name="r")
 
             def logp(t_x, x, a, b, r, alpha, T):
                 """
@@ -200,13 +202,13 @@ class BetaGeoModel(CLVModel):
             pm.Potential(
                 "likelihood",
                 logp(
-                    x=self.frequency,
-                    t_x=self.recency,
+                    x=self.data["frequency"],
+                    t_x=self.data["recency"],
                     a=a,
                     b=b,
                     alpha=alpha,
                     r=r,
-                    T=self.T,
+                    T=self.data["T"],
                 ),
             )
 
@@ -222,12 +224,12 @@ class BetaGeoModel(CLVModel):
     # taken from https://lifetimes.readthedocs.io/en/latest/lifetimes.fitters.html
     def expected_num_purchases(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        t: Union[np.ndarray, pd.Series, TensorVariable],
-        frequency: Union[np.ndarray, pd.Series, TensorVariable],
-        recency: Union[np.ndarray, pd.Series, TensorVariable],
-        T: Union[np.ndarray, pd.Series, TensorVariable],
-    ):
+        customer_id: np.ndarray | pd.Series,
+        t: np.ndarray | pd.Series | TensorVariable,
+        frequency: np.ndarray | pd.Series | TensorVariable,
+        recency: np.ndarray | pd.Series | TensorVariable,
+        T: np.ndarray | pd.Series | TensorVariable,
+    ) -> xr.DataArray:
         r"""
         Given a purchase history/profile of :math:`x` and :math:`t_x` for an individual
         customer, this method returns the expected number of future purchases in the
@@ -284,11 +286,11 @@ class BetaGeoModel(CLVModel):
 
     def expected_probability_alive(
         self,
-        customer_id: Union[np.ndarray, pd.Series],
-        frequency: Union[np.ndarray, pd.Series],
-        recency: Union[np.ndarray, pd.Series],
-        T: Union[np.ndarray, pd.Series],
-    ):
+        customer_id: np.ndarray | pd.Series,
+        frequency: np.ndarray | pd.Series,
+        recency: np.ndarray | pd.Series,
+        T: np.ndarray | pd.Series,
+    ) -> xr.DataArray:
         r"""
         Posterior expected value of the probability of being alive at time T. The
         derivation of the closed form solution is available in [2].
@@ -321,7 +323,7 @@ class BetaGeoModel(CLVModel):
 
     def expected_num_purchases_new_customer(
         self,
-        t: Union[np.ndarray, pd.Series],
+        t: np.ndarray | pd.Series,
     ):
         r"""
         Posterior expected number of purchases for any interval of length :math:`t`. See
@@ -356,7 +358,7 @@ class BetaGeoModel(CLVModel):
 
     def _distribution_new_customers(
         self,
-        random_seed: Optional[RandomState] = None,
+        random_seed: RandomState | None = None,
         var_names: Sequence[str] = ("population_dropout", "population_purchase_rate"),
     ) -> xr.Dataset:
         with pm.Model():
@@ -365,24 +367,25 @@ class BetaGeoModel(CLVModel):
             alpha = pm.HalfFlat("alpha")
             r = pm.HalfFlat("r")
 
-            # This is the shape with fit_method="map"
-            if self.fit_result.dims == {"chain": 1, "draw": 1}:
-                shape_kwargs = {"shape": 1000}
-            else:
-                shape_kwargs = {}
+            fit_result = self.fit_result
+            if fit_result.sizes["chain"] == 1 and fit_result.sizes["draw"] == 1:
+                # For map fit add a dummy draw dimension
+                fit_result = self.fit_result.squeeze("draw").expand_dims(
+                    draw=range(1000)
+                )
 
-            pm.Beta("population_dropout", alpha=a, beta=b, **shape_kwargs)
-            pm.Gamma("population_purchase_rate", alpha=r, beta=alpha, **shape_kwargs)
+            pm.Beta("population_dropout", alpha=a, beta=b)
+            pm.Gamma("population_purchase_rate", alpha=r, beta=alpha)
 
             return pm.sample_posterior_predictive(
-                self.fit_result,
+                fit_result,
                 var_names=var_names,
                 random_seed=random_seed,
             ).posterior_predictive
 
     def distribution_new_customer_dropout(
         self,
-        random_seed: Optional[RandomState] = None,
+        random_seed: RandomState | None = None,
     ) -> xr.Dataset:
         """Sample the Beta distribution for the population-level dropout rate.
 
@@ -406,7 +409,7 @@ class BetaGeoModel(CLVModel):
 
     def distribution_new_customer_purchase_rate(
         self,
-        random_seed: Optional[RandomState] = None,
+        random_seed: RandomState | None = None,
     ) -> xr.Dataset:
         """Sample the Gamma distribution for the population-level purchase rate.
 

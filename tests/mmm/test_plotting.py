@@ -1,3 +1,16 @@
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 import numpy as np
 import pandas as pd
 import pytest
@@ -76,6 +89,8 @@ class TestBasePlotting:
             X=toy_X,
             y=toy_y,
         )
+        mmm.sample_prior_predictive(toy_X, toy_y, extend_idata=True, combined=True)
+        mmm.sample_posterior_predictive(toy_X, extend_idata=True, combined=True)
         mmm._prior_predictive = mmm.prior_predictive
         mmm._fit_result = mmm.fit_result
         mmm._posterior_predictive = mmm.posterior_predictive
@@ -88,9 +103,16 @@ class TestBasePlotting:
             ("plot_prior_predictive", {"samples": 3}),
             ("plot_posterior_predictive", {}),
             ("plot_posterior_predictive", {"original_scale": True}),
+            ("plot_posterior_predictive", {"ax": plt.subplots()[1]}),
+            ("plot_errors", {}),
+            ("plot_errors", {"original_scale": True}),
+            ("plot_errors", {"ax": plt.subplots()[1]}),
             ("plot_components_contributions", {}),
             ("plot_channel_parameter", {"param_name": "alpha"}),
+            ("plot_waterfall_components_decomposition", {"original_scale": True}),
             ("plot_direct_contribution_curves", {}),
+            ("plot_direct_contribution_curves", {"same_axes": True}),
+            ("plot_direct_contribution_curves", {"channels": ["channel_2"]}),
             ("plot_channel_contribution_share_hdi", {"hdi_prob": 0.95}),
             ("plot_grouped_contribution_breakdown_over_time", {}),
             (
@@ -107,3 +129,15 @@ class TestBasePlotting:
         func = plotting_mmm.__getattribute__(func_plot_name)
         assert isinstance(func(**kwargs_plot), plt.Figure)
         plt.close("all")
+
+    @pytest.mark.parametrize(
+        "channels, match",
+        [
+            (["invalid_channel"], "subset"),
+            (["channel_1", "channel_1"], "unique"),
+            ([], "Number of rows must be a positive"),
+        ],
+    )
+    def test_plot_direct_contribution_curves_error(self, plotting_mmm, channels, match):
+        with pytest.raises(ValueError, match=match):
+            plotting_mmm.plot_direct_contribution_curves(channels=channels)
