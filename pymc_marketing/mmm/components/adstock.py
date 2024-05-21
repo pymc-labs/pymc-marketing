@@ -87,7 +87,7 @@ class GeometricAdstock(AdstockTransformation):
             x, alpha=alpha, l_max=self.l_max, normalize=self.normalize, mode=self.mode
         )
 
-    default_priors = {"alpha": {"dist": "HalfNormal", "kwargs": {"sigma": 1}}}
+    default_priors = {"alpha": {"dist": "Beta", "kwargs": {"alpha": 1, "beta": 3}}}
 
 
 class DelayedAdstock(AdstockTransformation):
