@@ -8,7 +8,9 @@ dependencies:
 - arviz>=0.13.0
 - matplotlib>=3.5.1
 - numpy>=1.17
+- scipy>=1.11
 - pandas
+- streamlit>=1.25.0
 - pip
 # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
 - pymc>=5.12.0
@@ -29,6 +31,7 @@ dependencies:
 - sphinx-notfound-page
 - sphinx-design
 - watermark
+- typing
 # lint
 - mypy
 - pandas-stubs

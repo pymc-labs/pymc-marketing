@@ -1,3 +1,16 @@
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -108,6 +121,9 @@ class TestBasePlotting:
             ("plot_posterior_predictive", {}),
             ("plot_posterior_predictive", {"original_scale": True}),
             ("plot_posterior_predictive", {"ax": plt.subplots()[1]}),
+            ("plot_errors", {}),
+            ("plot_errors", {"original_scale": True}),
+            ("plot_errors", {"ax": plt.subplots()[1]}),
             ("plot_components_contributions", {}),
             ("plot_channel_parameter", {"param_name": "alpha"}),
             ("plot_waterfall_components_decomposition", {"original_scale": True}),
