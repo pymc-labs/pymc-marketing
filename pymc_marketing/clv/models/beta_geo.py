@@ -1,3 +1,16 @@
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 from collections.abc import Sequence
 
 import numpy as np
@@ -29,7 +42,6 @@ class BetaGeoModel(CLVModel):
 
     Methods below are adapted from the BetaGeoFitter class from the lifetimes package
     (see https://github.com/CamDavidsonPilon/lifetimes/).
-
 
     Parameters
     ----------
@@ -84,19 +96,28 @@ class BetaGeoModel(CLVModel):
         model.fit()
         print(model.fit_summary())
 
-        # Estimating the expected number of purchases for a randomly chosen
-        # individual in a future time period of length t
+    Predicting the customer-specific number of purchases for a future time
+    interval of length t given their previous frequency, recency, and T
+
+    .. code-block:: python
+
+        future_t = [2, 5, 7, 10]
+
         expected_num_purchases = model.expected_num_purchases(
-            t=[2, 5, 7, 10],
+            t=future_t,
+            customer_id=data["customer_id"],
+            frequency=data["frequenc"y],
+            recency=data["recency"],
+            T=data["T"],
         )
 
-        # Predicting the customer-specific number of purchases for a future
-        # time interval of length t given their previous frequency and recency
+    Estimating the expected number of purchases for a randomly chosen
+    individual in a future time period of length t
+
+    .. code-block:: python
+
         expected_num_purchases_new_customer = model.expected_num_purchases_new_customer(
-            t=[5, 5, 5, 5],
-            frequency=[5, 2, 1, 8],
-            recency=[7, 4, 2.5, 11],
-            T=[10, 8, 10, 22],
+            t=future_t,
         )
 
     References
@@ -242,6 +263,22 @@ class BetaGeoModel(CLVModel):
                 \frac{\alpha + T}{\alpha + T + t}
             \right)^{r + x}
            }
+
+        Parameters
+        ----------
+        customer_id : np.ndarray | pd.Series
+            Customer identifier. Not required to be from data.
+        t : np.ndarray | pd.Series | TensorVariable
+            Time interval for which to predict the number of future purchases.
+        frequency : np.ndarray | pd.Series | TensorVariable
+            Number of repeat purchases.
+        recency : np.ndarray | pd.Series | TensorVariable
+            Time between the first and the last purchase.
+
+        Returns
+        -------
+        xr.DataArray
+            Expected number of purchases in the next time interval of length :math:`t`.
         """
         t = np.asarray(t)
         if t.size != 1:
@@ -327,6 +364,15 @@ class BetaGeoModel(CLVModel):
                 \text{hyp2f1}\left(r, b; a + b - 1; \frac{t}{\alpha + t}\right)
             \right]
 
+        Parameters
+        ----------
+        t : np.ndarray | pd.Series
+            Time interval for which to predict the number of future purchases.
+
+        Returns
+        -------
+        xr.DataArray
+            Expected number of purchases in the next time interval of length :math:`t`.
         """
         t = np.asarray(t)
         if t.size != 1:
