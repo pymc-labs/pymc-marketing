@@ -120,7 +120,9 @@ def mmm_with_fourier_features() -> DelayedSaturatedMMM:
 
 
 @pytest.fixture(scope="module")
-def mmm_fitted(mmm: DelayedSaturatedMMM, toy_X: pd.DataFrame, toy_y: pd.Series) -> DelayedSaturatedMMM:
+def mmm_fitted(
+    mmm: DelayedSaturatedMMM, toy_X: pd.DataFrame, toy_y: pd.Series
+) -> DelayedSaturatedMMM:
     mmm.fit(X=toy_X, y=toy_y, target_accept=0.8, draws=3, chains=2, random_seed=rng)
     return mmm
 

@@ -42,7 +42,6 @@ from pymc_marketing.mmm.transformers import (
     delayed_adstock,
     geometric_adstock,
     weibull_adstock,
-    ConvMode
 )
 
 

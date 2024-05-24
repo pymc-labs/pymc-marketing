@@ -12,9 +12,9 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 """Media Mix Model with delayed adstock and logistic saturation class."""
-import warnings
 
 import json
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -24,13 +24,14 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+import pytensor.tensor as pt
 import seaborn as sns
 from pytensor.tensor import TensorVariable
-import pytensor.tensor as pt
 from xarray import DataArray, Dataset
 
 from pymc_marketing.constants import DAYS_IN_YEAR
 from pymc_marketing.mmm.base import MMM
+from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     _get_adstock_function,
@@ -52,8 +53,6 @@ from pymc_marketing.mmm.utils import (
     generate_fourier_modes,
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
-
-from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
 __all__ = ["BaseDelayedSaturatedMMM"]
 
@@ -342,21 +341,23 @@ class BaseDelayedSaturatedMMM(MMM):
             **parameter_distributions,
         )
 
-    def forward_pass(self, x: pt.TensorVariable | npt.NDArray[np.float_]) -> pt.TensorVariable:
+    def forward_pass(
+        self, x: pt.TensorVariable | npt.NDArray[np.float_]
+    ) -> pt.TensorVariable:
         """Transforms channel input into target contributions of each channel.
-    
-        This method handles the ordering of the adstock and saturation 
+
+        This method handles the ordering of the adstock and saturation
         transformations.
-        
-        This method must be called from without a pm.Model context but not 
-        necessarily in the instance's model. A dim named "channel" is required 
+
+        This method must be called from without a pm.Model context but not
+        necessarily in the instance's model. A dim named "channel" is required
         associated with the number of columns of `x`.
-        
+
         Parameters
         ------------
         x : pt.TensorVariable | npt.NDArray[np.float_]
             The channel input which could be spends or impressions
-            
+
         Returns
         --------
         The contributions associated with the channel input
@@ -473,7 +474,7 @@ class BaseDelayedSaturatedMMM(MMM):
                 intercept = self.intercept_dist(
                     name="intercept", **self.model_config["intercept"]["kwargs"]
                 )
-                
+
             channel_contributions = pm.Deterministic(
                 name="channel_contributions",
                 var=self.forward_pass(x=channel_data_),
@@ -1039,7 +1040,9 @@ class DelayedSaturatedMMM(
             adstock.variable_mapping.values()
         )
         if param_name not in parameters_to_check:
-            raise ValueError(f"Invalid parameter name: {param_name}. Choose from {parameters_to_check}")
+            raise ValueError(
+                f"Invalid parameter name: {param_name}. Choose from {parameters_to_check}"
+            )
 
         param_samples_df = pd.DataFrame(
             data=az.extract(data=self.fit_result, var_names=[param_name]).T,
@@ -1354,6 +1357,305 @@ class DelayedSaturatedMMM(
     def _validate_data(self, X, y=None):
         return X
 
+    def _channel_map_scales(self) -> dict:
+        return dict(
+            zip(
+                self.channel_columns,
+                self.channel_transformer["scaler"].scale_,
+                strict=False,
+            )
+        )
+
+    def format_recovered_transformation_parameters(
+        self, quantile: float = 0.5
+    ) -> dict[str, dict[str, dict[str, float]]]:
+        """
+        Format the recovered transformation parameters for each channel.
+
+        This function retrieves the quantile of the parameters for each channel and formats them into a dictionary
+        containing the channel name, the saturation parameters, and the adstock parameters.
+
+        Parameters
+        ----------
+        quantile : float, optional
+            The quantile to retrieve from the posterior distribution of the parameters. Default is 0.5.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the channel names as keys and the corresponding saturation and adstock parameters
+            as values.
+
+        Example
+        -------
+        >>> self.format_recovered_transformation_parameters(quantile=.5)
+        >>> Output:
+        {
+            'x1': {
+                'saturation_params': {
+                    'lam': 2.4761893929757077,
+                    'beta': 0.360226791880304
+                },
+            'adstock_params': {
+                'alpha': 0.39910387900504796
+                }
+            },
+            'x2': {
+                'saturation_params': {
+                    'lam': 2.6485978655163436,
+                    'beta': 0.2399381337197204
+                },
+            'adstock_params': {
+                'alpha': 0.18859423763437405
+                }
+            }
+        }
+        """
+        # Retrieve channel names
+        channels = self.fit_result.channel.values
+
+        # Initialize the dictionary to store channel information
+        channels_info = {}
+
+        # Define the parameter groups for consolidation
+        param_groups = {
+            "saturation_params": self.saturation.model_config.keys(),
+            "adstock_params": self.adstock.model_config.keys(),
+        }
+
+        # Iterate through each channel to fetch and store parameters
+        for channel in channels:
+            channel_info = {}
+
+            # Process each group of parameters (saturation and adstock)
+            for group_name, params in param_groups.items():
+                # Build dictionary for the current group of parameters
+                param_dict = {
+                    param.replace(group_name[:-7] + "_", ""): self.fit_result[param]
+                    .quantile(quantile, dim=["chain", "draw"])
+                    .to_pandas()
+                    .to_dict()[channel]
+                    for param in params
+                    if param in self.fit_result
+                }
+                channel_info[group_name] = param_dict
+
+            channels_info[channel] = channel_info
+
+        return channels_info
+
+    def _plot_response_curve_fit(
+        self,
+        ax: plt.Axes,
+        channel: str,
+        color_index: int,
+        xlim_max: int | None,
+        label: str = "Fit Curve",
+        quantile_lower: float = 0.05,
+        quantile_upper: float = 0.95,
+    ) -> None:
+        """
+        Plot the curve fit for the given channel based on the estimation of the parameters.
+
+        The function computes the mean channel contributions, estimates the parameters based on the specified method
+        (either 'sigmoid' or 'michaelis-menten'), and plots the curve fit. An inflection point on the curve is
+        also highlighted.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            The x-axis data, usually representing the amount of
+            input (e.g., substrate concentration in enzymology terms).
+        ax : plt.Axes
+            The matplotlib axes object where the plot should be drawn.
+        channel : str
+            The name of the channel for which the curve fit is being plotted.
+        color_index : int
+            An index used for color selection to ensure distinct colors for multiple plots.
+        xlim_max: int
+            The maximum value to be plot on the X-axis
+        method: str
+            The method used to fit the contribution & spent non-linear relationship.
+            It can be either 'sigmoid' or 'michaelis-menten'.
+
+        Returns
+        -------
+        None
+            The function modifies the given axes object in-place and doesn't return any object.
+        """
+
+        if self.X is not None:
+            x_mean = np.max(self.X[channel])
+
+        # Set x_limit based on the method or xlim_max
+        if xlim_max is not None:
+            x_limit = xlim_max
+        else:
+            x_limit = x_mean
+
+        # Generate x_fit and y_fit
+        x_fit = np.linspace(0, x_limit, 1000)
+        upper_params = self.format_recovered_transformation_parameters(
+            quantile=quantile_upper
+        )
+        lower_params = self.format_recovered_transformation_parameters(
+            quantile=quantile_lower
+        )
+        mid_params = self.format_recovered_transformation_parameters(quantile=0.5)
+        y_fit = self.saturation.function(
+            x=x_fit, **mid_params[channel]["saturation_params"]
+        ).eval()
+
+        y_fit_lower = self.saturation.function(
+            x=x_fit, **lower_params[channel]["saturation_params"]
+        ).eval()
+        y_fit_upper = self.saturation.function(
+            x=x_fit, **upper_params[channel]["saturation_params"]
+        ).eval()
+
+        # scale all y fit values to the original scale using
+        # `mmm.target_transformer.named_steps["scaler"].scale_.item()`
+        y_fit = (
+            self.get_target_transformer()
+            .inverse_transform(y_fit.reshape(-1, 1))
+            .flatten()
+        )
+        y_fit_lower = (
+            self.get_target_transformer()
+            .inverse_transform(y_fit_lower.reshape(-1, 1))
+            .flatten()
+        )
+        y_fit_upper = (
+            self.get_target_transformer()
+            .inverse_transform(y_fit_upper.reshape(-1, 1))
+            .flatten()
+        )
+
+        # scale x fit values
+        x_fit = self._channel_map_scales()[channel] * x_fit
+
+        ax.fill_between(
+            x_fit, y_fit_lower, y_fit_upper, color=f"C{color_index}", alpha=0.25
+        )
+        ax.plot(x_fit, y_fit, color=f"C{color_index}", label=label, alpha=0.6)
+
+        ax.set(xlabel="Spent", ylabel="Contribution")
+        ax.legend()
+
+    def plot_direct_contribution_curves(
+        self,
+        show_fit: bool = False,
+        same_axes: bool = False,
+        xlim_max: int | None = None,
+        channels: list[str] | None = None,
+        quantile_lower: float = 0.05,
+        quantile_upper: float = 0.95,
+    ) -> plt.Figure:
+        """
+        Plots the direct contribution curves for each marketing channel. The term "direct" refers to the fact
+        we plot costs vs immediate returns and we do not take into account the lagged
+        effects of the channels e.g. adstock transformations.
+
+        Parameters
+        ----------
+        show_fit : bool, optional
+            If True, the function will also plot the curve fit based on the specified method. Defaults to False.
+        xlim_max : int, optional
+            The maximum value to be plot on the X-axis. If not provided, the maximum value in the data will be used.
+        channels : List[str], optional
+            A list of channels to plot. If not provided, all channels will be plotted.
+        same_axes : bool, optional
+            If True, all channels will be plotted on the same axes. Defaults to False.
+
+        Returns
+        -------
+        plt.Figure
+            A matplotlib Figure object with the direct contribution curves.
+        """
+        channels_to_plot = self.channel_columns if channels is None else channels
+
+        if not all(channel in self.channel_columns for channel in channels_to_plot):
+            unknown_channels = set(channels_to_plot) - set(self.channel_columns)
+            raise ValueError(
+                f"The provided channels must be a subset of the available channels. Got {unknown_channels}"
+            )
+
+        if len(channels_to_plot) != len(set(channels_to_plot)):
+            raise ValueError("The provided channels must be unique.")
+
+        channel_contributions = self.compute_channel_contribution_original_scale().mean(
+            ["chain", "draw"]
+        )
+
+        if same_axes:
+            nrows = 1
+            figsize = (12, 4)
+
+            def label_func(channel):
+                return f"{channel} Data Points"
+
+            def legend_title_func(channel):
+                return "Legend"
+
+        else:
+            nrows = len(channels_to_plot)
+            figsize = (12, 4 * len(channels_to_plot))
+
+            def label_func(channel):
+                return "Data Points"
+
+            def legend_title_func(channel):
+                return f"{channel} Legend"
+
+        fig, axes = plt.subplots(
+            nrows=nrows,
+            ncols=1,
+            sharex=False,
+            sharey=False,
+            figsize=figsize,
+            layout="constrained",
+        )
+
+        if same_axes:
+            axes_channels: list[tuple[Any, str]] | Any = [
+                (axes, channel) for channel in channels_to_plot
+            ]
+        else:
+            axes_channels = zip(np.ravel(axes), channels_to_plot, strict=False)
+
+        for i, (ax, channel) in enumerate(axes_channels):
+            if self.X is not None:
+                x = self.X[channel].to_numpy()
+                y = channel_contributions.sel(channel=channel).to_numpy()
+
+                label = label_func(channel)
+                ax.scatter(x, y, label=label, color=f"C{i}")
+
+                if show_fit:
+                    label = f"{channel} Fit Curve" if same_axes else "Fit Curve"
+                    self._plot_response_curve_fit(
+                        ax=ax,
+                        channel=channel,
+                        color_index=i,
+                        xlim_max=xlim_max,
+                        label=label,
+                        quantile_lower=quantile_lower,
+                        quantile_upper=quantile_upper,
+                    )
+
+                title = legend_title_func(channel)
+                ax.legend(
+                    loc="upper left",
+                    facecolor="white",
+                    title=title,
+                    fontsize="small",
+                )
+
+                ax.set(xlabel="Spent", ylabel="Contribution")
+
+        fig.suptitle("Direct response curves", fontsize=16)
+        return fig
+
     def sample_posterior_predictive(
         self,
         X_pred,
@@ -1529,85 +1831,125 @@ class DelayedSaturatedMMM(
                 name=name,
             )
 
-
     def _create_synth_dataset(
         self,
-        df,
-        date_column, 
-        allocation_strategy, 
-        channels, 
-        controls,
-        target_col, 
-        time_granularity='daily',
-        time_length=7,
-        ):
-        # Mapping time granularities to pd.DateOffset attributes
+        df: pd.DataFrame,
+        date_column: str,
+        allocation_strategy: dict[str, float],  # Specify types for dict
+        channels: list[str] | tuple[str],  # Explicitly type as List of strings
+        controls: list[str] | None,  # Explicitly type as List of strings
+        target_col: str,
+        time_granularity: str,
+        time_length: int,
+    ):
         time_offsets = {
-            'daily': {'days': 1},
-            'weekly': {'weeks': 1},
-            'monthly': {'months': 1},
-            'quarterly': {'months': 3},
-            'yearly': {'years': 1}
+            "daily": {"days": 1},
+            "weekly": {"weeks": 1},
+            "monthly": {"months": 1},
+            "quarterly": {"months": 3},
+            "yearly": {"years": 1},
         }
-        
-        # Validate time granularity input
-        if time_granularity not in time_offsets:
-            raise ValueError("Unsupported time granularity. Choose from 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'.")
 
-        # Determine new date based on the last date in df
+        if time_granularity not in time_offsets:
+            raise ValueError(
+                "Unsupported time granularity. Choose from 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'."
+            )
+
+        if controls is not None:
+            _controls: list[str] = controls
+        else:
+            controls = []
+
         last_date = pd.to_datetime(df[date_column]).max()
-        new_dates = [last_date + pd.DateOffset(**{k: v * i for k, v in time_offsets[time_granularity].items()}) for i in range(1, time_length + 1)]
-        
-        # Generate new rows
+        new_dates = []
+        for i in range(1, time_length + 1):
+            if time_granularity == "daily":
+                new_date = last_date + pd.DateOffset(days=i)
+            elif time_granularity == "weekly":
+                new_date = last_date + pd.DateOffset(weeks=i)
+            elif time_granularity == "monthly":
+                new_date = last_date + pd.DateOffset(months=i)
+            elif time_granularity == "quarterly":
+                new_date = last_date + pd.DateOffset(months=3 * i)
+            elif time_granularity == "yearly":
+                new_date = last_date + pd.DateOffset(years=i)
+            new_dates.append(new_date)
+
         new_rows = [
             {
-                'date': new_date,
-                **{channel: allocation_strategy.get(channel, 0) + np.random.normal(0, 0.1 * allocation_strategy.get(channel, 0)) for channel in channels},
-                **{control: 0 for control in controls},
-                target_col: 0
+                "date": new_date,
+                **{
+                    channel: allocation_strategy.get(channel, 0)
+                    + np.random.normal(0, 0.1 * allocation_strategy.get(channel, 0))
+                    for channel in channels
+                },
+                **{control: 0 for control in _controls},
+                target_col: 0,
             }
             for new_date in new_dates
         ]
-        
+
         return pd.DataFrame(new_rows)
 
-    def allocate_budget(self, budget, quantile: float = .5, num_days: int = 8, time_granularity: str = 'daily', budget_bounds=None, custom_constraints=None):
-
-        parameters_mid = self.format_recovered_transformation_parameters(quantile=quantile)
+    def allocate_budget(
+        self,
+        budget: float | int,
+        time_granularity: str,
+        num_days: int,
+        budget_bounds: dict[str, list[Any]] | None = None,
+        custom_constraints: dict[str, float] | None = None,
+        quantile: float = 0.5,
+    ):
+        parameters_mid = self.format_recovered_transformation_parameters(
+            quantile=quantile
+        )
 
         scale_budget = budget / self.channel_transformer["scaler"].scale_.max()
 
         if isinstance(budget_bounds, dict):
-            #budget bounds structure {"a":[1,2],..."z":[5,6]}
-            scale_budget_bounds = {k: [v[0] / self.channel_transformer["scaler"].scale_.max(), v[1] / self.channel_transformer["scaler"].scale_.max()] for k, v in budget_bounds.items()}
+            scale_budget_bounds: dict[str, tuple[float, float]] | None = {
+                k: (
+                    v[0] / self.channel_transformer["scaler"].scale_.max(),
+                    v[1] / self.channel_transformer["scaler"].scale_.max(),
+                )
+                for k, v in budget_bounds.items()
+            }
         else:
             scale_budget_bounds = None
 
         allocator = BudgetOptimizer(
-            adstock=self.adstock, 
-            saturation=self.saturation, 
-            channels=parameters_mid,  
+            adstock=self.adstock,
+            saturation=self.saturation,
+            parameters=parameters_mid,
             adstock_first=self.adstock_first,
-            num_days=num_days, 
+            num_days=num_days,
         )
 
         self.optimal_allocation_dict, _ = allocator.allocate_budget(
-            total_budget=scale_budget, 
-            budget_bounds=scale_budget_bounds, 
-            custom_constraints=custom_constraints
+            total_budget=scale_budget,
+            budget_bounds=scale_budget_bounds,
+            custom_constraints=custom_constraints,
         )
 
-        
-        scaled_channel_spend = self.channel_transformer.inverse_transform(np.array([list(self.optimal_allocation_dict.values())]))
-        scale_allocation_dict = {k: v for k, v in zip(self.optimal_allocation_dict.keys(), scaled_channel_spend[0])}
+        scaled_channel_spend = self.channel_transformer.inverse_transform(
+            np.array([list(self.optimal_allocation_dict.values())])
+        )
+        scale_allocation_dict = {
+            k: v
+            for k, v in zip(
+                self.optimal_allocation_dict.keys(),
+                scaled_channel_spend[0],
+                strict=False,
+            )
+        }
 
         synth_dataset = self._create_synth_dataset(
             df=self.X,
-            date_column=self.date_column, 
-            allocation_strategy=scale_allocation_dict, 
-            channels=self.channel_columns, 
+            date_column=self.date_column,
+            allocation_strategy=scale_allocation_dict,
+            channels=self.channel_columns,
             controls=self.control_columns,
-            target_col=self.output_var, 
+            target_col=self.output_var,
             time_granularity=time_granularity,
             time_length=num_days,
         )
