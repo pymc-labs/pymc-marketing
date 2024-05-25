@@ -108,7 +108,7 @@ class TestBasePlotting:
             ("plot_errors", {"original_scale": True}),
             ("plot_errors", {"ax": plt.subplots()[1]}),
             ("plot_components_contributions", {}),
-            ("plot_channel_parameter", {"param_name": "alpha"}),
+            ("plot_channel_parameter", {"param_name": "adstock_alpha"}),
             ("plot_waterfall_components_decomposition", {"original_scale": True}),
             ("plot_direct_contribution_curves", {}),
             ("plot_direct_contribution_curves", {"same_axes": True}),
