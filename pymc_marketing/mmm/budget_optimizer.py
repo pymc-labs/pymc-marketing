@@ -27,7 +27,16 @@ class BudgetOptimizer:
     """
     A class for optimizing budget allocation in a marketing mix model.
 
-    Parameters:
+    The goal of this optimization is to maximize the total expected response
+    by allocating the given budget across different marketing channels. The
+    optimization is performed using the Sequential Least Squares Quadratic
+    Programming (SLSQP) method, which is a gradient-based optimization algorithm
+    suitable for solving constrained optimization problems.
+
+    For more information on the SLSQP algorithm, refer to the documentation:
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
+
+    Parameters
     ----------
     adstock : AdstockTransformation
         The adstock class.
@@ -61,12 +70,12 @@ class BudgetOptimizer:
         Calculate the total response during a period of time given the budgets,
         considering the saturation and adstock transformations.
 
-        Parameters:
+        Parameters
         ----------
         budgets : array_like
             The budgets for each channel.
 
-        Returns:
+        Returns
         -------
         float
             The negative total response value.
@@ -116,10 +125,10 @@ class BudgetOptimizer:
         1. The sum of budgets across all channels equals the total available budget.
         2. The budget allocated to each individual channel lies within its specified range.
 
-        The purpuse is to maximize the total expected objective based on the inequality
+        The purpose is to maximize the total expected objective based on the inequality
         and equality constraints.
 
-        Parameters:
+        Parameters
         ----------
         total_budget : float
             The total budget.
@@ -128,7 +137,7 @@ class BudgetOptimizer:
         custom_constraints : dict, optional
             Custom constraints for the optimization. Default is None.
 
-        Returns:
+        Returns
         -------
         dict
             The optimal budgets for each channel.
