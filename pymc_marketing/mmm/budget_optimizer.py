@@ -22,9 +22,6 @@ from scipy.optimize import minimize
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 
-# from pymc_marketing.mmm.transformers import michaelis_menten
-# from pymc_marketing.mmm.utils import sigmoid_saturation
-
 
 class BudgetOptimizer:
     """
@@ -161,8 +158,10 @@ class BudgetOptimizer:
                 constraints = custom_constraints
 
         num_channels = len(self.parameters.keys())
-        initial_guess = np.full(num_channels, total_budget / num_channels)
-        bounds = bounds = [
+        initial_guess = [
+            total_budget // num_channels
+        ] * num_channels  # np.linspace(1, 5, num_channels)
+        bounds = [
             (
                 (budget_bounds[channel][0], budget_bounds[channel][1])
                 if channel in budget_bounds
@@ -176,6 +175,7 @@ class BudgetOptimizer:
             bounds=bounds,
             constraints=constraints,
             method="SLSQP",
+            options={"ftol": 1e-9, "maxiter": 1000},
         )
         if result.success:
             optimal_budgets = {

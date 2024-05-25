@@ -61,7 +61,7 @@ class AdstockTransformation(Transformation):
 
     def __init__(
         self,
-        l_max: int = 10,
+        l_max: int,
         normalize: bool = True,
         mode: ConvMode = ConvMode.After,
         priors: dict | None = None,

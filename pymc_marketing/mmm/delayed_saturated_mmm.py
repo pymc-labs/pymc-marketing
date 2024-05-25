@@ -1835,12 +1835,13 @@ class DelayedSaturatedMMM(
         self,
         df: pd.DataFrame,
         date_column: str,
-        allocation_strategy: dict[str, float],  # Specify types for dict
-        channels: list[str] | tuple[str],  # Explicitly type as List of strings
-        controls: list[str] | None,  # Explicitly type as List of strings
+        allocation_strategy: dict[str, float],
+        channels: list[str] | tuple[str],
+        controls: list[str] | None,
         target_col: str,
         time_granularity: str,
         time_length: int,
+        lag: int,
     ):
         time_offsets = {
             "daily": {"days": 1},
@@ -1877,7 +1878,7 @@ class DelayedSaturatedMMM(
 
         new_rows = [
             {
-                "date": new_date,
+                self.date_column: new_date,
                 **{
                     channel: allocation_strategy.get(channel, 0)
                     + np.random.normal(0, 0.1 * allocation_strategy.get(channel, 0))
@@ -1891,7 +1892,7 @@ class DelayedSaturatedMMM(
 
         return pd.DataFrame(new_rows)
 
-    def allocate_budget(
+    def allocate_budget_to_maximize_response(
         self,
         budget: float | int,
         time_granularity: str,
@@ -1931,14 +1932,14 @@ class DelayedSaturatedMMM(
             custom_constraints=custom_constraints,
         )
 
-        scaled_channel_spend = self.channel_transformer.inverse_transform(
+        inverse_scaled_channel_spend = self.channel_transformer.inverse_transform(
             np.array([list(self.optimal_allocation_dict.values())])
         )
-        scale_allocation_dict = {
+        original_scale_allocation_dict = {
             k: v
             for k, v in zip(
                 self.optimal_allocation_dict.keys(),
-                scaled_channel_spend[0],
+                inverse_scaled_channel_spend[0],
                 strict=False,
             )
         }
@@ -1946,14 +1947,155 @@ class DelayedSaturatedMMM(
         synth_dataset = self._create_synth_dataset(
             df=self.X,
             date_column=self.date_column,
-            allocation_strategy=scale_allocation_dict,
+            allocation_strategy=original_scale_allocation_dict,
             channels=self.channel_columns,
             controls=self.control_columns,
             target_col=self.output_var,
             time_granularity=time_granularity,
             time_length=num_days,
+            lag=self.adstock.l_max,
+        )
+
+        synth_dataset[self.date_column] = pd.to_datetime(
+            synth_dataset[self.date_column]
         )
 
         return self.sample_posterior_predictive(
-            X_pred=synth_dataset, extend_idata=False, include_last_observations=True
+            X_pred=synth_dataset,
+            extend_idata=False,
+            include_last_observations=True,
+            original_scale=False,
+            var_names=["y", "channel_contributions"],
+            progressbar=False,
         )
+
+    def plot_budget_allocation(
+        self,
+        samples: az.InferenceData,
+        figsize: tuple[float, float] = (12, 6),
+        ax: plt.Axes | None = None,
+        original_scale: bool = True,
+    ):
+        """
+        Plot the budget allocation and channel contributions.
+
+        Parameters
+        ----------
+        samples : az.InferenceData
+            The inference data containing the channel contributions.
+        figsize : tuple[float, float], optional
+            The size of the figure to be created, by default (12, 6).
+        original_scale : bool, optional
+            A boolean flag to determine if the values should be plotted in their original scale,
+            by default True.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the matplotlib figure and axes of the plot.
+        """
+
+        # def plot_budget_allocation(self, samples, ax, original_scale=True):
+        if original_scale:
+            channel_contributions = (
+                samples["channel_contributions"]
+                .mean(dim=["sample"])
+                .mean(dim=["date"])
+                .values
+                * self.get_target_transformer()["scaler"].scale_
+            )
+
+            allocate_spend = (
+                np.array(list(self.optimal_allocation_dict.values()))
+                * self.channel_transformer["scaler"].scale_
+            )
+
+        else:
+            channel_contributions = (
+                samples["channel_contributions"]
+                .mean(dim=["sample"])
+                .mean(dim=["date"])
+                .values
+            )
+            allocate_spend = np.array(list(self.optimal_allocation_dict.values()))
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
+        else:
+            fig = ax.get_figure()
+
+        bar_width = 0.35
+        opacity = 0.7
+
+        index = np.arange(len(self.channel_columns))
+
+        bars1 = ax.bar(
+            index,
+            allocate_spend,
+            bar_width,
+            color="b",
+            alpha=opacity,
+            label="Allocate Spend",
+        )
+
+        ax2 = ax.twinx()
+
+        bars2 = ax2.bar(
+            index + bar_width,
+            channel_contributions,
+            bar_width,
+            color="r",
+            alpha=opacity,
+            label="Channel Contributions",
+        )
+
+        ax.set_xlabel("Channels")
+        ax.set_ylabel("Allocate Spend", color="b")
+        ax.tick_params(axis="x", rotation=90)
+        ax.set_xticks(index + bar_width / 2)
+        ax.set_xticklabels(self.channel_columns)
+
+        ax.set_ylabel("Allocate Spend", color="b", labelpad=10)
+        ax2.set_ylabel("Channel Contributions", color="r", labelpad=10)
+
+        # Remove grid lines
+        ax.grid(False)
+        ax2.grid(False)
+
+        # Add legend
+        bars = [bars1[0], bars2[0]]
+        labels = [bar.get_label() for bar in bars]
+        ax.legend(bars, labels)
+
+        return fig, ax
+
+    def plot_allocated_contribution_by_channel(
+        self,
+        samples: az.InferenceData,
+        lower_quantile: float = 0.025,
+        upper_quantile: float = 0.975,
+        original_scale: bool = True,
+    ):
+        if original_scale:
+            channel_contributions = (
+                samples["channel_contributions"]
+                * self.get_target_transformer()["scaler"].scale_
+            )
+        else:
+            channel_contributions = samples["channel_contributions"]
+
+        fig, ax = plt.subplots()
+        channel_contributions.mean(dim="sample").plot(hue="channel", ax=ax)
+
+        for channel in self.model_coords["channel"]:
+            ax.fill_between(
+                x=channel_contributions.date.values,
+                y1=channel_contributions.sel(channel=channel).quantile(
+                    lower_quantile, dim="sample"
+                ),
+                y2=channel_contributions.sel(channel=channel).quantile(
+                    upper_quantile, dim="sample"
+                ),
+                alpha=0.1,
+            )
+        return fig, ax
