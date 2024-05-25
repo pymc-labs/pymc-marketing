@@ -1842,7 +1842,41 @@ class DelayedSaturatedMMM(
         time_granularity: str,
         time_length: int,
         lag: int,
-    ):
+    ) -> pd.DataFrame:
+        """
+        Create a synthetic dataset based on the given allocation strategy (Budget) and time granularity.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            The original dataset.
+        date_column : str
+            The name of the date column in the dataset.
+        allocation_strategy : dict[str, float]
+            A dictionary mapping channel names to their corresponding allocation values.
+        channels : list[str] | tuple[str]
+            A list or tuple of channel names.
+        controls : list[str] | None
+            A list of control column names or None if no controls are present.
+        target_col : str
+            The name of the target column.
+        time_granularity : str
+            The time granularity of the synthetic dataset: 'daily', 'weekly', 'monthly', 'quarterly', or 'yearly'.
+        time_length : int
+            The length of the synthetic dataset in terms of the time granularity.
+        lag : int
+            The lag value (not used in this function).
+
+        Returns
+        -------
+        pd.DataFrame
+            A synthetic dataset with the specified allocation strategy and time granularity.
+
+        Raises
+        ------
+        ValueError
+            If the time granularity is not supported.
+        """
         time_offsets = {
             "daily": {"days": 1},
             "weekly": {"weeks": 1},
@@ -1901,6 +1935,45 @@ class DelayedSaturatedMMM(
         custom_constraints: dict[str, float] | None = None,
         quantile: float = 0.5,
     ):
+        """
+        Allocate the given budget to maximize the response over a specified time period.
+
+        This function optimizes the allocation of a given budget across different channels
+        to maximize the response, considering adstock and saturation effects. It scales the
+        budget and budget bounds, performs the optimization, and generates a synthetic dataset
+        for posterior predictive sampling.
+
+        The function first scales the budget and budget bounds using the maximum scale
+        of the channel transformer. It then uses the `BudgetOptimizer` to allocate the
+        budget, and creates a synthetic dataset based on the optimal allocation. Finally,
+        it performs posterior predictive sampling on the synthetic dataset.
+
+        Parameters
+        ----------
+        budget : float or int
+            The total budget to be allocated.
+        time_granularity : str
+            The granularity of the time periods (e.g., 'daily', 'weekly', 'monthly').
+        num_days : int
+            The number of days over which the budget is to be allocated.
+        budget_bounds : dict[str, list[Any]], optional
+            A dictionary specifying the lower and upper bounds for the budget allocation
+            for each channel. If None, no bounds are applied.
+        custom_constraints : dict[str, float], optional
+            Custom constraints for the optimization. If None, no custom constraints are applied.
+        quantile : float, optional
+            The quantile to use for recovering transformation parameters. Default is 0.5.
+
+        Returns
+        -------
+        az.InferenceData
+            The posterior predictive samples generated from the synthetic dataset.
+
+        Raises
+        ------
+        ValueError
+            If the time granularity is not supported.
+        """
         parameters_mid = self.format_recovered_transformation_parameters(
             quantile=quantile
         )
@@ -2076,6 +2149,31 @@ class DelayedSaturatedMMM(
         upper_quantile: float = 0.975,
         original_scale: bool = True,
     ):
+        """
+        Plot the allocated contribution by channel with uncertainty intervals.
+
+        This function visualizes the mean allocated contributions by channel along with
+        the uncertainty intervals defined by the lower and upper quantiles. The contributions
+        can be plotted on the original scale or the transformed scale.
+
+        Parameters
+        ----------
+        samples : az.InferenceData
+            The inference data containing the samples of channel contributions.
+        lower_quantile : float, optional
+            The lower quantile for the uncertainty interval. Default is 0.025.
+        upper_quantile : float, optional
+            The upper quantile for the uncertainty interval. Default is 0.975.
+        original_scale : bool, optional
+            If True, the contributions are plotted on the original scale. Default is True.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The matplotlib figure object containing the plot.
+        ax : matplotlib.axes.Axes
+            The matplotlib axes object containing the plot.
+        """
         if original_scale:
             channel_contributions = (
                 samples["channel_contributions"]
