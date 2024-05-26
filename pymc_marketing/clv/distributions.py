@@ -517,7 +517,7 @@ class BetaGeoBetaBinomRV(RandomVariable):
         delta = np.broadcast_to(delta, size)
         T = np.broadcast_to(T, size)
 
-        output = np.zeros(shape=size + (2,))
+        output = np.zeros(shape=(*size, 2))
 
         purchase_prob = rng.beta(a=alpha, b=beta, size=size)
         churn_prob = rng.beta(a=delta, b=gamma, size=size)
@@ -557,7 +557,7 @@ beta_geo_beta_binom = BetaGeoBetaBinomRV()
 class BetaGeoBetaBinom(Discrete):
     r"""
     Population-level distribution class for a discrete, non-contractual, Beta-Geometric/Beta-Binomial process,
-    based on Fader, et al. in [1]_.
+    based on equation(5) from Fader, et al. in [1]_.
 
     .. math::
 
@@ -630,29 +630,6 @@ class BetaGeoBetaBinom(Discrete):
             outputs_info=[None],
             sequences=[t_x, x, alpha, beta, gamma, delta, T],
         )
-
-        # TODO: Vectorize without scan?
-        # i = pt.scalar("i", dtype=int)
-        # died = pt.lt(t_x + i, T)
-        #
-        # unnorm_logp_died_at_tx_plus_i = pt.where(
-        #     pt.ge(t_x, i),
-        #     (
-        #         betaln(alpha + x, beta + t_x - x + i)
-        #         + betaln(gamma + died, delta + t_x + i)
-        #     ),
-        #     -np.inf
-        # )
-
-        # Maximum prevents invalid T - t_x values from crashing logp
-        # max_range = pt.maximum(pt.max(T - t_x), 0)
-        # i_vec = pt.arange(max_range + 1)
-        # unnorm_logp_died_at_tx_plus_i_vec = vectorize(
-        #     unnorm_logp_died_at_tx_plus_i,
-        #     replace={i: i_vec},
-        # )
-
-        # unnorm_logp = pt.logsumexp(unnorm_logp_died_at_tx_plus_i_vec, axis=0)
 
         logp = unnorm_logp - betaln(alpha, beta) - betaln(gamma, delta)
 
