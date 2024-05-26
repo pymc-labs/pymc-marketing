@@ -567,10 +567,10 @@ class BetaGeoBetaBinom(Discrete):
         &+ \sum_{i=0}^{n-t_x-1}\frac{B(\alpha+x,\beta+t_x-x+i)}{B(\alpha,\beta)} \\
         &\cdot \frac{B(\gamma+1,\delta+t_x+i)}{B(\gamma,\delta)}
 
-    ========  ===============================================
-    Support   :math:`t_j >= 0` for :math:`j = 1, \dots, x`
-    Mean      :math: `\mathbb{E}[X(n) | \alpha, \beta, \gamma, \delta] =  (\frac{\alpha}{\alpha+\beta})(\frac{\delta}{\gamma-1}) \cdot{1-\frac{\Gamma(\gamma+delta}{\Gamma(\gamma+\delta+n}\frac{\Gamma(1+\delta+n}{\Gamma(1+ \delta}}`
-    ========  ===============================================
+    ========  =============================================== Support   :math:`t_j >= 0` for :math:`j = 1, \dots,
+    x` Mean      :math:`\mathbb{E}[X(n) | \alpha, \beta, \gamma, \delta] =  (\frac{\alpha}{\alpha+\beta})(\frac{
+    \delta}{\gamma-1}) \cdot{1-\frac{\Gamma(\gamma+delta)}{\Gamma(\gamma+\delta+n)}\frac{\Gamma(1+\delta+n)}{\Gamma(
+    1+ \delta)}}` ========  ===============================================
 
     References
     ----------
