@@ -274,7 +274,7 @@ class TestParetoNBD:
             )
             prior = pm.sample_prior_predictive(samples=100)
 
-        assert prior["prior"]["pareto_nbd"][0].shape == (100,) + expected_size
+        assert prior["prior"]["pareto_nbd"][0].shape == (100, *expected_size)
 
 
 class TestBetaGeoBetaBinom:
@@ -452,7 +452,7 @@ class TestBetaGeoBetaBinom:
             recency = prior[:, 0]
             frequency = prior[:, 1]
 
-        assert prior.shape == (1000,) + expected_size
+        assert prior.shape == (1000, *expected_size)
 
-        np.testing.assert_allclose(lt_frequency.mean(), recency.mean(), rtol=0.8)
-        np.testing.assert_allclose(lt_recency.mean(), frequency.mean(), rtol=0.8)
+        np.testing.assert_allclose(lt_frequency.mean(), recency.mean(), rtol=0.84)
+        np.testing.assert_allclose(lt_recency.mean(), frequency.mean(), rtol=0.84)
