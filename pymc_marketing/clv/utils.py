@@ -613,15 +613,24 @@ def rfm_segments(
     sort_transactions: bool | None = True,
 ) -> pd.DataFrame:
     """
-    Assign customers to segments based on spending behavior derived from RFM quartiles.
+    Assign customers to segments based on spending behavior derived from RFM scores.
 
     This transforms a DataFrame of transaction data of the form:
         customer_id, datetime, monetary_value
     to a DataFrame of the form:
-        customer_id, frequency, recency, monetary_value, segment
+        customer_id, frequency, recency, monetary_value, rfm_score, segment
 
-    The returned DataFrame cannot be used for modeling. If assigning model predictions to RFM segments,
-    Create a separate DataFrame for modeling and join by Customer ID.
+    Customer purchasing data is aggregated into three variables: `recency`, `frequency`, and `monetary_value`.
+    Quartiles are estimated for each variable, and a three-digit RFM score is then assigned to each customer.
+    For example, a customer with a score of '234' is in the second quartile for `recency`, third quartile for
+    `frequency`, and fourth quartile for `monetary_value`.
+    RFM scores corresponding to segments such as "Top Spender", "Frequent Buyer", or "At-Risk" are determined, and
+    customers are then segmented based on their RFM score.
+
+    If an alternative segmentation approach is desired, use
+    `rfm_summary(include_first_transaction=True, *args, **kwargs)` instead to preprocess data for segmentation.
+    In either case, the returned DataFrame cannot be used for modeling.
+    If assigning model predictions to RFM segments, create a separate DataFrame for modeling and join by Customer ID.
 
     Parameters
     ----------
@@ -711,8 +720,9 @@ def rfm_segments(
                     rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
                 ).astype(str)
 
-    rfm_data["rfm_score"] = (
-        rfm_data["r_quartile"] + rfm_data["f_quartile"] + rfm_data["m_quartile"]
+    rfm_data = pd.eval(  # type: ignore
+        "rfm_score = rfm_data.r_quartile + rfm_data.f_quartile + rfm_data.m_quartile",
+        target=rfm_data,
     )
 
     if segment_config is None:
