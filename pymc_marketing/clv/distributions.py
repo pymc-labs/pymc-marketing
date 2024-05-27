@@ -15,14 +15,13 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 from pymc.distributions.continuous import PositiveContinuous
-from pymc.distributions.dist_math import check_parameters
+from pymc.distributions.dist_math import betaln, check_parameters
+from pymc.distributions.distribution import Discrete
+from pytensor import scan
+from pytensor.graph import vectorize_graph
 from pytensor.tensor.random.op import RandomVariable
 
-__all__ = [
-    "ContContract",
-    "ContNonContract",
-    "ParetoNBD",
-]
+__all__ = ["ContContract", "ContNonContract", "ParetoNBD", "BetaGeoBetaBinom"]
 
 
 class ContNonContractRV(RandomVariable):
@@ -391,7 +390,7 @@ class ParetoNBD(PositiveContinuous):
         \end{align}
 
     ========  ===============================================
-    Support   :math:`t_j > 0` for :math:`j = 1, \dots, x`
+    Support   :math:`t_j >= 0` for :math:`j = 1, \dots, x`
     Mean      :math:`\mathbb{E}[X(t) | r, \alpha, s, \beta] = \frac{r\beta}{\alpha(s-1)}[1-(\frac{\beta}{\beta + t})^{s-1}]`
     ========  ===============================================
 
@@ -475,4 +474,185 @@ class ParetoNBD(PositiveContinuous):
             s > 0,
             beta > 0,
             msg="r > 0, alpha > 0, s > 0, beta > 0",
+        )
+
+
+class BetaGeoBetaBinomRV(RandomVariable):
+    name = "beta_geo_beta_binom"
+    ndim_supp = 1
+    ndims_params = [0, 0, 0, 0, 0]
+    dtype = "floatX"
+    _print_name = ("BetaGeoBetaBinom", "\\operatorname{BetaGeoBetaBinom}")
+
+    def make_node(self, rng, size, dtype, alpha, beta, gamma, delta, T):
+        alpha = pt.as_tensor_variable(alpha)
+        beta = pt.as_tensor_variable(beta)
+        gamma = pt.as_tensor_variable(gamma)
+        delta = pt.as_tensor_variable(delta)
+        T = pt.as_tensor_variable(T)
+
+        return super().make_node(rng, size, dtype, alpha, beta, gamma, delta, T)
+
+    def __call__(self, alpha, beta, gamma, delta, T, size=None, **kwargs):
+        return super().__call__(alpha, beta, gamma, delta, T, size=size, **kwargs)
+
+    @classmethod
+    def rng_fn(cls, rng, alpha, beta, gamma, delta, T, size) -> np.ndarray:
+        size = pm.distributions.shape_utils.to_tuple(size)
+
+        alpha = np.asarray(alpha)
+        beta = np.asarray(beta)
+        gamma = np.asarray(gamma)
+        delta = np.asarray(delta)
+        T = np.asarray(T)
+
+        if size == ():
+            size = np.broadcast_shapes(
+                alpha.shape, beta.shape, gamma.shape, delta.shape, T.shape
+            )
+
+        alpha = np.broadcast_to(alpha, size)
+        beta = np.broadcast_to(beta, size)
+        gamma = np.broadcast_to(gamma, size)
+        delta = np.broadcast_to(delta, size)
+        T = np.broadcast_to(T, size)
+
+        output = np.zeros(shape=(*size, 2))
+
+        purchase_prob = rng.beta(a=alpha, b=beta, size=size)
+        churn_prob = rng.beta(a=delta, b=gamma, size=size)
+
+        def sim_data(purchase_prob, churn_prob, T):
+            t_x = 0
+            x = 0
+            active = True
+            recency = 0
+
+            while t_x <= T and active:
+                t_x += 1
+                active = rng.binomial(1, churn_prob)
+                purchase = rng.binomial(1, purchase_prob)
+                if active and purchase:
+                    recency = t_x
+                    x += 1
+            return np.array(
+                [
+                    recency if x > 0 else T,
+                    x,
+                ],
+            )
+
+        for index in np.ndindex(*size):
+            output[index] = sim_data(purchase_prob[index], churn_prob[index], T[index])
+
+        return output
+
+    def _supp_shape_from_params(*args, **kwargs):
+        return (2,)
+
+
+beta_geo_beta_binom = BetaGeoBetaBinomRV()
+
+
+class BetaGeoBetaBinom(Discrete):
+    r"""
+    Population-level distribution class for a discrete, non-contractual, Beta-Geometric/Beta-Binomial process,
+    based on equation(5) from Fader, et al. in [1]_.
+
+    .. math::
+
+        \mathbb{L}(\alpha, \beta, \gamma, \delta  | x, t_x, n) &=
+        \frac{B(\alpha+x,\beta+n-x)}{B(\alpha,\beta)}
+        \frac{B(\gamma,\delta+n)}{B(\gamma,\delta)} \\
+        &+ \sum_{i=0}^{n-t_x-1}\frac{B(\alpha+x,\beta+t_x-x+i)}{B(\alpha,\beta)} \\
+        &\cdot \frac{B(\gamma+1,\delta+t_x+i)}{B(\gamma,\delta)}
+
+    ========  ===============================================
+    Support   :math:`t_j >= 0` for :math:`j = 1, \dots,x`
+    Mean      :math:`\mathbb{E}[X(n) | \alpha, \beta, \gamma, \delta] =  (\frac{\alpha}{\alpha+\beta})(\frac{\delta}{\gamma-1}) \cdot{1-\frac{\Gamma(\gamma+\delta)}{\Gamma(\gamma+\delta+n)}\frac{\Gamma(1+\delta+n)}{\Gamma(1+ \delta)}}`
+    ========  ===============================================
+
+    References
+    ----------
+    .. [1] Fader, Peter S., Bruce G.S. Hardie, and Jen Shang (2010),
+       "Customer-Base Analysis in a Discrete-Time Noncontractual Setting,"
+       Marketing Science, 29 (6), 1086-1108. https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf
+
+    """  # noqa: E501
+
+    rv_op = beta_geo_beta_binom
+
+    @classmethod
+    def dist(cls, alpha, beta, gamma, delta, T, **kwargs):
+        return super().dist([alpha, beta, gamma, delta, T], **kwargs)
+
+    def logp(value, alpha, beta, gamma, delta, T):
+        t_x = pt.atleast_1d(value[..., 0])
+        x = pt.atleast_1d(value[..., 1])
+        scalar_case = t_x.type.broadcastable == (True,)
+
+        for param in (t_x, x, alpha, beta, gamma, delta, T):
+            if param.type.ndim > 1:
+                raise NotImplementedError(
+                    f"BetaGeoBetaBinom logp only implemented for vector parameters, got ndim={param.type.ndim}"
+                )
+            if scalar_case:
+                if param.type.broadcastable == (False,):
+                    raise NotImplementedError(
+                        f"Parameter {param} cannot be larger than scalar value"
+                    )
+
+        # Broadcast all the parameters so they are sequences.
+        # Potentially inefficient, but otherwise ugly logic needed to unpack arguments in the scan function,
+        # since sequences always precede non-sequences.
+        _, alpha, beta, gamma, delta, T = pt.broadcast_arrays(
+            t_x, alpha, beta, gamma, delta, T
+        )
+
+        def logp_customer_died(t_x_i, x_i, alpha_i, beta_i, gamma_i, delta_i, T_i):
+            i = pt.scalar("i", dtype=int)
+            died = pt.lt(t_x_i + i, T_i)
+
+            unnorm_logprob_customer_died_at_tx_plus_i = betaln(
+                alpha_i + x_i, beta_i + t_x_i - x_i + i
+            ) + betaln(gamma_i + died, delta_i + t_x_i + i)
+
+            # Maximum prevents invalid T - t_x values from crashing logp
+            i_vec = pt.arange(pt.maximum(T_i - t_x_i, 0) + 1)
+            unnorm_logprob_customer_died_at_tx_plus_i_vec = vectorize_graph(
+                unnorm_logprob_customer_died_at_tx_plus_i, replace={i: i_vec}
+            )
+
+            return pt.logsumexp(unnorm_logprob_customer_died_at_tx_plus_i_vec)
+
+        unnorm_logp, _ = scan(
+            fn=logp_customer_died,
+            outputs_info=[None],
+            sequences=[t_x, x, alpha, beta, gamma, delta, T],
+        )
+
+        logp = unnorm_logp - betaln(alpha, beta) - betaln(gamma, delta)
+
+        logp = pt.switch(
+            pt.or_(
+                pt.or_(
+                    pt.lt(t_x, 0),
+                    pt.lt(x, 0),
+                ),
+                pt.gt(t_x, T),
+            ),
+            -np.inf,
+            logp,
+        )
+
+        if value.ndim == 1:
+            logp = pt.specify_shape(logp, 1).squeeze(0)
+
+        return check_parameters(
+            logp,
+            alpha > 0,
+            beta > 0,
+            gamma > 0,
+            delta > 0,
+            msg="alpha > 0, beta > 0, gamma > 0, delta > 0",
         )
