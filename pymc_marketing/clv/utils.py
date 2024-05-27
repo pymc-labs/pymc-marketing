@@ -606,11 +606,11 @@ def rfm_segments(
     datetime_col: str,
     monetary_value_col: str,
     segment_config: dict | None = None,
-    observation_period_end: str | pd.Period | datetime | None | None = None,
-    datetime_format: str | None | None = None,
+    observation_period_end: str | pd.Period | datetime | None = None,
+    datetime_format: str | None = None,
     time_unit: str = "D",
-    time_scaler: float | None | None = 1,
-    sort_transactions: bool | None | None = True,
+    time_scaler: float | None = 1,
+    sort_transactions: bool | None = True,
 ) -> pd.DataFrame:
     """
     Assign customers to segments based on spending behavior derived from RFM quartiles.
