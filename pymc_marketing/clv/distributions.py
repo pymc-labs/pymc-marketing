@@ -578,7 +578,7 @@ class BetaGeoBetaBinom(Discrete):
        "Customer-Base Analysis in a Discrete-Time Noncontractual Setting,"
        Marketing Science, 29 (6), 1086-1108. https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf
 
-    """
+    """  # noqa: E501
 
     rv_op = beta_geo_beta_binom
 
