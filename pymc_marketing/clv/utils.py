@@ -644,7 +644,7 @@ def rfm_segments(
             "At-Risk Customer": Customers in bottom 2 quartiles for two or more variables.
             "Inactive Customer": Customers in bottom quartile for two or more variables.
         Customers with unspecified RFM scores will be assigned to a segment named "Other".
-    observation_period_end: Union[str, pd.Period, datetime], optional
+    observation_period_end: Union[str, pd.Period, datetime, None], optional
         A string or datetime to denote the final date of the study.
         Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
     datetime_format: string, optional
@@ -686,84 +686,37 @@ def rfm_segments(
     # change recency to segmentation definition
     rfm_data["recency"] = rfm_data["T"] - rfm_data["recency"]
 
+    # iteratively assign quartile labels for each row/variable
     for column_name in zip(
         ["r_quartile", "f_quartile", "m_quartile"],
         ["recency", "frequency", "monetary_value"],
         strict=False,
     ):
-
-        def _quartile_labels(column_name, max_label_range):
-            # recency labels must be reversed because lower values are more desirable
-            if column_name == "r_quartile":
-                return list(reversed(list(range(1, max_label_range))))
-            else:
-                return range(1, max_label_range)
-
+        # If data has many repeat values, fewer than 4 bins will be returned.
+        # These try blocks will modify labelling for fewer bins.
         try:
-            labels = _quartile_labels(column_name[0], 4)
+            labels = _rfm_quartile_labels(column_name[0], 5)
             rfm_data[column_name[0]] = pd.qcut(
                 rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
             ).astype(str)
         except ValueError:
             try:
-                labels = _quartile_labels(column_name[0], 3)
+                labels = _rfm_quartile_labels(column_name[0], 4)
                 rfm_data[column_name[0]] = pd.qcut(
                     rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
                 ).astype(str)
             except ValueError:
-                labels = _quartile_labels(column_name[0], 5)
+                labels = _rfm_quartile_labels(column_name[0], 3)
                 rfm_data[column_name[0]] = pd.qcut(
                     rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
                 ).astype(str)
 
-    # TODO: Is `finally` block also needed?
     rfm_data["rfm_score"] = (
         rfm_data["r_quartile"] + rfm_data["f_quartile"] + rfm_data["m_quartile"]
     )
 
     if segment_config is None:
-        segment_config = {
-            "Premium Customer": [
-                "334",
-                "443",
-                "444",
-                "344",
-                "434",
-                "433",
-                "343",
-                "333",
-            ],
-            "Repeat Customer": ["244", "234", "232", "332", "143", "233", "243"],
-            "Top Spender": [
-                "424",
-                "414",
-                "144",
-                "314",
-                "324",
-                "124",
-                "224",
-                "423",
-                "413",
-                "133",
-                "323",
-                "313",
-                "134",
-            ],
-            "At Risk Customer": [
-                "422",
-                "223",
-                "212",
-                "122",
-                "222",
-                "132",
-                "322",
-                "312",
-                "412",
-                "123",
-                "214",
-            ],
-            "Inactive Customer": ["411", "111", "113", "114", "112", "211", "311"],
-        }
+        segment_config = _default_rfm_segment_config
 
     segment_names = list(segment_config.keys())
 
@@ -774,9 +727,59 @@ def rfm_segments(
         rfm_data.loc[rfm_data["rfm_score"].isin(segment_config[key]), "segment"] = key
 
     # drop unnecessary columns
-    # TODO: Is dropping the rfm_score column prudent?
-    rfm_data = rfm_data.drop(
-        columns=["r_quartile", "f_quartile", "m_quartile", "rfm_score", "T"]
-    )
+    rfm_data = rfm_data.drop(columns=["r_quartile", "f_quartile", "m_quartile", "T"])
 
     return rfm_data
+
+
+def _rfm_quartile_labels(column_name, max_label_range):
+    """called internally by rfm_segments to label quartiles for each variable"""
+    # recency labels must be reversed because lower values are more desirable
+    if column_name == "r_quartile":
+        return list(range(max_label_range - 1, 0, -1))
+    else:
+        return range(1, max_label_range)
+
+
+_default_rfm_segment_config = {
+    "Premium Customer": [
+        "334",
+        "443",
+        "444",
+        "344",
+        "434",
+        "433",
+        "343",
+        "333",
+    ],
+    "Repeat Customer": ["244", "234", "232", "332", "143", "233", "243"],
+    "Top Spender": [
+        "424",
+        "414",
+        "144",
+        "314",
+        "324",
+        "124",
+        "224",
+        "423",
+        "413",
+        "133",
+        "323",
+        "313",
+        "134",
+    ],
+    "At Risk Customer": [
+        "422",
+        "223",
+        "212",
+        "122",
+        "222",
+        "132",
+        "322",
+        "312",
+        "412",
+        "123",
+        "214",
+    ],
+    "Inactive Customer": ["411", "111", "113", "114", "112", "211", "311"],
+}
