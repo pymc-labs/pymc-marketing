@@ -844,7 +844,12 @@ def michaelis_menten(
     return alpha * x / (lam + x)
 
 
-def hill_saturation(x, sigma, beta, lam):
+def hill_saturation(
+    x: pt.TensorLike, 
+    sigma: pt.TensorLike, 
+    beta: pt.TensorLike, 
+    lam: pt.TensorLike,
+) -> pt.TensorVariable:
     r"""
     Hill Saturation Function
     .. math::
