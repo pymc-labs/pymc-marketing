@@ -23,6 +23,7 @@ from pandas.testing import assert_frame_equal
 from pymc_marketing.clv import BetaGeoModel, GammaGammaModel, ParetoNBDModel
 from pymc_marketing.clv.utils import (
     _find_first_transactions,
+    _rfm_quartile_labels,
     clv_summary,
     customer_lifetime_value,
     rfm_segments,
@@ -889,3 +890,12 @@ class TestRFM:
         )
 
         assert (actual["segment"] == expected).all()
+
+    def test_rfm_quartile_labels(self):
+        # assert recency labels are in reverse order
+        recency = _rfm_quartile_labels("r_quartile", 5)
+        assert recency == [4, 3, 2, 1]
+
+        # assert max_quartile_range = 4 returns a range function for three labels
+        frequency = _rfm_quartile_labels("f_quartile", 4)
+        assert frequency == range(1, 4)
