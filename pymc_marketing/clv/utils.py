@@ -577,7 +577,7 @@ def rfm_train_test_split(
     ).reset_index()
 
     test_rfm_data = test_rfm_data.rename(
-        columns={customer_id_col: "customer_id", "date": "test_frequency"}
+        columns={customer_id_col: "customer_id", datetime_col: "test_frequency"}
     )
 
     if monetary_value_col:
