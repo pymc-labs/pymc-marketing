@@ -731,6 +731,11 @@ def rfm_segments(
                 rfm_data[column_name[0]] = pd.qcut(
                     rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
                 ).astype(str)
+                warnings.warn(
+                    f"RFM score will not exceed 2 for {column_name[0]}. Specify a custom segment_config",
+                    UserWarning,
+                    stacklevel=1,
+                )
 
     rfm_data = pd.eval(  # type: ignore
         "rfm_score = rfm_data.r_quartile + rfm_data.f_quartile + rfm_data.m_quartile",

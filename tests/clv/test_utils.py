@@ -891,6 +891,33 @@ class TestRFM:
 
         assert (actual["segment"] == expected).all()
 
+    def test_rfm_segmentation_warning(self):
+        # this data will only return two bins for the frequency variable
+        d = [
+            [1, "2015-01-01", 1],
+            [1, "2015-02-06", 2],
+            [2, "2015-01-01", 2],
+            [3, "2015-01-02", 1],
+            [3, "2015-01-05", 3],
+            [4, "2015-01-16", 4],
+            [4, "2015-02-05", 5],
+            [5, "2015-01-17", 1],
+            [5, "2015-01-18", 2],
+            [5, "2015-01-19", 2],
+        ]
+        repetitive_data = pd.DataFrame(d, columns=["id", "date", "monetary_value"])
+
+        with pytest.warns(
+            UserWarning,
+            match="RFM score will not exceed 2 for f_quartile. Specify a custom segment_config",
+        ):
+            rfm_segments(
+                repetitive_data,
+                "id",
+                "date",
+                "monetary_value",
+            )
+
     def test_rfm_quartile_labels(self):
         # assert recency labels are in reverse order
         recency = _rfm_quartile_labels("r_quartile", 5)
