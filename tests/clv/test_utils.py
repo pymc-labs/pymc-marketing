@@ -671,14 +671,14 @@ class TestRFM:
         )
         expected_first_trans = pd.DataFrame(
             [
-                [1, 2.0, 36.0, 37.0, 1.5],
-                [2, 1.0, 0.0, 37.0, 2],
-                [3, 3.0, 4.0, 37.0, 3],
-                [4, 3.0, 20.0, 22.0, 6],
-                [5, 3.0, 2.0, 22.0, 4],
-                [6, 1.0, 0.0, 5.0, 5],
+                [1, 2.0, 1.0, 1.5],
+                [2, 1.0, 37.0, 2],
+                [3, 3.0, 33.0, 3],
+                [4, 3.0, 2.0, 6],
+                [5, 3.0, 20.0, 4],
+                [6, 1.0, 5.0, 5],
             ],
-            columns=["customer_id", "frequency", "recency", "T", "monetary_value"],
+            columns=["customer_id", "frequency", "recency", "monetary_value"],
         )
         assert_frame_equal(actual_first_trans, expected_first_trans)
 

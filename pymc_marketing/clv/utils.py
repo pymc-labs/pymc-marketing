@@ -305,8 +305,13 @@ def rfm_summary(
 
     This transforms a DataFrame of transaction data of the form:
         customer_id, datetime [, monetary_value]
-    to a DataFrame of the form:
+    to a DataFrame for CLV modeling:
         customer_id, frequency, recency, T [, monetary_value]
+
+    If the `include_first_transaction = True` argument is specified, a DataFrame for RFM segmentation is returned:
+        customer_id, frequency, recency, monetary_value
+
+    This function is not required if using the `rfm_segments` utility.
 
     Adapted from lifetimes package
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L230
@@ -321,7 +326,7 @@ def rfm_summary(
         Column in the transactions DataFrame that denotes the datetime the purchase was made.
     monetary_value_col: string, optional
         Column in the transactions DataFrame that denotes the monetary value of the transaction.
-        Optional; only needed for spend estimation models like the Gamma-Gamma model.
+        Optional; only needed for RFM segmentation and spend estimation models like the Gamma-Gamma model.
     observation_period_end: Union[str, pd.Period, datetime], optional
         A string or datetime to denote the final date of the study.
         Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
@@ -388,24 +393,32 @@ def rfm_summary(
         datetime_col
     ].agg(["min", "max", "count"])
 
-    if not include_first_transaction:
-        # subtract 1 from count, as we ignore their first order.
-        customers["frequency"] = customers["count"] - 1
-    else:
-        customers["frequency"] = customers["count"]
+    # subtract 1 from count, as we ignore the first order.
+    customers["frequency"] = customers["count"] - 1
 
-    customers["T"] = (
-        (observation_period_end_ts - customers["min"])
-        / np.timedelta64(1, time_unit)
-        / time_scaler
-    )
     customers["recency"] = (
         (pd.to_datetime(customers["max"]) - pd.to_datetime(customers["min"]))  # type: ignore
         / np.timedelta64(1, time_unit)
         / time_scaler
     )
 
+    customers["T"] = (
+        (observation_period_end_ts - customers["min"])
+        / np.timedelta64(1, time_unit)
+        / time_scaler
+    )
+
     summary_columns = ["frequency", "recency", "T"]
+
+    if include_first_transaction:
+        # add the first order back to the frequency count
+        customers["frequency"] = customers["frequency"] + 1
+
+        # change recency to segmentation definition
+        customers["recency"] = customers["T"] - customers["recency"]
+
+        # T column is not used for segmentation
+        summary_columns = ["frequency", "recency"]
 
     if monetary_value_col:
         if not include_first_transaction:
@@ -627,6 +640,14 @@ def rfm_segments(
     RFM scores corresponding to segments such as "Top Spender", "Frequent Buyer", or "At-Risk" are determined, and
     customers are then segmented based on their RFM score.
 
+    By default, the following segments are created:
+        "Premium Customer": Customers in top 2 quartiles for all variables.
+        "Repeat Customer": Customers in top 2 quartiles for frequency, and either recency or monetary value.
+        "Top Spender": Customers in top 2 quartiles for monetary value, and either frequency or recency.
+        "At-Risk Customer": Customers in bottom 2 quartiles for two or more variables.
+        "Inactive Customer": Customers in bottom quartile for two or more variables.
+        Customers with unspecified RFM scores will be assigned to a segment named "Other".
+
     If an alternative segmentation approach is desired, use
     `rfm_summary(include_first_transaction=True, *args, **kwargs)` instead to preprocess data for segmentation.
     In either case, the returned DataFrame cannot be used for modeling.
@@ -646,13 +667,7 @@ def rfm_segments(
     segment_config: dict, optional
         Dictionary containing segment names and list of RFM score assignments;
         key/value pairs should be formatted as `{"segment": ['111', '123', '321'], ...}`.
-        If not provided, the following segment names and definitions are used:
-            "Premium Customer": Customers in top 2 quartiles for all variables.
-            "Repeat Customer": Customers in top 2 quartiles for frequency, and either recency or monetary value.
-            "Top Spender": Customers in top 2 quartiles for monetary value, and either frequency or recency.
-            "At-Risk Customer": Customers in bottom 2 quartiles for two or more variables.
-            "Inactive Customer": Customers in bottom quartile for two or more variables.
-        Customers with unspecified RFM scores will be assigned to a segment named "Other".
+        If not provided, default segment names and definitions are applied.
     observation_period_end: Union[str, pd.Period, datetime, None], optional
         A string or datetime to denote the final date of the study.
         Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
@@ -691,9 +706,6 @@ def rfm_segments(
         include_first_transaction=True,
         sort_transactions=sort_transactions,
     )
-
-    # change recency to segmentation definition
-    rfm_data["recency"] = rfm_data["T"] - rfm_data["recency"]
 
     # iteratively assign quartile labels for each row/variable
     for column_name in zip(
@@ -737,7 +749,7 @@ def rfm_segments(
         rfm_data.loc[rfm_data["rfm_score"].isin(segment_config[key]), "segment"] = key
 
     # drop unnecessary columns
-    rfm_data = rfm_data.drop(columns=["r_quartile", "f_quartile", "m_quartile", "T"])
+    rfm_data = rfm_data.drop(columns=["r_quartile", "f_quartile", "m_quartile"])
 
     return rfm_data
 
