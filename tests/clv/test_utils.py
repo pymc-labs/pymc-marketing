@@ -23,8 +23,10 @@ from pandas.testing import assert_frame_equal
 from pymc_marketing.clv import BetaGeoModel, GammaGammaModel, ParetoNBDModel
 from pymc_marketing.clv.utils import (
     _find_first_transactions,
+    _rfm_quartile_labels,
     clv_summary,
     customer_lifetime_value,
+    rfm_segments,
     rfm_summary,
     rfm_train_test_split,
     to_xarray,
@@ -350,20 +352,20 @@ class TestRFM:
             [5, "2015-01-18", 8],
             [6, "2015-02-02", 5],
         ]
-        return pd.DataFrame(d, columns=["id", "date", "monetary_value"])
+        return pd.DataFrame(d, columns=["identifier", "date", "monetary_value"])
 
     def test_find_first_transactions_test_period_end_none(self, transaction_data):
         max_date = transaction_data["date"].max()
         pd.testing.assert_frame_equal(
             left=_find_first_transactions(
                 transactions=transaction_data,
-                customer_id_col="id",
+                customer_id_col="identifier",
                 datetime_col="date",
                 observation_period_end=None,
             ),
             right=_find_first_transactions(
                 transactions=transaction_data,
-                customer_id_col="id",
+                customer_id_col="identifier",
                 datetime_col="date",
                 observation_period_end=max_date,
             ),
@@ -382,7 +384,7 @@ class TestRFM:
 
         actual = _find_first_transactions(
             transaction_data,
-            "id",
+            "identifier",
             "date",
             observation_period_end=today,
         )
@@ -402,7 +404,7 @@ class TestRFM:
                 [5, pd.Period("2015-01-18", "D"), False],
                 [6, pd.Period("2015-02-02", "D"), True],
             ],
-            columns=["id", "date", "first"],
+            columns=["identifier", "date", "first"],
             index=[0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13],
         )  # row indices are skipped for time periods with multiple transactions
         assert_frame_equal(actual, expected)
@@ -420,7 +422,7 @@ class TestRFM:
 
         actual = _find_first_transactions(
             transaction_data,
-            "id",
+            "identifier",
             "date",
             observation_period_end=today,
             time_unit="W",
@@ -437,7 +439,7 @@ class TestRFM:
                 [5, pd.Period("2015-01-12/2015-01-18", "W-SUN"), True],
                 [6, pd.Period("2015-02-02/2015-02-08", "W-SUN"), True],
             ],
-            columns=["id", "date", "first"],
+            columns=["identifier", "date", "first"],
             index=actual.index,
         )  # we shouldn't really care about row ordering or indexing, but assert_frame_equals is strict about it
         assert_frame_equal(actual, expected)
@@ -455,7 +457,7 @@ class TestRFM:
 
         actual = _find_first_transactions(
             transaction_data,
-            "id",
+            "identifier",
             "date",
             "monetary_value",
             observation_period_end=today,
@@ -476,7 +478,7 @@ class TestRFM:
                 [5, pd.Period("2015-01-18", "D"), 8, False],
                 [6, pd.Period("2015-02-02", "D"), 5, True],
             ],
-            columns=["id", "date", "monetary_value", "first"],
+            columns=["identifier", "date", "monetary_value", "first"],
         )
         assert_frame_equal(actual, expected)
 
@@ -493,7 +495,7 @@ class TestRFM:
 
         actual = _find_first_transactions(
             transaction_data,
-            "id",
+            "identifier",
             "date",
             "monetary_value",
             observation_period_end=today,
@@ -511,7 +513,7 @@ class TestRFM:
                 [5, pd.Period("2015-01-12/2015-01-18", "W-SUN"), 12, True],
                 [6, pd.Period("2015-02-02/2015-02-08", "W-SUN"), 5, True],
             ],
-            columns=["id", "date", "monetary_value", "first"],
+            columns=["identifier", "date", "monetary_value", "first"],
         )
         assert_frame_equal(actual, expected)
 
@@ -525,7 +527,7 @@ class TestRFM:
         # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L239
 
         actual = rfm_summary(
-            transaction_data, "id", "date", observation_period_end=today
+            transaction_data, "identifier", "date", observation_period_end=today
         )
         expected = pd.DataFrame(
             [
@@ -552,8 +554,8 @@ class TestRFM:
             ["Y", "2015-01-02"],
             ["Y", "2015-01-05"],
         ]
-        df = pd.DataFrame(d, columns=["id", "date"])
-        rfm_summary(df, "id", "date")
+        df = pd.DataFrame(d, columns=["identifier", "date"])
+        rfm_summary(df, "identifier", "date")
 
     def test_rfm_summary_works_with_int_customer_ids_and_doesnt_coerce_to_float(self):
         # Test adapted from
@@ -567,8 +569,8 @@ class TestRFM:
             [2, "2015-01-02"],
             [2, "2015-01-05"],
         ]
-        df = pd.DataFrame(d, columns=["id", "date"])
-        actual = rfm_summary(df, "id", "date")
+        df = pd.DataFrame(d, columns=["identifier", "date"])
+        actual = rfm_summary(df, "identifier", "date")
         assert actual.index.dtype == "int64"
 
     def test_rfm_summary_with_specific_datetime_format(
@@ -585,7 +587,7 @@ class TestRFM:
         today = "20150207"
         actual = rfm_summary(
             transaction_data,
-            "id",
+            "identifier",
             "date",
             observation_period_end=today,
             datetime_format=format,
@@ -614,7 +616,7 @@ class TestRFM:
         today = "20150207"
         actual = rfm_summary(
             transaction_data,
-            "id",
+            "identifier",
             "date",
             observation_period_end=today,
             time_unit="W",
@@ -642,7 +644,7 @@ class TestRFM:
         today = "20150207"
         actual = rfm_summary(
             transaction_data,
-            "id",
+            "identifier",
             "date",
             monetary_value_col="monetary_value",
             observation_period_end=today,
@@ -662,7 +664,7 @@ class TestRFM:
 
         actual_first_trans = rfm_summary(
             transaction_data,
-            "id",
+            "identifier",
             "date",
             monetary_value_col="monetary_value",
             observation_period_end=today,
@@ -670,14 +672,14 @@ class TestRFM:
         )
         expected_first_trans = pd.DataFrame(
             [
-                [1, 2.0, 36.0, 37.0, 1.5],
-                [2, 1.0, 0.0, 37.0, 2],
-                [3, 3.0, 4.0, 37.0, 3],
-                [4, 3.0, 20.0, 22.0, 6],
-                [5, 3.0, 2.0, 22.0, 4],
-                [6, 1.0, 0.0, 5.0, 5],
+                [1, 2.0, 1.0, 1.5],
+                [2, 1.0, 37.0, 2],
+                [3, 3.0, 33.0, 3],
+                [4, 3.0, 2.0, 6],
+                [5, 3.0, 20.0, 4],
+                [6, 1.0, 5.0, 5],
             ],
-            columns=["customer_id", "frequency", "recency", "T", "monetary_value"],
+            columns=["customer_id", "frequency", "recency", "monetary_value"],
         )
         assert_frame_equal(actual_first_trans, expected_first_trans)
 
@@ -695,9 +697,11 @@ class TestRFM:
         )
         sales = pd.Series([10, 20, 25])
         transaction_data = pd.DataFrame(
-            {"date": dates_ordered, "id": cust, "sales": sales}
+            {"date": dates_ordered, "identifier": cust, "sales": sales}
         )
-        summary_ordered_data = rfm_summary(transaction_data, "id", "date", "sales")
+        summary_ordered_data = rfm_summary(
+            transaction_data, "identifier", "date", "sales"
+        )
 
         dates_unordered = pd.to_datetime(
             pd.Series(
@@ -706,9 +710,11 @@ class TestRFM:
         )
         sales = pd.Series([20, 10, 25])
         transaction_data = pd.DataFrame(
-            {"date": dates_unordered, "id": cust, "sales": sales}
+            {"date": dates_unordered, "identifier": cust, "sales": sales}
         )
-        summary_unordered_data = rfm_summary(transaction_data, "id", "date", "sales")
+        summary_unordered_data = rfm_summary(
+            transaction_data, "identifier", "date", "sales"
+        )
 
         assert_frame_equal(summary_ordered_data, summary_unordered_data)
         assert summary_ordered_data["monetary_value"].loc[0] == 22.5
@@ -744,21 +750,21 @@ class TestRFM:
         # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L472
 
         transactions = pd.DataFrame(
-            [[1, "2015-01-01"], [1, "2015-01-01"]], columns=["id", "t"]
+            [[1, "2015-01-01"], [1, "2015-01-01"]], columns=["identifier", "t"]
         )
-        actual = rfm_summary(transactions, "id", "t", time_unit="W")
+        actual = rfm_summary(transactions, "identifier", "t", time_unit="W")
         assert actual.loc[0]["frequency"] == 1.0 - 1.0
 
     def test_clv_summary_warning(self, transaction_data):
         with pytest.warns(UserWarning, match="clv_summary was renamed to rfm_summary"):
-            clv_summary(transaction_data, "id", "date")
+            clv_summary(transaction_data, "identifier", "date")
 
     def test_rfm_train_test_split(self, transaction_data):
         # Test adapted from
         # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L374
 
         train_end = "2015-02-01"
-        actual = rfm_train_test_split(transaction_data, "id", "date", train_end)
+        actual = rfm_train_test_split(transaction_data, "identifier", "date", train_end)
         assert actual.loc[0]["test_frequency"] == 1
         assert actual.loc[1]["test_frequency"] == 0
 
@@ -781,7 +787,11 @@ class TestRFM:
 
         with pytest.raises(ValueError, match=error_msg):
             rfm_train_test_split(
-                transaction_data, "id", "date", train_end, test_period_end=test_end
+                transaction_data,
+                "identifier",
+                "date",
+                train_end,
+                test_period_end=test_end,
             )
 
     def test_rfm_train_test_split_works_with_specific_frequency(self, transaction_data):
@@ -792,7 +802,7 @@ class TestRFM:
         train_end = "2015-02-01"
         actual = rfm_train_test_split(
             transaction_data,
-            "id",
+            "identifier",
             "date",
             train_end,
             test_period_end=test_end,
@@ -824,7 +834,7 @@ class TestRFM:
 
         actual = rfm_train_test_split(
             transaction_data,
-            "id",
+            "identifier",
             "date",
             train_period_end="2015-02-01",
             test_period_end="2015-02-04",
@@ -840,7 +850,7 @@ class TestRFM:
         train_end = "2015-02-01"
         actual = rfm_train_test_split(
             transaction_data,
-            "id",
+            "identifier",
             "date",
             train_end,
             test_period_end=test_end,
@@ -849,4 +859,70 @@ class TestRFM:
         assert (actual["monetary_value"] == [0, 0, 3, 0, 4.5]).all()
         assert (actual["test_monetary_value"] == [2, 0, 0, 6, 0]).all()
 
-        # check test_monetary_value is being aggregated correctly for time periods with multiple purchases
+    @pytest.mark.parametrize("config", (None, "custom"))
+    def test_rfm_segmentation_config(self, transaction_data, config):
+        if config is not None:
+            config = {
+                "Test Segment": [
+                    "111",
+                    "222",
+                    "333",
+                    "444",
+                ]
+            }
+            expected = ["Other", "Test Segment", "Other", "Other", "Other", "Other"]
+        else:
+            expected = [
+                "Other",
+                "Inactive Customer",
+                "At Risk Customer",
+                "Premium Customer",
+                "Repeat Customer",
+                "Top Spender",
+            ]
+
+        actual = rfm_segments(
+            transaction_data,
+            "identifier",
+            "date",
+            "monetary_value",
+            segment_config=config,
+        )
+
+        assert (actual["segment"] == expected).all()
+
+    def test_rfm_segmentation_warning(self):
+        # this data will only return two bins for the frequency variable
+        d = [
+            [1, "2015-01-01", 1],
+            [1, "2015-02-06", 2],
+            [2, "2015-01-01", 2],
+            [3, "2015-01-02", 1],
+            [3, "2015-01-05", 3],
+            [4, "2015-01-16", 4],
+            [4, "2015-02-05", 5],
+            [5, "2015-01-17", 1],
+            [5, "2015-01-18", 2],
+            [5, "2015-01-19", 2],
+        ]
+        repetitive_data = pd.DataFrame(d, columns=["id", "date", "monetary_value"])
+
+        with pytest.warns(
+            UserWarning,
+            match="RFM score will not exceed 2 for f_quartile. Specify a custom segment_config",
+        ):
+            rfm_segments(
+                repetitive_data,
+                "id",
+                "date",
+                "monetary_value",
+            )
+
+    def test_rfm_quartile_labels(self):
+        # assert recency labels are in reverse order
+        recency = _rfm_quartile_labels("r_quartile", 5)
+        assert recency == [4, 3, 2, 1]
+
+        # assert max_quartile_range = 4 returns a range function for three labels
+        frequency = _rfm_quartile_labels("f_quartile", 4)
+        assert frequency == range(1, 4)
