@@ -278,7 +278,9 @@ class TestParetoNBD:
 
 
 class TestBetaGeoBetaBinom:
-    @pytest.mark.parametrize("batch_shape", [(), (5,)])
+    @pytest.mark.parametrize(
+        argnames="batch_shape", argvalues=[(), (5,)], ids=["scalar", "vector"]
+    )
     def test_logp_matches_lifetimes(self, batch_shape):
         rng = np.random.default_rng(269)
 

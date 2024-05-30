@@ -17,7 +17,6 @@ import pytensor.tensor as pt
 from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.dist_math import betaln, check_parameters
 from pymc.distributions.distribution import Discrete
-from pytensor import scan
 from pytensor.graph import vectorize_graph
 from pytensor.tensor.random.op import RandomVariable
 
@@ -609,27 +608,22 @@ class BetaGeoBetaBinom(Discrete):
             t_x, alpha, beta, gamma, delta, T
         )
 
-        def logp_customer_died(t_x_i, x_i, alpha_i, beta_i, gamma_i, delta_i, T_i):
-            i = pt.scalar("i", dtype=int)
-            died = pt.lt(t_x_i + i, T_i)
+        i = pt.scalar("i", dtype=int)
+        died = pt.lt(t_x + i, T)
 
-            unnorm_logprob_customer_died_at_tx_plus_i = betaln(
-                alpha_i + x_i, beta_i + t_x_i - x_i + i
-            ) + betaln(gamma_i + died, delta_i + t_x_i + i)
-
-            # Maximum prevents invalid T - t_x values from crashing logp
-            i_vec = pt.arange(pt.maximum(T_i - t_x_i, 0) + 1)
-            unnorm_logprob_customer_died_at_tx_plus_i_vec = vectorize_graph(
-                unnorm_logprob_customer_died_at_tx_plus_i, replace={i: i_vec}
-            )
-
-            return pt.logsumexp(unnorm_logprob_customer_died_at_tx_plus_i_vec)
-
-        unnorm_logp, _ = scan(
-            fn=logp_customer_died,
-            outputs_info=[None],
-            sequences=[t_x, x, alpha, beta, gamma, delta, T],
+        unnorm_logp_died_at_tx_plus_i = betaln(alpha + x, beta + t_x - x + i) + betaln(
+            gamma + died, delta + t_x + i
         )
+
+        # Maximum prevents invalid T - t_x values from crashing logp
+        max_range = pt.maximum(pt.max(T - t_x), 0)
+        i_vec = pt.arange(max_range + 1)
+        unnorm_logp_died_at_tx_plus_i_vec = vectorize_graph(
+            unnorm_logp_died_at_tx_plus_i,
+            replace={i: i_vec},
+        )
+
+        unnorm_logp = pt.logsumexp(unnorm_logp_died_at_tx_plus_i_vec, axis=0)
 
         logp = unnorm_logp - betaln(alpha, beta) - betaln(gamma, delta)
 
