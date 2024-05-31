@@ -89,6 +89,17 @@ def test_get_adstock_function(name, adstock_cls, kwargs):
     assert isinstance(adstock, adstock_cls)
 
 
+@pytest.mark.parametrize(
+    "adstock",
+    adstocks(),
+)
+def test_get_adstock_function_passthrough(adstock) -> None:
+    id_before = id(adstock)
+    id_after = id(_get_adstock_function(adstock))
+
+    assert id_after == id_before
+
+
 def test_get_adstock_function_unknown():
     with pytest.raises(
         ValueError, match="Unknown adstock function: Unknown. Choose from"
