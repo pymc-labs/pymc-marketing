@@ -131,6 +131,7 @@ class Transformation:
         new_priors = {
             parameter_name: priors[variable_name]
             for parameter_name, variable_name in self.variable_mapping.items()
+            if variable_name in priors
         }
         if not new_priors:
             available_priors = list(self.variable_mapping.values())

@@ -121,8 +121,8 @@ class WeibullAdstock(AdstockTransformation):
 
     def __init__(
         self,
-        l_max: int = 10,
-        normalize: bool = False,
+        l_max: int,
+        normalize: bool = True,
         kind=WeibullType.PDF,
         mode: ConvMode = ConvMode.After,
         priors: dict | None = None,
@@ -161,6 +161,15 @@ def _get_adstock_function(
     function: str | AdstockTransformation,
     **kwargs,
 ) -> AdstockTransformation:
+    """Helper for use in the MMM to get an adstock function."""
+    if isinstance(function, AdstockTransformation):
+        return function
+
+    if function not in ADSTOCK_TRANSFORMATIONS:
+        raise ValueError(
+            f"Unknown adstock function: {function}. Choose from {list(ADSTOCK_TRANSFORMATIONS.keys())}"
+        )
+
     if kwargs:
         warnings.warn(
             "The preferred method of initializing a lagging function is to use the class directly.",
@@ -168,7 +177,4 @@ def _get_adstock_function(
             stacklevel=1,
         )
 
-    if isinstance(function, str):
-        return ADSTOCK_TRANSFORMATIONS[function](**kwargs)
-
-    return function
+    return ADSTOCK_TRANSFORMATIONS[function](**kwargs)
