@@ -305,7 +305,6 @@ class TestBetaGeoBetaBinom:
         np.testing.assert_allclose(
             pm.logp(dist, value).eval(),
             BGBBF._loglikelihood((alpha, beta, gamma, delta), x, t_x, T),
-            rtol=1e-3,
         )
 
     def test_logp_matches_excel(self):
