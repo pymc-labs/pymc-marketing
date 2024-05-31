@@ -585,6 +585,7 @@ class BetaGeoBetaBinom(Discrete):
     def dist(cls, alpha, beta, gamma, delta, T, **kwargs):
         return super().dist([alpha, beta, gamma, delta, T], **kwargs)
 
+    @staticmethod
     def logp(value, alpha, beta, gamma, delta, T):
         t_x = pt.atleast_1d(value[..., 0])
         x = pt.atleast_1d(value[..., 1])
@@ -595,11 +596,10 @@ class BetaGeoBetaBinom(Discrete):
                 raise NotImplementedError(
                     f"BetaGeoBetaBinom logp only implemented for vector parameters, got ndim={param.type.ndim}"
                 )
-            if scalar_case:
-                if param.type.broadcastable == (False,):
-                    raise NotImplementedError(
-                        f"Parameter {param} cannot be larger than scalar value"
-                    )
+            if scalar_case and param.type.broadcastable == (False,):
+                raise NotImplementedError(
+                    f"Parameter {param} cannot be larger than scalar value"
+                )
 
         # Broadcast all the parameters so they are sequences.
         # Potentially inefficient, but otherwise ugly logic needed to unpack arguments in the scan function,
@@ -611,8 +611,13 @@ class BetaGeoBetaBinom(Discrete):
         i = pt.scalar("i", dtype=int)
         died = pt.lt(t_x + i, T)
 
-        unnorm_logp_died_at_tx_plus_i = betaln(alpha + x, beta + t_x - x + i) + betaln(
-            gamma + died, delta + t_x + i
+        unnorm_logp_died_at_tx_plus_i = pt.where(
+            pt.ge(T, t_x + i),
+            (
+                betaln(alpha + x, beta + t_x - x + i)
+                + betaln(gamma + died, delta + t_x + i)
+            ),
+            -np.inf,
         )
 
         # Maximum prevents invalid T - t_x values from crashing logp
