@@ -355,11 +355,74 @@ class BetaGeoModel(CLVModel):
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
+    def expected_purchases(
+        self,
+        data: pd.DataFrame | None = None,
+        *,
+        future_t: int | np.ndarray | pd.Series | None = None,
+    ) -> xarray.DataArray:
+        """
+        Predict the expected number of future purchases across *future_t* time periods given *recency*, *frequency*,
+        and *T* for each customer. `data` parameter is only required for out-of-sample customers.
+
+        Adapted from equation (10) in [1]_, and `lifetimes` package:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L201
+
+        Parameters
+        ----------
+        future_t: int, array_like
+            Number of time periods to predict expected purchases.
+        data: pd.DataFrame
+            Optional dataframe containing the following columns:
+                * `frequency`: number of repeat purchases
+                * `recency`: time between the first and the last purchase
+                * `T`: time between first purchase and end of observation period, model assumptions require T >= recency
+                * `customer_id`: unique customer identifier
+        References
+        ----------
+        .. [2] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005a),
+            "Counting Your Customers the Easy Way: An Alternative to the
+            Pareto/NBD Model," Marketing Science, 24 (2), 275-84.
+            https://www.brucehardie.com/papers/bgnbd_2004-04-20.pdf
+        """
+        if data is None:
+            data = self.data
+
+        if future_t is not None:
+            data = data.assign(future_t=future_t)
+
+        dataset = self._extract_predictive_variables(
+            data, customer_varnames=["frequency", "recency", "T", "future_t"]
+        )
+        a = dataset["a"]
+        b = dataset["b"]
+        alpha = dataset["alpha"]
+        r = dataset["r"]
+        x = dataset["frequency"]
+        t_x = dataset["recency"]
+        T = dataset["T"]
+        t = dataset["future_t"]
+
+        numerator = 1 - ((alpha + T) / (alpha + T + t)) ** (r + x) * hyp2f1(
+            r + x,
+            b + x,
+            a + b + x - 1,
+            t / (alpha + T + t),
+        )
+        numerator *= (a + b + x - 1) / (a - 1)
+        denominator = 1 + (x > 0) * (a / (b + x - 1)) * (
+            (alpha + T) / (alpha + t_x)
+        ) ** (r + x)
+
+        return (numerator / denominator).transpose(
+            "chain", "draw", "customer_id", missing_dims="ignore"
+        )
+
     def expected_probability_alive(
         self,
         data: pd.DataFrame | None = None,
     ) -> xarray.DataArray:
-        r"""
+        """
         Estimate probability a customer with history *frequency*, *recency*, and *T*
         is currently active. `data` parameter is only required for out-of-sample customers.
 

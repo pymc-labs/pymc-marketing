@@ -307,7 +307,7 @@ class TestBetaGeoModel:
             }
         )
 
-        # TODO: Move this into a separate test after API revisions completed.
+        # TODO: Give this its own test after API revisions completed.
         with pytest.warns(
             FutureWarning,
             match="Deprecated method. Use 'expected_purchases' instead.",
@@ -342,6 +342,28 @@ class TestBetaGeoModel:
             res_num_purchases.mean(("chain", "draw")),
             lifetimes_res_num_purchases,
             rtol=0.1,
+        )
+
+    @pytest.mark.parametrize("test_t", [1, 3, 6])
+    def test_expected_purchases(self, test_t):
+        true_purchases = (
+            self.lifetimes_model.conditional_expected_number_of_purchases_up_to_time(
+                t=test_t,
+                frequency=self.frequency,
+                recency=self.recency,
+                T=self.T,
+            )
+        )
+        data = self.model.data.assign(future_t=test_t)
+        est_num_purchases = self.model.expected_purchases(data)
+
+        assert est_num_purchases.shape == (self.chains, self.draws, self.N)
+        assert est_num_purchases.dims == ("chain", "draw", "customer_id")
+
+        np.testing.assert_allclose(
+            true_purchases,
+            est_num_purchases.mean(("chain", "draw")),
+            rtol=0.001,
         )
 
     @pytest.mark.parametrize("test_t", [1, 2, 3, 4, 5, 6])
