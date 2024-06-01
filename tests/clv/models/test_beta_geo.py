@@ -249,58 +249,20 @@ class TestBetaGeoModel:
         )
 
     def test_expected_probability_alive(self):
-        """
-        The "true" prefix refers to the value obtained using 1) the closed form
-        solution and 2) the data-generating parameter values.
-        """
-        rng = np.random.default_rng(152)
-
-        N = 100
-        # Almost deterministic p = .02, which yield a p(alive) ~ 0.5
-        a = 0.02 * 10_000
-        b = 0.98 * 10_000
-        alpha = 3
-        r = 4
-
-        recency, frequency, alive, T = self.generate_data(a, b, alpha, r, N, rng=rng)
-
-        customer_id = list(range(N))
-        data = pd.DataFrame(
-            {
-                "customer_id": customer_id,
-                "frequency": frequency,
-                "recency": recency,
-                "T": T,
-            }
-        )
-        bg_model = BetaGeoModel(
-            data=data,
-        )
-        bg_model.build_model()
-        fake_fit = az.from_dict(
-            {
-                "a": rng.normal(a, 1e-3, size=(2, 25)),
-                "b": rng.normal(b, 1e-3, size=(2, 25)),
-                "alpha": rng.normal(alpha, 1e-3, size=(2, 25)),
-                "r": rng.normal(r, 1e-3, size=(2, 25)),
-            }
-        )
-        bg_model.idata = fake_fit
-
-        est_prob_alive = bg_model.expected_probability_alive(
-            customer_id,
-            frequency,
-            recency,
-            T,
+        true_prob_alive = self.lifetimes_model.conditional_probability_alive(
+            frequency=self.frequency,
+            recency=self.recency,
+            T=self.T,
         )
 
-        assert est_prob_alive.shape == (2, 25, N)
+        est_prob_alive = self.model.expected_probability_alive()
+
+        assert est_prob_alive.shape == (self.chains, self.draws, self.N)
         assert est_prob_alive.dims == ("chain", "draw", "customer_id")
-
         np.testing.assert_allclose(
-            alive.mean(),
-            est_prob_alive.mean(),
-            rtol=0.05,
+            true_prob_alive,
+            est_prob_alive.mean(("chain", "draw")),
+            rtol=0.001,
         )
 
     def test_fit_result_without_fit(self, model_config):

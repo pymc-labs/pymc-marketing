@@ -357,66 +357,54 @@ class BetaGeoModel(CLVModel):
 
     def expected_probability_alive(
         self,
-        customer_id: np.ndarray | pd.Series,
-        frequency: np.ndarray | pd.Series,
-        recency: np.ndarray | pd.Series,
-        T: np.ndarray | pd.Series,
+        data: pd.DataFrame | None = None,
     ) -> xarray.DataArray:
         r"""
-        Posterior expected value of the probability of being alive at time T. The
-        derivation of the closed form solution is available in [2].
+        Estimate probability a customer with history *frequency*, *recency*, and *T*
+        is currently active. `data` parameter is only required for out-of-sample customers.
 
-        .. math::
-            P\left( \text{alive} \mid x, t_x, T, r, \alpha, a, b \right)
-            = 1 \Big/
-                \left\{
-                    1 + \delta_{x>0} \frac{a}{b + x - 1}
-                        \left(
-                            \frac{\alpha + T}{\alpha + t_x}
-                        \right)^{r + x}
-                \right\}
-        """
-        T = np.asarray(T)
-        if T.size != 1:
-            T = to_xarray(customer_id, T)
-
-        frequency, recency = to_xarray(customer_id, frequency, recency)
-
-        a, b, alpha, r = self._unload_params()
-
-        log_div = (r + frequency) * np.log((alpha + T) / (alpha + recency)) + np.log(
-            a / (b + np.maximum(frequency, 1) - 1)
-        )
-
-        return xarray.where(frequency == 0, 1.0, expit(-log_div)).transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
-        )
-
-    def expected_num_purchases_new_customer(self, *args, **kwargs):
-        r"""
-        Posterior expected number of purchases for any interval of length :math:`t`. See
-        equation (9) of [1].
-
-        The customer_id shouldn't matter too much here since no individual-specific data
-        is conditioned on.
-
-        .. math::
-            \mathbb{E}\left(X(t) \mid r, \alpha, a, b \right)
-            = \frac{a + b - 1}{a - 1}
-            \left[
-                1 - \left(\frac{\alpha}{\alpha + t}\right)^r
-                \text{hyp2f1}\left(r, b; a + b - 1; \frac{t}{\alpha + t}\right)
-            \right]
+        Adapted from page (2) in Bruce Hardie's notes [3]_ and `lifetimes` package:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L260
 
         Parameters
         ----------
-        t : np.ndarray | pd.Series
-            Time interval for which to predict the number of future purchases.
+        data: pd.DataFrame
+            Optional dataframe containing the following columns:
+                * `frequency`: number of repeat purchases
+                * `recency`: time between the first and the last purchase
+                * `T`: time between first purchase and end of observation period, model assumptions require T >= recency
+                * `customer_id`: unique customer identifier
 
-        Returns
-        -------
-        xarray.DataArray
-            Expected number of purchases in the next time interval of length :math:`t`.
+        References
+        ----------
+        .. [2] Fader, P. S., Hardie, B. G., & Lee, K. L. (2008). Computing
+               P (alive) using the BG/NBD model. http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
+        """
+        if data is None:
+            data = self.data
+
+        dataset = self._extract_predictive_variables(
+            data, customer_varnames=["frequency", "recency", "T"]
+        )
+        a = dataset["a"]
+        b = dataset["b"]
+        alpha = dataset["alpha"]
+        r = dataset["r"]
+        x = dataset["frequency"]
+        t_x = dataset["recency"]
+        T = dataset["T"]
+
+        log_div = (r + x) * np.log((alpha + T) / (alpha + t_x)) + np.log(
+            a / (b + np.maximum(x, 1) - 1)
+        )
+
+        return xarray.where(x == 0, 1.0, expit(-log_div)).transpose(
+            "chain", "draw", "customer_id", missing_dims="ignore"
+        )
+
+    def expected_num_purchases_new_customer(self, *args, **kwargs) -> xarray.DataArray:
+        """
+        Deprecated method. Use `expected_purchases_new_customer` instead.
         """
         warnings.warn(
             "Deprecated method. Use 'expected_purchases_new_customer' instead.",
@@ -428,7 +416,7 @@ class BetaGeoModel(CLVModel):
     def expected_purchases_new_customer(
         self,
         t: np.ndarray | pd.Series,
-    ):
+    ) -> xarray.DataArray:
         """
         Expected number of purchases for a new customer across *t* time periods.
 
