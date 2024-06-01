@@ -427,7 +427,6 @@ class BetaGeoModel(CLVModel):
 
     def expected_purchases_new_customer(
         self,
-        *,
         t: np.ndarray | pd.Series,
     ):
         """
@@ -451,8 +450,8 @@ class BetaGeoModel(CLVModel):
             data = self.data.assign(t=t)
 
         dataset = self._extract_predictive_variables(data, customer_varnames=["t"])
-        a = dataset["r"]
-        b = dataset["r"]
+        a = dataset["a"]
+        b = dataset["b"]
         alpha = dataset["alpha"]
         r = dataset["r"]
         t = dataset["t"]
