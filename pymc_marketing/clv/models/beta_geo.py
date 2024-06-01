@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
-import xarray as xr
+import xarray
 from pymc.distributions.dist_math import check_parameters
 from pymc.util import RandomState
 from pytensor.tensor import TensorVariable
@@ -229,6 +229,45 @@ class BetaGeoModel(CLVModel):
 
         return a, b, alpha, r
 
+    def _extract_predictive_variables(
+        self,
+        data: pd.DataFrame,
+        customer_varnames: Sequence[str] = (),
+    ) -> xarray.Dataset:
+        """Utility function assigning default customer arguments
+        for predictive methods and converting to xarrays.
+        """
+        self._validate_cols(
+            data,
+            required_cols=[
+                "customer_id",
+                *customer_varnames,
+            ],
+            must_be_unique=["customer_id"],
+        )
+
+        a = self.fit_result["a"]
+        b = self.fit_result["b"]
+        alpha = self.fit_result["alpha"]
+        r = self.fit_result["r"]
+
+        customer_vars = to_xarray(
+            data["customer_id"],
+            *[data[customer_varname] for customer_varname in customer_varnames],
+        )
+        if len(customer_varnames) == 1:
+            customer_vars = [customer_vars]
+
+        return xarray.combine_by_coords(
+            (
+                a,
+                b,
+                alpha,
+                r,
+                *customer_vars,
+            )
+        )
+
     # taken from https://lifetimes.readthedocs.io/en/latest/lifetimes.fitters.html
     def expected_num_purchases(
         self,
@@ -237,7 +276,7 @@ class BetaGeoModel(CLVModel):
         frequency: np.ndarray | pd.Series | TensorVariable,
         recency: np.ndarray | pd.Series | TensorVariable,
         T: np.ndarray | pd.Series | TensorVariable,
-    ) -> xr.DataArray:
+    ) -> xarray.DataArray:
         r"""
         Given a purchase history/profile of :math:`x` and :math:`t_x` for an individual
         customer, this method returns the expected number of future purchases in the
@@ -277,7 +316,7 @@ class BetaGeoModel(CLVModel):
 
         Returns
         -------
-        xr.DataArray
+        xarray.DataArray
             Expected number of purchases in the next time interval of length :math:`t`.
         """
         t = np.asarray(t)
@@ -314,7 +353,7 @@ class BetaGeoModel(CLVModel):
         frequency: np.ndarray | pd.Series,
         recency: np.ndarray | pd.Series,
         T: np.ndarray | pd.Series,
-    ) -> xr.DataArray:
+    ) -> xarray.DataArray:
         r"""
         Posterior expected value of the probability of being alive at time T. The
         derivation of the closed form solution is available in [2].
@@ -341,7 +380,7 @@ class BetaGeoModel(CLVModel):
             a / (b + np.maximum(frequency, 1) - 1)
         )
 
-        return xr.where(frequency == 0, 1.0, expit(-log_div)).transpose(
+        return xarray.where(frequency == 0, 1.0, expit(-log_div)).transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
@@ -371,7 +410,7 @@ class BetaGeoModel(CLVModel):
 
         Returns
         -------
-        xr.DataArray
+        xarray.DataArray
             Expected number of purchases in the next time interval of length :math:`t`.
         """
         t = np.asarray(t)
@@ -393,7 +432,7 @@ class BetaGeoModel(CLVModel):
         self,
         random_seed: RandomState | None = None,
         var_names: Sequence[str] = ("population_dropout", "population_purchase_rate"),
-    ) -> xr.Dataset:
+    ) -> xarray.Dataset:
         with pm.Model():
             a = pm.HalfFlat("a")
             b = pm.HalfFlat("b")
@@ -419,7 +458,7 @@ class BetaGeoModel(CLVModel):
     def distribution_new_customer_dropout(
         self,
         random_seed: RandomState | None = None,
-    ) -> xr.Dataset:
+    ) -> xarray.Dataset:
         """Sample the Beta distribution for the population-level dropout rate.
 
         This is the probability that a new customer will not make another purchase ("drops out")
@@ -432,7 +471,7 @@ class BetaGeoModel(CLVModel):
 
         Returns
         -------
-        xr.Dataset
+        xarray.Dataset
             Dataset containing the posterior samples for the population-level dropout rate.
         """
         return self._distribution_new_customers(
@@ -443,7 +482,7 @@ class BetaGeoModel(CLVModel):
     def distribution_new_customer_purchase_rate(
         self,
         random_seed: RandomState | None = None,
-    ) -> xr.Dataset:
+    ) -> xarray.Dataset:
         """Sample the Gamma distribution for the population-level purchase rate.
 
         This is the purchase rate for a new customer and determines the time between
@@ -456,7 +495,7 @@ class BetaGeoModel(CLVModel):
 
         Returns
         -------
-        xr.Dataset
+        xarray.Dataset
             Dataset containing the posterior samples for the population-level purchase rate.
         """
         return self._distribution_new_customers(
