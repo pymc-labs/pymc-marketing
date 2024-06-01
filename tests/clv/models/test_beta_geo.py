@@ -351,8 +351,7 @@ class TestBetaGeoModel:
         # TODO: Move this into a separate test after API revisions completed.
         with pytest.warns(
             FutureWarning,
-            match="Use 'expected_purchases' instead. \
-            This method is deprecated and will be removed in a future release.",
+            match="Deprecated method. Use 'expected_purchases' instead.",
         ):
             res_num_purchases = bg_model.expected_num_purchases(
                 customer_id,
@@ -414,8 +413,7 @@ class TestBetaGeoModel:
         # TODO: Move this into a separate test after API revisions completed.
         with pytest.warns(
             FutureWarning,
-            match="Use 'expected_purchases_new_customer' instead. \
-            This method is deprecated and will be removed in a future release.",
+            match="Deprecated method. Use 'expected_purchases_new_customer' instead.",
         ):
             res_num_purchases_new_customer = (
                 bg_model.expected_num_purchases_new_customer(test_t)
@@ -440,6 +438,15 @@ class TestBetaGeoModel:
             lifetimes_res_num_purchases_new_customer,
             rtol=1,
         )
+
+    def test_expected_purchases_new_customer_warning(self):
+        # TODO: Move this into a separate test after API revisions completed.
+        with pytest.warns(
+            FutureWarning,
+            match="Use 'expected_purchases_new_customer' instead. \
+                This method is deprecated and will be removed in a future release.",
+        ):
+            self.model.expected_num_purchases_new_customer(t=10)
 
     def test_model_repr(self, data):
         model_config = {

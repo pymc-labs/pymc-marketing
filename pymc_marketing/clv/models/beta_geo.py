@@ -322,7 +322,7 @@ class BetaGeoModel(CLVModel):
             Expected number of purchases in the next time interval of length :math:`t`.
         """
         warnings.warn(
-            "Use 'expected_purchases' instead. This method is deprecated and will be removed in a future release.",
+            "Deprecated method. Use 'expected_purchases' instead.",
             FutureWarning,
             stacklevel=1,
         )
@@ -392,10 +392,7 @@ class BetaGeoModel(CLVModel):
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
-    def expected_num_purchases_new_customer(
-        self,
-        t: np.ndarray | pd.Series,
-    ):
+    def expected_num_purchases_new_customer(self, *args, **kwargs):
         r"""
         Posterior expected number of purchases for any interval of length :math:`t`. See
         equation (9) of [1].
@@ -422,25 +419,51 @@ class BetaGeoModel(CLVModel):
             Expected number of purchases in the next time interval of length :math:`t`.
         """
         warnings.warn(
-            "Use 'expected_purchases_new_customer' instead. \
-            This method is deprecated and will be removed in a future release.",
+            "Deprecated method. Use 'expected_purchases_new_customer' instead.",
             FutureWarning,
             stacklevel=1,
         )
+        self.expected_purchases_new_customer(*args, **kwargs)
 
-        t = np.asarray(t)
-        if t.size != 1:
-            t = to_xarray(range(len(t)), t, dim="t")
+    def expected_purchases_new_customer(
+        self,
+        *,
+        t: np.ndarray | pd.Series,
+    ):
+        """
+        Expected number of purchases for a new customer across *t* time periods.
 
-        a, b, alpha, r = self._unload_params()
+        Adapted from equation (9) in [1]_, and `lifetimes` library:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L328
 
-        left_term = (a + b - 1) / (a - 1)
-        right_term = 1 - (alpha / (alpha + t)) ** r * hyp2f1(
+        Parameters
+        ----------
+        t: array_like
+            Number of time periods over which to estimate purchases.
+        References
+        ----------
+        .. [2] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005a),
+            "Counting Your Customers the Easy Way: An Alternative to the
+            Pareto/NBD Model," Marketing Science, 24 (2), 275-84.
+            http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf
+        """
+        if t is not None:
+            data = self.data.assign(t=t)
+
+        dataset = self._extract_predictive_variables(data, customer_varnames=["t"])
+        a = dataset["r"]
+        b = dataset["r"]
+        alpha = dataset["alpha"]
+        r = dataset["r"]
+        t = dataset["t"]
+
+        first_term = (a + b - 1) / (a - 1)
+        second_term = 1 - (alpha / (alpha + t)) ** r * hyp2f1(
             r, b, a + b - 1, t / (alpha + t)
         )
 
-        return (left_term * right_term).transpose(
-            "chain", "draw", "t", missing_dims="ignore"
+        return (first_term * second_term).transpose(
+            "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
     def _distribution_new_customers(
