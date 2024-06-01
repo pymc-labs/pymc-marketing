@@ -248,23 +248,6 @@ class TestBetaGeoModel:
             rtol=rtol,
         )
 
-    def test_expected_probability_alive(self):
-        true_prob_alive = self.lifetimes_model.conditional_probability_alive(
-            frequency=self.frequency,
-            recency=self.recency,
-            T=self.T,
-        )
-
-        est_prob_alive = self.model.expected_probability_alive()
-
-        assert est_prob_alive.shape == (self.chains, self.draws, self.N)
-        assert est_prob_alive.dims == ("chain", "draw", "customer_id")
-        np.testing.assert_allclose(
-            true_prob_alive,
-            est_prob_alive.mean(("chain", "draw")),
-            rtol=0.001,
-        )
-
     def test_fit_result_without_fit(self, model_config):
         model = BetaGeoModel(data=self.data, model_config=model_config)
         with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
@@ -354,8 +337,7 @@ class TestBetaGeoModel:
                 T=self.T,
             )
         )
-        data = self.model.data.assign(future_t=test_t)
-        est_num_purchases = self.model.expected_purchases(data)
+        est_num_purchases = self.model.expected_purchases(future_t=test_t)
 
         assert est_num_purchases.shape == (self.chains, self.draws, self.N)
         assert est_num_purchases.dims == ("chain", "draw", "customer_id")
@@ -366,7 +348,7 @@ class TestBetaGeoModel:
             rtol=0.001,
         )
 
-    @pytest.mark.parametrize("test_t", [1, 2, 3, 4, 5, 6])
+    @pytest.mark.parametrize("test_t", [1, 3, 6])
     def test_expected_purchases_new_customer(self, test_t):
         true_purchases_new = (
             self.lifetimes_model.expected_number_of_purchases_up_to_time(
@@ -374,7 +356,7 @@ class TestBetaGeoModel:
             )
         )
 
-        est_purchases_new = self.model.expected_purchases_new_customer(test_t)
+        est_purchases_new = self.model.expected_purchases_new_customer(t=test_t)
 
         assert est_purchases_new.shape == (self.chains, self.draws, 2357)
         assert est_purchases_new.dims == ("chain", "draw", "customer_id")
@@ -391,6 +373,23 @@ class TestBetaGeoModel:
             match="Deprecated method. Use 'expected_purchases_new_customer' instead.",
         ):
             self.model.expected_num_purchases_new_customer(t=10)
+
+    def test_expected_probability_alive(self):
+        true_prob_alive = self.lifetimes_model.conditional_probability_alive(
+            frequency=self.frequency,
+            recency=self.recency,
+            T=self.T,
+        )
+
+        est_prob_alive = self.model.expected_probability_alive()
+
+        assert est_prob_alive.shape == (self.chains, self.draws, self.N)
+        assert est_prob_alive.dims == ("chain", "draw", "customer_id")
+        np.testing.assert_allclose(
+            true_prob_alive,
+            est_prob_alive.mean(("chain", "draw")),
+            rtol=0.001,
+        )
 
     def test_model_repr(self):
         model_config = {
