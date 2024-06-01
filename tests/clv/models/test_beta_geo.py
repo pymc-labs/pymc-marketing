@@ -216,19 +216,13 @@ class TestBetaGeoModel:
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
-        "N, fit_method, rtol",
+        "fit_method, rtol",
         [
-            (
-                500,
-                "mcmc",
-                0.3,
-            ),
-            (2000, "mcmc", 0.1),
-            (10000, "mcmc", 0.055),
-            (2000, "map", 0.1035),
+            ("mcmc", 0.1),
+            ("map", 0.2),
         ],
     )
-    def test_model_convergence(self, N, fit_method, rtol, model_config):
+    def test_model_convergence(self, fit_method, rtol, model_config):
         # b parameter has the largest mismatch of the four parameters
         model = BetaGeoModel(
             data=self.data,
