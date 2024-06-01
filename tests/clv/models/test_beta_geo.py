@@ -348,13 +348,19 @@ class TestBetaGeoModel:
             }
         )
 
-        res_num_purchases = bg_model.expected_num_purchases(
-            customer_id,
-            test_t,
-            test_frequency,
-            test_recency,
-            test_T,
-        )
+        # TODO: Move this into a separate test after API revisions completed.
+        with pytest.warns(
+            FutureWarning,
+            match="Use 'expected_purchases' instead. \
+            This method is deprecated and will be removed in a future release.",
+        ):
+            res_num_purchases = bg_model.expected_num_purchases(
+                customer_id,
+                test_t,
+                test_frequency,
+                test_recency,
+                test_T,
+            )
         assert res_num_purchases.shape == (2, 5, 10)
         assert res_num_purchases.dims == ("chain", "draw", "customer_id")
 
@@ -405,9 +411,15 @@ class TestBetaGeoModel:
             }
         )
 
-        res_num_purchases_new_customer = bg_model.expected_num_purchases_new_customer(
-            test_t
-        )
+        # TODO: Move this into a separate test after API revisions completed.
+        with pytest.warns(
+            FutureWarning,
+            match="Use 'expected_purchases_new_customer' instead. \
+            This method is deprecated and will be removed in a future release.",
+        ):
+            res_num_purchases_new_customer = (
+                bg_model.expected_num_purchases_new_customer(test_t)
+            )
         assert res_num_purchases_new_customer.shape == (2, 5, 10)
         assert res_num_purchases_new_customer.dims == ("chain", "draw", "t")
 

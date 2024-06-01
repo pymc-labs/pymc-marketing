@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import warnings
 from collections.abc import Sequence
 
 import numpy as np
@@ -220,6 +221,7 @@ class BetaGeoModel(CLVModel):
                 ),
             )
 
+    # TODO: delete this utility after API standardization is completed
     def _unload_params(self):
         trace = self.idata.posterior
         a = trace["a"]
@@ -319,6 +321,12 @@ class BetaGeoModel(CLVModel):
         xarray.DataArray
             Expected number of purchases in the next time interval of length :math:`t`.
         """
+        warnings.warn(
+            "Use 'expected_purchases' instead. This method is deprecated and will be removed in a future release.",
+            FutureWarning,
+            stacklevel=1,
+        )
+
         t = np.asarray(t)
         if t.size != 1:
             t = to_xarray(customer_id, t)
@@ -413,6 +421,13 @@ class BetaGeoModel(CLVModel):
         xarray.DataArray
             Expected number of purchases in the next time interval of length :math:`t`.
         """
+        warnings.warn(
+            "Use 'expected_purchases_new_customer' instead. \
+            This method is deprecated and will be removed in a future release.",
+            FutureWarning,
+            stacklevel=1,
+        )
+
         t = np.asarray(t)
         if t.size != 1:
             t = to_xarray(range(len(t)), t, dim="t")
