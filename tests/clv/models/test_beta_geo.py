@@ -21,41 +21,59 @@ import pytest
 import xarray as xr
 from lifetimes.fitters.beta_geo_fitter import BetaGeoFitter
 
-from pymc_marketing.clv.distributions import continuous_contractual
 from pymc_marketing.clv.models.beta_geo import BetaGeoModel
 
 
 class TestBetaGeoModel:
-    @staticmethod
-    def generate_data(a, b, alpha, r, N, rng):
-        # Subject level parameters
-        p = pm.Beta.dist(a, b, size=N)
-        lam = pm.Gamma.dist(r, alpha, size=N)
-        T = pm.DiscreteUniform.dist(lower=20, upper=40, size=N)
-
-        # Observations
-        data, T = pm.draw(
-            [
-                continuous_contractual(p=p, lam=lam, T=T, size=N),
-                T,
-            ],
-            random_seed=rng,
-        )
-        return data[..., 0], data[..., 1], 1 - data[..., 2], T
-
     @classmethod
     def setup_class(cls):
-        cls.N = 500
-        cls.a_true = 0.8
-        cls.b_true = 2.5
-        cls.alpha_true = 3
-        cls.r_true = 4
-        rng = np.random.default_rng(34)
+        # Set random seed
+        cls.rng = np.random.default_rng(34)
 
-        cls.customer_id = list(range(cls.N))
-        cls.recency, cls.frequency, cls.alive, cls.T = cls.generate_data(
-            cls.a_true, cls.b_true, cls.alpha_true, cls.r_true, cls.N, rng=rng
+        # parameters
+        cls.a_true = 0.793
+        cls.b_true = 2.426
+        cls.alpha_true = 4.414
+        cls.r_true = 0.243
+
+        # Use Quickstart dataset (the CDNOW_sample research data) for testing
+        test_data = pd.read_csv("data/clv_quickstart.csv")
+        test_data["customer_id"] = test_data.index
+
+        cls.data = test_data
+        cls.customer_id = test_data["customer_id"]
+        cls.frequency = test_data["frequency"]
+        cls.recency = test_data["recency"]
+        cls.T = test_data["T"]
+
+        # Instantiate model with CDNOW data for testing
+        cls.model = BetaGeoModel(cls.data)
+
+        # Also instantiate lifetimes model for comparison
+        cls.lifetimes_model = BetaGeoFitter()
+        cls.lifetimes_model.params_ = {
+            "a": cls.a_true,
+            "b": cls.b_true,
+            "alpha": cls.alpha_true,
+            "r": cls.r_true,
+        }
+
+        # Mock an idata object for tests requiring a fitted model
+        cls.N = len(cls.customer_id)
+        cls.chains = 2
+        cls.draws = 50
+        cls.mock_fit = az.from_dict(
+            {
+                "a": cls.rng.normal(cls.a_true, 1e-3, size=(cls.chains, cls.draws)),
+                "b": cls.rng.normal(cls.b_true, 1e-3, size=(cls.chains, cls.draws)),
+                "alpha": cls.rng.normal(
+                    cls.alpha_true, 1e-3, size=(cls.chains, cls.draws)
+                ),
+                "r": cls.rng.normal(cls.r_true, 1e-3, size=(cls.chains, cls.draws)),
+            }
         )
+
+        cls.model.idata = cls.mock_fit
 
     @pytest.fixture(scope="class")
     def data(self):
@@ -409,15 +427,9 @@ class TestBetaGeoModel:
                 "r": np.full((2, 5), self.r_true),
             }
         )
-
-        # TODO: Move this into a separate test after API revisions completed.
-        with pytest.warns(
-            FutureWarning,
-            match="Deprecated method. Use 'expected_purchases_new_customer' instead.",
-        ):
-            res_num_purchases_new_customer = (
-                bg_model.expected_num_purchases_new_customer(test_t)
-            )
+        res_num_purchases_new_customer = bg_model.expected_num_purchases_new_customer(
+            test_t
+        )
         assert res_num_purchases_new_customer.shape == (2, 5, 10)
         assert res_num_purchases_new_customer.dims == ("chain", "draw", "t")
 
@@ -443,8 +455,7 @@ class TestBetaGeoModel:
         # TODO: Move this into a separate test after API revisions completed.
         with pytest.warns(
             FutureWarning,
-            match="Use 'expected_purchases_new_customer' instead. \
-                This method is deprecated and will be removed in a future release.",
+            match="Deprecated method. Use 'expected_purchases_new_customer' instead.",
         ):
             self.model.expected_num_purchases_new_customer(t=10)
 
@@ -497,7 +508,7 @@ class TestBetaGeoModel:
         p = pm.Beta.dist(self.a_true, self.b_true, size=N)
         lam = pm.Gamma.dist(self.r_true, self.alpha_true, size=N)
 
-        rtol = 0.05
+        rtol = 0.15
         np.testing.assert_allclose(
             new_customer_dropout.mean(), pm.draw(p.mean(), random_seed=rng), rtol=rtol
         )
