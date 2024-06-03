@@ -2040,7 +2040,7 @@ class DelayedSaturatedMMM(
         figsize: tuple[float, float] = (12, 6),
         ax: plt.Axes | None = None,
         original_scale: bool = True,
-    ) -> plt.Figure:
+    ) -> tuple[plt.Figure, plt.Axes]:
         """
         Plot the budget allocation and channel contributions.
 
@@ -2050,14 +2050,16 @@ class DelayedSaturatedMMM(
             The inference data containing the channel contributions.
         figsize : tuple[float, float], optional
             The size of the figure to be created, by default (12, 6).
+        ax : plt.Axes, optional
+            The axis to plot on. If None, a new figure and axis will be created.
         original_scale : bool, optional
             A boolean flag to determine if the values should be plotted in their original scale,
             by default True.
 
         Returns
         -------
-        plt.Figure
-            The matplotlib figure object containing the plot.
+        Tuple[plt.Figure, plt.Axes]
+            The matplotlib figure object and axis containing the plot.
         """
 
         if original_scale:
@@ -2129,7 +2131,7 @@ class DelayedSaturatedMMM(
         labels = [bar.get_label() for bar in bars]
         ax.legend(bars, labels)
 
-        return fig
+        return fig, ax
 
     def plot_allocated_contribution_by_channel(
         self,
