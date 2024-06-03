@@ -845,9 +845,9 @@ def michaelis_menten(
 
 
 def hill_saturation(
-    x: pt.TensorLike, 
-    sigma: pt.TensorLike, 
-    beta: pt.TensorLike, 
+    x: pt.TensorLike,
+    sigma: pt.TensorLike,
+    beta: pt.TensorLike,
     lam: pt.TensorLike,
 ) -> pt.TensorVariable:
     r"""

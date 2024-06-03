@@ -1455,17 +1455,10 @@ class DelayedSaturatedMMM(
         quantile_upper: float = 0.95,
     ) -> None:
         """
-        Plot the curve fit for the given channel based on the estimation of the parameters.
-
-        The function computes the mean channel contributions, estimates the parameters based on the specified method
-        (either 'sigmoid' or 'michaelis-menten'), and plots the curve fit. An inflection point on the curve is
-        also highlighted.
+        Plot the curve fit for the given channel based on the estimation of the parameters by the model.
 
         Parameters
         ----------
-        x : np.ndarray
-            The x-axis data, usually representing the amount of
-            input (e.g., substrate concentration in enzymology terms).
         ax : plt.Axes
             The matplotlib axes object where the plot should be drawn.
         channel : str
@@ -1474,9 +1467,12 @@ class DelayedSaturatedMMM(
             An index used for color selection to ensure distinct colors for multiple plots.
         xlim_max: int
             The maximum value to be plot on the X-axis
-        method: str
-            The method used to fit the contribution & spent non-linear relationship.
-            It can be either 'sigmoid' or 'michaelis-menten'.
+        label: str
+            The label for the curve being plotted, default is "Fit Curve".
+        quantile_lower: float
+            The lower quantile for parameter estimation, default is 0.05.
+        quantile_upper: float
+            The upper quantile for parameter estimation, default is 0.95.
 
         Returns
         -------
@@ -1912,7 +1908,7 @@ class DelayedSaturatedMMM(
 
         new_rows = [
             {
-                self.date_column: new_date,
+                self.date_column: pd.to_datetime(new_date),
                 **{
                     channel: allocation_strategy.get(channel, 0)
                     + np.random.normal(0, 0.1 * allocation_strategy.get(channel, 0))
@@ -2029,10 +2025,6 @@ class DelayedSaturatedMMM(
             lag=self.adstock.l_max,
         )
 
-        synth_dataset[self.date_column] = pd.to_datetime(
-            synth_dataset[self.date_column]
-        )
-
         return self.sample_posterior_predictive(
             X_pred=synth_dataset,
             extend_idata=False,
@@ -2048,7 +2040,7 @@ class DelayedSaturatedMMM(
         figsize: tuple[float, float] = (12, 6),
         ax: plt.Axes | None = None,
         original_scale: bool = True,
-    ):
+    ) -> plt.Figure:
         """
         Plot the budget allocation and channel contributions.
 
@@ -2064,11 +2056,10 @@ class DelayedSaturatedMMM(
 
         Returns
         -------
-        tuple
-            A tuple containing the matplotlib figure and axes of the plot.
+        plt.Figure
+            The matplotlib figure object containing the plot.
         """
 
-        # def plot_budget_allocation(self, samples, ax, original_scale=True):
         if original_scale:
             channel_contributions = (
                 samples["channel_contributions"]
@@ -2131,16 +2122,14 @@ class DelayedSaturatedMMM(
         ax.set_ylabel("Allocate Spend", color="b", labelpad=10)
         ax2.set_ylabel("Channel Contributions", color="r", labelpad=10)
 
-        # Remove grid lines
         ax.grid(False)
         ax2.grid(False)
 
-        # Add legend
         bars = [bars1[0], bars2[0]]
         labels = [bar.get_label() for bar in bars]
         ax.legend(bars, labels)
 
-        return fig, ax
+        return fig
 
     def plot_allocated_contribution_by_channel(
         self,
@@ -2148,7 +2137,7 @@ class DelayedSaturatedMMM(
         lower_quantile: float = 0.025,
         upper_quantile: float = 0.975,
         original_scale: bool = True,
-    ):
+    ) -> plt.Figure:
         """
         Plot the allocated contribution by channel with uncertainty intervals.
 
@@ -2171,8 +2160,6 @@ class DelayedSaturatedMMM(
         -------
         fig : matplotlib.figure.Figure
             The matplotlib figure object containing the plot.
-        ax : matplotlib.axes.Axes
-            The matplotlib axes object containing the plot.
         """
         if original_scale:
             channel_contributions = (
@@ -2196,4 +2183,4 @@ class DelayedSaturatedMMM(
                 ),
                 alpha=0.1,
             )
-        return fig, ax
+        return fig

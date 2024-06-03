@@ -72,7 +72,7 @@ class BudgetOptimizer:
 
         Parameters
         ----------
-        budgets : array_like
+        budgets : list[float]
             The budgets for each channel.
 
         Returns
@@ -132,7 +132,7 @@ class BudgetOptimizer:
         ----------
         total_budget : float
             The total budget.
-        budget_bounds : dict, optional
+        budget_bounds : dict[str, tuple[float, float]], optional
             The budget bounds for each channel. Default is None.
         custom_constraints : dict, optional
             Custom constraints for the optimization. Default is None.
@@ -167,9 +167,7 @@ class BudgetOptimizer:
                 constraints = custom_constraints
 
         num_channels = len(self.parameters.keys())
-        initial_guess = [
-            total_budget // num_channels
-        ] * num_channels  # np.linspace(1, 5, num_channels)
+        initial_guess = [total_budget // num_channels] * num_channels
         bounds = [
             (
                 (budget_bounds[channel][0], budget_bounds[channel][1])

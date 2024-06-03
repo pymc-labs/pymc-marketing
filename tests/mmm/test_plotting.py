@@ -120,7 +120,7 @@ class TestBasePlotting:
                 {
                     "stack_groups": {"controls": ["control_1"]},
                     "original_scale": True,
-                    "area_kwargs": {"alpha": 0.5},
+                    "area_kwargs": {"adstock_alpha": 0.5},
                 },
             ),
         ],

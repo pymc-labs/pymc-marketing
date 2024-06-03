@@ -895,7 +895,7 @@ class BaseMMM(ModelBuilder):
         ----------
         original_scale : bool, optional
             If True, the contributions are plotted in the original scale of the target.
-        figsize : Tuple, optional
+        figsize : tuple[int, int], optional
             The size of the figure. The default is (14, 7).
         **kwargs
             Additional keyword arguments to pass to the matplotlib `subplots` function.
