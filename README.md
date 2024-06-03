@@ -96,7 +96,7 @@ mmm.fit(X,y)
 mmm.plot_components_contributions();
 ```
 
-![](/https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/mmm_plot_components_contributions.png)
+![](https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/mmm_plot_components_contributions.png)
 
 Once the model is fitted, we can further optimize our budget allocation as we are including diminishing returns and carry-over effects in our model.
 
@@ -151,7 +151,7 @@ beta_geo_model.fit()
 
 Once fitted, we can use the model to predict the number of future purchases for known customers, the probability that they are still alive, and get various visualizations plotted.
 
-![](/https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/expected_purchases.png)
+![](https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/expected_purchases.png)
 
 See the Examples section for more on this.
 
