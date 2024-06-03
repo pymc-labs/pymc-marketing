@@ -1,6 +1,6 @@
 <div align="center">
 
-![PyMC-Marketing Logo](docs/source/_static/marketing-logo-light.jpg)
+![PyMC-Marketing Logo](https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/marketing-logo-light.jpg)
 
 </div>
 
