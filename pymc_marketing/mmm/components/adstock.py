@@ -107,7 +107,7 @@ class DelayedAdstock(AdstockTransformation):
         )
 
     default_priors = {
-        "alpha": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "alpha": {"dist": "Beta", "kwargs": {"alpha": 1, "beta": 3}},
         "theta": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
     }
 
