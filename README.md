@@ -1,6 +1,6 @@
 <div align="center">
 
-![PyMC-Marketing Logo](docs/source/_static/marketing-logo-light.jpg)
+![PyMC-Marketing Logo](https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/marketing-logo-light.jpg)
 
 </div>
 
@@ -25,7 +25,7 @@ Unlock the power of **Marketing Mix Modeling (MMM)** and **Customer Lifetime Val
 This repository is supported by [PyMC Labs](https://www.pymc-labs.com).
 
 <center>
-    <img src="docs/source/_static/labs-logo-light.png" width="50%" />
+    <img src="https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/labs-logo-light.png" width="50%" />
 </center>
 
 For businesses looking to integrate PyMC-Marketing into their operational framework, [PyMC Labs](https://www.pymc-labs.com) offers expert consulting and training. Our team is proficient in state-of-the-art Bayesian modeling techniques, with a focus on Marketing Mix Models (MMMs) and Customer Lifetime Value (CLV). For more information see [here](#-schedule-a-free-consultation-for-mmm--clv-strategy).
@@ -96,7 +96,7 @@ mmm.fit(X,y)
 mmm.plot_components_contributions();
 ```
 
-![](/docs/source/_static/mmm_plot_components_contributions.png)
+![](https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/mmm_plot_components_contributions.png)
 
 Once the model is fitted, we can further optimize our budget allocation as we are including diminishing returns and carry-over effects in our model.
 
@@ -151,7 +151,7 @@ beta_geo_model.fit()
 
 Once fitted, we can use the model to predict the number of future purchases for known customers, the probability that they are still alive, and get various visualizations plotted.
 
-![](/docs/source/_static/expected_purchases.png)
+![](https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/expected_purchases.png)
 
 See the Examples section for more on this.
 
