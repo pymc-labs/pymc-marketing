@@ -44,8 +44,8 @@
 }
 
 footer.bd-footer {
-  position: sticky;
-  bottom: 0;
+  position: static;
+  bottom: auto;
   background: var(--pst-color-on-background) !important;
 }
 
