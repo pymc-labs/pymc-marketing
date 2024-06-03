@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import numpy as np
+import pymc as pm
 import pytest
 
 from pymc_marketing.mmm.components.base import (
@@ -148,7 +149,7 @@ def test_new_transformation_function_priors(new_transformation) -> None:
     }
 
 
-def test_new_transformation_update_priors(new_transformation_class) -> None:
+def test_new_transformation_priors_at_init(new_transformation_class) -> None:
     new_prior = {"a": {"dist": "HalfNormal", "kwargs": {"sigma": 2}}}
     new_transformation = new_transformation_class(priors=new_prior)
     assert new_transformation.function_priors == {
@@ -161,6 +162,16 @@ def test_new_transformation_variable_mapping(new_transformation) -> None:
     assert new_transformation.variable_mapping == {"a": "new_a", "b": "new_b"}
 
 
+def test_apply(new_transformation):
+    x = np.array([1, 2, 3])
+    expected = np.array([6, 12, 18])
+    with pm.Model() as generative_model:
+        pm.Deterministic("y", new_transformation.apply(x, dim_name=None))
+
+    fixed_model = pm.do(generative_model, {"new_a": 2, "new_b": 3})
+    np.testing.assert_allclose(fixed_model["y"].eval(), expected)
+
+
 def test_new_transformation_access_function(new_transformation) -> None:
     x = np.array([1, 2, 3])
     expected = np.array([6, 12, 18])
@@ -170,3 +181,28 @@ def test_new_transformation_access_function(new_transformation) -> None:
 def test_new_transformation_apply_outside_model(new_transformation) -> None:
     with pytest.raises(TypeError, match="on context stack"):
         new_transformation.apply(1)
+
+
+def test_model_config(new_transformation) -> None:
+    assert new_transformation.model_config == {
+        "new_a": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "new_b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+    }
+
+
+def test_new_transform_update_priors(new_transformation) -> None:
+    new_transformation.update_priors(
+        {"new_a": {"dist": "HalfNormal", "kwargs": {"sigma": 2}}}
+    )
+
+    assert new_transformation.function_priors == {
+        "a": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+        "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+    }
+
+
+def test_new_transformation_warning_no_priors_updated(new_transformation) -> None:
+    with pytest.warns(UserWarning, match="No priors were updated"):
+        new_transformation.update_priors(
+            {"new_c": {"dist": "HalfNormal", "kwargs": {"sigma": 1}}}
+        )

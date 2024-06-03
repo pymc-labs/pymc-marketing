@@ -164,7 +164,13 @@ SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
 def _get_saturation_function(
     function: str | SaturationTransformation,
 ) -> SaturationTransformation:
-    if isinstance(function, str):
-        return SATURATION_TRANSFORMATIONS[function]()
+    """Helper for use in the MMM to get a saturation function."""
+    if isinstance(function, SaturationTransformation):
+        return function
 
-    return function
+    if function not in SATURATION_TRANSFORMATIONS:
+        raise ValueError(
+            f"Unknown saturation function: {function}. Choose from {list(SATURATION_TRANSFORMATIONS.keys())}"
+        )
+
+    return SATURATION_TRANSFORMATIONS[function]()
