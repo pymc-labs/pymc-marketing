@@ -38,14 +38,9 @@ from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     transform_1d_array,
 )
-from pymc_marketing.mmm.validating import (
-    ValidateChannelColumns,
-    ValidateDateColumn,
-    ValidateTargetColumn,
-)
 from pymc_marketing.model_builder import ModelBuilder
 
-__all__ = ("BaseMMM", "MMM")
+__all__ = ["BaseMMM"]
 
 
 class BaseMMM(ModelBuilder):
@@ -968,7 +963,3 @@ class BaseMMM(ModelBuilder):
         ax.set_yticklabels(dataframe["component"])
 
         return fig
-
-
-class MMM(BaseMMM, ValidateTargetColumn, ValidateDateColumn, ValidateChannelColumns):
-    pass

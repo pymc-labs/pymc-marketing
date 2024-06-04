@@ -30,7 +30,7 @@ from pytensor.tensor import TensorVariable
 from xarray import DataArray, Dataset
 
 from pymc_marketing.constants import DAYS_IN_YEAR
-from pymc_marketing.mmm.base import MMM
+from pymc_marketing.mmm.base import BaseMMM
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
@@ -52,12 +52,19 @@ from pymc_marketing.mmm.utils import (
     create_new_spend_data,
     generate_fourier_modes,
 )
-from pymc_marketing.mmm.validating import ValidateControlColumns
+from pymc_marketing.mmm.validating import (
+    ValidateChannelColumns,
+    ValidateControlColumns,
+    ValidateDateColumn,
+    ValidateTargetColumn,
+)
 
 __all__ = ["DelayedSaturatedMMM"]
 
 
-class BaseDelayedSaturatedMMM(MMM):
+class BaseDelayedSaturatedMMM(
+    BaseMMM, ValidateTargetColumn, ValidateDateColumn, ValidateChannelColumns
+):
     """Base class for a media mix model with delayed adstock and logistic saturation class (see [1]_).
 
     References
@@ -819,7 +826,7 @@ class BaseDelayedSaturatedMMM(MMM):
         return format_nested_dict(model_config.copy())
 
 
-class DelayedSaturatedMMM(
+class MMM(
     MaxAbsScaleTarget,
     MaxAbsScaleChannels,
     ValidateControlColumns,
@@ -2186,3 +2193,45 @@ class DelayedSaturatedMMM(
                 alpha=0.1,
             )
         return fig
+
+
+def DelayedSaturatedMMM(
+    date_column: str,
+    channel_columns: list[str],
+    adstock_max_lag: int,
+    time_varying_intercept: bool = False,
+    model_config: dict | None = None,
+    sampler_config: dict | None = None,
+    validate_data: bool = True,
+    control_columns: list[str] | None = None,
+    yearly_seasonality: int | None = None,
+    adstock_first: bool = True,
+    **kwargs,
+) -> MMM:
+    """
+    Wrapper function for DelayedSaturatedMMM class initializer.
+
+    Warns that MMM class should be used instead and returns an instance of MMM with
+    geometric adstock and logistic saturation.
+    """
+    warnings.warn(
+        "The DelayedSaturatedMMM class is deprecated. Please use the MMM class instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    return MMM(
+        date_column=date_column,
+        channel_columns=channel_columns,
+        adstock_max_lag=adstock_max_lag,
+        time_varying_intercept=time_varying_intercept,
+        model_config=model_config,
+        sampler_config=sampler_config,
+        validate_data=validate_data,
+        control_columns=control_columns,
+        yearly_seasonality=yearly_seasonality,
+        adstock="geometric",
+        saturation="logistic",
+        adstock_first=adstock_first,
+        **kwargs,
+    )
