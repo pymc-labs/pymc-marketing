@@ -29,8 +29,9 @@ from pymc_marketing.clv.utils import to_xarray
 
 
 class BetaGeoModel(CLVModel):
-    """Beta-Geo Negative Binomial Distribution (BG/NBD) model for a continuous, non-contractual customer population,
-    first introduced by Fader, et al. [1]_ with additional predictive methods and improvements in [2]_, [_3]_.
+    r"""Beta-Geometric Negative Binomial Distribution (BG/NBD) model for a non-contractual customer population
+    over continuous time. First introduced by Fader, Hardie & Lee, [1]_ with additional predictive methods
+    and enhancements in [2]_ and [3]_.
 
     The BG/NBD model assumes dropout probabilities for the customer population are Beta-distributed,
     and time between transactions follows a Gamma distribution while the customer is still active.
@@ -38,18 +39,19 @@ class BetaGeoModel(CLVModel):
     This model requires data to be summarized by recency, frequency, and T for each customer,
     using `clv.utils.rfm_summary()` or equivalent.
 
-    Methods below are adapted from the BetaGeoFitter class from the lifetimes package
+    Predictive methods have been adapted from the BetaGeoFitter class in the legacy lifetimes library
     (see https://github.com/CamDavidsonPilon/lifetimes/).
 
     Parameters
     ----------
     data: pd.DataFrame
         DataFrame containing the following columns:
+            * `customer_id`: unique customer identifier
             * `frequency`: Number of repeat purchases
             * `recency`: Time between the first and the last purchase
-            * `T`: Time between the first purchase and the end of the observation period
-            Model assumptions require T >= recency
-            * `customer_id`: unique customer identifier
+            * `T`: Time between the first purchase and the end of the observation period.
+                Model assumptions require T >= recency
+
     model_config: dict, optional
         Dictionary of model prior parameters:
             * `a_prior`: shape parameter for time until dropout; defaults to `HalfFlat()`
@@ -57,7 +59,7 @@ class BetaGeoModel(CLVModel):
             * `alpha_prior`: Scale parameter of time between purchases; defaults to `HalfFlat()`
             * `r_prior`: Shape parameter of time between purchases; defaults to `HalfFlat()`
     sampler_config: dict, optional
-        Dictionary of sampler parameters. Defaults to None.
+        Dictionary of sampler parameters. Defaults to _None_.
 
     Examples
     --------
@@ -65,17 +67,32 @@ class BetaGeoModel(CLVModel):
 
         from pymc_marketing.clv import BetaGeoModel, rfm_summary
 
-        # preprocess data
-        rfm_df = rfm_summary(raw_data,'id_col_name','date_col_name')
+        # customer identifiers and purchase datetimes are all that's needed to start modeling
+        d = [
+            [1, "2024-01-01"],
+            [1, "2024-02-06"],
+            [2, "2024-01-01"],
+            [3, "2024-01-02"],
+            [3, "2024-01-05"],
+            [4, "2024-01-16"],
+            [4, "2024-02-05"],
+            [5, "2024-01-17"],
+            [5, "2024-01-18"],
+            [5, "2024-01-19"],
+        ]
+        raw_data = pd.DataFrame(d, columns=["id", "date"]
 
-        prior_distribution = {"dist": "Gamma", "kwargs": {"alpha": 0.1, "beta": 0.1}}
+        # preprocess data
+        rfm_df = rfm_summary(raw_data,'id','date')
+
+        # model_config and sampler_configs are optional
         model = BetaGeoModel(
             data=data,
             model_config={
-                "r_prior": prior_distribution,
-                "alpha_prior": prior_distribution,
-                "a_prior": prior_distribution,
-                "b_prior": prior_distribution,
+                "r_prior": {"dist": "Gamma", "kwargs": {"alpha": 0.1, "beta": 1}},
+                "alpha_prior": {"dist": "Gamma", "kwargs": {"alpha": 0.1, "beta": 1}},
+                "a_prior": {"dist": "Gamma", "kwargs": {"alpha": 0.1, "beta": 1}},
+                "b_prior": {"dist": "Gamma", "kwargs": {"alpha": 0.1, "beta": 1}},
             },
             sampler_config={
                 "draws": 1000,
@@ -84,12 +101,14 @@ class BetaGeoModel(CLVModel):
                 "cores": 2,
             },
         )
-        # Fit model quickly to large datasets via the default Maximum a Posteriori method
-        model.fit(fit_method='map')
+
+        # The default 'mcmc' fit_method provides informative predictions and reliable performance on small datasets
+        model.fit()
         print(model.fit_summary())
 
-        # Use default 'mcmc' for more informative predictions and reliable performance on smaller datasets
-        model.fit(fit_method='mcmc')
+        # Maximum a Posteriori can quickly fit a model to large datasets,
+        # but will give limited insights into predictive uncertainty.
+        model.fit(fit_method='map')
         print(model.fit_summary())
 
         # Predict number of purchases for current customers over the next 10 time periods
@@ -103,14 +122,14 @@ class BetaGeoModel(CLVModel):
 
     References
     ----------
-    .. [1] Fader, P. S., Hardie, B. G., & Lee, K. L. (2005). “Counting your customers”
-           the easy way: An alternative to the Pareto/NBD model. Marketing science,
+    .. [1] Fader, P. S., Hardie, B. G., & Lee, K. L. (2005). “Counting your customers
+           the easy way: An alternative to the Pareto/NBD model." Marketing science,
            24(2), 275-284. http://brucehardie.com/papers/018/fader_et_al_mksc_05.pdf
-    .. [2] Fader, P. S., Hardie, B. G., & Lee, K. L. (2008). Computing
-           P (alive) using the BG/NBD model. Research Note available via
+    .. [2] Fader, P. S., Hardie, B. G., & Lee, K. L. (2008). "Computing
+           P (alive) using the BG/NBD model." Research Note available via
            http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
-    .. [3] Fader, P. S. & Hardie, B. G. (2013) Overcoming the BG/NBD Model's #NUM!
-           Error Problem. Research Note available via
+    .. [3] Fader, P. S. & Hardie, B. G. (2013) "Overcoming the BG/NBD Model's #NUM!
+           Error Problem." Research Note available via
            http://brucehardie.com/notes/027/bgnbd_num_error.pdf.
     """
 

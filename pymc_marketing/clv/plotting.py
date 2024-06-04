@@ -331,7 +331,6 @@ def plot_probability_alive_matrix(
         max_frequency=max_frequency,
         max_recency=max_recency,
     )
-    # FIXME: This is a hotfix for ParetoNBDModel, as it has a different API from BetaGeoModel
     transaction_data = pd.DataFrame(
         {
             "customer_id": np.arange(mesh_recency.size),  # placeholder
@@ -340,11 +339,12 @@ def plot_probability_alive_matrix(
             "T": max_recency,
         }
     )
+    # FIXME: This is a hotfix for ParetoNBDModel, as it has a different API from BetaGeoModel
     if isinstance(model, ParetoNBDModel):
         Z = (
             model.expected_probability_alive(
                 data=transaction_data,
-                future_t=0,  # TODO: This if block can be removed if
+                future_t=0,  # TODO: This is a required parameter if data is provided.
             )
             .mean(("draw", "chain"))
             .values.reshape(mesh_recency.shape)
