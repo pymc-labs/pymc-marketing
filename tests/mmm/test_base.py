@@ -21,7 +21,7 @@ import pytest
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import FunctionTransformer, Pipeline
 
-from pymc_marketing.mmm.base import MMM
+from pymc_marketing.mmm.base import BaseMMM as MMM
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
