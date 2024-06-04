@@ -54,7 +54,7 @@ from pymc_marketing.mmm.utils import (
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
 
-__all__ = ["BaseDelayedSaturatedMMM"]
+__all__ = ["DelayedSaturatedMMM"]
 
 
 class BaseDelayedSaturatedMMM(MMM):
