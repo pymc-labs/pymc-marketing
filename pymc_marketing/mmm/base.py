@@ -38,12 +38,17 @@ from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     transform_1d_array,
 )
+from pymc_marketing.mmm.validating import (
+    ValidateChannelColumns,
+    ValidateDateColumn,
+    ValidateTargetColumn,
+)
 from pymc_marketing.model_builder import ModelBuilder
 
-__all__ = ["BaseMMM"]
+__all__ = ["MMMModelBuilder", "BaseValidateMMM"]
 
 
-class BaseMMM(ModelBuilder):
+class MMMModelBuilder(ModelBuilder):
     model: pm.Model
     _model_type = "BaseMMM"
     version = "0.0.2"
@@ -90,8 +95,12 @@ class BaseMMM(ModelBuilder):
     def validation_methods(
         self,
     ) -> tuple[
-        list[Callable[["BaseMMM", pd.DataFrame | pd.Series | np.ndarray], None]],
-        list[Callable[["BaseMMM", pd.DataFrame | pd.Series | np.ndarray], None]],
+        list[
+            Callable[["MMMModelBuilder", pd.DataFrame | pd.Series | np.ndarray], None]
+        ],
+        list[
+            Callable[["MMMModelBuilder", pd.DataFrame | pd.Series | np.ndarray], None]
+        ],
     ]:
         """
         A property that provides validation methods for features ("X") and the target variable ("y").
@@ -103,7 +112,7 @@ class BaseMMM(ModelBuilder):
 
         Returns
         -------
-        tuple of list of Callable[["BaseMMM", pd.DataFrame], None]
+        tuple of list of Callable[["MMMModelBuilder", pd.DataFrame], None]
             A tuple where the first element is a list of methods for "X" validation, and the second element is
             a list of methods for "y" validation.
 
@@ -159,13 +168,13 @@ class BaseMMM(ModelBuilder):
     ) -> tuple[
         list[
             Callable[
-                ["BaseMMM", pd.DataFrame | pd.Series | np.ndarray],
+                ["MMMModelBuilder", pd.DataFrame | pd.Series | np.ndarray],
                 pd.DataFrame | pd.Series | np.ndarray,
             ]
         ],
         list[
             Callable[
-                ["BaseMMM", pd.DataFrame | pd.Series | np.ndarray],
+                ["MMMModelBuilder", pd.DataFrame | pd.Series | np.ndarray],
                 pd.DataFrame | pd.Series | np.ndarray,
             ]
         ],
@@ -180,7 +189,7 @@ class BaseMMM(ModelBuilder):
 
         Returns
         -------
-        tuple of list of Callable[["BaseMMM", pd.DataFrame], pd.DataFrame]
+        tuple of list of Callable[["MMMModelBuilder", pd.DataFrame], pd.DataFrame]
             A tuple where the first element is a list of methods for "X" preprocessing, and the second element is a
             list of methods for "y" preprocessing.
         """
@@ -963,3 +972,14 @@ class BaseMMM(ModelBuilder):
         ax.set_yticklabels(dataframe["component"])
 
         return fig
+
+
+class BaseValidateMMM(
+    MMMModelBuilder,
+    ValidateTargetColumn,
+    ValidateDateColumn,
+    ValidateChannelColumns,
+):
+    """Base class with some validation of the inputs."""
+
+    pass

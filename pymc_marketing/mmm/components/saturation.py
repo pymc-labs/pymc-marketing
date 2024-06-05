@@ -77,6 +77,8 @@ class LogisticSaturation(SaturationTransformation):
 
     """
 
+    lookup_name = "logistic"
+
     def function(self, x, lam, beta):
         return beta * logistic_saturation(x, lam)
 
@@ -92,6 +94,8 @@ class TanhSaturation(SaturationTransformation):
     For more information, see :func:`pymc_marketing.mmm.transformers.tanh_saturation`.
 
     """
+
+    lookup_name = "tanh"
 
     def function(self, x, b, c, beta):
         return beta * tanh_saturation(x, b, c)
@@ -109,6 +113,8 @@ class TanhSaturationBaselined(SaturationTransformation):
     For more information, see :func:`pymc_marketing.mmm.transformers.tanh_saturation_baselined`.
 
     """
+
+    lookup_name = "tanh_baselined"
 
     def function(self, x, x0, gain, r, beta):
         return beta * tanh_saturation_baselined(x, x0, gain, r)
@@ -128,6 +134,8 @@ class MichaelisMentenSaturation(SaturationTransformation):
 
     """
 
+    lookup_name = "michaelis_menten"
+
     function = michaelis_menten
 
     default_priors = {
@@ -143,6 +151,8 @@ class HillSaturation(SaturationTransformation):
 
     """
 
+    lookup_name = "hill"
+
     function = hill_saturation
 
     default_priors = {
@@ -153,11 +163,14 @@ class HillSaturation(SaturationTransformation):
 
 
 SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
-    "logistic": LogisticSaturation,
-    "tanh": TanhSaturation,
-    "hill": HillSaturation,
-    "tanh_baselined": TanhSaturationBaselined,
-    "michaelis_menten": MichaelisMentenSaturation,
+    cls.lookup_name: cls
+    for cls in [
+        LogisticSaturation,
+        TanhSaturation,
+        TanhSaturationBaselined,
+        MichaelisMentenSaturation,
+        HillSaturation,
+    ]
 }
 
 
