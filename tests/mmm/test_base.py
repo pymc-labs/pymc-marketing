@@ -21,7 +21,7 @@ import pytest
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import FunctionTransformer, Pipeline
 
-from pymc_marketing.mmm.base import BaseMMM as MMM
+from pymc_marketing.mmm.base import BaseValidateMMM as MMM
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
@@ -127,9 +127,11 @@ def toy_mmm(request, toy_X, toy_y):
 
 
 class TestMMM:
-    @patch("pymc_marketing.mmm.validating.validate_target")
-    @patch("pymc_marketing.mmm.validating.validate_date_col")
-    @patch("pymc_marketing.mmm.validating.validate_channel_columns")
+    @patch("pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target")
+    @patch("pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col")
+    @patch(
+        "pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns"
+    )
     @pytest.mark.parametrize(
         "toy_mmm",
         [

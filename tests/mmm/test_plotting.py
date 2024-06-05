@@ -18,8 +18,8 @@ import pytest
 from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.delayed_saturated_mmm import (
-    BaseDelayedSaturatedMMM,
-    DelayedSaturatedMMM,
+    MMM,
+    BaseMMM,
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleTarget
 
@@ -86,12 +86,12 @@ class TestBasePlotting:
         control, transform = request.param.split("-")
         if transform == "default_transform":
 
-            class ToyMMM(BaseDelayedSaturatedMMM):
+            class ToyMMM(BaseMMM):
                 pass
 
         elif transform == "target_transform":
 
-            class ToyMMM(BaseDelayedSaturatedMMM, MaxAbsScaleTarget):
+            class ToyMMM(BaseMMM, MaxAbsScaleTarget):
                 pass
 
         if control == "without_controls":
@@ -99,6 +99,8 @@ class TestBasePlotting:
                 date_column="date",
                 channel_columns=["channel_1", "channel_2"],
                 adstock_max_lag=4,
+                adstock="geometric",
+                saturation="logistic",
             )
         elif control == "with_controls":
             mmm = ToyMMM(
@@ -106,6 +108,8 @@ class TestBasePlotting:
                 adstock_max_lag=4,
                 control_columns=["control_1", "control_2"],
                 channel_columns=["channel_1", "channel_2"],
+                adstock="geometric",
+                saturation="logistic",
             )
         # fit the model
         mmm = mock_fit_base(mmm, toy_X, toy_y)
@@ -148,16 +152,18 @@ class TestBasePlotting:
 
 
 @pytest.fixture(scope="module")
-def mock_mmm():
-    return DelayedSaturatedMMM(
+def mock_mmm() -> MMM:
+    return MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
         adstock_max_lag=4,
         control_columns=["control_1", "control_2"],
+        adstock="geometric",
+        saturation="logistic",
     )
 
 
-def mock_fit(model: DelayedSaturatedMMM, X: pd.DataFrame, y: np.ndarray, **kwargs):
+def mock_fit(model: MMM, X: pd.DataFrame, y: np.ndarray, **kwargs):
     model.build_model(X=X, y=y)
 
     with model.model:
@@ -188,7 +194,7 @@ def mock_fitted_mmm(mock_mmm, toy_X, toy_y):
 @pytest.mark.parametrize(
     argnames="func_plot_name, kwargs_plot",
     argvalues=[
-        # Only part of DelayedSaturatedMMM now
+        # Only part of MMM now
         ("plot_direct_contribution_curves", {}),
         ("plot_direct_contribution_curves", {"same_axes": True}),
         ("plot_direct_contribution_curves", {"channels": ["channel_2"]}),

@@ -58,6 +58,7 @@ class AdstockTransformation(Transformation):
     """
 
     prefix: str = "adstock"
+    lookup_name: str
 
     def __init__(
         self,
@@ -81,6 +82,8 @@ class GeometricAdstock(AdstockTransformation):
 
     """
 
+    lookup_name = "geometric"
+
     def function(self, x, alpha):
         return geometric_adstock(
             x, alpha=alpha, l_max=self.l_max, normalize=self.normalize, mode=self.mode
@@ -95,6 +98,8 @@ class DelayedAdstock(AdstockTransformation):
     For more information, see :func:`pymc_marketing.mmm.transformers.delayed_adstock`.
 
     """
+
+    lookup_name = "delayed"
 
     def function(self, x, alpha, theta):
         return delayed_adstock(
@@ -118,6 +123,8 @@ class WeibullAdstock(AdstockTransformation):
     For more information, see :func:`pymc_marketing.mmm.transformers.weibull_adstock`.
 
     """
+
+    lookup_name = "weibull"
 
     def __init__(
         self,
@@ -150,10 +157,9 @@ class WeibullAdstock(AdstockTransformation):
     }
 
 
-ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {  # type: ignore
-    "geometric": GeometricAdstock,
-    "delayed": DelayedAdstock,
-    "weibull": WeibullAdstock,
+ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {
+    cls.lookup_name: cls  # type: ignore
+    for cls in [GeometricAdstock, DelayedAdstock, WeibullAdstock]
 }
 
 

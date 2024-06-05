@@ -93,6 +93,7 @@ class Transformation:
     prefix: str
     default_priors: dict[str, Any]
     function: Any
+    lookup_name: str
 
     def __init__(self, priors: dict | None = None, prefix: str | None = None) -> None:
         self._checks()
