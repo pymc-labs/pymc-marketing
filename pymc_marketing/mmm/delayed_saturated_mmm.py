@@ -63,7 +63,7 @@ __all__ = ["BaseMMM", "MMM", "DelayedSaturatedMMM"]
 
 
 class BaseMMM(BaseValidateMMM):
-    """Base class for a media mix model with delayed adstock and logistic saturation class (see [1]_).
+    """Base class for a media mix model with default delayed adstock and logistic saturation class (see [1]_).
 
     References
     ----------
@@ -830,7 +830,8 @@ class MMM(
     ValidateControlColumns,
     BaseMMM,
 ):
-    """Media Mix Model with delayed adstock and logistic saturation class (see [1]_).
+    """
+    Media Mix Model delayed adstock and logistic saturation classes as default (see [1]_).
 
     Given a time series target variable :math:`y_{t}` (e.g. sales on conversions), media variables
     :math:`x_{m, t}` (e.g. impressions, clicks or costs) and a set of control covariates :math:`z_{c, t}` (e.g. holidays, special events)
