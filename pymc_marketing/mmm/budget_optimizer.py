@@ -112,7 +112,7 @@ class BudgetOptimizer:
         total_budget: float,
         budget_bounds: dict[str, tuple[float, float]] | None = None,
         custom_constraints: dict[Any, Any] | None = None,
-    ):
+    ) -> tuple[dict[str, float], float]:
         """
         Allocate the budget based on the total budget, budget bounds, and custom constraints.
 
@@ -139,10 +139,13 @@ class BudgetOptimizer:
 
         Returns
         -------
-        dict
-            The optimal budgets for each channel.
-        float
-            The negative total response value.
+        tuple[dict[str, float], float]
+            The optimal budgets for each channel and the negative total response value.
+
+        Raises
+        ------
+        Exception
+            If the optimization fails, an exception is raised with the reason for the failure.
         """
         if budget_bounds is None:
             budget_bounds = {channel: (0, total_budget) for channel in self.parameters}
