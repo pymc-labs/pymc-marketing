@@ -76,8 +76,8 @@ def test_allocate_budget(
                     "saturation_params": {"lam": 20, "beta": 1.0},
                 },
             },
-            {"channel_1": 0.0, "channel_2": 7.941704701568303e-13},
-            2.3825108552881636e-10,
+            {"channel_1": 0.0, "channel_2": 7.94e-13},
+            2.38e-10,
         ),
     ],
 )
