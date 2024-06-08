@@ -1950,7 +1950,7 @@ class MMM(
         budget_bounds: dict[str, list[Any]] | None = None,
         custom_constraints: dict[str, float] | None = None,
         quantile: float = 0.5,
-    ):
+    ) -> az.InferenceData:
         """
         Allocate the given budget to maximize the response over a specified time period.
 
