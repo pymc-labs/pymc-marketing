@@ -20,6 +20,7 @@ Use custom transformations for media in the MMM model:
 .. code-block:: python
 
     from pymc_marketing.mmm.components import SaturationTransformation, WeibullAdstock
+    from pymc_marketing.mmm import MMM
 
     class InfiniteReturns(SaturationTransformation):
         def function(self, x, b):

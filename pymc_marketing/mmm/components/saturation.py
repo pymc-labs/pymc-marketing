@@ -22,6 +22,8 @@ Examples
 --------
 Create a new saturation transformation:
 
+from pymc_marketing.mmm.components.saturation import SaturationTransformation
+
 .. code-block:: python
 
     class InfiniteReturns(SaturationTransformation):

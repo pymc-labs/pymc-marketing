@@ -116,6 +116,8 @@ class Transformation:
         --------
         Update the priors for a transformation after initialization.
 
+        from pymc_marketing.mmm.components.base import Transformation
+
         .. code-block:: python
 
             class MyTransformation(Transformation):
@@ -249,6 +251,8 @@ class Transformation:
         Examples
         --------
         Call the function for custom use-case
+
+        import pymc as pm
 
         .. code-block:: python
 
