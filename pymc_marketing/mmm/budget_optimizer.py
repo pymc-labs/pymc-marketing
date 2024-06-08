@@ -101,7 +101,7 @@ class BudgetOptimizer:
             spend = np.full(self.num_days, budget)
             spend_extended = np.concatenate([spend, np.zeros(self.adstock.l_max)])
             transformed_spend = second_transform.function(
-                x=first_transform.function(x=spend_extended, **first_params).eval(),
+                x=first_transform.function(x=spend_extended, **first_params),
                 **second_params,
             ).eval()
             total_response += np.sum(transformed_spend)
