@@ -881,6 +881,8 @@ class MMM(
 
         mmm = MMM(
             date_column="date_week",
+            adstock="geometric", 
+            saturation="logistic", 
             channel_columns=["x1", "x2"],
             control_columns=[
                 "event_1",
@@ -918,6 +920,8 @@ class MMM(
         }
 
         mmm = MMM(
+            adstock="geometric", 
+            saturation="logistic",
             model_config=my_model_config,
             date_column="date_week",
             channel_columns=["x1", "x2"],
@@ -1786,6 +1790,8 @@ class MMM(
         .. code-block:: python
 
             model = MMM(
+                adstock="geometric", 
+                saturation="logistic",
                 date_column="date_week",
                 channel_columns=["x1", "x2"],
                 control_columns=[
