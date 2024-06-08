@@ -64,8 +64,7 @@ __all__ = ["BaseMMM", "MMM", "DelayedSaturatedMMM"]
 
 class BaseMMM(BaseValidateMMM):
     """
-    Base class for a media mix model using Delayed Adstock and Logistic Saturation,
-    as default initialization (see [1]_).
+    Base class for a media mix model using Delayed Adstock and Logistic Saturation (see [1]_).
 
     References
     ----------
@@ -99,8 +98,12 @@ class BaseMMM(BaseValidateMMM):
             Column name of the date variable.
         channel_columns : List[str]
             Column names of the media channel variables.
-        adstock_max_lag : int
-            Number of lags to consider in the adstock transformation.
+        adstock_max_lag : int, optional
+            Number of lags to consider in the adstock transformation, by default 4
+        adstock : str | AdstockTransformation
+            Type of adstock transformation to apply.
+        saturation : str | SaturationTransformation
+            Type of saturation transformation to apply.
         time_varying_intercept : bool, optional
             Whether to consider time-varying intercept, by default False.
         model_config : Dictionary, optional
@@ -113,8 +116,6 @@ class BaseMMM(BaseValidateMMM):
             Whether to validate the data before fitting to model, by default True.
         control_columns : Optional[List[str]], optional
             Column names of control variables to be added as additional regressors, by default None
-        adstock_max_lag : int, optional
-            Number of lags to consider in the adstock transformation, by default 4
         yearly_seasonality : Optional[int], optional
             Number of Fourier modes to model yearly seasonality, by default None.
         """
@@ -881,8 +882,8 @@ class MMM(
 
         mmm = MMM(
             date_column="date_week",
-            adstock="geometric", 
-            saturation="logistic", 
+            adstock="geometric",
+            saturation="logistic",
             channel_columns=["x1", "x2"],
             control_columns=[
                 "event_1",
@@ -920,7 +921,7 @@ class MMM(
         }
 
         mmm = MMM(
-            adstock="geometric", 
+            adstock="geometric",
             saturation="logistic",
             model_config=my_model_config,
             date_column="date_week",
@@ -1790,7 +1791,7 @@ class MMM(
         .. code-block:: python
 
             model = MMM(
-                adstock="geometric", 
+                adstock="geometric",
                 saturation="logistic",
                 date_column="date_week",
                 channel_columns=["x1", "x2"],
