@@ -31,7 +31,7 @@ Use custom transformations for media in the MMM model:
     saturation = InfiniteReturns()
     adstock = WeibullAdstock(l_max=15, kind="PDF")
 
-    mmm = DelayedSaturatedMMM(
+    mmm = MMM(
         ...,
         saturation=saturation,
         adstock=adstock,
