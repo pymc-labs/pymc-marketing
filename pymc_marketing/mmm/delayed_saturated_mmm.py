@@ -1447,7 +1447,9 @@ class MMM(
             for group_name, params in param_groups.items():
                 # Build dictionary for the current group of parameters
                 param_dict = {
-                    param.replace(group_name[:-7] + "_", ""): self.fit_result[param]
+                    param.replace(group_name.split("_")[0] + "_", ""): self.fit_result[
+                        param
+                    ]
                     .quantile(quantile, dim=["chain", "draw"])
                     .to_pandas()
                     .to_dict()[channel]
