@@ -52,17 +52,6 @@ class MockModel:
     ):
         return self._mock_posterior(data)
 
-    # # TODO: This is required until CLV API is standardized.
-    # def expected_num_purchases(
-    #     self,
-    #     customer_id: np.ndarray | pd.Series,
-    #     t: np.ndarray | pd.Series | TensorVariable,
-    #     frequency: np.ndarray | pd.Series | TensorVariable,
-    #     recency: np.ndarray | pd.Series | TensorVariable,
-    #     T: np.ndarray | pd.Series | TensorVariable,
-    # ):
-    #     return self._mock_posterior(customer_id)
-
 
 @pytest.fixture
 def mock_model(test_summary_data) -> MockModel:
