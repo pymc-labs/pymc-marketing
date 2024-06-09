@@ -37,19 +37,19 @@ class BetaGeoModel(CLVModel):
     and time between transactions follows a Gamma distribution while the customer is still active.
 
     This model requires data to be summarized by *recency*, *frequency*, and *T* for each customer,
-    using `clv.utils.rfm_summary()` or equivalent.
+    using `clv.utils.rfm_summary()` or equivalent. Modeling assumptions require *T >= recency*.
 
     Predictive methods have been adapted from the *BetaGeoFitter* class in the legacy *lifetimes* library
     (see https://github.com/CamDavidsonPilon/lifetimes/).
 
     Parameters
     ----------
-    data: pd.DataFrame
-        DataFrame containing the following columns:
+    data: pandas.DataFrame
+    DataFrame containing the following columns:
         * `customer_id`: Unique customer identifier
         * `frequency`: Number of repeat purchases
         * `recency`: Time between the first and the last purchase
-        * `T`: Time between the first purchase and the end of the observation period. Model assumptions require T >= recency
+        * `T`: Time between the first purchase and the end of the observation period.
     model_config: dict, optional
         Dictionary of model prior parameters:
             * `a_prior`: Shape parameter for time until dropout; defaults to `pymc.HalfFlat()`
@@ -130,7 +130,7 @@ class BetaGeoModel(CLVModel):
            P (alive) using the BG/NBD model." http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
     .. [3] Fader, P. S. & Hardie, B. G. (2013) "Overcoming the BG/NBD Model's #NUM!
            Error Problem." http://brucehardie.com/notes/027/bgnbd_num_error.pdf.
-    """  # noqa: E501
+    """
 
     _model_type = "BG/NBD"  # Beta-Geometric Negative Binomial Distribution
 
@@ -331,7 +331,7 @@ class BetaGeoModel(CLVModel):
         ----------
         future_t: int, array_like
             Number of time periods to predict expected purchases.
-        data: pd.DataFrame
+        data: pandas.DataFrame
             Optional dataframe containing the following columns:
                 * `customer_id`: unique customer identifier
                 * `frequency`: Number of repeat purchases
@@ -391,7 +391,7 @@ class BetaGeoModel(CLVModel):
 
         Parameters
         ----------
-        data: pd.DataFrame
+        data: pandas.DataFrame
             Optional dataframe containing the following columns:
                 * `customer_id`: unique customer identifier
                 * `frequency`: Number of repeat purchases
