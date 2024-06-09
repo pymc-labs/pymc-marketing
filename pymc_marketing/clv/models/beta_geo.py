@@ -49,8 +49,7 @@ class BetaGeoModel(CLVModel):
         * `customer_id`: Unique customer identifier
         * `frequency`: Number of repeat purchases
         * `recency`: Time between the first and the last purchase
-        * **`T`: Time between the first purchase and the end of the observation period.
-            Model assumptions require T >= recency**
+        * `T`: Time between the first purchase and the end of the observation period. Model assumptions require T >= recency
     model_config: dict, optional
         Dictionary of model prior parameters:
             * `a_prior`: Shape parameter for time until dropout; defaults to `pymc.HalfFlat()`
@@ -131,7 +130,7 @@ class BetaGeoModel(CLVModel):
            P (alive) using the BG/NBD model." http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
     .. [3] Fader, P. S. & Hardie, B. G. (2013) "Overcoming the BG/NBD Model's #NUM!
            Error Problem." http://brucehardie.com/notes/027/bgnbd_num_error.pdf.
-    """
+    """  # noqa: E501
 
     _model_type = "BG/NBD"  # Beta-Geometric Negative Binomial Distribution
 
@@ -277,7 +276,7 @@ class BetaGeoModel(CLVModel):
         recency: np.ndarray | pd.Series | TensorVariable,
         T: np.ndarray | pd.Series | TensorVariable,
     ) -> xarray.DataArray:
-        """
+        r"""
         This is a deprecated method and will be removed in a future release.
         Please use `BetaGeoModel.expected_purchases` instead.
         """
@@ -337,7 +336,7 @@ class BetaGeoModel(CLVModel):
                 * `customer_id`: unique customer identifier
                 * `frequency`: Number of repeat purchases
                 * `recency`: Time between the first and the last purchase
-                * `T`: Time between first purchase and end of observation period, model assumptions require T >= recency
+                * `T`: Time between first purchase and end of observation period; model assumptions require T >= recency
 
         References
         ----------
@@ -387,7 +386,7 @@ class BetaGeoModel(CLVModel):
         Estimate probability a customer with history *frequency*, *recency*, and *T*
         is currently active. *data* parameter is only required for out-of-sample customers.
 
-        Adapted from page (2) in Bruce Hardie's notes[1]_, and *lifetimes* package:
+        Adapted from page (2) in Bruce Hardie's notes [1]_, and *lifetimes* package:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L260
 
         Parameters
