@@ -182,20 +182,19 @@ def plot_frequency_recency_matrix(
     **kwargs,
 ) -> plt.Axes:
     """
-    Plot recency frequency matrix as heatmap.
-    Plot a figure of expected transactions in T next units of time by a customer's frequency and recency.
+    Plot expected transactions in *future_t* time periods as a heatmap
+    based on customer population *frequency* and *recency*.
 
     Parameters
     ----------
     model: CLV model
         A fitted CLV model.
-    t: float, optional
-        Next units of time to make predictions for
+    future_t: float, optional
+        Future time periods over which to run predictions.
     max_frequency: int, optional
-        The maximum frequency to plot. Default is max observed frequency.
+        The maximum *frequency* to plot. Defaults to max observed *frequency*.
     max_recency: int, optional
-        The maximum recency to plot. This also determines the age of the customer.
-        Default to max observed age.
+        The maximum *recency* to plot. This also determines the age of the customer. Defaults to max observed *T*.
     title: str, optional
         Figure title
     xlabel: str, optional
@@ -292,18 +291,16 @@ def plot_probability_alive_matrix(
     **kwargs,
 ) -> plt.Axes:
     """
-    Plot probability alive matrix as heatmap.
-    Plot a figure of the probability a customer is alive based on their
-    frequency and recency.
+    Plot probability alive matrix as a heatmap based on customer population *frequency* and *recency*.
 
     Parameters
     ----------
     model: CLV model
         A fitted CLV model.
     max_frequency: int, optional
-        The maximum frequency to plot. Defaults to max observed frequency.
+        The maximum *frequency* to plot. Defaults to max observed *frequency*.
     max_recency: int, optional
-        The maximum recency to plot. This also determines the age of the customer. Defaults to max observed age.
+        The maximum *recency* to plot. This also determines the age of the customer. Defaults to max observed *recency*.
     title: str, optional
         Figure title
     xlabel: str, optional
