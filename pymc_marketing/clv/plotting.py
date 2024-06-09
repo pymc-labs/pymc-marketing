@@ -301,10 +301,9 @@ def plot_probability_alive_matrix(
     model: CLV model
         A fitted CLV model.
     max_frequency: int, optional
-        The maximum frequency to plot. Default is max observed frequency.
+        The maximum frequency to plot. Defaults to max observed frequency.
     max_recency: int, optional
-        The maximum recency to plot. This also determines the age of the customer.
-        Default to max observed age.
+        The maximum recency to plot. This also determines the age of the customer. Defaults to max observed age.
     title: str, optional
         Figure title
     xlabel: str, optional
@@ -331,6 +330,8 @@ def plot_probability_alive_matrix(
         max_frequency=max_frequency,
         max_recency=max_recency,
     )
+
+    # create dataframe for model input
     transaction_data = pd.DataFrame(
         {
             "customer_id": np.arange(mesh_recency.size),  # placeholder
@@ -339,22 +340,13 @@ def plot_probability_alive_matrix(
             "T": max_recency,
         }
     )
-    # FIXME: This is a hotfix for ParetoNBDModel, as it has a different API from BetaGeoModel
-    if isinstance(model, ParetoNBDModel):
-        Z = (
-            model.expected_probability_alive(
-                data=transaction_data,
-                future_t=0,  # TODO: This is a required parameter if data is provided.
-            )
-            .mean(("draw", "chain"))
-            .values.reshape(mesh_recency.shape)
-        )
-    else:
-        Z = (
-            model.expected_probability_alive(data=transaction_data)
-            .mean(("draw", "chain"))
-            .values.reshape(mesh_recency.shape)
-        )
+
+    # run model predictions to create heatmap values
+    Z = (
+        model.expected_probability_alive(data=transaction_data)
+        .mean(("draw", "chain"))
+        .values.reshape(mesh_recency.shape)
+    )
 
     interpolation = kwargs.pop("interpolation", "none")
 
