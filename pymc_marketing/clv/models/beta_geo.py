@@ -30,7 +30,7 @@ from pymc_marketing.clv.utils import to_xarray
 
 class BetaGeoModel(CLVModel):
     r"""Beta-Geometric Negative Binomial Distribution (BG/NBD) model for a non-contractual customer population
-    across continuous time. First introduced by Fader, Hardie & Lee[1]_, with additional predictive methods
+    across continuous time. First introduced by Fader, Hardie & Lee [1]_, with additional predictive methods
     and enhancements in [2]_ and [3]_.
 
     The BG/NBD model assumes dropout probabilities for the customer population are Beta distributed,
@@ -45,11 +45,11 @@ class BetaGeoModel(CLVModel):
     Parameters
     ----------
     data: pandas.DataFrame
-    DataFrame containing the following columns:
-        * `customer_id`: Unique customer identifier
-        * `frequency`: Number of repeat purchases
-        * `recency`: Time between the first and the last purchase
-        * `T`: Time between the first purchase and the end of the observation period.
+        DataFrame containing the following columns:
+            * `customer_id`: Unique customer identifier
+            * `frequency`: Number of repeat purchases
+            * `recency`: Time between the first and the last purchase
+            * `T`: Time between the first purchase and the end of the observation period
     model_config: dict, optional
         Dictionary of model prior parameters:
             * `a_prior`: Shape parameter for time until dropout; defaults to `pymc.HalfFlat()`
