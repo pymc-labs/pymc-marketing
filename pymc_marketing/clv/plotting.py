@@ -194,7 +194,7 @@ def plot_frequency_recency_matrix(
     max_frequency: int, optional
         The maximum *frequency* to plot. Defaults to max observed *frequency*.
     max_recency: int, optional
-        The maximum *recency* to plot. This also determines the age of the customer. Defaults to max observed *T*.
+        The maximum *recency* to plot. This also determines the age of the customer. Defaults to max observed *recency*.
     title: str, optional
         Figure title
     xlabel: str, optional
