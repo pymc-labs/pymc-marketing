@@ -13,112 +13,116 @@
 #   limitations under the License.
 import pytest
 
-from pymc_marketing.mmm.budget_optimizer import (
-    calculate_expected_contribution,
-    objective_distribution,
-    optimize_budget_distribution,
-)
+from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+from pymc_marketing.mmm.components.adstock import _get_adstock_function
+from pymc_marketing.mmm.components.saturation import _get_saturation_function
 
 
-# Testing Calculate Expected Contribution
 @pytest.mark.parametrize(
-    "method,parameters,budget,expected",
+    "total_budget, budget_bounds, parameters, expected_optimal, expected_response",
     [
         (
-            "michaelis-menten",
-            {"channel1": (10, 5), "channel2": (20, 10)},
-            {"channel1": 5, "channel2": 10},
-            {"channel1": 5.0, "channel2": 10.0, "total": 15.0},
-        ),
-        # Add more cases
-    ],
-)
-def test_calculate_expected_contribution(method, parameters, budget, expected):
-    assert calculate_expected_contribution(method, parameters, budget) == expected
-
-
-# Testing invalid method for Calculate Expected Contribution
-def test_calculate_expected_contribution_invalid_method():
-    with pytest.raises(ValueError):
-        calculate_expected_contribution(
-            "invalid", {"channel1": (10, 5)}, {"channel1": 5}
-        )
-
-
-# Testing Objective Distribution with valid inputs
-@pytest.mark.parametrize(
-    "x,method,channels,parameters,expected",
-    [
-        (
-            [5, 10],
-            "michaelis-menten",
-            ["channel1", "channel2"],
-            {"channel1": (10, 5), "channel2": (20, 10)},
-            -15.0,
-        ),
-        (
-            [1, 2],
-            "sigmoid",
-            ["channel1", "channel2"],
-            {"channel1": (1, 0.5), "channel2": (1, 0.5)},
-            -0.707,
-        ),
-        # Add more cases
-    ],
-)
-def test_objective_distribution(x, method, channels, parameters, expected):
-    assert objective_distribution(x, method, channels, parameters) == pytest.approx(
-        expected, 0.001
-    )
-
-
-# Testing Objective Distribution with invalid method
-def test_objective_distribution_invalid_method():
-    with pytest.raises(ValueError):
-        objective_distribution(
-            [5, 10],
-            "invalid",
-            ["channel1", "channel2"],
-            {"channel1": (10, 5), "channel2": (20, 10)},
-        )
-
-
-# Testing optimize_budget_distribution with valid inputs
-@pytest.mark.parametrize(
-    "method,total_budget,budget_ranges,parameters,channels,expected_sum",
-    [
-        (
-            "michaelis-menten",
             100,
-            {"channel1": (0, 50), "channel2": (0, 50)},
-            {"channel1": (10, 5), "channel2": (20, 10)},
-            ["channel1", "channel2"],
-            100,
+            {"channel_1": (0, 50), "channel_2": (0, 50)},
+            {
+                "channel_1": {
+                    "adstock_params": {"alpha": 0.5},
+                    "saturation_params": {"lam": 10, "beta": 0.5},
+                },
+                "channel_2": {
+                    "adstock_params": {"alpha": 0.7},
+                    "saturation_params": {"lam": 20, "beta": 1.0},
+                },
+            },
+            {"channel_1": 50.0, "channel_2": 50.0},
+            49.5,
         ),
-        (
-            "sigmoid",
-            10,
-            None,
-            {"channel1": (1, 0.5), "channel2": (1, 0.5)},
-            ["channel1", "channel2"],
-            2.0,
-        ),  # Updated this line
-        # Add more cases
+        # Add more test cases if needed
     ],
 )
-def test_optimize_budget_distribution_valid(
-    method, total_budget, budget_ranges, parameters, channels, expected_sum
+def test_allocate_budget(
+    total_budget, budget_bounds, parameters, expected_optimal, expected_response
 ):
-    result = optimize_budget_distribution(
-        method, total_budget, budget_ranges, parameters, channels
+    # Initialize Adstock and Saturation Transformations
+    adstock = _get_adstock_function(function="geometric", l_max=4)
+    saturation = _get_saturation_function(function="logistic")
+
+    # Create BudgetOptimizer Instance
+    optimizer = BudgetOptimizer(adstock, saturation, 30, parameters, adstock_first=True)
+
+    # Allocate Budget
+    optimal_budgets, total_response = optimizer.allocate_budget(
+        total_budget, budget_bounds
     )
-    # Check if sum of budgets equals expected_sum
-    assert sum(result.values()) == pytest.approx(expected_sum, 0.001)
-    # Check if budgets are within their ranges
-    if budget_ranges:
-        for channel in channels:
-            assert (
-                budget_ranges[channel][0]
-                <= result[channel]
-                <= budget_ranges[channel][1]
-            )
+
+    # Assert Results
+    assert optimal_budgets == expected_optimal
+    assert total_response == pytest.approx(expected_response, rel=1e-2)
+
+
+@pytest.mark.parametrize(
+    "total_budget, budget_bounds, parameters, expected_optimal, expected_response",
+    [
+        (
+            0,
+            {"channel_1": (0, 50), "channel_2": (0, 50)},
+            {
+                "channel_1": {
+                    "adstock_params": {"alpha": 0.5},
+                    "saturation_params": {"lam": 10, "beta": 0.5},
+                },
+                "channel_2": {
+                    "adstock_params": {"alpha": 0.7},
+                    "saturation_params": {"lam": 20, "beta": 1.0},
+                },
+            },
+            {"channel_1": 0.0, "channel_2": 7.94e-13},
+            2.38e-10,
+        ),
+    ],
+)
+def test_allocate_budget_zero_total(
+    total_budget, budget_bounds, parameters, expected_optimal, expected_response
+):
+    adstock = _get_adstock_function(function="geometric", l_max=4)
+    saturation = _get_saturation_function(function="logistic")
+    optimizer = BudgetOptimizer(adstock, saturation, 30, parameters, adstock_first=True)
+    optimal_budgets, total_response = optimizer.allocate_budget(
+        total_budget, budget_bounds
+    )
+    assert optimal_budgets == pytest.approx(expected_optimal, rel=1e-2)
+    assert total_response == pytest.approx(expected_response, abs=1e-1)
+
+
+@pytest.mark.parametrize(
+    "total_budget, budget_bounds, parameters, custom_constraints",
+    [
+        (
+            100,
+            {"channel_1": (0, 50), "channel_2": (0, 50)},
+            {
+                "channel_1": {
+                    "adstock_params": {"alpha": 0.5},
+                    "saturation_params": {"lam": 10, "beta": 0.5},
+                },
+                "channel_2": {
+                    "adstock_params": {"alpha": 0.7},
+                    "saturation_params": {"lam": 20, "beta": 1.0},
+                },
+            },
+            {
+                "type": "ineq",
+                "fun": lambda x: x[0] - 60,
+            },  # channel_1 must be >= 60, which is infeasible
+        ),
+    ],
+)
+def test_allocate_budget_infeasible_constraints(
+    total_budget, budget_bounds, parameters, custom_constraints
+):
+    adstock = _get_adstock_function(function="geometric", l_max=4)
+    saturation = _get_saturation_function(function="logistic")
+    optimizer = BudgetOptimizer(adstock, saturation, 30, parameters, adstock_first=True)
+
+    with pytest.raises(Exception, match="Optimization failed"):
+        optimizer.allocate_budget(total_budget, budget_bounds, custom_constraints)

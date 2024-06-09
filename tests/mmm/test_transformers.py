@@ -27,6 +27,7 @@ from pymc_marketing.mmm.transformers import (
     batched_convolution,
     delayed_adstock,
     geometric_adstock,
+    hill_saturation,
     logistic_saturation,
     michaelis_menten,
     tanh_saturation,
@@ -435,6 +436,80 @@ class TestSaturationTransformers:
     )
     def test_michaelis_menten(self, x, alpha, lam, expected):
         assert np.isclose(michaelis_menten(x, alpha, lam), expected, atol=0.01)
+
+    @pytest.mark.parametrize(
+        "sigma, beta, lam",
+        [
+            (1, 1, 0),
+            (2, 0.5, 1),
+            (3, 2, -1),
+        ],
+    )
+    def test_monotonicity(self, sigma, beta, lam):
+        x = np.linspace(-10, 10, 100)
+        y = hill_saturation(x, sigma, beta, lam).eval()
+        assert np.all(np.diff(y) >= 0), "The function is not monotonic."
+
+    @pytest.mark.parametrize(
+        "x, sigma, beta, lam",
+        [
+            (0, 1, 1, 0),
+            (5, 2, 0.5, 1),
+            (-3, 3, 2, -1),
+        ],
+    )
+    def test_sigma_upper_bound(self, x, sigma, beta, lam):
+        y = hill_saturation(x, sigma, beta, lam).eval()
+        assert y <= sigma, f"The output {y} exceeds the upper bound sigma {sigma}."
+
+    @pytest.mark.parametrize(
+        "x, sigma, beta, lam, expected",
+        [
+            (0, 1, 1, 0, 0.5),
+            (1, 2, 0.5, 1, 1),
+            (-1, 3, 2, -1, 1.5),
+        ],
+    )
+    def test_behavior_at_lambda(self, x, sigma, beta, lam, expected):
+        y = hill_saturation(x, sigma, beta, lam).eval()
+        np.testing.assert_almost_equal(
+            y,
+            expected,
+            decimal=5,
+            err_msg="The function does not behave as expected at lambda.",
+        )
+
+    @pytest.mark.parametrize(
+        "x, sigma, beta, lam",
+        [
+            (np.array([0, 1, 2]), 1, 1, 1),
+            (np.array([-1, 0, 1]), 2, 0.5, 0),
+            (np.array([1, 2, 3]), 3, 2, 2),
+        ],
+    )
+    def test_vectorized_input(self, x, sigma, beta, lam):
+        y = hill_saturation(x, sigma, beta, lam).eval()
+        assert (
+            y.shape == x.shape
+        ), "The function did not return the correct shape for vectorized input."
+
+    @pytest.mark.parametrize(
+        "sigma, beta, lam",
+        [
+            (1, 1, 0),
+            (2, 0.5, 1),
+            (3, 2, -1),
+        ],
+    )
+    def test_asymptotic_behavior(self, sigma, beta, lam):
+        x = 1e6  # A very large value to approximate infinity
+        y = hill_saturation(x, sigma, beta, lam).eval()
+        np.testing.assert_almost_equal(
+            y,
+            sigma,
+            decimal=5,
+            err_msg="The function does not approach sigma as x approaches infinity.",
+        )
 
 
 class TestTransformersComposition:

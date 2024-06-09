@@ -41,14 +41,8 @@ class MockModel:
             dims=["customer_id", "chain", "draw"],
         )
 
-    def expected_probability_alive(
-        self,
-        customer_id: np.ndarray | pd.Series,
-        frequency: np.ndarray | pd.Series,
-        recency: np.ndarray | pd.Series,
-        T: np.ndarray | pd.Series,
-    ):
-        return self._mock_posterior(customer_id)
+    def expected_probability_alive(self, data: np.ndarray | pd.Series):
+        return self._mock_posterior(data["customer_id"])
 
     def expected_purchases(
         self,
