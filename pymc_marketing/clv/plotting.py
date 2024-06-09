@@ -172,7 +172,7 @@ def _create_frequency_recency_meshes(
 
 def plot_frequency_recency_matrix(
     model: BetaGeoModel | ParetoNBDModel,
-    t=1,
+    future_t=1,
     max_frequency: int | None = None,
     max_recency: int | None = None,
     title: str | None = None,
@@ -221,38 +221,25 @@ def plot_frequency_recency_matrix(
         max_recency=max_recency,
     )
 
-    # FIXME: This is a hotfix for ParetoNBDModel, as it has a different API from BetaGeoModel
-    #  We should harmonize them!
-    if isinstance(model, ParetoNBDModel):
-        transaction_data = pd.DataFrame(
-            {
-                "customer_id": np.arange(mesh_recency.size),  # placeholder
-                "frequency": mesh_frequency.ravel(),
-                "recency": mesh_recency.ravel(),
-                "T": max_recency,
-            }
-        )
+    # create dataframe for model input
+    transaction_data = pd.DataFrame(
+        {
+            "customer_id": np.arange(mesh_recency.size),  # placeholder
+            "frequency": mesh_frequency.ravel(),
+            "recency": mesh_recency.ravel(),
+            "T": max_recency,
+        }
+    )
 
-        Z = (
-            model.expected_purchases(
-                data=transaction_data,
-                future_t=t,
-            )
-            .mean(("draw", "chain"))
-            .values.reshape(mesh_recency.shape)
+    # run model predictions to create heatmap values
+    Z = (
+        model.expected_purchases(
+            data=transaction_data,
+            future_t=future_t,
         )
-    else:
-        Z = (
-            model.expected_num_purchases(
-                customer_id=np.arange(mesh_recency.size),  # placeholder
-                frequency=mesh_frequency.ravel(),
-                recency=mesh_recency.ravel(),
-                T=max_recency,
-                t=t,
-            )
-            .mean(("draw", "chain"))
-            .values.reshape(mesh_recency.shape)
-        )
+        .mean(("draw", "chain"))
+        .values.reshape(mesh_recency.shape)
+    )
 
     if ax is None:
         ax = plt.subplot(111)
@@ -261,7 +248,7 @@ def plot_frequency_recency_matrix(
     if title is None:
         title = (
             "Expected Number of Future Purchases for {} Unit{} of Time,".format(
-                t, "s"[t == 1 :]
+                future_t, "s"[future_t == 1 :]
             )
             + "\nby Frequency and Recency of a Customer"
         )
