@@ -172,7 +172,7 @@ def _create_frequency_recency_meshes(
 
 def plot_frequency_recency_matrix(
     model: BetaGeoModel | ParetoNBDModel,
-    future_t=1,
+    future_t: int = 1,
     max_frequency: int | None = None,
     max_recency: int | None = None,
     title: str | None = None,
