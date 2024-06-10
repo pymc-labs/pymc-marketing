@@ -96,7 +96,7 @@ class ParetoNBDModel(CLVModel):
             * `purchase_covariates_prior`: Coefficients for purchase rate covariates; defaults to `Normal(0, 3)`
             * `dropout_covariates_prior`: Coefficients for dropout covariates; defaults to `Normal.dist(0, 3)`
             * `purchase_covariate_cols`: List containing column names of covariates for customer purchase rates.
-            * `dropout_covariate_cols:`: List containing column names of covariates for customer dropouts.
+            * `dropout_covariate_cols`: List containing column names of covariates for customer dropouts.
 
         If not provided, the model will use default priors specified in the `default_model_config` class attribute.
     sampler_config: dict, optional
