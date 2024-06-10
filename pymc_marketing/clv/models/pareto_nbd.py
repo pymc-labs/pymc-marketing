@@ -67,7 +67,7 @@ pytensor.compile.optdb["specialize"].register(
 class ParetoNBDModel(CLVModel):
     """Pareto Negative Binomial Model (Pareto/NBD).
 
-    Model for continuous, non-contractual customers, first introduced by Schmittlein, et al. [1]_,
+    Model for continuous, non-contractual customers, first introduced by Schmittlein et al. [1]_,
     with additional derivations and predictive methods by Hardie & Fader [2]_ [3]_ [4]_.
 
     The Pareto/NBD model assumes the time duration a customer is active follows a Gamma distribution,
