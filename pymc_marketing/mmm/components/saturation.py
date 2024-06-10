@@ -59,6 +59,8 @@ class SaturationTransformation(Transformation):
     Make a non-saturating saturation transformation
 
     .. code-block:: python
+    
+        from pymc_marketing.mmm import SaturationTransformation
 
         def infinite_returns(x, b):
             return b * x
