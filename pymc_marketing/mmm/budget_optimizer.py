@@ -13,217 +13,185 @@
 #   limitations under the License.
 """Budget optimization module."""
 
+import warnings
+from typing import Any
+
 import numpy as np
-from pandas import DataFrame
 from scipy.optimize import minimize
 
-from pymc_marketing.mmm.transformers import michaelis_menten
-from pymc_marketing.mmm.utils import sigmoid_saturation
+from pymc_marketing.mmm.components.adstock import AdstockTransformation
+from pymc_marketing.mmm.components.saturation import SaturationTransformation
 
 
-def calculate_expected_contribution(
-    method: str,
-    parameters: dict[str, tuple[float, float]],
-    budget: dict[str, float],
-) -> dict[str, float]:
+class BudgetOptimizer:
     """
-    Calculate expected contributions using the specified model.
+    A class for optimizing budget allocation in a marketing mix model.
 
-    This function calculates the expected contributions for each channel
-    based on the chosen model. The selected model can be either the Michaelis-Menten
-    model or the sigmoid model, each described by specific parameters.
-    As the allocated budget varies, the expected contribution is computed according
-    to the chosen model.
+    The goal of this optimization is to maximize the total expected response
+    by allocating the given budget across different marketing channels. The
+    optimization is performed using the Sequential Least Squares Quadratic
+    Programming (SLSQP) method, which is a gradient-based optimization algorithm
+    suitable for solving constrained optimization problems.
+
+    For more information on the SLSQP algorithm, refer to the documentation:
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
 
     Parameters
     ----------
-    method : str
-        The model to use for contribution estimation. Choose from 'michaelis-menten' or 'sigmoid'.
-    parameters : Dict
-        Model-specific parameters for each channel. For 'michaelis-menten', each entry is a tuple (L, k) where:
-        - L is the maximum potential contribution.
-        - k is the budget at which the contribution is half of its maximum.
-
-        For 'sigmoid', each entry is a tuple (alpha, lam) where:
-        - alpha controls the slope of the curve.
-        - lam is the budget at which the curve transitions.
-    budget : Dict
-        The total budget.
-
-    Returns
-    -------
-    Dict
-        A dictionary with channels as keys and their respective contributions as values.
-        The key 'total' contains the total expected contribution across all channels.
-
-    Raises
-    ------
-    ValueError
-        If the specified `method` is not recognized.
+    adstock : AdstockTransformation
+        The adstock class.
+    saturation : SaturationTransformation
+        The saturation class.
+    num_days : int
+        The number of days.
+    parameters : dict
+        A dictionary of parameters for each channel.
+    adstock_first : bool, optional
+        Whether to apply adstock transformation first or saturation transformation first.
+        Default is True.
     """
 
-    total_expected_contribution = 0.0
-    contributions = {}
+    def __init__(
+        self,
+        adstock: AdstockTransformation,
+        saturation: SaturationTransformation,
+        num_days: int,
+        parameters: dict[str, dict[str, dict[str, float]]],
+        adstock_first: bool = True,
+    ):
+        self.adstock = adstock
+        self.saturation = saturation
+        self.num_days = num_days
+        self.parameters = parameters
+        self.adstock_first = adstock_first
 
-    for channel, channe_budget in budget.items():
-        if method == "michaelis-menten":
-            L, k = parameters[channel]
-            contributions[channel] = michaelis_menten(channe_budget, L, k)
+    def objective(self, budgets: list[float]) -> float:
+        """
+        Calculate the total response during a period of time given the budgets,
+        considering the saturation and adstock transformations.
 
-        elif method == "sigmoid":
-            alpha, lam = parameters[channel]
-            contributions[channel] = sigmoid_saturation(channe_budget, alpha, lam)
+        Parameters
+        ----------
+        budgets : list[float]
+            The budgets for each channel.
 
+        Returns
+        -------
+        float
+            The negative total response value.
+        """
+        total_response = 0
+        first_transform, second_transform = (
+            (self.adstock, self.saturation)
+            if self.adstock_first
+            else (self.saturation, self.adstock)
+        )
+        for idx, (_channel, params) in enumerate(self.parameters.items()):
+            budget = budgets[idx]
+            first_params = (
+                params["adstock_params"]
+                if self.adstock_first
+                else params["saturation_params"]
+            )
+            second_params = (
+                params["saturation_params"]
+                if self.adstock_first
+                else params["adstock_params"]
+            )
+            spend = np.full(self.num_days, budget)
+            spend_extended = np.concatenate([spend, np.zeros(self.adstock.l_max)])
+            transformed_spend = second_transform.function(
+                x=first_transform.function(x=spend_extended, **first_params),
+                **second_params,
+            ).eval()
+            total_response += np.sum(transformed_spend)
+        return -total_response
+
+    def allocate_budget(
+        self,
+        total_budget: float,
+        budget_bounds: dict[str, tuple[float, float]] | None = None,
+        custom_constraints: dict[Any, Any] | None = None,
+    ) -> tuple[dict[str, float], float]:
+        """
+        Allocate the budget based on the total budget, budget bounds, and custom constraints.
+
+        The default budget bounds are (0, total_budget) for each channel.
+
+        The default constraint is the sum of all budgets should be equal to the total budget.
+
+        The optimization is done using the Sequential Least Squares Quadratic Programming (SLSQP) method
+        and it's constrained such that:
+        1. The sum of budgets across all channels equals the total available budget.
+        2. The budget allocated to each individual channel lies within its specified range.
+
+        The purpose is to maximize the total expected objective based on the inequality
+        and equality constraints.
+
+        Parameters
+        ----------
+        total_budget : float
+            The total budget.
+        budget_bounds : dict[str, tuple[float, float]], optional
+            The budget bounds for each channel. Default is None.
+        custom_constraints : dict, optional
+            Custom constraints for the optimization. Default is None.
+
+        Returns
+        -------
+        tuple[dict[str, float], float]
+            The optimal budgets for each channel and the negative total response value.
+
+        Raises
+        ------
+        Exception
+            If the optimization fails, an exception is raised with the reason for the failure.
+        """
+        if budget_bounds is None:
+            budget_bounds = {channel: (0, total_budget) for channel in self.parameters}
+            warnings.warn(
+                "No budget bounds provided. Using default bounds (0, total_budget) for each channel.",
+                stacklevel=2,
+            )
         else:
-            raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")
+            if not isinstance(budget_bounds, dict):
+                raise TypeError("`budget_bounds` should be a dictionary.")
 
-        total_expected_contribution += contributions[channel]
-
-    contributions["total"] = total_expected_contribution
-
-    return contributions
-
-
-def objective_distribution(
-    x: list[float],
-    method: str,
-    channels: list[str],
-    parameters: dict[str, tuple[float, float]],
-) -> float:
-    """
-    Compute the total contribution for a given budget distribution.
-
-    This function calculates the negative sum of contributions for a proposed budget
-    distribution using the Michaelis-Menten model. This value will be minimized in
-    the optimization process to maximize the total expected contribution.
-
-    Parameters
-    ----------
-    x : List of float
-        The proposed budget distribution across channels.
-    channels : List of str
-        The List of channels for which the budget is being optimized.
-    parameters : Dict
-        Michaelis-Menten parameters for each channel as described in `calculate_expected_contribution`.
-
-    Returns
-    -------
-    float
-        Negative of the total expected contribution for the given budget distribution.
-    """
-
-    sum_contributions = 0.0
-
-    for channel, budget in zip(channels, x, strict=False):
-        if method == "michaelis-menten":
-            L, k = parameters[channel]
-            sum_contributions += michaelis_menten(budget, L, k)
-
-        elif method == "sigmoid":
-            alpha, lam = parameters[channel]
-            sum_contributions += sigmoid_saturation(budget, alpha, lam)
-
+        if custom_constraints is None:
+            constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
+            warnings.warn(
+                "Using default equaliy constraint: The sum of all budgets should be equal to the total budget.",
+                stacklevel=2,
+            )
         else:
-            raise ValueError("`method` must be either 'michaelis-menten' or 'sigmoid'.")
+            if not isinstance(custom_constraints, dict):
+                raise TypeError("`custom_constraints` should be a dictionary.")
+            else:
+                constraints = custom_constraints
 
-    return -1 * sum_contributions
-
-
-def optimize_budget_distribution(
-    method: str,
-    total_budget: int,
-    budget_ranges: dict[str, tuple[float, float]] | None,
-    parameters: dict[str, tuple[float, float]],
-    channels: list[str],
-) -> dict[str, float]:
-    """
-    Optimize the budget allocation across channels to maximize total contribution.
-
-    Using the Michaelis-Menten or Sigmoid function, this function seeks the best budget distribution across
-    channels that maximizes the total expected contribution.
-
-    This function leverages the Sequential Least Squares Quadratic Programming (SLSQP) optimization
-    algorithm to find the best budget distribution across channels that maximizes the total
-    expected contribution based on the Michaelis-Menten or Sigmoid functions.
-
-    The optimization is constrained such that:
-    1. The sum of budgets across all channels equals the total available budget.
-    2. The budget allocated to each individual channel lies within its specified range.
-
-    The SLSQP method is particularly suited for this kind of problem as it can handle
-    both equality and inequality constraints.
-
-    Parameters
-    ----------
-    total_budget : int
-        The total budget to be distributed across channels.
-    budget_ranges : Dict or None
-        An optional dictionary defining the minimum and maximum budget for each channel.
-        If not provided, the budget for each channel is constrained between 0 and its L value.
-    parameters : Dict
-        Michaelis-Menten parameters for each channel as described in `calculate_expected_contribution`.
-    channels : list of str
-        The list of channels for which the budget is being optimized.
-
-    Returns
-    -------
-    Dict
-        A dictionary with channels as keys and the optimal budget for each channel as values.
-    """
-
-    # Check if budget_ranges is the correct type
-    if not isinstance(budget_ranges, dict | type(None)):
-        raise TypeError("`budget_ranges` should be a dictionary or None.")
-
-    if budget_ranges is None:
-        budget_ranges = {
-            channel: (0, min(total_budget, parameters[channel][0]))
-            for channel in channels
-        }
-
-    initial_guess = [total_budget // len(channels)] * len(channels)
-
-    bounds = [budget_ranges[channel] for channel in channels]
-
-    constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
-
-    result = minimize(
-        lambda x: objective_distribution(x, method, channels, parameters),
-        initial_guess,
-        method="SLSQP",
-        bounds=bounds,
-        constraints=constraints,
-    )
-
-    return {
-        channel: budget for channel, budget in zip(channels, result.x, strict=False)
-    }
-
-
-def budget_allocator(
-    method: str,
-    total_budget: int,
-    channels: list[str],
-    parameters: dict[str, tuple[float, float]],
-    budget_ranges: dict[str, tuple[float, float]] | None,
-) -> DataFrame:
-    optimal_budget = optimize_budget_distribution(
-        method=method,
-        total_budget=total_budget,
-        budget_ranges=budget_ranges,
-        parameters=parameters,
-        channels=channels,
-    )
-
-    expected_contribution = calculate_expected_contribution(
-        method=method, parameters=parameters, budget=optimal_budget
-    )
-
-    optimal_budget.update({"total": sum(optimal_budget.values())})
-
-    return DataFrame(
-        {
-            "estimated_contribution": expected_contribution,
-            "optimal_budget": optimal_budget,
-        }
-    )
+        num_channels = len(self.parameters.keys())
+        initial_guess = [total_budget // num_channels] * num_channels
+        bounds = [
+            (
+                (budget_bounds[channel][0], budget_bounds[channel][1])
+                if channel in budget_bounds
+                else (0, total_budget)
+            )
+            for channel in self.parameters
+        ]
+        result = minimize(
+            self.objective,
+            x0=initial_guess,
+            bounds=bounds,
+            constraints=constraints,
+            method="SLSQP",
+            options={"ftol": 1e-9, "maxiter": 1000},
+        )
+        if result.success:
+            optimal_budgets = {
+                name: budget
+                for name, budget in zip(self.parameters.keys(), result.x, strict=False)
+            }
+            return optimal_budgets, -result.fun
+        else:
+            raise Exception("Optimization failed: " + result.message)

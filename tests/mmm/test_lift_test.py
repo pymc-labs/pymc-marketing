@@ -23,8 +23,7 @@ from sklearn.preprocessing import MaxAbsScaler
 from pymc_marketing.mmm.lift_test import (
     MissingLiftTestError,
     NonMonotonicLiftError,
-    add_logistic_empirical_lift_measurements_to_likelihood,
-    add_menten_empirical_lift_measurements_to_likelihood,
+    add_lift_measurements_to_likelihood,
     check_increasing_assumption,
     index_variable,
     indices_from_lift_tests,
@@ -32,6 +31,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_channel_lift_measurements,
     scale_target_for_lift_measurements,
 )
+from pymc_marketing.mmm.transformers import logistic_saturation, michaelis_menten
 
 
 @pytest.fixture(scope="function")
@@ -160,6 +160,57 @@ def df_lift_tests_with_numerics(df_lift_tests) -> pd.DataFrame:
         delta_x=50,
         delta_y=0.1,
         sigma=0.15,
+    )
+
+
+def add_menten_empirical_lift_measurements_to_likelihood(
+    df_lift_test: pd.DataFrame,
+    alpha_name: str,
+    lam_name: str,
+    dist=pm.Gamma,
+    model: pm.Model | None = None,
+    name: str = "lift_measurements",
+) -> None:
+    """Ported over to test."""
+    variable_mapping = {
+        "alpha": alpha_name,
+        "lam": lam_name,
+    }
+
+    add_lift_measurements_to_likelihood(
+        df_lift_test,
+        variable_mapping,
+        saturation_function=michaelis_menten,
+        model=model,
+        dist=dist,
+        name=name,
+    )
+
+
+def add_logistic_empirical_lift_measurements_to_likelihood(
+    df_lift_test: pd.DataFrame,
+    lam_name: str,
+    beta_name: str,
+    dist: pm.Distribution = pm.Gamma,
+    model: pm.Model | None = None,
+    name: str = "lift_measurements",
+) -> None:
+    """Ported over to test."""
+    variable_mapping = {
+        "lam": lam_name,
+        "beta": beta_name,
+    }
+
+    def saturation_function(x, beta, lam):
+        return beta * logistic_saturation(x, lam)
+
+    add_lift_measurements_to_likelihood(
+        df_lift_test,
+        variable_mapping,
+        saturation_function=saturation_function,
+        model=model,
+        dist=dist,
+        name=name,
     )
 
 
