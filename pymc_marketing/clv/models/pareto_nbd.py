@@ -68,7 +68,7 @@ class ParetoNBDModel(CLVModel):
     """Pareto Negative Binomial Model (Pareto/NBD).
 
     Model for continuous, non-contractual customers, first introduced by Schmittlein et al. [1]_,
-    with additional derivations and predictive methods by Hardie & Fader [2]_ [3]_ [4]_.
+    with additional derivations and predictive methods by Hardie & Fader [2]_ [3]_ [4]_ [5]_.
 
     The Pareto/NBD model assumes the time duration a customer is active follows a Gamma distribution,
     and time between purchases is also Gamma-distributed while the customer is still active.
