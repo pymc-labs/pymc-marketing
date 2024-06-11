@@ -53,7 +53,7 @@ from pymc_marketing.mmm.components.saturation import _get_saturation_function
             },
             {
                 "method": "SLSQP",
-                "options": {"ftol": 1e-8, "maxiter": 2_000},
+                "options": {"ftol": 1e-8, "maxiter": 1_002},
             },
             {"channel_1": 50.0, "channel_2": 50.0},
             49.5,
