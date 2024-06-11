@@ -44,10 +44,7 @@ from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood,
     scale_lift_measurements,
 )
-from pymc_marketing.mmm.preprocessing import (
-    MaxAbsScaleChannels,
-    MaxAbsScaleTarget,
-)
+from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.tvp import create_time_varying_intercept, infer_time_index
 from pymc_marketing.mmm.utils import (
     _get_distribution_from_dict,
@@ -55,9 +52,7 @@ from pymc_marketing.mmm.utils import (
     create_new_spend_data,
     generate_fourier_modes,
 )
-from pymc_marketing.mmm.validating import (
-    ValidateControlColumns,
-)
+from pymc_marketing.mmm.validating import ValidateControlColumns
 
 __all__ = ["BaseMMM", "MMM", "DelayedSaturatedMMM"]
 
@@ -71,8 +66,8 @@ class BaseMMM(BaseValidateMMM):
     .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
     """
 
-    _model_type = "DelayedSaturatedMMM"
-    version = "0.0.2"
+    _model_type = "BaseValidateMMM"
+    version = "0.0.3"
 
     def __init__(
         self,
@@ -593,6 +588,16 @@ class BaseMMM(BaseValidateMMM):
     def _get_fourier_models_data(self, X) -> pd.DataFrame:
         """Generates fourier modes to model seasonality.
 
+        Parameters
+        ----------
+        X : Union[pd.DataFrame, pd.Series], shape (n_obs, n_features)
+            Input data for the model. To generate the Fourier modes, it must contain a date column.
+
+        Returns
+        -------
+        pd.DataFrame
+            Fourier modes (sin and cos with different frequencies) as columns in a dataframe.
+
         References
         ----------
         https://www.pymc.io/projects/examples/en/latest/time_series/Air_passengers-Prophet_with_Bayesian_workflow.html
@@ -680,7 +685,7 @@ class BaseMMM(BaseValidateMMM):
             If the inference data that is loaded doesn't match with the model.
         """
 
-        filepath = Path(str(fname))
+        filepath = Path(fname)
         idata = az.from_netcdf(filepath)
         model_config = cls._model_config_formatting(
             json.loads(idata.attrs["model_config"])
@@ -958,7 +963,7 @@ class MMM(
     """  # noqa: E501
 
     _model_type = "MMM"
-    version = "0.0.2"
+    version = "0.0.1"
 
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float_]
@@ -1095,6 +1100,8 @@ class MMM(
         absolute_xrange : bool, optional
             If True, the x-axis is in absolute values (input units), otherwise it is in
             relative percentage values, by default False.
+        **plt_kwargs
+            Keyword arguments to pass to `plt.subplots()`
 
         Returns
         -------
@@ -2024,14 +2031,13 @@ class MMM(
         inverse_scaled_channel_spend = self.channel_transformer.inverse_transform(
             np.array([list(self.optimal_allocation_dict.values())])
         )
-        original_scale_allocation_dict = {
-            k: v
-            for k, v in zip(
+        original_scale_allocation_dict = dict(
+            zip(
                 self.optimal_allocation_dict.keys(),
                 inverse_scaled_channel_spend[0],
                 strict=False,
             )
-        }
+        )
 
         synth_dataset = self._create_synth_dataset(
             df=self.X,
@@ -2209,8 +2215,9 @@ class MMM(
 
 
 class DelayedSaturatedMMM(MMM):
+    _model_type = "MMM"
     _model_name = "DelayedSaturatedMMM"
-    version = "0.0.2"
+    version = "0.0.3"
 
     def __init__(
         self,
