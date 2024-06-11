@@ -171,7 +171,7 @@ class BudgetOptimizer:
         if custom_constraints is None:
             constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
             warnings.warn(
-                "Using default equaliy constraint: The sum of all budgets should be equal to the total budget.",
+                "Using default equality constraint: The sum of all budgets should be equal to the total budget.",
                 stacklevel=2,
             )
         else:
@@ -181,7 +181,7 @@ class BudgetOptimizer:
                 constraints = custom_constraints
 
         num_channels = len(self.parameters.keys())
-        initial_guess = [total_budget // num_channels] * num_channels
+        initial_guess = np.ones(num_channels) * total_budget / num_channels
         bounds = [
             (
                 (budget_bounds[channel][0], budget_bounds[channel][1])
@@ -198,7 +198,7 @@ class BudgetOptimizer:
             }
 
         result = minimize(
-            self.objective,
+            fun=self.objective,
             x0=initial_guess,
             bounds=bounds,
             constraints=constraints,

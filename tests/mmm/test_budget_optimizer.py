@@ -11,6 +11,9 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+from unittest.mock import patch
+
+import numpy as np
 import pytest
 
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, MinimizeException
@@ -121,6 +124,45 @@ def test_allocate_budget_zero_total(
     )
     assert optimal_budgets == pytest.approx(expected_optimal, rel=1e-2)
     assert total_response == pytest.approx(expected_response, abs=1e-1)
+
+
+@patch("pymc_marketing.mmm.budget_optimizer.minimize")
+def test_allocate_budget_custom_minimize_args(minimize_mock) -> None:
+    total_budget = 100
+    budget_bounds = {"channel_1": (0.0, 50.0), "channel_2": (0.0, 50.0)}
+    parameters = {
+        "channel_1": {
+            "adstock_params": {"alpha": 0.5},
+            "saturation_params": {"lam": 10, "beta": 0.5},
+        },
+        "channel_2": {
+            "adstock_params": {"alpha": 0.7},
+            "saturation_params": {"lam": 20, "beta": 1.0},
+        },
+    }
+    minimize_kwargs = {
+        "method": "SLSQP",
+        "options": {"ftol": 1e-8, "maxiter": 1_002},
+    }
+
+    adstock = _get_adstock_function(function="geometric", l_max=4)
+    saturation = _get_saturation_function(function="logistic")
+    optimizer = BudgetOptimizer(adstock, saturation, 30, parameters, adstock_first=True)
+    optimizer.allocate_budget(
+        total_budget, budget_bounds, minimize_kwargs=minimize_kwargs
+    )
+
+    kwargs = minimize_mock.call_args_list[0].kwargs
+
+    np.testing.assert_array_equal(x=kwargs["x0"], y=np.array([50.0, 50.0]))
+    assert kwargs["bounds"] == [(0.0, 50.0), (0.0, 50.0)]
+    # default constraint constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
+    assert kwargs["constraints"]["type"] == "eq"
+    assert kwargs["constraints"]["fun"](np.array([50.0, 50.0])) == 0.0
+    assert kwargs["constraints"]["fun"](np.array([100.0, 0.0])) == 0.0
+    assert kwargs["constraints"]["fun"](np.array([0.0, 0.0])) == -100.0
+    assert kwargs["method"] == minimize_kwargs["method"]
+    assert kwargs["options"] == minimize_kwargs["options"]
 
 
 @pytest.mark.parametrize(
