@@ -537,6 +537,9 @@ class MMMModelBuilder(ModelBuilder):
         """Plot the target variable and the posterior predictive model components in
         the scaled space.
 
+        **plt_kwargs
+            Additional keyword arguments to pass to `plt.subplots`.
+
         Returns
         -------
         plt.Figure
