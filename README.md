@@ -59,8 +59,10 @@ Leverage our Bayesian MMM API to tailor your marketing strategies effectively. B
 - **Custom Priors and Likelihoods**: Tailor your model to your specific business needs by including domain knowledge via prior distributions.
 - **Adstock Transformation**: Optimize the carry-over effects in your marketing channels.
 - **Saturation Effects**: Understand the diminishing returns in media investments.
+- **Customize adstock and saturation functions:** You can select from a variety of adstock and saturation functions. You can even implement your own custom functions.
 - **Time-varying Intercept:** Capture time-varying baseline contributions in your model (using modern and efficient Gaussian processes approximation methods).
 - **Visualization and Model Diagnostics**: Get a comprehensive view of your model's performance and insights.
+- **Choose among many inference algorithms**: We provide the option to choose between various NUTS samplers (e.g. BlackJax, NumPyro and Nutpie). See the [example notebook]([/docs/source/notebooks/mmm/mmm_example.html](https://www.pymc-marketing.io/en/stable/notebooks/general/other_nuts_samplers.html)) for more details.
 - **Out-of-sample Predictions**: Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.
 - **Budget Optimization**: Allocate your marketing spend efficiently across various channels for maximum ROI.
 - **Experiment Calibration**: Fine-tune your model based on empirical experiments for a more unified view of marketing.
@@ -69,12 +71,14 @@ Leverage our Bayesian MMM API to tailor your marketing strategies effectively. B
 
 ```python
 import pandas as pd
-from pymc_marketing.mmm import DelayedSaturatedMMM
+from pymc_marketing.mmm import MMM
 
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
 data = pd.read_csv(data_url, parse_dates=['date_week'])
 
-mmm = DelayedSaturatedMMM(
+mmm = MMM(
+    adstock="geometric",
+    saturation="logistic",
     date_column="date_week",
     channel_columns=["x1", "x2"],
     control_columns=[
@@ -105,6 +109,11 @@ Once the model is fitted, we can further optimize our budget allocation as we ar
 </center>
 
 Explore a hands-on [simulated example](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
+
+<p>
+<div style="color:red;"><b>Warning! </b></div> We will deprecate the `DelayedSaturatedMMM` class in the next releases.
+Please use the `MMM` class instead.
+</p>
 
 ### Essential Reading for Marketing Mix Modeling (MMM)
 
