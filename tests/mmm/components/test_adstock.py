@@ -57,7 +57,7 @@ x[0] = 1
 )
 def test_apply(model, adstock, x, dims) -> None:
     with model:
-        y = adstock.apply(x, dim_name=dims)
+        y = adstock.apply(x, dims=dims)
 
     assert isinstance(y, pt.TensorVariable)
     assert y.eval().shape == x.shape

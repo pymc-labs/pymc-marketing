@@ -166,7 +166,7 @@ def test_apply(new_transformation):
     x = np.array([1, 2, 3])
     expected = np.array([6, 12, 18])
     with pm.Model() as generative_model:
-        pm.Deterministic("y", new_transformation.apply(x, dim_name=None))
+        pm.Deterministic("y", new_transformation.apply(x))
 
     fixed_model = pm.do(generative_model, {"new_a": 2, "new_b": 3})
     np.testing.assert_allclose(fixed_model["y"].eval(), expected)

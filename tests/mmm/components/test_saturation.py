@@ -57,7 +57,7 @@ def saturation_functions():
 )
 def test_apply_method(model, saturation, x, dims) -> None:
     with model:
-        y = saturation.apply(x, dim_name=dims)
+        y = saturation.apply(x, dims=dims)
 
     assert isinstance(y, pt.TensorVariable)
     assert y.eval().shape == x.shape

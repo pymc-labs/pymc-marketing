@@ -373,7 +373,7 @@ class BaseMMM(BaseValidateMMM):
             else (self.saturation, self.adstock)
         )
 
-        return second.apply(x=first.apply(x=x))
+        return second.apply(x=first.apply(x=x, dims="channel"), dims="channel")
 
     def build_model(
         self,

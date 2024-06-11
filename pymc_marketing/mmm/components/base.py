@@ -24,6 +24,12 @@ import warnings
 from inspect import signature
 from typing import Any
 
+import arviz as az
+import matplotlib.pyplot as plt
+import numpy as np
+import pymc as pm
+import xarray as xr
+from pymc.distributions.shape_utils import Dims
 from pytensor import tensor as pt
 
 from pymc_marketing.mmm.utils import _get_distribution_from_dict
@@ -212,7 +218,9 @@ class Transformation:
             for parameter in self.default_priors.keys()
         }
 
-    def _create_distributions(self, dim_name: str) -> dict[str, pt.TensorVariable]:
+    def _create_distributions(
+        self, dims: Dims | None = None
+    ) -> dict[str, pt.TensorVariable]:
         distributions: dict[str, pt.TensorVariable] = {}
         for parameter_name, variable_name in self.variable_mapping.items():
             parameter_prior = self.function_priors[parameter_name]
@@ -223,13 +231,159 @@ class Transformation:
 
             distributions[parameter_name] = distribution(
                 name=variable_name,
-                dims=dim_name,
+                dims=dims,
                 **parameter_prior["kwargs"],
             )
 
         return distributions
 
-    def apply(self, x: pt.TensorLike, dim_name: str = "channel") -> pt.TensorVariable:
+    def sample_prior(self, **sample_prior_predictive_kwargs) -> xr.Dataset:
+        """Sample the priors for the transformation.
+
+        Parameters
+        ----------
+        **sample_prior_predictive_kwargs
+            Keyword arguments for the pm.sample_prior_predictive function.
+
+        Returns
+        -------
+        xr.Dataset
+            The dataset with the sampled priors.
+
+        """
+        with pm.Model():
+            self._create_distributions()
+            return pm.sample_prior_predictive(**sample_prior_predictive_kwargs).prior
+
+    def plot_curve(
+        self,
+        curve: xr.DataArray,
+        color: str = "C0",
+        ax: plt.Axes | None = None,
+        sample_kwargs: dict | None = None,
+        hdi_kwargs: dict | None = None,
+    ) -> plt.Axes:
+        """Plot curve HDI and samples.
+
+        Parameters
+        ----------
+        curve : xr.DataArray
+            The curve to plot.
+        color : str, optional
+            The color of the curve. Defaults to "C0".
+        ax : plt.Axes, optional
+            The axes to plot on. Defaults to None.
+        sample_kwargs : dict, optional
+            Keyword arguments for the plot_curve_sample function. Defaults to None.
+        hdi_kwargs : dict, optional
+            Keyword arguments for the plot_curve_hdi function. Defaults to None.
+
+        Returns
+        -------
+        plt.Axes
+            The axes with the plot.
+
+        """
+        hdi_kwargs = hdi_kwargs or {}
+        sample_kwargs = sample_kwargs or {}
+        ax = self.plot_curve_hdi(curve, color=color, ax=ax, **hdi_kwargs)
+        ax = self.plot_curve_sample(curve, color=color, ax=ax, **sample_kwargs)
+        return ax
+
+    def plot_curve_sample(
+        self,
+        curve: xr.DataArray,
+        color: str = "C0",
+        ax: plt.Axes | None = None,
+        n: int = 10,
+        rng: np.random.Generator | None = None,
+        plot_kwargs: dict | None = None,
+    ) -> plt.Axes:
+        """Plot samples from the curve.
+
+        Parameters
+        ----------
+        curve : xr.DataArray
+            The curve to plot.
+        color : str, optional
+            The color of the curve. Defaults to "C0".
+        ax : plt.Axes, optional
+            The axes to plot on. Defaults to None.
+        n : int, optional
+            The number of samples to plot. Defaults to 10.
+        rng : np.random.Generator, optional
+            The random number generator to use. Defaults to None.
+        plot_kwargs : dict, optional
+            Keyword arguments for the plot function. Defaults to None.
+
+        Returns
+        -------
+        plt.Axes
+            The axes with the plot.
+
+        """
+        df_curve = curve.to_series().unstack()
+
+        df_sample = df_curve.sample(n=n, random_state=rng)
+
+        ax = ax or plt.gca()
+        plot_kwargs = plot_kwargs or {}
+        plot_kwargs["color"] = color
+        plot_kwargs["alpha"] = plot_kwargs.get("alpha", 0.3)
+        plot_kwargs["legend"] = False
+        df_sample.T.plot(ax=ax, **plot_kwargs)
+
+        return ax
+
+    def plot_curve_hdi(
+        self,
+        curve: xr.DataArray,
+        color: str = "C0",
+        ax: plt.Axes | None = None,
+        hdi_kwargs: dict | None = None,
+        plot_kwargs: dict | None = None,
+    ) -> plt.Axes:
+        """Plot the HDI of the curve.
+
+        Parameters
+        ----------
+        curve : xr.DataArray
+            The curve to plot.
+        color : str, optional
+            The color of the curve. Defaults to "C0".
+        ax : plt.Axes, optional
+            The axes to plot on. Defaults to None.
+        hdi_kwargs : dict, optional
+            Keyword arguments for the az.hdi function. Defaults to None.
+        plot_kwargs : dict, optional
+            Keyword arguments for the fill_between function. Defaults to None.
+
+        Returns
+        -------
+        plt.Axes
+            The axes with the plot.
+
+        """
+        hdi_kwargs = hdi_kwargs or {}
+        conf = az.hdi(curve, **hdi_kwargs)
+
+        df_conf = conf[curve.name].to_series().unstack()
+
+        plot_kwargs = plot_kwargs or {}
+        plot_kwargs["color"] = color
+        plot_kwargs["alpha"] = plot_kwargs.get("alpha", 0.3)
+
+        ax = ax or plt.gca()
+        ax.fill_between(
+            df_conf.index,
+            df_conf["lower"],
+            df_conf["higher"],
+            **plot_kwargs,
+        )
+
+        return ax
+
+    def apply(self, x: pt.TensorLike, dims: Dims | None = None) -> pt.TensorVariable:
         """Called within a model context.
 
         Used internally of the MMM to apply the transformation to the data.
@@ -238,30 +392,29 @@ class Transformation:
         ----------
         x : pt.TensorLike
             The data to be transformed.
-        dim_name : str, optional
-            The name of the dimension associated with the columns of the data.
-            Defaults to "channel".
+        dims : str, sequence[str], optional
+            The name of the dimension associated with the columns of the
+            data. Defaults to None
 
         Returns
         -------
         pt.TensorVariable
             The transformed data.
 
-
         Examples
         --------
         Call the function for custom use-case
 
-        import pymc as pm
-
         .. code-block:: python
+
+            import pymc as pm
 
             transformation = ...
 
             coords = {"channel": ["TV", "Radio", "Digital"]}
             with pm.Model(coords=coords):
-                transformed_data = transformation.apply(data, dim_name="channel")
+                transformed_data = transformation.apply(data, dims="channel")
 
         """
-        kwargs = self._create_distributions(dim_name=dim_name)
+        kwargs = self._create_distributions(dims=dims)
         return self.function(x, **kwargs)

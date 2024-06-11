@@ -25,6 +25,8 @@ Create a new adstock transformation:
 
 .. code-block:: python
 
+    from pymc_marketing.mmm import AdstockTransformation
+
     class MyAdstock(AdstockTransformation):
         def function(self, x, alpha):
             return x * alpha
@@ -34,6 +36,10 @@ Create a new adstock transformation:
 """
 
 import warnings
+
+import numpy as np
+import pymc as pm
+import xarray as xr
 
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.transformers import (
@@ -74,11 +80,67 @@ class AdstockTransformation(Transformation):
 
         super().__init__(priors=priors, prefix=prefix)
 
+    def sample_curve(
+        self,
+        parameters: xr.Dataset,
+        amount: float = 1.0,
+    ) -> xr.DataArray:
+        """Sample the adstock transformation given parameters.
+
+        Parameters
+        ----------
+        parameters : xr.Dataset
+            Dataset with parameter values.
+        amount : float, optional
+            Amount to apply the adstock transformation to, by default 1.0.
+
+        Returns
+        -------
+        xr.DataArray
+            Adstocked version of the amount.
+
+        """
+
+        time_since = np.arange(0, self.l_max)
+        coords = {
+            "time since exposure": time_since,
+        }
+        x = np.zeros(self.l_max)
+        x[0] = amount
+
+        with pm.Model(coords=coords):
+            var_name = "adstock"
+            pm.Deterministic(
+                var_name,
+                self.apply(x),
+                dims="time since exposure",
+            )
+
+            return pm.sample_posterior_predictive(
+                parameters,
+                var_names=[var_name],
+            ).posterior_predictive[var_name]
+
 
 class GeometricAdstock(AdstockTransformation):
     """Wrapper around geometric adstock function.
 
     For more information, see :func:`pymc_marketing.mmm.transformers.geometric_adstock`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import GeometricAdstock
+
+        rng = np.random.default_rng(0)
+
+        adstock = GeometricAdstock(l_max=10)
+        prior = adstock.sample_prior(random_seed=rng)
+        curve = adstock.sample_curve(prior)
+        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
 
     """
 
@@ -96,6 +158,21 @@ class DelayedAdstock(AdstockTransformation):
     """Wrapper around delayed adstock function.
 
     For more information, see :func:`pymc_marketing.mmm.transformers.delayed_adstock`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import DelayedAdstock
+
+        rng = np.random.default_rng(0)
+
+        adstock = DelayedAdstock(l_max=10)
+        prior = adstock.sample_prior(random_seed=rng)
+        curve = adstock.sample_curve(prior)
+        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
 
     """
 
@@ -121,6 +198,21 @@ class WeibullAdstock(AdstockTransformation):
     """Wrapper around weibull adstock function.
 
     For more information, see :func:`pymc_marketing.mmm.transformers.weibull_adstock`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import WeibullAdstock
+
+        rng = np.random.default_rng(0)
+
+        adstock = WeibullAdstock(l_max=10, kind="CDF")
+        prior = adstock.sample_prior(random_seed=rng)
+        curve = adstock.sample_curve(prior)
+        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
 
     """
 
