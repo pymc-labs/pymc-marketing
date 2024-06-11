@@ -110,10 +110,9 @@ Once the model is fitted, we can further optimize our budget allocation as we ar
 
 Explore a hands-on [simulated example](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
 
-<p>
-<div style="color:red;"><b>Warning! </b></div> We will deprecate the `DelayedSaturatedMMM` class in the next releases.
+<p style="color:red;"><b>Warning!</b>
+We will deprecate the `DelayedSaturatedMMM` class in the next releases.
 Please use the `MMM` class instead.
-</p>
 
 ### Essential Reading for Marketing Mix Modeling (MMM)
 
