@@ -67,8 +67,8 @@ pytensor.compile.optdb["specialize"].register(
 class ParetoNBDModel(CLVModel):
     """Pareto Negative Binomial Model (Pareto/NBD).
 
-    Model for continuous, non-contractual customers, first introduced by Schmittlein, et al. [1]_,
-    with additional derivations and predictive methods by Hardie & Fader [2]_ [3]_ [4]_.
+    Model for continuous, non-contractual customers, first introduced by Schmittlein et al. [1]_,
+    with additional derivations and predictive methods by Hardie & Fader [2]_ [3]_ [4]_ [5]_.
 
     The Pareto/NBD model assumes the time duration a customer is active follows a Gamma distribution,
     and time between purchases is also Gamma-distributed while the customer is still active.
@@ -96,7 +96,7 @@ class ParetoNBDModel(CLVModel):
             * `purchase_covariates_prior`: Coefficients for purchase rate covariates; defaults to `Normal(0, 3)`
             * `dropout_covariates_prior`: Coefficients for dropout covariates; defaults to `Normal.dist(0, 3)`
             * `purchase_covariate_cols`: List containing column names of covariates for customer purchase rates.
-            * `dropout_covariate_cols:`: List containing column names of covariates for customer dropouts.
+            * `dropout_covariate_cols`: List containing column names of covariates for customer dropouts.
 
         If not provided, the model will use default priors specified in the `default_model_config` class attribute.
     sampler_config: dict, optional
