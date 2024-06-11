@@ -112,6 +112,7 @@ class BudgetOptimizer:
         total_budget: float,
         budget_bounds: dict[str, tuple[float, float]] | None = None,
         custom_constraints: dict[Any, Any] | None = None,
+        minimize_kwargs: dict[str, Any] | None = None,
     ) -> tuple[dict[str, float], float]:
         """
         Allocate the budget based on the total budget, budget bounds, and custom constraints.
@@ -136,6 +137,9 @@ class BudgetOptimizer:
             The budget bounds for each channel. Default is None.
         custom_constraints : dict, optional
             Custom constraints for the optimization. Default is None.
+        minimize_kwargs : dict, optional
+            Additional keyword arguments for the `scipy.optimize.minimize` function. If None, default values are used.
+            Method is set to "SLSQP", ftol is set to 1e-9, and maxiter is set to 1_000.
 
         Returns
         -------
@@ -179,13 +183,19 @@ class BudgetOptimizer:
             )
             for channel in self.parameters
         ]
+
+        if minimize_kwargs is None:
+            minimize_kwargs = {
+                "method": "SLSQP",
+                "options": {"ftol": 1e-9, "maxiter": 1_000},
+            }
+
         result = minimize(
             self.objective,
             x0=initial_guess,
             bounds=bounds,
             constraints=constraints,
-            method="SLSQP",
-            options={"ftol": 1e-9, "maxiter": 1000},
+            **minimize_kwargs,
         )
         if result.success:
             optimal_budgets = {
