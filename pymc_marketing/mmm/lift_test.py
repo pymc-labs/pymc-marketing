@@ -23,9 +23,6 @@ import pymc as pm
 import pytensor.tensor as pt
 from numpy import typing as npt
 
-from pymc_marketing.mmm.transformers import logistic_saturation
-from pymc_marketing.mmm.utils import michaelis_menten
-
 
 class MissingLiftTestError(Exception):
     def __init__(self, missing_values: npt.NDArray[np.int_]) -> None:
@@ -323,105 +320,6 @@ def add_lift_measurements_to_likelihood(
         mu=pt.abs(model_estimated_lift),
         sigma=df_lift_test["sigma"].to_numpy(),
         observed=np.abs(df_lift_test["delta_y"].to_numpy()),
-    )
-
-
-def add_menten_empirical_lift_measurements_to_likelihood(
-    df_lift_test: pd.DataFrame,
-    alpha_name: str,
-    lam_name: str,
-    dist=pm.Gamma,
-    model: pm.Model | None = None,
-    name: str = "lift_measurements",
-) -> None:
-    """Add empirical lift measurements to the likelihood of the model.
-
-    Specific implementation of the add_lift_measurements_to_likelihood function
-    for the Michaelis-Menten saturation function.
-
-    Parameters
-    ----------
-    df_lift_test : pd.DataFrame
-        DataFrame with lift test results with at least the following columns:
-            * `x`: x axis value of the lift test.
-            * `delta_x`: change in x axis value of the lift test.
-            * `delta_y`: change in y axis value of the lift test.
-            * `sigma`: standard deviation of the lift test.
-        Any additional columns are assumed to be coordinates in the model.
-    alpha_name : str
-        Name of the alpha parameter in the model.
-    lam_name : str
-        Name of the lambda parameter in the model.
-    dist : pm.Distribution, optional
-        PyMC distribution to use for the likelihood, by default pm.Gamma
-    model : Optional[pm.Model], optional
-        PyMC model with date and channel coordinates, by default None
-    name : str, optional
-        Name of the likelihood, by default "lift_measurements"
-    """
-    variable_mapping = {
-        "alpha": alpha_name,
-        "lam": lam_name,
-    }
-
-    add_lift_measurements_to_likelihood(
-        df_lift_test,
-        variable_mapping,
-        saturation_function=michaelis_menten,
-        model=model,
-        dist=dist,
-        name=name,
-    )
-
-
-def add_logistic_empirical_lift_measurements_to_likelihood(
-    df_lift_test: pd.DataFrame,
-    lam_name: str,
-    beta_name: str,
-    dist: pm.Distribution = pm.Gamma,
-    model: pm.Model | None = None,
-    name: str = "lift_measurements",
-) -> None:
-    """Add empirical lift measurements to the likelihood of the model.
-
-    Specific implementation of add_lift_measurements_to_likelihood for the
-    logistic saturation function.
-
-    Parameters
-    ----------
-    df_lift_test : pd.DataFrame
-        DataFrame with lift test results with at least the following columns:
-            * `x`: x axis value of the lift test.
-            * `delta_x`: change in x axis value of the lift test.
-            * `delta_y`: change in y axis value of the lift test.
-            * `sigma`: standard deviation of the lift test.
-        Any additional columns are assumed to be coordinates in the model.
-    lam_name : str
-        Name of the lambda parameter in the model.
-    beta_name : str
-        Name of the beta parameter in the model.
-    dist : pm.Distribution, optional
-        PyMC distribution to use for the likelihood, by default pm.Gamma
-    model : Optional[pm.Model], optional
-        PyMC model with date and channel coordinates, by default None
-    name : str, optional
-        Name of the likelihood, by default "lift_measurements"
-    """
-    variable_mapping = {
-        "lam": lam_name,
-        "beta": beta_name,
-    }
-
-    def saturation_function(x, beta, lam):
-        return beta * logistic_saturation(x, lam)
-
-    add_lift_measurements_to_likelihood(
-        df_lift_test,
-        variable_mapping,
-        saturation_function=saturation_function,
-        model=model,
-        dist=dist,
-        name=name,
     )
 
 

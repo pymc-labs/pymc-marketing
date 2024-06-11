@@ -11,9 +11,10 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Media Mix Model with delayed adstock and logistic saturation class."""
+"""Media Mix Model class."""
 
 import json
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -23,31 +24,47 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+import pytensor.tensor as pt
 import seaborn as sns
 from pytensor.tensor import TensorVariable
 from xarray import DataArray, Dataset
 
 from pymc_marketing.constants import DAYS_IN_YEAR
-from pymc_marketing.mmm.base import MMM
+from pymc_marketing.mmm.base import BaseValidateMMM
+from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+from pymc_marketing.mmm.components.adstock import (
+    AdstockTransformation,
+    _get_adstock_function,
+)
+from pymc_marketing.mmm.components.saturation import (
+    SaturationTransformation,
+    _get_saturation_function,
+)
 from pymc_marketing.mmm.lift_test import (
-    add_logistic_empirical_lift_measurements_to_likelihood,
+    add_lift_measurements_to_likelihood,
     scale_lift_measurements,
 )
-from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
-from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
+from pymc_marketing.mmm.preprocessing import (
+    MaxAbsScaleChannels,
+    MaxAbsScaleTarget,
+)
 from pymc_marketing.mmm.tvp import create_time_varying_intercept, infer_time_index
 from pymc_marketing.mmm.utils import (
+    _get_distribution_from_dict,
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
     generate_fourier_modes,
 )
-from pymc_marketing.mmm.validating import ValidateControlColumns
+from pymc_marketing.mmm.validating import (
+    ValidateControlColumns,
+)
 
-__all__ = ["DelayedSaturatedMMM"]
+__all__ = ["BaseMMM", "MMM", "DelayedSaturatedMMM"]
 
 
-class BaseDelayedSaturatedMMM(MMM):
-    """Base class for a media mix model with delayed adstock and logistic saturation class (see [1]_).
+class BaseMMM(BaseValidateMMM):
+    """
+    Base class for a media mix model using Delayed Adstock and Logistic Saturation (see [1]_).
 
     References
     ----------
@@ -62,12 +79,15 @@ class BaseDelayedSaturatedMMM(MMM):
         date_column: str,
         channel_columns: list[str],
         adstock_max_lag: int,
+        adstock: str | AdstockTransformation,
+        saturation: str | SaturationTransformation,
         time_varying_intercept: bool = False,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
         validate_data: bool = True,
         control_columns: list[str] | None = None,
         yearly_seasonality: int | None = None,
+        adstock_first: bool = True,
         **kwargs,
     ) -> None:
         """Constructor method.
@@ -78,8 +98,12 @@ class BaseDelayedSaturatedMMM(MMM):
             Column name of the date variable.
         channel_columns : List[str]
             Column names of the media channel variables.
-        adstock_max_lag : int
-            Number of lags to consider in the adstock transformation.
+        adstock_max_lag : int, optional
+            Number of lags to consider in the adstock transformation, by default 4
+        adstock : str | AdstockTransformation
+            Type of adstock transformation to apply.
+        saturation : str | SaturationTransformation
+            Type of saturation transformation to apply.
         time_varying_intercept : bool, optional
             Whether to consider time-varying intercept, by default False.
         model_config : Dictionary, optional
@@ -92,8 +116,6 @@ class BaseDelayedSaturatedMMM(MMM):
             Whether to validate the data before fitting to model, by default True.
         control_columns : Optional[List[str]], optional
             Column names of control variables to be added as additional regressors, by default None
-        adstock_max_lag : int, optional
-            Number of lags to consider in the adstock transformation, by default 4
         yearly_seasonality : Optional[int], optional
             Number of Fourier modes to model yearly seasonality, by default None.
         """
@@ -103,6 +125,14 @@ class BaseDelayedSaturatedMMM(MMM):
         self.yearly_seasonality = yearly_seasonality
         self.date_column = date_column
         self.validate_data = validate_data
+
+        self.adstock_first = adstock_first
+        self.adstock = _get_adstock_function(function=adstock, l_max=adstock_max_lag)
+        self.saturation = _get_saturation_function(function=saturation)
+
+        if model_config is not None:
+            self.adstock.update_priors({**self.default_model_config, **model_config})
+            self.saturation.update_priors({**self.default_model_config, **model_config})
 
         super().__init__(
             date_column=date_column,
@@ -201,6 +231,9 @@ class BaseDelayedSaturatedMMM(MMM):
     def _save_input_params(self, idata) -> None:
         """Saves input parameters to the attrs of idata."""
         idata.attrs["date_column"] = json.dumps(self.date_column)
+        idata.attrs["adstock"] = json.dumps(self.adstock.lookup_name)
+        idata.attrs["saturation"] = json.dumps(self.saturation.lookup_name)
+        idata.attrs["adstock_first"] = json.dumps(self.adstock_first)
         idata.attrs["control_columns"] = json.dumps(self.control_columns)
         idata.attrs["channel_columns"] = json.dumps(self.channel_columns)
         idata.attrs["adstock_max_lag"] = json.dumps(self.adstock_max_lag)
@@ -285,7 +318,7 @@ class BaseDelayedSaturatedMMM(MMM):
                         f"The parameter configuration for '{param}' must contain 'kwargs'."
                     )
 
-                parameter_distributions[param] = self._get_distribution(
+                parameter_distributions[param] = _get_distribution_from_dict(
                     dist=param_config
                 )(**param_config["kwargs"], name=f"likelihood_{param}")
             elif isinstance(param_config, int | float):
@@ -301,7 +334,9 @@ class BaseDelayedSaturatedMMM(MMM):
 
         # Extract the likelihood distribution name and instantiate it
         likelihood_dist_name = dist["dist"]
-        likelihood_dist = self._get_distribution(dist={"dist": likelihood_dist_name})
+        likelihood_dist = _get_distribution_from_dict(
+            dist={"dist": likelihood_dist_name}
+        )
 
         return likelihood_dist(
             name=self.output_var,
@@ -310,6 +345,35 @@ class BaseDelayedSaturatedMMM(MMM):
             dims=dims,
             **parameter_distributions,
         )
+
+    def forward_pass(
+        self, x: pt.TensorVariable | npt.NDArray[np.float_]
+    ) -> pt.TensorVariable:
+        """Transforms channel input into target contributions of each channel.
+
+        This method handles the ordering of the adstock and saturation
+        transformations.
+
+        This method must be called from without a pm.Model context but not
+        necessarily in the instance's model. A dim named "channel" is required
+        associated with the number of columns of `x`.
+
+        Parameters
+        ------------
+        x : pt.TensorVariable | npt.NDArray[np.float_]
+            The channel input which could be spends or impressions
+
+        Returns
+        --------
+        The contributions associated with the channel input
+        """
+        first, second = (
+            (self.adstock, self.saturation)
+            if self.adstock_first
+            else (self.saturation, self.adstock)
+        )
+
+        return second.apply(x=first.apply(x=x))
 
     def build_model(
         self,
@@ -345,9 +409,9 @@ class BaseDelayedSaturatedMMM(MMM):
         --------
         custom_config = {
             'intercept': {'dist': 'Normal', 'kwargs': {'mu': 0, 'sigma': 2}},
-            'beta_channel': {'dist': 'LogNormal', 'kwargs': {'mu': 1, 'sigma': 3}},
-            'alpha': {'dist': 'Beta', 'kwargs': {'alpha': 1, 'beta': 3}},
-            'lam': {'dist': 'Gamma', 'kwargs': {'alpha': 3, 'beta': 1}},
+            'saturation_beta': {'dist': 'Gamma', 'kwargs': {'mu': 1, 'sigma': 3}},
+            'saturation_lambda': {'dist': 'Beta', 'kwargs': {'alpha': 3, 'beta': 1}},
+            'adstock_alpha': {'dist': 'Beta', 'kwargs': {'alpha': 1, 'beta': 3}},
             'likelihood': {'dist': 'Normal',
                 'kwargs': {'sigma': {'dist': 'HalfNormal', 'kwargs': {'sigma': 2}}}
             },
@@ -355,7 +419,7 @@ class BaseDelayedSaturatedMMM(MMM):
             'gamma_fourier': {'dist': 'Laplace', 'kwargs': {'mu': 0, 'b': 1}}
         }
 
-        model = DelayedSaturatedMMM(
+        model = MMM(
                     date_column="date_week",
                     channel_columns=["x1", "x2"],
                     control_columns=[
@@ -369,18 +433,13 @@ class BaseDelayedSaturatedMMM(MMM):
                 )
         """
 
-        self.intercept_dist = self._get_distribution(
+        self.intercept_dist = _get_distribution_from_dict(
             dist=self.model_config["intercept"]
         )
-        self.beta_channel_dist = self._get_distribution(
-            dist=self.model_config["beta_channel"]
-        )
-        self.lam_dist = self._get_distribution(dist=self.model_config["lam"])
-        self.alpha_dist = self._get_distribution(dist=self.model_config["alpha"])
-        self.gamma_control_dist = self._get_distribution(
+        self.gamma_control_dist = _get_distribution_from_dict(
             dist=self.model_config["gamma_control"]
         )
-        self.gamma_fourier_dist = self._get_distribution(
+        self.gamma_fourier_dist = _get_distribution_from_dict(
             dist=self.model_config["gamma_fourier"]
         )
 
@@ -389,16 +448,18 @@ class BaseDelayedSaturatedMMM(MMM):
             coords=self.model_coords,
             coords_mutable=self.coords_mutable,
         ) as self.model:
-            channel_data_ = pm.MutableData(
+            channel_data_ = pm.Data(
                 name="channel_data",
                 value=self.preprocessed_data["X"][self.channel_columns],
                 dims=("date", "channel"),
+                mutable=True,
             )
 
-            target_ = pm.MutableData(
+            target_ = pm.Data(
                 name="target",
                 value=self.preprocessed_data["y"],
                 dims="date",
+                mutable=True,
             )
 
             if self.time_varying_intercept:
@@ -419,43 +480,9 @@ class BaseDelayedSaturatedMMM(MMM):
                     name="intercept", **self.model_config["intercept"]["kwargs"]
                 )
 
-            beta_channel = self.beta_channel_dist(
-                name="beta_channel",
-                **self.model_config["beta_channel"]["kwargs"],
-                dims=("channel",),
-            )
-            alpha = self.alpha_dist(
-                name="alpha",
-                dims="channel",
-                **self.model_config["alpha"]["kwargs"],
-            )
-            lam = self.lam_dist(
-                name="lam",
-                dims="channel",
-                **self.model_config["lam"]["kwargs"],
-            )
-
-            channel_adstock = pm.Deterministic(
-                name="channel_adstock",
-                var=geometric_adstock(
-                    x=channel_data_,
-                    alpha=alpha,
-                    l_max=self.adstock_max_lag,
-                    normalize=True,
-                    axis=0,
-                ),
-                dims=("date", "channel"),
-            )
-            channel_adstock_saturated = pm.Deterministic(
-                name="channel_adstock_saturated",
-                var=logistic_saturation(x=channel_adstock, lam=lam),
-                dims=("date", "channel"),
-            )
-
-            channel_contributions_var = channel_adstock_saturated * beta_channel
             channel_contributions = pm.Deterministic(
                 name="channel_contributions",
-                var=channel_contributions_var,
+                var=self.forward_pass(x=channel_data_),
                 dims=("date", "channel"),
             )
 
@@ -475,10 +502,11 @@ class BaseDelayedSaturatedMMM(MMM):
                     **self.model_config["gamma_control"]["kwargs"],
                 )
 
-                control_data_ = pm.MutableData(
+                control_data_ = pm.Data(
                     name="control_data",
                     value=self.preprocessed_data["X"][self.control_columns],
                     dims=("date", "control"),
+                    mutable=True,
                 )
 
                 control_contributions = pm.Deterministic(
@@ -498,10 +526,11 @@ class BaseDelayedSaturatedMMM(MMM):
                     for column in self.fourier_columns
                 )
             ):
-                fourier_data_ = pm.MutableData(
+                fourier_data_ = pm.Data(
                     name="fourier_data",
                     value=self.preprocessed_data["X"][self.fourier_columns],
                     dims=("date", "fourier_mode"),
+                    mutable=True,
                 )
 
                 gamma_fourier = self.gamma_fourier_dist(
@@ -516,7 +545,13 @@ class BaseDelayedSaturatedMMM(MMM):
                     dims=("date", "fourier_mode"),
                 )
 
-                mu_var += fourier_contribution.sum(axis=-1)
+                yearly_seasonality_contribution = pm.Deterministic(
+                    name="yearly_seasonality_contribution",
+                    var=fourier_contribution.sum(axis=-1),
+                    dims=("date"),
+                )
+
+                mu_var += yearly_seasonality_contribution
 
             mu = pm.Deterministic(name="mu", var=mu_var, dims="date")
 
@@ -529,14 +564,8 @@ class BaseDelayedSaturatedMMM(MMM):
 
     @property
     def default_model_config(self) -> dict:
-        return {
-            "intercept": {
-                "dist": "Normal",
-                "kwargs": {"mu": 0, "sigma": 2},
-            },
-            "beta_channel": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
-            "alpha": {"dist": "Beta", "kwargs": {"alpha": 1, "beta": 3}},
-            "lam": {"dist": "Gamma", "kwargs": {"alpha": 3, "beta": 1}},
+        base_config = {
+            "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
             "likelihood": {
                 "dist": "Normal",
                 "kwargs": {
@@ -553,6 +582,12 @@ class BaseDelayedSaturatedMMM(MMM):
                 "ls_sigma": 10,
                 "cov_func": None,
             },
+        }
+
+        return {
+            **base_config,
+            **self.adstock.model_config,
+            **self.saturation.model_config,
         }
 
     def _get_fourier_models_data(self, X) -> pd.DataFrame:
@@ -590,33 +625,24 @@ class BaseDelayedSaturatedMMM(MMM):
         array-like
             Transformed channel data.
         """
-        alpha_posterior = self.fit_result["alpha"].to_numpy()
+        coords = {
+            **self.model_coords,
+            **self.coords_mutable,
+        }
+        with pm.Model(coords=coords):
+            pm.Deterministic(
+                "channel_contributions",
+                self.forward_pass(x=channel_data),
+                dims=("date", "channel"),
+            )
 
-        lam_posterior = self.fit_result["lam"].to_numpy()
-        lam_posterior_expanded = np.expand_dims(a=lam_posterior, axis=2)
+            idata = pm.sample_posterior_predictive(
+                self.fit_result,
+                var_names=["channel_contributions"],
+                progressbar=False,
+            )
 
-        beta_channel_posterior = self.fit_result["beta_channel"].to_numpy()
-        beta_channel_posterior_expanded = np.expand_dims(
-            a=beta_channel_posterior, axis=2
-        )
-
-        geometric_adstock_posterior = geometric_adstock(
-            x=channel_data,
-            alpha=alpha_posterior,
-            l_max=self.adstock_max_lag,
-            normalize=True,
-            axis=0,
-        )
-
-        logistic_saturation_posterior = logistic_saturation(
-            x=geometric_adstock_posterior,
-            lam=lam_posterior_expanded,
-        )
-
-        channel_contribution_forward_pass = (
-            beta_channel_posterior_expanded * logistic_saturation_posterior
-        )
-        return channel_contribution_forward_pass.eval()
+        return idata.posterior_predictive.channel_contributions.to_numpy()
 
     @property
     def _serializable_model_config(self) -> dict[str, Any]:
@@ -635,7 +661,7 @@ class BaseDelayedSaturatedMMM(MMM):
     @classmethod
     def load(cls, fname: str):
         """
-        Creates a DelayedSaturatedMMM instance from a file,
+        Creates a MMM instance from a file,
         instantiating the model with the saved original input parameters.
         Loads inference data for the model.
 
@@ -646,7 +672,7 @@ class BaseDelayedSaturatedMMM(MMM):
 
         Returns
         -------
-        Returns an instance of DelayedSaturatedMMM.
+        Returns an instance of MMM.
 
         Raises
         ------
@@ -664,6 +690,9 @@ class BaseDelayedSaturatedMMM(MMM):
             control_columns=json.loads(idata.attrs["control_columns"]),
             channel_columns=json.loads(idata.attrs["channel_columns"]),
             adstock_max_lag=json.loads(idata.attrs["adstock_max_lag"]),
+            adstock=json.loads(idata.attrs.get("adstock", "geometric")),
+            saturation=json.loads(idata.attrs.get("saturation", "logistic")),
+            adstock_first=json.loads(idata.attrs.get("adstock_first", True)),
             validate_data=json.loads(idata.attrs["validate_data"]),
             yearly_seasonality=json.loads(idata.attrs["yearly_seasonality"]),
             model_config=model_config,
@@ -798,13 +827,14 @@ class BaseDelayedSaturatedMMM(MMM):
         return format_nested_dict(model_config.copy())
 
 
-class DelayedSaturatedMMM(
+class MMM(
     MaxAbsScaleTarget,
     MaxAbsScaleChannels,
     ValidateControlColumns,
-    BaseDelayedSaturatedMMM,
+    BaseMMM,
 ):
-    """Media Mix Model with delayed adstock and logistic saturation class (see [1]_).
+    """
+    Media Mix Model class, Delayed Adstock and logistic saturation as default initialization (see [1]_).
 
     Given a time series target variable :math:`y_{t}` (e.g. sales on conversions), media variables
     :math:`x_{m, t}` (e.g. impressions, clicks or costs) and a set of control covariates :math:`z_{c, t}` (e.g. holidays, special events)
@@ -845,13 +875,15 @@ class DelayedSaturatedMMM(
         import numpy as np
         import pandas as pd
 
-        from pymc_marketing.mmm import DelayedSaturatedMMM
+        from pymc_marketing.mmm import MMM
 
         data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
         data = pd.read_csv(data_url, parse_dates=["date_week"])
 
-        mmm = DelayedSaturatedMMM(
+        mmm = MMM(
             date_column="date_week",
+            adstock="geometric",
+            saturation="logistic",
             channel_columns=["x1", "x2"],
             control_columns=[
                 "event_1",
@@ -888,7 +920,9 @@ class DelayedSaturatedMMM(
             },
         }
 
-        mmm = DelayedSaturatedMMM(
+        mmm = MMM(
+            adstock="geometric",
+            saturation="logistic",
             model_config=my_model_config,
             date_column="date_week",
             channel_columns=["x1", "x2"],
@@ -922,6 +956,9 @@ class DelayedSaturatedMMM(
     .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
     .. [2] Orduz, J. `"Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns" <https://juanitorduz.github.io/pymc_mmm/>`_.
     """  # noqa: E501
+
+    _model_type = "MMM"
+    version = "0.0.2"
 
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float_]
@@ -989,6 +1026,53 @@ class DelayedSaturatedMMM(
                 "channel": self.channel_columns,
             },
         )
+
+    def plot_channel_parameter(self, param_name: str, **plt_kwargs: Any) -> plt.Figure:
+        """
+        Plot the posterior distribution of a specific parameter for each channel.
+
+        Parameters:
+        ----------
+        param_name : str
+            The name of the parameter to plot.
+        **plt_kwargs : Any
+            Additional keyword arguments to pass to the `plt.subplots` function.
+
+        Returns:
+        -------
+        plt.Figure
+            The matplotlib Figure object containing the plot.
+
+        Raises:
+        ------
+        ValueError
+            If the specified parameter name is invalid or not found in the model
+            saturation or adstock function.
+        """
+        saturation: SaturationTransformation = self.saturation
+        adstock: AdstockTransformation = self.adstock
+
+        parameters_to_check = list(saturation.variable_mapping.values()) + list(
+            adstock.variable_mapping.values()
+        )
+        if param_name not in parameters_to_check:
+            raise ValueError(
+                f"Invalid parameter name: {param_name}. Choose from {parameters_to_check}"
+            )
+
+        param_samples_df = pd.DataFrame(
+            data=az.extract(data=self.fit_result, var_names=[param_name]).T,
+            columns=self.channel_columns,
+        )
+
+        fig, ax = plt.subplots(**plt_kwargs)
+        sns.violinplot(data=param_samples_df, orient="h", ax=ax)
+        ax.set(
+            title=f"Posterior Distribution: {param_name} Parameter",
+            xlabel=param_name,
+            ylabel="channel",
+        )
+        return fig
 
     def plot_channel_contributions_grid(
         self,
@@ -1145,7 +1229,7 @@ class DelayedSaturatedMMM(
 
         new_data = create_new_spend_data(
             spend=spend,
-            adstock_max_lag=self.adstock_max_lag,
+            adstock_max_lag=self.adstock.l_max,
             one_time=one_time,
             spend_leading_up=spend_leading_up,
         )
@@ -1157,28 +1241,13 @@ class DelayedSaturatedMMM(
         idata: Dataset = self.fit_result if not prior else self.prior
 
         coords = {
-            "time_since_spend": np.arange(
-                -self.adstock_max_lag, self.adstock_max_lag + 1
-            ),
+            "time_since_spend": np.arange(-self.adstock.l_max, self.adstock.l_max + 1),
             "channel": self.channel_columns,
         }
         with pm.Model(coords=coords):
-            alpha = pm.Uniform("alpha", lower=0, upper=1, dims=("channel",))
-            lam = pm.HalfFlat("lam", dims=("channel",))
-            beta_channel = pm.HalfFlat("beta_channel", dims=("channel",))
-
-            # Same as the forward pass of the model
-            channel_adstock = geometric_adstock(
-                x=new_data,
-                alpha=alpha,
-                l_max=self.adstock_max_lag,
-                normalize=True,
-                axis=0,
-            )
-            channel_adstock_saturated = logistic_saturation(x=channel_adstock, lam=lam)
             pm.Deterministic(
-                name="channel_contributions",
-                var=channel_adstock_saturated * beta_channel,
+                "channel_contributions",
+                self.forward_pass(x=new_data),
                 dims=("time_since_spend", "channel"),
             )
 
@@ -1304,6 +1373,303 @@ class DelayedSaturatedMMM(
     def _validate_data(self, X, y=None):
         return X
 
+    def _channel_map_scales(self) -> dict:
+        return dict(
+            zip(
+                self.channel_columns,
+                self.channel_transformer["scaler"].scale_,
+                strict=False,
+            )
+        )
+
+    def format_recovered_transformation_parameters(
+        self, quantile: float = 0.5
+    ) -> dict[str, dict[str, dict[str, float]]]:
+        """
+        Format the recovered transformation parameters for each channel.
+
+        This function retrieves the quantile of the parameters for each channel and formats them into a dictionary
+        containing the channel name, the saturation parameters, and the adstock parameters.
+
+        Parameters
+        ----------
+        quantile : float, optional
+            The quantile to retrieve from the posterior distribution of the parameters. Default is 0.5.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the channel names as keys and the corresponding saturation and adstock parameters
+            as values.
+
+        Example
+        -------
+        >>> self.format_recovered_transformation_parameters(quantile=.5)
+        >>> Output:
+        {
+            'x1': {
+                'saturation_params': {
+                    'lam': 2.4761893929757077,
+                    'beta': 0.360226791880304
+                },
+            'adstock_params': {
+                'alpha': 0.39910387900504796
+                }
+            },
+            'x2': {
+                'saturation_params': {
+                    'lam': 2.6485978655163436,
+                    'beta': 0.2399381337197204
+                },
+            'adstock_params': {
+                'alpha': 0.18859423763437405
+                }
+            }
+        }
+        """
+        # Retrieve channel names
+        channels = self.fit_result.channel.values
+
+        # Initialize the dictionary to store channel information
+        channels_info = {}
+
+        # Define the parameter groups for consolidation
+        param_groups = {
+            "saturation_params": self.saturation.model_config.keys(),
+            "adstock_params": self.adstock.model_config.keys(),
+        }
+
+        # Iterate through each channel to fetch and store parameters
+        for channel in channels:
+            channel_info = {}
+
+            # Process each group of parameters (saturation and adstock)
+            for group_name, params in param_groups.items():
+                # Build dictionary for the current group of parameters
+                param_dict = {
+                    param.replace(group_name.split("_")[0] + "_", ""): self.fit_result[
+                        param
+                    ]
+                    .quantile(quantile, dim=["chain", "draw"])
+                    .to_pandas()
+                    .to_dict()[channel]
+                    for param in params
+                    if param in self.fit_result
+                }
+                channel_info[group_name] = param_dict
+
+            channels_info[channel] = channel_info
+
+        return channels_info
+
+    def _plot_response_curve_fit(
+        self,
+        ax: plt.Axes,
+        channel: str,
+        color_index: int,
+        xlim_max: int | None,
+        label: str = "Fit Curve",
+        quantile_lower: float = 0.05,
+        quantile_upper: float = 0.95,
+    ) -> None:
+        """
+        Plot the curve fit for the given channel based on the estimation of the parameters by the model.
+
+        Parameters
+        ----------
+        ax : plt.Axes
+            The matplotlib axes object where the plot should be drawn.
+        channel : str
+            The name of the channel for which the curve fit is being plotted.
+        color_index : int
+            An index used for color selection to ensure distinct colors for multiple plots.
+        xlim_max: int
+            The maximum value to be plot on the X-axis
+        label: str
+            The label for the curve being plotted, default is "Fit Curve".
+        quantile_lower: float
+            The lower quantile for parameter estimation, default is 0.05.
+        quantile_upper: float
+            The upper quantile for parameter estimation, default is 0.95.
+
+        Returns
+        -------
+        None
+            The function modifies the given axes object in-place and doesn't return any object.
+        """
+
+        if self.X is not None:
+            x_mean = np.max(self.X[channel])
+
+        # Set x_limit based on the method or xlim_max
+        if xlim_max is not None:
+            x_limit = xlim_max
+        else:
+            x_limit = x_mean
+
+        # Generate x_fit and y_fit
+        x_fit = np.linspace(0, x_limit, 1000)
+        upper_params = self.format_recovered_transformation_parameters(
+            quantile=quantile_upper
+        )
+        lower_params = self.format_recovered_transformation_parameters(
+            quantile=quantile_lower
+        )
+        mid_params = self.format_recovered_transformation_parameters(quantile=0.5)
+        y_fit = self.saturation.function(
+            x=x_fit, **mid_params[channel]["saturation_params"]
+        ).eval()
+
+        y_fit_lower = self.saturation.function(
+            x=x_fit, **lower_params[channel]["saturation_params"]
+        ).eval()
+        y_fit_upper = self.saturation.function(
+            x=x_fit, **upper_params[channel]["saturation_params"]
+        ).eval()
+
+        # scale all y fit values to the original scale using
+        # `mmm.target_transformer.named_steps["scaler"].scale_.item()`
+        y_fit = (
+            self.get_target_transformer()
+            .inverse_transform(y_fit.reshape(-1, 1))
+            .flatten()
+        )
+        y_fit_lower = (
+            self.get_target_transformer()
+            .inverse_transform(y_fit_lower.reshape(-1, 1))
+            .flatten()
+        )
+        y_fit_upper = (
+            self.get_target_transformer()
+            .inverse_transform(y_fit_upper.reshape(-1, 1))
+            .flatten()
+        )
+
+        # scale x fit values
+        x_fit = self._channel_map_scales()[channel] * x_fit
+
+        ax.fill_between(
+            x_fit, y_fit_lower, y_fit_upper, color=f"C{color_index}", alpha=0.25
+        )
+        ax.plot(x_fit, y_fit, color=f"C{color_index}", label=label, alpha=0.6)
+
+        ax.set(xlabel="Spent", ylabel="Contribution")
+        ax.legend()
+
+    def plot_direct_contribution_curves(
+        self,
+        show_fit: bool = False,
+        same_axes: bool = False,
+        xlim_max: int | None = None,
+        channels: list[str] | None = None,
+        quantile_lower: float = 0.05,
+        quantile_upper: float = 0.95,
+    ) -> plt.Figure:
+        """
+        Plots the direct contribution curves for each marketing channel. The term "direct" refers to the fact
+        we plot costs vs immediate returns and we do not take into account the lagged
+        effects of the channels e.g. adstock transformations.
+
+        Parameters
+        ----------
+        show_fit : bool, optional
+            If True, the function will also plot the curve fit based on the specified method. Defaults to False.
+        xlim_max : int, optional
+            The maximum value to be plot on the X-axis. If not provided, the maximum value in the data will be used.
+        channels : List[str], optional
+            A list of channels to plot. If not provided, all channels will be plotted.
+        same_axes : bool, optional
+            If True, all channels will be plotted on the same axes. Defaults to False.
+
+        Returns
+        -------
+        plt.Figure
+            A matplotlib Figure object with the direct contribution curves.
+        """
+        channels_to_plot = self.channel_columns if channels is None else channels
+
+        if not all(channel in self.channel_columns for channel in channels_to_plot):
+            unknown_channels = set(channels_to_plot) - set(self.channel_columns)
+            raise ValueError(
+                f"The provided channels must be a subset of the available channels. Got {unknown_channels}"
+            )
+
+        if len(channels_to_plot) != len(set(channels_to_plot)):
+            raise ValueError("The provided channels must be unique.")
+
+        channel_contributions = self.compute_channel_contribution_original_scale().mean(
+            ["chain", "draw"]
+        )
+
+        if same_axes:
+            nrows = 1
+            figsize = (12, 4)
+
+            def label_func(channel):
+                return f"{channel} Data Points"
+
+            def legend_title_func(channel):
+                return "Legend"
+
+        else:
+            nrows = len(channels_to_plot)
+            figsize = (12, 4 * len(channels_to_plot))
+
+            def label_func(channel):
+                return "Data Points"
+
+            def legend_title_func(channel):
+                return f"{channel} Legend"
+
+        fig, axes = plt.subplots(
+            nrows=nrows,
+            ncols=1,
+            sharex=False,
+            sharey=False,
+            figsize=figsize,
+            layout="constrained",
+        )
+
+        if same_axes:
+            axes_channels: list[tuple[Any, str]] | Any = [
+                (axes, channel) for channel in channels_to_plot
+            ]
+        else:
+            axes_channels = zip(np.ravel(axes), channels_to_plot, strict=False)
+
+        for i, (ax, channel) in enumerate(axes_channels):
+            if self.X is not None:
+                x = self.X[channel].to_numpy()
+                y = channel_contributions.sel(channel=channel).to_numpy()
+
+                label = label_func(channel)
+                ax.scatter(x, y, label=label, color=f"C{i}")
+
+                if show_fit:
+                    label = f"{channel} Fit Curve" if same_axes else "Fit Curve"
+                    self._plot_response_curve_fit(
+                        ax=ax,
+                        channel=channel,
+                        color_index=i,
+                        xlim_max=xlim_max,
+                        label=label,
+                        quantile_lower=quantile_lower,
+                        quantile_upper=quantile_upper,
+                    )
+
+                title = legend_title_func(channel)
+                ax.legend(
+                    loc="upper left",
+                    facecolor="white",
+                    title=title,
+                    fontsize="small",
+                )
+
+                ax.set(xlabel="Spent", ylabel="Contribution")
+
+        fig.suptitle("Direct response curves", fontsize=16)
+        return fig
+
     def sample_posterior_predictive(
         self,
         X_pred,
@@ -1339,7 +1705,7 @@ class DelayedSaturatedMMM(
         """
         if include_last_observations:
             X_pred = pd.concat(
-                [self.X.iloc[-self.adstock_max_lag :, :], X_pred], axis=0
+                [self.X.iloc[-self.adstock.l_max :, :], X_pred], axis=0
             ).sort_values(by=self.date_column)
 
         self._data_setter(X_pred)
@@ -1357,7 +1723,7 @@ class DelayedSaturatedMMM(
 
         if include_last_observations:
             posterior_predictive_samples = posterior_predictive_samples.isel(
-                date=slice(self.adstock_max_lag, None)
+                date=slice(self.adstock.l_max, None)
             )
 
         if original_scale:
@@ -1426,7 +1792,9 @@ class DelayedSaturatedMMM(
 
         .. code-block:: python
 
-            model = DelayedSaturatedMMM(
+            model = MMM(
+                adstock="geometric",
+                saturation="logistic",
                 date_column="date_week",
                 channel_columns=["x1", "x2"],
                 control_columns=[
@@ -1471,11 +1839,417 @@ class DelayedSaturatedMMM(
             target_transform=self.target_transformer.transform,
         )
         with self.model:
-            add_logistic_empirical_lift_measurements_to_likelihood(
+            add_lift_measurements_to_likelihood(
                 df_lift_test=df_lift_test_scaled,
-                # Based on the model
-                lam_name="lam",
-                beta_name="beta_channel",
+                variable_mapping=self.saturation.variable_mapping,
+                saturation_function=self.saturation.function,
                 dist=dist,
                 name=name,
             )
+
+    def _create_synth_dataset(
+        self,
+        df: pd.DataFrame,
+        date_column: str,
+        allocation_strategy: dict[str, float],
+        channels: list[str] | tuple[str],
+        controls: list[str] | None,
+        target_col: str,
+        time_granularity: str,
+        time_length: int,
+        lag: int,
+    ) -> pd.DataFrame:
+        """
+        Create a synthetic dataset based on the given allocation strategy (Budget) and time granularity.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            The original dataset.
+        date_column : str
+            The name of the date column in the dataset.
+        allocation_strategy : dict[str, float]
+            A dictionary mapping channel names to their corresponding allocation values.
+        channels : list[str] | tuple[str]
+            A list or tuple of channel names.
+        controls : list[str] | None
+            A list of control column names or None if no controls are present.
+        target_col : str
+            The name of the target column.
+        time_granularity : str
+            The time granularity of the synthetic dataset: 'daily', 'weekly', 'monthly', 'quarterly', or 'yearly'.
+        time_length : int
+            The length of the synthetic dataset in terms of the time granularity.
+        lag : int
+            The lag value (not used in this function).
+
+        Returns
+        -------
+        pd.DataFrame
+            A synthetic dataset with the specified allocation strategy and time granularity.
+
+        Raises
+        ------
+        ValueError
+            If the time granularity is not supported.
+        """
+        time_offsets = {
+            "daily": {"days": 1},
+            "weekly": {"weeks": 1},
+            "monthly": {"months": 1},
+            "quarterly": {"months": 3},
+            "yearly": {"years": 1},
+        }
+
+        if time_granularity not in time_offsets:
+            raise ValueError(
+                "Unsupported time granularity. Choose from 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'."
+            )
+
+        if controls is not None:
+            _controls: list[str] = controls
+        else:
+            controls = []
+
+        last_date = pd.to_datetime(df[date_column]).max()
+        new_dates = []
+        for i in range(1, time_length + 1):
+            if time_granularity == "daily":
+                new_date = last_date + pd.DateOffset(days=i)
+            elif time_granularity == "weekly":
+                new_date = last_date + pd.DateOffset(weeks=i)
+            elif time_granularity == "monthly":
+                new_date = last_date + pd.DateOffset(months=i)
+            elif time_granularity == "quarterly":
+                new_date = last_date + pd.DateOffset(months=3 * i)
+            elif time_granularity == "yearly":
+                new_date = last_date + pd.DateOffset(years=i)
+            new_dates.append(new_date)
+
+        new_rows = [
+            {
+                self.date_column: pd.to_datetime(new_date),
+                **{
+                    channel: allocation_strategy.get(channel, 0)
+                    + np.random.normal(0, 0.1 * allocation_strategy.get(channel, 0))
+                    for channel in channels
+                },
+                **{control: 0 for control in _controls},
+                target_col: 0,
+            }
+            for new_date in new_dates
+        ]
+
+        return pd.DataFrame(new_rows)
+
+    def allocate_budget_to_maximize_response(
+        self,
+        budget: float | int,
+        time_granularity: str,
+        num_days: int,
+        budget_bounds: dict[str, list[Any]] | None = None,
+        custom_constraints: dict[str, float] | None = None,
+        quantile: float = 0.5,
+    ) -> az.InferenceData:
+        """
+        Allocate the given budget to maximize the response over a specified time period.
+
+        This function optimizes the allocation of a given budget across different channels
+        to maximize the response, considering adstock and saturation effects. It scales the
+        budget and budget bounds, performs the optimization, and generates a synthetic dataset
+        for posterior predictive sampling.
+
+        The function first scales the budget and budget bounds using the maximum scale
+        of the channel transformer. It then uses the `BudgetOptimizer` to allocate the
+        budget, and creates a synthetic dataset based on the optimal allocation. Finally,
+        it performs posterior predictive sampling on the synthetic dataset.
+
+        Parameters
+        ----------
+        budget : float or int
+            The total budget to be allocated.
+        time_granularity : str
+            The granularity of the time periods (e.g., 'daily', 'weekly', 'monthly').
+        num_days : int
+            The number of days over which the budget is to be allocated.
+        budget_bounds : dict[str, list[Any]], optional
+            A dictionary specifying the lower and upper bounds for the budget allocation
+            for each channel. If None, no bounds are applied.
+        custom_constraints : dict[str, float], optional
+            Custom constraints for the optimization. If None, no custom constraints are applied.
+        quantile : float, optional
+            The quantile to use for recovering transformation parameters. Default is 0.5.
+
+        Returns
+        -------
+        az.InferenceData
+            The posterior predictive samples generated from the synthetic dataset.
+
+        Raises
+        ------
+        ValueError
+            If the time granularity is not supported.
+        """
+        parameters_mid = self.format_recovered_transformation_parameters(
+            quantile=quantile
+        )
+
+        scale_budget = budget / self.channel_transformer["scaler"].scale_.max()
+
+        if isinstance(budget_bounds, dict):
+            scale_budget_bounds: dict[str, tuple[float, float]] | None = {
+                k: (
+                    v[0] / self.channel_transformer["scaler"].scale_.max(),
+                    v[1] / self.channel_transformer["scaler"].scale_.max(),
+                )
+                for k, v in budget_bounds.items()
+            }
+        else:
+            scale_budget_bounds = None
+
+        allocator = BudgetOptimizer(
+            adstock=self.adstock,
+            saturation=self.saturation,
+            parameters=parameters_mid,
+            adstock_first=self.adstock_first,
+            num_days=num_days,
+        )
+
+        self.optimal_allocation_dict, _ = allocator.allocate_budget(
+            total_budget=scale_budget,
+            budget_bounds=scale_budget_bounds,
+            custom_constraints=custom_constraints,
+        )
+
+        inverse_scaled_channel_spend = self.channel_transformer.inverse_transform(
+            np.array([list(self.optimal_allocation_dict.values())])
+        )
+        original_scale_allocation_dict = {
+            k: v
+            for k, v in zip(
+                self.optimal_allocation_dict.keys(),
+                inverse_scaled_channel_spend[0],
+                strict=False,
+            )
+        }
+
+        synth_dataset = self._create_synth_dataset(
+            df=self.X,
+            date_column=self.date_column,
+            allocation_strategy=original_scale_allocation_dict,
+            channels=self.channel_columns,
+            controls=self.control_columns,
+            target_col=self.output_var,
+            time_granularity=time_granularity,
+            time_length=num_days,
+            lag=self.adstock.l_max,
+        )
+
+        return self.sample_posterior_predictive(
+            X_pred=synth_dataset,
+            extend_idata=False,
+            include_last_observations=True,
+            original_scale=False,
+            var_names=["y", "channel_contributions"],
+            progressbar=False,
+        )
+
+    def plot_budget_allocation(
+        self,
+        samples: az.InferenceData,
+        figsize: tuple[float, float] = (12, 6),
+        ax: plt.Axes | None = None,
+        original_scale: bool = True,
+    ) -> tuple[plt.Figure, plt.Axes]:
+        """
+        Plot the budget allocation and channel contributions.
+
+        Parameters
+        ----------
+        samples : az.InferenceData
+            The inference data containing the channel contributions.
+        figsize : tuple[float, float], optional
+            The size of the figure to be created, by default (12, 6).
+        ax : plt.Axes, optional
+            The axis to plot on. If None, a new figure and axis will be created.
+        original_scale : bool, optional
+            A boolean flag to determine if the values should be plotted in their original scale,
+            by default True.
+
+        Returns
+        -------
+        Tuple[plt.Figure, plt.Axes]
+            The matplotlib figure object and axis containing the plot.
+        """
+
+        if original_scale:
+            channel_contributions = (
+                samples["channel_contributions"]
+                .mean(dim=["sample"])
+                .mean(dim=["date"])
+                .values
+                * self.get_target_transformer()["scaler"].scale_
+            )
+
+            allocate_spend = (
+                np.array(list(self.optimal_allocation_dict.values()))
+                * self.channel_transformer["scaler"].scale_
+            )
+
+        else:
+            channel_contributions = (
+                samples["channel_contributions"]
+                .mean(dim=["sample"])
+                .mean(dim=["date"])
+                .values
+            )
+            allocate_spend = np.array(list(self.optimal_allocation_dict.values()))
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
+        else:
+            fig = ax.get_figure()
+
+        bar_width = 0.35
+        opacity = 0.7
+
+        index = np.arange(len(self.channel_columns))
+
+        bars1 = ax.bar(
+            index,
+            allocate_spend,
+            bar_width,
+            color="b",
+            alpha=opacity,
+            label="Allocate Spend",
+        )
+
+        ax2 = ax.twinx()
+
+        bars2 = ax2.bar(
+            index + bar_width,
+            channel_contributions,
+            bar_width,
+            color="r",
+            alpha=opacity,
+            label="Channel Contributions",
+        )
+
+        ax.set_xlabel("Channels")
+        ax.set_ylabel("Allocate Spend", color="b")
+        ax.tick_params(axis="x", rotation=90)
+        ax.set_xticks(index + bar_width / 2)
+        ax.set_xticklabels(self.channel_columns)
+
+        ax.set_ylabel("Allocate Spend", color="b", labelpad=10)
+        ax2.set_ylabel("Channel Contributions", color="r", labelpad=10)
+
+        ax.grid(False)
+        ax2.grid(False)
+
+        bars = [bars1[0], bars2[0]]
+        labels = [bar.get_label() for bar in bars]
+        ax.legend(bars, labels)
+
+        return fig, ax
+
+    def plot_allocated_contribution_by_channel(
+        self,
+        samples: az.InferenceData,
+        lower_quantile: float = 0.025,
+        upper_quantile: float = 0.975,
+        original_scale: bool = True,
+    ) -> plt.Figure:
+        """
+        Plot the allocated contribution by channel with uncertainty intervals.
+
+        This function visualizes the mean allocated contributions by channel along with
+        the uncertainty intervals defined by the lower and upper quantiles. The contributions
+        can be plotted on the original scale or the transformed scale.
+
+        Parameters
+        ----------
+        samples : az.InferenceData
+            The inference data containing the samples of channel contributions.
+        lower_quantile : float, optional
+            The lower quantile for the uncertainty interval. Default is 0.025.
+        upper_quantile : float, optional
+            The upper quantile for the uncertainty interval. Default is 0.975.
+        original_scale : bool, optional
+            If True, the contributions are plotted on the original scale. Default is True.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The matplotlib figure object containing the plot.
+        """
+        if original_scale:
+            channel_contributions = (
+                samples["channel_contributions"]
+                * self.get_target_transformer()["scaler"].scale_
+            )
+        else:
+            channel_contributions = samples["channel_contributions"]
+
+        fig, ax = plt.subplots()
+        channel_contributions.mean(dim="sample").plot(hue="channel", ax=ax)
+
+        for channel in self.model_coords["channel"]:
+            ax.fill_between(
+                x=channel_contributions.date.values,
+                y1=channel_contributions.sel(channel=channel).quantile(
+                    lower_quantile, dim="sample"
+                ),
+                y2=channel_contributions.sel(channel=channel).quantile(
+                    upper_quantile, dim="sample"
+                ),
+                alpha=0.1,
+            )
+        return fig
+
+
+class DelayedSaturatedMMM(MMM):
+    _model_name = "DelayedSaturatedMMM"
+    version = "0.0.2"
+
+    def __init__(
+        self,
+        date_column: str,
+        channel_columns: list[str],
+        adstock_max_lag: int,
+        time_varying_intercept: bool = False,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
+        validate_data: bool = True,
+        control_columns: list[str] | None = None,
+        yearly_seasonality: int | None = None,
+        adstock_first: bool = True,
+        **kwargs,
+    ) -> None:
+        """
+        Wrapper function for DelayedSaturatedMMM class initializer.
+
+        Warns that MMM class should be used instead and returns an instance of MMM with
+        geometric adstock and logistic saturation.
+        """
+        warnings.warn(
+            "The DelayedSaturatedMMM class is deprecated. Please use the MMM class instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        super().__init__(
+            date_column=date_column,
+            channel_columns=channel_columns,
+            adstock_max_lag=adstock_max_lag,
+            time_varying_intercept=time_varying_intercept,
+            model_config=model_config,
+            sampler_config=sampler_config,
+            validate_data=validate_data,
+            control_columns=control_columns,
+            yearly_seasonality=yearly_seasonality,
+            adstock="geometric",
+            saturation="logistic",
+            adstock_first=adstock_first,
+            **kwargs,
+        )
