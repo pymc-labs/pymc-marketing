@@ -54,7 +54,7 @@ We provide a `Dockerfile` to build a Docker image for PyMC-Marketing so that is 
 
 ## In-depth Bayesian Marketing Mix Modeling (MMM) in PyMC
 
-Leverage our Bayesian MMM API to tailor your marketing strategies effectively. Based on the research [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017)](https://research.google/pubs/pub46001/),  and integrating the expertise from core PyMC developers, our API provides:
+Leverage our Bayesian MMM API to tailor your marketing strategies effectively. Leveraging on top of the research article [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017)](https://research.google/pubs/pub46001/),  and extending it by integrating the expertise from core PyMC developers, our API provides:
 
 - **Custom Priors and Likelihoods**: Tailor your model to your specific business needs by including domain knowledge via prior distributions.
 - **Adstock Transformation**: Optimize the carry-over effects in your marketing channels.
@@ -74,7 +74,7 @@ import pandas as pd
 from pymc_marketing.mmm import MMM
 
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
-data = pd.read_csv(data_url, parse_dates=['date_week'])
+data = pd.read_csv(data_url, parse_dates=["date_week"])
 
 mmm = MMM(
     adstock="geometric",
