@@ -11,9 +11,11 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
 import pytest
+import xarray as xr
 
 from pymc_marketing.mmm.components.base import (
     MissingDataParameter,
@@ -206,3 +208,32 @@ def test_new_transformation_warning_no_priors_updated(new_transformation) -> Non
         new_transformation.update_priors(
             {"new_c": {"dist": "HalfNormal", "kwargs": {"sigma": 1}}}
         )
+
+
+def test_new_transformation_sample_prior(new_transformation) -> None:
+    prior = new_transformation.sample_prior()
+
+    assert isinstance(prior, xr.Dataset)
+    assert dict(prior.coords.sizes) == {
+        "chain": 1,
+        "draw": 500,
+    }
+
+    assert set(prior.keys()) == {"new_a", "new_b"}
+
+
+@pytest.fixture
+def curve() -> xr.DataArray:
+    return xr.DataArray(
+        np.ones((1, 500, 10)),
+        dims=["chain", "draw", "time"],
+        coords={"time": np.arange(10), "draw": np.arange(500), "chain": np.arange(1)},
+    )
+
+
+def test_new_transformation_plot_curve(new_transformation, curve) -> None:
+    ax = new_transformation.plot_curve(curve)
+
+    assert isinstance(ax, plt.Axes)
+
+    plt.close()

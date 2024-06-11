@@ -17,6 +17,7 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 import pytest
+import xarray as xr
 
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
@@ -103,10 +104,7 @@ def test_get_saturation_function(name, saturation_cls) -> None:
     assert isinstance(saturation, saturation_cls)
 
 
-@pytest.mark.parametrize(
-    "saturation",
-    saturation_functions(),
-)
+@pytest.mark.parametrize("saturation", saturation_functions())
 def test_get_saturation_function_passthrough(saturation) -> None:
     id_before = id(saturation)
     id_after = id(_get_saturation_function(saturation))
@@ -119,3 +117,13 @@ def test_get_saturation_function_unknown() -> None:
         ValueError, match="Unknown saturation function: unknown. Choose from"
     ):
         _get_saturation_function("unknown")
+
+
+@pytest.mark.parametrize("saturation", saturation_functions())
+def test_sample_curve(saturation) -> None:
+    prior = saturation.sample_prior()
+    assert isinstance(prior, xr.Dataset)
+    curve = saturation.sample_curve(prior)
+    assert isinstance(curve, xr.DataArray)
+    assert curve.name == "saturation"
+    assert curve.shape == (1, 500, 100)
