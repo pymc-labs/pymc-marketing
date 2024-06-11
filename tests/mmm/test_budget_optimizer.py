@@ -158,9 +158,12 @@ def test_allocate_budget_custom_minimize_args(minimize_mock) -> None:
     assert kwargs["bounds"] == [(0.0, 50.0), (0.0, 50.0)]
     # default constraint constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
     assert kwargs["constraints"]["type"] == "eq"
-    assert kwargs["constraints"]["fun"](np.array([50.0, 50.0])) == 0.0
+    assert (
+        kwargs["constraints"]["fun"](np.array([total_budget / 2, total_budget / 2]))
+        == 0.0
+    )
     assert kwargs["constraints"]["fun"](np.array([100.0, 0.0])) == 0.0
-    assert kwargs["constraints"]["fun"](np.array([0.0, 0.0])) == -100.0
+    assert kwargs["constraints"]["fun"](np.array([0.0, 0.0])) == -total_budget
     assert kwargs["method"] == minimize_kwargs["method"]
     assert kwargs["options"] == minimize_kwargs["options"]
 
