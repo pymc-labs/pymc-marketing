@@ -66,8 +66,9 @@ class BaseMMM(BaseValidateMMM):
     .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
     """
 
-    _model_type = "BaseValidateMMM"
-    version = "0.0.3"
+    _model_name: str = "BaseMMM"
+    _model_type: str = "BaseValidateMMM"
+    version: str = "0.0.3"
 
     def __init__(
         self,
