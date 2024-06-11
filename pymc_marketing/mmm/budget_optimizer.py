@@ -23,6 +23,13 @@ from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 
 
+class MinimizeException(Exception):
+    """Custom exception for optimization failure."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+
+
 class BudgetOptimizer:
     """
     A class for optimizing budget allocation in a marketing mix model.
@@ -204,4 +211,4 @@ class BudgetOptimizer:
             }
             return optimal_budgets, -result.fun
         else:
-            raise Exception("Optimization failed: " + result.message)
+            raise MinimizeException(f"Optimization failed: {result.message}")
