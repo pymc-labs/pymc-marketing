@@ -13,7 +13,7 @@
 #   limitations under the License.
 import pytest
 
-from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, MinimizeException
 from pymc_marketing.mmm.components.adstock import _get_adstock_function
 from pymc_marketing.mmm.components.saturation import _get_saturation_function
 
@@ -124,5 +124,5 @@ def test_allocate_budget_infeasible_constraints(
     saturation = _get_saturation_function(function="logistic")
     optimizer = BudgetOptimizer(adstock, saturation, 30, parameters, adstock_first=True)
 
-    with pytest.raises(Exception, match="Optimization failed"):
+    with pytest.raises(MinimizeException, match="Optimization failed"):
         optimizer.allocate_budget(total_budget, budget_bounds, custom_constraints)
