@@ -19,8 +19,8 @@ from pymc_marketing.mmm.components.saturation import _get_saturation_function
 
 
 @pytest.mark.parametrize(
-    "total_budget, budget_bounds, parameters, expected_optimal, expected_response",
-    [
+    argnames="total_budget, budget_bounds, parameters, minimize_kwargs, expected_optimal, expected_response",
+    argvalues=[
         (
             100,
             {"channel_1": (0, 50), "channel_2": (0, 50)},
@@ -34,14 +34,41 @@ from pymc_marketing.mmm.components.saturation import _get_saturation_function
                     "saturation_params": {"lam": 20, "beta": 1.0},
                 },
             },
+            None,
+            {"channel_1": 50.0, "channel_2": 50.0},
+            49.5,
+        ),
+        (
+            100,
+            {"channel_1": (0, 50), "channel_2": (0, 50)},
+            {
+                "channel_1": {
+                    "adstock_params": {"alpha": 0.5},
+                    "saturation_params": {"lam": 10, "beta": 0.5},
+                },
+                "channel_2": {
+                    "adstock_params": {"alpha": 0.7},
+                    "saturation_params": {"lam": 20, "beta": 1.0},
+                },
+            },
+            {
+                "method": "SLSQP",
+                "options": {"ftol": 1e-8, "maxiter": 2_000},
+            },
             {"channel_1": 50.0, "channel_2": 50.0},
             49.5,
         ),
         # Add more test cases if needed
     ],
+    ids=["default_minimizer_kwargs", "custom_minimizer_kwargs"],
 )
 def test_allocate_budget(
-    total_budget, budget_bounds, parameters, expected_optimal, expected_response
+    total_budget,
+    budget_bounds,
+    parameters,
+    minimize_kwargs,
+    expected_optimal,
+    expected_response,
 ):
     # Initialize Adstock and Saturation Transformations
     adstock = _get_adstock_function(function="geometric", l_max=4)
@@ -52,7 +79,9 @@ def test_allocate_budget(
 
     # Allocate Budget
     optimal_budgets, total_response = optimizer.allocate_budget(
-        total_budget, budget_bounds
+        total_budget=total_budget,
+        budget_bounds=budget_bounds,
+        minimize_kwargs=minimize_kwargs,
     )
 
     # Assert Results
