@@ -127,3 +127,78 @@ def test_sample_curve(saturation) -> None:
     assert isinstance(curve, xr.DataArray)
     assert curve.name == "saturation"
     assert curve.shape == (1, 500, 100)
+
+
+def create_mock_parameters(
+    coords: dict[str, list],
+    variable_dim_mapping: dict[str, tuple[str]],
+) -> xr.Dataset:
+    dim_sizes = {coord: len(values) for coord, values in coords.items()}
+    return xr.Dataset(
+        {
+            name: xr.DataArray(
+                np.ones(tuple(dim_sizes[coord] for coord in dims)),
+                dims=dims,
+                coords={coord: coords[coord] for coord in dims},
+            )
+            for name, dims in variable_dim_mapping.items()
+        }
+    )
+
+
+@pytest.fixture
+def mock_menten_parameters() -> xr.Dataset:
+    coords = {
+        "chain": np.arange(1),
+        "draw": np.arange(500),
+    }
+
+    variable_dim_mapping = {
+        "saturation_alpha": ("chain", "draw"),
+        "saturation_lam": ("chain", "draw"),
+        "another_random_variable": ("chain", "draw"),
+    }
+
+    return create_mock_parameters(coords, variable_dim_mapping)
+
+
+def test_sample_curve_additional_dataset_variables(mock_menten_parameters) -> None:
+    """Case when the parameter dataset has additional variables."""
+    saturation = MichaelisMentenSaturation()
+
+    try:
+        curve = saturation.sample_curve(parameters=mock_menten_parameters)
+    except Exception as e:
+        pytest.fail(f"Unexpected exception: {e}")
+
+    assert isinstance(curve, xr.DataArray)
+    assert curve.name == "saturation"
+
+
+@pytest.fixture
+def mock_menten_parameters_with_additional_dim() -> xr.Dataset:
+    coords = {
+        "chain": np.arange(1),
+        "draw": np.arange(500),
+        "channel": ["C1", "C2", "C3"],
+        "random_dim": ["R1", "R2"],
+    }
+    variable_dim_mapping = {
+        "saturation_alpha": ("chain", "draw", "channel"),
+        "saturation_lam": ("chain", "draw", "channel"),
+        "another_random_variable": ("chain", "draw", "channel", "random_dim"),
+    }
+
+    return create_mock_parameters(coords, variable_dim_mapping)
+
+
+def test_sample_curve_with_additional_dims(
+    mock_menten_parameters_with_additional_dim,
+) -> None:
+    saturation = MichaelisMentenSaturation()
+    curve = saturation.sample_curve(
+        parameters=mock_menten_parameters_with_additional_dim
+    )
+
+    assert curve.coords["channel"].to_numpy().tolist() == ["C1", "C2", "C3"]
+    assert "random_dim" not in curve.coords

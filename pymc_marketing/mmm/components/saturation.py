@@ -114,22 +114,43 @@ class SaturationTransformation(Transformation):
             Curve of the saturation transformation.
 
         """
+        required_vars = list(self.variable_mapping.values())
+
+        function_parameters = parameters[required_vars]
+
         x = np.linspace(0, max_value, 100)
 
         coords = {
             "x": x,
         }
 
+        parameter_coords = function_parameters.coords
+
+        additional_coords = {
+            coord: parameter_coords[coord].to_numpy()
+            for coord in parameter_coords.keys()
+            if coord not in {"chain", "draw"}
+        }
+
+        dims = tuple(additional_coords.keys())
+        # Allow broadcasting
+        x = np.expand_dims(
+            x,
+            axis=tuple(range(1, len(dims) + 1)),
+        )
+
+        coords.update(additional_coords)
+
         with pm.Model(coords=coords):
             var_name = "saturation"
             pm.Deterministic(
                 var_name,
-                self.apply(x),
-                dims="x",
+                self.apply(x, dims=dims),
+                dims=("x", *dims),
             )
 
             return pm.sample_posterior_predictive(
-                parameters,
+                function_parameters,
                 var_names=[var_name],
             ).posterior_predictive[var_name]
 
