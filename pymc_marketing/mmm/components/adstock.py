@@ -38,7 +38,6 @@ Create a new adstock transformation:
 import warnings
 
 import numpy as np
-import pymc as pm
 import xarray as xr
 
 from pymc_marketing.mmm.components.base import Transformation
@@ -108,18 +107,12 @@ class AdstockTransformation(Transformation):
         x = np.zeros(self.l_max)
         x[0] = amount
 
-        with pm.Model(coords=coords):
-            var_name = "adstock"
-            pm.Deterministic(
-                var_name,
-                self.apply(x),
-                dims="time since exposure",
-            )
-
-            return pm.sample_posterior_predictive(
-                parameters,
-                var_names=[var_name],
-            ).posterior_predictive[var_name]
+        return self._sample_curve(
+            var_name="adstock",
+            parameters=parameters,
+            x=x,
+            coords=coords,
+        )
 
 
 class GeometricAdstock(AdstockTransformation):

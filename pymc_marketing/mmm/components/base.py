@@ -290,6 +290,52 @@ class Transformation:
         ax = self.plot_curve_sample(curve, color=color, ax=ax, **sample_kwargs)
         return ax
 
+    def _sample_curve(
+        self,
+        var_name: str,
+        parameters: xr.Dataset,
+        x: pt.TensorLike,
+        coords: dict[str, Any],
+    ) -> xr.DataArray:
+        required_vars = list(self.variable_mapping.values())
+
+        keys = list(coords.keys())
+        if len(keys) != 1:
+            msg = "The coords should only have one key."
+            raise ValueError(msg)
+        x_dim = keys[0]
+
+        function_parameters = parameters[required_vars]
+
+        parameter_coords = function_parameters.coords
+
+        additional_coords = {
+            coord: parameter_coords[coord].to_numpy()
+            for coord in parameter_coords.keys()
+            if coord not in {"chain", "draw"}
+        }
+
+        dims = tuple(additional_coords.keys())
+        # Allow broadcasting
+        x = np.expand_dims(
+            x,
+            axis=tuple(range(1, len(dims) + 1)),
+        )
+
+        coords.update(additional_coords)
+
+        with pm.Model(coords=coords):
+            pm.Deterministic(
+                var_name,
+                self.apply(x, dims=dims),
+                dims=(x_dim, *dims),
+            )
+
+            return pm.sample_posterior_predictive(
+                function_parameters,
+                var_names=[var_name],
+            ).posterior_predictive[var_name]
+
     def plot_curve_sample(
         self,
         curve: xr.DataArray,
