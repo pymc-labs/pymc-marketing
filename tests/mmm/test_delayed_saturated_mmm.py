@@ -340,7 +340,7 @@ class TestDelayedSaturatedMMM:
             adstock="geometric",
             saturation="logistic",
         )
-        assert mmm.version == "0.0.2"
+        assert mmm.version == "0.0.3"
         assert mmm._model_type == "DelayedSaturatedMMM"
         assert mmm.model_config is not None
         n_channel: int = len(mmm.channel_columns)
