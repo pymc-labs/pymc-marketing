@@ -21,12 +21,68 @@ Use the subclasses directly for custom transformations:
 """
 
 import warnings
+from collections.abc import Generator, MutableMapping, Sequence
 from inspect import signature
+from itertools import product
 from typing import Any
 
+import arviz as az
+import matplotlib.pyplot as plt
+import numpy as np
+import numpy.typing as npt
+import pymc as pm
+import xarray as xr
+from pymc.distributions.shape_utils import Dims
 from pytensor import tensor as pt
 
 from pymc_marketing.mmm.utils import _get_distribution_from_dict
+
+Values = Sequence[Any] | npt.NDArray[Any]
+Coords = dict[str, Values]
+
+# chain and draw from sampling
+# "x" for saturation, "time since exposure" for adstock
+NON_GRID_NAMES = {"chain", "draw", "x", "time since exposure"}
+
+
+def get_plot_coords(coords: Coords) -> Coords:
+    plot_coord_names = list(key for key in coords.keys() if key not in NON_GRID_NAMES)
+    return {name: np.array(coords[name]) for name in plot_coord_names}
+
+
+def get_total_coord_size(coords: Coords) -> int:
+    total_size: int = (
+        1 if coords == {} else np.prod([len(values) for values in coords.values()])  # type: ignore
+    )
+    if total_size >= 12:
+        warnings.warn("Large number of coordinates!", stacklevel=2)
+
+    return total_size
+
+
+def set_subplot_kwargs_defaults(
+    subplot_kwargs: MutableMapping[str, Any],
+    total_size: int,
+) -> None:
+    if "ncols" in subplot_kwargs and "nrows" in subplot_kwargs:
+        raise ValueError("Only specify one")
+
+    if "ncols" not in subplot_kwargs and "nrows" not in subplot_kwargs:
+        subplot_kwargs["ncols"] = total_size
+
+    if "ncols" in subplot_kwargs:
+        subplot_kwargs["nrows"] = total_size // subplot_kwargs["ncols"]
+    elif "nrows" in subplot_kwargs:
+        subplot_kwargs["ncols"] = total_size // subplot_kwargs["nrows"]
+
+
+def selections(
+    coords: Coords,
+) -> Generator[dict[str, Any], None, None]:
+    """Helper to create generator of selections."""
+    coord_names = coords.keys()
+    for values in product(*coords.values()):
+        yield {name: value for name, value in zip(coord_names, values, strict=True)}
 
 
 class ParameterPriorException(Exception):
@@ -212,7 +268,9 @@ class Transformation:
             for parameter in self.default_priors.keys()
         }
 
-    def _create_distributions(self, dim_name: str) -> dict[str, pt.TensorVariable]:
+    def _create_distributions(
+        self, dims: Dims | None = None
+    ) -> dict[str, pt.TensorVariable]:
         distributions: dict[str, pt.TensorVariable] = {}
         for parameter_name, variable_name in self.variable_mapping.items():
             parameter_prior = self.function_priors[parameter_name]
@@ -223,13 +281,248 @@ class Transformation:
 
             distributions[parameter_name] = distribution(
                 name=variable_name,
-                dims=dim_name,
+                dims=dims,
                 **parameter_prior["kwargs"],
             )
 
         return distributions
 
-    def apply(self, x: pt.TensorLike, dim_name: str = "channel") -> pt.TensorVariable:
+    def sample_prior(
+        self, coords: dict | None = None, **sample_prior_predictive_kwargs
+    ) -> xr.Dataset:
+        """Sample the priors for the transformation.
+
+        Parameters
+        ----------
+        coords : dict, optional
+            The coordinates for the associated with dims
+        **sample_prior_predictive_kwargs
+            Keyword arguments for the pm.sample_prior_predictive function.
+
+        Returns
+        -------
+        xr.Dataset
+            The dataset with the sampled priors.
+
+        """
+        coords = coords or {}
+        dims = tuple(coords.keys())
+        with pm.Model(coords=coords):
+            self._create_distributions(dims=dims)
+            return pm.sample_prior_predictive(**sample_prior_predictive_kwargs).prior
+
+    def plot_curve(
+        self,
+        curve: xr.DataArray,
+        subplot_kwargs: dict | None = None,
+        sample_kwargs: dict | None = None,
+        hdi_kwargs: dict | None = None,
+    ) -> tuple[plt.Figure, npt.NDArray[plt.Axes]]:
+        """Plot curve HDI and samples.
+
+        Parameters
+        ----------
+        curve : xr.DataArray
+            The curve to plot.
+        subplot_kwargs : dict, optional
+            Keyword arguments for plt.subplots
+        sample_kwargs : dict, optional
+            Keyword arguments for the plot_curve_sample function. Defaults to None.
+        hdi_kwargs : dict, optional
+            Keyword arguments for the plot_curve_hdi function. Defaults to None.
+
+        Returns
+        -------
+        tuple[plt.Figure, npt.NDArray[plt.Axes]]
+
+        """
+        hdi_kwargs = hdi_kwargs or {}
+        sample_kwargs = sample_kwargs or {}
+
+        if "subplot_kwargs" not in hdi_kwargs:
+            hdi_kwargs["subplot_kwargs"] = subplot_kwargs
+
+        fig, axes = self.plot_curve_hdi(curve, **hdi_kwargs)
+        fig, axes = self.plot_curve_samples(curve, axes=axes, **sample_kwargs)
+
+        return fig, axes
+
+    def _sample_curve(
+        self,
+        var_name: str,
+        parameters: xr.Dataset,
+        x: pt.TensorLike,
+        coords: dict[str, Any],
+    ) -> xr.DataArray:
+        required_vars = list(self.variable_mapping.values())
+
+        keys = list(coords.keys())
+        if len(keys) != 1:
+            msg = "The coords should only have one key."
+            raise ValueError(msg)
+        x_dim = keys[0]
+
+        function_parameters = parameters[required_vars]
+
+        parameter_coords = function_parameters.coords
+
+        additional_coords = {
+            coord: parameter_coords[coord].to_numpy()
+            for coord in parameter_coords.keys()
+            if coord not in {"chain", "draw"}
+        }
+
+        dims = tuple(additional_coords.keys())
+        # Allow broadcasting
+        x = np.expand_dims(
+            x,
+            axis=tuple(range(1, len(dims) + 1)),
+        )
+
+        coords.update(additional_coords)
+
+        with pm.Model(coords=coords):
+            pm.Deterministic(
+                var_name,
+                self.apply(x, dims=dims),
+                dims=(x_dim, *dims),
+            )
+
+            return pm.sample_posterior_predictive(
+                function_parameters,
+                var_names=[var_name],
+            ).posterior_predictive[var_name]
+
+    def plot_curve_samples(
+        self,
+        curve: xr.DataArray,
+        n: int = 10,
+        rng: np.random.Generator | None = None,
+        plot_kwargs: dict | None = None,
+        subplot_kwargs: dict | None = None,
+        axes: npt.NDArray[plt.Axes] | None = None,
+    ) -> tuple[plt.Figure, npt.NDArray[plt.Axes]]:
+        """Plot samples from the curve.
+
+        Parameters
+        ----------
+        curve : xr.DataArray
+            The curve to plot.
+        n : int, optional
+            The number of samples to plot. Defaults to 10.
+        rng : np.random.Generator, optional
+            The random number generator to use. Defaults to None.
+        plot_kwargs : dict, optional
+            Keyword arguments for the DataFrame plot function. Defaults to None.
+        subplot_kwargs : dict, optional
+            Keyword arguments for plt.subplots
+        axes : npt.NDArray[plt.Axes], optional
+            The exact axes to plot on. Overrides any subplot_kwargs
+
+        Returns
+        -------
+        tuple[plt.Figure, npt.NDArray[plt.Axes]]
+        plt.Axes
+            The axes with the plot.
+
+        """
+        plot_coords = get_plot_coords(curve.coords)
+        total_size = get_total_coord_size(plot_coords)
+
+        if axes is None:
+            subplot_kwargs = subplot_kwargs or {}
+            set_subplot_kwargs_defaults(subplot_kwargs, total_size)
+            fig, axes = plt.subplots(**subplot_kwargs)
+        else:
+            fig = plt.gcf()
+
+        plot_kwargs = plot_kwargs or {}
+        plot_kwargs["alpha"] = plot_kwargs.get("alpha", 0.3)
+        plot_kwargs["legend"] = False
+
+        for i, (ax, sel) in enumerate(
+            zip(np.ravel(axes), selections(plot_coords), strict=False)
+        ):
+            color = f"C{i}"
+
+            df_curve = curve.sel(sel).to_series().unstack()
+            df_sample = df_curve.sample(n=n, random_state=rng)
+
+            df_sample.T.plot(ax=ax, color=color, **plot_kwargs)
+            title = ", ".join(f"{name}={value}" for name, value in sel.items())
+            ax.set_title(title)
+
+        if not isinstance(axes, np.ndarray):
+            axes = np.array([axes])
+
+        return fig, axes
+
+    def plot_curve_hdi(
+        self,
+        curve: xr.DataArray,
+        hdi_kwargs: dict | None = None,
+        plot_kwargs: dict | None = None,
+        subplot_kwargs: dict | None = None,
+        axes: npt.NDArray[plt.Axes] | None = None,
+    ) -> tuple[plt.Figure, npt.NDArray[plt.Axes]]:
+        """Plot the HDI of the curve.
+
+        Parameters
+        ----------
+        curve : xr.DataArray
+            The curve to plot.
+        hdi_kwargs : dict, optional
+            Keyword arguments for the az.hdi function. Defaults to None.
+        plot_kwargs : dict, optional
+            Keyword arguments for the fill_between function. Defaults to None.
+        subplot_kwargs : dict, optional
+            Keyword arguments for plt.subplots
+        axes : npt.NDArray[plt.Axes], optional
+            The exact axes to plot on. Overrides any subplot_kwargs
+
+        Returns
+        -------
+        tuple[plt.Figure, npt.NDArray[plt.Axes]]
+
+        """
+        plot_coords = get_plot_coords(curve.coords)
+        total_size = get_total_coord_size(plot_coords)
+
+        hdi_kwargs = hdi_kwargs or {}
+        conf = az.hdi(curve, **hdi_kwargs)[curve.name]
+
+        if axes is None:
+            subplot_kwargs = subplot_kwargs or {}
+            set_subplot_kwargs_defaults(subplot_kwargs, total_size)
+            fig, axes = plt.subplots(**subplot_kwargs)
+        else:
+            fig = plt.gcf()
+
+        plot_kwargs = plot_kwargs or {}
+        plot_kwargs["alpha"] = plot_kwargs.get("alpha", 0.3)
+
+        for i, (ax, sel) in enumerate(
+            zip(np.ravel(axes), selections(plot_coords), strict=False)
+        ):
+            color = f"C{i}"
+            df_conf = conf.sel(sel).to_series().unstack()
+
+            ax.fill_between(
+                x=df_conf.index,
+                y1=df_conf["lower"],
+                y2=df_conf["higher"],
+                color=color,
+                **plot_kwargs,
+            )
+            title = ", ".join(f"{name}={value}" for name, value in sel.items())
+            ax.set_title(title)
+
+        if not isinstance(axes, np.ndarray):
+            axes = np.array([axes])
+
+        return fig, axes
+
+    def apply(self, x: pt.TensorLike, dims: Dims | None = None) -> pt.TensorVariable:
         """Called within a model context.
 
         Used internally of the MMM to apply the transformation to the data.
@@ -238,30 +531,29 @@ class Transformation:
         ----------
         x : pt.TensorLike
             The data to be transformed.
-        dim_name : str, optional
-            The name of the dimension associated with the columns of the data.
-            Defaults to "channel".
+        dims : str, sequence[str], optional
+            The name of the dimension associated with the columns of the
+            data. Defaults to None
 
         Returns
         -------
         pt.TensorVariable
             The transformed data.
 
-
         Examples
         --------
         Call the function for custom use-case
 
-        import pymc as pm
-
         .. code-block:: python
+
+            import pymc as pm
 
             transformation = ...
 
             coords = {"channel": ["TV", "Radio", "Digital"]}
             with pm.Model(coords=coords):
-                transformed_data = transformation.apply(data, dim_name="channel")
+                transformed_data = transformation.apply(data, dims="channel")
 
         """
-        kwargs = self._create_distributions(dim_name=dim_name)
+        kwargs = self._create_distributions(dims=dims)
         return self.function(x, **kwargs)

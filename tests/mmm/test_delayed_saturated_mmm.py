@@ -168,6 +168,18 @@ def mmm_fitted_with_fourier_features(
     return mock_fit(mmm_with_fourier_features, toy_X, toy_y)
 
 
+@pytest.mark.parametrize("media_transform", ["adstock", "saturation"])
+def test_plotting_media_transform_workflow(mmm_fitted, media_transform) -> None:
+    transform = getattr(mmm_fitted, media_transform)
+    curve = transform.sample_curve(mmm_fitted.fit_result)
+    fig, axes = transform.plot_curve(curve)
+
+    assert isinstance(fig, plt.Figure)
+    assert len(axes) == mmm_fitted.fit_result["channel"].size
+
+    plt.close()
+
+
 class TestDelayedSaturatedMMM:
     def test_save_load_with_not_serializable_model_config(
         self, model_config_requiring_serialization, toy_X, toy_y

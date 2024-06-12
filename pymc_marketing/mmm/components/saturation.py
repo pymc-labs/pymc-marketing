@@ -22,9 +22,9 @@ Examples
 --------
 Create a new saturation transformation:
 
-from pymc_marketing.mmm.components.saturation import SaturationTransformation
-
 .. code-block:: python
+
+    from pymc_marketing.mmm import SaturationTransformation
 
     class InfiniteReturns(SaturationTransformation):
         def function(self, x, b):
@@ -32,7 +32,24 @@ from pymc_marketing.mmm.components.saturation import SaturationTransformation
 
         default_priors = {"b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}}}
 
+Plot the default priors for a saturation transformation:
+
+.. code-block:: python
+
+    from pymc_marketing.mmm import HillSaturation
+
+    import matplotlib.pyplot as plt
+
+    saturation = HillSaturation()
+    prior = saturation.sample_prior()
+    curve = saturation.sample_curve(prior)
+    saturation.plot_curve(curve)
+    plt.show()
+
 """
+
+import numpy as np
+import xarray as xr
 
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.transformers import (
@@ -69,15 +86,80 @@ class SaturationTransformation(Transformation):
             function = infinite_returns
             default_priors = {"b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}}}
 
+    Make use of plotting capabilities to understand the transformation and its
+    priors
+
+    .. code-block:: python
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        saturation = InfiniteReturns()
+
+        rng = np.random.default_rng(0)
+
+        prior = saturation.sample_prior(random_seed=rng)
+        curve = saturation.sample_curve(prior)
+        saturation.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
+
     """
 
     prefix: str = "saturation"
+
+    def sample_curve(
+        self,
+        parameters: xr.Dataset,
+        max_value: float = 1.0,
+    ) -> xr.DataArray:
+        """Sample the curve of the saturation transformation given parameters.
+
+        Parameters
+        ----------
+        parameters : xr.Dataset
+            Dataset with the parameters of the saturation transformation.
+        max_value : float, optional
+            Maximum value of the curve, by default 1.0.
+
+        Returns
+        -------
+        xr.DataArray
+            Curve of the saturation transformation.
+
+        """
+        x = np.linspace(0, max_value, 100)
+
+        coords = {
+            "x": x,
+        }
+
+        return self._sample_curve(
+            var_name="saturation",
+            parameters=parameters,
+            x=x,
+            coords=coords,
+        )
 
 
 class LogisticSaturation(SaturationTransformation):
     """Wrapper around logistic saturation function.
 
     For more information, see :func:`pymc_marketing.mmm.transformers.logistic_saturation`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import LogisticSaturation
+
+        rng = np.random.default_rng(0)
+
+        adstock = LogisticSaturation()
+        prior = adstock.sample_prior(random_seed=rng)
+        curve = adstock.sample_curve(prior)
+        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
 
     """
 
@@ -97,6 +179,21 @@ class TanhSaturation(SaturationTransformation):
 
     For more information, see :func:`pymc_marketing.mmm.transformers.tanh_saturation`.
 
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import TanhSaturation
+
+        rng = np.random.default_rng(0)
+
+        adstock = TanhSaturation()
+        prior = adstock.sample_prior(random_seed=rng)
+        curve = adstock.sample_curve(prior)
+        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
+
     """
 
     lookup_name = "tanh"
@@ -115,6 +212,21 @@ class TanhSaturationBaselined(SaturationTransformation):
     """Wrapper around tanh saturation function.
 
     For more information, see :func:`pymc_marketing.mmm.transformers.tanh_saturation_baselined`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import TanhSaturationBaselined
+
+        rng = np.random.default_rng(0)
+
+        adstock = TanhSaturationBaselined()
+        prior = adstock.sample_prior(random_seed=rng)
+        curve = adstock.sample_curve(prior)
+        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
 
     """
 
@@ -136,6 +248,21 @@ class MichaelisMentenSaturation(SaturationTransformation):
 
     For more information, see :func:`pymc_marketing.mmm.transformers.michaelis_menten`.
 
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import MichaelisMentenSaturation
+
+        rng = np.random.default_rng(0)
+
+        adstock = MichaelisMentenSaturation()
+        prior = adstock.sample_prior(random_seed=rng)
+        curve = adstock.sample_curve(prior)
+        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
+
     """
 
     lookup_name = "michaelis_menten"
@@ -152,6 +279,21 @@ class HillSaturation(SaturationTransformation):
     """Wrapper around Hill saturation function.
 
     For more information, see :func:`pymc_marketing.mmm.transformers.hill_saturation`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import HillSaturation
+
+        rng = np.random.default_rng(0)
+
+        adstock = HillSaturation()
+        prior = adstock.sample_prior(random_seed=rng)
+        curve = adstock.sample_curve(prior)
+        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
 
     """
 
