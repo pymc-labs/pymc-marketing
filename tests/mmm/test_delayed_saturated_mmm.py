@@ -23,11 +23,7 @@ from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.components.adstock import DelayedAdstock
 from pymc_marketing.mmm.components.saturation import MichaelisMentenSaturation
-from pymc_marketing.mmm.delayed_saturated_mmm import (
-    MMM,
-    BaseMMM,
-    DelayedSaturatedMMM,
-)
+from pymc_marketing.mmm.delayed_saturated_mmm import MMM, BaseMMM, DelayedSaturatedMMM
 
 seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
@@ -340,8 +336,9 @@ class TestDelayedSaturatedMMM:
             adstock="geometric",
             saturation="logistic",
         )
-        assert mmm.version == "0.0.2"
-        assert mmm._model_type == "DelayedSaturatedMMM"
+        assert mmm.version == "0.0.3"
+        assert mmm._model_type == "BaseValidateMMM"
+        assert mmm._model_name == "BaseMMM"
         assert mmm.model_config is not None
         n_channel: int = len(mmm.channel_columns)
         n_control: int = len(mmm.control_columns)
