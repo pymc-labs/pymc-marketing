@@ -270,7 +270,9 @@ def test_calling_prior_predictive_before_fit_raises_error(test_mmm, toy_X, toy_y
     test_mmm.idata = None
     with pytest.raises(
         RuntimeError,
-        match=re.escape("The model hasn't been fit yet, call .fit() first"),
+        match=re.escape(
+            "The model hasn't been sampled yet, call .sample_prior_predictive() first"
+        ),
     ):
         test_mmm.prior_predictive
 
@@ -297,7 +299,7 @@ def test_calling_prior_before_sample_prior_predictive_raises_error(
     with pytest.raises(
         RuntimeError,
         match=re.escape(
-            "The model hasn't been fit yet, call .sample_prior_predictive() with extend_idata=True first"
+            "The model hasn't been sampled yet, call .sample_prior_predictive() first",
         ),
     ):
         test_mmm.prior

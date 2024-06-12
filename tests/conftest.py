@@ -77,7 +77,7 @@ def set_model_fit(model: CLVModel, fit: InferenceData | Dataset):
         assert "posterior" in fit.groups()
     else:
         fit = InferenceData(posterior=fit)
-    if model.model is None:
+    if not hasattr(model, "model"):
         model.build_model()
     model.idata = fit
     model.idata.add_groups(fit_data=model.data.to_xarray())
