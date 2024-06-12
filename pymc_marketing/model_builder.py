@@ -620,7 +620,7 @@ class ModelBuilder(ABC):
         """
         self._data_setter(X_pred)
 
-        with self.model:  # type: ignore
+        with self.model:
             post_pred = pm.sample_posterior_predictive(
                 self.idata, **sample_posterior_predictive_kwargs
             )
