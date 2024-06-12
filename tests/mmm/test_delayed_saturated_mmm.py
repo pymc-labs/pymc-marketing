@@ -1088,3 +1088,15 @@ def test_initialize_alternative_with_classes() -> None:
     assert isinstance(mmm.adstock, DelayedAdstock)
     assert mmm.adstock.l_max == 10
     assert isinstance(mmm.saturation, MichaelisMentenSaturation)
+
+
+@pytest.mark.parametrize("media_transform", ["adstock", "saturation"])
+def test_plotting_media_transform_workflow(mmm_fitted, media_transform) -> None:
+    transform = getattr(mmm_fitted, media_transform)
+    curve = transform.sample_curve(mmm_fitted.fit_result)
+    fig, axes = transform.plot_curve(curve)
+
+    assert isinstance(fig, plt.Figure)
+    assert len(axes) == mmm_fitted.fit_result["channel"].size
+
+    plt.close()
