@@ -86,7 +86,7 @@ class ModelBuilder(ABC):
         self.model_config = (
             self.default_model_config | model_config
         )  # parameters for priors etc.
-        self.model: pm.Model | None = None  # Set by build_model
+        self.model: pm.Model
         self.idata: az.InferenceData | None = None  # idata is generated during fitting
         self.is_fitted_ = False
 
@@ -458,7 +458,7 @@ class ModelBuilder(ABC):
         if self.X is None or self.y is None:
             raise ValueError("X and y must be set before calling build_model!")
 
-        if self.model is None:
+        if not hasattr(self, "model"):
             self.build_model(self.X, self.y)
 
         sampler_config = self.sampler_config.copy()
@@ -466,11 +466,14 @@ class ModelBuilder(ABC):
         sampler_config["random_seed"] = random_seed
         sampler_config.update(**kwargs)
 
-        sampler_config.update(**kwargs)
-        if self.model is not None:
-            with self.model:
-                sampler_args = {**self.sampler_config, **kwargs}
-                self.idata = pm.sample(**sampler_args)
+        sampler_args = {**self.sampler_config, **kwargs}
+        with self.model:
+            idata = pm.sample(**sampler_args)
+
+        if self.idata:
+            self.idata.extend(idata, join="right")
+        else:
+            self.idata = idata
 
         X_df = pd.DataFrame(X, columns=X.columns)
         combined_data = pd.concat([X_df, y_df], axis=1)
@@ -537,7 +540,7 @@ class ModelBuilder(ABC):
         X_pred,
         y_pred=None,
         samples: int | None = None,
-        extend_idata: bool = False,
+        extend_idata: bool = True,
         combined: bool = True,
         **kwargs,
     ):
@@ -552,7 +555,7 @@ class ModelBuilder(ABC):
             Number of samples from the prior parameter distributions to generate.
             If not set, uses sampler_config['draws'] if that is available, otherwise defaults to 500.
         extend_idata : Boolean determining whether the predictions should be added to inference data object.
-            Defaults to False.
+            Defaults to True.
         combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
         **kwargs: Additional arguments to pass to pymc.sample_prior_predictive
@@ -567,7 +570,7 @@ class ModelBuilder(ABC):
         if samples is None:
             samples = self.sampler_config.get("draws", 500)
 
-        if self.model is None:
+        if not hasattr(self, "model"):
             self.build_model(X_pred, y_pred)
 
         self._data_setter(X_pred, y_pred)
@@ -577,11 +580,12 @@ class ModelBuilder(ABC):
                     samples, **kwargs
                 )
                 self.set_idata_attrs(prior_pred)
-                if extend_idata:
-                    if self.idata is not None:
-                        self.idata.extend(prior_pred, join="right")
-                    else:
-                        self.idata = prior_pred
+
+        if extend_idata:
+            if self.idata is not None:
+                self.idata.extend(prior_pred, join="right")
+            else:
+                self.idata = prior_pred
 
         prior_predictive_samples = az.extract(
             prior_pred, "prior_predictive", combined=combined
@@ -590,7 +594,11 @@ class ModelBuilder(ABC):
         return prior_predictive_samples
 
     def sample_posterior_predictive(
-        self, X_pred, extend_idata: bool = True, combined: bool = True, **kwargs
+        self,
+        X_pred,
+        extend_idata: bool = True,
+        combined: bool = True,
+        **sample_posterior_predictive_kwargs,
     ):
         """
         Sample from the model's posterior predictive distribution.
@@ -603,7 +611,7 @@ class ModelBuilder(ABC):
             Defaults to True.
         combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
-        **kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
+        **sample_posterior_predictive_kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
 
         Returns
         -------
@@ -613,15 +621,20 @@ class ModelBuilder(ABC):
         self._data_setter(X_pred)
 
         with self.model:  # type: ignore
-            post_pred = pm.sample_posterior_predictive(self.idata, **kwargs)
-            if extend_idata:
-                self.idata.extend(post_pred, join="right")  # type: ignore
+            post_pred = pm.sample_posterior_predictive(
+                self.idata, **sample_posterior_predictive_kwargs
+            )
 
-        posterior_predictive_samples = az.extract(
-            post_pred, "posterior_predictive", combined=combined
+        if extend_idata:
+            self.idata.extend(post_pred, join="right")  # type: ignore
+
+        variable_name = (
+            "predictions"
+            if sample_posterior_predictive_kwargs.get("predictions")
+            else "posterior_predictive"
         )
 
-        return posterior_predictive_samples
+        return az.extract(post_pred, variable_name, combined=combined)
 
     def get_params(self, deep=True):
         """
