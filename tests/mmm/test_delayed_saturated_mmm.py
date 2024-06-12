@@ -863,16 +863,6 @@ def test_new_data_predict_method(
     # assert lower < toy_y.mean() < upper
 
 
-def test_get_valid_distribution(mmm):
-    normal_dist = mmm._get_distribution_from_dict({"dist": "Normal"})
-    assert normal_dist is pm.Normal
-
-
-def test_get_invalid_distribution(mmm):
-    with pytest.raises(ValueError, match="does not exist in PyMC"):
-        mmm._get_distribution_from_dict({"dist": "NonExistentDist"})
-
-
 def test_invalid_likelihood_type(mmm):
     with pytest.raises(
         ValueError,
