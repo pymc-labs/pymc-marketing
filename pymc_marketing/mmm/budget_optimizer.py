@@ -23,6 +23,13 @@ from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 
 
+class MinimizeException(Exception):
+    """Custom exception for optimization failure."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+
+
 class BudgetOptimizer:
     """
     A class for optimizing budget allocation in a marketing mix model.
@@ -112,6 +119,7 @@ class BudgetOptimizer:
         total_budget: float,
         budget_bounds: dict[str, tuple[float, float]] | None = None,
         custom_constraints: dict[Any, Any] | None = None,
+        minimize_kwargs: dict[str, Any] | None = None,
     ) -> tuple[dict[str, float], float]:
         """
         Allocate the budget based on the total budget, budget bounds, and custom constraints.
@@ -136,6 +144,9 @@ class BudgetOptimizer:
             The budget bounds for each channel. Default is None.
         custom_constraints : dict, optional
             Custom constraints for the optimization. Default is None.
+        minimize_kwargs : dict, optional
+            Additional keyword arguments for the `scipy.optimize.minimize` function. If None, default values are used.
+            Method is set to "SLSQP", ftol is set to 1e-9, and maxiter is set to 1_000.
 
         Returns
         -------
@@ -160,7 +171,7 @@ class BudgetOptimizer:
         if custom_constraints is None:
             constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
             warnings.warn(
-                "Using default equaliy constraint: The sum of all budgets should be equal to the total budget.",
+                "Using default equality constraint: The sum of all budgets should be equal to the total budget.",
                 stacklevel=2,
             )
         else:
@@ -170,7 +181,7 @@ class BudgetOptimizer:
                 constraints = custom_constraints
 
         num_channels = len(self.parameters.keys())
-        initial_guess = [total_budget // num_channels] * num_channels
+        initial_guess = np.ones(num_channels) * total_budget / num_channels
         bounds = [
             (
                 (budget_bounds[channel][0], budget_bounds[channel][1])
@@ -179,14 +190,21 @@ class BudgetOptimizer:
             )
             for channel in self.parameters
         ]
+
+        if minimize_kwargs is None:
+            minimize_kwargs = {
+                "method": "SLSQP",
+                "options": {"ftol": 1e-9, "maxiter": 1_000},
+            }
+
         result = minimize(
-            self.objective,
+            fun=self.objective,
             x0=initial_guess,
             bounds=bounds,
             constraints=constraints,
-            method="SLSQP",
-            options={"ftol": 1e-9, "maxiter": 1000},
+            **minimize_kwargs,
         )
+
         if result.success:
             optimal_budgets = {
                 name: budget
@@ -194,4 +212,4 @@ class BudgetOptimizer:
             }
             return optimal_budgets, -result.fun
         else:
-            raise Exception("Optimization failed: " + result.message)
+            raise MinimizeException(f"Optimization failed: {result.message}")

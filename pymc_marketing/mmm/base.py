@@ -251,6 +251,12 @@ class MMMModelBuilder(ModelBuilder):
         return data_cp
 
     def get_target_transformer(self) -> Pipeline:
+        """Return the target transformer pipeline used for preprocessing the target variable.
+
+        Returns
+        -------
+        Pipeline
+        """
         try:
             return self.target_transformer  # type: ignore
         except AttributeError:
@@ -528,6 +534,16 @@ class MMMModelBuilder(ModelBuilder):
         return contributions.sum(contracted_dims) if contracted_dims else contributions
 
     def plot_components_contributions(self, **plt_kwargs: Any) -> plt.Figure:
+        """Plot the target variable and the posterior predictive model components in
+        the scaled space.
+
+        **plt_kwargs
+            Additional keyword arguments to pass to `plt.subplots`.
+
+        Returns
+        -------
+        plt.Figure
+        """
         channel_contributions = self._format_model_contributions(
             var_contribution="channel_contributions"
         )
@@ -610,6 +626,7 @@ class MMMModelBuilder(ModelBuilder):
             ax.plot(
                 np.asarray(self.X[self.date_column]),
                 np.asarray(self.preprocessed_data["y"]),  # type: ignore
+                label="scaled target",
                 color="black",
             )
             ax.legend(title="components", loc="center left", bbox_to_anchor=(1, 0.5))
@@ -621,6 +638,12 @@ class MMMModelBuilder(ModelBuilder):
         return fig
 
     def compute_channel_contribution_original_scale(self) -> DataArray:
+        """Compute the channel contributions in the original scale of the target variable.
+
+        Returns
+        -------
+        DataArray
+        """
         channel_contribution = az.extract(
             data=self.fit_result, var_names=["channel_contributions"], combined=False
         )
@@ -838,6 +861,19 @@ class MMMModelBuilder(ModelBuilder):
     def plot_channel_contribution_share_hdi(
         self, hdi_prob: float = 0.94, **plot_kwargs: Any
     ) -> plt.Figure:
+        """Plot the share of channel contributions in a forest plot.
+
+        Parameters
+        ----------
+        hdi_prob : float, optional
+            HDI value to be displayed, by default 0.94
+        **plot_kwargs
+            Additional keyword arguments to pass to `az.plot_forest`.
+
+        Returns
+        -------
+        plt.Figure
+        """
         channel_contributions_share: DataArray = (
             self._get_channel_contributions_share_samples()
         )
@@ -981,5 +1017,3 @@ class BaseValidateMMM(
     ValidateChannelColumns,
 ):
     """Base class with some validation of the inputs."""
-
-    pass
