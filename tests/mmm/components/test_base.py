@@ -11,14 +11,17 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
 import pytest
+import xarray as xr
 
 from pymc_marketing.mmm.components.base import (
     MissingDataParameter,
     ParameterPriorException,
     Transformation,
+    selections,
 )
 
 
@@ -166,7 +169,7 @@ def test_apply(new_transformation):
     x = np.array([1, 2, 3])
     expected = np.array([6, 12, 18])
     with pm.Model() as generative_model:
-        pm.Deterministic("y", new_transformation.apply(x, dim_name=None))
+        pm.Deterministic("y", new_transformation.apply(x))
 
     fixed_model = pm.do(generative_model, {"new_a": 2, "new_b": 3})
     np.testing.assert_allclose(fixed_model["y"].eval(), expected)
@@ -206,3 +209,74 @@ def test_new_transformation_warning_no_priors_updated(new_transformation) -> Non
         new_transformation.update_priors(
             {"new_c": {"dist": "HalfNormal", "kwargs": {"sigma": 1}}}
         )
+
+
+def test_new_transformation_sample_prior(new_transformation) -> None:
+    prior = new_transformation.sample_prior()
+
+    assert isinstance(prior, xr.Dataset)
+    assert dict(prior.coords.sizes) == {
+        "chain": 1,
+        "draw": 500,
+    }
+
+    assert set(prior.keys()) == {"new_a", "new_b"}
+
+
+def create_curve(coords) -> xr.DataArray:
+    size = [len(values) for values in coords.values()]
+    dims = list(coords.keys())
+    data = np.ones(size)
+    return xr.DataArray(
+        data,
+        dims=dims,
+        coords=coords,
+        name="data",
+    )
+
+
+@pytest.mark.parametrize(
+    "coords, expected_size",
+    [
+        ({"chain": np.arange(1), "draw": np.arange(250), "x": np.arange(10)}, 1),
+        (
+            {
+                "chain": np.arange(1),
+                "draw": np.arange(250),
+                "x": np.arange(10),
+                "channel": ["A", "B", "C"],
+            },
+            3,
+        ),
+    ],
+)
+def test_new_transformation_plot_curve(
+    new_transformation, coords, expected_size
+) -> None:
+    curve = create_curve(coords)
+    fig, axes = new_transformation.plot_curve(curve)
+
+    assert isinstance(fig, plt.Figure)
+    assert len(axes) == expected_size
+
+    plt.close()
+
+
+@pytest.mark.parametrize(
+    "coords, expected",
+    [
+        ({}, [{}]),
+        ({"channel": [1, 2, 3]}, [{"channel": 1}, {"channel": 2}, {"channel": 3}]),
+        (
+            {"channel": [1, 2], "country": ["A", "B"]},
+            [
+                {"channel": 1, "country": "A"},
+                {"channel": 1, "country": "B"},
+                {"channel": 2, "country": "A"},
+                {"channel": 2, "country": "B"},
+            ],
+        ),
+    ],
+)
+def test_selections(coords, expected) -> None:
+    assert list(selections(coords)) == expected
