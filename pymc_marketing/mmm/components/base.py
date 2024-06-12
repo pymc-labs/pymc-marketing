@@ -40,9 +40,13 @@ from pymc_marketing.mmm.utils import _get_distribution_from_dict
 Values = Sequence[Any] | npt.NDArray[Any]
 Coords = dict[str, Values]
 
+# chain and draw from sampling
+# "x" for saturation, "time since exposure" for adstock
+NON_GRID_NAMES = {"chain", "draw", "x", "time since exposure"}
+
 
 def get_plot_coords(coords: Coords) -> Coords:
-    plot_coord_names = list(coords.keys())[3:]
+    plot_coord_names = list(key for key in coords.keys() if key not in NON_GRID_NAMES)
     return {name: np.array(coords[name]) for name in plot_coord_names}
 
 

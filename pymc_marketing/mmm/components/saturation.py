@@ -32,6 +32,20 @@ Create a new saturation transformation:
 
         default_priors = {"b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}}}
 
+Plot the default priors for a saturation transformation:
+
+.. code-block:: python
+
+    from pymc_marketing.mmm import HillSaturation
+
+    import matplotlib.pyplot as plt
+
+    saturation = HillSaturation()
+    prior = saturation.sample_prior()
+    curve = saturation.sample_curve(prior)
+    saturation.plot_curve(curve)
+    plt.show()
+
 """
 
 import numpy as np

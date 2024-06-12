@@ -33,6 +33,20 @@ Create a new adstock transformation:
 
         default_priors = {"alpha": {"dist": "HalfNormal", "kwargs": {"sigma": 1}}}
 
+Plot the default priors for an adstock transformation:
+
+.. code-block:: python
+
+    from pymc_marketing.mmm import GeometricAdstock
+
+    import matplotlib.pyplot as plt
+
+    adstock = GeometricAdstock(l_max=15)
+    prior = adstock.sample_prior()
+    curve = adstock.sample_curve(prior)
+    adstock.plot_curve(curve)
+    plt.show()
+
 """
 
 import warnings
