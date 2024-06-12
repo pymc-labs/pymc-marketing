@@ -15,6 +15,7 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 import pytest
+import xarray as xr
 
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
@@ -57,7 +58,7 @@ x[0] = 1
 )
 def test_apply(model, adstock, x, dims) -> None:
     with model:
-        y = adstock.apply(x, dim_name=dims)
+        y = adstock.apply(x, dims=dims)
 
     assert isinstance(y, pt.TensorVariable)
     assert y.eval().shape == x.shape
@@ -105,3 +106,16 @@ def test_get_adstock_function_unknown():
         ValueError, match="Unknown adstock function: Unknown. Choose from"
     ):
         _get_adstock_function(function="Unknown")
+
+
+@pytest.mark.parametrize(
+    "adstock",
+    adstocks(),
+)
+def test_adstock_sample_curve(adstock) -> None:
+    prior = adstock.sample_prior()
+    assert isinstance(prior, xr.Dataset)
+    curve = adstock.sample_curve(prior)
+    assert isinstance(curve, xr.DataArray)
+    assert curve.name == "adstock"
+    assert curve.shape == (1, 500, adstock.l_max)

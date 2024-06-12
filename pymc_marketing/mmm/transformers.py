@@ -850,21 +850,23 @@ def hill_saturation(
     beta: pt.TensorLike,
     lam: pt.TensorLike,
 ) -> pt.TensorVariable:
-    r"""
-    Hill Saturation Function
+    r"""Hill Saturation Function
+
     .. math::
-        f(x) = \frac{\\sigma}{1 + e^{-\beta(x - \\lambda)}}
+        f(x) = \frac{\sigma}{1 + e^{-\beta(x - \lambda)}}
+
     where:
-    - :math:`\\sigma` is the maximum value (upper asymptote),
-    - :math:`\beta` is the slope parameter,
-    - :math:`\\lambda` is the transition point on the X-axis,
-    - :math:`x` is the independent variable.
+     - :math:`\sigma` is the maximum value (upper asymptote)
+     - :math:`\beta` is the slope parameter
+     - :math:`\lambda` is the transition point on the X-axis
+     - :math:`x` is the independent variable
 
     This function computes the Hill sigmoidal response curve, which is commonly
     used to describe the saturation effect in biological systems. The curve is
     characterized by its sigmoidal shape, representing a gradual transition from
     a low, nearly zero level to a high plateau, the maximum value the function
     will approach as the independent variable grows large.
+
     .. plot::
         :context: close-figs
         import numpy as np

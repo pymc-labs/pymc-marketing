@@ -17,6 +17,7 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 import pytest
+import xarray as xr
 
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
@@ -57,7 +58,7 @@ def saturation_functions():
 )
 def test_apply_method(model, saturation, x, dims) -> None:
     with model:
-        y = saturation.apply(x, dim_name=dims)
+        y = saturation.apply(x, dims=dims)
 
     assert isinstance(y, pt.TensorVariable)
     assert y.eval().shape == x.shape
@@ -103,10 +104,7 @@ def test_get_saturation_function(name, saturation_cls) -> None:
     assert isinstance(saturation, saturation_cls)
 
 
-@pytest.mark.parametrize(
-    "saturation",
-    saturation_functions(),
-)
+@pytest.mark.parametrize("saturation", saturation_functions())
 def test_get_saturation_function_passthrough(saturation) -> None:
     id_before = id(saturation)
     id_after = id(_get_saturation_function(saturation))
@@ -119,3 +117,88 @@ def test_get_saturation_function_unknown() -> None:
         ValueError, match="Unknown saturation function: unknown. Choose from"
     ):
         _get_saturation_function("unknown")
+
+
+@pytest.mark.parametrize("saturation", saturation_functions())
+def test_sample_curve(saturation) -> None:
+    prior = saturation.sample_prior()
+    assert isinstance(prior, xr.Dataset)
+    curve = saturation.sample_curve(prior)
+    assert isinstance(curve, xr.DataArray)
+    assert curve.name == "saturation"
+    assert curve.shape == (1, 500, 100)
+
+
+def create_mock_parameters(
+    coords: dict[str, list],
+    variable_dim_mapping: dict[str, tuple[str]],
+) -> xr.Dataset:
+    dim_sizes = {coord: len(values) for coord, values in coords.items()}
+    return xr.Dataset(
+        {
+            name: xr.DataArray(
+                np.ones(tuple(dim_sizes[coord] for coord in dims)),
+                dims=dims,
+                coords={coord: coords[coord] for coord in dims},
+            )
+            for name, dims in variable_dim_mapping.items()
+        }
+    )
+
+
+@pytest.fixture
+def mock_menten_parameters() -> xr.Dataset:
+    coords = {
+        "chain": np.arange(1),
+        "draw": np.arange(500),
+    }
+
+    variable_dim_mapping = {
+        "saturation_alpha": ("chain", "draw"),
+        "saturation_lam": ("chain", "draw"),
+        "another_random_variable": ("chain", "draw"),
+    }
+
+    return create_mock_parameters(coords, variable_dim_mapping)
+
+
+def test_sample_curve_additional_dataset_variables(mock_menten_parameters) -> None:
+    """Case when the parameter dataset has additional variables."""
+    saturation = MichaelisMentenSaturation()
+
+    try:
+        curve = saturation.sample_curve(parameters=mock_menten_parameters)
+    except Exception as e:
+        pytest.fail(f"Unexpected exception: {e}")
+
+    assert isinstance(curve, xr.DataArray)
+    assert curve.name == "saturation"
+
+
+@pytest.fixture
+def mock_menten_parameters_with_additional_dim() -> xr.Dataset:
+    coords = {
+        "chain": np.arange(1),
+        "draw": np.arange(500),
+        "channel": ["C1", "C2", "C3"],
+        "random_dim": ["R1", "R2"],
+    }
+    variable_dim_mapping = {
+        "saturation_alpha": ("chain", "draw", "channel"),
+        "saturation_lam": ("chain", "draw", "channel"),
+        "another_random_variable": ("chain", "draw", "channel", "random_dim"),
+    }
+
+    return create_mock_parameters(coords, variable_dim_mapping)
+
+
+def test_sample_curve_with_additional_dims(
+    mock_menten_parameters_with_additional_dim,
+) -> None:
+    saturation = MichaelisMentenSaturation()
+    curve = saturation.sample_curve(
+        parameters=mock_menten_parameters_with_additional_dim
+    )
+
+    assert curve.coords["channel"].to_numpy().tolist() == ["C1", "C2", "C3"]
+    assert "random_dim" not in curve.coords
