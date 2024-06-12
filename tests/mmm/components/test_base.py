@@ -21,6 +21,7 @@ from pymc_marketing.mmm.components.base import (
     MissingDataParameter,
     ParameterPriorException,
     Transformation,
+    selections,
 )
 
 
@@ -222,18 +223,59 @@ def test_new_transformation_sample_prior(new_transformation) -> None:
     assert set(prior.keys()) == {"new_a", "new_b"}
 
 
-@pytest.fixture
-def curve() -> xr.DataArray:
+def create_curve(coords) -> xr.DataArray:
+    size = [len(values) for values in coords.values()]
+    dims = list(coords.keys())
+    data = np.ones(size)
     return xr.DataArray(
-        np.ones((1, 500, 10)),
-        dims=["chain", "draw", "time"],
-        coords={"time": np.arange(10), "draw": np.arange(500), "chain": np.arange(1)},
+        data,
+        dims=dims,
+        coords=coords,
     )
 
 
-def test_new_transformation_plot_curve(new_transformation, curve) -> None:
-    ax = new_transformation.plot_curve(curve)
+@pytest.mark.parametrize(
+    "coords, expected_size",
+    [
+        ({"chain": np.arange(1), "draw": np.arange(250), "time": np.arange(10)}, 1),
+        (
+            {
+                "chain": np.arange(1),
+                "draw": np.arange(250),
+                "time": np.arange(10),
+                "channel": ["A", "B", "C"],
+            },
+            3,
+        ),
+    ],
+)
+def test_new_transformation_plot_curve(
+    new_transformation, coords, expected_size
+) -> None:
+    curve = create_curve(coords)
+    fig, axes = new_transformation.plot_curve(curve)
 
-    assert isinstance(ax, plt.Axes)
+    assert isinstance(fig, plt.Figure)
+    assert len(axes) == expected_size
 
     plt.close()
+
+
+@pytest.mark.parametrize(
+    "coords, expected",
+    [
+        ({}, [{}]),
+        ({"channel": [1, 2, 3]}, [{"channel": 1}, {"channel": 2}, {"channel": 3}]),
+        (
+            {"channel": [1, 2], "country": ["A", "B"]},
+            [
+                {"channel": 1, "country": "A"},
+                {"channel": 1, "country": "B"},
+                {"channel": 2, "country": "A"},
+                {"channel": 2, "country": "B"},
+            ],
+        ),
+    ],
+)
+def test_selections(coords, expected) -> None:
+    assert list(selections(coords)) == expected
