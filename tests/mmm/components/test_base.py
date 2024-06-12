@@ -231,18 +231,19 @@ def create_curve(coords) -> xr.DataArray:
         data,
         dims=dims,
         coords=coords,
+        name="data",
     )
 
 
 @pytest.mark.parametrize(
     "coords, expected_size",
     [
-        ({"chain": np.arange(1), "draw": np.arange(250), "time": np.arange(10)}, 1),
+        ({"chain": np.arange(1), "draw": np.arange(250), "x": np.arange(10)}, 1),
         (
             {
                 "chain": np.arange(1),
                 "draw": np.arange(250),
-                "time": np.arange(10),
+                "x": np.arange(10),
                 "channel": ["A", "B", "C"],
             },
             3,
