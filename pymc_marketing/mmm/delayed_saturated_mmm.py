@@ -1829,7 +1829,7 @@ class MMM(
             model.add_lift_test_measurements(df_lift_test)
 
         """
-        if self.model is None:
+        if not hasattr(self, "model"):
             raise RuntimeError(
                 "The model has not been built yet. Please, build the model first."
             )

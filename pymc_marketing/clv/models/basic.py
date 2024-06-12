@@ -58,7 +58,7 @@ class CLVModel(ModelBuilder):
                     raise ValueError(f"Column {required_col} has duplicate entries")
 
     def __repr__(self):
-        if self.model is None:
+        if not hasattr(self, "model"):
             return self._model_type
         else:
             return f"{self._model_type}\n{self.model.str_repr()}"

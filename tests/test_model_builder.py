@@ -135,9 +135,9 @@ class ModelBuilderTest(ModelBuilder):
     def output_var(self):
         return "output"
 
-    def _data_setter(self, X: pd.Series, y: pd.Series = None):
+    def _data_setter(self, X: pd.DataFrame, y: pd.Series = None):
         with self.model:
-            pm.set_data({"x": X.values})
+            pm.set_data({"x": X["input"].values})
             if y is not None:
                 y = y.values if isinstance(y, pd.Series) else y
                 pm.set_data({"y_data": y})
@@ -195,8 +195,8 @@ def test_save_load(fitted_model_instance):
     assert fitted_model_instance.id == test_builder2.id
     x_pred = rng.uniform(low=0, high=1, size=100)
     prediction_data = pd.DataFrame({"input": x_pred})
-    pred1 = fitted_model_instance.predict(prediction_data["input"])
-    pred2 = test_builder2.predict(prediction_data["input"])
+    pred1 = fitted_model_instance.predict(prediction_data)
+    pred2 = test_builder2.predict(prediction_data)
     assert pred1.shape == pred2.shape
     temp.close()
 
@@ -230,9 +230,9 @@ def test_fit(fitted_model_instance):
     assert fitted_model_instance.idata.posterior.dims["draw"] == 100
 
     prediction_data = pd.DataFrame({"input": rng.uniform(low=0, high=1, size=100)})
-    fitted_model_instance.predict(prediction_data["input"])
+    fitted_model_instance.predict(prediction_data)
     post_pred = fitted_model_instance.sample_posterior_predictive(
-        prediction_data["input"], extend_idata=True, combined=True
+        prediction_data, extend_idata=True, combined=True
     )
     assert (
         post_pred[fitted_model_instance.output_var].shape[0]
@@ -256,7 +256,7 @@ def test_predict(fitted_model_instance):
     rng = np.random.default_rng(42)
     x_pred = rng.uniform(low=0, high=1, size=100)
     prediction_data = pd.DataFrame({"input": x_pred})
-    pred = fitted_model_instance.predict(prediction_data["input"])
+    pred = fitted_model_instance.predict(prediction_data)
     # Perform elementwise comparison using numpy
     assert type(pred) == np.ndarray
     assert len(pred) > 0
@@ -269,7 +269,7 @@ def test_sample_posterior_predictive(fitted_model_instance, combined):
     x_pred = rng.uniform(low=0, high=1, size=n_pred)
     prediction_data = pd.DataFrame({"input": x_pred})
     pred = fitted_model_instance.sample_posterior_predictive(
-        prediction_data["input"], combined=combined, extend_idata=True
+        prediction_data, combined=combined, extend_idata=True
     )
     chains = fitted_model_instance.idata.sample_stats.dims["chain"]
     draws = fitted_model_instance.idata.sample_stats.dims["draw"]
@@ -313,7 +313,7 @@ def test_sample_xxx_predictive_keeps_second(
     method_name = f"sample_{name}"
     method = getattr(fitted_model_instance, method_name)
 
-    X_pred = toy_X["input"]
+    X_pred = toy_X
 
     kwargs = {
         "X_pred": X_pred,
@@ -329,3 +329,26 @@ def test_sample_xxx_predictive_keeps_second(
 
     sample = getattr(fitted_model_instance.idata, name)
     xr.testing.assert_allclose(sample, second_sample)
+
+
+def test_prediction_kwarg(fitted_model_instance, toy_X):
+    result = fitted_model_instance.sample_posterior_predictive(
+        toy_X,
+        extend_idata=True,
+        predictions=True,
+    )
+    assert "predictions" in fitted_model_instance.idata
+    assert "predictions_constant_data" in fitted_model_instance.idata
+
+    assert isinstance(result, xr.Dataset)
+
+
+def test_fit_after_prior_keeps_prior(toy_X, toy_y):
+    model = ModelBuilderTest()
+    model.sample_prior_predictive(toy_X)
+    assert "prior" in model.idata
+    assert "prior_predictive" in model.idata
+
+    model.fit(X=toy_X, y=toy_y, chains=1, draws=100, tune=100)
+    assert "prior" in model.idata
+    assert "prior_predictive" in model.idata

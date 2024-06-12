@@ -267,14 +267,16 @@ class MMMModelBuilder(ModelBuilder):
     def prior(self) -> Dataset:
         if self.idata is None or "prior" not in self.idata:
             raise RuntimeError(
-                "The model hasn't been fit yet, call .sample_prior_predictive() with extend_idata=True first"
+                "The model hasn't been sampled yet, call .sample_prior_predictive() first"
             )
         return self.idata["prior"]
 
     @property
-    def prior_predictive(self) -> az.InferenceData:
+    def prior_predictive(self) -> Dataset:
         if self.idata is None or "prior_predictive" not in self.idata:
-            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
+            raise RuntimeError(
+                "The model hasn't been sampled yet, call .sample_prior_predictive() first"
+            )
         return self.idata["prior_predictive"]
 
     @property
@@ -286,7 +288,9 @@ class MMMModelBuilder(ModelBuilder):
     @property
     def posterior_predictive(self) -> Dataset:
         if self.idata is None or "posterior_predictive" not in self.idata:
-            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
+            raise RuntimeError(
+                "The model hasn't been fit yet, call .sample_posterior_predictive() first"
+            )
         return self.idata["posterior_predictive"]
 
     def plot_prior_predictive(
