@@ -121,14 +121,17 @@ class UnsupportedShapeError(Exception):
 
 
 def handle_scalar(var: pt.TensorLike, dims: Dims, desired_dims: Dims) -> pt.TensorLike:
+    """Broadcast a scalar to the desired dims."""
     return var
 
 
 def handle_1d(var: pt.TensorLike, dims: Dims, desired_dims: Dims) -> pt.TensorLike:
+    """Broadcast a 1D variable to the desired dims."""
     return var
 
 
 def handle_2d(var: pt.TensorLike, dims: Dims, desired_dims: Dims) -> pt.TensorLike:
+    """Broadcast a 2D variable to the desired dims."""
     if dims == desired_dims:
         return var
 
@@ -147,6 +150,38 @@ DimHandler = Callable[[pt.TensorLike, Dims], pt.TensorLike]
 
 
 def create_dim_handler(desired_dims: Dims) -> DimHandler:
+    """Create a function that maps variable shapes to the desired dims.
+
+    Examples
+    --------
+    Map variable to "channel" dim:
+
+    .. code-block:: python
+
+        import numpy as np
+
+        from pymc_marketing.model_config import create_dim_handler
+
+        handle_channel = create_dim_handler("channel")
+        handle_channel(np.array([1, 2, 3]), "channel")
+
+    Map variable to "channel" and "geo" dims:
+
+    .. code-block:: python
+
+        import numpy as np
+
+        from pymc_marketing.model_config import create_dim_handler
+
+        handle_channel_geo = create_dim_handler(("channel", "geo"))
+
+        # Transpose the array to match the desired dims
+        handle_channel_geo(np.array([[1, 2, 3], [4, 5, 6]]), ("geo", "channel"))
+
+        # Add a new axis to the array to match the desired dims
+        handle_channel_geo(np.array([1, 2, 3]), "channel")
+
+    """
     desired_dims = desired_dims if isinstance(desired_dims, tuple) else (desired_dims,)
     ndims = len(desired_dims)
     if ndims > 2:
@@ -220,6 +255,8 @@ def handle_nested_distribution(
 
 
 class ModelConfigError(Exception):
+    """Error for invalid model configuration."""
+
     def __init__(self, param: str) -> None:
         self.param = param
         self.message = (
@@ -277,6 +314,20 @@ def create_distribution(
     distribution_kwargs: dict[str, Any],
     **kwargs,
 ) -> pt.TensorVariable:
+    """Create a PyMC distribution with the specified parameters.
+
+    Parameters
+    ----------
+    name : str
+        Name of the variable.
+    distribution_name : str
+        Name of the PyMC distribution.
+    distribution_kwargs : Dict
+        parameters for the distribution including any nested distributions
+    **kwargs
+        Additional keyword arguments for the distribution.
+
+    """
     dim_handler = create_dim_handler(kwargs.get("dims"))
     parameter_distributions = handle_parameter_distributions(
         name, distribution_kwargs, dim_handler=dim_handler
@@ -286,6 +337,37 @@ def create_distribution(
 
 
 def create_distribution_from_config(name: str, config) -> pt.TensorVariable:
+    """Wrapper around create_distribution that uses a configuration dictionary.
+
+    Parameters
+    ----------
+    name : str
+        Name of the variable.
+    config : Dict
+        A configuration with the name mapping to parameter configuration.
+
+    Examples
+    --------
+
+    .. code-block:: python
+
+        import pymc as pm
+
+        from pymc_marketing.model_config import create_distribution_from_config
+
+        distribution = {
+            "dist": "Normal",
+            "kwargs": {"mu": 0, "sigma": 1},
+        }
+        config = {
+            "alpha": distribution,
+            "beta": distribution,
+        }
+
+        with pm.Model():
+            alpha = create_distribution_from_config("alpha", config)
+
+    """
     parameter_config = config[name]
     try:
         dist_name = parameter_config["dist"]
@@ -317,7 +399,18 @@ LIKELIHOOD_DISTRIBUTIONS: set[str] = {
 
 
 class UnsupportedDistributionError(Exception):
+    """Error for when an unsupported distribution is used."""
+
     pass
+
+
+class MuAlreadyExistsError(Exception):
+    """Error for when 'mu' is present in the nested 'kwargs'."""
+
+    def __init__(self, param_config) -> None:
+        self.param_config = param_config
+        self.message = ("The mu parameter is already defined in the kwargs",)
+        super().__init__(self.message)
 
 
 def create_likelihood_distribution(
@@ -325,10 +418,9 @@ def create_likelihood_distribution(
     param_config: dict,
     mu: pt.TensorVariable,
     observed: np.ndarray | pd.Series,
-    dims: str,
+    dims: Dims,
 ) -> pt.TensorVariable:
-    """
-    Create and return a likelihood distribution for the model.
+    """Create observed variable for the model.
 
     This method prepares the distribution and its parameters as specified in the
     configuration dictionary, validates them, and constructs the likelihood
@@ -336,12 +428,16 @@ def create_likelihood_distribution(
 
     Parameters
     ----------
-    dist : Dict
+    name : str
+        Name of the variable.
+    param_config : Dict
         A configuration dictionary that must contain a 'dist' key with the name of
         the distribution and a 'kwargs' key with parameters for the distribution.
+    mu : TensorVariable
+        The mean of the likelihood distribution.
     observed : Union[np.ndarray, pd.Series]
         The observed data to which the likelihood distribution will be fitted.
-    dims : str
+    dims : str, sequence[str]
         The dimensions of the data.
 
     Returns
@@ -351,7 +447,7 @@ def create_likelihood_distribution(
 
     Raises
     ------
-    ValueError
+    UnsupportedDistributionError
         If 'kwargs' key is missing in `dist`, or the parameter configuration does
         not contain 'dist' and 'kwargs' keys, or if 'mu' is present in the nested
         'kwargs'
@@ -365,9 +461,7 @@ def create_likelihood_distribution(
         )
 
     if "mu" in param_config["kwargs"]:
-        raise ValueError(
-            "The 'mu' key is not allowed directly within 'kwargs' of the main distribution as it is reserved."
-        )
+        raise MuAlreadyExistsError(param_config)
 
     param_config["kwargs"]["mu"] = mu
 
