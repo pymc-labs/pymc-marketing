@@ -46,6 +46,36 @@ Plot the default priors for a saturation transformation:
     saturation.plot_curve(curve)
     plt.show()
 
+Define a hierarchical saturation function with only hierarchical parameters
+for saturation parameter of logistic saturation.
+
+.. code-block:: python
+
+    from pymc_marketing.mmm import LogisticSaturation
+
+    priors = {
+        "lam": {
+            "dist": "Gamma",
+            "kwargs": {
+                "alpha": {
+                    "dist": "HalfNormal",
+                    "kwargs": {"sigma": 1},
+                },
+                "beta": {
+                    "dist": "HalfNormal",
+                    "kwargs": {"sigma": 1},
+                },
+            },
+            "dims": "channel",
+        },
+        "beta": {
+            "dist": "HalfNormal",
+            "kwargs": {"sigma": 1},
+            "dims": "channel",
+        },
+    }
+    saturation = LogisticSaturation(priors=priors)
+
 """
 
 import numpy as np
