@@ -456,7 +456,7 @@ class BaseMMM(BaseValidateMMM):
             mu = pm.Deterministic(name="mu", var=mu_var, dims="date")
 
             create_likelihood_distribution(
-                name="likelihood",
+                name=self.output_var,
                 param_config=self.model_config["likelihood"],
                 mu=mu,
                 observed=target_,
