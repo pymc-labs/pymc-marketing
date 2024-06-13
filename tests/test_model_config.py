@@ -306,3 +306,23 @@ def test_create_likelihood_distribution() -> None:
         )
 
     assert "likelihood" in model.named_vars
+
+
+def test_create_likelihood_invalid_kwargs_structure():
+    param_config = {
+        "dist": "Normal",
+        "kwargs": {
+            "sigma": "not a dictionary or numeric",
+        },
+    }
+
+    with pytest.raises(
+        ModelConfigError, match="likelihood_sigma'. It must be either a"
+    ):
+        create_likelihood_distribution(
+            name="likelihood",
+            param_config=param_config,
+            mu=np.array([0]),
+            observed=np.random.randn(100),
+            dims="obs_dim",
+        )
