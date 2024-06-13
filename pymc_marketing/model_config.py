@@ -13,27 +13,96 @@
 #   limitations under the License.
 """Model configuration utilities.
 
-Example model configuration for model with alpha and beta parameters
+Example configuration for a scalar parameter:
 
-```python
-model_config = {
-    "alpha": {
+.. code-block:: python
+
+    scalar_parameter = {
         "dist": "Normal",
         "kwargs": {
             "mu": 0,
             "sigma": 1,
         },
-    },
-    "beta": {
+    }
+
+Example configuration of a 1D parameter:
+
+.. code-block:: python
+
+    vector_parameter = {
         "dist": "Normal",
         "kwargs": {
             "mu": 0,
             "sigma": 1,
         },
-        "dims": "geo",
-    },
-}
-```
+        # dims need to be specified now!
+        "dims": "channel",
+    }
+
+Example configuration of 1D parameter with a hierarchical distribution for
+only the mu:
+
+.. code-block:: python
+
+    hierarchical_parameter = {
+        "dist": "Normal",
+        "kwargs": {
+            # Replace the scalar parameter values with additional distributions
+            "mu": {
+                "dist": "Normal",
+                "kwargs": {
+                    "mu": 0,
+                    "sigma": 1,
+                },
+            },
+            # Common sigma for all channels
+            "sigma": 1,
+        },
+        "dims": "channel",
+    }
+
+Example configuration of a 2D parameter:
+
+.. code-block:: python
+
+    matrix_parameter = {
+        "dist": "Normal",
+        "kwargs": {
+            "mu": 0,
+            "sigma": 1,
+        },
+        # dims need to be specified now!
+        "dims": ("channel", "geo"),
+    }
+
+Model configuration with all of these variables:
+
+.. code-block:: python
+
+    model_config = {
+        "alpha": scalar_parameter,
+        "beta": vector_parameter,
+        "gamma": hierarchical_parameter,
+        "delta": matrix_parameter,
+    }
+
+Creating variables from the configuration:
+
+.. code-block:: python
+
+    import pymc as pm
+
+    from pymc_marketing.model_config import create_distribution_from_config
+
+    coords = {
+        "channel": ["A", "B", "C"],
+        "geo": ["Region1", "Region2"],
+    }
+    with pm.Model(coords=coords) as model:
+        alpha = create_distribution_from_config("alpha", model_config)
+        beta = create_distribution_from_config("beta", model_config)
+        gamma = create_distribution_from_config("gamma", model_config)
+        delta = create_distribution_from_config("delta", model_config)
 
 """
 
