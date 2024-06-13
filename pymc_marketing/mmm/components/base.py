@@ -22,6 +22,7 @@ Use the subclasses directly for custom transformations:
 
 import warnings
 from collections.abc import Generator, MutableMapping, Sequence
+from copy import deepcopy
 from inspect import signature
 from itertools import product
 from typing import Any
@@ -158,7 +159,7 @@ class Transformation:
     def __init__(self, priors: dict | None = None, prefix: str | None = None) -> None:
         self._checks()
         priors = priors or {}
-        self.function_priors = {**self.default_priors, **priors}
+        self.function_priors = {**deepcopy(self.default_priors), **priors}
         self.prefix = prefix or self.prefix
 
     def update_priors(self, priors: dict[str, Any]) -> None:
