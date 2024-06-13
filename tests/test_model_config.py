@@ -196,6 +196,44 @@ def model_config():
             },
             "dims": ("channel", "control"),
         },
+        # Hierarchical centered distribution
+        "hierarchical_centered": {
+            "dist": "Normal",
+            "kwargs": {
+                "mu": {
+                    "dist": "Normal",
+                    "kwargs": {
+                        "mu": 0.0,
+                        "sigma": 1.0,
+                    },
+                    "dims": "channel",
+                },
+                "sigma": {
+                    "dist": "HalfNormal",
+                    "kwargs": {
+                        "sigma": 1.0,
+                    },
+                    "dims": "geo",
+                },
+            },
+            "dims": ("channel", "geo"),
+            "centered_hierarchy": True,
+        },
+        # Hierarchical non-centered distribution
+        "hierarchical_non_centered": {
+            "dist": "Normal",
+            "kwargs": {
+                "offset": {
+                    "dist": "Gamma",
+                    "kwargs": {"mu": 5, "sigma": 1},
+                    "dims": "channel",
+                },
+                "mu": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+                "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+            },
+            "dims": "channel",
+            "centered_hierarchy": False,
+        },
         # Incorrect config
         "error": {
             "dist": "Normal",
@@ -223,6 +261,25 @@ def coords() -> dict[str, list[str]]:
         ("alpha", ["alpha", "alpha_mu", "alpha_sigma"], [(3,), (), ()]),
         ("gamma", ["gamma", "gamma_mu", "gamma_sigma"], [(3, 2), (3,), (2,)]),
         ("delta", ["delta"], [(3, 1)]),
+        (
+            "hierarchical_centered",
+            [
+                "hierarchical_centered",
+                "hierarchical_centered_mu",
+                "hierarchical_centered_sigma",
+            ],
+            [(3, 2), (3,), (2,)],
+        ),
+        (
+            "hierarchical_non_centered",
+            [
+                "hierarchical_non_centered",
+                "hierarchical_non_centered_offset",
+                "hierarchical_non_centered_mu_global",
+                "hierarchical_non_centered_sigma_global",
+            ],
+            [(3,), (3,), (), ()],
+        ),
     ],
 )
 def test_create_distribution(

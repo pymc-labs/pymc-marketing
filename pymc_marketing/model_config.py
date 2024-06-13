@@ -308,6 +308,44 @@ def handle_parameter_distributions(
     }
 
 
+def create_hierarchical_non_center(
+    name: str,
+    distribution_kwargs: dict[str, Any],
+    **kwargs,
+) -> pt.TensorVariable:
+    desired_dims = kwargs.get("dims", ())
+
+    # Handle nested distribution kwargs separately
+    offset_dist = distribution_kwargs["offset"]
+    mu_dist = distribution_kwargs["mu"]
+    sigma_dist = distribution_kwargs["sigma"]
+
+    offset = create_distribution(
+        f"{name}_offset",
+        offset_dist["dist"],
+        offset_dist["kwargs"],
+        dims=offset_dist.get("dims", ()),
+    )
+
+    mu_global = create_distribution(
+        f"{name}_mu_global",
+        mu_dist["dist"],
+        mu_dist["kwargs"],
+        dims=mu_dist.get("dims", ()),
+    )
+
+    sigma_global = create_distribution(
+        f"{name}_sigma_global",
+        sigma_dist["dist"],
+        sigma_dist["kwargs"],
+        dims=sigma_dist.get("dims", ()),
+    )
+
+    return pm.Deterministic(
+        name=name, var=mu_global + offset * sigma_global, dims=desired_dims
+    )
+
+
 def create_distribution(
     name: str,
     distribution_name: str,
@@ -328,7 +366,11 @@ def create_distribution(
         Additional keyword arguments for the distribution.
 
     """
-    dim_handler = create_dim_handler(kwargs.get("dims"))
+
+    if "offset" in distribution_kwargs:
+        return create_hierarchical_non_center(name, distribution_kwargs, **kwargs)
+
+    dim_handler = create_dim_handler(kwargs.get("dims", ()))
     parameter_distributions = handle_parameter_distributions(
         name, distribution_kwargs, dim_handler=dim_handler
     )
