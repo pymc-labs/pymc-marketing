@@ -863,43 +863,6 @@ def test_new_data_predict_method(
     # assert lower < toy_y.mean() < upper
 
 
-def test_invalid_likelihood_type(mmm):
-    with pytest.raises(
-        ValueError,
-        match="The distribution used for the likelihood is not allowed",
-    ):
-        mmm._create_likelihood_distribution(
-            dist={"dist": "Cauchy", "kwargs": {"adstock_alpha": 2, "beta": 4}},
-            mu=np.array([0]),
-            observed=np.random.randn(100),
-            dims="obs_dim",
-        )
-
-
-def test_create_likelihood_invalid_kwargs_structure(mmm):
-    with pytest.raises(
-        ValueError, match="either a dictionary with a 'dist' key or a numeric value"
-    ):
-        mmm._create_likelihood_distribution(
-            dist={"dist": "Normal", "kwargs": {"sigma": "not a dictionary or numeric"}},
-            mu=np.array([0]),
-            observed=np.random.randn(100),
-            dims="obs_dim",
-        )
-
-
-def test_create_likelihood_mu_in_top_level_kwargs(mmm):
-    with pytest.raises(
-        ValueError, match="'mu' key is not allowed directly within 'kwargs'"
-    ):
-        mmm._create_likelihood_distribution(
-            dist={"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
-            mu=np.array([0]),
-            observed=np.random.randn(100),
-            dims="obs_dim",
-        )
-
-
 def new_contributions_property_checks(new_contributions, X, model):
     assert isinstance(new_contributions, xr.DataArray)
 

@@ -195,7 +195,22 @@ def mock_menten_parameters_with_additional_dim() -> xr.Dataset:
 def test_sample_curve_with_additional_dims(
     mock_menten_parameters_with_additional_dim,
 ) -> None:
-    saturation = MichaelisMentenSaturation()
+    dummy_distribution = {
+        "dist": "HalfNormal",
+        "kwargs": {"sigma": 1},
+    }
+    priors = {
+        "alpha": {
+            "dims": "channel",
+            **dummy_distribution,
+        },
+        "lam": {
+            "dims": "channel",
+            **dummy_distribution,
+        },
+    }
+    saturation = MichaelisMentenSaturation(priors=priors)
+
     curve = saturation.sample_curve(
         parameters=mock_menten_parameters_with_additional_dim
     )
