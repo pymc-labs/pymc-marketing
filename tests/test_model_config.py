@@ -18,6 +18,7 @@ from pymc.distributions.distribution import DistributionMeta
 from pymc.model_graph import fast_eval
 
 from pymc_marketing.model_config import (
+    ModelConfigError,
     UnsupportedShapeError,
     create_dim_handler,
     create_distribution_from_config,
@@ -179,6 +180,14 @@ def model_config():
             },
             "dims": ("channel", "control"),
         },
+        # Incorrect config
+        "error": {
+            "dist": "Normal",
+        },
+        "error_later": {
+            "dist": "Normal",
+            "kwargs": {"mu": "wrong"},
+        },
     }
 
 
@@ -211,3 +220,14 @@ def test_create_distribution(
 
     for name, expected_shape in zip(expected_names, expected_shapes, strict=True):
         assert fast_eval(model[name]).shape == expected_shape
+
+
+@pytest.mark.parametrize(
+    "name, param_name",
+    [("error", "error"), ("error_later", "error_later_mu")],
+)
+def test_create_distribution_error(model_config, name, param_name) -> None:
+    with pm.Model():
+        msg = f"Invalid parameter configuration for '{param_name}'"
+        with pytest.raises(ModelConfigError, match=msg):
+            create_distribution_from_config(name, model_config)

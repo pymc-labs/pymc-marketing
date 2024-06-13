@@ -179,7 +179,7 @@ def handle_parameter_configurations(
     if isinstance(parameter_config, int | float | np.ndarray | pt.TensorVariable):
         return parameter_config
 
-    raise ModelConfigError(param)
+    raise ModelConfigError(f"{name}_{param}")
 
 
 def handle_parameter_distributions(
@@ -214,10 +214,16 @@ def create_distribution(
 
 def create_distribution_from_config(name: str, config) -> pt.TensorVariable:
     parameter_config = config[name]
+    try:
+        dist_name = parameter_config["dist"]
+        dist_kwargs = parameter_config["kwargs"]
+    except KeyError:
+        raise ModelConfigError(name)
+
     return create_distribution(
         name,
-        parameter_config["dist"],
-        parameter_config["kwargs"],
+        dist_name,
+        dist_kwargs,
         dims=parameter_config.get("dims"),
     )
 
