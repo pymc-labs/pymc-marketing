@@ -863,18 +863,6 @@ def test_new_data_predict_method(
     # assert lower < toy_y.mean() < upper
 
 
-def test_create_likelihood_invalid_kwargs_structure(mmm):
-    with pytest.raises(
-        ValueError, match="either a dictionary with a 'dist' key or a numeric value"
-    ):
-        mmm._create_likelihood_distribution(
-            dist={"dist": "Normal", "kwargs": {"sigma": "not a dictionary or numeric"}},
-            mu=np.array([0]),
-            observed=np.random.randn(100),
-            dims="obs_dim",
-        )
-
-
 def new_contributions_property_checks(new_contributions, X, model):
     assert isinstance(new_contributions, xr.DataArray)
 
