@@ -153,6 +153,11 @@ DimHandler = Callable[[pt.TensorLike, Dims], pt.TensorLike]
 def create_dim_handler(desired_dims: Dims) -> DimHandler:
     """Create a function that maps variable shapes to the desired dims.
 
+    Parameters
+    ----------
+    desired_dims : str, sequence[str]
+        The desired dimensions which the variable can broadcast with.
+
     Examples
     --------
     Map variable to "channel" dim:
@@ -239,7 +244,26 @@ def handle_nested_distribution(
     param: str,
     parameter_config: dict[str, Any],
     dim_handler: DimHandler,
-):
+) -> pt.TensorVariable:
+    """Handle a nested distribution configuration.
+
+    Parameters
+    ----------
+    name : str
+        Name of parent variable.
+    param : str
+        Name of the parameter.
+    parameter_config : Dict
+        A configuration dictionary with 'dist' and 'kwargs' keys.
+    dim_handler : Callable
+        A function that maps variable shapes to the desired dims.
+
+    Returns
+    -------
+    TensorVariable
+        A PyMC random variable.
+
+    """
     param_name = f"{name}_{param}"
     kwargs = {
         key: value
@@ -274,6 +298,25 @@ def handle_parameter_configurations(
     parameter_config: dict[str, Any],
     dim_handler: DimHandler,
 ) -> Any:
+    """Handle the parameter configuration for a variable.
+
+    Parameters
+    ----------
+    name : str
+        Name of the variable.
+    param : str
+        Name of the parameter.
+    parameter_config : Dict
+        A configuration dictionary with 'dist' and 'kwargs' keys.
+    dim_handler : Callable
+        A function that maps variable shapes to the desired dims.
+
+    Returns
+    -------
+    Any
+        The parameter value or a PyMC random variable.
+
+    """
     is_nested_distribution = (
         isinstance(parameter_config, dict)
         and "dist" in parameter_config
@@ -298,6 +341,21 @@ def handle_parameter_distributions(
     param_distributions: dict[str, dict[str, Any]],
     dim_handler: DimHandler,
 ) -> dict[str, Any]:
+    """Loop over the parameter configurations and handle them.
+
+    name: str
+        name of the variable
+    param_distributions: Dict
+        a dictionary with parameter names mapping to parameter configurations
+    dim_handler: Callable
+        a function that maps variable shapes to the desired dims
+
+    Returns
+    -------
+    Dict
+        a dictionary with parameter names mapping to parameter values or PyMC random variables
+
+    """
     return {
         param: handle_parameter_configurations(
             name,
@@ -328,6 +386,11 @@ def create_distribution(
     **kwargs
         Additional keyword arguments for the distribution.
 
+    Returns
+    -------
+    TensorVariable
+        A PyMC random variable.
+
     """
     dim_handler = create_dim_handler(kwargs.get("dims"))
     parameter_distributions = handle_parameter_distributions(
@@ -346,6 +409,11 @@ def create_distribution_from_config(name: str, config) -> pt.TensorVariable:
         Name of the variable.
     config : Dict
         A configuration with the name mapping to parameter configuration.
+
+    Returns
+    -------
+    TensorVariable
+        A PyMC random variable.
 
     Examples
     --------
@@ -385,17 +453,17 @@ def create_distribution_from_config(name: str, config) -> pt.TensorVariable:
 
 
 LIKELIHOOD_DISTRIBUTIONS: set[str] = {
-    "Normal",
-    "Beta",
-    "StudentT",
-    "Laplace",
-    "Logistic",
-    "LogNormal",
-    "Wald",
-    "TruncatedNormal",
-    "Gamma",
     "AsymmetricLaplace",
+    "Beta",
+    "Gamma",
+    "Laplace",
+    "LogNormal",
+    "Logistic",
+    "Normal",
+    "StudentT",
+    "TruncatedNormal",
     "VonMises",
+    "Wald",
 }
 
 
