@@ -26,7 +26,6 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import seaborn as sns
-from pytensor.tensor import TensorVariable
 from xarray import DataArray, Dataset
 
 from pymc_marketing.constants import DAYS_IN_YEAR
@@ -47,12 +46,16 @@ from pymc_marketing.mmm.lift_test import (
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.tvp import create_time_varying_intercept, infer_time_index
 from pymc_marketing.mmm.utils import (
-    _get_distribution_from_dict,
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
     generate_fourier_modes,
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
+from pymc_marketing.model_config import (
+    create_distribution_from_config,
+    create_likelihood_distribution,
+    get_distribution,
+)
 
 __all__ = ["BaseMMM", "MMM", "DelayedSaturatedMMM"]
 
@@ -236,112 +239,6 @@ class BaseMMM(BaseValidateMMM):
         idata.attrs["validate_data"] = json.dumps(self.validate_data)
         idata.attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
 
-    def _create_likelihood_distribution(
-        self,
-        dist: dict,
-        mu: TensorVariable,
-        observed: np.ndarray | pd.Series,
-        dims: str,
-    ) -> TensorVariable:
-        """
-        Create and return a likelihood distribution for the model.
-
-        This method prepares the distribution and its parameters as specified in the
-        configuration dictionary, validates them, and constructs the likelihood
-        distribution using PyMC.
-
-        Parameters
-        ----------
-        dist : Dict
-            A configuration dictionary that must contain a 'dist' key with the name of
-            the distribution and a 'kwargs' key with parameters for the distribution.
-        observed : Union[np.ndarray, pd.Series]
-            The observed data to which the likelihood distribution will be fitted.
-        dims : str
-            The dimensions of the data.
-
-        Returns
-        -------
-        TensorVariable
-            The likelihood distribution constructed with PyMC.
-
-        Raises
-        ------
-        ValueError
-            If 'kwargs' key is missing in `dist`, or the parameter configuration does
-            not contain 'dist' and 'kwargs' keys, or if 'mu' is present in the nested
-            'kwargs'
-        """
-        allowed_distributions = [
-            "Normal",
-            "StudentT",
-            "Laplace",
-            "Logistic",
-            "LogNormal",
-            "Wald",
-            "TruncatedNormal",
-            "Gamma",
-            "AsymmetricLaplace",
-            "VonMises",
-        ]
-
-        if dist["dist"] not in allowed_distributions:
-            raise ValueError(
-                f"""
-                The distribution used for the likelihood is not allowed.
-                Please, use one of the following distributions: {allowed_distributions}.
-                """
-            )
-
-        # Validate that 'kwargs' is present and is a dictionary
-        if "kwargs" not in dist or not isinstance(dist["kwargs"], dict):
-            raise ValueError(
-                "The 'kwargs' key must be present in the 'dist' dictionary and be a dictionary itself."
-            )
-
-        if "mu" in dist["kwargs"]:
-            raise ValueError(
-                "The 'mu' key is not allowed directly within 'kwargs' of the main distribution as it is reserved."
-            )
-
-        parameter_distributions = {}
-        for param, param_config in dist["kwargs"].items():
-            # Check if param_config is a dictionary with a 'dist' key
-            if isinstance(param_config, dict) and "dist" in param_config:
-                # Prepare nested distribution
-                if "kwargs" not in param_config:
-                    raise ValueError(
-                        f"The parameter configuration for '{param}' must contain 'kwargs'."
-                    )
-
-                parameter_distributions[param] = _get_distribution_from_dict(
-                    dist=param_config
-                )(**param_config["kwargs"], name=f"likelihood_{param}")
-            elif isinstance(param_config, int | float):
-                # Use the value directly
-                parameter_distributions[param] = param_config
-            else:
-                raise ValueError(
-                    f"""
-                    Invalid parameter configuration for '{param}'.
-                    It must be either a dictionary with a 'dist' key or a numeric value.
-                    """
-                )
-
-        # Extract the likelihood distribution name and instantiate it
-        likelihood_dist_name = dist["dist"]
-        likelihood_dist = _get_distribution_from_dict(
-            dist={"dist": likelihood_dist_name}
-        )
-
-        return likelihood_dist(
-            name=self.output_var,
-            mu=mu,
-            observed=observed,
-            dims=dims,
-            **parameter_distributions,
-        )
-
     def forward_pass(
         self, x: pt.TensorVariable | npt.NDArray[np.float_]
     ) -> pt.TensorVariable:
@@ -429,16 +326,6 @@ class BaseMMM(BaseValidateMMM):
                 )
         """
 
-        self.intercept_dist = _get_distribution_from_dict(
-            dist=self.model_config["intercept"]
-        )
-        self.gamma_control_dist = _get_distribution_from_dict(
-            dist=self.model_config["gamma_control"]
-        )
-        self.gamma_fourier_dist = _get_distribution_from_dict(
-            dist=self.model_config["gamma_fourier"]
-        )
-
         self._generate_and_preprocess_model_data(X, y)
         with pm.Model(
             coords=self.model_coords,
@@ -464,16 +351,19 @@ class BaseMMM(BaseValidateMMM):
                     self._time_index,
                     dims="date",
                 )
+                intercept_dist = get_distribution(
+                    name=self.model_config["intercept"]["dist"]
+                )
                 intercept = create_time_varying_intercept(
                     time_index,
                     self._time_index_mid,
                     self._time_resolution,
-                    self.intercept_dist,
+                    intercept_dist,
                     self.model_config,
                 )
             else:
-                intercept = self.intercept_dist(
-                    name="intercept", **self.model_config["intercept"]["kwargs"]
+                intercept = create_distribution_from_config(
+                    name="intercept", config=self.model_config
                 )
 
             channel_contributions = pm.Deterministic(
@@ -492,10 +382,17 @@ class BaseMMM(BaseValidateMMM):
                     for column in self.control_columns
                 )
             ):
-                gamma_control = self.gamma_control_dist(
+                if self.model_config["gamma_control"].get("dims") != "control":
+                    msg = (
+                        "The 'dims' key in gamma_control must be 'control'."
+                        " This will be fixed automatically."
+                    )
+                    warnings.warn(msg, stacklevel=2)
+                    self.model_config["gamma_control"]["dims"] = "control"
+
+                gamma_control = create_distribution_from_config(
                     name="gamma_control",
-                    dims="control",
-                    **self.model_config["gamma_control"]["kwargs"],
+                    config=self.model_config,
                 )
 
                 control_data_ = pm.Data(
@@ -529,10 +426,17 @@ class BaseMMM(BaseValidateMMM):
                     mutable=True,
                 )
 
-                gamma_fourier = self.gamma_fourier_dist(
+                if self.model_config["gamma_fourier"].get("dims") != "fourier_mode":
+                    msg = (
+                        "The 'dims' key in gamma_fourier must be 'fourier_mode'."
+                        " This will be fixed automatically."
+                    )
+                    warnings.warn(msg, stacklevel=2)
+                    self.model_config["gamma_fourier"]["dims"] = "fourier_mode"
+
+                gamma_fourier = create_distribution_from_config(
                     name="gamma_fourier",
-                    dims="fourier_mode",
-                    **self.model_config["gamma_fourier"]["kwargs"],
+                    config=self.model_config,
                 )
 
                 fourier_contribution = pm.Deterministic(
@@ -551,8 +455,9 @@ class BaseMMM(BaseValidateMMM):
 
             mu = pm.Deterministic(name="mu", var=mu_var, dims="date")
 
-            self._create_likelihood_distribution(
-                dist=self.model_config["likelihood"],
+            create_likelihood_distribution(
+                name="likelihood",
+                param_config=self.model_config["likelihood"],
                 mu=mu,
                 observed=target_,
                 dims="date",
@@ -568,8 +473,16 @@ class BaseMMM(BaseValidateMMM):
                     "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
                 },
             },
-            "gamma_control": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
-            "gamma_fourier": {"dist": "Laplace", "kwargs": {"mu": 0, "b": 1}},
+            "gamma_control": {
+                "dist": "Normal",
+                "kwargs": {"mu": 0, "sigma": 2},
+                "dims": "control",
+            },
+            "gamma_fourier": {
+                "dist": "Laplace",
+                "kwargs": {"mu": 0, "b": 1},
+                "dims": "fourier_mode",
+            },
             "intercept_tvp_kwargs": {
                 "m": 200,
                 "L": None,

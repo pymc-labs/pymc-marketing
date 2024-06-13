@@ -35,7 +35,11 @@ import xarray as xr
 from pymc.distributions.shape_utils import Dims
 from pytensor import tensor as pt
 
-from pymc_marketing.mmm.utils import _get_distribution_from_dict
+from pymc_marketing.model_config import (
+    DimHandler,
+    create_dim_handler,
+    create_distribution,
+)
 
 Values = Sequence[Any] | npt.NDArray[Any]
 Coords = dict[str, Values]
@@ -271,19 +275,20 @@ class Transformation:
     def _create_distributions(
         self, dims: Dims | None = None
     ) -> dict[str, pt.TensorVariable]:
+        dim_handler: DimHandler = create_dim_handler(dims)
         distributions: dict[str, pt.TensorVariable] = {}
         for parameter_name, variable_name in self.variable_mapping.items():
             parameter_prior = self.function_priors[parameter_name]
 
-            distribution = _get_distribution_from_dict(
-                dist=parameter_prior,
+            var_dims = parameter_prior.get("dims")
+            var = create_distribution(
+                name=variable_name,
+                distribution_name=parameter_prior["dist"],
+                distribution_kwargs=parameter_prior["kwargs"],
+                dims=var_dims,
             )
 
-            distributions[parameter_name] = distribution(
-                name=variable_name,
-                dims=dims,
-                **parameter_prior["kwargs"],
-            )
+            distributions[parameter_name] = dim_handler(var, var_dims)
 
         return distributions
 

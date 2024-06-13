@@ -35,6 +35,19 @@ def test_dim_handler_too_large():
     "var, dims, expected",
     [
         (1, None, 1),
+        (np.array(1), None, np.array(1)),
+    ],
+)
+def test_dim_handler_scalar(var, dims, expected) -> None:
+    handle_shape = create_dim_handler(desired_dims=None)
+
+    np.testing.assert_array_equal(handle_shape(var, dims=dims), expected)
+
+
+@pytest.mark.parametrize(
+    "var, dims, expected",
+    [
+        (1, None, 1),
         (np.array([1, 2, 3]), "dim_1", np.array([1, 2, 3])),
     ],
 )

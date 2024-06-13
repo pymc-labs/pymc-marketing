@@ -51,6 +51,10 @@ class UnsupportedShapeError(Exception):
     """Error for when the shape of the hierarchical variable is not supported."""
 
 
+def handle_scalar(var: pt.TensorLike, dims: Dims, desired_dims: Dims) -> pt.TensorLike:
+    return var
+
+
 def handle_1d(var: pt.TensorLike, dims: Dims, desired_dims: Dims) -> pt.TensorLike:
     return var
 
@@ -68,7 +72,7 @@ def handle_2d(var: pt.TensorLike, dims: Dims, desired_dims: Dims) -> pt.TensorLi
     return var
 
 
-HANDLE_MAPPING = {1: handle_1d, 2: handle_2d}
+HANDLE_MAPPING = {0: handle_scalar, 1: handle_1d, 2: handle_2d}
 
 DimHandler = Callable[[pt.TensorLike, Dims], pt.TensorLike]
 
