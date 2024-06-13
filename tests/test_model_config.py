@@ -19,9 +19,12 @@ from pymc.model_graph import fast_eval
 
 from pymc_marketing.model_config import (
     ModelConfigError,
+    MuAlreadyExistsError,
+    UnsupportedDistributionError,
     UnsupportedShapeError,
     create_dim_handler,
     create_distribution_from_config,
+    create_likelihood_distribution,
     get_distribution,
 )
 
@@ -244,3 +247,62 @@ def test_create_distribution_error(model_config, name, param_name) -> None:
         msg = f"Invalid parameter configuration for '{param_name}'"
         with pytest.raises(ModelConfigError, match=msg):
             create_distribution_from_config(name, model_config)
+
+
+def test_unsupported_likelihood_distribution() -> None:
+    invalid_param_config = {
+        "dist": "UnsupportedVariable",
+    }
+    with pytest.raises(UnsupportedDistributionError, match="The distribution"):
+        create_likelihood_distribution(
+            name="likelihood",
+            param_config=invalid_param_config,
+            mu=None,
+            observed=None,
+            dims=None,
+        )
+
+
+def test_mu_already_defined() -> None:
+    param_config = {
+        "dist": "Normal",
+        "kwargs": {
+            "mu": 0.0,
+            "sigma": 1,
+        },
+    }
+    with pytest.raises(
+        MuAlreadyExistsError, match="The mu parameter is already defined"
+    ):
+        create_likelihood_distribution(
+            name="likelihood",
+            param_config=param_config,
+            mu=1.0,
+            observed=None,
+            dims=None,
+        )
+
+
+def test_create_likelihood_distribution() -> None:
+    param_config = {
+        "dist": "Normal",
+        "kwargs": {
+            "sigma": 1,
+        },
+    }
+
+    data = np.array([9, 10, 11, 12])
+    coords = {
+        "obs": np.arange(len(data)),
+    }
+    with pm.Model(coords=coords) as model:
+        mu = pm.Normal("mu")
+        create_likelihood_distribution(
+            name="likelihood",
+            param_config=param_config,
+            mu=mu,
+            observed=data,
+            dims="obs",
+        )
+
+    assert "likelihood" in model.named_vars
