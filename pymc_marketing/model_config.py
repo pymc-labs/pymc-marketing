@@ -61,6 +61,26 @@ only the mu:
         "dims": "channel",
     }
 
+Example configuration of 1D parameter with a hierarchical non-centered distribution for
+only the mu:
+
+.. code-block:: python
+
+    hierarchical_non_centered_parameter = {
+            "dist": "Normal",
+            "kwargs": {
+                "offset": {
+                    "dist": "Gamma",
+                    "kwargs": {"mu": 5, "sigma": 1},
+                    "dims": ("channel"),
+                },
+                "mu": {"dist": "HalfNormal", "kwargs": {"sigma": 2},},
+                "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 1},},
+            },
+            "dims": ("channel"),
+            "centered_hierarchy": False,
+        }
+
 Example configuration of a 2D parameter:
 
 .. code-block:: python
