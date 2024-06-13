@@ -107,6 +107,7 @@ Creating variables from the configuration:
 """
 
 from collections.abc import Callable
+from copy import deepcopy
 from typing import Any
 
 import numpy as np
@@ -452,6 +453,8 @@ def create_likelihood_distribution(
         not contain 'dist' and 'kwargs' keys, or if 'mu' is present in the nested
         'kwargs'
     """
+    param_config = deepcopy(param_config)
+
     if param_config["dist"] not in LIKELIHOOD_DISTRIBUTIONS:
         raise UnsupportedDistributionError(
             f"""
