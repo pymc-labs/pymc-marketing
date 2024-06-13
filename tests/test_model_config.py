@@ -18,6 +18,7 @@ from pymc.distributions.distribution import DistributionMeta
 from pymc.model_graph import fast_eval
 
 from pymc_marketing.model_config import (
+    HANDLE_MAPPING,
     ModelConfigError,
     MuAlreadyExistsError,
     UnsupportedDistributionError,
@@ -326,3 +327,11 @@ def test_create_likelihood_invalid_kwargs_structure():
             observed=np.random.randn(100),
             dims="obs_dim",
         )
+
+
+def test_handle_mapping_immutable() -> None:
+    key = 0
+
+    assert key in HANDLE_MAPPING
+    with pytest.raises(TypeError, match="does not support item assignment"):
+        HANDLE_MAPPING[key] = None

@@ -108,6 +108,7 @@ Creating variables from the configuration:
 
 from collections.abc import Callable
 from copy import deepcopy
+from types import MappingProxyType
 from typing import Any
 
 import numpy as np
@@ -145,7 +146,7 @@ def handle_2d(var: pt.TensorLike, dims: Dims, desired_dims: Dims) -> pt.TensorLi
     return var
 
 
-HANDLE_MAPPING = {0: handle_scalar, 1: handle_1d, 2: handle_2d}
+HANDLE_MAPPING = MappingProxyType({0: handle_scalar, 1: handle_1d, 2: handle_2d})
 
 DimHandler = Callable[[pt.TensorLike, Dims], pt.TensorLike]
 
@@ -190,6 +191,7 @@ def create_dim_handler(desired_dims: Dims) -> DimHandler:
     """
     desired_dims = desired_dims if isinstance(desired_dims, tuple) else (desired_dims,)
     ndims = len(desired_dims)
+
     if ndims > 2:
         raise UnsupportedShapeError(
             "At most two dims can be specified. Raise an issue if support for more dims is needed."
