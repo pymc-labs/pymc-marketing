@@ -493,6 +493,17 @@ class BaseMMM(BaseValidateMMM):
             },
         }
 
+        for media_transform in [self.adstock, self.saturation]:
+            for param, config in media_transform.function_priors.items():
+                if "dims" not in config:
+                    msg = (
+                        f"{param} doesn't have a 'dims' key in config. Setting to channel."
+                        f" Set priors explicitly in {media_transform.__class__.__name__}"
+                        " to avoid this warning."
+                    )
+                    warnings.warn(msg, stacklevel=2)
+                    config["dims"] = "channel"
+
         return {
             **base_config,
             **self.adstock.model_config,
