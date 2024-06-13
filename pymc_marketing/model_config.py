@@ -61,8 +61,7 @@ only the mu:
         "dims": "channel",
     }
 
-Example configuration of 1D parameter with a hierarchical non-centered distribution for
-only the mu:
+Example parameter configuration with a hierarchical non-centered distribution:
 
 .. code-block:: python
 
