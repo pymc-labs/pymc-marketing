@@ -81,6 +81,8 @@ def create_dim_handler(desired_dims: Dims) -> DimHandler:
             "At most two dims can be specified. Raise an issue if support for more dims is needed."
         )
 
+    handle = HANDLE_MAPPING[ndims]
+
     def handle_shape(
         var: pt.TensorLike,
         dims: Dims,
@@ -92,7 +94,6 @@ def create_dim_handler(desired_dims: Dims) -> DimHandler:
         if not set(dims).issubset(set(desired_dims)):
             raise UnsupportedShapeError("The dims of the variable are not supported.")
 
-        handle = HANDLE_MAPPING[ndims]
         return handle(var, dims, desired_dims)
 
     return handle_shape
