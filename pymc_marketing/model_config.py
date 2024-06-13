@@ -369,6 +369,65 @@ def handle_parameter_distributions(
     }
 
 
+def create_hierarchical_non_center(
+    name: str,
+    distribution_kwargs: dict[str, Any],
+    **kwargs,
+) -> pt.TensorVariable:
+    """
+    Create a hierarchical non-centered distribution.
+
+    This function constructs a hierarchical non-centered distribution using the provided
+    distribution parameters for offset, mu, and sigma. It returns a deterministic variable
+    representing the hierarchical non-centered distribution.
+
+    Parameters
+    ----------
+    name : str
+        The name of the variable.
+    distribution_kwargs : dict[str, Any]
+        A dictionary containing the distribution parameters for 'offset', 'mu', and 'sigma'.
+    **kwargs
+        Additional keyword arguments, including 'dims' for specifying desired dimensions.
+
+    Returns
+    -------
+    pt.TensorVariable
+        A PyMC deterministic variable representing the hierarchical non-centered distribution.
+
+    """
+    desired_dims = kwargs.get("dims", ())
+
+    offset_dist = distribution_kwargs["offset"]
+    mu_dist = distribution_kwargs["mu"]
+    sigma_dist = distribution_kwargs["sigma"]
+
+    offset = create_distribution(
+        f"{name}_offset",
+        offset_dist["dist"],
+        offset_dist["kwargs"],
+        dims=offset_dist.get("dims", ()),
+    )
+
+    mu_global = create_distribution(
+        f"{name}_mu_global",
+        mu_dist["dist"],
+        mu_dist["kwargs"],
+        dims=mu_dist.get("dims", ()),
+    )
+
+    sigma_global = create_distribution(
+        f"{name}_sigma_global",
+        sigma_dist["dist"],
+        sigma_dist["kwargs"],
+        dims=sigma_dist.get("dims", ()),
+    )
+
+    return pm.Deterministic(
+        name=name, var=mu_global + offset * sigma_global, dims=desired_dims
+    )
+
+
 def create_distribution(
     name: str,
     distribution_name: str,
@@ -388,13 +447,12 @@ def create_distribution(
     **kwargs
         Additional keyword arguments for the distribution.
 
-    Returns
-    -------
-    TensorVariable
-        A PyMC random variable.
-
     """
-    dim_handler = create_dim_handler(kwargs.get("dims"))
+
+    if "offset" in distribution_kwargs:
+        return create_hierarchical_non_center(name, distribution_kwargs, **kwargs)
+
+    dim_handler = create_dim_handler(kwargs.get("dims", ()))
     parameter_distributions = handle_parameter_distributions(
         name, distribution_kwargs, dim_handler=dim_handler
     )
