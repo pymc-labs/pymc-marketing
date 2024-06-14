@@ -19,7 +19,7 @@ import xarray
 from pymc.util import RandomState
 from pytensor.tensor import TensorVariable
 
-from pymc_marketing.clv.models.basic import CLVModel
+from pymc_marketing.clv.models import BetaGeoModel, CLVModel, ParetoNBDModel
 from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
 
 
@@ -118,15 +118,11 @@ class BaseGammaGammaModel(CLVModel):
 
     def expected_customer_lifetime_value(
         self,
-        transaction_model: CLVModel,
-        customer_id: np.ndarray | pd.Series,
-        mean_transaction_value: np.ndarray | pd.Series,
-        frequency: np.ndarray | pd.Series,
-        recency: np.ndarray | pd.Series,
-        T: np.ndarray | pd.Series,
-        time: int = 12,
-        discount_rate: float = 0.01,
-        freq: str = "D",
+        transaction_model: BetaGeoModel | ParetoNBDModel,
+        data: pd.DataFrame,
+        future_t: int = 12,
+        discount_rate: float = 0.00,
+        time_unit: str = "D",
     ) -> xarray.DataArray:
         """Expected customer lifetime value.
 
@@ -134,22 +130,15 @@ class BaseGammaGammaModel(CLVModel):
         """
 
         # Use the Gamma-Gamma estimates for the monetary_values
-        adjusted_monetary_value = self.expected_customer_spend(
-            customer_id=customer_id,
-            mean_transaction_value=mean_transaction_value,
-            frequency=frequency,
-        )
+        predicted_monetary_value = self.expected_customer_spend(data=data)
 
         return customer_lifetime_value(
             transaction_model=transaction_model,
-            customer_id=customer_id,
-            frequency=frequency,
-            recency=recency,
-            T=T,
-            monetary_value=adjusted_monetary_value,
-            time=time,
+            transaction_data=data,
+            monetary_value=predicted_monetary_value,
+            future_t=future_t,
             discount_rate=discount_rate,
-            freq=freq,
+            time_unit=time_unit,
         )
 
 
@@ -469,32 +458,27 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
     def expected_customer_lifetime_value(  # type: ignore [override]
         self,
-        transaction_model: CLVModel,
-        customer_id: np.ndarray | pd.Series,
-        individual_transaction_value: np.ndarray | pd.Series | TensorVariable,
-        recency: np.ndarray | pd.Series,
-        T: np.ndarray | pd.Series,
-        time: int = 12,
+        transaction_model: BetaGeoModel | ParetoNBDModel,
+        data: pd.DataFrame,
+        future_t: int = 12,
         discount_rate: float = 0.01,
-        freq: str = "D",
+        time_unit: str = "D",
     ) -> xarray.DataArray:
         """Return expected customer lifetime value.
 
         See clv.utils.customer_lifetime_value for details on the meaning of each parameter
         """
 
+        # TODO: This function needs to be rewritten entirely for API consistency
         customer_id, z_mean, x = self._summarize_mean_data(
             customer_id, individual_transaction_value
         )
 
-        return super().expected_customer_lifetime_value(
+        return customer_lifetime_value(
             transaction_model=transaction_model,
-            customer_id=customer_id,
-            mean_transaction_value=z_mean,
-            frequency=x,
-            recency=recency,
-            T=T,
-            time=time,
+            transaction_data=data,
+            monetary_value=predicted_monetary_value,
+            future_t=future_t,
             discount_rate=discount_rate,
-            freq=freq,
+            time_unit=time_unit,
         )
