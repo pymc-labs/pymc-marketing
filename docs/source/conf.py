@@ -85,6 +85,7 @@ myst_heading_anchors = 0
 # numpydoc config
 numpydoc_show_class_members = False
 numpydoc_xref_param_type = True
+# fmt: off
 numpydoc_xref_ignore = {
     "of", "or", "optional", "default", "numeric", "type", "scalar", "1D", "2D", "3D", "nD", "array",
     "instance", "M", "N"
