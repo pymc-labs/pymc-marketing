@@ -125,6 +125,7 @@ Creating variables from the configuration:
 
 """
 
+import warnings
 from collections.abc import Callable
 from copy import deepcopy
 from types import MappingProxyType
@@ -418,28 +419,39 @@ def create_hierarchical_non_center(
     desired_dims = kwargs.get("dims", ())
 
     offset_dist = distribution_kwargs["offset"]
+    offset_dims = offset_dist.get("dims", ())
     mu_dist = distribution_kwargs["mu"]
+    mu_dims = mu_dist.get("dims", ())
     sigma_dist = distribution_kwargs["sigma"]
+    sigma_dims = sigma_dist.get("dims", ())
+
+    if not desired_dims == offset_dist.get("dims", ()):
+        warnings.warn(
+            """The parameter dimensions do not match offset distribution dimensions.
+            Offset distribution dimension overwrited""",
+            stacklevel=2,
+        )
+        offset_dims = desired_dims
 
     offset = create_distribution(
         f"{name}_offset",
         offset_dist["dist"],
         offset_dist["kwargs"],
-        dims=offset_dist.get("dims", ()),
+        dims=offset_dims,
     )
 
     mu_global = create_distribution(
         f"{name}_mu_global",
         mu_dist["dist"],
         mu_dist["kwargs"],
-        dims=mu_dist.get("dims", ()),
+        dims=mu_dims,
     )
 
     sigma_global = create_distribution(
         f"{name}_sigma_global",
         sigma_dist["dist"],
         sigma_dist["kwargs"],
-        dims=sigma_dist.get("dims", ()),
+        dims=sigma_dims,
     )
 
     return pm.Deterministic(
@@ -466,6 +478,10 @@ def create_distribution(
     **kwargs
         Additional keyword arguments for the distribution.
 
+    Returns
+    -------
+    TensorVariable
+        A PyMC random variable.
     """
 
     if "offset" in distribution_kwargs:
