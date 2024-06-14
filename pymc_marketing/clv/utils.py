@@ -19,6 +19,11 @@ import pandas as pd
 import xarray
 from numpy import datetime64
 
+from pymc_marketing.clv.models import (
+    BetaGeoModel,
+    ParetoNBDModel,
+)
+
 __all__ = [
     "to_xarray",
     "customer_lifetime_value",
@@ -41,20 +46,17 @@ def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
 
 
 def customer_lifetime_value(
-    transaction_model,
-    customer_id: pd.Series | np.ndarray,
-    frequency: pd.Series | np.ndarray,
-    recency: pd.Series | np.ndarray,
-    T: pd.Series | np.ndarray,
+    transaction_model: BetaGeoModel | ParetoNBDModel,
+    transaction_data: pd.DataFrame,
     monetary_value: pd.Series | np.ndarray | xarray.DataArray,
-    time: int = 12,
-    discount_rate: float = 0.01,
-    freq: str = "D",
+    future_t: int = 12,
+    discount_rate: float = 0.00,
+    time_unit: str = "D",
 ) -> xarray.DataArray:
     """
-    Compute the average lifetime value for a group of one or more customers.
-    This method computes the average lifetime value for a group of one or more customers.
-    It also applies Discounted Cash Flow.
+    Compute the average lifetime value for a group of one or more customers,
+    and apply a discount rate for net present value estimations.
+    Note `future_t` is measured in months regardless of `time_unit` specified.
 
     Adapted from lifetimes package
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L449
@@ -62,22 +64,20 @@ def customer_lifetime_value(
     Parameters
     ----------
     transaction_model: CLVModel
-        The model to predict future transactions
-    customer_id: array_like
-        Customer unique identifiers. Must not repeat.
-    frequency: array_like
-        The frequency vector of customers' purchases (denoted x in literature).
-    recency: array_like
-        The recency vector of customers' purchases (denoted t_x in literature).
-    T: array_like
-        The vector of customers' age (time since first purchase)
+        Predictive model for future transactions. BG/NBD and Pareto/NBD are currently supported.
+    transaction_data: pandas.DataFrame
+        DataFrame containing the following columns:
+            * `customer_id`: Unique customer identifier
+            * `frequency`: Number of repeat purchases
+            * `recency`: Time between the first and the last purchase
+            * `T`: Time between the first purchase and the end of the observation period
     monetary_value: array_like
-        The monetary value vector of customer's purchases (denoted m in literature).
-    time: int, optional
+        Mean spend amounts of repeat purchases for each customer
+    future_t: int, optional
         The lifetime expected for the user in months. Default: 12
     discount_rate: float, optional
-        The monthly adjusted discount rate. Default: 0.01
-    freq: string, optional
+        The monthly adjusted discount rate. Default: 0.00
+    time_unit: string, optional
         Unit of time of the purchase history. Defaults to "D" for daily.
         Other options are "W" (weekly), "M" (monthly), and "H" (hourly).
         Example: If your dataset contains information about weekly purchases,
@@ -101,66 +101,38 @@ def customer_lifetime_value(
 
     if discount_rate == 0.0:
         # no discount rate: just compute a single time step from 0 to `time`
-        steps = np.arange(time, time + 1)
+        steps = np.arange(future_t, future_t + 1)
     else:
-        steps = np.arange(1, time + 1)
+        steps = np.arange(1, future_t + 1)
 
-    factor = {"W": 4.345, "M": 1.0, "D": 30, "H": 30 * 24}[freq]
+    factor = {"W": 4.345, "M": 1.0, "D": 30, "H": 30 * 24}[time_unit]
 
     # Monetary value can be passed as a DataArray, with entries per chain and draw or as a simple vector
     if not isinstance(monetary_value, xarray.DataArray):
-        monetary_value = to_xarray(customer_id, monetary_value)
+        monetary_value = to_xarray(transaction_data["customer_id"], monetary_value)
     monetary_value = _squeeze_dims(monetary_value)
-
-    frequency, recency, T = to_xarray(customer_id, frequency, recency, T)
 
     clv = xarray.DataArray(0.0)
 
-    # FIXME: This is a hotfix for ParetoNBDModel, as it has a different API from BetaGeoModel
-    #  We should harmonize them!
-    from pymc_marketing.clv.models import ParetoNBDModel
-
-    if isinstance(transaction_model, ParetoNBDModel):
-        transaction_data = pd.DataFrame(
-            {
-                "customer_id": customer_id,
-                "frequency": frequency,
-                "recency": recency,
-                "T": T,
-            }
-        )
-
-        def expected_purchases(*, t, **kwargs):
-            return transaction_model.expected_purchases(
-                future_t=t,
-                data=transaction_data,
-            )
-    else:
-        expected_purchases = transaction_model.expected_num_purchases
+    # TODO: Add an IF block to support ShiftedBetaGeoModelIndividual
 
     # TODO: Vectorize computation so that we perform a single call to expected_num_purchases
-    prev_expected_num_purchases = _squeeze_dims(
-        expected_purchases(
-            customer_id=customer_id,
-            frequency=frequency,
-            recency=recency,
-            T=T,
-            t=0,
+    prev_expected_purchases = _squeeze_dims(
+        transaction_model.expected_purchases(
+            data=transaction_data,
+            future_t=0,
         )
     )
     for i in steps * factor:
         # since the prediction of number of transactions is cumulative, we have to subtract off the previous periods
-        new_expected_num_purchases = _squeeze_dims(
-            expected_purchases(
-                customer_id=customer_id,
-                frequency=frequency,
-                recency=recency,
-                T=T,
-                t=i,
+        new_expected_purchases = _squeeze_dims(
+            transaction_model.expected_purchases(
+                data=transaction_data,
+                future_t=i,
             )
         )
-        expected_transactions = new_expected_num_purchases - prev_expected_num_purchases
-        prev_expected_num_purchases = new_expected_num_purchases
+        expected_transactions = new_expected_purchases - prev_expected_purchases
+        prev_expected_purchases = new_expected_purchases
 
         # sum up the CLV estimates of all the periods and apply discounted cash flow
         clv = clv + (monetary_value * expected_transactions) / (1 + discount_rate) ** (
