@@ -22,9 +22,10 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.mathjax",
     "sphinx.ext.intersphinx",
-    "sphinx.ext.napoleon",
+    # "sphinx.ext.napoleon",
     "sphinx_autodoc_typehints",
     # extensions provided by other packages
+    "numpydoc",
     "matplotlib.sphinxext.plot_directive",  # needed to plot in docstrings
     "myst_nb",
     "notfound.extension",
@@ -81,13 +82,36 @@ nb_kernel_rgx_aliases = {".*": "python3"}
 myst_enable_extensions = ["colon_fence", "deflist", "dollarmath", "amsmath"]
 myst_heading_anchors = 0
 
+# numpydoc config
+numpydoc_show_class_members = False
+numpydoc_xref_param_type = True
+numpydoc_xref_ignore = {
+    "of", "or", "optional", "default", "numeric", "type", "scalar", "1D", "2D", "3D", "nD", "array",
+    "instance", "M", "N"
+}
+# fmt: on
+numpydoc_xref_aliases = {
+    "TensorVariable": ":class:`~pytensor.tensor.TensorVariable`",
+    "RandomVariable": ":class:`~pytensor.tensor.random.RandomVariable`",
+    "ndarray": ":class:`~numpy.ndarray`",
+    "InferenceData": ":class:`~arviz.InferenceData`",
+    "Model": ":class:`~pymc.Model`",
+    "tensor_like": ":term:`tensor_like`",
+    "unnamed_distribution": ":term:`unnamed_distribution`",
+}
+
 # intersphinx configuration to ease linking arviz docs
 intersphinx_mapping = {
     "arviz": ("https://python.arviz.org/en/latest/", None),
-    "pytensor": ("https://pytensor.readthedocs.io/en/latest/", None),
-    "numpy": ("https://numpy.org/doc/stable/", None),
-    "pymc": ("https://www.pymc.io/projects/docs/en/stable/", None),
     "examples": ("https://www.pymc.io/projects/examples/en/latest/", None),
+    "mpl": ("https://matplotlib.org/stable", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "pandas": ("https://pandas.pydata.org/pandas-docs/stable/", None),
+    "pymc": ("https://www.pymc.io/projects/docs/en/stable/", None),
+    "pytensor": ("https://pytensor.readthedocs.io/en/latest/", None),
+    "python": ("https://docs.python.org/3/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+    "xarray": ("https://docs.xarray.dev/en/stable/", None),
 }
 
 # -- Options for HTML output ----------------------------------------------
