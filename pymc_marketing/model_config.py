@@ -68,11 +68,6 @@ Example parameter configuration with a hierarchical non-centered distribution:
     hierarchical_non_centered_parameter = {
             "dist": "Normal",
             "kwargs": {
-                "offset": {
-                    "dist": "Gamma",
-                    "kwargs": {"mu": 5, "sigma": 1},
-                    "dims": ("channel"),
-                },
                 "mu": {"dist": "HalfNormal", "kwargs": {"sigma": 2},},
                 "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 1},},
             },
@@ -125,7 +120,6 @@ Creating variables from the configuration:
 
 """
 
-import warnings
 from collections.abc import Callable
 from copy import deepcopy
 from types import MappingProxyType
@@ -418,27 +412,12 @@ def create_hierarchical_non_center(
     """
     desired_dims = kwargs.get("dims", ())
 
-    offset_dist = distribution_kwargs["offset"]
-    offset_dims = offset_dist.get("dims", ())
     mu_dist = distribution_kwargs["mu"]
     mu_dims = mu_dist.get("dims", ())
     sigma_dist = distribution_kwargs["sigma"]
     sigma_dims = sigma_dist.get("dims", ())
 
-    if not desired_dims == offset_dist.get("dims", ()):
-        warnings.warn(
-            """The parameter dimensions do not match offset distribution dimensions.
-            Offset distribution dimension overwrited""",
-            stacklevel=2,
-        )
-        offset_dims = desired_dims
-
-    offset = create_distribution(
-        f"{name}_offset",
-        offset_dist["dist"],
-        offset_dist["kwargs"],
-        dims=offset_dims,
-    )
+    offset = pm.Normal(name="offset", mu=0, sigma=2, dims=desired_dims)
 
     mu_global = create_distribution(
         f"{name}_mu_global",
@@ -463,6 +442,7 @@ def create_distribution(
     name: str,
     distribution_name: str,
     distribution_kwargs: dict[str, Any],
+    centered_hierarchy: bool | None = None,
     **kwargs,
 ) -> pt.TensorVariable:
     """Create a PyMC distribution with the specified parameters.
@@ -483,8 +463,7 @@ def create_distribution(
     TensorVariable
         A PyMC random variable.
     """
-
-    if "offset" in distribution_kwargs:
+    if centered_hierarchy is False:
         return create_hierarchical_non_center(name, distribution_kwargs, **kwargs)
 
     dim_handler = create_dim_handler(kwargs.get("dims", ()))
@@ -533,6 +512,7 @@ def create_distribution_from_config(name: str, config) -> pt.TensorVariable:
 
     """
     parameter_config = config[name]
+    centered_flag = parameter_config.get("centered_hierarchy", True)
     try:
         dist_name = parameter_config["dist"]
         dist_kwargs = parameter_config["kwargs"]
@@ -543,6 +523,7 @@ def create_distribution_from_config(name: str, config) -> pt.TensorVariable:
         name,
         dist_name,
         dist_kwargs,
+        centered_hierarchy=centered_flag,
         dims=parameter_config.get("dims"),
     )
 

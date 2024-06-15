@@ -224,11 +224,6 @@ def model_config():
         "hierarchical_non_centered": {
             "dist": "Normal",
             "kwargs": {
-                "offset": {
-                    "dist": "Gamma",
-                    "kwargs": {"mu": 5, "sigma": 1},
-                    "dims": "channel",
-                },
                 "mu": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
                 "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
             },
@@ -275,11 +270,11 @@ def coords() -> dict[str, list[str]]:
             "hierarchical_non_centered",
             [
                 "hierarchical_non_centered",
-                "hierarchical_non_centered_offset",
                 "hierarchical_non_centered_mu_global",
                 "hierarchical_non_centered_sigma_global",
+                "offset",
             ],
-            [(3,), (3,), (), ()],
+            [(3,), (), (), (3,)],
         ),
     ],
 )
