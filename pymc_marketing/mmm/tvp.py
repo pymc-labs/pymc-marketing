@@ -103,52 +103,56 @@ def time_varying_prior(
     return pm.Deterministic(name, centered_f, dims=dims)
 
 
-def create_time_varying_intercept(
+def create_time_varying_gp_multiplier(
+    name: str,
+    dims: tuple[str, str] | str,
     time_index: pt.sharedvar.TensorSharedVariable,
     time_index_mid: int,
     time_resolution: int,
-    intercept_dist: pm.Distribution,
     model_config: dict,
 ) -> pt.TensorVariable:
-    """Create time-varying intercept.
+    """Create a time-varying Gaussian Process multiplier.
+
+    Create a time-varying Gaussian Process multiplier based on the provided parameters.
 
     Parameters
     ----------
-    time_index : 1d array-like of int
-        Time points.
+    name : str
+        Name of the Gaussian Process multiplier.
+    dims : tuple[str, str] | str
+        Dimensions for the multiplier.
+    time_index : pt.sharedvar.TensorSharedVariable
+        Shared variable containing time points.
     time_index_mid : int
         Midpoint of the time points.
     time_resolution : int
-        Time resolution.
+        Resolution of time points.
     model_config : dict
-        Model configuration.
+        Configuration dictionary for the model.
+
+    Returns
+    -------
+    pt.TensorVariable
+        Time-varying Gaussian Process multiplier for a given variable.
     """
 
     with pm.modelcontext(None):
-        if model_config["intercept_tvp_kwargs"]["L"] is None:
-            model_config["intercept_tvp_kwargs"]["L"] = (
+        if model_config[f"{name}_tvp_kwargs"]["L"] is None:
+            model_config[f"{name}_tvp_kwargs"]["L"] = (
                 time_index_mid + DAYS_IN_YEAR / time_resolution
             )
-        if model_config["intercept_tvp_kwargs"]["ls_mu"] is None:
-            model_config["intercept_tvp_kwargs"]["ls_mu"] = (
+        if model_config[f"{name}_tvp_kwargs"]["ls_mu"] is None:
+            model_config[f"{name}_tvp_kwargs"]["ls_mu"] = (
                 DAYS_IN_YEAR / time_resolution * 2
             )
-
         multiplier = time_varying_prior(
-            name="intercept_time_varying_multiplier",
+            name=f"{name}_temporal_latent_multiplier",
             X=time_index,
-            dims="date",
             X_mid=time_index_mid,
-            **model_config["intercept_tvp_kwargs"],
+            dims=dims,
+            **model_config[f"{name}_tvp_kwargs"],
         )
-        intercept_base = intercept_dist(
-            name="intercept_base", **model_config["intercept"]["kwargs"]
-        )
-        return pm.Deterministic(
-            name="intercept",
-            var=intercept_base * multiplier,
-            dims="date",
-        )
+        return multiplier
 
 
 def infer_time_index(

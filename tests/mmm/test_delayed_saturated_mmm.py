@@ -252,6 +252,11 @@ class TestDelayedSaturatedMMM:
         argvalues=[False, True],
         ids=["no_time_varying_intercept", "time_varying_intercept"],
     )
+    @pytest.mark.parametrize(
+        argnames="time_varying_media",
+        argvalues=[False, True],
+        ids=["no_time_varying_media", "time_varying_media"],
+    )
     def test_init(
         self,
         toy_X: pd.DataFrame,
@@ -261,6 +266,7 @@ class TestDelayedSaturatedMMM:
         control_columns: list[str],
         adstock_max_lag: int,
         time_varying_intercept: bool,
+        time_varying_media: bool,
     ) -> None:
         mmm = BaseMMM(
             date_column="date",
@@ -269,6 +275,7 @@ class TestDelayedSaturatedMMM:
             adstock_max_lag=adstock_max_lag,
             yearly_seasonality=yearly_seasonality,
             time_varying_intercept=time_varying_intercept,
+            time_varying_media=time_varying_media,
             adstock="geometric",
             saturation="logistic",
         )

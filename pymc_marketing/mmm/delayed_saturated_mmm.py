@@ -44,7 +44,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
-from pymc_marketing.mmm.tvp import create_time_varying_intercept, infer_time_index
+from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
@@ -81,6 +81,7 @@ class BaseMMM(BaseValidateMMM):
         adstock: str | AdstockTransformation,
         saturation: str | SaturationTransformation,
         time_varying_intercept: bool = False,
+        time_varying_media: bool = False,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
         validate_data: bool = True,
@@ -105,6 +106,8 @@ class BaseMMM(BaseValidateMMM):
             Type of saturation transformation to apply.
         time_varying_intercept : bool, optional
             Whether to consider time-varying intercept, by default False.
+        time_varying_media : bool, optional
+            Whether to consider time-varying media contributions, by default False.
         model_config : Dictionary, optional
             dictionary of parameters that initialise model configuration.
             Class-default defined by the user default_model_config method.
@@ -121,6 +124,7 @@ class BaseMMM(BaseValidateMMM):
         self.control_columns = control_columns
         self.adstock_max_lag = adstock_max_lag
         self.time_varying_intercept = time_varying_intercept
+        self.time_varying_media = time_varying_media
         self.yearly_seasonality = yearly_seasonality
         self.date_column = date_column
         self.validate_data = validate_data
@@ -220,7 +224,7 @@ class BaseMMM(BaseValidateMMM):
         self.X: pd.DataFrame = X_data
         self.y: pd.Series | np.ndarray = y
 
-        if self.time_varying_intercept:
+        if self.time_varying_intercept | self.time_varying_media:
             self._time_index = np.arange(0, X.shape[0])
             self._time_index_mid = X.shape[0] // 2
             self._time_resolution = (
@@ -346,31 +350,70 @@ class BaseMMM(BaseValidateMMM):
             )
 
             if self.time_varying_intercept:
-                time_index = pm.Data(
-                    "time_index",
+                intercept_time_index = pm.Data(
+                    "intercept_time_index",
                     self._time_index,
                     dims="date",
                 )
-                intercept_dist = get_distribution(
+
+                intercept_distribution = get_distribution(
                     name=self.model_config["intercept"]["dist"]
                 )
-                intercept = create_time_varying_intercept(
-                    time_index,
-                    self._time_index_mid,
-                    self._time_resolution,
-                    intercept_dist,
-                    self.model_config,
+                base_intercept = intercept_distribution(
+                    name="base_intercept", **self.model_config["intercept"]["kwargs"]
+                )
+
+                intercept_latent_process = create_time_varying_gp_multiplier(
+                    name="intercept",
+                    dims="date",
+                    time_index=intercept_time_index,
+                    time_index_mid=self._time_index_mid,
+                    time_resolution=self._time_resolution,
+                    model_config=self.model_config,
+                )
+                intercept = pm.Deterministic(
+                    name="intercept",
+                    var=base_intercept * intercept_latent_process,
+                    dims="date",
                 )
             else:
                 intercept = create_distribution_from_config(
                     name="intercept", config=self.model_config
                 )
 
-            channel_contributions = pm.Deterministic(
-                name="channel_contributions",
-                var=self.forward_pass(x=channel_data_),
-                dims=("date", "channel"),
-            )
+            if self.time_varying_media:
+                media_time_index = pm.Data(
+                    "media_time_index",
+                    self._time_index,
+                    dims="date",
+                )
+
+                base_channel_contributions = pm.Deterministic(
+                    name="base_channel_contributions",
+                    var=self.forward_pass(x=channel_data_),
+                    dims=("date", "channel"),
+                )
+
+                media_latent_process = create_time_varying_gp_multiplier(
+                    name="media",
+                    dims="date",
+                    time_index=media_time_index,
+                    time_index_mid=self._time_index_mid,
+                    time_resolution=self._time_resolution,
+                    model_config=self.model_config,
+                )
+                channel_contributions = pm.Deterministic(
+                    name="channel_contributions",
+                    var=base_channel_contributions * media_latent_process[:, None],
+                    dims=("date", "channel"),
+                )
+
+            else:
+                channel_contributions = pm.Deterministic(
+                    name="channel_contributions",
+                    var=self.forward_pass(x=channel_data_),
+                    dims=("date", "channel"),
+                )
 
             mu_var = intercept + channel_contributions.sum(axis=-1)
 
@@ -465,7 +508,7 @@ class BaseMMM(BaseValidateMMM):
 
     @property
     def default_model_config(self) -> dict:
-        base_config = {
+        base_config: dict[str, Any] = {
             "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
             "likelihood": {
                 "dist": "Normal",
@@ -483,15 +526,26 @@ class BaseMMM(BaseValidateMMM):
                 "kwargs": {"mu": 0, "b": 1},
                 "dims": "fourier_mode",
             },
-            "intercept_tvp_kwargs": {
+        }
+
+        if self.time_varying_intercept:
+            base_config["intercept_tvp_kwargs"] = {
                 "m": 200,
                 "L": None,
                 "eta_lam": 1,
                 "ls_mu": None,
                 "ls_sigma": 10,
                 "cov_func": None,
-            },
-        }
+            }
+        if self.time_varying_media:
+            base_config["media_tvp_kwargs"] = {
+                "m": 200,
+                "L": None,
+                "eta_lam": 1,
+                "ls_mu": None,
+                "ls_sigma": 10,
+                "cov_func": None,
+            }
 
         for media_transform in [self.adstock, self.saturation]:
             for param, config in media_transform.function_priors.items():
@@ -712,7 +766,7 @@ class BaseMMM(BaseValidateMMM):
         if hasattr(self, "fourier_columns"):
             data["fourier_data"] = self._get_fourier_models_data(X)
 
-        if self.time_varying_intercept:
+        if self.time_varying_intercept | self.time_varying_media:
             data["time_index"] = infer_time_index(
                 X[self.date_column], self.X[self.date_column], self._time_resolution
             )
@@ -2150,6 +2204,7 @@ class DelayedSaturatedMMM(MMM):
         channel_columns: list[str],
         adstock_max_lag: int,
         time_varying_intercept: bool = False,
+        time_varying_media: bool = False,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
         validate_data: bool = True,
@@ -2175,6 +2230,7 @@ class DelayedSaturatedMMM(MMM):
             channel_columns=channel_columns,
             adstock_max_lag=adstock_max_lag,
             time_varying_intercept=time_varying_intercept,
+            time_varying_media=time_varying_media,
             model_config=model_config,
             sampler_config=sampler_config,
             validate_data=validate_data,
