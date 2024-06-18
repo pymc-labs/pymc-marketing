@@ -21,9 +21,5 @@ html:
 	pip install .[docs]
 	sphinx-build docs/source docs/build -b html
 
-html.notebooks:
-	pip install .[docs]
-	sphinx-build docs/source docs/build -b html -D include_patterns=index.md,notebooks/*
-
 cleandocs:
 	rm -r "docs/build" "docs/jupyter_execute" "docs/source/api/generated"
