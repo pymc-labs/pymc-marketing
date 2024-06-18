@@ -136,23 +136,20 @@ def create_time_varying_gp_multiplier(
         Time-varying Gaussian Process multiplier for a given variable.
     """
 
-    with pm.modelcontext(None):
-        if model_config[f"{name}_tvp_kwargs"]["L"] is None:
-            model_config[f"{name}_tvp_kwargs"]["L"] = (
-                time_index_mid + DAYS_IN_YEAR / time_resolution
-            )
-        if model_config[f"{name}_tvp_kwargs"]["ls_mu"] is None:
-            model_config[f"{name}_tvp_kwargs"]["ls_mu"] = (
-                DAYS_IN_YEAR / time_resolution * 2
-            )
-        multiplier = time_varying_prior(
-            name=f"{name}_temporal_latent_multiplier",
-            X=time_index,
-            X_mid=time_index_mid,
-            dims=dims,
-            **model_config[f"{name}_tvp_kwargs"],
+    if model_config[f"{name}_tvp_kwargs"]["L"] is None:
+        model_config[f"{name}_tvp_kwargs"]["L"] = (
+            time_index_mid + DAYS_IN_YEAR / time_resolution
         )
-        return multiplier
+    if model_config[f"{name}_tvp_kwargs"]["ls_mu"] is None:
+        model_config[f"{name}_tvp_kwargs"]["ls_mu"] = DAYS_IN_YEAR / time_resolution * 2
+    multiplier = time_varying_prior(
+        name=f"{name}_temporal_latent_multiplier",
+        X=time_index,
+        X_mid=time_index_mid,
+        dims=dims,
+        **model_config[f"{name}_tvp_kwargs"],
+    )
+    return multiplier
 
 
 def infer_time_index(

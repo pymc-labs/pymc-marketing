@@ -40,7 +40,7 @@ from pymc_marketing.mmm.components.saturation import (
     _get_saturation_function,
 )
 from pymc_marketing.mmm.lift_test import (
-    add_lift_measurements_to_likelihood,
+    add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
@@ -1725,7 +1725,7 @@ class MMM(
     def add_lift_test_measurements(
         self,
         df_lift_test: pd.DataFrame,
-        dist: pm.Distribution = pm.Gamma,
+        dist: type[pm.Distribution] = pm.Gamma,
         name: str = "lift_measurements",
     ) -> None:
         """Add lift tests to the model.
@@ -1824,14 +1824,18 @@ class MMM(
             channel_transform=self.channel_transformer.transform,
             target_transform=self.target_transformer.transform,
         )
-        with self.model:
-            add_lift_measurements_to_likelihood(
-                df_lift_test=df_lift_test_scaled,
-                variable_mapping=self.saturation.variable_mapping,
-                saturation_function=self.saturation.function,
-                dist=dist,
-                name=name,
-            )
+        # This is coupled with the name of the
+        # latent process Deterministic
+        time_varying_var_name = (
+            "media_temporal_latent_multiplier" if self.time_varying_media else None
+        )
+        add_lift_measurements_to_likelihood_from_saturation(
+            df_lift_test=df_lift_test_scaled,
+            saturation=self.saturation,
+            time_varying_var_name=time_varying_var_name,
+            model=self.model,
+            dist=dist,
+        )
 
     def _create_synth_dataset(
         self,
