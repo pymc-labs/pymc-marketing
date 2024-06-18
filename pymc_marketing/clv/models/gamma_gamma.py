@@ -18,7 +18,7 @@ import pytensor.tensor as pt
 import xarray
 from pymc.util import RandomState
 
-from pymc_marketing.clv.models import BetaGeoModel, CLVModel, ParetoNBDModel
+from pymc_marketing.clv.models import CLVModel
 from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
 
 
@@ -120,7 +120,7 @@ class BaseGammaGammaModel(CLVModel):
 
     def expected_customer_lifetime_value(
         self,
-        transaction_model: BetaGeoModel | ParetoNBDModel,
+        transaction_model: CLVModel,
         data: pd.DataFrame,
         future_t: int = 12,
         discount_rate: float = 0.00,

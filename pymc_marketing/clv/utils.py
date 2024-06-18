@@ -19,11 +19,6 @@ import pandas as pd
 import xarray
 from numpy import datetime64
 
-from pymc_marketing.clv.models import (
-    BetaGeoModel,
-    ParetoNBDModel,
-)
-
 __all__ = [
     "to_xarray",
     "customer_lifetime_value",
@@ -46,7 +41,7 @@ def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
 
 
 def customer_lifetime_value(
-    transaction_model: BetaGeoModel | ParetoNBDModel,
+    transaction_model,
     transaction_data: pd.DataFrame,
     monetary_value: pd.Series | np.ndarray | xarray.DataArray,
     future_t: int = 12,
