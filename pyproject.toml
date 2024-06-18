@@ -30,6 +30,7 @@ docs = [
     "ipython!=8.7.0",
     "myst-parser",
     "myst-nb<=1.0.0",
+    "numpydoc",
     "pydata-sphinx-theme>=0.12.0.dev0",
     "sphinx-copybutton",
     "sphinx-autodoc-typehints",
