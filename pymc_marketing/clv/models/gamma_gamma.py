@@ -42,7 +42,6 @@ class BaseGammaGammaModel(CLVModel):
             q = pm.HalfFlat("q")
             v = pm.HalfFlat("v")
 
-            # Closed form solution to the posterior of nu
             # Eq 5 from [1], p.3
             nu = pm.Gamma("nu", p * x + q, v + x * z_mean, dims=("customer_id",))
             pm.Deterministic("mean_spend", p / nu, dims=("customer_id",))
@@ -55,19 +54,25 @@ class BaseGammaGammaModel(CLVModel):
 
     def expected_customer_spend(
         self,
-        customer_id: np.ndarray | pd.Series,
-        mean_transaction_value: np.ndarray | pd.Series,
-        frequency: np.ndarray | pd.Series,
+        data: pd.DataFrame,
     ) -> xarray.DataArray:
         """Expected transaction value per customer
 
         Eq 5 from [1], p.3
 
         Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117
+
+        data: pd.DataFrame
+        DataFrame containing the following columns:
+            - customer_id: Customer labels. Must not repeat.
+            - mean_transaction_value: Mean transaction value of each customer.
+            - frequency: Number of transactions observed for each customer.
         """
 
         mean_transaction_value, frequency = to_xarray(
-            customer_id, mean_transaction_value, frequency
+            data["customer_id"],
+            data["mean_transaction_value"],
+            data["frequency"],
         )
         posterior = self.fit_result
 
@@ -111,7 +116,7 @@ class BaseGammaGammaModel(CLVModel):
         # Closed form solution to the posterior of nu
         # Eq 3 from [1], p.3
         mean_spend = p_mean * v_mean / (q_mean - 1)
-        # We could also provide the variance
+        # TODO: We could also provide the variance
         # var_spend = (p_mean ** 2 * v_mean ** 2) / ((q_mean - 1) ** 2 * (q_mean - 2))
 
         return mean_spend
@@ -401,84 +406,3 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             pm.Gamma(
                 "spend", p, nu[self.data["customer_id"]], observed=z, dims=("obs",)
             )
-
-    def _summarize_mean_data(self, customer_id, individual_transaction_value):
-        df = pd.DataFrame(
-            {
-                "customer_id": customer_id,
-                "individual_transaction_value": individual_transaction_value,
-            }
-        )
-        gdf = df.groupby("customer_id")["individual_transaction_value"].aggregate(
-            ("count", "mean")
-        )
-        customer_id = gdf.index
-        x = gdf["count"]
-        z_mean = gdf["mean"]
-
-        return customer_id, z_mean, x
-
-    def distribution_customer_spend(  # type: ignore [override]
-        self,
-        customer_id: np.ndarray | pd.Series,
-        individual_transaction_value: np.ndarray | pd.Series | TensorVariable,
-        random_seed: RandomState | None = None,
-    ) -> xarray.DataArray:
-        """Return distribution of transaction value per customer"""
-
-        customer_id, z_mean, x = self._summarize_mean_data(
-            customer_id, individual_transaction_value
-        )
-
-        return super().distribution_customer_spend(
-            customer_id=customer_id,
-            mean_transaction_value=z_mean,
-            frequency=x,
-            random_seed=random_seed,
-        )
-
-    def expected_customer_spend(
-        self,
-        customer_id: np.ndarray | pd.Series,
-        individual_transaction_value: np.ndarray | pd.Series | TensorVariable,
-        random_seed: RandomState | None = None,
-    ) -> xarray.DataArray:
-        """Return expected transaction value per customer"""
-
-        customer_id, z_mean, x = self._summarize_mean_data(
-            customer_id, individual_transaction_value
-        )
-
-        return super().expected_customer_spend(
-            customer_id=customer_id,
-            mean_transaction_value=z_mean,
-            frequency=x,
-            random_seed=random_seed,  # type: ignore [call-arg]
-        )
-
-    def expected_customer_lifetime_value(  # type: ignore [override]
-        self,
-        transaction_model: BetaGeoModel | ParetoNBDModel,
-        data: pd.DataFrame,
-        future_t: int = 12,
-        discount_rate: float = 0.01,
-        time_unit: str = "D",
-    ) -> xarray.DataArray:
-        """Return expected customer lifetime value.
-
-        See clv.utils.customer_lifetime_value for details on the meaning of each parameter
-        """
-
-        # TODO: This function needs to be rewritten entirely for API consistency
-        customer_id, z_mean, x = self._summarize_mean_data(
-            customer_id, individual_transaction_value
-        )
-
-        return customer_lifetime_value(
-            transaction_model=transaction_model,
-            transaction_data=data,
-            monetary_value=predicted_monetary_value,
-            future_t=future_t,
-            discount_rate=discount_rate,
-            time_unit=time_unit,
-        )
