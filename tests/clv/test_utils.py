@@ -60,14 +60,7 @@ def test_to_xarray():
 @pytest.fixture(scope="module")
 def fitted_bg(test_summary_data) -> BetaGeoModel:
     rng = np.random.default_rng(13)
-    data = pd.DataFrame(
-        {
-            "customer_id": test_summary_data.index,
-            "frequency": test_summary_data["frequency"],
-            "recency": test_summary_data["recency"],
-            "T": test_summary_data["T"],
-        }
-    )
+
     model_config = {
         # Narrow Gaussian centered at MLE params from lifetimes BetaGeoFitter
         "a_prior": {"dist": "DiracDelta", "kwargs": {"c": 1.85034151}},
@@ -76,7 +69,7 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
         "r_prior": {"dist": "DiracDelta", "kwargs": {"c": 0.16385072}},
     }
     model = BetaGeoModel(
-        data=data,
+        data=test_summary_data,
         model_config=model_config,
     )
     model.build_model()
@@ -119,13 +112,7 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
 def fitted_gg(test_summary_data) -> GammaGammaModel:
     rng = np.random.default_rng(40)
     pd.Series({"p": 6.25, "q": 3.74, "v": 15.44})
-    data = pd.DataFrame(
-        {
-            "customer_id": test_summary_data.index,
-            "mean_transaction_value": test_summary_data["monetary_value"],
-            "frequency": test_summary_data["frequency"],
-        }
-    )
+
     model_config = {
         # Params used in lifetimes test
         "p_prior": {"dist": "DiracDelta", "kwargs": {"c": 6.25}},
@@ -133,7 +120,7 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
         "v_prior": {"dist": "DiracDelta", "kwargs": {"c": 15.44}},
     }
     model = GammaGammaModel(
-        data=data,
+        data=test_summary_data,
         model_config=model_config,
     )
     model.build_model()
@@ -197,23 +184,14 @@ class TestCustomerLifetimeValue:
 
         ggf_clv = fitted_gg.expected_customer_lifetime_value(
             transaction_model=transaction_model,
-            customer_id=t["customer_id"],
-            frequency=t["frequency"],
-            recency=t["recency"],
-            T=t["T"],
-            mean_transaction_value=t["monetary_value"],
+            data=t,
         )
 
         utils_clv = customer_lifetime_value(
             transaction_model=transaction_model,
-            customer_id=t["customer_id"],
-            frequency=t["frequency"],
-            recency=t["recency"],
-            T=t["T"],
+            transaction_data=t,
             monetary_value=fitted_gg.expected_customer_spend(
-                t.index,
-                mean_transaction_value=t["monetary_value"],
-                frequency=t["frequency"],
+                data=t,
             ),
         )
         np.testing.assert_equal(ggf_clv.values, utils_clv.values)
@@ -247,14 +225,9 @@ class TestCustomerLifetimeValue:
 
         res = customer_lifetime_value(
             transaction_model=transaction_model,
-            customer_id=t["customer_id"],
-            frequency=t["frequency"],
-            recency=t["recency"],
-            T=t["T"],
+            transaction_data=t,
             monetary_value=fitted_gg.expected_customer_spend(
-                t.index,
-                mean_transaction_value=t["monetary_value"],
-                frequency=t["frequency"],
+                data=t,
             ),
         )
 
@@ -273,22 +246,14 @@ class TestCustomerLifetimeValue:
 
         ggf_clv = fitted_gg.expected_customer_lifetime_value(
             transaction_model=transaction_model,
-            customer_id=t.index,
-            frequency=t["frequency"],
-            recency=t["recency"],
-            T=t["T"],
-            mean_transaction_value=t["monetary_value"],
+            data=t,
         )
 
         fitted_gg_thinned = fitted_gg.thin_fit_result(keep_every=10)
         transaction_model_thinned = transaction_model.thin_fit_result(keep_every=10)
         ggf_clv_thinned = fitted_gg_thinned.expected_customer_lifetime_value(
             transaction_model=transaction_model_thinned,
-            customer_id=t.index,
-            frequency=t["frequency"],
-            recency=t["recency"],
-            T=t["T"],
-            mean_transaction_value=t["monetary_value"],
+            data=t,
         )
 
         assert ggf_clv.shape == (1, 50, 5)
