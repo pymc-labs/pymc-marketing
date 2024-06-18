@@ -82,7 +82,7 @@ nb_kernel_rgx_aliases = {".*": "python3"}
 myst_enable_extensions = ["colon_fence", "deflist", "dollarmath", "amsmath"]
 myst_heading_anchors = 0
 
-# numpydoc config
+# numpydoc and autodoc typehints config
 numpydoc_show_class_members = False
 numpydoc_xref_param_type = True
 # fmt: off
@@ -100,6 +100,8 @@ numpydoc_xref_aliases = {
     "tensor_like": ":term:`tensor_like`",
     "unnamed_distribution": ":term:`unnamed_distribution`",
 }
+# don't add a return type section, use standard return with type info
+typehints_document_rtype = False
 
 # intersphinx configuration to ease linking arviz docs
 intersphinx_mapping = {

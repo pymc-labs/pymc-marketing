@@ -972,7 +972,7 @@ class ParetoNBDModel(CLVModel):
 
         Returns
         -------
-        .Dataset
+        ~xarray.Dataset
             Dataset containing the posterior samples for the population-level dropout rate.
         """
         return self.distribution_new_customer(
@@ -1006,7 +1006,7 @@ class ParetoNBDModel(CLVModel):
 
         Returns
         -------
-        .Dataset
+        ~xarray.Dataset
             Dataset containing the posterior samples for the population-level purchase rate.
         """
         return self.distribution_new_customer(
@@ -1044,7 +1044,7 @@ class ParetoNBDModel(CLVModel):
 
         Returns
         -------
-        .Dataset
+        ~xarray.Dataset
             Dataset containing the posterior samples for the customer population.
         """
         return self.distribution_new_customer(
