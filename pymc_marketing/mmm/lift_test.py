@@ -23,6 +23,8 @@ import pymc as pm
 import pytensor.tensor as pt
 from numpy import typing as npt
 
+from pymc_marketing.mmm.components.saturation import SaturationTransformation
+
 
 class MissingLiftTestError(Exception):
     def __init__(self, missing_values: npt.NDArray[np.int_]) -> None:
@@ -212,12 +214,16 @@ def check_increasing_assumption(df_lift_tests: pd.DataFrame) -> None:
         )
 
 
+SaturationFunc = Callable
+VariableMapping = dict[str, str]
+
+
 def add_lift_measurements_to_likelihood(
     df_lift_test: pd.DataFrame,
-    variable_mapping,
-    saturation_function,
+    variable_mapping: VariableMapping,
+    saturation_function: SaturationFunc,
     model: pm.Model | None = None,
-    dist=pm.Gamma,
+    dist: type[pm.Distribution] = pm.Gamma,
     name: str = "lift_measurements",
 ) -> None:
     """Add lift measurements to the likelihood of the model.
@@ -239,7 +245,7 @@ def add_lift_measurements_to_likelihood(
         Function that takes spend and returns saturation.
     model : Optional[pm.Model], optional
         PyMC model with arbitrary number of coordinates, by default None
-    dist : pm.Distribution, optional
+    dist : pm.Distribution class, optional
         PyMC distribution to use for the likelihood, by default pm.Gamma
     name : str, optional
         Name of the likelihood, by default "lift_measurements"
@@ -315,12 +321,13 @@ def add_lift_measurements_to_likelihood(
         x_before, x_after, partial_saturation_function
     )
 
-    dist(
-        name=name,
-        mu=pt.abs(model_estimated_lift),
-        sigma=df_lift_test["sigma"].to_numpy(),
-        observed=np.abs(df_lift_test["delta_y"].to_numpy()),
-    )
+    with pm.modelcontext(model):
+        dist(
+            name=name,
+            mu=pt.abs(model_estimated_lift),
+            sigma=df_lift_test["sigma"].to_numpy(),
+            observed=np.abs(df_lift_test["delta_y"].to_numpy()),
+        )
 
 
 def _swap_columns_and_last_index_level(df: pd.DataFrame) -> pd.DataFrame:
@@ -466,4 +473,89 @@ def scale_lift_measurements(
     return pd.concat(
         [df_lift_test_channel_scaled, df_target_scaled, df_sigma_scaled],
         axis=1,
+    )
+
+
+def create_time_varying_saturation(
+    saturation: SaturationTransformation,
+    time_varying_var_name: str,
+) -> tuple[SaturationFunc, VariableMapping]:
+    """Return function and variable mapping.
+
+    Parameters
+    ----------
+    saturation : SaturationTransformation
+        Any SaturationTransformation instance.
+    time_varying_var_name : str, optional
+        Name of the time-varying variable in model.
+
+    Returns
+    -------
+    tuple[SaturationFunc, VariableMapping]
+        Tuple of function and variable mapping to be used in
+        add_lift_measurements_to_likelihood function.
+
+    """
+
+    def function(x, time_varying: pt.TensorVariable, **kwargs):
+        return time_varying * saturation.function(x, **kwargs)
+
+    variable_mapping = {
+        **saturation.variable_mapping,
+        "time_varying": time_varying_var_name,
+    }
+
+    return function, variable_mapping
+
+
+def add_lift_measurements_to_likelihood_from_saturation(
+    df_lift_test: pd.DataFrame,
+    saturation: SaturationTransformation,
+    time_varying_var_name: str | None = None,
+    model: pm.Model | None = None,
+    dist: type[pm.Distribution] = pm.Gamma,
+    name: str = "lift_measurements",
+) -> None:
+    """Wrapper around add_lift_measurements_to_likelihood to work with
+    SaturationTransformation instances and time-varying variables.
+
+    Parameters
+    ----------
+    df_lift_test : pd.DataFrame
+        DataFrame with lift test results with at least the following columns:
+            * `x`: x axis value of the lift test.
+            * `delta_x`: change in x axis value of the lift test.
+            * `delta_y`: change in y axis value of the lift test.
+            * `sigma`: standard deviation of the lift test.
+    saturation : SaturationTransformation
+        Any SaturationTransformation instance.
+    time_varying_var_name : str, optional
+        Name of the time-varying variable in model.
+    model : Optional[pm.Model], optional
+        PyMC model with arbitrary number of coordinates, by default None
+    dist : pm.Distribution class, optional
+        PyMC distribution to use for the likelihood, by default pm.Gamma
+    name : str, optional
+        Name of the likelihood, by default "lift_measurements"
+
+    """
+
+    if time_varying_var_name:
+        saturation_function, variable_mapping = create_time_varying_saturation(
+            saturation=saturation,
+            # This is coupled with the name of the
+            # latent process Deterministic
+            time_varying_var_name=time_varying_var_name,
+        )
+    else:
+        saturation_function = saturation.function
+        variable_mapping = saturation.variable_mapping
+
+    add_lift_measurements_to_likelihood(
+        df_lift_test=df_lift_test,
+        variable_mapping=variable_mapping,
+        saturation_function=saturation_function,
+        dist=dist,
+        name=name,
+        model=model,
     )
