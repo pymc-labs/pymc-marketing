@@ -17,7 +17,6 @@ import pymc as pm
 import pytensor.tensor as pt
 import xarray
 from pymc.util import RandomState
-from pytensor.tensor import TensorVariable
 
 from pymc_marketing.clv.models import BetaGeoModel, CLVModel, ParetoNBDModel
 from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
@@ -26,17 +25,15 @@ from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
 class BaseGammaGammaModel(CLVModel):
     def distribution_customer_spend(
         self,
-        customer_id: np.ndarray | pd.Series,
-        mean_transaction_value: np.ndarray | pd.Series | TensorVariable,
-        frequency: np.ndarray | pd.Series | TensorVariable,
+        data: pd.DataFrame,
         random_seed: RandomState | None = None,
     ) -> xarray.DataArray:
         """Posterior distribution of transaction value per customer"""
 
-        x = frequency
-        z_mean = mean_transaction_value
+        x = data["frequency"]
+        z_mean = data["monetary_value"]
 
-        coords = {"customer_id": np.unique(customer_id)}
+        coords = {"customer_id": np.unique(data["customer_id"])}
         with pm.Model(coords=coords):
             p = pm.HalfFlat("p")
             q = pm.HalfFlat("q")
@@ -65,13 +62,13 @@ class BaseGammaGammaModel(CLVModel):
         data: pd.DataFrame
         DataFrame containing the following columns:
             - customer_id: Customer labels. Must not repeat.
-            - mean_transaction_value: Mean transaction value of each customer.
+            - monetary_value: Mean transaction value of repeat purchases for each customer.
             - frequency: Number of transactions observed for each customer.
         """
 
         mean_transaction_value, frequency = to_xarray(
             data["customer_id"],
-            data["mean_transaction_value"],
+            data["monetary_value"],
             data["frequency"],
         )
         posterior = self.fit_result
@@ -165,7 +162,7 @@ class GammaGammaModel(BaseGammaGammaModel):
     data: pd.DataFrame
         DataFrame containing the following columns:
             - customer_id: Customer labels. Must not repeat.
-            - mean_transaction_value: Mean transaction value of each customer.
+            - monetary_value: Mean transaction value of repeat purchases for each customer.
             - frequency: Number of transactions observed for each customer.
     model_config: dict, optional
         Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
@@ -175,7 +172,7 @@ class GammaGammaModel(BaseGammaGammaModel):
 
     Examples
     --------
-        Gamma-Gamma model condioned on mean transaction value
+        Gamma-Gamma model conditioned on mean transaction value
 
         .. code-block:: python
 
@@ -185,7 +182,7 @@ class GammaGammaModel(BaseGammaGammaModel):
             model = GammaGammaModel(
                 data=pd.DataFrame({
                     "customer_id": [0, 1, 2, 3, ...],
-                    "mean_transaction_value" :[23.5, 19.3, 11.2, 100.5, ...],
+                    "monetary_value" :[23.5, 19.3, 11.2, 100.5, ...],
                     "frequency": [6, 8, 2, 1, ...],
                 }),
                 model_config={
@@ -208,7 +205,7 @@ class GammaGammaModel(BaseGammaGammaModel):
             # Predict spend of customers for which we know transaction history, conditioned on data.
             expected_customer_spend = model.expected_customer_spend(
                 customer_id=[0, 1, 2, 3, ...],
-                mean_transaction_value=[23.5, 19.3, 11.2, 100.5, ...],
+                monetary_value=[23.5, 19.3, 11.2, 100.5, ...],
                 frequency=[6, 8, 2, 1, ...],
             )
             print(expected_customer_spend.mean("customer_id"))
@@ -237,7 +234,7 @@ class GammaGammaModel(BaseGammaGammaModel):
     ):
         self._validate_cols(
             data,
-            required_cols=["customer_id", "mean_transaction_value", "frequency"],
+            required_cols=["customer_id", "monetary_value", "frequency"],
             must_be_unique=["customer_id"],
         )
         super().__init__(
@@ -253,7 +250,7 @@ class GammaGammaModel(BaseGammaGammaModel):
         }
 
     def build_model(self):
-        z_mean = pt.as_tensor_variable(self.data["mean_transaction_value"])
+        z_mean = pt.as_tensor_variable(self.data["monetary_value"])
         x = pt.as_tensor_variable(self.data["frequency"])
 
         p_prior = self._create_distribution(self.model_config["p_prior"])
@@ -281,6 +278,7 @@ class GammaGammaModel(BaseGammaGammaModel):
             )
 
 
+# TODO: This model requires further evaluation and mention in a notebook.
 class GammaGammaModelIndividual(BaseGammaGammaModel):
     """Gamma-Gamma model
 
@@ -298,9 +296,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     ----------
     data: pd.DataFrame
         Dataframe containing the following columns:
-            - customer_id: Customer labels. The same value should be used for each observation
+            - customer_id: Customer labels. The same value should be used for each unique customer.
         coming from the same customer.
-            - individual_transaction_value: Value of individual transactions.
+            - individual_transaction_value: Monetary values of each purchase for each customer.
     model_config: dict, optional
         Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
         `default_model_config` class attribute.
