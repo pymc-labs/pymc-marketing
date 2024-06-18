@@ -1050,3 +1050,18 @@ def test_initialize_alternative_with_classes() -> None:
     assert isinstance(mmm.adstock, DelayedAdstock)
     assert mmm.adstock.l_max == 10
     assert isinstance(mmm.saturation, MichaelisMentenSaturation)
+
+
+def test_initialize_defaults_channel_media_dims() -> None:
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        adstock_max_lag=4,
+        control_columns=["control_1", "control_2"],
+        adstock=DelayedAdstock(l_max=10),
+        saturation=MichaelisMentenSaturation(),
+    )
+
+    for transform in [mmm.adstock, mmm.saturation]:
+        for config in transform.function_priors.values():
+            assert config["dims"] == "channel"

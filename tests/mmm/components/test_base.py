@@ -282,7 +282,7 @@ def test_selections(coords, expected) -> None:
     assert list(selections(coords)) == expected
 
 
-def test_change_instance_function_priors_has_no_impact(
+def test_change_instance_function_priors_has_no_impact_new_instance(
     new_transformation_class,
 ) -> None:
     """What happens in the MMM logic."""
@@ -294,6 +294,20 @@ def test_change_instance_function_priors_has_no_impact(
     new_instance = new_transformation_class()
 
     assert new_instance.function_priors == {
+        "a": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+    }
+
+
+def test_change_instance_function_priors_has_no_impact_on_class(
+    new_transformation_class,
+) -> None:
+    instance = new_transformation_class()
+
+    for _, config in instance.function_priors.items():
+        config["dims"] = "channel"
+
+    assert new_transformation_class.default_priors == {
         "a": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
         "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
     }
