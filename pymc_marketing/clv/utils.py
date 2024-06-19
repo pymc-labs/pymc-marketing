@@ -111,13 +111,9 @@ def customer_lifetime_value(
 
     # TODO: Add an IF block to support ShiftedBetaGeoModelIndividual
 
-    # TODO: Vectorize computation so that we perform a single call to expected_num_purchases
-    prev_expected_purchases = _squeeze_dims(
-        transaction_model.expected_purchases(
-            data=transaction_data,
-            future_t=0,
-        )
-    )
+    # initialize FOR loop with 0 purchases at future_t = 0
+    prev_expected_purchases = 0
+
     for i in steps * factor:
         # since the prediction of number of transactions is cumulative, we have to subtract off the previous periods
         new_expected_purchases = _squeeze_dims(
