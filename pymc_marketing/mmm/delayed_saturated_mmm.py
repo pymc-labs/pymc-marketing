@@ -359,7 +359,9 @@ class BaseMMM(BaseValidateMMM):
                     self.model_config,
                 )
             else:
-                intercept = self.model_config["intercept"].create_variable(name="intercept")
+                intercept = self.model_config["intercept"].create_variable(
+                    name="intercept"
+                )
 
             channel_contributions = pm.Deterministic(
                 name="channel_contributions",
@@ -377,7 +379,7 @@ class BaseMMM(BaseValidateMMM):
                     for column in self.control_columns
                 )
             ):
-                if self.model_config["gamma_control"].dims != ("control", ):
+                if self.model_config["gamma_control"].dims != ("control",):
                     msg = (
                         "The 'dims' key in gamma_control must be 'control'."
                         " This will be fixed automatically."
