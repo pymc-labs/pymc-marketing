@@ -593,6 +593,22 @@ class Prior:
         xr.Dataset
             The dataset of the prior samples.
 
+        Example
+        -------
+        Sample from a hierarchical normal distribution.
+
+        .. code-block:: python
+
+            dist = Prior(
+                "Normal",
+                mu=Prior("Normal"),
+                sigma=Prior("HalfNormal"),
+                dims="channel",
+            )
+
+            coords = {"channel": ["C1", "C2", "C3"]}
+            prior = dist.sample_prior(coords=coords)
+
         """
         coords = coords or {}
 
@@ -631,6 +647,8 @@ class Prior:
 
         .. code-block:: python
 
+            from pymc_marketing.prior import Prior
+
             mu = Prior(
                 "Normal",
                 mu=Prior("Normal"),
@@ -648,6 +666,9 @@ class Prior:
             )
 
             dist.graph()
+
+        .. image:: /_static/example-graph.png
+            :alt: Example graph
 
         """
         coords = {name: ["DUMMY"] for name in self.dims}
