@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Callable
 from inspect import signature
 from typing import Any
 
@@ -89,7 +90,10 @@ def handle_dims(x: pt.TensorLike, dims: Dims, desired_dims: Dims) -> pt.TensorVa
     return x.dimshuffle(*args)
 
 
-def create_dim_handler(desired_dims: Dims):
+DimHandler = Callable[[pt.TensorLike, Dims], pt.TensorLike]
+
+
+def create_dim_handler(desired_dims: Dims) -> DimHandler:
     """Wrapper to act like the previous `create_dim_handler` function."""
 
     def func(x: pt.TensorLike, dims: Dims) -> pt.TensorVariable:
