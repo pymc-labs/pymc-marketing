@@ -36,11 +36,7 @@ import xarray as xr
 from pymc.distributions.shape_utils import Dims
 from pytensor import tensor as pt
 
-from pymc_marketing.model_config import (
-    DimHandler,
-    create_dim_handler,
-    create_distribution,
-)
+from pymc_marketing.prior import DimHandler, Prior, create_dim_handler
 
 Values = Sequence[Any] | npt.NDArray[Any]
 Coords = dict[str, Values]
@@ -152,17 +148,38 @@ class Transformation:
     """
 
     prefix: str
-    default_priors: dict[str, Any]
+    default_priors: dict[str, Prior]
     function: Any
     lookup_name: str
 
-    def __init__(self, priors: dict | None = None, prefix: str | None = None) -> None:
+    def __init__(
+        self, priors: dict[str, Any | Prior] | None = None, prefix: str | None = None
+    ) -> None:
         self._checks()
-        priors = priors or {}
-        self.function_priors = {**deepcopy(self.default_priors), **priors}
+        self.function_priors = priors  # type: ignore
         self.prefix = prefix or self.prefix
 
-    def update_priors(self, priors: dict[str, Any]) -> None:
+    @property
+    def function_priors(self) -> dict[str, Prior]:
+        return self._function_priors
+
+    @function_priors.setter
+    def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
+        priors = priors or {}
+
+        priors = deepcopy(priors)
+        for param, dist in priors.items():
+            if isinstance(dist, Prior):
+                continue
+
+            new_dist = Prior.from_json(dist)
+            msg = f"Use pymc_marketing.prior.{new_dist} for {param} instead."
+            warnings.warn(msg, UserWarning, stacklevel=1)
+            priors[param] = new_dist
+
+        self._function_priors = {**deepcopy(self.default_priors), **priors}
+
+    def update_priors(self, priors: dict[str, Prior]) -> None:
         """Helper to update the priors for a function after initialization.
 
         Uses {prefix}_{parameter_name} as the key for the priors instead of the parameter name
@@ -177,18 +194,19 @@ class Transformation:
         --------
         Update the priors for a transformation after initialization.
 
-        from pymc_marketing.mmm.components.base import Transformation
-
         .. code-block:: python
+
+            from pymc_marketing.prior import Prior
+            from pymc_marketing.mmm.components.base import Transformation
 
             class MyTransformation(Transformation):
                 prefix: str = "transformation"
                 function = lambda x, lam: x * lam
-                default_priors = {"lam": {"dist": "Gamma", "kwargs": {"alpha": 3, "beta": 1}}}
+                default_priors = {"lam": Prior("Gamma", alpha=3, beta=1)}
 
             transformation = MyTransformation()
             transformation.update_priors(
-                {"transformation_lam": {"dist": "HalfNormal", "kwargs": {"sigma": 1}}}
+                {"transformation_lam": Prior("HalfNormal", sigma=1)},
             )
 
         """
@@ -277,21 +295,18 @@ class Transformation:
         self, dims: Dims | None = None
     ) -> dict[str, pt.TensorVariable]:
         dim_handler: DimHandler = create_dim_handler(dims)
-        distributions: dict[str, pt.TensorVariable] = {}
-        for parameter_name, variable_name in self.variable_mapping.items():
-            parameter_prior = self.function_priors[parameter_name]
 
-            var_dims = parameter_prior.get("dims")
-            var = create_distribution(
-                name=variable_name,
-                distribution_name=parameter_prior["dist"],
-                distribution_kwargs=parameter_prior["kwargs"],
-                dims=var_dims,
-            )
+        def create_variable(
+            parameter_name: str, variable_name: str
+        ) -> pt.TensorVariable:
+            dist = self.function_priors[parameter_name]
+            var = dist.create_variable(variable_name)
+            return dim_handler(var, dist.dims)
 
-            distributions[parameter_name] = dim_handler(var, var_dims)
-
-        return distributions
+        return {
+            parameter_name: create_variable(parameter_name, variable_name)
+            for parameter_name, variable_name in self.variable_mapping.items()
+        }
 
     def sample_prior(
         self, coords: dict | None = None, **sample_prior_predictive_kwargs
@@ -538,8 +553,8 @@ class Transformation:
         x : pt.TensorLike
             The data to be transformed.
         dims : str, sequence[str], optional
-            The name of the dimension associated with the columns of the
-            data. Defaults to None
+            The dims of the parameters. Defaults to None. Not the dims of the
+            data!
 
         Returns
         -------

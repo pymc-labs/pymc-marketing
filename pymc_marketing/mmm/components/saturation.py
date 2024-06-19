@@ -24,13 +24,14 @@ Create a new saturation transformation:
 
 .. code-block:: python
 
+    from pymc_marketing.prior import Prior
     from pymc_marketing.mmm import SaturationTransformation
 
     class InfiniteReturns(SaturationTransformation):
         def function(self, x, b):
             return b * x
 
-        default_priors = {"b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}}}
+        default_priors = {"b": Prior("HalfNormal", sigma=1)}
 
 Plot the default priors for a saturation transformation:
 
@@ -53,6 +54,7 @@ for saturation parameter of logistic saturation.
 
     from pymc_marketing.mmm import LogisticSaturation
 
+    hierarchical_lam = Prior("Gamma", alpha=Prior("HalfNormal"), beta=Prior("HalfNormal"), dims="channel")
     priors = {
         "lam": {
             "dist": "Gamma",
@@ -89,6 +91,7 @@ from pymc_marketing.mmm.transformers import (
     tanh_saturation,
     tanh_saturation_baselined,
 )
+from pymc_marketing.prior import Prior
 
 
 class SaturationTransformation(Transformation):
@@ -199,8 +202,8 @@ class LogisticSaturation(SaturationTransformation):
         return beta * logistic_saturation(x, lam)
 
     default_priors = {
-        "lam": {"dist": "Gamma", "kwargs": {"alpha": 3, "beta": 1}},
-        "beta": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+        "lam": Prior("Gamma", alpha=3, beta=1),
+        "beta": Prior("HalfNormal", sigma=2),
     }
 
 
@@ -232,9 +235,9 @@ class TanhSaturation(SaturationTransformation):
         return beta * tanh_saturation(x, b, c)
 
     default_priors = {
-        "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-        "c": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-        "beta": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "b": Prior("HalfNormal", sigma=1),
+        "c": Prior("HalfNormal", sigma=1),
+        "beta": Prior("HalfNormal", sigma=1),
     }
 
 
@@ -266,10 +269,10 @@ class TanhSaturationBaselined(SaturationTransformation):
         return beta * tanh_saturation_baselined(x, x0, gain, r)
 
     default_priors = {
-        "x0": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-        "gain": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-        "r": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-        "beta": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "x0": Prior("HalfNormal", sigma=1),
+        "gain": Prior("HalfNormal", sigma=1),
+        "r": Prior("HalfNormal", sigma=1),
+        "beta": Prior("HalfNormal", sigma=1),
     }
 
 
@@ -300,8 +303,8 @@ class MichaelisMentenSaturation(SaturationTransformation):
     function = michaelis_menten
 
     default_priors = {
-        "alpha": {"dist": "Gamma", "kwargs": {"mu": 2, "sigma": 1}},
-        "lam": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "alpha": Prior("Gamma", mu=2, sigma=1),
+        "lam": Prior("HalfNormal", sigma=1),
     }
 
 
@@ -332,9 +335,9 @@ class HillSaturation(SaturationTransformation):
     function = hill_saturation
 
     default_priors = {
-        "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
-        "beta": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
-        "lam": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+        "sigma": Prior("HalfNormal", sigma=2),
+        "beta": Prior("HalfNormal", sigma=2),
+        "lam": Prior("HalfNormal", sigma=2),
     }
 
 

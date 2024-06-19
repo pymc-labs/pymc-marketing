@@ -23,6 +23,7 @@ from pymc_marketing.mmm.components.base import (
     Transformation,
     selections,
 )
+from pymc_marketing.prior import Prior
 
 
 def test_new_transformation_missing_prefix() -> None:
@@ -133,8 +134,8 @@ def new_transformation_class() -> type[Transformation]:
             return a * b * x
 
         default_priors = {
-            "a": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-            "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+            "a": Prior("HalfNormal", sigma=1),
+            "b": Prior("HalfNormal", sigma=1),
         }
 
     return NewTransformation
@@ -147,8 +148,8 @@ def new_transformation(new_transformation_class) -> Transformation:
 
 def test_new_transformation_function_priors(new_transformation) -> None:
     assert new_transformation.function_priors == {
-        "a": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-        "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "a": Prior("HalfNormal", sigma=1),
+        "b": Prior("HalfNormal", sigma=1),
     }
 
 
@@ -156,8 +157,8 @@ def test_new_transformation_priors_at_init(new_transformation_class) -> None:
     new_prior = {"a": {"dist": "HalfNormal", "kwargs": {"sigma": 2}}}
     new_transformation = new_transformation_class(priors=new_prior)
     assert new_transformation.function_priors == {
-        "a": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
-        "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "a": Prior("HalfNormal", sigma=2),
+        "b": Prior("HalfNormal", sigma=1),
     }
 
 
@@ -188,19 +189,19 @@ def test_new_transformation_apply_outside_model(new_transformation) -> None:
 
 def test_model_config(new_transformation) -> None:
     assert new_transformation.model_config == {
-        "new_a": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-        "new_b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "new_a": Prior("HalfNormal", sigma=1),
+        "new_b": Prior("HalfNormal", sigma=1),
     }
 
 
 def test_new_transform_update_priors(new_transformation) -> None:
     new_transformation.update_priors(
-        {"new_a": {"dist": "HalfNormal", "kwargs": {"sigma": 2}}}
+        {"new_a": Prior("HalfNormal", sigma=2)},
     )
 
     assert new_transformation.function_priors == {
-        "a": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
-        "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "a": Prior("HalfNormal", sigma=2),
+        "b": Prior("HalfNormal", sigma=1),
     }
 
 
@@ -289,13 +290,13 @@ def test_change_instance_function_priors_has_no_impact_new_instance(
     instance = new_transformation_class()
 
     for _, config in instance.function_priors.items():
-        config["dims"] = "channel"
+        config.dims = "channel"
 
     new_instance = new_transformation_class()
 
     assert new_instance.function_priors == {
-        "a": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-        "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "a": Prior("HalfNormal", sigma=1),
+        "b": Prior("HalfNormal", sigma=1),
     }
 
 
@@ -305,9 +306,9 @@ def test_change_instance_function_priors_has_no_impact_on_class(
     instance = new_transformation_class()
 
     for _, config in instance.function_priors.items():
-        config["dims"] = "channel"
+        config.dims = "channel"
 
     assert new_transformation_class.default_priors == {
-        "a": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-        "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "a": Prior("HalfNormal", sigma=1),
+        "b": Prior("HalfNormal", sigma=1),
     }
