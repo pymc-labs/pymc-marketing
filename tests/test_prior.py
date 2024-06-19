@@ -15,6 +15,7 @@ from copy import deepcopy
 
 import numpy as np
 import pymc as pm
+import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from graphviz.graphs import Digraph
@@ -29,7 +30,45 @@ from pymc_marketing.prior import (
     UnsupportedParameterizationError,
     UnsupportedShapeError,
     get_transform,
+    handle_dims,
 )
+
+
+@pytest.mark.parametrize(
+    "x, dims, desired_dims, expected_fn",
+    [
+        (np.arange(3), "channel", "channel", lambda x: x),
+        (np.arange(3), "channel", ("geo", "channel"), lambda x: x),
+        (np.arange(3), "channel", ("channel", "geo"), lambda x: x[:, None]),
+        (np.arange(3), "channel", ("x", "y", "channel", "geo"), lambda x: x[:, None]),
+        (
+            np.arange(3 * 2).reshape(3, 2),
+            ("channel", "geo"),
+            ("geo", "x", "y", "channel"),
+            lambda x: x.T[:, None, None, :],
+        ),
+        (
+            np.arange(4 * 2 * 3).reshape(4, 2, 3),
+            ("channel", "geo", "store"),
+            ("geo", "x", "store", "channel"),
+            lambda x: x.swapaxes(0, 2).swapaxes(0, 1)[:, None, :, :],
+        ),
+    ],
+    ids=[
+        "same_dims",
+        "different_dims",
+        "dim_padding",
+        "just_enough_dims",
+        "transpose_and_padding",
+        "swaps_and_padding",
+    ],
+)
+def test_handle_dims(x, dims, desired_dims, expected_fn) -> None:
+    result = handle_dims(x, dims, desired_dims)
+    if isinstance(result, pt.TensorVariable):
+        result = fast_eval(result)
+
+    np.testing.assert_array_equal(result, expected_fn(x))
 
 
 def test_missing_transform() -> None:
@@ -408,6 +447,13 @@ def test_sample_prior() -> None:
 
     assert isinstance(prior, xr.Dataset)
     assert prior.sizes == {"chain": 1, "draw": 25, "channel": 3}
+
+
+def test_sample_prior_missing_coords() -> None:
+    dist = Prior("Normal", dims="channel")
+
+    with pytest.raises(KeyError, match="Coords"):
+        dist.sample_prior()
 
 
 def test_graph() -> None:

@@ -50,6 +50,14 @@ class UnknownTransformError(Exception):
     """Error for when an unknown transform is used."""
 
 
+def _remove_leading_xs(args: list[str | int]) -> list[str | int]:
+    """Remove leading 'x' from the args."""
+    while args and args[0] == "x":
+        args.pop(0)
+
+    return args
+
+
 def handle_dims(x: pt.TensorLike, dims: Dims, desired_dims: Dims) -> pt.TensorVariable:
     """Take a tensor of dims `dims` and align it to `desired_dims`.
 
@@ -67,7 +75,6 @@ def handle_dims(x: pt.TensorLike, dims: Dims, desired_dims: Dims) -> pt.TensorVa
         desired_dims = ("channel", "group")
 
         handle_dims(x, dims, desired_dims)
-
 
     """
     x = pt.as_tensor_variable(x)
@@ -87,6 +94,7 @@ def handle_dims(x: pt.TensorLike, dims: Dims, desired_dims: Dims) -> pt.TensorVa
         "x" if missing else idx
         for (idx, missing) in zip(new_idx, missing_dims, strict=False)
     ]
+    args = _remove_leading_xs(args)
     return x.dimshuffle(*args)
 
 
@@ -416,6 +424,11 @@ class Prior:
     def sample_prior(
         self, coords=None, name: str = "var", **sample_prior_predictive_kwargs
     ) -> xr.Dataset:
+        coords = coords or {}
+
+        if missing_keys := set(self.dims) - set(coords.keys()):
+            raise KeyError(f"Coords are missing the following dims: {missing_keys}")
+
         with pm.Model(coords=coords):
             self.create_variable(name)
 
