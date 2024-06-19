@@ -21,7 +21,6 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
-from graphviz import Digraph
 from pymc.distributions.shape_utils import Dims
 
 
@@ -435,7 +434,7 @@ class Prior:
     def copy(self) -> Prior:
         return copy.deepcopy(self)
 
-    def graph(self) -> Digraph:
+    def graph(self):
         """Generate a graph of the variables."""
         coords = {name: ["DUMMY"] for name in self.dims}
         with pm.Model(coords=coords) as model:
