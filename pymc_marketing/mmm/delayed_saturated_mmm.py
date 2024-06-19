@@ -29,6 +29,7 @@ import seaborn as sns
 from xarray import DataArray, Dataset
 
 from pymc_marketing.constants import DAYS_IN_YEAR
+from pymc_marketing.prior import Prior
 from pymc_marketing.mmm.base import BaseValidateMMM
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.components.adstock import (
@@ -52,8 +53,6 @@ from pymc_marketing.mmm.utils import (
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
 from pymc_marketing.model_config import (
-    create_distribution_from_config,
-    create_likelihood_distribution,
     get_distribution,
 )
 
@@ -301,15 +300,13 @@ class BaseMMM(BaseValidateMMM):
         Examples
         --------
         custom_config = {
-            'intercept': {'dist': 'Normal', 'kwargs': {'mu': 0, 'sigma': 2}},
-            'saturation_beta': {'dist': 'Gamma', 'kwargs': {'mu': 1, 'sigma': 3}},
-            'saturation_lambda': {'dist': 'Beta', 'kwargs': {'alpha': 3, 'beta': 1}},
-            'adstock_alpha': {'dist': 'Beta', 'kwargs': {'alpha': 1, 'beta': 3}},
-            'likelihood': {'dist': 'Normal',
-                'kwargs': {'sigma': {'dist': 'HalfNormal', 'kwargs': {'sigma': 2}}}
-            },
-            'gamma_control': {'dist': 'Normal', 'kwargs': {'mu': 0, 'sigma': 2}},
-            'gamma_fourier': {'dist': 'Laplace', 'kwargs': {'mu': 0, 'b': 1}}
+            "intercept": Prior("Normal", mu=0, sigma=2),
+            "saturation_beta": Prior("Gamma", mu=1, sigma=3),
+            "saturation_lambda": Prior("Beta", alpha=3, beta=1),
+            "adstock_alpha": Prior("Beta", alpha=1, beta=3),
+            "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
+            "gamma_control": Prior("Normal", mu=0, sigma=2, dims="control"),
+            "gamma_fourier": Prior("Laplace", mu=0, b=1, dims="fourier_mode"),
         }
 
         model = MMM(
@@ -362,9 +359,7 @@ class BaseMMM(BaseValidateMMM):
                     self.model_config,
                 )
             else:
-                intercept = create_distribution_from_config(
-                    name="intercept", config=self.model_config
-                )
+                intercept = self.model_config["intercept"].create_variable(name="intercept")
 
             channel_contributions = pm.Deterministic(
                 name="channel_contributions",
@@ -382,17 +377,16 @@ class BaseMMM(BaseValidateMMM):
                     for column in self.control_columns
                 )
             ):
-                if self.model_config["gamma_control"].get("dims") != "control":
+                if self.model_config["gamma_control"].dims != ("control", ):
                     msg = (
                         "The 'dims' key in gamma_control must be 'control'."
                         " This will be fixed automatically."
                     )
                     warnings.warn(msg, stacklevel=2)
-                    self.model_config["gamma_control"]["dims"] = "control"
+                    self.model_config["gamma_control"].dims = "control"
 
-                gamma_control = create_distribution_from_config(
-                    name="gamma_control",
-                    config=self.model_config,
+                gamma_control = self.model_config["gamma_control"].create_variable(
+                    name="gamma_control"
                 )
 
                 control_data_ = pm.Data(
@@ -426,17 +420,16 @@ class BaseMMM(BaseValidateMMM):
                     mutable=True,
                 )
 
-                if self.model_config["gamma_fourier"].get("dims") != "fourier_mode":
+                if self.model_config["gamma_fourier"].dims != ("fourier_mode",):
                     msg = (
-                        "The 'dims' key in gamma_fourier must be 'fourier_mode'."
+                        "The dims in gamma_fourier must be 'fourier_mode'."
                         " This will be fixed automatically."
                     )
                     warnings.warn(msg, stacklevel=2)
-                    self.model_config["gamma_fourier"]["dims"] = "fourier_mode"
+                    self.model_config["gamma_fourier"].dims = "fourier_mode"
 
-                gamma_fourier = create_distribution_from_config(
-                    name="gamma_fourier",
-                    config=self.model_config,
+                gamma_fourier = self.model_config["gamma_fourier"].create_variable(
+                    name="gamma_fourier"
                 )
 
                 fourier_contribution = pm.Deterministic(
@@ -455,34 +448,20 @@ class BaseMMM(BaseValidateMMM):
 
             mu = pm.Deterministic(name="mu", var=mu_var, dims="date")
 
-            create_likelihood_distribution(
+            self.model_config["likelihood"].dims = "date"
+            self.model_config["likelihood"].create_likelihood_distribution(
                 name=self.output_var,
-                param_config=self.model_config["likelihood"],
                 mu=mu,
                 observed=target_,
-                dims="date",
             )
 
     @property
     def default_model_config(self) -> dict:
         base_config = {
-            "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
-            "likelihood": {
-                "dist": "Normal",
-                "kwargs": {
-                    "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
-                },
-            },
-            "gamma_control": {
-                "dist": "Normal",
-                "kwargs": {"mu": 0, "sigma": 2},
-                "dims": "control",
-            },
-            "gamma_fourier": {
-                "dist": "Laplace",
-                "kwargs": {"mu": 0, "b": 1},
-                "dims": "fourier_mode",
-            },
+            "intercept": Prior("Normal", mu=0, sigma=2),
+            "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
+            "gamma_control": Prior("Normal", mu=0, sigma=2, dims="control"),
+            "gamma_fourier": Prior("Laplace", mu=0, b=1, dims="fourier_mode"),
             "intercept_tvp_kwargs": {
                 "m": 200,
                 "L": None,
