@@ -33,6 +33,10 @@ class UnsupportedDistributionError(Exception):
     """Error for when an unsupported distribution is used."""
 
 
+class UnsupportedParameterizationError(Exception):
+    """The follow parameterization is not supported."""
+
+
 class MuAlreadyExistsError(Exception):
     """Error for when 'mu' is present in Prior."""
 
@@ -40,6 +44,10 @@ class MuAlreadyExistsError(Exception):
         self.distribution = distribution
         self.message = f"The mu parameter is already defined in {distribution}"
         super().__init__(self.message)
+
+
+class UnknownTransformError(Exception):
+    """Error for when an unknown transform is used."""
 
 
 def handle_dims(x: pt.TensorLike, dims: Dims, desired_dims: Dims) -> pt.TensorVariable:
@@ -102,7 +110,9 @@ def dims_to_str(obj: tuple[str, ...]) -> str:
 
 def get_pymc_distribution(name: str) -> type[pm.Distribution]:
     if not hasattr(pm, name):
-        raise Exception(f"pymc doesn't have a distribution of name {name!r}")
+        raise UnsupportedDistributionError(
+            f"pymc doesn't have a distribution of name {name!r}"
+        )
 
     return getattr(pm, name)
 
@@ -115,7 +125,9 @@ def get_transform(name: str):
         module = None
 
     if not module:
-        raise Exception(f"Neither pytensor or pm.math have the function {name!r}")
+        raise UnknownTransformError(
+            f"Neither pytensor or pm.math have the function {name!r}"
+        )
 
     return getattr(module, name)
 
@@ -202,7 +214,7 @@ class Prior:
 
     def _correct_non_centered_distribution(self) -> None:
         if not self.centered and self.distribution != "Normal":
-            raise Exception(
+            raise UnsupportedParameterizationError(
                 f"Must be a Normal distribution to be non-centered not {self.distribution!r}"
             )
 
