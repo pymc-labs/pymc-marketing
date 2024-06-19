@@ -463,13 +463,73 @@ class Prior:
 
     @property
     def preliz(self):
-        """Create an equivalent preliz distribution."""
+        """Create an equivalent preliz distribution.
+
+        Helpful to visualize a distribution when it is univariate.
+
+        Returns
+        -------
+        preliz.distributions.Distribution
+
+        Examples
+        --------
+        Create a preliz distribution from a prior.
+
+        .. code-block:: python
+
+            from pymc_marketing.prior import Prior
+
+            dist = Prior("Gamma", alpha=5, beta=1)
+            dist.preliz.plot_pdf()
+
+        """
         import preliz as pz
 
         return getattr(pz, self.distribution)(**self.parameters)
 
     def to_json(self) -> dict[str, Any]:
-        """Convert the prior to the previous dictionary format."""
+        """Convert the prior to the previous dictionary format.
+
+        Returns
+        -------
+        dict[str, Any]
+            The dictionary format of the prior.
+
+        Examples
+        --------
+        Convert a prior to the dictionary format.
+
+        .. code-block:: python
+
+            from pymc_marketing.prior import Prior
+
+            dist = Prior("Normal", mu=0, sigma=1)
+
+            dist.to_json()
+            # {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}}
+
+        Convert a hierarchical prior to the dictionary format.
+
+        .. code-block:: python
+
+            dist = Prior(
+                "Normal",
+                mu=Prior("Normal"),
+                sigma=Prior("HalfNormal"),
+                dims="channel",
+            )
+
+            dist.to_json()
+            # {
+            #     "dist": "Normal",
+            #     "kwargs": {
+            #         "mu": {"dist": "Normal"},
+            #         "sigma": {"dist": "HalfNormal"},
+            #     },
+            #     "dims": "channel",
+            # }
+
+        """
         json: dict[str, Any] = {
             "dist": self.distribution,
         }
@@ -500,7 +560,36 @@ class Prior:
 
     @classmethod
     def from_json(cls, json) -> Prior:
-        """Create a Prior from the dictionary format."""
+        """Create a Prior from the dictionary format.
+
+        Parameters
+        ----------
+        json : dict[str, Any]
+            The dictionary format of the prior.
+
+        Returns
+        -------
+        Prior
+            The prior distribution.
+
+        Examples
+        --------
+        Convert prior in the dictionary format to a Prior instance.
+
+        .. code-block:: python
+
+            from pymc_marketing.prior import Prior
+
+            json = {
+                "dist": "Normal",
+                "kwargs": {"mu": 0, "sigma": 1},
+            }
+
+            dist = Prior.from_json(json)
+            dist
+            # Prior("Normal", mu=0, sigma=1)
+
+        """
         dist = json["dist"]
         kwargs = json.get("kwargs", {})
 
@@ -534,11 +623,27 @@ class Prior:
             The lower bound.
         upper : float
             The upper bound.
+        kwargs : dict
+            Additional arguments to pass to `pm.find_constrained_prior`.
 
         Returns
         -------
         Prior
             The new prior that is constrained to domain.
+
+        Examples
+        --------
+        Create a Beta distribution that is constrained between 0.5 and 0.8
+        using initial parameter values of alpha=2 and beta=1 for the
+        optimization.
+
+        .. code-block:: python
+
+            dist = Prior(
+                "Beta",
+                alpha=2,
+                beta=1,
+            ).constrain(lower=0.5, upper=0.8)
 
         """
 
