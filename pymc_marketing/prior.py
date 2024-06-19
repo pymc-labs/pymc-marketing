@@ -11,6 +11,75 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""Class that represents a prior distribution.
+
+The `Prior` class is a wrapper around PyMC distributions that allows the user
+to create outside of the PyMC model.
+
+This is the alternative to using the dictionaries in PyMC-Marketing models.
+
+Examples
+--------
+Create a normal prior.
+
+.. code-block:: python
+
+    from pymc_marketing.prior import Prior
+
+    normal = Prior("Normal")
+
+Create a hierarchical normal prior by using distributions for the parameters
+and specifying the dims.
+
+.. code-block:: python
+
+    hierarchical_normal = Prior(
+        "Normal",
+        mu=Prior("Normal"),
+        sigma=Prior("HalfNormal"),
+        dims="channel",
+    )
+
+Create a non-centered hierarchical normal prior with the `centered` parameter.
+
+.. code-block:: python
+
+    non_centered_hierarchical_normal = Prior(
+        "Normal",
+        mu=Prior("Normal"),
+        sigma=Prior("HalfNormal"),
+        dims="channel",
+        # Only change needed to make it non-centered
+        centered=False,
+    )
+
+Create a hierarchical beta prior by using Beta distribution, distributions for
+the parameters, and specifying the dims.
+
+.. code-block:: python
+
+    hierarchical_beta = Prior(
+        "Beta",
+        alpha=Prior("HalfNormal"),
+        beta=Prior("HalfNormal"),
+        dims="channel",
+    )
+
+Create a transformed hierarchical normal prior by using the `transform`
+parameter.
+
+.. code-block:: python
+
+    transformed_hierarchical_normal = Prior(
+        "Normal",
+        mu=Prior("Normal"),
+        sigma=Prior("HalfNormal"),
+        transform="sigmoid",
+        dims="channel",
+    )
+
+"""
+
 from __future__ import annotations
 
 import copy
@@ -148,11 +217,38 @@ def pymc_parameters(distribution: pm.Distribution) -> set[str]:
 
 
 class Prior:
-    """A class to represent a prior distribution."""
+    """A class to represent a prior distribution.
+
+    This is the alternative to using the dictionaries in PyMC-Marketing models
+    but provides added flexibility and functionality.
+
+    Make use of the various helper methods to understand the distributions
+    better.
+
+    - `preliz` attribute to get the equivalent distribution in `preliz`
+    - `sample_prior` method to sample from the prior
+    - `graph` get a dummy model graph with the distribution
+    - `constrain` to shift the distribution to a different range
+
+    Parameters
+    ----------
+    distribution : str
+        The name of PyMC distribution.
+    dims : Dims, optional
+        The dimensions of the variable, by default None
+    centered : bool, optional
+        Whether the variable is centered or not, by default True.
+        Only allowed for Normal distribution.
+    transform : str, optional
+        The name of the transform to apply to the variable after it is
+        created, by default None or no transform.
+
+    """
 
     def __init__(
         self,
         distribution: str,
+        *,
         dims: Dims | None = None,
         centered: bool = True,
         transform: str | None = None,
@@ -168,6 +264,7 @@ class Prior:
 
     @property
     def distribution(self) -> str:
+        """The name of the PyMC distribution."""
         return self._distribution
 
     @distribution.setter
@@ -180,6 +277,7 @@ class Prior:
 
     @property
     def transform(self) -> str | None:
+        """The name of the transform to apply to the variable after it is created."""
         return self._transform
 
     @transform.setter
@@ -192,6 +290,7 @@ class Prior:
 
     @property
     def dims(self) -> Dims:
+        """The dimensions of the variable."""
         return self._dims
 
     @dims.setter
@@ -307,7 +406,38 @@ class Prior:
         )
 
     def create_variable(self, name: str) -> pt.TensorVariable:
-        """Create a PyMC variable from the prior."""
+        """Create a PyMC variable from the prior.
+
+        Must be used in a PyMC model context.
+
+        Parameters
+        ----------
+        name : str
+            The name of the variable.
+
+        Returns
+        -------
+        pt.TensorVariable
+            The PyMC variable.
+
+        Examples
+        --------
+        Create a hierarchical normal variable in larger PyMC model.
+
+        .. code-block:: python
+
+            dist = Prior(
+                "Normal",
+                mu=Prior("Normal"),
+                sigma=Prior("HalfNormal"),
+                dims="channel",
+            )
+
+            coords = {"channel": ["C1", "C2", "C3"]}
+            with pm.Model(coords=coords):
+                var = dist.create_variable("var")
+
+        """
         self.dim_handler = create_dim_handler(self.dims)
 
         if self.transform:
@@ -333,11 +463,13 @@ class Prior:
 
     @property
     def preliz(self):
+        """Create an equivalent preliz distribution."""
         import preliz as pz
 
         return getattr(pz, self.distribution)(**self.parameters)
 
     def to_json(self) -> dict[str, Any]:
+        """Convert the prior to the previous dictionary format."""
         json: dict[str, Any] = {
             "dist": self.distribution,
         }
@@ -368,6 +500,7 @@ class Prior:
 
     @classmethod
     def from_json(cls, json) -> Prior:
+        """Create a Prior from the dictionary format."""
         dist = json["dist"]
         kwargs = json.get("kwargs", {})
 
@@ -390,6 +523,25 @@ class Prior:
         return cls(dist, dims=dims, centered=centered, transform=transform, **kwargs)
 
     def constrain(self, lower: float, upper: float, **kwargs) -> Prior:
+        """Create a new prior that is constrained to the given bounds.
+
+        Wrapper around `pm.find_constrained_prior` where the initial guess is
+        the current parameters. Will error out if no parameters are given.
+
+        Parameters
+        ----------
+        lower : float
+            The lower bound.
+        upper : float
+            The upper bound.
+
+        Returns
+        -------
+        Prior
+            The new prior that is constrained to domain.
+
+        """
+
         if self.transform:
             raise ValueError("Can't constrain a transformed variable")
 
@@ -424,6 +576,24 @@ class Prior:
     def sample_prior(
         self, coords=None, name: str = "var", **sample_prior_predictive_kwargs
     ) -> xr.Dataset:
+        """Sample the prior distribution for the variable.
+
+        Parameters
+        ----------
+        coords : dict[str, list[str]], optional
+            The coordinates for the variable, by default None.
+            Only required if the dims are specified.
+        name : str, optional
+            The name of the variable, by default "var".
+        sample_prior_predictive_kwargs : dict
+            Additional arguments to pass to `pm.sample_prior_predictive`.
+
+        Returns
+        -------
+        xr.Dataset
+            The dataset of the prior samples.
+
+        """
         coords = coords or {}
 
         if missing_keys := set(self.dims) - set(coords.keys()):
@@ -449,10 +619,37 @@ class Prior:
         return copy_obj
 
     def copy(self) -> Prior:
+        """Return a deep copy of the prior."""
         return copy.deepcopy(self)
 
     def graph(self):
-        """Generate a graph of the variables."""
+        """Generate a graph of the variables.
+
+        Examples
+        --------
+        Create the graph for a complicated variable.
+
+        .. code-block:: python
+
+            mu = Prior(
+                "Normal",
+                mu=Prior("Normal"),
+                sigma=Prior("HalfNormal"),
+                dims="channel",
+            )
+            sigma = Prior("HalfNormal", dims="channel")
+            dist = Prior(
+                "Normal",
+                mu=mu,
+                sigma=sigma,
+                dims=("channel", "geo"),
+                centered=False,
+                transform="sigmoid",
+            )
+
+            dist.graph()
+
+        """
         coords = {name: ["DUMMY"] for name in self.dims}
         with pm.Model(coords=coords) as model:
             self.create_variable("var")
@@ -465,6 +662,41 @@ class Prior:
         mu: pt.TensorLike,
         observed: pt.TensorLike,
     ) -> pt.TensorVariable:
+        """Create a likelihood variable from the prior.
+
+        Will require that the distribution has a `mu` parameter
+        and that it has not been set in the parameters.
+
+        Parameters
+        ----------
+        name : str
+            The name of the variable.
+        mu : pt.TensorLike
+            The mu parameter for the likelihood.
+        observed : pt.TensorLike
+            The observed data.
+
+        Returns
+        -------
+        pt.TensorVariable
+            The PyMC variable.
+
+        Examples
+        --------
+        Create a likelihood variable in a larger PyMC model.
+
+        .. code-block:: python
+
+            import pymc as pm
+
+            dist = Prior("Normal", sigma=Prior("HalfNormal"))
+
+            with pm.Model():
+                # Create the likelihood variable
+                mu = pm.Normal("mu", mu=0, sigma=1)
+                dist.create_likelihood_variable("y", mu=mu, observed=observed)
+
+        """
         if "mu" not in pymc_parameters(self.pymc_distribution):
             raise UnsupportedDistributionError(
                 f"Likelihood distribution {self.distribution!r} is not supported."
