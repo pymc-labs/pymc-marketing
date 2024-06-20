@@ -230,6 +230,29 @@ def model_config():
             "dims": "channel",
             "centered": False,
         },
+        # 2D Hierarchical non-centered distribution
+        "hierarchical_non_centered_2d": {
+            "dist": "Normal",
+            "kwargs": {
+                "mu": {
+                    "dist": "Normal",
+                    "kwargs": {
+                        "mu": 0.0,
+                        "sigma": 1.0,
+                    },
+                    "dims": "channel",
+                },
+                "sigma": {
+                    "dist": "HalfNormal",
+                    "kwargs": {
+                        "sigma": 1.0,
+                    },
+                    "dims": "geo",
+                },
+            },
+            "dims": ("channel", "geo"),
+            "centered": False,
+        },
         # Incorrect config
         "error": {
             "dist": "Normal",
@@ -275,6 +298,16 @@ def coords() -> dict[str, list[str]]:
                 "hierarchical_non_centered_offset",
             ],
             [(3,), (), (), (3,)],
+        ),
+        (
+            "hierarchical_non_centered_2d",
+            [
+                "hierarchical_non_centered_2d",
+                "hierarchical_non_centered_2d_mu",
+                "hierarchical_non_centered_2d_sigma",
+                "hierarchical_non_centered_2d_offset",
+            ],
+            [(3, 2), (3,), (2,), (3, 2)],
         ),
     ],
 )
