@@ -671,3 +671,75 @@ def test_add_lift_measurements_to_likelihood_from_saturation(
     )
 
     assert "lift_measurements" in model
+
+
+def test_tvp_needs_date_in_lift_tests() -> None:
+    df_lift_tests = pd.DataFrame(
+        {
+            "x": [1, 2, 3],
+            "delta_x": [0.1, 0.2, 0.3],
+            "sigma": [0.1, 0.2, 0.3],
+            "delta_y": [0.1, 0.2, 0.3],
+            "channel": ["organic", "paid", "social"],
+        }
+    )
+
+    saturation = saturation_functions()[0]
+
+    time_varying_var_name = "tvp"
+    coords = {
+        "channel": ["organic", "paid", "social"],
+        "date": [1, 2, 3, 4],
+    }
+    with pm.Model(coords=coords) as model:
+        saturation._create_distributions(dims="channel")
+
+        tvp_raw = pm.Normal("tvp_raw", dims="date")
+        pm.Deterministic(time_varying_var_name, pt.exp(tvp_raw), dims="date")
+
+    assert "lift_measurements" not in model
+
+    with pytest.raises(KeyError, match="The required coordinates are"):
+        add_lift_measurements_to_likelihood_from_saturation(
+            df_lift_tests,
+            saturation=saturation,
+            time_varying_var_name=time_varying_var_name,
+            model=model,
+        )
+
+
+def test_tvp_needs_exact_date() -> None:
+    df_lift_tests = pd.DataFrame(
+        {
+            "x": [1, 2, 3],
+            "delta_x": [0.1, 0.2, 0.3],
+            "sigma": [0.1, 0.2, 0.3],
+            "delta_y": [0.1, 0.2, 0.3],
+            "channel": ["organic", "paid", "social"],
+            "date": [1, 2, 5],
+        }
+    )
+    saturation = saturation_functions()[0]
+
+    time_varying_var_name = "tvp"
+    coords = {
+        "channel": ["organic", "paid", "social"],
+        "date": [1, 2, 3, 4],
+    }
+    with pm.Model(coords=coords) as model:
+        saturation._create_distributions(dims="channel")
+
+        tvp_raw = pm.Normal("tvp_raw", dims="date")
+        pm.Deterministic(time_varying_var_name, pt.exp(tvp_raw), dims="date")
+
+    assert "lift_measurements" not in model
+
+    with pytest.raises(
+        MissingLiftTestError, match=r"Some lift test values are not in the model: \[2\]"
+    ):
+        add_lift_measurements_to_likelihood_from_saturation(
+            df_lift_tests,
+            saturation=saturation,
+            time_varying_var_name=time_varying_var_name,
+            model=model,
+        )
