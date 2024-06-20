@@ -35,7 +35,7 @@ def coords():
 @pytest.fixture
 def model_config():
     return {
-        "intercept_tvp_kwargs": {
+        "intercept_tvp_config": {
             "m": 200,
             "eta_lam": 1,
             "ls_mu": None,
