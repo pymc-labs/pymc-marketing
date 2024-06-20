@@ -106,8 +106,13 @@ class BaseMMM(BaseValidateMMM):
             Type of saturation transformation to apply.
         time_varying_intercept : bool, optional
             Whether to consider time-varying intercept, by default False.
+            Because the `time-varying` variable is centered around 1 and acts as a multiplier,
+            the variable `base_intercept` now represents the mean of the time-varying intercept.
         time_varying_media : bool, optional
             Whether to consider time-varying media contributions, by default False.
+            The `time-varying-media` creates a time media variable centered around 1,
+            this variable acts as a global multiplier (scaling factor) for all channels,
+            meaning all media channels share the same latent fluctiation.
         model_config : Dictionary, optional
             dictionary of parameters that initialise model configuration.
             Class-default defined by the user default_model_config method.
@@ -348,14 +353,14 @@ class BaseMMM(BaseValidateMMM):
                 dims="date",
                 mutable=True,
             )
-
-            if self.time_varying_intercept:
-                intercept_time_index = pm.Data(
-                    "intercept_time_index",
+            if self.time_varying_intercept | self.time_varying_media:
+                time_index = pm.Data(
+                    "time_index",
                     self._time_index,
                     dims="date",
                 )
 
+            if self.time_varying_intercept:
                 intercept_distribution = get_distribution(
                     name=self.model_config["intercept"]["dist"]
                 )
@@ -366,7 +371,7 @@ class BaseMMM(BaseValidateMMM):
                 intercept_latent_process = create_time_varying_gp_multiplier(
                     name="intercept",
                     dims="date",
-                    time_index=intercept_time_index,
+                    time_index=time_index,
                     time_index_mid=self._time_index_mid,
                     time_resolution=self._time_resolution,
                     model_config=self.model_config,
@@ -382,12 +387,6 @@ class BaseMMM(BaseValidateMMM):
                 )
 
             if self.time_varying_media:
-                media_time_index = pm.Data(
-                    "media_time_index",
-                    self._time_index,
-                    dims="date",
-                )
-
                 base_channel_contributions = pm.Deterministic(
                     name="base_channel_contributions",
                     var=self.forward_pass(x=channel_data_),
@@ -397,7 +396,7 @@ class BaseMMM(BaseValidateMMM):
                 media_latent_process = create_time_varying_gp_multiplier(
                     name="media",
                     dims="date",
-                    time_index=media_time_index,
+                    time_index=time_index,
                     time_index_mid=self._time_index_mid,
                     time_resolution=self._time_resolution,
                     model_config=self.model_config,
@@ -529,7 +528,7 @@ class BaseMMM(BaseValidateMMM):
         }
 
         if self.time_varying_intercept:
-            base_config["intercept_tvp_kwargs"] = {
+            base_config["intercept_tvp_config"] = {
                 "m": 200,
                 "L": None,
                 "eta_lam": 1,
@@ -538,7 +537,7 @@ class BaseMMM(BaseValidateMMM):
                 "cov_func": None,
             }
         if self.time_varying_media:
-            base_config["media_tvp_kwargs"] = {
+            base_config["media_tvp_config"] = {
                 "m": 200,
                 "L": None,
                 "eta_lam": 1,
