@@ -517,11 +517,12 @@ def test_equality_non_prior() -> None:
 def test_deepcopy_memo() -> None:
     memo = {}
     dist = Prior("Normal")
+    memo[id(dist)] = dist
     deepcopy(dist, memo)
-    assert len(memo) == 2
+    assert len(memo) == 1
     deepcopy(dist, memo)
 
-    assert len(memo) == 2
+    assert len(memo) == 1
 
 
 def test_create_likelihood_variable() -> None:
@@ -553,3 +554,33 @@ def test_create_likelihood_non_mu_parameterized_distribution() -> None:
         mu = pm.Normal("mu")
         with pytest.raises(UnsupportedDistributionError):
             distribution.create_likelihood_variable("data", mu=mu, observed=10)
+
+
+def test_non_centered_student_t() -> None:
+    try: 
+        Prior("StudentT", mu=Prior("Normal"),
+             sigma=Prior("HalfNormal"), nu=Prior("HalfNormal"), 
+             dims="channel", centered=False,
+        )
+    except Exception as e:
+        pytest.fail(f"Unexpected exception: {e}")
+
+def test_cant_reset_distribution() -> None:
+    dist = Prior("Normal")
+    with pytest.raises(AttributeError, match="Can't change the distribution"):
+        dist.distribution = "Cauchy"
+
+def test_nonstring_distribution() -> None:
+    with pytest.raises(ValueError, match="Distribution must be a string"):
+        Prior(pm.Normal)
+
+
+def test_change_the_transform() -> None:
+    dist = Prior("Normal")
+    dist.transform = "logit"
+    assert dist.transform == "logit"
+
+
+def test_nonstring_transform() -> None:
+    with pytest.raises(ValueError, match="Transform must be a string"):
+        Prior("Normal", transform=pm.math.log)

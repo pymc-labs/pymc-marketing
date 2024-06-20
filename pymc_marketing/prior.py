@@ -244,6 +244,14 @@ class Prior:
         created, by default None or no transform.
 
     """
+    # Taken from https://en.wikipedia.org/wiki/Location%E2%80%93scale_family
+    non_centered_distributions: dict[str, dict[str, float]] = {
+        "Normal": {"mu": 0, "sigma": 1},
+        "StudentT": {"mu": 0, "sigma": 1},
+    }
+
+    pymc_distribution: type[pm.Distribution]
+    pytensor_transform: Callable[[pt.TensorLike], pt.TensorLike]
 
     def __init__(
         self,
@@ -269,6 +277,9 @@ class Prior:
 
     @distribution.setter
     def distribution(self, distribution: str) -> None:
+        if hasattr(self, "_distribution"):
+            raise AttributeError("Can't change the distribution")
+
         if not isinstance(distribution, str):
             raise ValueError("Distribution must be a string")
 
@@ -323,16 +334,17 @@ class Prior:
             raise ValueError(msg)
 
     def _correct_non_centered_distribution(self) -> None:
-        if not self.centered and self.distribution != "Normal":
+        if not self.centered and self.distribution not in self.non_centered_distributions:
             raise UnsupportedParameterizationError(
-                f"Must be a Normal distribution to be non-centered not {self.distribution!r}"
+                f"{self.distribution!r} is not supported for non-centered parameterization. "
+                f"Choose from {list(self.non_centered_distributions.keys())}"
             )
 
-        if not set(self.parameters.keys()) == {"mu", "sigma"}:
-            raise ValueError()
+        if set(self.parameters.keys()) < {"mu", "sigma"}:
+            raise ValueError("Must have at least 'mu' and 'sigma' parameter for non-centered")
 
         if not any(isinstance(value, Prior) for value in self.parameters.values()):
-            raise ValueError()
+            raise ValueError("Non-centered must have a Prior for 'mu' or 'sigma'")
 
     def _unique_dims(self) -> None:
         if not self.dims:
@@ -387,7 +399,18 @@ class Prior:
                 parameter.create_variable(f"{name}_{var_name}"), parameter.dims
             )
 
-        offset = pm.Normal(f"{name}_offset", mu=0, sigma=1, dims=self.dims)
+        defaults = self.non_centered_distributions[self.distribution]
+        other_parameters = {
+            param: handle_variable(param)
+            for param in self.parameters.keys()
+            if param not in defaults
+        }
+        offset = self.pymc_distribution(
+            f"{name}_offset", 
+            **defaults, 
+            **other_parameters,
+            dims=self.dims, 
+        )
         mu = (
             handle_variable("mu")
             if isinstance(self.parameters["mu"], Prior)
