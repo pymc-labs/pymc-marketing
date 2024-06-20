@@ -430,7 +430,7 @@ def weibull_adstock(
     return batched_convolution(x, w, axis=axis, mode=mode)
 
 
-def logistic_saturation(x, lam: npt.NDArray[np.float_] | float = 0.5):
+def logistic_saturation(x, lam: npt.NDArray[np.float64] | float = 0.5):
     """Logistic saturation transformation.
 
     .. math::
