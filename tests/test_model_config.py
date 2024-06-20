@@ -218,7 +218,7 @@ def model_config():
                 },
             },
             "dims": ("channel", "geo"),
-            "centered_hierarchy": True,
+            "centered": True,
         },
         # Hierarchical non-centered distribution
         "hierarchical_non_centered": {
@@ -228,7 +228,7 @@ def model_config():
                 "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
             },
             "dims": "channel",
-            "centered_hierarchy": False,
+            "centered": False,
         },
         # Incorrect config
         "error": {
@@ -270,9 +270,9 @@ def coords() -> dict[str, list[str]]:
             "hierarchical_non_centered",
             [
                 "hierarchical_non_centered",
-                "hierarchical_non_centered_mu_global",
-                "hierarchical_non_centered_sigma_global",
-                "offset",
+                "hierarchical_non_centered_mu",
+                "hierarchical_non_centered_sigma",
+                "hierarchical_non_centered_offset",
             ],
             [(3,), (), (), (3,)],
         ),
