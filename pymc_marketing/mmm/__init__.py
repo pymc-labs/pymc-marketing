@@ -12,10 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 from pymc_marketing.mmm import base, delayed_saturated_mmm, preprocessing, validating
-from pymc_marketing.mmm.base import (
-    BaseValidateMMM,
-    MMMModelBuilder,
-)
+from pymc_marketing.mmm.base import BaseValidateMMM, MMMModelBuilder
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     DelayedAdstock,
@@ -35,8 +32,6 @@ from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
 )
-
-
 from pymc_marketing.mmm.validating import validation_method_X, validation_method_y
 
 __all__ = [
