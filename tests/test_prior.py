@@ -29,7 +29,6 @@ from pymc_marketing.prior import (
     UnsupportedDistributionError,
     UnsupportedParameterizationError,
     UnsupportedShapeError,
-    get_transform,
     handle_dims,
 )
 
@@ -73,7 +72,7 @@ def test_handle_dims(x, dims, desired_dims, expected_fn) -> None:
 
 def test_missing_transform() -> None:
     with pytest.raises(UnknownTransformError):
-        get_transform("foo_bar")
+        Prior("Normal", transform="foo_bar")
 
 
 def test_get_item() -> None:
@@ -557,18 +556,24 @@ def test_create_likelihood_non_mu_parameterized_distribution() -> None:
 
 
 def test_non_centered_student_t() -> None:
-    try: 
-        Prior("StudentT", mu=Prior("Normal"),
-             sigma=Prior("HalfNormal"), nu=Prior("HalfNormal"), 
-             dims="channel", centered=False,
+    try:
+        Prior(
+            "StudentT",
+            mu=Prior("Normal"),
+            sigma=Prior("HalfNormal"),
+            nu=Prior("HalfNormal"),
+            dims="channel",
+            centered=False,
         )
     except Exception as e:
         pytest.fail(f"Unexpected exception: {e}")
+
 
 def test_cant_reset_distribution() -> None:
     dist = Prior("Normal")
     with pytest.raises(AttributeError, match="Can't change the distribution"):
         dist.distribution = "Cauchy"
+
 
 def test_nonstring_distribution() -> None:
     with pytest.raises(ValueError, match="Distribution must be a string"):
@@ -584,3 +589,16 @@ def test_change_the_transform() -> None:
 def test_nonstring_transform() -> None:
     with pytest.raises(ValueError, match="Transform must be a string"):
         Prior("Normal", transform=pm.math.log)
+
+
+def test_checks_param_value_types() -> None:
+    with pytest.raises(
+        ValueError, match="Parameters must be one of the following types"
+    ):
+        Prior("Normal", mu="str", sigma="str")
+
+
+def test_check_equality_with_numpy() -> None:
+    dist = Prior("Normal", mu=np.array([1, 2, 3]), sigma=1)
+    with pytest.raises(ValueError, match="The truth value of an array"):
+        assert dist == dist.copy()

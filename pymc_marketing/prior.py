@@ -179,7 +179,7 @@ def create_dim_handler(desired_dims: Dims) -> DimHandler:
     return func
 
 
-def dims_to_str(obj: tuple[str, ...]) -> str:
+def _dims_to_str(obj: tuple[str, ...]) -> str:
     if len(obj) == 1:
         return f'"{obj[0]}"'
 
@@ -188,16 +188,16 @@ def dims_to_str(obj: tuple[str, ...]) -> str:
     )
 
 
-def get_pymc_distribution(name: str) -> type[pm.Distribution]:
+def _get_pymc_distribution(name: str) -> type[pm.Distribution]:
     if not hasattr(pm, name):
         raise UnsupportedDistributionError(
-            f"pymc doesn't have a distribution of name {name!r}"
+            f"PyMC doesn't have a distribution of name {name!r}"
         )
 
     return getattr(pm, name)
 
 
-def get_transform(name: str):
+def _get_transform(name: str):
     for module in (pt, pm.math):
         if hasattr(module, name):
             break
@@ -206,13 +206,13 @@ def get_transform(name: str):
 
     if not module:
         raise UnknownTransformError(
-            f"Neither pytensor or pm.math have the function {name!r}"
+            f"Neither PyTensor or pm.math have the function {name!r}"
         )
 
     return getattr(module, name)
 
 
-def pymc_parameters(distribution: pm.Distribution) -> set[str]:
+def _get_pymc_parameters(distribution: pm.Distribution) -> set[str]:
     return set(signature(distribution.dist).parameters.keys()) - {"kwargs", "args"}
 
 
@@ -244,6 +244,7 @@ class Prior:
         created, by default None or no transform.
 
     """
+
     # Taken from https://en.wikipedia.org/wiki/Location%E2%80%93scale_family
     non_centered_distributions: dict[str, dict[str, float]] = {
         "Normal": {"mu": 0, "sigma": 1},
@@ -251,7 +252,7 @@ class Prior:
     }
 
     pymc_distribution: type[pm.Distribution]
-    pytensor_transform: Callable[[pt.TensorLike], pt.TensorLike]
+    pytensor_transform: Callable[[pt.TensorLike], pt.TensorLike] | None
 
     def __init__(
         self,
@@ -284,7 +285,7 @@ class Prior:
             raise ValueError("Distribution must be a string")
 
         self._distribution = distribution
-        self.pymc_distribution = get_pymc_distribution(distribution)
+        self.pymc_distribution = _get_pymc_distribution(distribution)
 
     @property
     def transform(self) -> str | None:
@@ -297,7 +298,7 @@ class Prior:
             raise ValueError("Transform must be a string or None")
 
         self._transform = transform
-        self.pytensor_transform = not transform or get_transform(transform)
+        self.pytensor_transform = not transform or _get_transform(transform)  # type: ignore
 
     @property
     def dims(self) -> Dims:
@@ -322,26 +323,47 @@ class Prior:
             self._correct_non_centered_distribution()
 
         self._parameters_are_at_least_subset_of_pymc()
+        self._parameters_are_correct_type()
 
     def _parameters_are_at_least_subset_of_pymc(self) -> None:
-        pymc_params = pymc_parameters(self.pymc_distribution)
+        pymc_params = _get_pymc_parameters(self.pymc_distribution)
         if not set(self.parameters.keys()).issubset(pymc_params):
             msg = (
                 f"Parameters {set(self.parameters.keys())} "
                 "are not a subset of the pymc distribution "
-                "parameters {set(pymc_params)}"
+                f"parameters {set(pymc_params)}"
+            )
+            raise ValueError(msg)
+
+    def _parameters_are_correct_type(self) -> None:
+        supported_types = (int, float, np.ndarray, Prior, pt.TensorVariable)
+
+        incorrect_types = {
+            param: type(value)
+            for param, value in self.parameters.items()
+            if not isinstance(value, supported_types)
+        }
+        if incorrect_types:
+            msg = (
+                "Parameters must be one of the following types: "
+                f"(int, float, np.array, Prior, pt.TensorVariable). Incorrect parameters: {incorrect_types}"
             )
             raise ValueError(msg)
 
     def _correct_non_centered_distribution(self) -> None:
-        if not self.centered and self.distribution not in self.non_centered_distributions:
+        if (
+            not self.centered
+            and self.distribution not in self.non_centered_distributions
+        ):
             raise UnsupportedParameterizationError(
                 f"{self.distribution!r} is not supported for non-centered parameterization. "
                 f"Choose from {list(self.non_centered_distributions.keys())}"
             )
 
         if set(self.parameters.keys()) < {"mu", "sigma"}:
-            raise ValueError("Must have at least 'mu' and 'sigma' parameter for non-centered")
+            raise ValueError(
+                "Must have at least 'mu' and 'sigma' parameter for non-centered"
+            )
 
         if not any(isinstance(value, Prior) for value in self.parameters.values()):
             raise ValueError("Non-centered must have a Prior for 'mu' or 'sigma'")
@@ -370,7 +392,7 @@ class Prior:
         )
         param_str = "" if not param_str else f", {param_str}"
 
-        dim_str = f", dims={dims_to_str(self.dims)}" if self.dims else ""
+        dim_str = f", dims={_dims_to_str(self.dims)}" if self.dims else ""
         centered_str = f", centered={self.centered}" if not self.centered else ""
         transform_str = f', transform="{self.transform}"' if self.transform else ""
         return f'Prior("{self.distribution}"{param_str}{dim_str}{centered_str}{transform_str})'
@@ -406,10 +428,10 @@ class Prior:
             if param not in defaults
         }
         offset = self.pymc_distribution(
-            f"{name}_offset", 
-            **defaults, 
+            f"{name}_offset",
+            **defaults,
             **other_parameters,
-            dims=self.dims, 
+            dims=self.dims,
         )
         mu = (
             handle_variable("mu")
@@ -846,7 +868,7 @@ class Prior:
                 dist.create_likelihood_variable("y", mu=mu, observed=observed)
 
         """
-        if "mu" not in pymc_parameters(self.pymc_distribution):
+        if "mu" not in _get_pymc_parameters(self.pymc_distribution):
             raise UnsupportedDistributionError(
                 f"Likelihood distribution {self.distribution!r} is not supported."
             )

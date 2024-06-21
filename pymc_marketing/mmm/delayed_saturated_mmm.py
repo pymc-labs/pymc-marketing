@@ -29,7 +29,6 @@ import seaborn as sns
 from xarray import DataArray, Dataset
 
 from pymc_marketing.constants import DAYS_IN_YEAR
-from pymc_marketing.prior import Prior
 from pymc_marketing.mmm.base import BaseValidateMMM
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.components.adstock import (
@@ -52,9 +51,8 @@ from pymc_marketing.mmm.utils import (
     generate_fourier_modes,
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
-from pymc_marketing.model_config import (
-    get_distribution,
-)
+from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.prior import Prior
 
 __all__ = ["BaseMMM", "MMM", "DelayedSaturatedMMM"]
 
@@ -127,6 +125,11 @@ class BaseMMM(BaseValidateMMM):
         self.adstock_first = adstock_first
         self.adstock = _get_adstock_function(function=adstock, l_max=adstock_max_lag)
         self.saturation = _get_saturation_function(function=saturation)
+
+        model_config = parse_model_config(
+            model_config,  # type: ignore
+            non_distributions=["intercept_tvp_kwargs"],
+        )
 
         if model_config is not None:
             self.adstock.update_priors({**self.default_model_config, **model_config})
@@ -348,9 +351,7 @@ class BaseMMM(BaseValidateMMM):
                     self._time_index,
                     dims="date",
                 )
-                intercept_dist = get_distribution(
-                    name=self.model_config["intercept"]["dist"]
-                )
+                intercept_dist = self.model_config["intercept"].pymc_distribution
                 intercept = create_time_varying_intercept(
                     time_index,
                     self._time_index_mid,

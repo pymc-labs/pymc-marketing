@@ -29,4 +29,5 @@ clv/sBG
 :maxdepth: 1
 
 general/other_nuts_samplers
+general/model_configuration
 :::
