@@ -27,7 +27,7 @@ from pymc_marketing.mmm.transformers import michaelis_menten
 
 
 def generate_fourier_modes(
-    periods: npt.NDArray[np.float_], n_order: int
+    periods: npt.NDArray[np.float64], n_order: int
 ) -> pd.DataFrame:
     """Generate Fourier modes.
 
