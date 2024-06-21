@@ -75,8 +75,29 @@ def parse_model_config(
         #  'beta': Prior("HalfNormal"),
         #  'tvp_intercept': {'key': 'Some other non-distribution configuration'}}
 
+    Parsing with an error:
+
+    .. code-block:: python
+
+        from pymc_marketing.model_config import (
+            parse_model_config,
+            ModelConfigError,
+        )
+
+        model_config = {
+            "beta": {"dist": "UnknownDistribution"},
+            "alpha": {"key": "Non distribution"},
+        }
+
+        try:
+            parse_model_config(model_config)
+        except ModelConfigError as e:
+            print(e)
+
     """
     non_distributions = non_distributions or []
+
+    parse_errors = []
 
     def handle_prior_config(name, prior_config):
         if name in non_distributions:
@@ -85,16 +106,30 @@ def parse_model_config(
         if isinstance(prior_config, Prior):
             return prior_config
 
-        dist = Prior.from_json(prior_config)
-        msg = (
-            f"{name} is automatically converted to {dist}. "
-            "Use the Prior class to avoid this warning."
-        )
-        warnings.warn(msg, DeprecationWarning, stacklevel=2)
+        try:
+            dist = Prior.from_json(prior_config)
+        except Exception as e:
+            parse_errors.append(f"Parameter {name}: {e}")
+        else:
+            msg = (
+                f"{name} is automatically converted to {dist}. "
+                "Use the Prior class to avoid this warning."
+            )
+            warnings.warn(msg, DeprecationWarning, stacklevel=2)
 
-        return dist
+            return dist
 
-    return {
+    result = {
         name: handle_prior_config(name, prior_config)
         for name, prior_config in model_config.items()
     }
+    if parse_errors:
+        combined_errors = ", ".join(parse_errors)
+        msg = (
+            f"{len(parse_errors)} errors occurred while "
+            "parsing model configuration. "
+            f"Errors: {combined_errors}"
+        )
+        raise ModelConfigError(msg)
+
+    return result
