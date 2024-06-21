@@ -240,7 +240,7 @@ class BaseMMM(BaseValidateMMM):
         idata.attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
 
     def forward_pass(
-        self, x: pt.TensorVariable | npt.NDArray[np.float_]
+        self, x: pt.TensorVariable | npt.NDArray[np.float64]
     ) -> pt.TensorVariable:
         """Transforms channel input into target contributions of each channel.
 
@@ -253,7 +253,7 @@ class BaseMMM(BaseValidateMMM):
 
         Parameters
         ------------
-        x : pt.TensorVariable | npt.NDArray[np.float_]
+        x : pt.TensorVariable | npt.NDArray[np.float64]
             The channel input which could be spends or impressions
 
         Returns
@@ -532,7 +532,7 @@ class BaseMMM(BaseValidateMMM):
         date_data: pd.Series = pd.to_datetime(
             arg=X[self.date_column], format="%Y-%m-%d"
         )
-        periods: npt.NDArray[np.float_] = (
+        periods: npt.NDArray[np.float64] = (
             date_data.dt.dayofyear.to_numpy() / DAYS_IN_YEAR
         )
         return generate_fourier_modes(
@@ -541,8 +541,8 @@ class BaseMMM(BaseValidateMMM):
         )
 
     def channel_contributions_forward_pass(
-        self, channel_data: npt.NDArray[np.float_]
-    ) -> npt.NDArray[np.float_]:
+        self, channel_data: npt.NDArray[np.float64]
+    ) -> npt.NDArray[np.float64]:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
 
         Parameters
@@ -891,8 +891,8 @@ class MMM(
     version = "0.0.1"
 
     def channel_contributions_forward_pass(
-        self, channel_data: npt.NDArray[np.float_]
-    ) -> npt.NDArray[np.float_]:
+        self, channel_data: npt.NDArray[np.float64]
+    ) -> npt.NDArray[np.float64]:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
         We return the contribution in the original scale of the target variable.
 
