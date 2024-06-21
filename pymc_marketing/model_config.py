@@ -509,7 +509,7 @@ def create_distribution(
     """
     if centered is False:
         if distribution_name != "Normal":
-            NonCenterInvalidDistributionError(distribution_name)
+            raise NonCenterInvalidDistributionError(distribution_name)
         return create_hierarchical_non_center(name, distribution_kwargs, **kwargs)
 
     dim_handler = create_dim_handler(kwargs.get("dims", ()))
