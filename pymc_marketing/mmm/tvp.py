@@ -11,6 +11,80 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""
+Time Varying Gaussian Process Multiplier for Marketing Mix Modeling (MMM).
+Designed to model time-varying effects in marketing mix models (MMM).
+
+This module provides a time-varying Gaussian Process (GP) multiplier,
+using the Hilbert Space Gaussian Process (HSGP) approximation.
+
+Examples
+--------
+
+Create a basic PyMC model using the time-varying GP multiplier:
+
+.. code-block:: python
+
+    import numpy as np
+    import pymc as pm
+    import pandas as pd
+    from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
+
+    # Generate example data
+    np.random.seed(0)
+    dates = pd.date_range(start="2020-01-01", periods=365)
+    sales = np.random.normal(100, 10, size=len(dates))
+
+    # Infer time index
+    time_index = infer_time_index(dates, dates, time_resolution=5)
+
+    # Define model configuration
+    model_config = {
+        "sales_tvp_config": {
+            "m": 200,
+            "L": None,
+            "eta_lam": 1,
+            "ls_mu": None,
+            "ls_sigma": 5,
+            "cov_func": None,
+        }
+    }
+
+    with pm.Model() as model:
+        # Shared time index variable
+        time_index_shared = pm.Data("time_index", time_index)
+
+        # Base parameter
+        base_sales = pm.Normal("base_sales", mu=100, sigma=10)
+
+        # Time-varying GP multiplier
+        varying_coefficient = create_time_varying_gp_multiplier(
+            name="sales",
+            dims="time",
+            time_index=time_index_shared,
+            time_index_mid=int(len(dates) / 2),
+            time_resolution=5,
+            model_config=model_config,
+        )
+
+        # Final sales parameter
+        sales_estimated = base_sales * varying_coefficient
+
+        # Likelihood
+        pm.Normal("obs", mu=sales_estimated, sigma=10, observed=sales)
+
+    # Sample from the model
+    with model:
+        trace = pm.sample()
+
+    # Plot results
+    import matplotlib.pyplot as plt
+
+    pm.plot_trace(trace, var_names=["base_sales"])
+    plt.show()
+
+"""
+
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -18,6 +92,23 @@ import pymc as pm
 import pytensor.tensor as pt
 
 from pymc_marketing.constants import DAYS_IN_YEAR
+
+
+def _softplus(x: pt.TensorVariable) -> pt.TensorVariable:
+    """
+    Compute the softplus function element-wise on the input tensor.
+
+    Parameters
+    ----------
+    x : pt.TensorVariable
+        Input tensor.
+
+    Returns
+    -------
+    pt.TensorVariable
+        Output tensor after applying the softplus function element-wise.
+    """
+    return pm.math.log(1 + pm.math.exp(x))
 
 
 def time_varying_prior(
@@ -99,6 +190,7 @@ def time_varying_prior(
     phi, sqrt_psd = gp.prior_linearized(Xs=X[:, None] - X_mid)
     hsgp_coefs = pm.Normal(f"{name}_hsgp_coefs", dims=hsgp_dims)
     f = phi @ (hsgp_coefs * sqrt_psd).T
+    f = _softplus(f)
     centered_f = f - f.mean(axis=0) + 1
     return pm.Deterministic(name, centered_f, dims=dims)
 
