@@ -83,6 +83,62 @@ def model_config():
             },
             "dims": ("channel", "control"),
         },
+        # Hierarchical centered distribution
+        "hierarchical_centered": {
+            "dist": "Normal",
+            "kwargs": {
+                "mu": {
+                    "dist": "Normal",
+                    "kwargs": {
+                        "mu": 0.0,
+                        "sigma": 1.0,
+                    },
+                    "dims": "channel",
+                },
+                "sigma": {
+                    "dist": "HalfNormal",
+                    "kwargs": {
+                        "sigma": 1.0,
+                    },
+                    "dims": "geo",
+                },
+            },
+            "dims": ("channel", "geo"),
+            "centered": True,
+        },
+        # Hierarchical non-centered distribution
+        "hierarchical_non_centered": {
+            "dist": "Normal",
+            "kwargs": {
+                "mu": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+                "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+            },
+            "dims": "channel",
+            "centered": False,
+        },
+        # 2D Hierarchical non-centered distribution
+        "hierarchical_non_centered_2d": {
+            "dist": "Normal",
+            "kwargs": {
+                "mu": {
+                    "dist": "Normal",
+                    "kwargs": {
+                        "mu": 0.0,
+                        "sigma": 1.0,
+                    },
+                    "dims": "channel",
+                },
+                "sigma": {
+                    "dist": "HalfNormal",
+                    "kwargs": {
+                        "sigma": 1.0,
+                    },
+                    "dims": "geo",
+                },
+            },
+            "dims": ("channel", "geo"),
+            "centered": False,
+        },
         # Incorrect config
         "error": {
             "dist": "Normal",
@@ -91,7 +147,6 @@ def model_config():
         # Non distribution
         "non_distribution": {
             "key": "This is not a distribution",
-        },
     }
 
 
