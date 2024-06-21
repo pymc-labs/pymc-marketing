@@ -90,31 +90,15 @@ import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
+from pymc.distributions.shape_utils import Dims
 
 from pymc_marketing.constants import DAYS_IN_YEAR
-
-
-def _softplus(x: pt.TensorVariable) -> pt.TensorVariable:
-    """
-    Compute the softplus function element-wise on the input tensor.
-
-    Parameters
-    ----------
-    x : pt.TensorVariable
-        Input tensor.
-
-    Returns
-    -------
-    pt.TensorVariable
-        Output tensor after applying the softplus function element-wise.
-    """
-    return pm.math.log(1 + pm.math.exp(x))
 
 
 def time_varying_prior(
     name: str,
     X: pt.sharedvar.TensorSharedVariable,
-    dims: tuple[str, str] | str,
+    dims: Dims,
     X_mid: int | float | None = None,
     m: int = 200,
     L: int | float | None = None,
@@ -190,14 +174,14 @@ def time_varying_prior(
     phi, sqrt_psd = gp.prior_linearized(Xs=X[:, None] - X_mid)
     hsgp_coefs = pm.Normal(f"{name}_hsgp_coefs", dims=hsgp_dims)
     f = phi @ (hsgp_coefs * sqrt_psd).T
-    f = _softplus(f)
+    f = pt.softplus(f)
     centered_f = f - f.mean(axis=0) + 1
     return pm.Deterministic(name, centered_f, dims=dims)
 
 
 def create_time_varying_gp_multiplier(
     name: str,
-    dims: tuple[str, str] | str,
+    dims: Dims,
     time_index: pt.sharedvar.TensorSharedVariable,
     time_index_mid: int,
     time_resolution: int,
@@ -228,19 +212,19 @@ def create_time_varying_gp_multiplier(
         Time-varying Gaussian Process multiplier for a given variable.
     """
 
-    if model_config[f"{name}_tvp_config"]["L"] is None:
-        model_config[f"{name}_tvp_config"]["L"] = (
-            time_index_mid + DAYS_IN_YEAR / time_resolution
-        )
-    if model_config[f"{name}_tvp_config"]["ls_mu"] is None:
-        model_config[f"{name}_tvp_config"]["ls_mu"] = DAYS_IN_YEAR / time_resolution * 2
+    tvp_config = model_config[f"{name}_tvp_config"]
+
+    if tvp_config["L"] is None:
+        tvp_config["L"] = time_index_mid + DAYS_IN_YEAR / time_resolution
+    if tvp_config["ls_mu"] is None:
+        tvp_config["ls_mu"] = DAYS_IN_YEAR / time_resolution * 2
 
     multiplier = time_varying_prior(
         name=f"{name}_temporal_latent_multiplier",
         X=time_index,
         X_mid=time_index_mid,
         dims=dims,
-        **model_config[f"{name}_tvp_config"],
+        **tvp_config,
     )
     return multiplier
 

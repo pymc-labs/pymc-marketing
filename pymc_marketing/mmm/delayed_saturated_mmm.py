@@ -107,7 +107,7 @@ class BaseMMM(BaseValidateMMM):
         time_varying_intercept : bool, optional
             Whether to consider time-varying intercept, by default False.
             Because the `time-varying` variable is centered around 1 and acts as a multiplier,
-            the variable `base_intercept` now represents the mean of the time-varying intercept.
+            the variable `baseline_intercept` now represents the mean of the time-varying intercept.
         time_varying_media : bool, optional
             Whether to consider time-varying media contributions, by default False.
             The `time-varying-media` creates a time media variable centered around 1,
@@ -364,8 +364,9 @@ class BaseMMM(BaseValidateMMM):
                 intercept_distribution = get_distribution(
                     name=self.model_config["intercept"]["dist"]
                 )
-                base_intercept = intercept_distribution(
-                    name="base_intercept", **self.model_config["intercept"]["kwargs"]
+                baseline_intercept = intercept_distribution(
+                    name="baseline_intercept",
+                    **self.model_config["intercept"]["kwargs"],
                 )
 
                 intercept_latent_process = create_time_varying_gp_multiplier(
@@ -378,7 +379,7 @@ class BaseMMM(BaseValidateMMM):
                 )
                 intercept = pm.Deterministic(
                     name="intercept",
-                    var=base_intercept * intercept_latent_process,
+                    var=baseline_intercept * intercept_latent_process,
                     dims="date",
                 )
             else:
@@ -387,8 +388,8 @@ class BaseMMM(BaseValidateMMM):
                 )
 
             if self.time_varying_media:
-                base_channel_contributions = pm.Deterministic(
-                    name="base_channel_contributions",
+                baseline_channel_contributions = pm.Deterministic(
+                    name="baseline_channel_contributions",
                     var=self.forward_pass(x=channel_data_),
                     dims=("date", "channel"),
                 )
@@ -403,7 +404,7 @@ class BaseMMM(BaseValidateMMM):
                 )
                 channel_contributions = pm.Deterministic(
                     name="channel_contributions",
-                    var=base_channel_contributions * media_latent_process[:, None],
+                    var=baseline_channel_contributions * media_latent_process[:, None],
                     dims=("date", "channel"),
                 )
 
