@@ -61,6 +61,20 @@ only the mu:
         "dims": "channel",
     }
 
+Example parameter configuration with a hierarchical non-centered distribution:
+
+.. code-block:: python
+
+    hierarchical_non_centered_parameter = {
+            "dist": "Normal",
+            "kwargs": {
+                "mu": {"dist": "HalfNormal", "kwargs": {"sigma": 2},},
+                "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 1},},
+            },
+            "dims": ("channel"),
+            "centered": False,
+        }
+
 Example configuration of a 2D parameter:
 
 .. code-block:: python
@@ -369,10 +383,110 @@ def handle_parameter_distributions(
     }
 
 
+class NestedDistributionError(Exception):
+    """Error for when a nested distribution is detected where it is not allowed."""
+
+    def __init__(self, param: str) -> None:
+        self.param = param
+        self.message = (
+            f"Nested distribution detected in '{param}', which is not allowed."
+        )
+        super().__init__(self.message)
+
+
+def check_for_deeper_nested_distribution(
+    param_config: dict[str, Any], param_name: str
+) -> None:
+    """Check if the parameter configuration contains a deeper nested distribution."""
+    if (
+        isinstance(param_config, dict)
+        and "dist" in param_config
+        and "kwargs" in param_config
+    ):
+        for _key, value in param_config["kwargs"].items():
+            if isinstance(value, dict) and "dist" in value and "kwargs" in value:
+                raise NestedDistributionError(param_name)
+
+
+class NonCenterInvalidDistributionError(Exception):
+    """Error for when an invalid distribution is used for non-centered hierarchical distribution."""
+
+    def __init__(self, name: str) -> None:
+        self.param = name
+        self.message = f"""
+        Invalid distribution '{name}' for non-centered hierarchical distribution.
+        Only 'Normal' is allowed.
+        """
+        super().__init__(self.message)
+
+
+def create_hierarchical_non_center(
+    name: str,
+    distribution_kwargs: dict[str, Any],
+    **kwargs,
+) -> pt.TensorVariable:
+    """
+    Create a hierarchical non-centered distribution.
+
+    This function constructs a hierarchical non-centered distribution using the provided
+    distribution parameters for offset, mu, and sigma. It returns a deterministic variable
+    representing the hierarchical non-centered distribution.
+
+    Parameters
+    ----------
+    name : str
+        The name of the variable.
+    distribution_kwargs : dict[str, Any]
+        A dictionary containing the distribution parameters for 'offset', 'mu', and 'sigma'.
+    **kwargs
+        Additional keyword arguments, including 'dims' for specifying desired dimensions.
+
+    Returns
+    -------
+    pt.TensorVariable
+        A PyMC deterministic variable representing the hierarchical non-centered distribution.
+
+    """
+    desired_dims = kwargs.get("dims", ())
+    dim_handler = create_dim_handler(desired_dims)
+
+    mu_dist = distribution_kwargs["mu"]
+    mu_dims = mu_dist.get("dims", ())
+    sigma_dist = distribution_kwargs["sigma"]
+    sigma_dims = sigma_dist.get("dims", ())
+
+    offset = pm.Normal(name=f"{name}_offset", mu=0, sigma=1, dims=desired_dims)
+
+    check_for_deeper_nested_distribution(mu_dist, f"{name}_mu")
+
+    mu_global = create_distribution(
+        f"{name}_mu",
+        mu_dist["dist"],
+        mu_dist["kwargs"],
+        dims=mu_dims,
+    )
+    mu_global = dim_handler(mu_global, mu_dims)
+
+    check_for_deeper_nested_distribution(sigma_dist, f"{name}_sigma")
+
+    sigma_global = create_distribution(
+        f"{name}_sigma",
+        sigma_dist["dist"],
+        sigma_dist["kwargs"],
+        dims=sigma_dims,
+    )
+    sigma_global = dim_handler(sigma_global, sigma_dims)
+
+    return pm.Deterministic(
+        name=name, var=mu_global + offset * sigma_global, dims=desired_dims
+    )
+
+
 def create_distribution(
     name: str,
     distribution_name: str,
     distribution_kwargs: dict[str, Any],
+    centered: bool | None = None,
     **kwargs,
 ) -> pt.TensorVariable:
     """Create a PyMC distribution with the specified parameters.
@@ -392,9 +506,13 @@ def create_distribution(
     -------
     TensorVariable
         A PyMC random variable.
-
     """
-    dim_handler = create_dim_handler(kwargs.get("dims"))
+    if centered is False:
+        if distribution_name != "Normal":
+            raise NonCenterInvalidDistributionError(distribution_name)
+        return create_hierarchical_non_center(name, distribution_kwargs, **kwargs)
+
+    dim_handler = create_dim_handler(kwargs.get("dims", ()))
     parameter_distributions = handle_parameter_distributions(
         name, distribution_kwargs, dim_handler=dim_handler
     )
@@ -440,6 +558,7 @@ def create_distribution_from_config(name: str, config) -> pt.TensorVariable:
 
     """
     parameter_config = config[name]
+    centered_flag = parameter_config.get("centered", True)
     try:
         dist_name = parameter_config["dist"]
         dist_kwargs = parameter_config["kwargs"]
@@ -450,6 +569,7 @@ def create_distribution_from_config(name: str, config) -> pt.TensorVariable:
         name,
         dist_name,
         dist_kwargs,
+        centered=centered_flag,
         dims=parameter_config.get("dims"),
     )
 
