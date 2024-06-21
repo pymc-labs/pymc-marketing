@@ -34,7 +34,7 @@ class MissingLiftTestError(Exception):
 
 Index = npt.NDArray[np.int_]
 Indices = dict[str, Index]
-Values = Union[npt.NDArray[np.int_], npt.NDArray[np.float_], npt.NDArray[np.str_]]  # noqa: UP007
+Values = Union[npt.NDArray[np.int_], npt.NDArray[np.float64], npt.NDArray[np.str_]]  # noqa: UP007
 
 
 def _lift_test_index(lift_values: Values, model_values: Values) -> Index:
@@ -87,11 +87,11 @@ def lift_test_indices(df_lift_test: pd.DataFrame, model: pm.Model) -> Indices:
 
 
 def calculate_lift_measurements_from_curve(
-    x_before: npt.NDArray[np.float_],
-    x_after: npt.NDArray[np.float_],
-    saturation_curve: Callable[[npt.NDArray[np.float_]], npt.NDArray[np.float_]],
+    x_before: npt.NDArray[np.float64],
+    x_after: npt.NDArray[np.float64],
+    saturation_curve: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]],
     pt=pt,
-) -> npt.NDArray[np.float_]:
+) -> npt.NDArray[np.float64]:
     """Calculate the lift measurements at two spends.
 
     Parameters
