@@ -18,7 +18,7 @@ import pytensor.tensor as pt
 import pytest
 
 from pymc_marketing.mmm.tvp import (
-    create_time_varying_intercept,
+    create_time_varying_gp_multiplier,
     infer_time_index,
     time_varying_prior,
 )
@@ -35,7 +35,7 @@ def coords():
 @pytest.fixture
 def model_config():
     return {
-        "intercept_tvp_kwargs": {
+        "intercept_tvp_config": {
             "m": 200,
             "eta_lam": 1,
             "ls_mu": None,
@@ -117,11 +117,15 @@ def test_calling_without_model():
 def test_create_time_varying_intercept(coords, model_config):
     time_index_mid = 2
     time_resolution = 1
-    intercept_dist = model_config["intercept"]["dist"]
     with pm.Model(coords=coords):
         time_index = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
-        result = create_time_varying_intercept(
-            time_index, time_index_mid, time_resolution, intercept_dist, model_config
+        result = create_time_varying_gp_multiplier(
+            name="intercept",
+            dims="date",
+            time_index=time_index,
+            time_index_mid=time_index_mid,
+            time_resolution=time_resolution,
+            model_config=model_config,
         )
         assert isinstance(result, pt.TensorVariable)
 
