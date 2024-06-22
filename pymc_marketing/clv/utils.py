@@ -15,7 +15,7 @@ import warnings
 from datetime import date, datetime
 
 import numpy as np
-import pandas as pd
+import pandas
 import xarray
 from numpy import datetime64
 
@@ -42,7 +42,7 @@ def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
 
 def customer_lifetime_value(
     transaction_model,
-    data: pd.DataFrame,
+    data: pandas.DataFrame,
     future_t: int = 12,
     discount_rate: float = 0.00,
     time_unit: str = "D",
@@ -59,7 +59,7 @@ def customer_lifetime_value(
     ----------
     transaction_model: CLVModel
         Predictive model for future transactions. BG/NBD and Pareto/NBD are currently supported.
-    data: pandas.DataFrame
+    data: ~pandas.DataFrame
         DataFrame containing the following columns:
             * `customer_id`: Unique customer identifier
             * `frequency`: Number of repeat purchases
@@ -104,10 +104,6 @@ def customer_lifetime_value(
     factor = {"W": 4.345, "M": 1.0, "D": 30, "H": 30 * 24}[time_unit]
 
     monetary_value = to_xarray(data["customer_id"], data["future_spend"])
-    # Monetary value can be passed as a DataArray, with entries per chain and draw or as a simple vector
-    # if not isinstance(monetary_value, xarray.DataArray):
-    #     monetary_value = to_xarray(transaction_data["customer_id"], transaction_data["monetary_value"])
-    # monetary_value = _squeeze_dims(monetary_value)
 
     clv = xarray.DataArray(0.0)
 
@@ -142,15 +138,15 @@ def customer_lifetime_value(
 
 
 def _find_first_transactions(
-    transactions: pd.DataFrame,
+    transactions: pandas.DataFrame,
     customer_id_col: str,
     datetime_col: str,
     monetary_value_col: str | None = None,
     datetime_format: str | None = None,
-    observation_period_end: str | pd.Period | datetime | None = None,
+    observation_period_end: str | pandas.Period | datetime | None = None,
     time_unit: str = "D",
     sort_transactions: bool | None = True,
-) -> pd.DataFrame:
+) -> pandas.DataFrame:
     """
     Return dataframe with first transactions.
 
@@ -176,7 +172,7 @@ def _find_first_transactions(
     datetime_format: string, optional
         A string that represents the timestamp format. Useful if Pandas can't understand
         the provided format.
-    observation_period_end: Union[str, pd.Period, datetime], optional
+    observation_period_end: Union[str, pandas.Period, datetime], optional
         A string or datetime to denote the final date of the study.
         Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
     time_unit: string, optional
@@ -193,10 +189,10 @@ def _find_first_transactions(
     if observation_period_end is None:
         observation_period_end = transactions[datetime_col].max()
 
-    if isinstance(observation_period_end, pd.Period):
+    if isinstance(observation_period_end, pandas.Period):
         observation_period_end = observation_period_end.to_timestamp()
     if isinstance(observation_period_end, str):
-        observation_period_end = pd.to_datetime(observation_period_end)
+        observation_period_end = pandas.to_datetime(observation_period_end)
 
     if monetary_value_col:
         select_columns.append(monetary_value_col)
@@ -205,14 +201,16 @@ def _find_first_transactions(
         transactions = transactions[select_columns].sort_values(select_columns).copy()
 
     # convert date column into a DateTimeIndex for time-wise grouping and truncating
-    transactions[datetime_col] = pd.to_datetime(
+    transactions[datetime_col] = pandas.to_datetime(
         transactions[datetime_col], format=datetime_format
     )
     transactions = (
         transactions.set_index(datetime_col).to_period(time_unit).to_timestamp()
     )
 
-    mask = pd.to_datetime(transactions.index) <= pd.to_datetime(observation_period_end)
+    mask = pandas.to_datetime(transactions.index) <= pandas.to_datetime(
+        observation_period_end
+    )
 
     transactions = transactions.loc[mask].reset_index()
 
@@ -254,17 +252,17 @@ def clv_summary(*args, **kwargs):
 
 
 def rfm_summary(
-    transactions: pd.DataFrame,
+    transactions: pandas.DataFrame,
     customer_id_col: str,
     datetime_col: str,
     monetary_value_col: str | None = None,
     datetime_format: str | None = None,
-    observation_period_end: str | pd.Period | datetime | None = None,
+    observation_period_end: str | pandas.Period | datetime | None = None,
     time_unit: str = "D",
     time_scaler: float | None = 1,
     include_first_transaction: bool | None = False,
     sort_transactions: bool | None = True,
-) -> pd.DataFrame:
+) -> pandas.DataFrame:
     """
     Summarize transaction data for use in CLV modeling and/or RFM segmentation.
 
@@ -292,7 +290,7 @@ def rfm_summary(
     monetary_value_col: string, optional
         Column in the transactions DataFrame that denotes the monetary value of the transaction.
         Optional; only needed for RFM segmentation and spend estimation models like the Gamma-Gamma model.
-    observation_period_end: Union[str, pd.Period, datetime], optional
+    observation_period_end: Union[str, pandas.Period, datetime], optional
         A string or datetime to denote the final date of the study.
         Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
     datetime_format: string, optional
@@ -324,15 +322,15 @@ def rfm_summary(
 
     if observation_period_end is None:
         observation_period_end_ts = (
-            pd.to_datetime(transactions[datetime_col].max(), format=datetime_format)
+            pandas.to_datetime(transactions[datetime_col].max(), format=datetime_format)
             .to_period(time_unit)
             .to_timestamp()
         )
-    elif isinstance(observation_period_end, pd.Period):
+    elif isinstance(observation_period_end, pandas.Period):
         observation_period_end_ts = observation_period_end.to_timestamp()
     else:
         observation_period_end_ts = (
-            pd.to_datetime(observation_period_end, format=datetime_format)
+            pandas.to_datetime(observation_period_end, format=datetime_format)
             .to_period(time_unit)
             .to_timestamp()
         )
@@ -362,7 +360,7 @@ def rfm_summary(
     customers["frequency"] = customers["count"] - 1
 
     customers["recency"] = (
-        (pd.to_datetime(customers["max"]) - pd.to_datetime(customers["min"]))  # type: ignore
+        (pandas.to_datetime(customers["max"]) - pandas.to_datetime(customers["min"]))  # type: ignore
         / np.timedelta64(1, time_unit)
         / time_scaler
     )
@@ -410,7 +408,7 @@ def rfm_summary(
 
 
 def rfm_train_test_split(
-    transactions: pd.DataFrame,
+    transactions: pandas.DataFrame,
     customer_id_col: str,
     datetime_col: str,
     train_period_end: float | str | datetime | datetime64 | date,
@@ -421,7 +419,7 @@ def rfm_train_test_split(
     monetary_value_col: str | None = None,
     include_first_transaction: bool | None = False,
     sort_transactions: bool | None = True,
-) -> pd.DataFrame:
+) -> pandas.DataFrame:
     """
     Summarize transaction data and split into training and tests datasets for CLV modeling.
     This can also be used to evaluate the impact of a time-based intervention like a marketing campaign.
@@ -444,10 +442,10 @@ def rfm_train_test_split(
         Column in the transactions DataFrame that denotes the customer_id.
     datetime_col:  string
         Column in the transactions DataFrame that denotes the datetime the purchase was made.
-    train_period_end: Union[str, pd.Period, datetime], optional
+    train_period_end: Union[str, pandas.Period, datetime], optional
         A string or datetime to denote the final time period for the training data.
         Events after this time period are used for the test data.
-    test_period_end: Union[str, pd.Period, datetime], optional
+    test_period_end: Union[str, pandas.Period, datetime], optional
         A string or datetime to denote the final time period of the study.
         Events after this date are truncated. If not given, defaults to the max of 'datetime_col'.
     time_unit: string, optional
@@ -488,11 +486,11 @@ def rfm_train_test_split(
         transaction_cols.append(monetary_value_col)
     transactions = transactions[transaction_cols].copy()
 
-    transactions[datetime_col] = pd.to_datetime(
+    transactions[datetime_col] = pandas.to_datetime(
         transactions[datetime_col], format=datetime_format
     )
-    test_period_end = pd.to_datetime(test_period_end, format=datetime_format)
-    train_period_end = pd.to_datetime(train_period_end, format=datetime_format)
+    test_period_end = pandas.to_datetime(test_period_end, format=datetime_format)
+    train_period_end = pandas.to_datetime(train_period_end, format=datetime_format)
 
     # create training dataset
     training_transactions = transactions.loc[
@@ -579,17 +577,17 @@ def rfm_train_test_split(
 
 
 def rfm_segments(
-    transactions: pd.DataFrame,
+    transactions: pandas.DataFrame,
     customer_id_col: str,
     datetime_col: str,
     monetary_value_col: str,
     segment_config: dict | None = None,
-    observation_period_end: str | pd.Period | datetime | None = None,
+    observation_period_end: str | pandas.Period | datetime | None = None,
     datetime_format: str | None = None,
     time_unit: str = "D",
     time_scaler: float | None = 1,
     sort_transactions: bool | None = True,
-) -> pd.DataFrame:
+) -> pandas.DataFrame:
     """
     Assign customers to segments based on spending behavior derived from RFM scores.
 
@@ -633,7 +631,7 @@ def rfm_segments(
         Dictionary containing segment names and list of RFM score assignments;
         key/value pairs should be formatted as `{"segment": ['111', '123', '321'], ...}`.
         If not provided, default segment names and definitions are applied.
-    observation_period_end: Union[str, pd.Period, datetime, None], optional
+    observation_period_end: Union[str, pandas.Period, datetime, None], optional
         A string or datetime to denote the final date of the study.
         Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
     datetime_format: string, optional
@@ -682,18 +680,18 @@ def rfm_segments(
         # These try blocks will modify labelling for fewer bins.
         try:
             labels = _rfm_quartile_labels(column_name[0], 5)
-            rfm_data[column_name[0]] = pd.qcut(
+            rfm_data[column_name[0]] = pandas.qcut(
                 rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
             ).astype(str)
         except ValueError:
             try:
                 labels = _rfm_quartile_labels(column_name[0], 4)
-                rfm_data[column_name[0]] = pd.qcut(
+                rfm_data[column_name[0]] = pandas.qcut(
                     rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
                 ).astype(str)
             except ValueError:
                 labels = _rfm_quartile_labels(column_name[0], 3)
-                rfm_data[column_name[0]] = pd.qcut(
+                rfm_data[column_name[0]] = pandas.qcut(
                     rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
                 ).astype(str)
                 warnings.warn(
@@ -702,7 +700,7 @@ def rfm_segments(
                     stacklevel=1,
                 )
 
-    rfm_data = pd.eval(  # type: ignore
+    rfm_data = pandas.eval(  # type: ignore
         "rfm_score = rfm_data.r_quartile + rfm_data.f_quartile + rfm_data.m_quartile",
         target=rfm_data,
     )

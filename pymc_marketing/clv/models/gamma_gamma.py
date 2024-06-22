@@ -12,7 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import numpy as np
-import pandas as pd
+import pandas
 import pymc as pm
 import pytensor.tensor as pt
 import xarray
@@ -25,7 +25,7 @@ from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
 class BaseGammaGammaModel(CLVModel):
     def distribution_customer_spend(
         self,
-        data: pd.DataFrame,
+        data: pandas.DataFrame,
         random_seed: RandomState | None = None,
     ) -> xarray.DataArray:
         """Posterior distribution of transaction value per customer"""
@@ -51,19 +51,19 @@ class BaseGammaGammaModel(CLVModel):
 
     def expected_customer_spend(
         self,
-        data: pd.DataFrame,
+        data: pandas.DataFrame,
     ) -> xarray.DataArray:
-        """Expected transaction value per customer
+        """Expected transaction value per customer.
 
         Eq 5 from [1], p.3
 
         Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117
 
-        data: pd.DataFrame
+        data: ~pandas.DataFrame
         DataFrame containing the following columns:
-            - customer_id: Customer labels. Must not repeat.
-            - monetary_value: Mean transaction value of repeat purchases for each customer.
-            - frequency: Number of transactions observed for each customer.
+            * customer_id: Customer labels. Must not repeat.
+            * monetary_value: Mean transaction value of repeat purchases for each customer.
+            * frequency: Number of transactions observed for each customer.
         """
 
         mean_transaction_value, frequency = to_xarray(
@@ -121,14 +121,44 @@ class BaseGammaGammaModel(CLVModel):
     def expected_customer_lifetime_value(
         self,
         transaction_model: CLVModel,
-        data: pd.DataFrame,
+        data: pandas.DataFrame,
         future_t: int = 12,
         discount_rate: float = 0.00,
         time_unit: str = "D",
     ) -> xarray.DataArray:
-        """Expected customer lifetime value.
+        """
+        Compute the average lifetime value for a group of one or more customers,
+        and apply a discount rate for net present value estimations.
+        Note `future_t` is measured in months regardless of `time_unit` specified.
 
-        See clv.utils.customer_lifetime_value for details on the meaning of each parameter
+        Adapted from lifetimes package
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/gamma_gamma_fitter.py#L246
+
+        Parameters
+        ----------
+        transaction_model: ~CLVModel
+            Predictive model for future transactions. BG/NBD and Pareto/NBD are currently supported.
+        data: ~pandas.DataFrame
+            DataFrame containing the following columns:
+                * `customer_id`: Unique customer identifier
+                * `frequency`: Number of repeat purchases
+                * `recency`: Time between the first and the last purchase
+                * `T`: Time between the first purchase and the end of the observation period
+                * `future_spend`: Predicted monetary values for each customer
+        future_t: int, optional
+            The lifetime expected for the user in months. Default: 12
+        discount_rate: float, optional
+            The monthly adjusted discount rate. Default: 0.00
+        time_unit: string, optional
+            Unit of time of the purchase history. Defaults to "D" for daily.
+            Other options are "W" (weekly), "M" (monthly), and "H" (hourly).
+            Example: If your dataset contains information about weekly purchases,
+            you should use "W".
+
+        Returns
+        -------
+        xarray
+            DataArray with the estimated customer lifetime values
         """
 
         # Use the Gamma-Gamma estimates for the expected_spend values
@@ -161,7 +191,7 @@ class GammaGammaModel(BaseGammaGammaModel):
 
     Parameters
     ----------
-    data: pd.DataFrame
+    data: ~pandas.DataFrame
         DataFrame containing the following columns:
             - customer_id: Customer labels. Must not repeat.
             - monetary_value: Mean transaction value of repeat purchases for each customer.
@@ -182,7 +212,7 @@ class GammaGammaModel(BaseGammaGammaModel):
             from pymc_marketing.clv import GammaGammaModel
 
             model = GammaGammaModel(
-                data=pd.DataFrame({
+                data=pandas.DataFrame({
                     "customer_id": [0, 1, 2, 3, ...],
                     "monetary_value" :[23.5, 19.3, 11.2, 100.5, ...],
                     "frequency": [6, 8, 2, 1, ...],
@@ -219,18 +249,18 @@ class GammaGammaModel(BaseGammaGammaModel):
     References
     ----------
     .. [1] Fader, P. S., & Hardie, B. G. (2013). The Gamma-Gamma model of monetary
-           value. February, 2, 1-9. http://www.brucehardie.com/notes/025/gamma_gamma.pdf
+           value. February, 2, 1-9. http://www.brucehardie.com/notes/025/gamma_gamma.pandasf
     .. [2] Peter S. Fader, Bruce G. S. Hardie, and Ka Lok Lee (2005), “RFM and CLV:
            Using iso-value curves for customer base analysis”, Journal of Marketing
            Research, 42 (November), 415-430.
-           https://journals.sagepub.com/doi/pdf/10.1509/jmkr.2005.42.4.415
+           https://journals.sagepub.com/doi/pandasf/10.1509/jmkr.2005.42.4.415
     """
 
     _model_type = "Gamma-Gamma Model (Mean Transactions)"
 
     def __init__(
         self,
-        data: pd.DataFrame,
+        data: pandas.DataFrame,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
@@ -296,7 +326,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
     Parameters
     ----------
-    data: pd.DataFrame
+    data: ~pandas.DataFrame
         Dataframe containing the following columns:
             - customer_id: Customer labels. The same value should be used for each unique customer.
         coming from the same customer.
@@ -319,7 +349,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             from pymc_marketing.clv import GammaGammaModelIndividual
 
             model = GammaGammaModelIndividual(
-                data=pd.DataFrame({
+                data=pandas.DataFrame({
                     "customer_id": [0, 0, 0, 1, 1, 2, ...],
                     "individual_transaction_value": [5.3. 5.7, 6.9, 13.5, 0.3, 19.2 ...],
                 }),
@@ -356,18 +386,18 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     References
     ----------
     .. [1] Fader, P. S., & Hardie, B. G. (2013). The Gamma-Gamma model of monetary
-           value. February, 2, 1-9. http://www.brucehardie.com/notes/025/gamma_gamma.pdf
+           value. February, 2, 1-9. http://www.brucehardie.com/notes/025/gamma_gamma.pandasf
     .. [2] Peter S. Fader, Bruce G. S. Hardie, and Ka Lok Lee (2005), “RFM and CLV:
            Using iso-value curves for customer base analysis”, Journal of Marketing
            Research, 42 (November), 415-430.
-           https://journals.sagepub.com/doi/pdf/10.1509/jmkr.2005.42.4.415
+           https://journals.sagepub.com/doi/pandasf/10.1509/jmkr.2005.42.4.415
     """
 
     _model_type = "Gamma-Gamma Model (Individual Transactions)"
 
     def __init__(
         self,
-        data: pd.DataFrame,
+        data: pandas.DataFrame,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
