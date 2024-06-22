@@ -12,10 +12,13 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+import warnings
+
 import numpy as np
 import pytest
 
 from pymc_marketing.model_config import (
+    ModelConfigError,
     parse_model_config,
 )
 from pymc_marketing.prior import Prior
@@ -147,20 +150,24 @@ def model_config():
         # Non distribution
         "non_distribution": {
             "key": "This is not a distribution",
+        },
     }
 
 
 def test_parse_model_config(model_config) -> None:
     ignore_keys = ["delta"]
     non_distributions = ["non_distribution", "error"]
-    result = parse_model_config(
-        {
-            name: value
-            for name, value in model_config.items()
-            if name not in ignore_keys
-        },
-        non_distributions=non_distributions,
-    )
+    to_parse = {
+        name: value for name, value in model_config.items() if name not in ignore_keys
+    }
+    # Ignore deprecation warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+
+        result = parse_model_config(
+            to_parse,
+            non_distributions=non_distributions,
+        )
 
     assert result == {
         "beta": Prior("Normal", mu=0.0, sigma=1.0),
@@ -176,6 +183,26 @@ def test_parse_model_config(model_config) -> None:
             sigma=Prior("HalfNormal", sigma=1.0, dims="geo"),
             dims=("channel", "geo"),
         ),
+        "hierarchical_centered": Prior(
+            "Normal",
+            mu=Prior("Normal", mu=0.0, sigma=1.0, dims="channel"),
+            sigma=Prior("HalfNormal", sigma=1.0, dims="geo"),
+            dims=("channel", "geo"),
+        ),
+        "hierarchical_non_centered": Prior(
+            "Normal",
+            mu=Prior("HalfNormal", sigma=2),
+            sigma=Prior("HalfNormal", sigma=1),
+            dims="channel",
+            centered=False,
+        ),
+        "hierarchical_non_centered_2d": Prior(
+            "Normal",
+            mu=Prior("Normal", mu=0.0, sigma=1.0, dims="channel"),
+            sigma=Prior("HalfNormal", sigma=1.0, dims="geo"),
+            dims=("channel", "geo"),
+            centered=False,
+        ),
         "error": {
             "dist": "Normal",
             "kwargs": {"mu": "wrong"},
@@ -184,3 +211,32 @@ def test_parse_model_config(model_config) -> None:
             "key": "This is not a distribution",
         },
     }
+
+
+def test_parse_model_config_warns() -> None:
+    model_config = {
+        "alpha": {
+            "dist": "Normal",
+            "kwargs": {"mu": 0, "sigma": 1},
+        },
+    }
+
+    with pytest.warns(DeprecationWarning, match="alpha is automatically"):
+        result = parse_model_config(model_config)
+
+    assert result == {
+        "alpha": Prior("Normal", mu=0, sigma=1),
+    }
+
+
+def test_parse_model_config_catches_errors() -> None:
+    model_config = {
+        "alpha": "Normal",
+        "beta": {"dist": "Beta", "kwargs": {"lam": 1}},
+        "lam": {"dist": "IncorrectDistribution"},
+        "gamma": Prior("Normal"),
+    }
+
+    msg = "3 errors"
+    with pytest.raises(ModelConfigError, match=msg):
+        parse_model_config(model_config)

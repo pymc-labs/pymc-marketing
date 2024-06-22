@@ -137,7 +137,7 @@ class BaseMMM(BaseValidateMMM):
 
         model_config = parse_model_config(
             model_config,  # type: ignore
-            non_distributions=["intercept_tvp_kwargs"],
+            non_distributions=["intercept_tvp_config", "media_tvp_config"],
         )
 
         if model_config is not None:
@@ -361,7 +361,9 @@ class BaseMMM(BaseValidateMMM):
                 )
 
             if self.time_varying_intercept:
-                baseline_intercept = self.model_config["intercept"].create_variable("baseline_intercept")
+                baseline_intercept = self.model_config["intercept"].create_variable(
+                    "baseline_intercept"
+                )
 
                 intercept_latent_process = create_time_varying_gp_multiplier(
                     name="intercept",
@@ -496,7 +498,7 @@ class BaseMMM(BaseValidateMMM):
         }
 
         if self.time_varying_intercept:
-            base_config["intercept_tvp_config"] = {
+            base_config["intercept_tvp_config"] = {  # type: ignore
                 "m": 200,
                 "L": None,
                 "eta_lam": 1,
@@ -505,7 +507,7 @@ class BaseMMM(BaseValidateMMM):
                 "cov_func": None,
             }
         if self.time_varying_media:
-            base_config["media_tvp_config"] = {
+            base_config["media_tvp_config"] = {  # type: ignore
                 "m": 200,
                 "L": None,
                 "eta_lam": 1,
@@ -515,7 +517,7 @@ class BaseMMM(BaseValidateMMM):
             }
 
         for media_transform in [self.adstock, self.saturation]:
-            for param, dist in media_transform.function_priors.items():
+            for dist in media_transform.function_priors.values():
                 if not dist.dims:
                     continue
 

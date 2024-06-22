@@ -29,7 +29,7 @@ ModelConfig = dict[str, Prior | Any]
 def parse_model_config(
     model_config: ModelConfig, non_distributions: list[str] | None = None
 ) -> ModelConfig:
-    """ "Parse the model config dictionary.
+    """Parse the model config dictionary.
 
     Parameters
     ----------
@@ -85,8 +85,9 @@ def parse_model_config(
         )
 
         model_config = {
-            "beta": {"dist": "UnknownDistribution"},
             "alpha": {"key": "Non distribution"},
+            "beta": {"dist": "UnknownDistribution"},
+            "gamma": "Completely wrong",
         }
 
         try:

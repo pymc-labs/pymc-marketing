@@ -635,6 +635,13 @@ class Prior:
             # Prior("Normal", mu=0, sigma=1)
 
         """
+        if not isinstance(json, dict):
+            msg = (
+                "Must be a dictionary representation of a prior distribution. "
+                f"Not of type: {type(json)}"
+            )
+            raise ValueError(msg)
+
         dist = json["dist"]
         kwargs = json.get("kwargs", {})
 
