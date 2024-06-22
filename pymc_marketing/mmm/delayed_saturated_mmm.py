@@ -135,6 +135,7 @@ class BaseMMM(BaseValidateMMM):
         self.adstock = _get_adstock_function(function=adstock, l_max=adstock_max_lag)
         self.saturation = _get_saturation_function(function=saturation)
 
+        model_config = model_config or {}
         model_config = parse_model_config(
             model_config,  # type: ignore
             non_distributions=["intercept_tvp_config", "media_tvp_config"],
