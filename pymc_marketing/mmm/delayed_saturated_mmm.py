@@ -426,11 +426,6 @@ class BaseMMM(BaseValidateMMM):
                 )
             ):
                 if self.model_config["gamma_control"].get("dims") != "control":
-                    msg = (
-                        "The 'dims' key in gamma_control must be 'control'."
-                        " This will be fixed automatically."
-                    )
-                    warnings.warn(msg, stacklevel=2)
                     self.model_config["gamma_control"]["dims"] = "control"
 
                 gamma_control = create_distribution_from_config(
@@ -470,11 +465,6 @@ class BaseMMM(BaseValidateMMM):
                 )
 
                 if self.model_config["gamma_fourier"].get("dims") != "fourier_mode":
-                    msg = (
-                        "The 'dims' key in gamma_fourier must be 'fourier_mode'."
-                        " This will be fixed automatically."
-                    )
-                    warnings.warn(msg, stacklevel=2)
                     self.model_config["gamma_fourier"]["dims"] = "fourier_mode"
 
                 gamma_fourier = create_distribution_from_config(
@@ -548,14 +538,8 @@ class BaseMMM(BaseValidateMMM):
             }
 
         for media_transform in [self.adstock, self.saturation]:
-            for param, config in media_transform.function_priors.items():
+            for config in media_transform.function_priors.values():
                 if "dims" not in config:
-                    msg = (
-                        f"{param} doesn't have a 'dims' key in config. Setting to channel."
-                        f" Set priors explicitly in {media_transform.__class__.__name__}"
-                        " to avoid this warning."
-                    )
-                    warnings.warn(msg, stacklevel=2)
                     config["dims"] = "channel"
 
         return {
