@@ -252,7 +252,7 @@ def add_lift_measurements_to_likelihood(
 
     Examples
     --------
-    Add an arbitrary lift test to a model:
+    Add lift tests for time-varying saturation to a model:
 
     .. code-block:: python
 
@@ -270,6 +270,8 @@ def add_lift_measurements_to_likelihood(
         def saturation_function(x, alpha, lam):
             return alpha * x / (x + lam)
 
+        # These are required since alpha and lam
+        # have both channel and date dimensions
         df_lift_test = df_base_lift_test.assign(
             channel="channel_1",
             date=["2019-01-01", "2019-01-02", "2019-01-03"],
@@ -280,14 +282,97 @@ def add_lift_measurements_to_likelihood(
             "date": ["2019-01-01", "2019-01-02", "2019-01-03", "2019-01-04"],
         }
         with pm.Model(coords=coords) as model:
+            # Usually defined in a larger model.
+            # Distributions dont matter here, just the shape
             alpha = pm.HalfNormal("alpha_in_model", dims=("channel", "date"))
             lam = pm.HalfNormal("lam_in_model", dims="channel")
 
             add_lift_measurements_to_likelihood(
                 df_lift_test,
-                {"alpha": "alpha_in_model", "lam": "lam_in_model"},
-                saturation_function,
-                model=model,
+                variable_mapping={
+                    "alpha": "alpha_in_model",
+                    "lam": "lam_in_model",
+                },
+                saturation_function=saturation_function,
+            )
+
+    Use the saturation classes to add lift tests to a model. NOTE: This is what
+    happens internally of :class:`MMM`.
+
+    .. code-block:: python
+
+        import pymc as pm
+        import pandas as pd
+
+        from pymc_marketing.mmm import LogisticSaturation
+        from pymc_marketing.mmm.lift_test import add_lift_measurements_to_likelihood
+
+        saturation = LogisticSaturation()
+
+        df_base_lift_test = pd.DataFrame({
+            "x": [1, 2, 3],
+            "delta_x": [1, 2, 3],
+            "delta_y": [1, 2, 3],
+            "sigma": [0.1, 0.2, 0.3],
+        })
+
+        df_lift_test = df_base_lift_test.assign(
+            channel="channel_1",
+        )
+
+        coords = {
+            "channel": ["channel_1", "channel_2"],
+        }
+        with pm.Model(coords=coords) as model:
+            # Usually defined in a larger model.
+            # Distributions dont matter here, just the shape
+            lam = pm.HalfNormal("saturation_lam", dims="channel")
+            beta = pm.HalfNormal("saturation_beta", dims="channel")
+
+            add_lift_measurements_to_likelihood(
+                df_lift_test,
+                variable_mapping=saturation.variable_mapping,
+                saturation_function=saturation.function,
+            )
+
+    Add lift tests for channel, geo saturation functions.
+
+    .. code-block:: python
+
+        import pymc as pm
+        import pandas as pd
+
+        from pymc_marketing.mmm import LogisticSaturation
+        from pymc_marketing.mmm.lift_test import add_lift_measurements_to_likelihood
+
+        saturation = LogisticSaturation()
+
+        df_base_lift_test = pd.DataFrame({
+            "x": [1, 2, 3],
+            "delta_x": [1, 2, 3],
+            "delta_y": [1, 2, 3],
+            "sigma": [0.1, 0.2, 0.3],
+        })
+
+        df_lift_test = df_base_lift_test.assign(
+            channel="channel_1",
+            geo=["G1", "G2", "G2"],
+        )
+
+        coords = {
+            "channel": ["channel_1", "channel_2"],
+            "geo": ["G1", "G2", "G3"],
+        }
+        with pm.Model(coords=coords) as model:
+            # Usually defined in a larger model.
+            # Distributions dont matter here, just the shape
+            lam = pm.HalfNormal("saturation_lam", dims=("channel", "geo"))
+            beta = pm.HalfNormal("saturation_beta", dims=("channel", "geo"))
+
+            add_lift_measurements_to_likelihood(
+                df_lift_test,
+                variable_mapping=saturation.variable_mapping,
+                saturation_function=saturation.function,
             )
 
     """
@@ -480,7 +565,7 @@ def create_time_varying_saturation(
     saturation: SaturationTransformation,
     time_varying_var_name: str,
 ) -> tuple[SaturationFunc, VariableMapping]:
-    """Return function and variable mapping.
+    """Return function and variable mapping that use a time-varying variable.
 
     Parameters
     ----------
@@ -516,8 +601,10 @@ def add_lift_measurements_to_likelihood_from_saturation(
     dist: type[pm.Distribution] = pm.Gamma,
     name: str = "lift_measurements",
 ) -> None:
-    """Wrapper around add_lift_measurements_to_likelihood to work with
+    """Wrapper around :func:`add_lift_measurements_to_likelihood` to work with
     SaturationTransformation instances and time-varying variables.
+
+    Used internally of the :class:`MMM` class.
 
     Parameters
     ----------
