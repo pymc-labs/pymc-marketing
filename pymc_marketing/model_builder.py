@@ -292,7 +292,9 @@ class ModelBuilder(ABC):
         idata.attrs["model_type"] = self._model_type
         idata.attrs["version"] = self.version
         idata.attrs["sampler_config"] = json.dumps(self.sampler_config)
-        idata.attrs["model_config"] = json.dumps(self._serializable_model_config)
+        idata.attrs["model_config"] = json.dumps(
+            self._serializable_model_config, default=lambda x: x.to_json()
+        )
         # Only classes with non-dataset parameters will implement save_input_params
         if hasattr(self, "_save_input_params"):
             self._save_input_params(idata)
