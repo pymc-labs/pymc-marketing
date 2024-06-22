@@ -17,14 +17,23 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import pytest
+from pymc.model_graph import fast_eval
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler
 
+from pymc_marketing.mmm.components.saturation import (
+    HillSaturation,
+    LogisticSaturation,
+    MichaelisMentenSaturation,
+    SaturationTransformation,
+)
 from pymc_marketing.mmm.lift_test import (
     MissingLiftTestError,
     NonMonotonicLiftError,
     add_lift_measurements_to_likelihood,
+    add_lift_measurements_to_likelihood_from_saturation,
     check_increasing_assumption,
+    create_time_varying_saturation,
     index_variable,
     indices_from_lift_tests,
     lift_test_indices,
@@ -324,7 +333,7 @@ def test_add_lift_measurements_before_new_data(
         alpha = pm.HalfNormal("alpha", dims="channel")
         lam = pm.HalfNormal("lam", dims="channel")
 
-        X = pm.MutableData("X", np.ones((3, 3)), dims=("date", "channel"))
+        X = pm.Data("X", np.ones((3, 3)), dims=("date", "channel"), mutable=True)
         pm.Deterministic(
             "random_operation",
             X + alpha + lam,
@@ -451,7 +460,7 @@ def test_index_variable(var_dims, var_data, indices, expected) -> None:
     result = index_variable(var_dims=var_dims, var=var, indices=indices)
 
     np.testing.assert_allclose(
-        result.eval(),
+        fast_eval(result),
         expected,
     )
 
@@ -563,3 +572,174 @@ def test_check_increasing_assumption() -> None:
 
     with pytest.raises(NonMonotonicLiftError):
         check_increasing_assumption(df)
+
+
+def saturation_functions() -> list[SaturationTransformation]:
+    transformations = [
+        LogisticSaturation(),
+        MichaelisMentenSaturation(),
+        HillSaturation(),
+    ]
+    for transformation in transformations:
+        for config in transformation.function_priors.values():
+            config["dims"] = "channel"
+
+    return transformations
+
+
+@pytest.mark.parametrize(
+    "saturation",
+    saturation_functions(),
+)
+def test_create_time_varying_saturation_scales(saturation) -> None:
+    kwargs = {name: 0.5 for name in saturation.default_priors.keys()}
+
+    xx = np.linspace(0, 1, 20)
+    yy = saturation.function(xx, **kwargs)
+    if isinstance(yy, pt.TensorVariable):
+        yy = fast_eval(yy)
+
+    MULTIPLIER = 3.5
+    function, _ = create_time_varying_saturation(saturation, "time_varying_name")
+    yy_tv = function(xx, **kwargs, time_varying=MULTIPLIER)
+    if isinstance(yy_tv, pt.TensorVariable):
+        yy_tv = fast_eval(yy_tv)
+
+    np.testing.assert_allclose(MULTIPLIER * yy, yy_tv)
+
+
+@pytest.mark.parametrize(
+    "time_varying_variable_name",
+    [
+        "time_varying",
+        "media_latent_multiplier",
+    ],
+)
+@pytest.mark.parametrize(
+    "saturation",
+    saturation_functions(),
+)
+def test_create_time_varying_saturation_correct_variable_mapping(
+    time_varying_variable_name, saturation
+) -> None:
+    _, variable_mapping = create_time_varying_saturation(
+        saturation, time_varying_variable_name
+    )
+
+    assert variable_mapping == {
+        **saturation.variable_mapping,
+        "time_varying": time_varying_variable_name,
+    }
+
+
+@pytest.mark.parametrize("time_varying_var_name", ["tvp", None])
+@pytest.mark.parametrize("saturation", saturation_functions())
+def test_add_lift_measurements_to_likelihood_from_saturation(
+    time_varying_var_name, saturation
+) -> None:
+    df_lift_tests = pd.DataFrame(
+        {
+            "x": [1, 2, 3],
+            "delta_x": [0.1, 0.2, 0.3],
+            "sigma": [0.1, 0.2, 0.3],
+            "delta_y": [0.1, 0.2, 0.3],
+            "channel": ["organic", "paid", "social"],
+        }
+    )
+
+    if time_varying_var_name is not None:
+        df_lift_tests["date"] = [1, 2, 3]
+
+    coords = {
+        "channel": ["organic", "paid", "social"],
+        "date": [1, 2, 3, 4],
+    }
+    with pm.Model(coords=coords) as model:
+        saturation._create_distributions(dims="channel")
+
+        if time_varying_var_name is not None:
+            tvp_raw = pm.Normal("tvp_raw", dims="date")
+            pm.Deterministic(time_varying_var_name, pt.exp(tvp_raw), dims="date")
+
+    assert "lift_measurements" not in model
+
+    add_lift_measurements_to_likelihood_from_saturation(
+        df_lift_tests,
+        saturation=saturation,
+        time_varying_var_name=time_varying_var_name,
+        model=model,
+    )
+
+    assert "lift_measurements" in model
+
+
+def test_tvp_needs_date_in_lift_tests() -> None:
+    df_lift_tests = pd.DataFrame(
+        {
+            "x": [1, 2, 3],
+            "delta_x": [0.1, 0.2, 0.3],
+            "sigma": [0.1, 0.2, 0.3],
+            "delta_y": [0.1, 0.2, 0.3],
+            "channel": ["organic", "paid", "social"],
+        }
+    )
+
+    saturation = saturation_functions()[0]
+
+    time_varying_var_name = "tvp"
+    coords = {
+        "channel": ["organic", "paid", "social"],
+        "date": [1, 2, 3, 4],
+    }
+    with pm.Model(coords=coords) as model:
+        saturation._create_distributions(dims="channel")
+
+        tvp_raw = pm.Normal("tvp_raw", dims="date")
+        pm.Deterministic(time_varying_var_name, pt.exp(tvp_raw), dims="date")
+
+    assert "lift_measurements" not in model
+
+    with pytest.raises(KeyError, match="The required coordinates are"):
+        add_lift_measurements_to_likelihood_from_saturation(
+            df_lift_tests,
+            saturation=saturation,
+            time_varying_var_name=time_varying_var_name,
+            model=model,
+        )
+
+
+def test_tvp_needs_exact_date() -> None:
+    df_lift_tests = pd.DataFrame(
+        {
+            "x": [1, 2, 3],
+            "delta_x": [0.1, 0.2, 0.3],
+            "sigma": [0.1, 0.2, 0.3],
+            "delta_y": [0.1, 0.2, 0.3],
+            "channel": ["organic", "paid", "social"],
+            "date": [1, 2, 5],
+        }
+    )
+    saturation = saturation_functions()[0]
+
+    time_varying_var_name = "tvp"
+    coords = {
+        "channel": ["organic", "paid", "social"],
+        "date": [1, 2, 3, 4],
+    }
+    with pm.Model(coords=coords) as model:
+        saturation._create_distributions(dims="channel")
+
+        tvp_raw = pm.Normal("tvp_raw", dims="date")
+        pm.Deterministic(time_varying_var_name, pt.exp(tvp_raw), dims="date")
+
+    assert "lift_measurements" not in model
+
+    with pytest.raises(
+        MissingLiftTestError, match=r"Some lift test values are not in the model: \[2\]"
+    ):
+        add_lift_measurements_to_likelihood_from_saturation(
+            df_lift_tests,
+            saturation=saturation,
+            time_varying_var_name=time_varying_var_name,
+            model=model,
+        )

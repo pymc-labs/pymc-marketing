@@ -399,7 +399,7 @@ class MMMModelBuilder(ModelBuilder):
                 y2=likelihood_hdi[:, 1],
                 color="C0",
                 alpha=alpha,
-                label=f"${100 * hdi_prob}\%$ HDI",  # noqa: W605
+                label=f"${100 * hdi_prob}\\%$ HDI",
             )
 
         ax.plot(
@@ -507,7 +507,7 @@ class MMMModelBuilder(ModelBuilder):
                 y2=errors_hdi["errors"].sel(hdi="higher"),
                 color="C3",
                 alpha=alpha,
-                label=f"${100 * hdi_prob}\%$ HDI",  # noqa: W605
+                label=f"${100 * hdi_prob}\\%$ HDI",
             )
 
         ax.plot(
@@ -591,7 +591,7 @@ class MMMModelBuilder(ModelBuilder):
                     y2=hdi.isel(hdi=1),
                     color=f"C{i}",
                     alpha=0.25,
-                    label=f"$94\%$ HDI ({var_contribution})",  # noqa: W605
+                    label=f"$94\\%$ HDI ({var_contribution})",
                 )
                 ax.plot(
                     np.asarray(self.X[self.date_column]),
@@ -625,7 +625,7 @@ class MMMModelBuilder(ModelBuilder):
                 y2=intercept_hdi[:, 1],
                 color=f"C{i + 1}",
                 alpha=0.25,
-                label="$94\%$ HDI (intercept)",  # noqa: W605
+                label="$94\\%$ HDI (intercept)",
             )
             ax.plot(
                 np.asarray(self.X[self.date_column]),
