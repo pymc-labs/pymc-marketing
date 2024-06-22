@@ -483,7 +483,7 @@ class BaseMMM(BaseValidateMMM):
             mu = pm.Deterministic(name="mu", var=mu_var, dims="date")
 
             self.model_config["likelihood"].dims = "date"
-            self.model_config["likelihood"].create_likelihood_distribution(
+            self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,
                 mu=mu,
                 observed=target_,
@@ -519,10 +519,8 @@ class BaseMMM(BaseValidateMMM):
 
         for media_transform in [self.adstock, self.saturation]:
             for dist in media_transform.function_priors.values():
-                if not dist.dims:
-                    continue
-
-                dist.dims = "channel"
+                if dist.dims != ("channel",):
+                    dist.dims = "channel"
 
         return {
             **base_config,

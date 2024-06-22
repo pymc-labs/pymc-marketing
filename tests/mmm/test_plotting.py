@@ -111,6 +111,11 @@ class TestBasePlotting:
                 adstock="geometric",
                 saturation="logistic",
             )
+
+        for transform in [mmm.adstock, mmm.saturation]:
+            for dist in transform.function_priors.values():
+                dist.dims = "channel"
+
         # fit the model
         mmm = mock_fit_base(mmm, toy_X, toy_y)
         mmm.sample_prior_predictive(toy_X, toy_y, extend_idata=True, combined=True)
