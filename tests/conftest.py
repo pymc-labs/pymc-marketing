@@ -66,6 +66,7 @@ def cdnow_trans() -> pd.DataFrame:
 def test_summary_data() -> pd.DataFrame:
     df = pd.read_csv("data/clv_quickstart.csv")
     df["customer_id"] = df.index
+    df["future_spend"] = df["monetary_value"]
     return df
 
 

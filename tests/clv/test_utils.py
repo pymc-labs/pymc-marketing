@@ -133,6 +133,17 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
 
 
 class TestCustomerLifetimeValue:
+    def test_missing_col(self, fitted_bg, test_summary_data):
+        data_invalid = test_summary_data.drop(columns="future_spend")
+
+        with pytest.raises(ValueError, match="Required column future_spend missing"):
+            customer_lifetime_value(
+                transaction_model=fitted_bg,
+                data=data_invalid,
+                future_t=10,
+                discount_rate=0.1,
+            )
+
     @pytest.mark.parametrize(
         "t, discount_rate, expected_change",
         [
@@ -161,14 +172,13 @@ class TestCustomerLifetimeValue:
                 "frequency": [0, 0, 6, 0, 2],
                 "recency": [0, 0, 142, 0, 9],
                 "T": [298, 224, 292, 147, 183],
-                "monetary_value": [1, 1, 1, 1, 1],
+                "future_spend": [1, 1, 1, 1, 1],
             }
         )
 
         clv = customer_lifetime_value(
             fitted_bg,
-            transaction_data=data,
-            monetary_value=data["monetary_value"],
+            data=data,
             future_t=t,
             discount_rate=discount_rate,
         ).mean(("chain", "draw"))
@@ -187,12 +197,13 @@ class TestCustomerLifetimeValue:
             data=t,
         )
 
+        # create future_spend column from fitted gg
+        ggf_spend = fitted_gg.expected_customer_spend(data=t)
+        t.loc[:, "future_spend"] = ggf_spend.mean(("chain", "draw")).copy()
+
         utils_clv = customer_lifetime_value(
             transaction_model=transaction_model,
-            transaction_data=t,
-            monetary_value=fitted_gg.expected_customer_spend(
-                data=t,
-            ),
+            data=t,
         )
         np.testing.assert_equal(ggf_clv.values, utils_clv.values)
 
@@ -222,13 +233,13 @@ class TestCustomerLifetimeValue:
             fitted_gg = fitted_gg._build_with_idata(
                 fitted_gg.idata.sel(chain=slice(0, 1), draw=slice(0, 1))
             )
+            # create future_spend column from fitted gg
+            ggf_spend = fitted_gg.expected_customer_spend(data=t)
+            t.loc[:, "future_spend"] = ggf_spend.mean(("chain", "draw")).copy()
 
         res = customer_lifetime_value(
             transaction_model=transaction_model,
-            transaction_data=t,
-            monetary_value=fitted_gg.expected_customer_spend(
-                data=t,
-            ),
+            data=t,
         )
 
         assert res.dims == ("chain", "draw", "customer_id")
@@ -259,9 +270,10 @@ class TestCustomerLifetimeValue:
         assert ggf_clv.shape == (1, 50, 5)
         assert ggf_clv_thinned.shape == (1, 5, 5)
 
-        np.testing.assert_equal(
+        np.testing.assert_allclose(
             ggf_clv.isel(draw=slice(None, None, 10)).values,
             ggf_clv_thinned.values,
+            rtol=1e-14,  # pandas dataframe arguments create tiny rounding errors
         )
 
 

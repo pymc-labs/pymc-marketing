@@ -42,8 +42,7 @@ def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
 
 def customer_lifetime_value(
     transaction_model,
-    transaction_data: pd.DataFrame,
-    monetary_value: pd.Series | np.ndarray | xarray.DataArray,
+    data: pd.DataFrame,
     future_t: int = 12,
     discount_rate: float = 0.00,
     time_unit: str = "D",
@@ -60,14 +59,13 @@ def customer_lifetime_value(
     ----------
     transaction_model: CLVModel
         Predictive model for future transactions. BG/NBD and Pareto/NBD are currently supported.
-    transaction_data: pandas.DataFrame
+    data: pandas.DataFrame
         DataFrame containing the following columns:
             * `customer_id`: Unique customer identifier
             * `frequency`: Number of repeat purchases
             * `recency`: Time between the first and the last purchase
             * `T`: Time between the first purchase and the end of the observation period
-    monetary_value: array_like
-        Mean spend amounts of repeat purchases for each customer
+            * `future_spend`: Predicted monetary values for each customer
     future_t: int, optional
         The lifetime expected for the user in months. Default: 12
     discount_rate: float, optional
@@ -84,14 +82,17 @@ def customer_lifetime_value(
         DataArray with the estimated customer lifetime values
     """
 
+    if "future_spend" not in data.columns:
+        raise ValueError("Required column future_spend missing")
+
     def _squeeze_dims(x: xarray.DataArray):
+        """this utility is required for MAP-fitted model predictions to broadcast properly"""
         dims_to_squeeze: tuple[str, ...] = ()
         if "chain" in x.dims and len(x.chain) == 1:
             dims_to_squeeze += ("chain",)
         if "draw" in x.dims and len(x.draw) == 1:
             dims_to_squeeze += ("draw",)
-        if dims_to_squeeze:
-            x = x.squeeze(dims_to_squeeze)
+        x = x.squeeze(dims_to_squeeze)
         return x
 
     if discount_rate == 0.0:
@@ -102,10 +103,11 @@ def customer_lifetime_value(
 
     factor = {"W": 4.345, "M": 1.0, "D": 30, "H": 30 * 24}[time_unit]
 
+    monetary_value = to_xarray(data["customer_id"], data["future_spend"])
     # Monetary value can be passed as a DataArray, with entries per chain and draw or as a simple vector
-    if not isinstance(monetary_value, xarray.DataArray):
-        monetary_value = to_xarray(transaction_data["customer_id"], monetary_value)
-    monetary_value = _squeeze_dims(monetary_value)
+    # if not isinstance(monetary_value, xarray.DataArray):
+    #     monetary_value = to_xarray(transaction_data["customer_id"], transaction_data["monetary_value"])
+    # monetary_value = _squeeze_dims(monetary_value)
 
     clv = xarray.DataArray(0.0)
 
@@ -118,7 +120,7 @@ def customer_lifetime_value(
         # since the prediction of number of transactions is cumulative, we have to subtract off the previous periods
         new_expected_purchases = _squeeze_dims(
             transaction_model.expected_purchases(
-                data=transaction_data,
+                data=data,
                 future_t=i,
             )
         )

@@ -131,13 +131,15 @@ class BaseGammaGammaModel(CLVModel):
         See clv.utils.customer_lifetime_value for details on the meaning of each parameter
         """
 
-        # Use the Gamma-Gamma estimates for the monetary_values
+        # Use the Gamma-Gamma estimates for the expected_spend values
         predicted_monetary_value = self.expected_customer_spend(data=data)
+        data.loc[:, "future_spend"] = predicted_monetary_value.mean(
+            ("chain", "draw")
+        ).copy()
 
         return customer_lifetime_value(
             transaction_model=transaction_model,
-            transaction_data=data,
-            monetary_value=predicted_monetary_value,
+            data=data,
             future_t=future_t,
             discount_rate=discount_rate,
             time_unit=time_unit,
