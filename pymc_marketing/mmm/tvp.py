@@ -17,20 +17,94 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 
-from pymc_marketing.constants import DAYS_IN_YEAR
+
+def pc_prior_1d(name, alpha=0.1, lower=1.0):
+    """
+    One dimensional PC prior for GP lengthscales, parameterized by tail probability:
+    p(lengthscale < lower) = alpha.
+    """
+    lam_ell = -np.log(alpha) * (1.0 / pt.sqrt(lower))
+    ell_inv = pm.Weibull(name=f"{name}_inv_", alpha=0.5, beta=1.0 / pt.square(lam_ell))
+    return pm.Deterministic(f"{name}", 1 / ell_inv)
+
+
+def approx_hsgp_hyperparams(x, x_center, lengthscale_range: list[float], cov_func: str):
+    """Utility function that uses heuristics to recommend minimum `m` and `c` values,
+    based on recommendations from Ruitort-Mayol et. al.
+
+    In practice, you need to choose `c` large enough to handle the largest lengthscales,
+    and `m` large enough to accommodate the smallest lengthscales.
+
+    NB: These recommendations are based on a one-dimensional GP.
+
+    Parameters
+    ----------
+    x : ArrayLike
+        The x values the HSGP will be evaluated over.
+    lengthscale_range : List[float]
+        The range of the lengthscales. Should be a list with two elements [lengthscale_min, lengthscale_max].
+    cov_func : str
+        The covariance function to use. Supported options are "expquad", "matern52", and "matern32".
+
+    Returns
+    -------
+    - `m` : int
+        Number of basis vectors. Increasing it helps approximate smaller lengthscales, but increases computational cost.
+    - `c` : float
+        Scaling factor such that L = c * S, where L is the boundary of the approximation.
+        Increasing it helps approximate larger lengthscales, but may require increasing m.
+
+    Raises
+    ------
+    ValueError
+        If either `x_range` or `lengthscale_range` is not in the correct order.
+
+    References
+    ----------
+    - Ruitort-Mayol, G., Anderson, M., Solin, A., Vehtari, A. (2022).
+    Practical Hilbert Space Approximate Bayesian Gaussian Processes for Probabilistic Programming
+    """
+    if lengthscale_range[0] >= lengthscale_range[1]:
+        raise ValueError("One of the boundaries out of order")
+
+    Xs = x - x_center
+    S = np.max(np.abs(Xs), axis=0)
+
+    if cov_func.lower() == "expquad":
+        a1, a2 = 3.2, 1.75
+
+    elif cov_func.lower() == "matern52":
+        a1, a2 = 4.1, 2.65
+
+    elif cov_func.lower() == "matern32":
+        a1, a2 = 4.5, 3.42
+
+    else:
+        raise ValueError(
+            "Unsupported covariance function. Supported options are 'expquad', 'matern52', and 'matern32'."
+        )
+
+    c = max(a1 * (lengthscale_range[1] / S), 1.2)
+    m = int(a2 * c / (lengthscale_range[0] / S))
+
+    return m, c
 
 
 def time_varying_prior(
     name: str,
     X: pt.sharedvar.TensorSharedVariable,
     dims: tuple[str, str] | str,
-    X_mid: int | float | None = None,
-    m: int = 200,
+    ls_lower: float = 1,
+    ls_upper: float | None = None,
+    ls_mass: float = 0.9,
+    eta_upper: float = 1.0,
+    eta_mass: float = 0.05,
+    centered: bool = False,
+    drop_first: bool = False,
+    m: int = None,
     L: int | float | None = None,
-    eta_lam: float = 1,
-    ls_mu: float = 5,
-    ls_sigma: float = 5,
-    cov_func: pm.gp.cov.Covariance | None = None,
+    X_mid: int | float | None = None,
+    cov_func: str | None = "Matern52",
 ) -> pt.TensorVariable:
     """Time varying prior, based on the Hilbert Space Gaussian Process (HSGP).
 
@@ -49,20 +123,32 @@ def time_varying_prior(
         the time dimension, and the second may be any other dimension, across
         which independent time varying priors for each coordinate are desired
         (e.g. channels).
+    ls_mu : float
+        Mean of the inverse gamma prior for the lengthscale.
+    ls_sigma : float
+        Standard deviation of the inverse gamma prior for the lengthscale.
+    ls_mass: float
+        Mass of prior below ls_lower.  Must be a value between 0 and 1.
+        Default is 0.05.
+    ls_lower: float
+        Lower limit of the lengthscale.
+    eta_upper: float
+        Upper bound on your expectation for the magnitude of the time varying parameter's
+        variation.  Default value is 1.
+    eta_mass: float:
+        Mass of prior above eta_upper.  Default is 0.05.
     m : int
         Number of basis functions.
     L : int
         Extent of basis functions. Set this to reflect the expected range of
         in+out-of-sample data (considering that time-indices are zero-centered).
         Default is `X_mid * 2` (identical to `c=2` in HSGP).
-    eta_lam : float
-        Exponential prior for the variance.
-    ls_mu : float
-        Mean of the inverse gamma prior for the lengthscale.
-    ls_sigma : float
-        Standard deviation of the inverse gamma prior for the lengthscale.
-    cov_func : pm.gp.cov.Covariance
-        Covariance function.
+    centered : bool
+        Whether to use the centered or non-centered parameterization.
+    drop_first: bool
+        Default False.
+    cov_func : str
+        Covariance function name, must be one of `Matern52`, `Matern32` or `Expquad`.
 
     Returns
     -------
@@ -78,29 +164,54 @@ def time_varying_prior(
         Regression.
     """
 
-    if X_mid is None:
-        X_mid = float(X.mean().eval())
-    if L is None:
-        L = X_mid * 2
-
     model = pm.modelcontext(None)
 
-    if cov_func is None:
-        eta = pm.Exponential(f"{name}_eta", lam=eta_lam)
-        ls = pm.InverseGamma(f"{name}_ls", mu=ls_mu, sigma=ls_sigma)
-        cov_func = eta**2 * pm.gp.cov.Matern52(1, ls=ls)
+    eta = pm.Exponential(f"{name}_eta", lam=-np.log(eta_mass) / eta_upper)
 
-    model.add_coord("m", np.arange(m))  # type: ignore
+    if ls_upper is None:
+        ls = pc_prior_1d(f"{name}_ls", alpha=1.0 - ls_mass, lower=ls_lower)
+        ls_upper = 2 * X_mid
+    else:
+        # Note: this function sometimes fails, how to handle?
+        # If not using PC prior, should user set ls_mu and ls_sigma instead?
+        ls_params = pm.find_constrained_prior(
+            pm.InverseGamma,
+            lower=ls_lower,
+            upper=ls_upper,
+            mass=ls_mass,
+            init_guess={"alpha": 2, "beta": 1},
+        )
+        ls = pm.InverseGamma("f{name}_ls", **ls_params)
+
+    lengthscale_range = [ls_lower, ls_upper]
+    m, c = approx_hsgp_hyperparams(
+        X.eval(), X_mid, lengthscale_range, cov_func=cov_func
+    )
+    L = c * X_mid
+
+    model.add_coord("m", np.arange(m - 1))  # type: ignore
     hsgp_dims: str | tuple[str, str] = "m"
     if isinstance(dims, tuple):
         hsgp_dims = (dims[1], "m")
 
-    gp = pm.gp.HSGP(m=[m], L=[L], cov_func=cov_func)
+    cov_funcs = {
+        "expquad": pm.gp.cov.ExpQuad,
+        "matern52": pm.gp.cov.Matern52,
+        "matern32": pm.gp.cov.Matern32,
+    }
+    cov_func = eta**2 * cov_funcs[cov_func.lower()](input_dim=1, ls=ls)
+
+    gp = pm.gp.HSGP(m=[m], L=[L], cov_func=cov_func, drop_first=True)
     phi, sqrt_psd = gp.prior_linearized(Xs=X[:, None] - X_mid)
-    hsgp_coefs = pm.Normal(f"{name}_hsgp_coefs", dims=hsgp_dims)
-    f = phi @ (hsgp_coefs * sqrt_psd).T
-    centered_f = f - f.mean(axis=0) + 1
-    return pm.Deterministic(name, centered_f, dims=dims)
+
+    if centered:
+        hsgp_coefs = pm.Normal(f"{name}_hsgp_coefs", sigma=sqrt_psd, dims=hsgp_dims)
+        f = phi @ hsgp_coefs
+    else:
+        hsgp_coefs = pm.Normal(f"{name}_hsgp_coefs", dims=hsgp_dims)
+        f = phi @ (hsgp_coefs * sqrt_psd)
+
+    return pm.Deterministic(name, f, dims=dims)
 
 
 def create_time_varying_intercept(
@@ -125,14 +236,14 @@ def create_time_varying_intercept(
     """
 
     with pm.modelcontext(None):
-        if model_config["intercept_tvp_kwargs"]["L"] is None:
-            model_config["intercept_tvp_kwargs"]["L"] = (
-                time_index_mid + DAYS_IN_YEAR / time_resolution
-            )
-        if model_config["intercept_tvp_kwargs"]["ls_mu"] is None:
-            model_config["intercept_tvp_kwargs"]["ls_mu"] = (
-                DAYS_IN_YEAR / time_resolution * 2
-            )
+        # if model_config["intercept_tvp_kwargs"]["L"] is None:
+        #    model_config["intercept_tvp_kwargs"]["L"] = (
+        #        time_index_mid + DAYS_IN_YEAR / time_resolution
+        #    )
+        # if model_config["intercept_tvp_kwargs"]["ls_mu"] is None:
+        #    model_config["intercept_tvp_kwargs"]["ls_mu"] = (
+        #        DAYS_IN_YEAR / time_resolution * 2
+        #    )
 
         multiplier = time_varying_prior(
             name="intercept_time_varying_multiplier",
@@ -146,7 +257,7 @@ def create_time_varying_intercept(
         )
         return pm.Deterministic(
             name="intercept",
-            var=intercept_base * multiplier,
+            var=pt.exp(intercept_base + multiplier),
             dims="date",
         )
 

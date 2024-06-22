@@ -546,12 +546,11 @@ class BaseDelayedSaturatedMMM(MMM):
             "gamma_control": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
             "gamma_fourier": {"dist": "Laplace", "kwargs": {"mu": 0, "b": 1}},
             "intercept_tvp_kwargs": {
-                "m": 200,
-                "L": None,
-                "eta_lam": 1,
-                "ls_mu": None,
-                "ls_sigma": 10,
-                "cov_func": None,
+                "eta_upper": 1,
+                "eta_mass": 0.05,
+                "ls_lower": 7.0,
+                "ls_mass": 0.95,
+                "cov_func": "matern52",
             },
         }
 
