@@ -109,8 +109,8 @@ def model_config_requiring_serialization() -> dict:
                 "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
             },
         },
-        "gamma_control": {"dist": "HalfNormal", "kwargs": {"mu": 0, "sigma": 2}},
-        "gamma_fourier": {"dist": "HalfNormal", "kwargs": {"mu": 0, "b": 1}},
+        "gamma_control": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+        "gamma_fourier": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
     }
     return model_config
 
@@ -1071,4 +1071,4 @@ def test_initialize_defaults_channel_media_dims() -> None:
 
     for transform in [mmm.adstock, mmm.saturation]:
         for config in transform.function_priors.values():
-            assert config["dims"] == "channel"
+            assert config.dims == ("channel",)

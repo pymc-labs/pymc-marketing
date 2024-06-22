@@ -600,5 +600,4 @@ def test_checks_param_value_types() -> None:
 
 def test_check_equality_with_numpy() -> None:
     dist = Prior("Normal", mu=np.array([1, 2, 3]), sigma=1)
-    with pytest.raises(ValueError, match="The truth value of an array"):
-        assert dist == dist.copy()
+    assert dist == dist.copy()

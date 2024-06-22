@@ -722,11 +722,15 @@ class Prior:
         if not isinstance(other, Prior):
             return False
 
+        try:
+            np.testing.assert_equal(self.parameters, other.parameters)
+        except AssertionError:
+            return False
+
         return (
             self.distribution == other.distribution
             and self.dims == other.dims
             and self.centered == other.centered
-            and self.parameters == other.parameters
             and self.transform == other.transform
         )
 
