@@ -196,13 +196,14 @@ class ParetoNBDModel(CLVModel):
         self,
         data: pd.DataFrame,
         *,
-        model_config: dict | None = None,
+        model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
     ):
         super().__init__(
             data=data,
             model_config=model_config,
             sampler_config=sampler_config,
+            non_distributions=["purchase_covariate_cols", "dropout_covariate_cols"],
         )
         self.purchase_covariate_cols = list(
             self.model_config["purchase_covariate_cols"]

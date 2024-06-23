@@ -38,9 +38,13 @@ class CLVModel(ModelBuilder):
         *,
         model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
+        non_distributions: list[str] | None = None,
     ):
         model_config = model_config or {}
-        model_config = parse_model_config(model_config)
+        model_config = parse_model_config(
+            model_config,
+            non_distributions=non_distributions,
+        )
 
         super().__init__(model_config, sampler_config)
         self.data = data
