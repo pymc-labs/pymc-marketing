@@ -26,6 +26,7 @@ from pymc.model.core import Model
 from xarray import Dataset
 
 from pymc_marketing.model_builder import ModelBuilder
+from pymc_marketing.model_config import ModelConfig, parse_model_config
 
 
 class CLVModel(ModelBuilder):
@@ -35,9 +36,12 @@ class CLVModel(ModelBuilder):
         self,
         data: pd.DataFrame,
         *,
-        model_config: dict | None = None,
+        model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
     ):
+        model_config = model_config or {}
+        model_config = parse_model_config(model_config)
+
         super().__init__(model_config, sampler_config)
         self.data = data
 
@@ -223,13 +227,6 @@ class CLVModel(ModelBuilder):
         assert self.idata is not None  # noqa: S101
         new_idata = self.idata.isel(draw=slice(None, None, keep_every)).copy()
         return type(self)._build_with_idata(new_idata)
-
-    @staticmethod
-    def _create_distribution(dist: dict, shape=()):
-        try:
-            return getattr(pm, dist["dist"]).dist(**dist.get("kwargs", {}), shape=shape)
-        except AttributeError:
-            raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
 
     @property
     def default_sampler_config(self) -> dict:
