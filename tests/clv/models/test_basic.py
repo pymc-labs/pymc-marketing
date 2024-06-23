@@ -178,3 +178,21 @@ class TestCLVModel:
         assert len(thin_model.idata.posterior["x"].draw) == 50
         assert thin_model.data is not model.data
         assert np.all(thin_model.data == model.data)
+
+    def test_model_config_warns(self) -> None:
+        model_config = {
+            "x": {
+                "dist": "StudentT",
+                "kwargs": {
+                    "mu": 0,
+                    "sigma": 5,
+                    "nu": 15,
+                },
+            },
+        }
+        with pytest.warns(DeprecationWarning, match="x is automatically"):
+            model = CLVModelTest(model_config=model_config)
+
+        assert model.model_config == {
+            "x": Prior("StudentT", mu=0, sigma=5, nu=15),
+        }
