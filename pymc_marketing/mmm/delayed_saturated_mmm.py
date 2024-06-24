@@ -857,15 +857,14 @@ class MMM(
 
     .. code-block:: python
 
+        import numpy as np
+
+        from pymc_marketing.prior import Prior
+        from pymc_marketing.mmm import MMM
+
         my_model_config = {
-            "beta_channel": {
-                "dist": "LogNormal",
-                "kwargs": {"mu": np.array([2, 1]), "sigma": 1},
-            },
-            "likelihood": {
-                "dist": "Normal",
-                "kwargs": {"sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}}},
-            },
+            "beta_channel": Prior("LogNormal", mu=np.array([2, 1]), sigma=1),
+            "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
         }
 
         mmm = MMM(
