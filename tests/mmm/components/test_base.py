@@ -155,7 +155,8 @@ def test_new_transformation_function_priors(new_transformation) -> None:
 
 def test_new_transformation_priors_at_init(new_transformation_class) -> None:
     new_prior = {"a": {"dist": "HalfNormal", "kwargs": {"sigma": 2}}}
-    new_transformation = new_transformation_class(priors=new_prior)
+    with pytest.warns(DeprecationWarning, match="a is automatically converted"):
+        new_transformation = new_transformation_class(priors=new_prior)
     assert new_transformation.function_priors == {
         "a": Prior("HalfNormal", sigma=2),
         "b": Prior("HalfNormal", sigma=1),
@@ -207,9 +208,7 @@ def test_new_transform_update_priors(new_transformation) -> None:
 
 def test_new_transformation_warning_no_priors_updated(new_transformation) -> None:
     with pytest.warns(UserWarning, match="No priors were updated"):
-        new_transformation.update_priors(
-            {"new_c": {"dist": "HalfNormal", "kwargs": {"sigma": 1}}}
-        )
+        new_transformation.update_priors({"new_c": Prior("HalfNormal")})
 
 
 def test_new_transformation_sample_prior(new_transformation) -> None:
