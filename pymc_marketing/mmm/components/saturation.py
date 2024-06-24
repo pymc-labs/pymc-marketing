@@ -52,29 +52,18 @@ for saturation parameter of logistic saturation.
 
 .. code-block:: python
 
+    from pymc_marketing.prior import Prior
     from pymc_marketing.mmm import LogisticSaturation
 
-    hierarchical_lam = Prior("Gamma", alpha=Prior("HalfNormal"), beta=Prior("HalfNormal"), dims="channel")
+    hierarchical_lam = Prior(
+        "Gamma",
+        alpha=Prior("HalfNormal"),
+        beta=Prior("HalfNormal"),
+        dims="channel",
+    )
     priors = {
-        "lam": {
-            "dist": "Gamma",
-            "kwargs": {
-                "alpha": {
-                    "dist": "HalfNormal",
-                    "kwargs": {"sigma": 1},
-                },
-                "beta": {
-                    "dist": "HalfNormal",
-                    "kwargs": {"sigma": 1},
-                },
-            },
-            "dims": "channel",
-        },
-        "beta": {
-            "dist": "HalfNormal",
-            "kwargs": {"sigma": 1},
-            "dims": "channel",
-        },
+        "lam": hierarchical_lam,
+        "beta": Prior("HalfNormal", dims="channel"),
     }
     saturation = LogisticSaturation(priors=priors)
 
@@ -110,6 +99,7 @@ class SaturationTransformation(Transformation):
 
     .. code-block:: python
 
+        from pymc_marketing.prior import Prior
         from pymc_marketing.mmm import SaturationTransformation
 
         def infinite_returns(x, b):
@@ -117,7 +107,7 @@ class SaturationTransformation(Transformation):
 
         class InfiniteReturns(SaturationTransformation):
             function = infinite_returns
-            default_priors = {"b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}}}
+            default_priors = {"b": Prior("HalfNormal")}
 
     Make use of plotting capabilities to understand the transformation and its
     priors

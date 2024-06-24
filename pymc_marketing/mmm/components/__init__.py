@@ -19,14 +19,18 @@ Use custom transformations for media in the MMM model:
 
 .. code-block:: python
 
-    from pymc_marketing.mmm.components import SaturationTransformation, WeibullAdstock
-    from pymc_marketing.mmm import MMM
+    from pymc_marketing.prior import Prior
+    from pymc_marketing.mmm import (
+        SaturationTransformation,
+        MMM,
+        WeibullAdstock,
+    )
 
     class InfiniteReturns(SaturationTransformation):
         def function(self, x, b):
             return b * x
 
-        default_priors = {"b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}}}
+        default_priors = {"b": Prior("HalfNormal")}
 
 
     saturation = InfiniteReturns()

@@ -36,6 +36,7 @@ import xarray as xr
 from pymc.distributions.shape_utils import Dims
 from pytensor import tensor as pt
 
+from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import DimHandler, Prior, create_dim_handler
 
 Values = Sequence[Any] | npt.NDArray[Any]
@@ -167,16 +168,7 @@ class Transformation:
     def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
         priors = priors or {}
 
-        priors = deepcopy(priors)
-        for param, dist in priors.items():
-            if isinstance(dist, Prior):
-                continue
-
-            new_dist = Prior.from_json(dist)
-            msg = f"Use pymc_marketing.prior.{new_dist} for {param} instead."
-            warnings.warn(msg, UserWarning, stacklevel=1)
-            priors[param] = new_dist
-
+        priors = parse_model_config(priors)
         self._function_priors = {**deepcopy(self.default_priors), **priors}
 
     def update_priors(self, priors: dict[str, Prior]) -> None:
