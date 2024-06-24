@@ -181,14 +181,7 @@ class TestCLVModel:
 
     def test_model_config_warns(self) -> None:
         model_config = {
-            "x": {
-                "dist": "StudentT",
-                "kwargs": {
-                    "mu": 0,
-                    "sigma": 5,
-                    "nu": 15,
-                },
-            },
+            "x": Prior("StudentT", mu=0, sigma=5, nu=15),
         }
         with pytest.warns(DeprecationWarning, match="x is automatically"):
             model = CLVModelTest(model_config=model_config)

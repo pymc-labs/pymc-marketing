@@ -672,18 +672,12 @@ class TestParetoNBDModelWithCovariates:
         )
         # The default parameter priors are very informative. We use something more broad here
         custom_priors = {
-            "r_prior": {"dist": "Exponential", "kwargs": {"scale": 10}},
-            "alpha_prior": {"dist": "Exponential", "kwargs": {"scale": 10}},
-            "s_prior": {"dist": "Exponential", "kwargs": {"scale": 10}},
-            "beta_prior": {"dist": "Exponential", "kwargs": {"scale": 10}},
-            "purchase_coefficient_prior": {
-                "dist": "Normal",
-                "kwargs": {"mu": 0, "sigma": 6},
-            },
-            "dropout_coefficient_prior": {
-                "dist": "Normal",
-                "kwargs": {"mu": 0, "sigma": 3},
-            },
+            "r_prior": Prior("Exponential", scale=10),
+            "alpha_prior": Prior("Exponential", scale=10),
+            "s_prior": Prior("Exponential", scale=10),
+            "beta_prior": Prior("Exponential", scale=10),
+            "purchase_coefficient_prior": Prior("Normal", mu=6, sigma=6),
+            "dropout_coefficient_prior": Prior("Normal", mu=3, sigma=3),
         }
         new_model = ParetoNBDModel(
             synthetic_data,
