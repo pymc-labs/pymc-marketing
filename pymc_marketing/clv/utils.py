@@ -57,20 +57,20 @@ def customer_lifetime_value(
 
     Parameters
     ----------
-    transaction_model: CLVModel
+    transaction_model : ~CLVModel
         Predictive model for future transactions. BG/NBD and Pareto/NBD are currently supported.
-    data: ~pandas.DataFrame
+    data : ~pandas.DataFrame
         DataFrame containing the following columns:
             * `customer_id`: Unique customer identifier
             * `frequency`: Number of repeat purchases
             * `recency`: Time between the first and the last purchase
             * `T`: Time between the first purchase and the end of the observation period
             * `future_spend`: Predicted monetary values for each customer
-    future_t: int, optional
+    future_t : int, optional
         The lifetime expected for the user in months. Default: 12
-    discount_rate: float, optional
+    discount_rate : float, optional
         The monthly adjusted discount rate. Default: 0.00
-    time_unit: string, optional
+    time_unit : string, optional
         Unit of time of the purchase history. Defaults to "D" for daily.
         Other options are "W" (weekly), "M" (monthly), and "H" (hourly).
         Example: If your dataset contains information about weekly purchases,

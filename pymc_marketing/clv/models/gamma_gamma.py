@@ -28,7 +28,20 @@ class BaseGammaGammaModel(CLVModel):
         data: pandas.DataFrame,
         random_seed: RandomState | None = None,
     ) -> xarray.DataArray:
-        """Posterior distribution of transaction value per customer"""
+        """
+        Posterior distribution of mean spend values for each customer.
+
+        Parameters
+        ----------
+        data : ~pandas.DataFrame
+            DataFrame containing the following columns:
+                * `customer_id`: Unique customer identifier
+                * `frequency`: Number of repeat purchases
+                * `monetary_value`: Mean spend values of repeat purchases for each customer
+
+        random_seed : ~RandomState, optional
+            Optional random seed to fix sampling results.
+        """
 
         x = data["frequency"]
         z_mean = data["monetary_value"]
@@ -59,11 +72,17 @@ class BaseGammaGammaModel(CLVModel):
 
         Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117
 
-        data: ~pandas.DataFrame
-        DataFrame containing the following columns:
-            * customer_id: Customer labels. Must not repeat.
-            * monetary_value: Mean transaction value of repeat purchases for each customer.
-            * frequency: Number of transactions observed for each customer.
+        data : ~pandas.DataFrame
+            DataFrame containing the following columns:
+
+                * `customer_id`: Unique customer identifier
+                * `frequency`: Number of transactions observed for each customer
+                * `monetary_value`: Mean transaction value of repeat purchases for each customer
+
+        References
+        ----------
+        .. [1] Fader, P. S., & Hardie, B. G. (2013). The Gamma-Gamma model of monetary
+               value. February, 2, 1-9. https://www.brucehardie.com/notes/025/gamma_gamma.pdf
         """
 
         mean_transaction_value, frequency = to_xarray(
@@ -84,9 +103,19 @@ class BaseGammaGammaModel(CLVModel):
         ) * population_mean + individual_weight * mean_transaction_value
 
     def distribution_new_customer_spend(
-        self, n=1, random_seed=None
+        self, n: int = 1, random_seed: RandomState | None = None
     ) -> xarray.DataArray:
-        """Posterior distribution of transaction value for new customers"""
+        """
+        Posterior distribution of mean spend values for new customers.
+
+        Parameters
+        ----------
+        n : int, optional
+            Number of posterior distributions to generate. This can usually be left at the default value of 1.
+
+        random_seed : ~RandomState, optional
+            Optional random seed to fix sampling results.
+        """
         coords = {"new_customer_id": range(n)}
         with pm.Model(coords=coords):
             p = pm.HalfFlat("p")
@@ -103,7 +132,7 @@ class BaseGammaGammaModel(CLVModel):
             ).posterior_predictive["mean_spend"]
 
     def expected_new_customer_spend(self) -> xarray.DataArray:
-        """Expected transaction value for a new customer"""
+        """Expected mean spend value for a new customer."""
 
         posterior = self.fit_result
         p_mean = posterior["p"]
@@ -136,20 +165,20 @@ class BaseGammaGammaModel(CLVModel):
 
         Parameters
         ----------
-        transaction_model: ~CLVModel
+        transaction_model : ~CLVModel
             Predictive model for future transactions. BG/NBD and Pareto/NBD are currently supported.
-        data: ~pandas.DataFrame
+        data : ~pandas.DataFrame
             DataFrame containing the following columns:
                 * `customer_id`: Unique customer identifier
                 * `frequency`: Number of repeat purchases
                 * `recency`: Time between the first and the last purchase
                 * `T`: Time between the first purchase and the end of the observation period
-                * `future_spend`: Predicted monetary values for each customer
-        future_t: int, optional
+                * `monetary_value`: Mean spend values of repeat purchases for each customer
+        future_t : int, optional
             The lifetime expected for the user in months. Default: 12
-        discount_rate: float, optional
+        discount_rate : float, optional
             The monthly adjusted discount rate. Default: 0.00
-        time_unit: string, optional
+        time_unit : string, optional
             Unit of time of the purchase history. Defaults to "D" for daily.
             Other options are "W" (weekly), "M" (monthly), and "H" (hourly).
             Example: If your dataset contains information about weekly purchases,
@@ -161,7 +190,7 @@ class BaseGammaGammaModel(CLVModel):
             DataArray with the estimated customer lifetime values
         """
 
-        # Use the Gamma-Gamma estimates for the expected_spend values
+        # Use Gamma-Gamma estimates for the expected_spend values
         predicted_monetary_value = self.expected_customer_spend(data=data)
         data.loc[:, "future_spend"] = predicted_monetary_value.mean(
             ("chain", "draw")
@@ -177,79 +206,81 @@ class BaseGammaGammaModel(CLVModel):
 
 
 class GammaGammaModel(BaseGammaGammaModel):
-    """Gamma-Gamma model
+    """Gamma-Gamma Model for expected future monetary value.
 
-    Estimate the average monetary value of customer transactions.
+    The Gamma-Gamma model assumes expected future spend follows a Gamma distribution,
+    and the scale of this distribution is also Gamma-distributed.
 
-    The model is conditioned on the mean transaction value of each user, and is based
-    on [1]_, [2]_.
+    This model is conditioned on the mean value of repeat transactions for each customer, and is based
+    on [1]_, [2]_. Data must be summarized by *frequency* and *monetary_value* for each customer,
+    using `clv.rfm_summary()` or equivalent.
 
-    TODO: Explain assumptions of model
-
-    Check `GammaGammaModelIndividual` for an equivalent model conditioned
+    See `GammaGammaModelIndividual` for an equivalent model conditioned
     on individual transaction values.
 
     Parameters
     ----------
-    data: ~pandas.DataFrame
+    data : ~pandas.DataFrame
         DataFrame containing the following columns:
-            - customer_id: Customer labels. Must not repeat.
-            - monetary_value: Mean transaction value of repeat purchases for each customer.
-            - frequency: Number of transactions observed for each customer.
-    model_config: dict, optional
+            * `customer_id`: Customer labels. Must not repeat.
+            * `monetary_value`: Mean transaction value of repeat purchases for each customer.
+            * `frequency`: Number of transactions observed for each customer.
+    model_config : dict, optional
         Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
         `default_model_config` class attribute.
-    sampler_config: dict, optional
-        Dictionary of sampler parameters. Defaults to None.
+    sampler_config : dict, optional
+        Dictionary of sampler parameters. Defaults to *None*.
 
     Examples
     --------
-        Gamma-Gamma model conditioned on mean transaction value
 
-        .. code-block:: python
+    .. code-block:: python
 
-            import pymc as pm
-            from pymc_marketing.clv import GammaGammaModel
+        import pymc as pm
+        from pymc_marketing.clv import GammaGammaModel
 
-            model = GammaGammaModel(
-                data=pandas.DataFrame({
-                    "customer_id": [0, 1, 2, 3, ...],
-                    "monetary_value" :[23.5, 19.3, 11.2, 100.5, ...],
-                    "frequency": [6, 8, 2, 1, ...],
-                }),
-                model_config={
-                    "p_prior": {'dist': 'HalfNormal', kwargs: {}},
-                    "q_prior": {'dist': 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
-                    "v_prior": {'dist': 'HalfCauchy', kwargs: {"beta":1}},
-                },
-                sampler_config={
-                    "draws": 1000,
-                    "tune": 1000,
-                    "chains": 2,
-                    "cores": 2,
-                    "nuts_kwargs": {"target_accept": 0.95},
-                },
-            )
-            model.build_model()
-            model.fit()
-            print(model.fit_summary())
+        model = GammaGammaModel(
+            data=pandas.DataFrame({
+                "customer_id": [0, 1, 2, 3, ...],
+                "monetary_value" :[23.5, 19.3, 11.2, 100.5, ...],
+                "frequency": [6, 8, 2, 1, ...],
+            }),
+            model_config={
+                "p_prior": {'dist': 'HalfNormal', kwargs: {}},
+                "q_prior": {'dist': 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
+                "v_prior": {'dist': 'HalfCauchy', kwargs: {"beta":1}},
+            },
+            sampler_config={
+                "draws": 1000,
+                "tune": 1000,
+                "chains": 2,
+                "cores": 2,
+                "nuts_kwargs": {"target_accept": 0.95},
+            },
+        )
+        model.fit()
+        print(model.fit_summary())
 
-            # Predict spend of customers for which we know transaction history, conditioned on data.
-            expected_customer_spend = model.expected_customer_spend(
-                customer_id=[0, 1, 2, 3, ...],
-                monetary_value=[23.5, 19.3, 11.2, 100.5, ...],
-                frequency=[6, 8, 2, 1, ...],
-            )
-            print(expected_customer_spend.mean("customer_id"))
+        # Predict spend of customers for which we know transaction history, conditioned on data.
+        expected_customer_spend = model.expected_customer_spend(
+            data=pandas.DataFrame(
+                {
+                "customer_id": [0, 1, 2, 3, ...],
+                "monetary_value" :[23.5, 19.3, 11.2, 100.5, ...],
+                "frequency": [6, 8, 2, 1, ...],
+                }
+            ),
+        ),
+        print(expected_customer_spend.mean("customer_id"))
 
-            # Predict spend of 10 new customers, conditioned on data
-            new_customer_spend = model.expected_new_customer_spend(n=10)
-            print(new_customer_spend.mean("new_customer_id"))
+        # Predict spend of 10 new customers, conditioned on data
+        new_customer_spend = model.expected_new_customer_spend(n=10)
+        print(new_customer_spend.mean("new_customer_id"))
 
     References
     ----------
-    .. [1] Fader, P. S., & Hardie, B. G. (2013). The Gamma-Gamma model of monetary
-           value. February, 2, 1-9. http://www.brucehardie.com/notes/025/gamma_gamma.pandasf
+    .. [1] Fader, P. S., & Hardie, B. G. (2013). "The Gamma-Gamma model of monetary
+           value". https://www.brucehardie.com/notes/025/gamma_gamma.pdf
     .. [2] Peter S. Fader, Bruce G. S. Hardie, and Ka Lok Lee (2005), “RFM and CLV:
            Using iso-value curves for customer base analysis”, Journal of Marketing
            Research, 42 (November), 415-430.
@@ -312,81 +343,83 @@ class GammaGammaModel(BaseGammaGammaModel):
 
 # TODO: This model requires further evaluation and mention in a notebook.
 class GammaGammaModelIndividual(BaseGammaGammaModel):
-    """Gamma-Gamma model
+    """Gamma-Gamma Model for expected future monetary value.
 
-    Estimate the average monetary value of customer transactions.
+    The Gamma-Gamma model assumes expected future spend follows a Gamma distribution,
+    and the scale of this distribution is also Gamma-distributed.
 
-    The model is conditioned on the individual transaction values per user, and is based
-    on [1]_, [2]_.
+    This model is conditioned on the spend values of each purchase for each customer,
+    and is based on [1]_, [2]_.
 
-    TODO: Explain assumptions of model
-
-    Check `GammaGammaModel` for an equivalent model conditioned on the average
-    transaction value of each user.
+    See `GammaGammaModel` for an equivalent model conditioned on mean transaction values
+    of repeat purchases for the customer population.
 
     Parameters
     ----------
-    data: ~pandas.DataFrame
+    data : ~pandas.DataFrame
         Dataframe containing the following columns:
-            - customer_id: Customer labels. The same value should be used for each unique customer.
+            * `customer_id`: Customer labels. The same value should be used for each unique customer.
         coming from the same customer.
-            - individual_transaction_value: Monetary values of each purchase for each customer.
-    model_config: dict, optional
+            * `individual_transaction_value`: Monetary values of each purchase for each customer.
+    model_config : dict, optional
         Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
         `default_model_config` class attribute.
-    sampler_config: dict, optional
-        Dictionary of sampler parameters. Defaults to None.
+    sampler_config : dict, optional
+        Dictionary of sampler parameters. Defaults to *None*.
 
 
     Examples
     --------
 
-        Gamma-Gamma model conditioned on individual customer spend
+    .. code-block:: python
 
-        .. code-block:: python
+        import pymc as pm
+        from pymc_marketing.clv import GammaGammaModelIndividual
 
-            import pymc as pm
-            from pymc_marketing.clv import GammaGammaModelIndividual
+        model = GammaGammaModelIndividual(
+            data=pandas.DataFrame(
+                {
+                "customer_id": [0, 0, 0, 1, 1, 2, ...],
+                "individual_transaction_value": [5.3. 5.7, 6.9, 13.5, 0.3, 19.2 ...],
+                }
+            ),
+            model_config={
+                "p_prior": {dist: 'HalfNorm', kwargs: {}},
+                "q_prior": {dist: 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
+                "v_prior": {dist: 'HalfCauchy', kwargs: {}},
+            },
+            sampler_config={
+                "draws": 1000,
+                "tune": 1000,
+                "chains": 2,
+                "cores": 2,
+                "nuts_kwargs": {"target_accept": 0.95},
+            },
+        )
+        model.build_model()
+        model.fit()
+        print(model.fit_summary())
 
-            model = GammaGammaModelIndividual(
-                data=pandas.DataFrame({
-                    "customer_id": [0, 0, 0, 1, 1, 2, ...],
-                    "individual_transaction_value": [5.3. 5.7, 6.9, 13.5, 0.3, 19.2 ...],
-                }),
-                model_config={
-                    "p_prior": {dist: 'HalfNorm', kwargs: {}},
-                    "q_prior": {dist: 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
-                    "v_prior": {dist: 'HalfCauchy', kwargs: {}},
-                },
-                sampler_config={
-                    "draws": 1000,
-                    "tune": 1000,
-                    "chains": 2,
-                    "cores": 2,
-                    "nuts_kwargs": {"target_accept": 0.95},
-                },
-            )
-            model.build_model()
-            model.fit()
-            print(model.fit_summary())
+        # Predict spend of customers for which we know transaction history,
+        # conditioned on data. May include customers not included in fitting
+        expected_customer_spend = model.expected_customer_spend(
+            data=pandas.DataFrame(
+                {
+                "customer_id": [0, 0, 0, 1, 1, 2, ...],
+                "individual_transaction_value": [5.3. 5.7, 6.9, 13.5, 0.3, 19.2 ...],
+                }
+            ),
+        )
+        print(expected_customer_spend.mean("customer_id"))
 
-            # Predict spend of customers for which we know transaction history,
-            # conditioned on data. May include customers not included in fitting
-            expected_customer_spend = model.expected_customer_spend(
-                customer_id=[0, 0, 0, 1, 1, 2, ...],
-                individual_transaction_value=[5.3. 5.7, 6.9, 13.5, 0.3, 19.2 ...],
-            )
-            print(expected_customer_spend.mean("customer_id"))
-
-            # Predict spend of 10 new customers, conditioned on data
-            new_customer_spend = model.expected_new_customer_spend(n=10)
-            print(new_customer_spend.mean("new_customer_id"))
-
+        # Predict spend of 10 new customers, conditioned on data
+        new_customer_spend = model.expected_new_customer_spend(n=10)
+        print(new_customer_spend.mean("new_customer_id"))
 
     References
     ----------
-    .. [1] Fader, P. S., & Hardie, B. G. (2013). The Gamma-Gamma model of monetary
-           value. February, 2, 1-9. http://www.brucehardie.com/notes/025/gamma_gamma.pandasf
+    .. [1] Fader, P. S., & Hardie, B. G. (2013). "The Gamma-Gamma model of monetary
+           value". http://www.brucehardie.com/notes/025/gamma_gamma.pdf
     .. [2] Peter S. Fader, Bruce G. S. Hardie, and Ka Lok Lee (2005), “RFM and CLV:
            Using iso-value curves for customer base analysis”, Journal of Marketing
            Research, 42 (November), 415-430.
