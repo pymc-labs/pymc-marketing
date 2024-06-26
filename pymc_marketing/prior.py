@@ -804,7 +804,7 @@ class Prior:
 
         Examples
         --------
-        Create the graph for a complicated variable.
+        Create the graph for a 2D transformed hierarchical distribution.
 
         .. code-block:: python
 
