@@ -25,8 +25,8 @@ Create a new adstock transformation:
 
 .. code-block:: python
 
-    from pymc_marketing.prior import Prior
     from pymc_marketing.mmm import AdstockTransformation
+    from pymc_marketing.prior import Prior
 
     class MyAdstock(AdstockTransformation):
         def function(self, x, alpha):

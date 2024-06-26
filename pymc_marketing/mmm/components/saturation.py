@@ -24,8 +24,8 @@ Create a new saturation transformation:
 
 .. code-block:: python
 
-    from pymc_marketing.prior import Prior
     from pymc_marketing.mmm import SaturationTransformation
+    from pymc_marketing.prior import Prior
 
     class InfiniteReturns(SaturationTransformation):
         def function(self, x, b):
@@ -99,8 +99,8 @@ class SaturationTransformation(Transformation):
 
     .. code-block:: python
 
-        from pymc_marketing.prior import Prior
         from pymc_marketing.mmm import SaturationTransformation
+        from pymc_marketing.prior import Prior
 
         def infinite_returns(x, b):
             return b * x

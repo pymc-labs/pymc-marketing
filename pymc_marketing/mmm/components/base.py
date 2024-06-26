@@ -188,8 +188,8 @@ class Transformation:
 
         .. code-block:: python
 
-            from pymc_marketing.prior import Prior
             from pymc_marketing.mmm.components.base import Transformation
+            from pymc_marketing.prior import Prior
 
             class MyTransformation(Transformation):
                 prefix: str = "transformation"

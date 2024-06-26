@@ -312,28 +312,36 @@ class BaseMMM(BaseValidateMMM):
 
         Examples
         --------
-        custom_config = {
-            "intercept": Prior("Normal", mu=0, sigma=2),
-            "saturation_beta": Prior("Gamma", mu=1, sigma=3),
-            "saturation_lambda": Prior("Beta", alpha=3, beta=1),
-            "adstock_alpha": Prior("Beta", alpha=1, beta=3),
-            "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
-            "gamma_control": Prior("Normal", mu=0, sigma=2, dims="control"),
-            "gamma_fourier": Prior("Laplace", mu=0, b=1, dims="fourier_mode"),
-        }
+        Initialize model with custom configuration
 
-        model = MMM(
-                    date_column="date_week",
-                    channel_columns=["x1", "x2"],
-                    control_columns=[
-                        "event_1",
-                        "event_2",
-                        "t",
-                    ],
-                    adstock_max_lag=8,
-                    yearly_seasonality=2,
-                    model_config=custom_config,
-                )
+        .. code-block:: python
+
+            from pymc_marketing.mmm import MMM
+            from pymc_marketing.prior import Prior
+
+            custom_config = {
+                "intercept": Prior("Normal", mu=0, sigma=2),
+                "saturation_beta": Prior("Gamma", mu=1, sigma=3),
+                "saturation_lambda": Prior("Beta", alpha=3, beta=1),
+                "adstock_alpha": Prior("Beta", alpha=1, beta=3),
+                "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
+                "gamma_control": Prior("Normal", mu=0, sigma=2, dims="control"),
+                "gamma_fourier": Prior("Laplace", mu=0, b=1, dims="fourier_mode"),
+            }
+
+            model = MMM(
+                date_column="date_week",
+                channel_columns=["x1", "x2"],
+                control_columns=[
+                    "event_1",
+                    "event_2",
+                    "t",
+                ],
+                adstock_max_lag=8,
+                yearly_seasonality=2,
+                model_config=custom_config,
+            )
+
         """
 
         self._generate_and_preprocess_model_data(X, y)
@@ -1740,6 +1748,11 @@ class MMM(
         Build the model first then add lift test measurements.
 
         .. code-block:: python
+
+            import pandas as pd
+            import numpy as np
+
+            from pymc_marketing.mmm import MMM
 
             model = MMM(
                 adstock="geometric",
