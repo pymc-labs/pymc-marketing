@@ -36,8 +36,8 @@ class BaseGammaGammaModel(CLVModel):
         data : ~pandas.DataFrame
             DataFrame containing the following columns:
                 * `customer_id`: Unique customer identifier
-                * `frequency`: Number of repeat purchases
-                * `monetary_value`: Mean spend values of repeat purchases for each customer
+                * `frequency`: Number of purchases
+                * `monetary_value`: Mean spend values for each customer
 
         random_seed : ~RandomState, optional
             Optional random seed to fix sampling results.
@@ -66,9 +66,7 @@ class BaseGammaGammaModel(CLVModel):
         self,
         data: pandas.DataFrame,
     ) -> xarray.DataArray:
-        """Expected transaction value per customer.
-
-        Eq 5 from [1], p.3
+        """Expected future mean spend value per customer. Based on Eq 5 from [1], p.3.
 
         Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117
 
@@ -81,8 +79,8 @@ class BaseGammaGammaModel(CLVModel):
 
         References
         ----------
-        .. [1] Fader, P. S., & Hardie, B. G. (2013). The Gamma-Gamma model of monetary
-               value. February, 2, 1-9. https://www.brucehardie.com/notes/025/gamma_gamma.pdf
+        .. [1] Fader, P. S., & Hardie, B. G. (2013). "The Gamma-Gamma model of monetary
+               value". February, 2, 1-9. https://www.brucehardie.com/notes/025/gamma_gamma.pdf
         """
 
         mean_transaction_value, frequency = to_xarray(
@@ -166,11 +164,12 @@ class BaseGammaGammaModel(CLVModel):
         Parameters
         ----------
         transaction_model : ~CLVModel
-            Predictive model for future transactions. BG/NBD and Pareto/NBD are currently supported.
+            Predictive model for future transactions. `BetaGeoModel` and `ParetoNBDModel` are currently supported.
         data : ~pandas.DataFrame
             DataFrame containing the following columns:
+
                 * `customer_id`: Unique customer identifier
-                * `frequency`: Number of repeat purchases
+                * `frequency`: Number of repeat purchases observed for each customer
                 * `recency`: Time between the first and the last purchase
                 * `T`: Time between the first purchase and the end of the observation period
                 * `monetary_value`: Mean spend values of repeat purchases for each customer
@@ -187,7 +186,7 @@ class BaseGammaGammaModel(CLVModel):
         Returns
         -------
         xarray
-            DataArray with the estimated customer lifetime values
+            DataArray containing estimated customer lifetime values
         """
 
         # Use Gamma-Gamma estimates for the expected_spend values
@@ -222,9 +221,10 @@ class GammaGammaModel(BaseGammaGammaModel):
     ----------
     data : ~pandas.DataFrame
         DataFrame containing the following columns:
-            * `customer_id`: Customer labels. Must not repeat.
-            * `monetary_value`: Mean transaction value of repeat purchases for each customer.
-            * `frequency`: Number of transactions observed for each customer.
+
+            * `customer_id`: Unique customer identifier
+            * `monetary_value`: Mean transaction value of repeat purchases for each customer
+            * `frequency`: Number of repeat transactions observed for each customer
     model_config : dict, optional
         Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
         `default_model_config` class attribute.
@@ -258,6 +258,7 @@ class GammaGammaModel(BaseGammaGammaModel):
                 "nuts_kwargs": {"target_accept": 0.95},
             },
         )
+
         model.fit()
         print(model.fit_summary())
 
@@ -284,7 +285,7 @@ class GammaGammaModel(BaseGammaGammaModel):
     .. [2] Peter S. Fader, Bruce G. S. Hardie, and Ka Lok Lee (2005), “RFM and CLV:
            Using iso-value curves for customer base analysis”, Journal of Marketing
            Research, 42 (November), 415-430.
-           https://journals.sagepub.com/doi/pandasf/10.1509/jmkr.2005.42.4.415
+           https://journals.sagepub.com/doi/pdf/10.1509/jmkr.2005.42.4.415
     """
 
     _model_type = "Gamma-Gamma Model (Mean Transactions)"
@@ -341,7 +342,7 @@ class GammaGammaModel(BaseGammaGammaModel):
             )
 
 
-# TODO: This model requires further evaluation and mention in a notebook.
+# TODO: This model requires further evaluation and reference in a notebook
 class GammaGammaModelIndividual(BaseGammaGammaModel):
     """Gamma-Gamma Model for expected future monetary value.
 
@@ -358,9 +359,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     ----------
     data : ~pandas.DataFrame
         Dataframe containing the following columns:
-            * `customer_id`: Customer labels. The same value should be used for each unique customer.
-        coming from the same customer.
-            * `individual_transaction_value`: Monetary values of each purchase for each customer.
+
+            * `customer_id`: Unique customer identifier
+            * `individual_transaction_value`: Monetary value of each purchase for each customer
     model_config : dict, optional
         Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
         `default_model_config` class attribute.
@@ -396,7 +397,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
                 "nuts_kwargs": {"target_accept": 0.95},
             },
         )
-        model.build_model()
+
         model.fit()
         print(model.fit_summary())
 
@@ -423,7 +424,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     .. [2] Peter S. Fader, Bruce G. S. Hardie, and Ka Lok Lee (2005), “RFM and CLV:
            Using iso-value curves for customer base analysis”, Journal of Marketing
            Research, 42 (November), 415-430.
-           https://journals.sagepub.com/doi/pandasf/10.1509/jmkr.2005.42.4.415
+           https://journals.sagepub.com/doi/pdf/10.1509/jmkr.2005.42.4.415
     """
 
     _model_type = "Gamma-Gamma Model (Individual Transactions)"

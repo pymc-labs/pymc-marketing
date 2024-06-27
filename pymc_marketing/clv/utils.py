@@ -58,11 +58,12 @@ def customer_lifetime_value(
     Parameters
     ----------
     transaction_model : ~CLVModel
-        Predictive model for future transactions. BG/NBD and Pareto/NBD are currently supported.
+        Predictive model for future transactions. `BetaGeoModel` and `ParetoNBDModel` are currently supported.
     data : ~pandas.DataFrame
         DataFrame containing the following columns:
+
             * `customer_id`: Unique customer identifier
-            * `frequency`: Number of repeat purchases
+            * `frequency`: Number of repeat purchases observed for each customer
             * `recency`: Time between the first and the last purchase
             * `T`: Time between the first purchase and the end of the observation period
             * `future_spend`: Predicted monetary values for each customer
@@ -79,7 +80,7 @@ def customer_lifetime_value(
     Returns
     -------
     xarray
-        DataArray with the estimated customer lifetime values
+        DataArray containing estimated customer lifetime values
     """
 
     if "future_spend" not in data.columns:
