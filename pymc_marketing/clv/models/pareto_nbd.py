@@ -353,11 +353,7 @@ class ParetoNBDModel(CLVModel):
         with pytensor.config.change_flags(mode=mode, on_opt_error="raise"):
             # Suppress annoying warning
             with warnings.catch_warnings():
-                warnings.filterwarnings(
-                    message="""
-                    Optimization Warning: The Op hyp2f1 does not provide a C implementation.
-                    As well as being potentially slow, this also disables loop fusion.
-                    """,
+                warnings.simplefilter(
                     action="ignore",
                     category=UserWarning,
                 )
