@@ -573,7 +573,6 @@ class ModelBuilder(ABC):
         if not hasattr(self, "model"):
             self.build_model(X_pred, y_pred)
 
-        self._data_setter(X_pred, y_pred)
         with self.model:  # sample with new input data
             prior_pred: az.InferenceData = pm.sample_prior_predictive(samples, **kwargs)
             self.set_idata_attrs(prior_pred)
