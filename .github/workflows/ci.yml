@@ -74,7 +74,7 @@ jobs:
         python-version: "3.12"
     - name: Install dependencies
       run: |
-        apt-get install graphviz
+        sudo apt-get install graphviz
         pip install -e .[docs]
         pip install -e .[test]
     - name: Run notebooks
