@@ -35,9 +35,10 @@ class BaseGammaGammaModel(CLVModel):
         ----------
         data : ~pandas.DataFrame
             DataFrame containing the following columns:
-                * `customer_id`: Unique customer identifier
-                * `frequency`: Number of purchases
-                * `monetary_value`: Mean spend values for each customer
+
+            * `customer_id`: Unique customer identifier
+            * `frequency`: Number of purchases
+            * `monetary_value`: Mean spend values for each customer
 
         random_seed : ~RandomState, optional
             Optional random seed to fix sampling results.
@@ -73,9 +74,9 @@ class BaseGammaGammaModel(CLVModel):
         data : ~pandas.DataFrame
             DataFrame containing the following columns:
 
-                * `customer_id`: Unique customer identifier
-                * `frequency`: Number of transactions observed for each customer
-                * `monetary_value`: Mean transaction value of repeat purchases for each customer
+            * `customer_id`: Unique customer identifier
+            * `frequency`: Number of transactions observed for each customer
+            * `monetary_value`: Mean transaction value of repeat purchases for each customer
 
         References
         ----------
@@ -168,11 +169,11 @@ class BaseGammaGammaModel(CLVModel):
         data : ~pandas.DataFrame
             DataFrame containing the following columns:
 
-                * `customer_id`: Unique customer identifier
-                * `frequency`: Number of repeat purchases observed for each customer
-                * `recency`: Time between the first and the last purchase
-                * `T`: Time between the first purchase and the end of the observation period
-                * `monetary_value`: Mean spend values of repeat purchases for each customer
+            * `customer_id`: Unique customer identifier
+            * `frequency`: Number of repeat purchases observed for each customer
+            * `recency`: Time between the first and the last purchase
+            * `T`: Time between the first purchase and the end of the observation period
+            * `monetary_value`: Mean spend values of repeat purchases for each customer
         future_t : int, optional
             The lifetime expected for the user in months. Default: 12
         discount_rate : float, optional
@@ -222,9 +223,9 @@ class GammaGammaModel(BaseGammaGammaModel):
     data : ~pandas.DataFrame
         DataFrame containing the following columns:
 
-            * `customer_id`: Unique customer identifier
-            * `monetary_value`: Mean transaction value of repeat purchases for each customer
-            * `frequency`: Number of repeat transactions observed for each customer
+        * `customer_id`: Unique customer identifier
+        * `monetary_value`: Mean transaction value of repeat purchases for each customer
+        * `frequency`: Number of repeat transactions observed for each customer
     model_config : dict, optional
         Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
         `default_model_config` class attribute.
@@ -360,8 +361,8 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     data : ~pandas.DataFrame
         Dataframe containing the following columns:
 
-            * `customer_id`: Unique customer identifier
-            * `individual_transaction_value`: Monetary value of each purchase for each customer
+        * `customer_id`: Unique customer identifier
+        * `individual_transaction_value`: Monetary value of each purchase for each customer
     model_config : dict, optional
         Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
         `default_model_config` class attribute.
