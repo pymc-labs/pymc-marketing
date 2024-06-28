@@ -4,7 +4,7 @@ import os
 import papermill as pm
 from tqdm import tqdm
 
-KERNEL_NAME: str = "pymc-marketing-dev"
+KERNEL_NAME: str = "python3"
 NOTEBOOKS_PATH: str = "docs/source/notebooks"
 OUTPUT_PATH: str = "scripts/run_notebooks/outputs"
 
