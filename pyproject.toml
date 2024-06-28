@@ -34,6 +34,7 @@ docs = [
     "myst-parser",
     "myst-nb<=1.0.0",
     "numpydoc",
+    "numpyro",
     "pydata-sphinx-theme>=0.12.0.dev0",
     "sphinx-copybutton",
     "sphinx-autodoc-typehints",
