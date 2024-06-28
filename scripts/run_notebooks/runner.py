@@ -10,7 +10,7 @@ NOTEBOOKS_PATH = Path("docs/source/notebooks")
 NOTEBOOKS_SKIP: list[str] = [
     "clv_quickstart.ipynb",
     "mmm_budget_allocation_example.ipynb",
-    "mmm_tvp_example.ipynb",
+    "mmm_tvp_example.ipynb",  # This notebook takes too long to run
 ]
 NOTEBOOKS: list[Path] = list(NOTEBOOKS_PATH.glob("*/*.ipynb"))
 NOTEBOOKS = [nb for nb in NOTEBOOKS if nb.name not in NOTEBOOKS_SKIP]
@@ -41,6 +41,7 @@ def run_notebook(notebook_path: Path) -> None:
 if __name__ == "__main__":
     setup_logging()
     logging.info("Starting notebook runner")
+    logging.info(f"Notebooks to run: {NOTEBOOKS}")
     Parallel(n_jobs=-1)(
         delayed(run_notebook)(notebook_path) for notebook_path in tqdm(NOTEBOOKS)
     )
