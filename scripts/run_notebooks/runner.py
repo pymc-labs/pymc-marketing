@@ -6,7 +6,6 @@ from tqdm import tqdm
 
 KERNEL_NAME: str = "python3"
 NOTEBOOKS_PATH: str = "docs/source/notebooks"
-OUTPUT_PATH: str = "scripts/run_notebooks/outputs"
 
 
 def setup_logging() -> None:
@@ -43,29 +42,17 @@ def verify_notebooks_exist() -> None:
             raise FileNotFoundError(f"Notebook not found: {notebook_path}")
 
 
-def make_output_directory() -> None:
-    os.makedirs(OUTPUT_PATH, exist_ok=True)
-
-
 def run_notebook(notebook_path: str) -> None:
-    output_path = construct_output_path(notebook_path)
     pm.execute_notebook(
         input_path=notebook_path,
-        output_path=output_path,
+        output_path=None,
         kernel_name=KERNEL_NAME,
     )
-
-
-def construct_output_path(notebook_path: str) -> str:
-    return f"{OUTPUT_PATH}/{notebook_path.split('/')[-1]}"
 
 
 if __name__ == "__main__":
     setup_logging()
     logging.info("Starting notebook runner")
-
-    make_output_directory()
-    logging.info("Output directory created")
 
     notebooks_paths = get_notebooks_paths()
     verify_notebooks_exist()
