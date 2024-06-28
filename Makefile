@@ -1,4 +1,4 @@
-.PHONY: init lint check_lint test html cleandocs
+.PHONY: init lint check_lint test html cleandocs run_notebooks
 
 init:
 	python3 -m pip install -e .
@@ -23,3 +23,6 @@ html:
 
 cleandocs:
 	rm -r "docs/build" "docs/jupyter_execute" "docs/source/api/generated"
+
+run_notebooks:
+	python scripts/run_notebooks/runner.py

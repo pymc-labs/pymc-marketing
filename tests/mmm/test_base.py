@@ -225,8 +225,6 @@ class MyScaler(BaseEstimator, TransformerMixin):
 
 
 def test_validate_and_preprocess(toy_X, toy_y, test_mmm):
-    test_mmm
-
     test_mmm.validate("X", toy_X)
     test_mmm.mock_method1.assert_called_once_with(test_mmm, toy_X)
 
