@@ -133,6 +133,13 @@ See the Example notebooks section for examples of further types of plot you can 
 
 ### CLV Quickstart
 
+Understand and optimize your customer's value with our **CLV models**. Our API supports various types of models catering to both contractual and non-contractual settings, as well as continuous and discrete transaction modes. Here are some examples:
+
+|                | **Non-contractual** | **Contractual**                |
+|----------------|---------------------|--------------------------------|
+| **Continuous** | online purchases    | ad conversion time             |
+| **Discrete**   | concerts & sports events   | recurring subscriptions |
+
 ```python
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -151,7 +158,7 @@ beta_geo_model = clv.BetaGeoModel(
 beta_geo_model.fit()
 ```
 
-Once fitted, we can use the model to predict the number of future purchases for known customers, the probability that they are still alive, and get various visualizations plotted. See the Examples section for more on this.
+After fitting, we predict future purchasing behavior and churn probabilities. See the "How-to" section for detailed examples.
 
 ## 📞 Schedule a Free Consultation for MMM & CLV Strategy
 
