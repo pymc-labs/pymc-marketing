@@ -73,7 +73,7 @@ class ParetoNBDModel(CLVModel):
     The Pareto/NBD model assumes the time duration a customer is active follows a Gamma distribution,
     and time between purchases is also Gamma-distributed while the customer is still active.
 
-    This model requires data to be summarized by recency, frequency, and T for each customer,
+    This model requires data to be summarized by *recency*, *frequency*, and *T* for each customer,
     using `clv.rfm_summary()` or equivalent. Covariates impacting customer dropouts and transaction rates are optional.
 
     Parameters
@@ -81,11 +81,11 @@ class ParetoNBDModel(CLVModel):
     data : ~pandas.DataFrame
         DataFrame containing the following columns:
 
-        * `frequency`: number of repeat purchases
-        * `recency`: time between the first and the last purchase
-        * `T`: time between the first purchase and the end of the observation period.
-          Model assumptions require T >= recency
-        * `customer_id`: unique customer identifier
+        * `customer_id`: Unique customer identifier
+        * `frequency`: Number of repeat purchases
+        * `recency`: Time between the first and the last purchase
+        * `T`: Time between the first purchase and the end of the observation period.
+          Model assumptions require *T >= recency*
 
         Along with optional covariate columns.
 
@@ -483,18 +483,18 @@ class ParetoNBDModel(CLVModel):
         data : ~pandas.DataFrame, optional
             Dataframe containing the following columns:
 
-            * `customer_id`: unique customer identifier
-            * `frequency`: number of repeat purchases
-            * `recency`: time between the first and the last purchase
-            * `T`: time between the first purchase and the end of the observation period.
-              Model assumptions require T >= recency
-            * `future_t`: Number of time periods to predict expected purchases.
-            * covariates: Purchase and dropout covariate columns if original model had any.
+            * `customer_id`: Unique customer identifier
+            * `frequency`: Number of repeat purchases
+            * `recency`: Time between the first and the last purchase
+            * `T`: Time between the first purchase and the end of the observation period.
+              Model assumptions require *T >= recency*
+            * `future_t`: Optional column for *future_t* parametrization.
+            * All covariate columns specified when model was initialized.
 
-            If not provided, the method will use the fit dataset.
-        future_t : array_like, optional
+            If not provided, predictions will be ran with data used to fit model.
+        future_t : array_like
             Number of time periods to predict expected purchases.
-            Not needed if `data` parameter is provided with a `future_t` column.
+            Not required if `data` Dataframe contains a *future_t* column.
 
         References
         ----------
@@ -558,18 +558,18 @@ class ParetoNBDModel(CLVModel):
         data : ~pandas.DataFrame, optional
             Dataframe containing the following columns:
 
-            * `customer_id`: unique customer identifier
-            * `frequency`: number of repeat purchases
-            * `recency`: time between the first and the last purchase
-            * `T`: time between the first purchase and the end of the observation period.
-              Model assumptions require T >= recency
-            * `future_t`: Number of time periods in the future to estimate alive probability; defaults to 0.
-            * covariates: Purchase and dropout covariate columns if original model had any.
+            * `customer_id`: Unique customer identifier
+            * `frequency`: Number of repeat purchases
+            * `recency`: Time between the first and the last purchase
+            * `T`: Time between the first purchase and the end of the observation period.
+              Model assumptions require *T >= recency*
+            * `future_t`: Optional column for *future_t* parametrization.
+            * All covariate columns specified when model was initialized.
 
-            If not provided, the method will use the fit dataset.
-        future_t : array_like, optional
-            Number of time periods in the future to estimate alive probability; defaults to 0.
-            Not needed if `data` parameter is provided with a `future_t` column.
+            If not provided, predictions will be ran with data used to fit model.
+        future_t : array_like
+            Number of time periods to predict expected purchases.
+            Not required if `data` Dataframe contains a *future_t* column.
 
         References
         ----------
@@ -631,23 +631,26 @@ class ParetoNBDModel(CLVModel):
         data : ~pandas.DataFrame
             Optional dataframe containing the following columns:
 
-            * `customer_id`: unique customer identifier
-            * `frequency`: number of repeat purchases
-            * `recency`: time between the first and the last purchase
-            * `T`: time between the first purchase and the end of the observation period.
-              Model assumptions require T >= recency
-            * `future_t`: Number of time periods to predict expected purchases.
-            * `n_purchases`: Number of purchases to predict probability for.
+            * `customer_id`: Unique customer identifier
+            * `frequency`: Number of repeat purchases
+            * `recency`: Time between the first and the last purchase
+            * `T`: Time between the first purchase and the end of the observation period.
+              Model assumptions require *T >= recency*
+            * `future_t`: Optional column for *future_t* parametrization.
+            * `n_purchases`: Optional column for *n_purchases* parametrization.
               Currently restricted to the same number for all customers.
-            * covariates: Purchase and dropout covariate columns if original model had any.
+            * All covariate columns specified when model was initialized.
 
-            If not provided, the method will use the fit dataset.
-        n_purchases : int, optional
+            If not provided, predictions will be ran with data used to fit model.
+        future_t : array_like
+            Number of time periods to predict expected purchases.
+            Not required if `data` Dataframe contains a *future_t* column.
+        n_purchases : int
             Number of purchases predicted.
-            Not needed if `data` parameter is provided with a `n_purchases` column.
-        future_t : array_like, optional
+            Not required if `data` Dataframe contains an *n_purchases* column.
+        future_t : array_like
             Time periods over which the probability should be estimated.
-            Not needed if `data` parameter is provided with a `future_t` column.
+            Not required if `data` Dataframe contains an *n_purchases* column.
 
         References
         ----------
@@ -798,9 +801,9 @@ class ParetoNBDModel(CLVModel):
         """
         Expected number of purchases for a new customer across *t* time periods.
 
-        In a model with covariates, if `data` is not specified, the dataset used for fitting will be used.
-        A prediction will be computed for a new customer with each set of covariates.
-        This is not a conditional prediction on the observed customers!
+        In a model with covariates, if `data` is not specified, the dataset used for fitting will be used and
+        a prediction will be computed for a *new customer* with each set of covariates.
+        *This is not a conditional prediction for observed customers!*
 
         Adapted from equation (27) in Bruce Hardie's notes [1]_, and `lifetimes` package:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/pareto_nbd_fitter.py#L359
@@ -811,13 +814,13 @@ class ParetoNBDModel(CLVModel):
             Dataframe containing the following columns:
 
             * `customer_id`: unique customer identifier
-            * `t`: Number of time periods to predict expected purchases.
-            * covariates: Purchase and dropout covariate columns if original model had any.
+            * `t`: Optional column for *t* parametrization.
+            * All covariate columns specified when model was initialized.
 
-            If not provided, the method will use the fit dataset.
+            If not provided, predictions will be ran with data used to fit model.
         t : array_like, optional
             Number of time periods over which to estimate purchases.
-            Not needed if `data` parameter is provided with a `t` column.
+            Not required if `data` Dataframe contains a *t* column.
 
         References
         ----------
@@ -862,20 +865,20 @@ class ParetoNBDModel(CLVModel):
         """Utility function for posterior predictive sampling of dropout, purchase rate
         and frequency/recency of new customers.
 
-        In a model with covariates, if `data` is not specified, the dataset used for fitting will be used.
-        A prediction will be computed for a new customer with each set of covariates.
-        This is not a conditional prediction on the observed customers!
+        In a model with covariates, if `data` is not specified, the dataset used for fitting will be used and
+        a prediction will be computed for a *new customer* with each set of covariates.
+        *This is not a conditional prediction for observed customers!*
 
         Parameters
         ----------
         data : ~pandas.DataFrame, Optional
             DataFrame containing the following columns:
 
-            * `customer_id`: unique customer identifier
-            * `T`: time between the first purchase and the end of the observation period.
-            * covariates: Purchase and dropout covariate columns if original model had any.
+            * `customer_id`: Unique customer identifier
+            * `T`: Time between the first purchase and the end of the observation period
+            * All covariate columns specified when model was initialized.
 
-            If not provided, the method will use the fit dataset.
+            If not provided, predictions will be ran with data used to fit model.
         T : array_like, optional
             time between the first purchase and the end of the observation period.
             Not needed if `data` parameter is provided with a `T` column.
@@ -959,10 +962,10 @@ class ParetoNBDModel(CLVModel):
         data : ~pandas.DataFrame, optional
             DataFrame containing the following columns:
 
-            * `customer_id`: unique customer identifier
-            * covariates: Purchase and dropout covariate columns if original model had any.
+            * `customer_id`: Unique customer identifier
+            * All covariate columns specified when model was initialized.
 
-            If not provided, the method will use the fit dataset.
+            If not provided, predictions will be ran with data used to fit model.
         random_seed : ~numpy.random.RandomState, optional
             Random state to use for sampling.
 
@@ -993,10 +996,10 @@ class ParetoNBDModel(CLVModel):
         data : ~pandas.DataFrame, optional
             DataFrame containing the following columns:
 
-            * `customer_id`: unique customer identifier
-            * covariates: Purchase and dropout covariate columns if original model had any.
+            * `customer_id`: Unique customer identifier
+            * All covariate columns specified when model was initialized.
 
-            If not provided, the method will use the fit dataset.
+            If not provided, predictions will be ran with data used to fit model.
         random_seed : ~numpy.random.RandomState, optional
             Random state to use for sampling.
 
@@ -1027,14 +1030,14 @@ class ParetoNBDModel(CLVModel):
         data : ~pandas.DataFrame, optional
             DataFrame containing the following columns:
 
-            * `customer_id`: unique customer identifier
-            * `T`: time between the first purchase and the end of the observation period.
-            * covariates: Purchase and dropout covariate columns if original model had any.
+            * `customer_id`: Unique customer identifier
+            * `T`: Time between the first purchase and the end of the observation period.
+            * All covariate columns specified when model was initialized.
 
             If not provided, the method will use the fit dataset.
         T : array_like, optional
             Number of observation periods for each customer. If not provided, T values from fit dataset will be used.
-            Not needed if `data` parameter is provided with a `T` column.
+            Not required if `data` Dataframe contains a `T` column.
         random_seed : ~numpy.random.RandomState, optional
             Random state to use for sampling.
 
