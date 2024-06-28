@@ -134,10 +134,10 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 
 ### Examples
 
-|                | **Non-contractual** | **Contractual**                 |
-|----------------|---------------------|---------------------------------|
-| **Continuous** | Buying groceries    | Audible                         |
-| **Discrete**   | Cinema ticket       | Monthly or yearly subscriptions |
+|                | **Non-contractual** | **Contractual**                |
+|----------------|---------------------|--------------------------------|
+| **Continuous** | online purchases    | ad conversion time             |
+| **Discrete**   | concerts & sports events   | recurring subscriptions |
 
 ### CLV Quickstart
 

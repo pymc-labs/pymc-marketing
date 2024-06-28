@@ -44,19 +44,19 @@ class BetaGeoModel(CLVModel):
 
     Parameters
     ----------
-    data: pandas.DataFrame
+    data : ~pandas.DataFrame
         DataFrame containing the following columns:
             * `customer_id`: Unique customer identifier
             * `frequency`: Number of repeat purchases
             * `recency`: Time between the first and the last purchase
             * `T`: Time between the first purchase and the end of the observation period
-    model_config: dict, optional
+    model_config : dict, optional
         Dictionary of model prior parameters:
             * `a_prior`: Shape parameter for time until dropout; defaults to `pymc.HalfFlat()`
             * `b_prior`: Shape parameter for time until dropout; defaults to `pymc.HalfFlat()`
             * `alpha_prior`: Scale parameter for time between purchases; defaults to `pymc.HalfFlat()`
             * `r_prior`: Scale parameter for time between purchases; defaults to `pymc.HalfFlat()`
-    sampler_config: dict, optional
+    sampler_config : dict, optional
         Dictionary of sampler parameters. Defaults to *None*.
 
     Examples
@@ -329,14 +329,15 @@ class BetaGeoModel(CLVModel):
 
         Parameters
         ----------
-        future_t: int, array_like
+        future_t : int, array_like
             Number of time periods to predict expected purchases.
-        data: pandas.DataFrame
+        data : ~pandas.DataFrame
             Optional dataframe containing the following columns:
-                * `customer_id`: unique customer identifier
-                * `frequency`: Number of repeat purchases
-                * `recency`: Time between the first and the last purchase
-                * `T`: Time between first purchase and end of observation period; model assumptions require T >= recency
+
+            * `customer_id`: Unique customer identifier
+            * `frequency`: Number of repeat purchases
+            * `recency`: Time between the first and the last purchase
+            * `T`: Time between first purchase and end of observation period; model assumptions require T >= recency
 
         References
         ----------
@@ -391,12 +392,13 @@ class BetaGeoModel(CLVModel):
 
         Parameters
         ----------
-        data: pandas.DataFrame
+        data : *pandas.DataFrame
             Optional dataframe containing the following columns:
-                * `customer_id`: unique customer identifier
-                * `frequency`: Number of repeat purchases
-                * `recency`: Time between the first and the last purchase
-                * `T`: Time between first purchase and end of observation period, model assumptions require T >= recency
+
+            * `customer_id`: Unique customer identifier
+            * `frequency`: Number of repeat purchases
+            * `recency`: Time between the first and the last purchase
+            * `T`: Time between first purchase and end of observation period, model assumptions require T >= recency
 
         References
         ----------
@@ -451,7 +453,7 @@ class BetaGeoModel(CLVModel):
 
         Parameters
         ----------
-        t: array_like
+        t : array_like
             Number of time periods over which to estimate purchases.
         References
         ----------
@@ -516,8 +518,7 @@ class BetaGeoModel(CLVModel):
     ) -> xarray.Dataset:
         """Sample the Beta distribution for the population-level dropout rate.
 
-        This is the probability that a new customer will not make another purchase ("drops out")
-        immediately after any previous purchase.
+        This is the probability that a new customer will "drop out" and make no further purchases.
 
         Parameters
         ----------
