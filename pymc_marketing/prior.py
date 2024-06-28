@@ -795,11 +795,11 @@ class Prior:
         memo[id(self)] = copy_obj
         return copy_obj
 
-    def copy(self) -> Prior:
+    def deepcopy(self) -> Prior:
         """Return a deep copy of the prior."""
         return copy.deepcopy(self)
 
-    def graph(self):
+    def to_graph(self):
         """Generate a graph of the variables.
 
         Examples
@@ -826,7 +826,7 @@ class Prior:
                 transform="sigmoid",
             )
 
-            dist.graph()
+            dist.to_graph()
 
         .. image:: /_static/example-graph.png
             :alt: Example graph
@@ -887,7 +887,7 @@ class Prior:
         if "mu" in self.parameters:
             raise MuAlreadyExistsError(self)
 
-        distribution = self.copy()
+        distribution = self.deepcopy()
         distribution.parameters["mu"] = mu
         distribution.parameters["observed"] = observed
         return distribution.create_variable(name)

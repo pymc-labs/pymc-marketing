@@ -455,7 +455,7 @@ def test_sample_prior_missing_coords() -> None:
         dist.sample_prior()
 
 
-def test_graph() -> None:
+def test_to_graph() -> None:
     hierarchical_distribution = Prior(
         "Normal",
         mu=Prior("Normal"),
@@ -463,7 +463,7 @@ def test_graph() -> None:
         dims="channel",
     )
 
-    G = hierarchical_distribution.graph()
+    G = hierarchical_distribution.to_graph()
     assert isinstance(G, Digraph)
 
 
@@ -600,4 +600,4 @@ def test_checks_param_value_types() -> None:
 
 def test_check_equality_with_numpy() -> None:
     dist = Prior("Normal", mu=np.array([1, 2, 3]), sigma=1)
-    assert dist == dist.copy()
+    assert dist == dist.deepcopy()
