@@ -352,3 +352,17 @@ def test_fit_after_prior_keeps_prior(toy_X, toy_y):
     model.fit(X=toy_X, y=toy_y, chains=1, draws=100, tune=100)
     assert "prior" in model.idata
     assert "prior_predictive" in model.idata
+
+
+def test_second_fit(toy_X, toy_y):
+    model = ModelBuilderTest()
+
+    model.fit(X=toy_X, y=toy_y, chains=1, draws=100, tune=100)
+    assert "posterior" in model.idata
+    id_before = id(model.idata)
+    assert "fit_data" in model.idata
+
+    model.fit(X=toy_X, y=toy_y, chains=1, draws=100, tune=100)
+    id_after = id(model.idata)
+
+    assert id_before != id_after
