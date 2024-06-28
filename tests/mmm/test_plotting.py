@@ -17,10 +17,7 @@ import pymc as pm
 import pytest
 from matplotlib import pyplot as plt
 
-from pymc_marketing.mmm.delayed_saturated_mmm import (
-    MMM,
-    BaseMMM,
-)
+from pymc_marketing.mmm.delayed_saturated_mmm import MMM, BaseMMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleTarget
 
 seed: int = sum(map(ord, "pymc_marketing"))
@@ -129,7 +126,7 @@ class TestBasePlotting:
     @pytest.mark.parametrize(
         argnames="func_plot_name, kwargs_plot",
         argvalues=[
-            ("plot_prior_predictive", {"samples": 3}),
+            ("plot_prior_predictive", {}),
             ("plot_posterior_predictive", {}),
             ("plot_posterior_predictive", {"original_scale": True}),
             ("plot_posterior_predictive", {"ax": plt.subplots()[1]}),

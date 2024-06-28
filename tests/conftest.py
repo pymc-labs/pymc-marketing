@@ -11,7 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import numpy as np
 import pandas as pd
 import pytest
 from arviz import InferenceData
@@ -65,10 +64,9 @@ def cdnow_trans() -> pd.DataFrame:
 
 @pytest.fixture(scope="module")
 def test_summary_data() -> pd.DataFrame:
-    rng = np.random.default_rng(14)
-    df = pd.read_csv("tests/clv/datasets/test_summary_data.csv", index_col=0)
-    df["monetary_value"] = rng.lognormal(size=(len(df)))
+    df = pd.read_csv("data/clv_quickstart.csv")
     df["customer_id"] = df.index
+    df["future_spend"] = df["monetary_value"]
     return df
 
 
