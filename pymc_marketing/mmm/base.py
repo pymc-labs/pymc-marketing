@@ -293,9 +293,7 @@ class MMMModelBuilder(ModelBuilder):
             )
         return self.idata["posterior_predictive"]
 
-    def plot_prior_predictive(
-        self, samples: int = 1_000, **plt_kwargs: Any
-    ) -> plt.Figure:
+    def plot_prior_predictive(self, **plt_kwargs: Any) -> plt.Figure:
         prior_predictive_data: az.InferenceData = self.prior_predictive
 
         likelihood_hdi_94: DataArray = az.hdi(ary=prior_predictive_data, hdi_prob=0.94)[
