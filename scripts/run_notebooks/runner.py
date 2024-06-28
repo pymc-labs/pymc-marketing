@@ -1,7 +1,7 @@
 import logging
 import os
 
-import papermill as pm
+import papermill
 from tqdm import tqdm
 
 KERNEL_NAME: str = "python3"
@@ -17,12 +17,12 @@ def setup_logging() -> None:
 
 def get_notebooks_names() -> list[str]:
     return [
-        # "clv/bg_nbd.ipynb",
-        # # "clv/clv_quickstart.ipynb",
-        # "clv/gamma_gamma.ipynb",
-        # "clv/pareto_nbd.ipynb",
-        # "clv/sBG.ipynb",
-        # "mmm/mmm_budget_allocation_example.ipynb",
+        "clv/bg_nbd.ipynb",
+        # "clv/clv_quickstart.ipynb",
+        "clv/gamma_gamma.ipynb",
+        "clv/pareto_nbd.ipynb",
+        "clv/sBG.ipynb",
+        "mmm/mmm_budget_allocation_example.ipynb",
         "mmm/mmm_components.ipynb",
         "mmm/mmm_example.ipynb",
         "mmm/mmm_lift_test.ipynb",
@@ -42,11 +42,17 @@ def verify_notebooks_exist() -> None:
             raise FileNotFoundError(f"Notebook not found: {notebook_path}")
 
 
+def get_cwd_from_notebook_path(notebook_path: str) -> str:
+    return notebook_path.rsplit("/", 1)[0]
+
+
 def run_notebook(notebook_path: str) -> None:
-    pm.execute_notebook(
+    cwd = get_cwd_from_notebook_path(notebook_path)
+    papermill.execute_notebook(
         input_path=notebook_path,
         output_path=None,
         kernel_name=KERNEL_NAME,
+        cwd=cwd,
     )
 
 
