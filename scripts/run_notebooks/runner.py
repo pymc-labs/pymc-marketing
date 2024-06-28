@@ -19,12 +19,15 @@ def setup_logging() -> None:
 def get_notebooks_names() -> list[str]:
     return [
         "clv/bg_nbd.ipynb",
-        "clv/clv_quickstart.ipynb",
+        # "clv/clv_quickstart.ipynb",
         "clv/gamma_gamma.ipynb",
+        "clv/pareto_nbd.ipynb",
         "clv/sBG.ipynb",
         "mmm/mmm_budget_allocation_example.ipynb",
+        "mmm/mmm_components.ipynb",
         "mmm/mmm_example.ipynb",
         "mmm/mmm_lift_test.ipynb",
+        "mmm/mmm_tvp_example.ipynb",
     ]
 
 
