@@ -135,3 +135,6 @@ dmypy.json
 
 # PyCharm .idea files
 .idea/
+
+# Notebook runner output
+scripts/run_notebooks/outputs/*.ipynb
