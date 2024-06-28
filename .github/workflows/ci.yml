@@ -78,7 +78,7 @@ jobs:
         pip install -e .[docs]
         pip install -e .[test]
     - name: Run notebooks
-      run: python scripts/run_notebooks/runner.py
+      run: make run_notebooks
 
 
   all:
