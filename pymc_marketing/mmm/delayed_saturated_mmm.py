@@ -1819,6 +1819,7 @@ class MMM(
             time_varying_var_name=time_varying_var_name,
             model=self.model,
             dist=dist,
+            name=name,
         )
 
     def _create_synth_dataset(
