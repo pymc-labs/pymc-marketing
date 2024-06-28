@@ -471,6 +471,7 @@ class ModelBuilder(ABC):
             idata = pm.sample(**sampler_args)
 
         if self.idata:
+            self.idata = self.idata.copy()
             self.idata.extend(idata, join="right")
         else:
             self.idata = idata
@@ -479,6 +480,10 @@ class ModelBuilder(ABC):
         combined_data = pd.concat([X_df, y_df], axis=1)
         if not all(combined_data.columns):
             raise ValueError("All columns must have non-empty names")
+
+        if "fit_data" in self.idata:
+            del self.idata.fit_data
+
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
