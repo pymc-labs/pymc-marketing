@@ -9,7 +9,7 @@ KERNEL_NAME: str = "python3"
 NOTEBOOKS_PATH = Path("docs/source/notebooks")
 NOTEBOOKS_SKIP: list[str] = [
     "clv_quickstart.ipynb",
-    "mmm_budget_allocation_example.ipynb",
+    # "mmm_budget_allocation_example.ipynb",
     "mmm_tvp_example.ipynb",  # This notebook takes too long to run
 ]
 NOTEBOOKS: list[Path] = list(NOTEBOOKS_PATH.glob("*/*.ipynb"))
