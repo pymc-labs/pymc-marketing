@@ -517,7 +517,7 @@ class ModelBuilder(ABC):
         for each input row is the expected output value, computed as the mean of MCMC samples.
 
         Parameters
-        ---------
+        ----------
         X_pred : array-like if sklearn is available, otherwise array, shape (n_pred, n_features)
             The input data used for prediction.
         extend_idata : Boolean determining whether the predictions should be added to inference data object.
@@ -565,7 +565,7 @@ class ModelBuilder(ABC):
         Sample from the model's prior predictive distribution.
 
         Parameters
-        ---------
+        ----------
         X_pred : array, shape (n_pred, n_features)
             The input data used for prediction using prior distribution.
         samples : int
@@ -617,7 +617,7 @@ class ModelBuilder(ABC):
         Sample from the model's posterior predictive distribution.
 
         Parameters
-        ---------
+        ----------
         X_pred : array, shape (n_pred, n_features)
             The input data used for prediction using prior distribution..
         extend_idata : Boolean determining whether the predictions should be added to inference data object.
@@ -699,7 +699,7 @@ class ModelBuilder(ABC):
         Generate posterior predictive samples on unseen data.
 
         Parameters
-        ---------
+        ----------
         X_pred : array-like if sklearn is available, otherwise array, shape (n_pred, n_features)
             The input data used for prediction.
         extend_idata : Boolean determining whether the predictions should be added to inference data object.
