@@ -430,7 +430,7 @@ def weibull_adstock(
     return batched_convolution(x, w, axis=axis, mode=mode)
 
 
-def logistic_saturation(x, lam: npt.NDArray[np.float_] | float = 0.5):
+def logistic_saturation(x, lam: npt.NDArray[np.float64] | float = 0.5):
     """Logistic saturation transformation.
 
     .. math::
@@ -842,3 +842,91 @@ def michaelis_menten(
     """
 
     return alpha * x / (lam + x)
+
+
+def hill_saturation(
+    x: pt.TensorLike,
+    sigma: pt.TensorLike,
+    beta: pt.TensorLike,
+    lam: pt.TensorLike,
+) -> pt.TensorVariable:
+    r"""Hill Saturation Function
+
+    .. math::
+        f(x) = \frac{\sigma}{1 + e^{-\beta(x - \lambda)}}
+
+    where:
+     - :math:`\sigma` is the maximum value (upper asymptote)
+     - :math:`\beta` is the slope parameter
+     - :math:`\lambda` is the transition point on the X-axis
+     - :math:`x` is the independent variable
+
+    This function computes the Hill sigmoidal response curve, which is commonly
+    used to describe the saturation effect in biological systems. The curve is
+    characterized by its sigmoidal shape, representing a gradual transition from
+    a low, nearly zero level to a high plateau, the maximum value the function
+    will approach as the independent variable grows large.
+
+    .. plot::
+        :context: close-figs
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from pymc_marketing.mmm.transformers import hill_saturation
+        x = np.linspace(0, 10, 100)
+        # Varying sigma
+        sigmas = [0.5, 1, 1.5]
+        plt.figure(figsize=(12, 4))
+        for i, sigma in enumerate(sigmas):
+            plt.subplot(1, 3, i+1)
+            y = hill_saturation(x, sigma, 2, 5)
+            plt.plot(x, y)
+            plt.xlabel('x')
+            plt.ylabel('Hill Saturation')
+            plt.title(f'Sigma = {sigma}')
+        plt.tight_layout()
+        plt.show()
+        # Varying beta
+        betas = [1, 2, 3]
+        plt.figure(figsize=(12, 4))
+        for i, beta in enumerate(betas):
+            plt.subplot(1, 3, i+1)
+            y = hill_saturation(x, 1, beta, 5)
+            plt.plot(x, y)
+            plt.xlabel('x')
+            plt.ylabel('Hill Saturation')
+            plt.title(f'Beta = {beta}')
+        plt.tight_layout()
+        plt.show()
+        # Varying lam
+        lams = [3, 5, 7]
+        plt.figure(figsize=(12, 4))
+        for i, lam in enumerate(lams):
+            plt.subplot(1, 3, i+1)
+            y = hill_saturation(x, 1, 2, lam)
+            plt.plot(x, y)
+            plt.xlabel('x')
+            plt.ylabel('Hill Saturation')
+            plt.title(f'Lambda = {lam}')
+        plt.tight_layout()
+        plt.show()
+
+    Parameters
+    ----------
+    x : float or array-like
+        The independent variable, typically representing the concentration of a
+        substrate or the intensity of a stimulus.
+    sigma : float
+        The upper asymptote of the curve, representing the maximum value the
+        function will approach as x grows large.
+    beta : float
+        The slope parameter, determining the steepness of the curve.
+    lam : float
+        The x-value of the midpoint where the curve transitions from exponential
+        growth to saturation.
+
+    Returns
+    -------
+    float or array-like
+        The value of the Hill function for each input value of x.
+    """
+    return sigma / (1 + pt.exp(-beta * (x - lam)))

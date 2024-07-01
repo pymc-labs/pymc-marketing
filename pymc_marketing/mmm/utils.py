@@ -13,7 +13,6 @@
 #   limitations under the License.
 """Utility functions for the Marketing Mix Modeling module."""
 
-import re
 from collections.abc import Callable
 from typing import Any
 
@@ -27,7 +26,7 @@ from pymc_marketing.mmm.transformers import michaelis_menten
 
 
 def generate_fourier_modes(
-    periods: npt.NDArray[np.float_], n_order: int
+    periods: npt.NDArray[np.float64], n_order: int
 ) -> pd.DataFrame:
     """Generate Fourier modes.
 
@@ -224,32 +223,6 @@ def find_sigmoid_inflection_point(
     y_inflection = sigmoid_saturation(x_inflection, alpha, lam)
 
     return x_inflection, y_inflection
-
-
-def standardize_scenarios_dict_keys(d: dict, keywords: list[str]):
-    """
-    Standardize the keys in a dictionary based on a list of keywords.
-
-    This function iterates over the keys in the dictionary and the keywords.
-    If a keyword is found in a key (case-insensitive), the key is replaced with the keyword.
-
-    Parameters
-    ----------
-    d : dict
-        The dictionary whose keys are to be standardized.
-    keywords : list
-        The list of keywords to standardize the keys to.
-
-    Returns
-    -------
-    None
-        The function modifies the given dictionary in-place and doesn't return any object.
-    """
-    for keyword in keywords:
-        for key in list(d.keys()):
-            if re.search(keyword, key, re.IGNORECASE):
-                d[keyword] = d.pop(key)
-                break
 
 
 def apply_sklearn_transformer_across_dim(

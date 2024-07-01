@@ -15,7 +15,7 @@ import warnings
 from datetime import date, datetime
 
 import numpy as np
-import pandas as pd
+import pandas
 import xarray
 from numpy import datetime64
 
@@ -42,42 +42,36 @@ def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
 
 def customer_lifetime_value(
     transaction_model,
-    customer_id: pd.Series | np.ndarray,
-    frequency: pd.Series | np.ndarray,
-    recency: pd.Series | np.ndarray,
-    T: pd.Series | np.ndarray,
-    monetary_value: pd.Series | np.ndarray | xarray.DataArray,
-    time: int = 12,
-    discount_rate: float = 0.01,
-    freq: str = "D",
+    data: pandas.DataFrame,
+    future_t: int = 12,
+    discount_rate: float = 0.00,
+    time_unit: str = "D",
 ) -> xarray.DataArray:
     """
-    Compute the average lifetime value for a group of one or more customers.
-    This method computes the average lifetime value for a group of one or more customers.
-    It also applies Discounted Cash Flow.
+    Compute the average lifetime value for a group of one or more customers,
+    and apply a discount rate for net present value estimations.
+    Note `future_t` is measured in months regardless of `time_unit` specified.
 
     Adapted from lifetimes package
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L449
 
     Parameters
     ----------
-    transaction_model: CLVModel
-        The model to predict future transactions
-    customer_id: array_like
-        Customer unique identifiers. Must not repeat.
-    frequency: array_like
-        The frequency vector of customers' purchases (denoted x in literature).
-    recency: array_like
-        The recency vector of customers' purchases (denoted t_x in literature).
-    T: array_like
-        The vector of customers' age (time since first purchase)
-    monetary_value: array_like
-        The monetary value vector of customer's purchases (denoted m in literature).
-    time: int, optional
+    transaction_model : ~CLVModel
+        Predictive model for future transactions. `BetaGeoModel` and `ParetoNBDModel` are currently supported.
+    data : ~pandas.DataFrame
+        DataFrame containing the following columns:
+
+        * `customer_id`: Unique customer identifier
+        * `frequency`: Number of repeat purchases observed for each customer
+        * `recency`: Time between the first and the last purchase
+        * `T`: Time between the first purchase and the end of the observation period
+        * `future_spend`: Predicted monetary values for each customer
+    future_t : int, optional
         The lifetime expected for the user in months. Default: 12
-    discount_rate: float, optional
-        The monthly adjusted discount rate. Default: 0.01
-    freq: string, optional
+    discount_rate : float, optional
+        The monthly adjusted discount rate. Default: 0.00
+    time_unit : string, optional
         Unit of time of the purchase history. Defaults to "D" for daily.
         Other options are "W" (weekly), "M" (monthly), and "H" (hourly).
         Example: If your dataset contains information about weekly purchases,
@@ -86,81 +80,49 @@ def customer_lifetime_value(
     Returns
     -------
     xarray
-        DataArray with the estimated customer lifetime values
+        DataArray containing estimated customer lifetime values
     """
 
+    if "future_spend" not in data.columns:
+        raise ValueError("Required column future_spend missing")
+
     def _squeeze_dims(x: xarray.DataArray):
+        """this utility is required for MAP-fitted model predictions to broadcast properly"""
         dims_to_squeeze: tuple[str, ...] = ()
         if "chain" in x.dims and len(x.chain) == 1:
             dims_to_squeeze += ("chain",)
         if "draw" in x.dims and len(x.draw) == 1:
             dims_to_squeeze += ("draw",)
-        if dims_to_squeeze:
-            x = x.squeeze(dims_to_squeeze)
+        x = x.squeeze(dims_to_squeeze)
         return x
 
     if discount_rate == 0.0:
         # no discount rate: just compute a single time step from 0 to `time`
-        steps = np.arange(time, time + 1)
+        steps = np.arange(future_t, future_t + 1)
     else:
-        steps = np.arange(1, time + 1)
+        steps = np.arange(1, future_t + 1)
 
-    factor = {"W": 4.345, "M": 1.0, "D": 30, "H": 30 * 24}[freq]
+    factor = {"W": 4.345, "M": 1.0, "D": 30, "H": 30 * 24}[time_unit]
 
-    # Monetary value can be passed as a DataArray, with entries per chain and draw or as a simple vector
-    if not isinstance(monetary_value, xarray.DataArray):
-        monetary_value = to_xarray(customer_id, monetary_value)
-    monetary_value = _squeeze_dims(monetary_value)
-
-    frequency, recency, T = to_xarray(customer_id, frequency, recency, T)
+    monetary_value = to_xarray(data["customer_id"], data["future_spend"])
 
     clv = xarray.DataArray(0.0)
 
-    # FIXME: This is a hotfix for ParetoNBDModel, as it has a different API from BetaGeoModel
-    #  We should harmonize them!
-    from pymc_marketing.clv.models import ParetoNBDModel
+    # TODO: Add an IF block to support ShiftedBetaGeoModelIndividual
 
-    if isinstance(transaction_model, ParetoNBDModel):
-        transaction_data = pd.DataFrame(
-            {
-                "customer_id": customer_id,
-                "frequency": frequency,
-                "recency": recency,
-                "T": T,
-            }
-        )
+    # initialize FOR loop with 0 purchases at future_t = 0
+    prev_expected_purchases = 0
 
-        def expected_purchases(*, t, **kwargs):
-            return transaction_model.expected_purchases(
-                future_t=t,
-                data=transaction_data,
-            )
-    else:
-        expected_purchases = transaction_model.expected_num_purchases
-
-    # TODO: Vectorize computation so that we perform a single call to expected_num_purchases
-    prev_expected_num_purchases = _squeeze_dims(
-        expected_purchases(
-            customer_id=customer_id,
-            frequency=frequency,
-            recency=recency,
-            T=T,
-            t=0,
-        )
-    )
     for i in steps * factor:
         # since the prediction of number of transactions is cumulative, we have to subtract off the previous periods
-        new_expected_num_purchases = _squeeze_dims(
-            expected_purchases(
-                customer_id=customer_id,
-                frequency=frequency,
-                recency=recency,
-                T=T,
-                t=i,
+        new_expected_purchases = _squeeze_dims(
+            transaction_model.expected_purchases(
+                data=data,
+                future_t=i,
             )
         )
-        expected_transactions = new_expected_num_purchases - prev_expected_num_purchases
-        prev_expected_num_purchases = new_expected_num_purchases
+        expected_transactions = new_expected_purchases - prev_expected_purchases
+        prev_expected_purchases = new_expected_purchases
 
         # sum up the CLV estimates of all the periods and apply discounted cash flow
         clv = clv + (monetary_value * expected_transactions) / (1 + discount_rate) ** (
@@ -177,48 +139,48 @@ def customer_lifetime_value(
 
 
 def _find_first_transactions(
-    transactions: pd.DataFrame,
+    transactions: pandas.DataFrame,
     customer_id_col: str,
     datetime_col: str,
     monetary_value_col: str | None = None,
     datetime_format: str | None = None,
-    observation_period_end: str | pd.Period | datetime | None = None,
+    observation_period_end: str | pandas.Period | datetime | None = None,
     time_unit: str = "D",
     sort_transactions: bool | None = True,
-) -> pd.DataFrame:
+) -> pandas.DataFrame:
     """
     Return dataframe with first transactions.
 
     This takes a DataFrame of transaction data of the form:
-        customer_id, datetime [, monetary_value]
-    and appends a column named 'repeated' to the transaction log which indicates which rows
-    are repeated transactions for that customer_id.
+        *customer_id, datetime [, monetary_value]*
+    and appends a column named *repeated* to the transaction log to indicate which rows
+    are repeated transactions for each *customer_id*.
 
     Adapted from lifetimes package
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L148
 
     Parameters
     ----------
-    transactions: :obj: DataFrame
-        A Pandas DataFrame that contains the customer_id col and the datetime col.
-    customer_id_col: string
-        Column in the transactions DataFrame that denotes the customer_id.
-    datetime_col:  string
-        Column in the transactions DataFrame that denotes the datetime the purchase was made.
-    monetary_value_col: string, optional
-        Column in the transactions DataFrame that denotes the monetary value of the transaction.
+    transactions : ~pandas.DataFrame
+        A Pandas DataFrame containing *customer_id_col* and *datetime_col*.
+    customer_id_col : string
+        Column in the *transactions* DataFrame denoting the *customer_id*.
+    datetime_col :  string
+        Column in the *transactions* DataFrame denoting datetimes purchase were made.
+    monetary_value_col : string, optional
+        Column in the *transactions* DataFrame that denotes the monetary value of the transaction.
         Optional; only needed for spend estimation models like the Gamma-Gamma model.
-    datetime_format: string, optional
+    datetime_format : string, optional
         A string that represents the timestamp format. Useful if Pandas can't understand
         the provided format.
-    observation_period_end: Union[str, pd.Period, datetime], optional
+    observation_period_end : Union[str, pandas.Period, datetime], optional
         A string or datetime to denote the final date of the study.
         Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
-    time_unit: string, optional
+    time_unit : string, optional
         Time granularity for study.
-        Default: 'D' for days. Possible values listed here:
+        Default : 'D' for days. Possible values listed here:
         https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
-    sort_transactions: bool, optional
+    sort_transactions : bool, optional
         Default: True
         If raw data is already sorted in chronological order, set to `False` to improve computational efficiency.
     """
@@ -228,10 +190,10 @@ def _find_first_transactions(
     if observation_period_end is None:
         observation_period_end = transactions[datetime_col].max()
 
-    if isinstance(observation_period_end, pd.Period):
+    if isinstance(observation_period_end, pandas.Period):
         observation_period_end = observation_period_end.to_timestamp()
     if isinstance(observation_period_end, str):
-        observation_period_end = pd.to_datetime(observation_period_end)
+        observation_period_end = pandas.to_datetime(observation_period_end)
 
     if monetary_value_col:
         select_columns.append(monetary_value_col)
@@ -240,14 +202,16 @@ def _find_first_transactions(
         transactions = transactions[select_columns].sort_values(select_columns).copy()
 
     # convert date column into a DateTimeIndex for time-wise grouping and truncating
-    transactions[datetime_col] = pd.to_datetime(
+    transactions[datetime_col] = pandas.to_datetime(
         transactions[datetime_col], format=datetime_format
     )
     transactions = (
         transactions.set_index(datetime_col).to_period(time_unit).to_timestamp()
     )
 
-    mask = pd.to_datetime(transactions.index) <= pd.to_datetime(observation_period_end)
+    mask = pandas.to_datetime(transactions.index) <= pandas.to_datetime(
+        observation_period_end
+    )
 
     transactions = transactions.loc[mask].reset_index()
 
@@ -289,85 +253,87 @@ def clv_summary(*args, **kwargs):
 
 
 def rfm_summary(
-    transactions: pd.DataFrame,
+    transactions: pandas.DataFrame,
     customer_id_col: str,
     datetime_col: str,
     monetary_value_col: str | None = None,
     datetime_format: str | None = None,
-    observation_period_end: str | pd.Period | datetime | None = None,
+    observation_period_end: str | pandas.Period | datetime | None = None,
     time_unit: str = "D",
     time_scaler: float | None = 1,
     include_first_transaction: bool | None = False,
     sort_transactions: bool | None = True,
-) -> pd.DataFrame:
+) -> pandas.DataFrame:
     """
-    Summarize transaction data for use in CLV modeling and/or RFM segmentation.
+    Summarize transaction data for use in CLV modeling or RFM segmentation.
 
     This transforms a DataFrame of transaction data of the form:
-        customer_id, datetime [, monetary_value]
+        *customer_id, datetime [, monetary_value]*
     to a DataFrame for CLV modeling:
-        customer_id, frequency, recency, T [, monetary_value]
+        *customer_id, frequency, recency, T [, monetary_value]*
 
     If the `include_first_transaction = True` argument is specified, a DataFrame for RFM segmentation is returned:
-        customer_id, frequency, recency, monetary_value
+        *customer_id, frequency, recency, monetary_value*
 
-    This function is not required if using the `rfm_segments` utility.
+    This function is not required if using the `clv.rfm_segments` utility.
 
     Adapted from lifetimes package
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L230
 
     Parameters
     ----------
-    transactions: :obj: DataFrame
-        A Pandas DataFrame that contains the customer_id col and the datetime col.
-    customer_id_col: string
-        Column in the transactions DataFrame that denotes the customer_id.
-    datetime_col:  string
-        Column in the transactions DataFrame that denotes the datetime the purchase was made.
-    monetary_value_col: string, optional
-        Column in the transactions DataFrame that denotes the monetary value of the transaction.
+    transactions : ~pandas.DataFrame
+        A Pandas DataFrame containing *customer_id_col* and *datetime_col*.
+    customer_id_col : string
+        Column in the *transactions* DataFrame denoting the *customer_id*.
+    datetime_col :  string
+        Column in the *transactions* DataFrame denoting datetimes purchase were made.
+    monetary_value_col : string, optional
+        Column in the transactions DataFrame denoting the monetary value of the transaction.
         Optional; only needed for RFM segmentation and spend estimation models like the Gamma-Gamma model.
-    observation_period_end: Union[str, pd.Period, datetime], optional
+    observation_period_end : Union[str, pandas.Period, datetime], optional
         A string or datetime to denote the final date of the study.
         Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
-    datetime_format: string, optional
-        A string that represents the timestamp format. Useful if Pandas can't understand
-        the provided format.
-    time_unit: string, optional
+    datetime_format : string, optional
+        A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
+    time_unit : string, optional
         Time granularity for study.
         Default: 'D' for days. Possible values listed here:
         https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
-    time_scaler: int, optional
-        Default: 1. Useful for scaling recency & T to a different time granularity. Example:
-        With freq='D' and freq_multiplier=1, we get recency=591 and T=632
-        With freq='h' and freq_multiplier=24, we get recency=590.125 and T=631.375
-        This is useful if predictions in a different time granularity are desired,
-        and can also help with model convergence for study periods of many years.
-    include_first_transaction: bool, optional
-        Default: False
-        For predictive CLV modeling, this should be False.
-        Set to True if performing RFM segmentation.
-    sort_transactions: bool, optional
-        Default: True
-        If raw data is already sorted in chronological order, set to `False` to improve computational efficiency.
+    time_scaler : int, optional
+        Default: 1. Scales *recency* & *T* to a different time granularity.
+        This is useful for datasets spanning many years, and running predictions in different time scales.
+    datetime_format : string, optional
+        A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
+    monetary_value_col : string, optional
+        Column in the *transactions* DataFrame that denotes the monetary value of the transaction.
+        Optional; only needed for spend estimation models like the Gamma-Gamma model.
+    include_first_transaction : bool, optional
+        Default: *False*
+        For predictive CLV modeling, this should be *False*.
+        Set to *True* if performing RFM segmentation.
+    sort_transactions : bool, optional
+        Default: *True*
+        If raw data is already sorted in chronological order, set to *False* to improve computational efficiency.
 
     Returns
     -------
-    :obj: DataFrame:
-        customer_id, frequency, recency, T [, monetary_value]
+    DataFrame
+        Dataframe containing summarized RFM data, and test columns for *frequency*, *T*,
+        and *monetary_value* if specified
     """
 
     if observation_period_end is None:
         observation_period_end_ts = (
-            pd.to_datetime(transactions[datetime_col].max(), format=datetime_format)
+            pandas.to_datetime(transactions[datetime_col].max(), format=datetime_format)
             .to_period(time_unit)
             .to_timestamp()
         )
-    elif isinstance(observation_period_end, pd.Period):
+    elif isinstance(observation_period_end, pandas.Period):
         observation_period_end_ts = observation_period_end.to_timestamp()
     else:
         observation_period_end_ts = (
-            pd.to_datetime(observation_period_end, format=datetime_format)
+            pandas.to_datetime(observation_period_end, format=datetime_format)
             .to_period(time_unit)
             .to_timestamp()
         )
@@ -397,7 +363,7 @@ def rfm_summary(
     customers["frequency"] = customers["count"] - 1
 
     customers["recency"] = (
-        (pd.to_datetime(customers["max"]) - pd.to_datetime(customers["min"]))  # type: ignore
+        (pandas.to_datetime(customers["max"]) - pandas.to_datetime(customers["min"]))  # type: ignore
         / np.timedelta64(1, time_unit)
         / time_scaler
     )
@@ -445,7 +411,7 @@ def rfm_summary(
 
 
 def rfm_train_test_split(
-    transactions: pd.DataFrame,
+    transactions: pandas.DataFrame,
     customer_id_col: str,
     datetime_col: str,
     train_period_end: float | str | datetime | datetime64 | date,
@@ -456,15 +422,15 @@ def rfm_train_test_split(
     monetary_value_col: str | None = None,
     include_first_transaction: bool | None = False,
     sort_transactions: bool | None = True,
-) -> pd.DataFrame:
+) -> pandas.DataFrame:
     """
     Summarize transaction data and split into training and tests datasets for CLV modeling.
     This can also be used to evaluate the impact of a time-based intervention like a marketing campaign.
 
     This transforms a DataFrame of transaction data of the form:
-        customer_id, datetime [, monetary_value]
+        *customer_id, datetime [, monetary_value]*
     to a DataFrame of the form:
-        customer_id, frequency, recency, T [, monetary_value], test_frequency [, test_monetary_value], test_T
+        *customer_id, frequency, recency, T [, monetary_value], test_frequency [, test_monetary_value], test_T*
 
     Note this function will exclude new customers whose first transactions occurred during the test period.
 
@@ -473,46 +439,43 @@ def rfm_train_test_split(
 
     Parameters
     ----------
-    transactions: :obj: DataFrame
-        A Pandas DataFrame that contains the customer_id col and the datetime col.
-    customer_id_col: string
-        Column in the transactions DataFrame that denotes the customer_id.
-    datetime_col:  string
-        Column in the transactions DataFrame that denotes the datetime the purchase was made.
-    train_period_end: Union[str, pd.Period, datetime], optional
+    transactions : ~pandas.DataFrame
+        A Pandas DataFrame containing *customer_id_col* and *datetime_col*.
+    customer_id_col : string
+        Column in the *transactions* DataFrame denoting the customer_id.
+    datetime_col :  string
+        Column in the *transactions* DataFrame denoting datetimes purchases were made.
+    train_period_end : Union[str, pandas.Period, datetime], optional
         A string or datetime to denote the final time period for the training data.
         Events after this time period are used for the test data.
-    test_period_end: Union[str, pd.Period, datetime], optional
+    test_period_end : Union[str, pandas.Period, datetime], optional
         A string or datetime to denote the final time period of the study.
-        Events after this date are truncated. If not given, defaults to the max of 'datetime_col'.
-    time_unit: string, optional
+        Events after this date are truncated. If not given, defaults to the max of *datetime_col*.
+    time_unit : string, optional
         Time granularity for study.
         Default: 'D' for days. Possible values listed here:
         https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
-    time_scaler: int, optional
-        Default: 1. Useful for scaling recency & T to a different time granularity. Example:
-        With freq='D' and freq_multiplier=1, we get recency=591 and T=632
-        With freq='h' and freq_multiplier=24, we get recency=590.125 and T=631.375
-        This is useful if predictions in months or years are desired,
-        and can also help with model convergence for study periods of many years.
-    datetime_format: string, optional
-        A string that represents the timestamp format. Useful if Pandas can't understand
-        the provided format.
-    monetary_value_col: string, optional
-        Column in the transactions DataFrame that denotes the monetary value of the transaction.
+    time_scaler : int, optional
+        Default: 1. Scales *recency* & *T* to a different time granularity.
+        This is useful for datasets spanning many years, and running predictions in different time scales.
+    datetime_format : string, optional
+        A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
+    monetary_value_col : string, optional
+        Column in the *transactions* DataFrame that denotes the monetary value of the transaction.
         Optional; only needed for spend estimation models like the Gamma-Gamma model.
-    include_first_transaction: bool, optional
-        Default: False
-        For predictive CLV modeling, this should be False.
-        Set to True if performing RFM segmentation.
-    sort_transactions: bool, optional
-        Default: True
-        If raw data is already sorted in chronological order, set to `False` to improve computational efficiency.
+    include_first_transaction : bool, optional
+        Default: *False*
+        For predictive CLV modeling, this should be *False*.
+        Set to *True* if performing RFM segmentation.
+    sort_transactions : bool, optional
+        Default: *True*
+        If raw data is already sorted in chronological order, set to *False* to improve computational efficiency.
 
     Returns
     -------
-    :obj: DataFrame:
-        customer_id, frequency, recency, T, test_frequency, test_T [, monetary_value, test_monetary_value]
+    DataFrame
+        Dataframe containing summarized RFM data, and test columns for *frequency*, *T*,
+        and *monetary_value* if specified
     """
 
     if test_period_end is None:
@@ -523,11 +486,11 @@ def rfm_train_test_split(
         transaction_cols.append(monetary_value_col)
     transactions = transactions[transaction_cols].copy()
 
-    transactions[datetime_col] = pd.to_datetime(
+    transactions[datetime_col] = pandas.to_datetime(
         transactions[datetime_col], format=datetime_format
     )
-    test_period_end = pd.to_datetime(test_period_end, format=datetime_format)
-    train_period_end = pd.to_datetime(train_period_end, format=datetime_format)
+    test_period_end = pandas.to_datetime(test_period_end, format=datetime_format)
+    train_period_end = pandas.to_datetime(train_period_end, format=datetime_format)
 
     # create training dataset
     training_transactions = transactions.loc[
@@ -614,24 +577,24 @@ def rfm_train_test_split(
 
 
 def rfm_segments(
-    transactions: pd.DataFrame,
+    transactions: pandas.DataFrame,
     customer_id_col: str,
     datetime_col: str,
     monetary_value_col: str,
     segment_config: dict | None = None,
-    observation_period_end: str | pd.Period | datetime | None = None,
+    observation_period_end: str | pandas.Period | datetime | None = None,
     datetime_format: str | None = None,
     time_unit: str = "D",
     time_scaler: float | None = 1,
     sort_transactions: bool | None = True,
-) -> pd.DataFrame:
+) -> pandas.DataFrame:
     """
     Assign customers to segments based on spending behavior derived from RFM scores.
 
     This transforms a DataFrame of transaction data of the form:
-        customer_id, datetime, monetary_value
+        *customer_id, datetime, monetary_value*
     to a DataFrame of the form:
-        customer_id, frequency, recency, monetary_value, rfm_score, segment
+        *customer_id, frequency, recency, monetary_value, rfm_score, segment*
 
     Customer purchasing data is aggregated into three variables: `recency`, `frequency`, and `monetary_value`.
     Quartiles are estimated for each variable, and a three-digit RFM score is then assigned to each customer.
@@ -641,12 +604,12 @@ def rfm_segments(
     customers are then segmented based on their RFM score.
 
     By default, the following segments are created:
-        "Premium Customer": Customers in top 2 quartiles for all variables.
-        "Repeat Customer": Customers in top 2 quartiles for frequency, and either recency or monetary value.
-        "Top Spender": Customers in top 2 quartiles for monetary value, and either frequency or recency.
-        "At-Risk Customer": Customers in bottom 2 quartiles for two or more variables.
-        "Inactive Customer": Customers in bottom quartile for two or more variables.
-        Customers with unspecified RFM scores will be assigned to a segment named "Other".
+        - "Premium Customer": Customers in top 2 quartiles for all variables.
+        - "Repeat Customer": Customers in top 2 quartiles for frequency, and either recency or monetary value.
+        - "Top Spender": Customers in top 2 quartiles for monetary value, and either frequency or recency.
+        - "At-Risk Customer": Customers in bottom 2 quartiles for two or more variables.
+        - "Inactive Customer": Customers in bottom quartile for two or more variables.
+        - Customers with unspecified RFM scores will be assigned to a segment named "Other".
 
     If an alternative segmentation approach is desired, use
     `rfm_summary(include_first_transaction=True, *args, **kwargs)` instead to preprocess data for segmentation.
@@ -655,43 +618,38 @@ def rfm_segments(
 
     Parameters
     ----------
-    transactions: :obj: DataFrame
-        A Pandas DataFrame that contains the customer_id col and the datetime col.
-    customer_id_col: string
-        Column in the transactions DataFrame that denotes the customer_id.
-    datetime_col:  string
-        Column in the transactions DataFrame that denotes the datetime the purchase was made.
-    monetary_value_col: string, optional
-        Column in the transactions DataFrame that denotes the monetary value of the transaction.
-        Optional; only needed for spend estimation models like the Gamma-Gamma model.
-    segment_config: dict, optional
+    transactions : ~pandas.DataFrame
+        A Pandas DataFrame containing *customer_id_col* and *datetime_col*.
+    customer_id_col : string
+        Column in the *transactions* DataFrame denoting the *customer_id*.
+    datetime_col :  string
+        Column in the *transactions* DataFrame denoting datetimes purchase were made.
+    monetary_value_col : string
+        Column in the *transactions* DataFrame that denotes the monetary value of the transaction.
+    segment_config : dict, optional
         Dictionary containing segment names and list of RFM score assignments;
         key/value pairs should be formatted as `{"segment": ['111', '123', '321'], ...}`.
         If not provided, default segment names and definitions are applied.
-    observation_period_end: Union[str, pd.Period, datetime, None], optional
+    observation_period_end : Union[str, pandas.Period, datetime, None], optional
         A string or datetime to denote the final date of the study.
-        Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
-    datetime_format: string, optional
-        A string that represents the timestamp format. Useful if Pandas can't understand
-        the provided format.
-    time_unit: string, optional
+        Events after this date are truncated. If not given, defaults to the max of *datetime_col*.
+    datetime_format : string, optional
+        A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
+    time_unit : string, optional
         Time granularity for study.
         Default: 'D' for days. Possible values listed here:
         https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
-    time_scaler: int, optional
-        Default: 1. Useful for scaling recency & T to a different time granularity. Example:
-        With freq='D' and freq_multiplier=1, we get recency=591 and T=632
-        With freq='h' and freq_multiplier=24, we get recency=590.125 and T=631.375
-        This is useful if predictions in a different time granularity are desired,
-        and can also help with model convergence for study periods of many years.
-    sort_transactions: bool, optional
-        Default: True
-        If raw data is already sorted in chronological order, set to `False` to improve computational efficiency.
+    time_scaler : int, optional
+        Default: 1. Scales *recency* & *T* to a different time granularity.
+        This is useful for datasets spanning many years, and running predictions in different time scales.
+    sort_transactions : bool, optional
+        Default: *True*
+        If raw data is already sorted in chronological order, set to *False* to improve computational efficiency.
 
     Returns
     -------
-    :obj: DataFrame:
-        customer_id, frequency, recency, T [, monetary_value]
+    DataFrame
+        Dataframe containing summarized RFM data, RFM scores, and segment assignments
     """
 
     rfm_data = rfm_summary(
@@ -717,18 +675,18 @@ def rfm_segments(
         # These try blocks will modify labelling for fewer bins.
         try:
             labels = _rfm_quartile_labels(column_name[0], 5)
-            rfm_data[column_name[0]] = pd.qcut(
+            rfm_data[column_name[0]] = pandas.qcut(
                 rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
             ).astype(str)
         except ValueError:
             try:
                 labels = _rfm_quartile_labels(column_name[0], 4)
-                rfm_data[column_name[0]] = pd.qcut(
+                rfm_data[column_name[0]] = pandas.qcut(
                     rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
                 ).astype(str)
             except ValueError:
                 labels = _rfm_quartile_labels(column_name[0], 3)
-                rfm_data[column_name[0]] = pd.qcut(
+                rfm_data[column_name[0]] = pandas.qcut(
                     rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
                 ).astype(str)
                 warnings.warn(
@@ -737,7 +695,7 @@ def rfm_segments(
                     stacklevel=1,
                 )
 
-    rfm_data = pd.eval(  # type: ignore
+    rfm_data = pandas.eval(  # type: ignore
         "rfm_score = rfm_data.r_quartile + rfm_data.f_quartile + rfm_data.m_quartile",
         target=rfm_data,
     )

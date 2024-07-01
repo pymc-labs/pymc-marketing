@@ -23,6 +23,7 @@ from pymc_marketing.clv.models.gamma_gamma import (
     GammaGammaModel,
     GammaGammaModelIndividual,
 )
+from pymc_marketing.prior import Prior
 from tests.conftest import set_model_fit
 
 
@@ -65,7 +66,7 @@ class BaseTestGammaGammaModel:
         cls.data = pd.DataFrame(
             {
                 "customer_id": cls.z_mean_idx,
-                "mean_transaction_value": cls.z_mean,
+                "monetary_value": cls.z_mean,
                 "frequency": cls.z_mean_nobs,
             }
         )
@@ -89,11 +90,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         with pytest.raises(ValueError, match="Required column frequency missing"):
             GammaGammaModel(data=data_invalid)
 
-        data_invalid = self.data.drop(columns="mean_transaction_value")
+        data_invalid = self.data.drop(columns="monetary_value")
 
-        with pytest.raises(
-            ValueError, match="Required column mean_transaction_value missing"
-        ):
+        with pytest.raises(ValueError, match="Required column monetary_value missing"):
             GammaGammaModel(data=data_invalid)
 
     @pytest.mark.parametrize(
@@ -101,8 +100,8 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         [
             None,
             {
-                "p_prior": {"dist": "HalfNormal"},
-                "q_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4}},
+                "p_prior": Prior("HalfNormal"),
+                "q_prior": Prior("HalfStudentT", nu=4),
             },
         ],
     )
@@ -141,9 +140,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
     def test_model_convergence(self):
         rng = np.random.default_rng(13)
         model_config = {
-            "p_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
-            "q_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
-            "v_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
+            "p_prior": Prior("HalfNormal", sigma=10),
+            "q_prior": Prior("HalfNormal", sigma=10),
+            "v_prior": Prior("HalfNormal", sigma=10),
         }
         model = GammaGammaModel(data=self.data, model_config=model_config)
         model.fit(chains=2, progressbar=False, random_seed=rng)
@@ -161,9 +160,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         v_mean = self.v_true
         custom_model_config = {
             # Narrow values
-            "p_prior": {"dist": "Normal", "kwargs": {"mu": p_mean, "sigma": 0.01}},
-            "q_prior": {"dist": "Normal", "kwargs": {"mu": q_mean, "sigma": 0.01}},
-            "v_prior": {"dist": "Normal", "kwargs": {"mu": v_mean, "sigma": 0.01}},
+            "p_prior": Prior("Normal", mu=p_mean, sigma=0.01),
+            "q_prior": Prior("Normal", mu=q_mean, sigma=0.01),
+            "v_prior": Prior("Normal", mu=v_mean, sigma=0.01),
         }
         model = GammaGammaModel(
             data=self.data,
@@ -173,19 +172,16 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         model.fit(chains=1, progressbar=False, random_seed=self.rng)
 
         # Force posterior close to empirical mean with many observations
+        forced_data = self.data.copy()
+        forced_data["frequency"] = 1000
+
         if distribution:
             preds = model.distribution_customer_spend(
-                customer_id=self.z_mean_idx,
-                mean_transaction_value=self.z_mean,
-                frequency=1000,
+                data=forced_data,
                 random_seed=self.rng,
             )
         else:
-            preds = model.expected_customer_spend(
-                customer_id=self.z_mean_idx,
-                mean_transaction_value=self.z_mean,
-                frequency=1000,
-            )
+            preds = model.expected_customer_spend(data=forced_data)
         assert preds.shape == (1, 1000, len(self.z_mean_idx))
         np.testing.assert_allclose(
             preds.mean(("draw", "chain")), self.z_mean, rtol=0.05
@@ -198,11 +194,17 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         )
 
         # Force posterior close to group mean with zero observations
+        mean_df = pd.DataFrame(
+            {
+                "customer_id": self.z_mean_idx[:10],
+                "monetary_value": self.z_mean[:10],
+                "frequency": 0,
+            }
+        )
+
         if distribution:
             preds = model.distribution_customer_spend(
-                customer_id=self.z_mean_idx[:10],
-                mean_transaction_value=self.z_mean[:10],
-                frequency=0,
+                data=mean_df,
                 random_seed=self.rng,
             )
             assert preds.shape == (1, 1000, 10)
@@ -216,10 +218,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         else:
             # Force posterior close to group mean with zero observations
             preds = model.expected_customer_spend(
-                customer_id=self.z_mean_idx[:10],
-                mean_transaction_value=self.z_mean[:10],
-                # Force the posterior to be centered around the empirical mean
-                frequency=0,
+                data=mean_df,
             )
             assert preds.shape == (1, 1000, 10)
             np.testing.assert_allclose(
@@ -234,9 +233,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         test_seed = np.random.default_rng(1234)
         custom_model_config = {
             # Narrow values
-            "p_prior": {"dist": "Normal", "kwargs": {"mu": p_mean, "sigma": 0.01}},
-            "q_prior": {"dist": "Normal", "kwargs": {"mu": q_mean, "sigma": 0.01}},
-            "v_prior": {"dist": "Normal", "kwargs": {"mu": v_mean, "sigma": 0.01}},
+            "p_prior": Prior("Normal", mu=p_mean, sigma=0.01),
+            "q_prior": Prior("Normal", mu=q_mean, sigma=0.01),
+            "v_prior": Prior("Normal", mu=v_mean, sigma=0.01),
         }
         model = GammaGammaModel(
             data=self.data,
@@ -271,7 +270,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
 
     def test_model_repr(self):
         custom_model_config = {
-            "p_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}}
+            "p_prior": Prior("HalfNormal", sigma=10),
         }
         model = GammaGammaModel(data=self.data, model_config=custom_model_config)
         model.build_model()
@@ -324,8 +323,8 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         [
             None,
             {
-                "p_prior": {"dist": "HalfNormal"},
-                "q_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4}},
+                "p_prior": Prior("HalfNormal"),
+                "q_prior": Prior("HalfStudentT", nu=4),
             },
         ],
     )
@@ -379,18 +378,20 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             data=self.individual_data,
         )
         model.build_model()
-        model.distribution_customer_spend(
-            customer_id=self.z_idx, individual_transaction_value=self.z, random_seed=123
-        )
+        model.distribution_customer_spend(data=self.data, random_seed=123)
 
         dummy_method.assert_called_once()
 
         kwargs = dummy_method.call_args[1]
-        np.testing.assert_array_equal(kwargs["customer_id"].values, self.z_mean_idx)
         np.testing.assert_array_equal(
-            kwargs["mean_transaction_value"].values, self.z_mean
+            kwargs["data"]["customer_id"].values, self.z_mean_idx
         )
-        np.testing.assert_array_equal(kwargs["frequency"].values, self.z_mean_nobs)
+        np.testing.assert_array_equal(
+            kwargs["data"]["monetary_value"].values, self.z_mean
+        )
+        np.testing.assert_array_equal(
+            kwargs["data"]["frequency"].values, self.z_mean_nobs
+        )
         assert kwargs["random_seed"] == 123
 
     @patch(
@@ -399,23 +400,24 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
     def test_expected_spend(self, dummy_method):
         model = GammaGammaModelIndividual(self.individual_data)
 
-        model.expected_customer_spend(
-            customer_id=self.z_idx, individual_transaction_value=self.z, random_seed=123
-        )
+        model.expected_customer_spend(data=self.data)
 
         dummy_method.assert_called_once()
 
         kwargs = dummy_method.call_args[1]
-        np.testing.assert_array_equal(kwargs["customer_id"].values, self.z_mean_idx)
         np.testing.assert_array_equal(
-            kwargs["mean_transaction_value"].values, self.z_mean
+            kwargs["data"]["customer_id"].values, self.z_mean_idx
         )
-        np.testing.assert_array_equal(kwargs["frequency"].values, self.z_mean_nobs)
-        assert kwargs["random_seed"] == 123
+        np.testing.assert_array_equal(
+            kwargs["data"]["monetary_value"].values, self.z_mean
+        )
+        np.testing.assert_array_equal(
+            kwargs["data"]["frequency"].values, self.z_mean_nobs
+        )
 
     def test_model_repr(self):
         custom_model_config = {
-            "q_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}}
+            "q_prior": Prior("HalfNormal", sigma=10),
         }
         model = GammaGammaModelIndividual(
             data=self.individual_data,

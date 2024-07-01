@@ -22,6 +22,7 @@ from pymc.distributions.censored import CensoredRV
 from scipy import stats
 
 from pymc_marketing.clv import ShiftedBetaGeoModelIndividual
+from pymc_marketing.prior import Prior
 
 
 class TestShiftedBetaGeoModel:
@@ -57,15 +58,15 @@ class TestShiftedBetaGeoModel:
     @pytest.fixture(scope="class")
     def model_config(self):
         return {
-            "alpha_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
-            "beta_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4, "sigma": 10}},
+            "alpha_prior": Prior("HalfNormal", sigma=10),
+            "beta_prior": Prior("HalfStudentT", nu=4, sigma=10),
         }
 
     @pytest.fixture(scope="class")
     def default_model_config(self):
         return {
-            "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "beta_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "alpha_prior": Prior("HalfFlat"),
+            "beta_prior": Prior("HalfFlat"),
         }
 
     @pytest.fixture(scope="class")
@@ -97,10 +98,7 @@ class TestShiftedBetaGeoModel:
 
     def test_model_repr(self, default_model_config):
         custom_model_config = default_model_config.copy()
-        custom_model_config["alpha_prior"] = {
-            "dist": "HalfNormal",
-            "kwargs": {"sigma": 10},
-        }
+        custom_model_config["alpha_prior"] = Prior("HalfNormal", sigma=10)
         dataset = pd.DataFrame(
             {"customer_id": self.customer_id, "t_churn": self.churn_time, "T": self.T}
         )
@@ -127,14 +125,14 @@ class TestShiftedBetaGeoModel:
             assert isinstance(
                 model.model["alpha"].owner.op,
                 pm.HalfFlat
-                if config["alpha_prior"]["dist"] == "HalfFlat"
-                else getattr(pm, config["alpha_prior"]["dist"]),
+                if config["alpha_prior"].distribution == "HalfFlat"
+                else config["alpha_prior"].pymc_distribution,
             )
             assert isinstance(
                 model.model["beta"].owner.op,
                 pm.HalfFlat
-                if config["beta_prior"]["dist"] == "HalfFlat"
-                else getattr(pm, config["beta_prior"]["dist"]),
+                if config["beta_prior"].distribution == "HalfFlat"
+                else config["beta_prior"].pymc_distribution,
             )
             assert isinstance(model.model["theta"].owner.op, pm.Beta)
             assert isinstance(model.model["churn_censored"].owner.op, CensoredRV)

@@ -29,46 +29,28 @@ class MockModel:
     def __init__(self, data: pd.DataFrame):
         self.data = data
 
-    def _mock_posterior(self, customer_id: np.ndarray | pd.Series) -> xr.DataArray:
-        n_customers = len(customer_id)
+    def _mock_posterior(self, data: pd.DataFrame) -> xr.DataArray:
+        n_customers = len(data)
         n_chains = 4
         n_draws = 10
         chains = np.arange(n_chains)
         draws = np.arange(n_draws)
         return xr.DataArray(
             data=np.ones((n_customers, n_chains, n_draws)),
-            coords={"customer_id": customer_id, "chain": chains, "draw": draws},
+            coords={"customer_id": data["customer_id"], "chain": chains, "draw": draws},
             dims=["customer_id", "chain", "draw"],
         )
 
-    def expected_probability_alive(
-        self,
-        customer_id: np.ndarray | pd.Series,
-        frequency: np.ndarray | pd.Series,
-        recency: np.ndarray | pd.Series,
-        T: np.ndarray | pd.Series,
-    ):
-        return self._mock_posterior(customer_id)
+    def expected_probability_alive(self, data: np.ndarray | pd.Series):
+        return self._mock_posterior(data)
 
     def expected_purchases(
         self,
-        customer_id: np.ndarray | pd.Series,
         data: pd.DataFrame,
         *,
         future_t: np.ndarray | pd.Series | TensorVariable,
     ):
-        return self._mock_posterior(customer_id)
-
-    # TODO: This is required until CLV API is standardized.
-    def expected_num_purchases(
-        self,
-        customer_id: np.ndarray | pd.Series,
-        t: np.ndarray | pd.Series | TensorVariable,
-        frequency: np.ndarray | pd.Series | TensorVariable,
-        recency: np.ndarray | pd.Series | TensorVariable,
-        T: np.ndarray | pd.Series | TensorVariable,
-    ):
-        return self._mock_posterior(customer_id)
+        return self._mock_posterior(data)
 
 
 @pytest.fixture

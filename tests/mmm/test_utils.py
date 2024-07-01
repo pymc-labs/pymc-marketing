@@ -344,3 +344,15 @@ def test_create_new_spend_data(
         new_spend_data,
         np.array(expected_result),
     )
+
+
+def test_create_new_spend_data_value_errors() -> None:
+    with pytest.raises(
+        ValueError, match="spend_leading_up must be the same length as the spend"
+    ):
+        create_new_spend_data(
+            spend=np.array([1, 2]),
+            adstock_max_lag=2,
+            one_time=True,
+            spend_leading_up=np.array([3, 4, 5]),
+        )
