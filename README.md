@@ -61,6 +61,7 @@ Leverage our Bayesian MMM API to tailor your marketing strategies effectively. L
 - **Saturation Effects**: Understand the diminishing returns in media investments.
 - **Customize adstock and saturation functions:** You can select from a variety of adstock and saturation functions. You can even implement your own custom functions.
 - **Time-varying Intercept:** Capture time-varying baseline contributions in your model (using modern and efficient Gaussian processes approximation methods).
+- **Time-varying Media Contribution:** Capture time-varying media efficiency in your model (using modern and efficient Gaussian processes approximation methods).
 - **Visualization and Model Diagnostics**: Get a comprehensive view of your model's performance and insights.
 - **Choose among many inference algorithms**: We provide the option to choose between various NUTS samplers (e.g. BlackJax, NumPyro and Nutpie). See the [example notebook](https://www.pymc-marketing.io/en/stable/notebooks/general/other_nuts_samplers.html) for more details.
 - **Out-of-sample Predictions**: Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.
