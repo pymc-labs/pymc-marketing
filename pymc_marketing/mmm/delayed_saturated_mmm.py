@@ -51,11 +51,8 @@ from pymc_marketing.mmm.utils import (
     generate_fourier_modes,
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
-from pymc_marketing.model_config import (
-    create_distribution_from_config,
-    create_likelihood_distribution,
-    get_distribution,
-)
+from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.prior import Prior
 
 __all__ = ["BaseMMM", "MMM", "DelayedSaturatedMMM"]
 
@@ -137,6 +134,12 @@ class BaseMMM(BaseValidateMMM):
         self.adstock_first = adstock_first
         self.adstock = _get_adstock_function(function=adstock, l_max=adstock_max_lag)
         self.saturation = _get_saturation_function(function=saturation)
+
+        model_config = model_config or {}
+        model_config = parse_model_config(
+            model_config,  # type: ignore
+            non_distributions=["intercept_tvp_config", "media_tvp_config"],
+        )
 
         if model_config is not None:
             self.adstock.update_priors({**self.default_model_config, **model_config})
@@ -309,30 +312,36 @@ class BaseMMM(BaseValidateMMM):
 
         Examples
         --------
-        custom_config = {
-            'intercept': {'dist': 'Normal', 'kwargs': {'mu': 0, 'sigma': 2}},
-            'saturation_beta': {'dist': 'Gamma', 'kwargs': {'mu': 1, 'sigma': 3}},
-            'saturation_lambda': {'dist': 'Beta', 'kwargs': {'alpha': 3, 'beta': 1}},
-            'adstock_alpha': {'dist': 'Beta', 'kwargs': {'alpha': 1, 'beta': 3}},
-            'likelihood': {'dist': 'Normal',
-                'kwargs': {'sigma': {'dist': 'HalfNormal', 'kwargs': {'sigma': 2}}}
-            },
-            'gamma_control': {'dist': 'Normal', 'kwargs': {'mu': 0, 'sigma': 2}},
-            'gamma_fourier': {'dist': 'Laplace', 'kwargs': {'mu': 0, 'b': 1}}
-        }
+        Initialize model with custom configuration
 
-        model = MMM(
-                    date_column="date_week",
-                    channel_columns=["x1", "x2"],
-                    control_columns=[
-                        "event_1",
-                        "event_2",
-                        "t",
-                    ],
-                    adstock_max_lag=8,
-                    yearly_seasonality=2,
-                    model_config=custom_config,
-                )
+        .. code-block:: python
+
+            from pymc_marketing.mmm import MMM
+            from pymc_marketing.prior import Prior
+
+            custom_config = {
+                "intercept": Prior("Normal", mu=0, sigma=2),
+                "saturation_beta": Prior("Gamma", mu=1, sigma=3),
+                "saturation_lambda": Prior("Beta", alpha=3, beta=1),
+                "adstock_alpha": Prior("Beta", alpha=1, beta=3),
+                "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
+                "gamma_control": Prior("Normal", mu=0, sigma=2, dims="control"),
+                "gamma_fourier": Prior("Laplace", mu=0, b=1, dims="fourier_mode"),
+            }
+
+            model = MMM(
+                date_column="date_week",
+                channel_columns=["x1", "x2"],
+                control_columns=[
+                    "event_1",
+                    "event_2",
+                    "t",
+                ],
+                adstock_max_lag=8,
+                yearly_seasonality=2,
+                model_config=custom_config,
+            )
+
         """
 
         self._generate_and_preprocess_model_data(X, y)
@@ -361,12 +370,8 @@ class BaseMMM(BaseValidateMMM):
                 )
 
             if self.time_varying_intercept:
-                intercept_distribution = get_distribution(
-                    name=self.model_config["intercept"]["dist"]
-                )
-                baseline_intercept = intercept_distribution(
-                    name="baseline_intercept",
-                    **self.model_config["intercept"]["kwargs"],
+                baseline_intercept = self.model_config["intercept"].create_variable(
+                    "baseline_intercept"
                 )
 
                 intercept_latent_process = create_time_varying_gp_multiplier(
@@ -383,8 +388,8 @@ class BaseMMM(BaseValidateMMM):
                     dims="date",
                 )
             else:
-                intercept = create_distribution_from_config(
-                    name="intercept", config=self.model_config
+                intercept = self.model_config["intercept"].create_variable(
+                    name="intercept"
                 )
 
             if self.time_varying_media:
@@ -425,12 +430,11 @@ class BaseMMM(BaseValidateMMM):
                     for column in self.control_columns
                 )
             ):
-                if self.model_config["gamma_control"].get("dims") != "control":
-                    self.model_config["gamma_control"]["dims"] = "control"
+                if self.model_config["gamma_control"].dims != ("control",):
+                    self.model_config["gamma_control"].dims = "control"
 
-                gamma_control = create_distribution_from_config(
-                    name="gamma_control",
-                    config=self.model_config,
+                gamma_control = self.model_config["gamma_control"].create_variable(
+                    name="gamma_control"
                 )
 
                 control_data_ = pm.Data(
@@ -463,13 +467,11 @@ class BaseMMM(BaseValidateMMM):
                     dims=("date", "fourier_mode"),
                     mutable=True,
                 )
+                if self.model_config["gamma_fourier"].dims != ("fourier_mode",):
+                    self.model_config["gamma_fourier"].dims = "fourier_mode"
 
-                if self.model_config["gamma_fourier"].get("dims") != "fourier_mode":
-                    self.model_config["gamma_fourier"]["dims"] = "fourier_mode"
-
-                gamma_fourier = create_distribution_from_config(
-                    name="gamma_fourier",
-                    config=self.model_config,
+                gamma_fourier = self.model_config["gamma_fourier"].create_variable(
+                    name="gamma_fourier"
                 )
 
                 fourier_contribution = pm.Deterministic(
@@ -488,38 +490,24 @@ class BaseMMM(BaseValidateMMM):
 
             mu = pm.Deterministic(name="mu", var=mu_var, dims="date")
 
-            create_likelihood_distribution(
+            self.model_config["likelihood"].dims = "date"
+            self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,
-                param_config=self.model_config["likelihood"],
                 mu=mu,
                 observed=target_,
-                dims="date",
             )
 
     @property
     def default_model_config(self) -> dict:
-        base_config: dict[str, Any] = {
-            "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
-            "likelihood": {
-                "dist": "Normal",
-                "kwargs": {
-                    "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
-                },
-            },
-            "gamma_control": {
-                "dist": "Normal",
-                "kwargs": {"mu": 0, "sigma": 2},
-                "dims": "control",
-            },
-            "gamma_fourier": {
-                "dist": "Laplace",
-                "kwargs": {"mu": 0, "b": 1},
-                "dims": "fourier_mode",
-            },
+        base_config = {
+            "intercept": Prior("Normal", mu=0, sigma=2),
+            "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
+            "gamma_control": Prior("Normal", mu=0, sigma=2, dims="control"),
+            "gamma_fourier": Prior("Laplace", mu=0, b=1, dims="fourier_mode"),
         }
 
         if self.time_varying_intercept:
-            base_config["intercept_tvp_config"] = {
+            base_config["intercept_tvp_config"] = {  # type: ignore
                 "m": 200,
                 "L": None,
                 "eta_lam": 1,
@@ -528,7 +516,7 @@ class BaseMMM(BaseValidateMMM):
                 "cov_func": None,
             }
         if self.time_varying_media:
-            base_config["media_tvp_config"] = {
+            base_config["media_tvp_config"] = {  # type: ignore
                 "m": 200,
                 "L": None,
                 "eta_lam": 1,
@@ -538,9 +526,9 @@ class BaseMMM(BaseValidateMMM):
             }
 
         for media_transform in [self.adstock, self.saturation]:
-            for config in media_transform.function_priors.values():
-                if "dims" not in config:
-                    config["dims"] = "channel"
+            for dist in media_transform.function_priors.values():
+                if dist.dims != ("channel",):
+                    dist.dims = "channel"
 
         return {
             **base_config,
@@ -877,15 +865,14 @@ class MMM(
 
     .. code-block:: python
 
+        import numpy as np
+
+        from pymc_marketing.prior import Prior
+        from pymc_marketing.mmm import MMM
+
         my_model_config = {
-            "beta_channel": {
-                "dist": "LogNormal",
-                "kwargs": {"mu": np.array([2, 1]), "sigma": 1},
-            },
-            "likelihood": {
-                "dist": "Normal",
-                "kwargs": {"sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}}},
-            },
+            "beta_channel": Prior("LogNormal", mu=np.array([2, 1]), sigma=1),
+            "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
         }
 
         mmm = MMM(
@@ -1761,6 +1748,11 @@ class MMM(
         Build the model first then add lift test measurements.
 
         .. code-block:: python
+
+            import pandas as pd
+            import numpy as np
+
+            from pymc_marketing.mmm import MMM
 
             model = MMM(
                 adstock="geometric",

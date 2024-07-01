@@ -20,6 +20,8 @@ from pymc.util import RandomState
 from xarray import DataArray, Dataset
 
 from pymc_marketing.clv.models import CLVModel
+from pymc_marketing.model_config import ModelConfig
+from pymc_marketing.prior import Prior
 
 
 class ShiftedBetaGeoModelIndividual(CLVModel):
@@ -55,6 +57,8 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
         .. code-block:: python
 
             import pymc as pm
+
+            from pymc_marketing.prior import Prior
             from pymc_marketing.clv import ShiftedBetaGeoModelIndividual
 
             model = ShiftedBetaGeoModelIndividual(
@@ -64,8 +68,8 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
                     T=[8 for x in range(len(customer_id))],
                 }),
                 model_config={
-                    "alpha_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
-                    "beta_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4, "sigma": 10}},
+                    "alpha_prior": Prior("HalfNormal", sigma=10),
+                    "beta_prior": Prior("HalfStudentT", nu=4, sigma=10),
                 },
                 sampler_config={
                     "draws": 1000,
@@ -103,7 +107,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
     def __init__(
         self,
         data: pd.DataFrame,
-        model_config: dict | None = None,
+        model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
     ):
         self._validate_cols(
@@ -128,18 +132,15 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
     @property
     def default_model_config(self) -> dict:
         return {
-            "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "beta_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "alpha_prior": Prior("HalfFlat"),
+            "beta_prior": Prior("HalfFlat"),
         }
 
     def build_model(self):
-        alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
-        beta_prior = self._create_distribution(self.model_config["beta_prior"])
-
         coords = {"customer_id": self.data["customer_id"]}
         with pm.Model(coords=coords) as self.model:
-            alpha = self.model.register_rv(alpha_prior, name="alpha")
-            beta = self.model.register_rv(beta_prior, name="beta")
+            alpha = self.model_config["alpha_prior"].create_variable("alpha")
+            beta = self.model_config["beta_prior"].create_variable("beta")
 
             theta = pm.Beta("theta", alpha, beta, dims=("customer_id",))
 

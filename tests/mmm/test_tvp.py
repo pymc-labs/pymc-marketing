@@ -42,10 +42,6 @@ def model_config():
             "ls_sigma": 5,
             "L": None,
         },
-        "intercept": {
-            "dist": pm.Normal,
-            "kwargs": {"mu": 0, "sigma": 1},
-        },
     }
 
 

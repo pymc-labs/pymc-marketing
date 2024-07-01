@@ -23,6 +23,7 @@ from pymc_marketing.clv.models.gamma_gamma import (
     GammaGammaModel,
     GammaGammaModelIndividual,
 )
+from pymc_marketing.prior import Prior
 from tests.conftest import set_model_fit
 
 
@@ -99,8 +100,8 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         [
             None,
             {
-                "p_prior": {"dist": "HalfNormal"},
-                "q_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4}},
+                "p_prior": Prior("HalfNormal"),
+                "q_prior": Prior("HalfStudentT", nu=4),
             },
         ],
     )
@@ -139,9 +140,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
     def test_model_convergence(self):
         rng = np.random.default_rng(13)
         model_config = {
-            "p_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
-            "q_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
-            "v_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
+            "p_prior": Prior("HalfNormal", sigma=10),
+            "q_prior": Prior("HalfNormal", sigma=10),
+            "v_prior": Prior("HalfNormal", sigma=10),
         }
         model = GammaGammaModel(data=self.data, model_config=model_config)
         model.fit(chains=2, progressbar=False, random_seed=rng)
@@ -159,9 +160,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         v_mean = self.v_true
         custom_model_config = {
             # Narrow values
-            "p_prior": {"dist": "Normal", "kwargs": {"mu": p_mean, "sigma": 0.01}},
-            "q_prior": {"dist": "Normal", "kwargs": {"mu": q_mean, "sigma": 0.01}},
-            "v_prior": {"dist": "Normal", "kwargs": {"mu": v_mean, "sigma": 0.01}},
+            "p_prior": Prior("Normal", mu=p_mean, sigma=0.01),
+            "q_prior": Prior("Normal", mu=q_mean, sigma=0.01),
+            "v_prior": Prior("Normal", mu=v_mean, sigma=0.01),
         }
         model = GammaGammaModel(
             data=self.data,
@@ -232,9 +233,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         test_seed = np.random.default_rng(1234)
         custom_model_config = {
             # Narrow values
-            "p_prior": {"dist": "Normal", "kwargs": {"mu": p_mean, "sigma": 0.01}},
-            "q_prior": {"dist": "Normal", "kwargs": {"mu": q_mean, "sigma": 0.01}},
-            "v_prior": {"dist": "Normal", "kwargs": {"mu": v_mean, "sigma": 0.01}},
+            "p_prior": Prior("Normal", mu=p_mean, sigma=0.01),
+            "q_prior": Prior("Normal", mu=q_mean, sigma=0.01),
+            "v_prior": Prior("Normal", mu=v_mean, sigma=0.01),
         }
         model = GammaGammaModel(
             data=self.data,
@@ -269,7 +270,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
 
     def test_model_repr(self):
         custom_model_config = {
-            "p_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}}
+            "p_prior": Prior("HalfNormal", sigma=10),
         }
         model = GammaGammaModel(data=self.data, model_config=custom_model_config)
         model.build_model()
@@ -322,8 +323,8 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         [
             None,
             {
-                "p_prior": {"dist": "HalfNormal"},
-                "q_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4}},
+                "p_prior": Prior("HalfNormal"),
+                "q_prior": Prior("HalfStudentT", nu=4),
             },
         ],
     )
@@ -416,7 +417,7 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
 
     def test_model_repr(self):
         custom_model_config = {
-            "q_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}}
+            "q_prior": Prior("HalfNormal", sigma=10),
         }
         model = GammaGammaModelIndividual(
             data=self.individual_data,

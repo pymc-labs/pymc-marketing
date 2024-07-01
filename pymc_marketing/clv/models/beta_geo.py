@@ -26,6 +26,8 @@ from scipy.special import expit, hyp2f1
 
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
+from pymc_marketing.model_config import ModelConfig
+from pymc_marketing.prior import Prior
 
 
 class BetaGeoModel(CLVModel):
@@ -63,6 +65,7 @@ class BetaGeoModel(CLVModel):
     --------
     .. code-block:: python
 
+        from pymc_marketing.prior import Prior
         from pymc_marketing.clv import BetaGeoModel, rfm_summary
 
         # customer identifiers and purchase datetimes
@@ -88,10 +91,10 @@ class BetaGeoModel(CLVModel):
         model = BetaGeoModel(
             data=data,
             model_config={
-                "r_prior": {"dist": "Gamma", "kwargs": {"alpha": 0.1, "beta": 1}},
-                "alpha_prior": {"dist": "Gamma", "kwargs": {"alpha": 0.1, "beta": 1}},
-                "a_prior": {"dist": "Gamma", "kwargs": {"alpha": 0.1, "beta": 1}},
-                "b_prior": {"dist": "Gamma", "kwargs": {"alpha": 0.1, "beta": 1}},
+                "r_prior": Prior("Gamma", alpha=0.1, beta=1),
+                "alpha_prior": Prior("Gamma", alpha=0.1, beta=1),
+                "a_prior": Prior("Gamma", alpha=0.1, beta=1),
+                "b_prior": Prior("Gamma", alpha=0.1, beta=1),
             },
             sampler_config={
                 "draws": 1000,
@@ -152,27 +155,21 @@ class BetaGeoModel(CLVModel):
         )
 
     @property
-    def default_model_config(self) -> dict[str, dict]:
+    def default_model_config(self) -> ModelConfig:
         return {
-            "a_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "b_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "r_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "a_prior": Prior("HalfFlat"),
+            "b_prior": Prior("HalfFlat"),
+            "alpha_prior": Prior("HalfFlat"),
+            "r_prior": Prior("HalfFlat"),
         }
 
     def build_model(self) -> None:  # type: ignore[override]
-        a_prior = self._create_distribution(self.model_config["a_prior"])
-        b_prior = self._create_distribution(self.model_config["b_prior"])
-        alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
-        r_prior = self._create_distribution(self.model_config["r_prior"])
-
         coords = {"customer_id": self.data["customer_id"]}
         with pm.Model(coords=coords) as self.model:
-            a = self.model.register_rv(a_prior, name="a")
-            b = self.model.register_rv(b_prior, name="b")
-
-            alpha = self.model.register_rv(alpha_prior, name="alpha")
-            r = self.model.register_rv(r_prior, name="r")
+            a = self.model_config["a_prior"].create_variable("a")
+            b = self.model_config["b_prior"].create_variable("b")
+            alpha = self.model_config["alpha_prior"].create_variable("alpha")
+            r = self.model_config["r_prior"].create_variable("r")
 
             def logp(t_x, x, a, b, r, alpha, T):
                 """
