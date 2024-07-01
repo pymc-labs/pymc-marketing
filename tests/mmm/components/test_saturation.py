@@ -27,6 +27,7 @@ from pymc_marketing.mmm.components.saturation import (
     TanhSaturationBaselined,
     _get_saturation_function,
 )
+from pymc_marketing.prior import Prior
 
 
 @pytest.fixture
@@ -195,19 +196,10 @@ def mock_menten_parameters_with_additional_dim() -> xr.Dataset:
 def test_sample_curve_with_additional_dims(
     mock_menten_parameters_with_additional_dim,
 ) -> None:
-    dummy_distribution = {
-        "dist": "HalfNormal",
-        "kwargs": {"sigma": 1},
-    }
+    dummy_distribution = Prior("HalfNormal", dims="channel")
     priors = {
-        "alpha": {
-            "dims": "channel",
-            **dummy_distribution,
-        },
-        "lam": {
-            "dims": "channel",
-            **dummy_distribution,
-        },
+        "alpha": dummy_distribution,
+        "lam": dummy_distribution,
     }
     saturation = MichaelisMentenSaturation(priors=priors)
 

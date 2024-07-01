@@ -27,6 +27,8 @@ import pymc as pm
 import xarray as xr
 from pymc.util import RandomState
 
+from pymc_marketing.prior import Prior
+
 # If scikit-learn is available, use its data validator
 try:
     from sklearn.utils.validation import check_array, check_X_y
@@ -288,11 +290,21 @@ class ModelBuilder(ABC):
             idata = self.idata
         if idata is None:
             raise RuntimeError("No idata provided to set attrs on.")
+
+        def default(x):
+            if isinstance(x, Prior):
+                return x.to_json()
+
+            return x.__dict__
+
         idata.attrs["id"] = self.id
         idata.attrs["model_type"] = self._model_type
         idata.attrs["version"] = self.version
         idata.attrs["sampler_config"] = json.dumps(self.sampler_config)
-        idata.attrs["model_config"] = json.dumps(self._serializable_model_config)
+        idata.attrs["model_config"] = json.dumps(
+            self._serializable_model_config,
+            default=default,
+        )
         # Only classes with non-dataset parameters will implement save_input_params
         if hasattr(self, "_save_input_params"):
             self._save_input_params(idata)

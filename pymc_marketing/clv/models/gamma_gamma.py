@@ -20,6 +20,8 @@ from pymc.util import RandomState
 
 from pymc_marketing.clv.models import CLVModel
 from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
+from pymc_marketing.model_config import ModelConfig
+from pymc_marketing.prior import Prior
 
 
 class BaseGammaGammaModel(CLVModel):
@@ -307,26 +309,23 @@ class GammaGammaModel(BaseGammaGammaModel):
         )
 
     @property
-    def default_model_config(self) -> dict:
+    def default_model_config(self) -> ModelConfig:
         return {
-            "p_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "q_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "v_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "p_prior": Prior("HalfFlat"),
+            "q_prior": Prior("HalfFlat"),
+            "v_prior": Prior("HalfFlat"),
         }
 
     def build_model(self):
         z_mean = pt.as_tensor_variable(self.data["monetary_value"])
         x = pt.as_tensor_variable(self.data["frequency"])
 
-        p_prior = self._create_distribution(self.model_config["p_prior"])
-        q_prior = self._create_distribution(self.model_config["q_prior"])
-        v_prior = self._create_distribution(self.model_config["v_prior"])
-
         coords = {"customer_id": self.data["customer_id"]}
         with pm.Model(coords=coords) as self.model:
-            p = self.model.register_rv(p_prior, name="p")
-            q = self.model.register_rv(q_prior, name="q")
-            v = self.model.register_rv(v_prior, name="v")
+            p = self.model_config["p_prior"].create_variable("p")
+            q = self.model_config["q_prior"].create_variable("q")
+            v = self.model_config["v_prior"].create_variable("v")
+
             # Likelihood for mean_spend, marginalizing over nu
             # Eq 1a from [1], p.2
             pm.Potential(
@@ -446,26 +445,22 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     @property
     def default_model_config(self) -> dict:
         return {
-            "p_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "q_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "v_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "p_prior": Prior("HalfFlat"),
+            "q_prior": Prior("HalfFlat"),
+            "v_prior": Prior("HalfFlat"),
         }
 
     def build_model(self):
         z = self.data["individual_transaction_value"]
-
-        p_prior = self._create_distribution(self.model_config["p_prior"])
-        q_prior = self._create_distribution(self.model_config["q_prior"])
-        v_prior = self._create_distribution(self.model_config["v_prior"])
 
         coords = {
             "customer_id": np.unique(self.data["customer_id"]),
             "obs": range(self.data.shape[0]),
         }
         with pm.Model(coords=coords) as self.model:
-            p = self.model.register_rv(p_prior, name="p")
-            q = self.model.register_rv(q_prior, name="q")
-            v = self.model.register_rv(v_prior, name="v")
+            p = self.model_config["p_prior"].create_variable("p")
+            q = self.model_config["q_prior"].create_variable("q")
+            v = self.model_config["v_prior"].create_variable("v")
 
             nu = pm.Gamma("nu", q, v, dims=("customer_id",))
             pm.Gamma(

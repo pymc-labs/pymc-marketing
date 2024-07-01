@@ -13,7 +13,7 @@
 #   limitations under the License.
 import warnings
 from collections.abc import Sequence
-from typing import Any, Literal, cast
+from typing import Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -33,6 +33,8 @@ from xarray_einstats.stats import logsumexp as xr_logsumexp
 from pymc_marketing.clv.distributions import ParetoNBD
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
+from pymc_marketing.model_config import ModelConfig
+from pymc_marketing.prior import Prior
 
 
 @node_rewriter([Elemwise])
@@ -111,6 +113,8 @@ class ParetoNBDModel(CLVModel):
     .. code-block:: python
 
         import pymc as pm
+
+        from pymc_marketing.prior import Prior
         from pymc_marketing.clv import ParetoNBDModel, rfm_summary
 
         rfm_df = rfm_summary(raw_data,'id_col_name','date_col_name')
@@ -119,10 +123,10 @@ class ParetoNBDModel(CLVModel):
         model = ParetoNBDModel(
             data=rfm_df,
             model_config={
-                "r_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 1}},
-                "alpha_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
-                "s_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 1}},
-                "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
+                "r_prior": Prior("Weibull", alpha=2, beta=1),
+                "alpha_prior: Prior("Weibull", alpha=2, beta=10),
+                "s_prior": Prior("Weibull", alpha=2, beta=1),
+                "beta_prior": Prior("Weibull", alpha=2, beta=10),
             },
         )
 
@@ -192,13 +196,14 @@ class ParetoNBDModel(CLVModel):
         self,
         data: pd.DataFrame,
         *,
-        model_config: dict | None = None,
+        model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
     ):
         super().__init__(
             data=data,
             model_config=model_config,
             sampler_config=sampler_config,
+            non_distributions=["purchase_covariate_cols", "dropout_covariate_cols"],
         )
         self.purchase_covariate_cols = list(
             self.model_config["purchase_covariate_cols"]
@@ -218,40 +223,19 @@ class ParetoNBDModel(CLVModel):
         )
 
     @property
-    def default_model_config(self) -> dict[str, Any]:
+    def default_model_config(self) -> ModelConfig:
         return {
-            "r_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 1}},
-            "alpha_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
-            "s_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 1}},
-            "beta_prior": {"dist": "Weibull", "kwargs": {"alpha": 2, "beta": 10}},
-            "purchase_coefficient_prior": {
-                "dist": "Normal",
-                "kwargs": {"mu": 0, "sigma": 1},
-            },
-            "dropout_coefficient_prior": {
-                "dist": "Normal",
-                "kwargs": {"mu": 0, "sigma": 1},
-            },
+            "r_prior": Prior("Weibull", alpha=2, beta=1),
+            "alpha_prior": Prior("Weibull", alpha=2, beta=10),
+            "s_prior": Prior("Weibull", alpha=2, beta=1),
+            "beta_prior": Prior("Weibull", alpha=2, beta=10),
+            "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=1),
+            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=1),
             "purchase_covariate_cols": [],
             "dropout_covariate_cols": [],
         }
 
     def build_model(self) -> None:  # type: ignore[override]
-        r_prior = self._create_distribution(self.model_config["r_prior"])
-        alpha_scale_prior = self._create_distribution(self.model_config["alpha_prior"])
-        s_prior = self._create_distribution(self.model_config["s_prior"])
-        beta_scale_prior = self._create_distribution(self.model_config["beta_prior"])
-        if self.purchase_covariate_cols:
-            purchase_coefficient_prior = self._create_distribution(
-                self.model_config["purchase_coefficient_prior"],
-                shape=len(self.purchase_covariate_cols),
-            )
-        if self.dropout_covariate_cols:
-            dropout_coefficient_prior = self._create_distribution(
-                self.model_config["dropout_coefficient_prior"],
-                shape=len(self.dropout_covariate_cols),
-            )
-
         coords = {
             "purchase_covariate": self.purchase_covariate_cols,
             "dropout_covariate": self.dropout_covariate_cols,
@@ -259,8 +243,6 @@ class ParetoNBDModel(CLVModel):
         }
         mutable_coords = {"customer_id": self.data["customer_id"]}
         with pm.Model(coords=coords, coords_mutable=mutable_coords) as self.model:
-            r = self.model.register_rv(r_prior, name="r")
-
             if self.purchase_covariate_cols:
                 purchase_data = pm.MutableData(
                     "purchase_data",
@@ -268,14 +250,15 @@ class ParetoNBDModel(CLVModel):
                     dims=["customer_id", "purchase_covariate"],
                 )
 
-                purchase_coefficient = self.model.register_rv(
-                    purchase_coefficient_prior,
-                    name="purchase_coefficient",
-                    dims=["purchase_covariate"],
-                )
+                self.model_config[
+                    "purchase_coefficient_prior"
+                ].dims = "purchase_covariate"
+                purchase_coefficient = self.model_config[
+                    "purchase_coefficient_prior"
+                ].create_variable("purchase_coefficient")
 
-                alpha_scale = self.model.register_rv(
-                    alpha_scale_prior, name="alpha_scale"
+                alpha_scale = self.model_config["alpha_prior"].create_variable(
+                    "alpha_scale"
                 )
                 alpha = pm.Deterministic(
                     "alpha",
@@ -286,23 +269,28 @@ class ParetoNBDModel(CLVModel):
                     dims="customer_id",
                 )
             else:
-                alpha = self.model.register_rv(alpha_scale_prior, name="alpha")
+                alpha = self.model_config["alpha_prior"].create_variable("alpha")
 
             # churn priors
-            s = self.model.register_rv(s_prior, name="s")
             if self.dropout_covariate_cols:
                 dropout_data = pm.MutableData(
                     "dropout_data",
                     self.data[self.dropout_covariate_cols],
                     dims=["customer_id", "dropout_covariate"],
                 )
-                dropout_coefficient = self.model.register_rv(
-                    dropout_coefficient_prior,
-                    name="dropout_coefficient",
-                    dims=["dropout_covariate"],
+
+                self.model_config[
+                    "dropout_coefficient_prior"
+                ].dims = "dropout_covariate"
+                dropout_coefficient = self.model_config[
+                    "dropout_coefficient_prior"
+                ].create_variable(
+                    "dropout_coefficient",
                 )
 
-                beta_scale = self.model.register_rv(beta_scale_prior, name="beta_scale")
+                beta_scale = self.model_config["beta_prior"].create_variable(
+                    "beta_scale"
+                )
                 beta = pm.Deterministic(
                     "beta",
                     (
@@ -312,7 +300,10 @@ class ParetoNBDModel(CLVModel):
                     dims="customer_id",
                 )
             else:
-                beta = self.model.register_rv(beta_scale_prior, name="beta")
+                beta = self.model_config["beta_prior"].create_variable("beta")
+
+            r = self.model_config["r_prior"].create_variable("r")
+            s = self.model_config["s_prior"].create_variable("s")
 
             ParetoNBD(
                 name="recency_frequency",

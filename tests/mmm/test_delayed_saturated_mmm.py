@@ -24,6 +24,7 @@ from matplotlib import pyplot as plt
 from pymc_marketing.mmm.components.adstock import DelayedAdstock
 from pymc_marketing.mmm.components.saturation import MichaelisMentenSaturation
 from pymc_marketing.mmm.delayed_saturated_mmm import MMM, BaseMMM, DelayedSaturatedMMM
+from pymc_marketing.prior import Prior
 
 seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
@@ -84,33 +85,17 @@ def toy_X(generate_data) -> pd.DataFrame:
 @pytest.fixture(scope="class")
 def model_config_requiring_serialization() -> dict:
     model_config = {
-        "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
-        "saturation_beta": {
-            "dist": "HalfNormal",
-            "kwargs": {"sigma": np.array([0.4533017, 0.25488063])},
-        },
-        "adstock_alpha": {
-            "dist": "Beta",
-            "kwargs": {
-                "alpha": np.array([3, 3]),
-                "beta": np.array([3.55001301, 2.87092431]),
-            },
-        },
-        "saturation_lam": {
-            "dist": "Gamma",
-            "kwargs": {
-                "alpha": np.array([3, 3]),
-                "beta": np.array([4.12231653, 5.02896872]),
-            },
-        },
-        "likelihood": {
-            "dist": "Normal",
-            "kwargs": {
-                "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
-            },
-        },
-        "gamma_control": {"dist": "HalfNormal", "kwargs": {"mu": 0, "sigma": 2}},
-        "gamma_fourier": {"dist": "HalfNormal", "kwargs": {"mu": 0, "b": 1}},
+        "intercept": Prior("Normal", mu=0, sigma=2),
+        "saturation_beta": Prior("HalfNormal", sigma=np.array([0.4533017, 0.25488063])),
+        "adstock_alpha": Prior(
+            "Beta", alpha=np.array([3, 3]), beta=np.array([3.55001301, 2.87092431])
+        ),
+        "saturation_lam": Prior(
+            "Gamma", alpha=np.array([3, 3]), beta=np.array([4.12231653, 5.02896872])
+        ),
+        "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
+        "gamma_control": Prior("HalfNormal", sigma=2),
+        "gamma_fourier": Prior("HalfNormal"),
     }
     return model_config
 
@@ -696,31 +681,23 @@ class TestDelayedSaturatedMMM:
         argvalues=[
             None,
             {
-                "intercept": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
-                "saturation_beta": {
-                    "dist": "HalfNormal",
-                    "kwargs": {"sigma": np.array([0.4533017, 0.25488063])},
-                },
-                "adstock_alpha": {
-                    "dist": "Beta",
-                    "kwargs": {
-                        "alpha": np.array([3, 3]),
-                        "beta": np.array([3.55001301, 2.87092431]),
-                    },
-                },
-                "saturation_lam": {
-                    "dist": "Gamma",
-                    "kwargs": {
-                        "alpha": np.array([3, 3]),
-                        "beta": np.array([4.12231653, 5.02896872]),
-                    },
-                },
-                "likelihood": {
-                    "dist": "StudentT",
-                    "kwargs": {"nu": 3, "sigma": 2},
-                },
-                "gamma_control": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 2}},
-                "gamma_fourier": {"dist": "Laplace", "kwargs": {"mu": 0, "b": 1}},
+                "intercept": Prior("Normal", mu=0, sigma=2),
+                "saturation_beta": Prior(
+                    "HalfNormal", sigma=np.array([0.4533017, 0.25488063])
+                ),
+                "adstock_alpha": Prior(
+                    "Beta",
+                    alpha=np.array([3, 3]),
+                    beta=np.array([3.55001301, 2.87092431]),
+                ),
+                "saturation_lam": Prior(
+                    "Gamma",
+                    alpha=np.array([3, 3]),
+                    beta=np.array([4.12231653, 5.02896872]),
+                ),
+                "likelihood": Prior("StudentT", nu=3, sigma=2),
+                "gamma_control": Prior("Normal", sigma=2),
+                "gamma_fourier": Prior("Laplace", mu=0, b=1),
             },
         ],
         ids=["default_config", "custom_config"],
@@ -1071,4 +1048,4 @@ def test_initialize_defaults_channel_media_dims() -> None:
 
     for transform in [mmm.adstock, mmm.saturation]:
         for config in transform.function_priors.values():
-            assert config["dims"] == "channel"
+            assert config.dims == ("channel",)

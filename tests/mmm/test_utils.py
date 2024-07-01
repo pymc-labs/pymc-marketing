@@ -13,13 +13,11 @@
 #   limitations under the License.
 import numpy as np
 import pandas as pd
-import pymc as pm
 import pytest
 import xarray as xr
 from sklearn.preprocessing import MaxAbsScaler
 
 from pymc_marketing.mmm.utils import (
-    _get_distribution_from_dict,
     apply_sklearn_transformer_across_dim,
     compute_sigmoid_second_derivative,
     create_new_spend_data,
@@ -358,21 +356,3 @@ def test_create_new_spend_data_value_errors() -> None:
             one_time=True,
             spend_leading_up=np.array([3, 4, 5]),
         )
-
-
-@pytest.mark.parametrize(
-    argnames="distribution_dict, expected",
-    argvalues=[
-        ({"dist": "Normal"}, pm.Normal),
-        ({"dist": "Gamma"}, pm.Gamma),
-        ({"dist": "StudentT"}, pm.StudentT),
-    ],
-    ids=["Normal", "Gamma", "StudentT"],
-)
-def test_get_distribution_from_dict(distribution_dict, expected):
-    assert _get_distribution_from_dict(distribution_dict) == expected
-
-
-def test_get_distribution_from_dict_value_error():
-    with pytest.raises(ValueError):
-        _get_distribution_from_dict({"dist": "InvalidDistribution"})

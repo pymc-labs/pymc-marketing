@@ -10,4 +10,5 @@
   clv
   mmm
   model_config
+  prior
 ```
