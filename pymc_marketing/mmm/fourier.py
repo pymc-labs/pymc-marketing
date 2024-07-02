@@ -312,6 +312,32 @@ class FourierBase:
         pt.TensorVariable
             Fourier seasonality
 
+        Examples
+        --------
+        Save off the result before summing through the prefix dimension.
+
+        .. code-block:: python
+
+            import pandas as pd
+
+            import pymc as pm
+
+            from pymc_marketing.mmm import YearlyFourier
+
+            fourier = YearlyFourier(n_order=3)
+
+            def callback(result):
+                pm.Deterministic("fourier_trend", result, dims=("date", "fourier"))
+
+            dates = pd.date_range("2023-01-01", periods=52, freq="W-MON")
+
+            coords = {
+                "date": dates,
+            }
+            with pm.Model(coords=coords) as model:
+                dayofyear = dates.dayofyear.to_numpy()
+                fourier.apply(dayofyear, result_callback=callback)
+
         """
         periods = dayofyear / self.days_in_period
 
