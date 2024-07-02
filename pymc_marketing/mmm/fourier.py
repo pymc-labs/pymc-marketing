@@ -603,10 +603,13 @@ class MonthlyFourier(FourierBase):
     .. plot::
         :context: close-figs
 
+        import numpy as np
+
         import matplotlib.pyplot as plt
         import arviz as az
 
         from pymc_marketing.mmm import MonthlyFourier
+        from pymc_marketing.prior import Prior
 
         az.style.use("arviz-white")
 
