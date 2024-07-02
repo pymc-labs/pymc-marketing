@@ -95,6 +95,8 @@ from pymc.distributions.shape_utils import Dims
 from pymc_marketing.constants import DAYS_IN_YEAR
 
 
+from pymc_marketing.constants import DAYS_IN_YEAR
+
 def time_varying_prior(
     name: str,
     X: pt.sharedvar.TensorSharedVariable,
@@ -236,4 +238,4 @@ def infer_time_index(
 
     Infers the time-indices by calculating the number of days since the first date in the dataset.
     """
-    return (date_series_new - date_series[0]).dt.days.values // time_resolution
+    return (date_series_new - date_series[0]).values // time_resolution
