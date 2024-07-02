@@ -513,19 +513,28 @@ class YearlyFourier(FourierBase):
     .. plot::
         :context: close-figs
 
+        import numpy as np
+
         import matplotlib.pyplot as plt
         import arviz as az
 
+        from pymc_marketing.prior import Prior
         from pymc_marketing.mmm import YearlyFourier
 
         az.style.use("arviz-white")
 
-        yearly = YearlyFourier(n_order=2)
-        prior = yearly.sample_prior(samples=100)
+        seed = sum(map(ord, "Yearly"))
+        rng = np.random.default_rng(seed)
+
+        mu = np.array([0, 0, -1, 0])
+        b = 0.15
+        dist = Prior("Laplace", mu=mu, b=b, dims="fourier")
+        yearly = YearlyFourier(n_order=2, prior=dist)
+        prior = yearly.sample_prior(random_seed=rng)
         curve = yearly.sample_full_period(prior)
 
         _, axes = yearly.plot_full_period(curve)
-        axes[0].set(title="Prior Yearly Fourier Seasonality")
+        axes[0].set(title="Yearly Fourier Seasonality")
         plt.show()
 
     Parameters
@@ -567,12 +576,18 @@ class MonthlyFourier(FourierBase):
 
         az.style.use("arviz-white")
 
-        yearly = MonthlyFourier(n_order=2)
+        seed = sum(map(ord, "Monthly"))
+        rng = np.random.default_rng(seed)
+
+        mu = np.array([0, 0, 0.5, 0])
+        b = 0.075
+        dist = Prior("Laplace", mu=mu, b=b, dims="fourier")
+        yearly = MonthlyFourier(n_order=2, prior=dist)
         prior = yearly.sample_prior(samples=100)
         curve = yearly.sample_full_period(prior)
 
         _, axes = yearly.plot_full_period(curve)
-        axes[0].set(title="Prior Monthly Fourier Seasonality")
+        axes[0].set(title="Monthly Fourier Seasonality")
         plt.show()
 
     Parameters
