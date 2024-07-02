@@ -180,6 +180,7 @@ conflicts.
 
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import arviz as az
@@ -290,7 +291,11 @@ class FourierBase:
         """Name of variable that multiplies the fourier modes."""
         return f"{self.prefix}_beta"
 
-    def apply(self, dayofyear: pt.TensorLike) -> pt.TensorVariable:
+    def apply(
+        self,
+        dayofyear: pt.TensorLike,
+        result_callback: Callable[[pt.TensorVariable], None] | None = None,
+    ) -> pt.TensorVariable:
         """Apply fourier seasonality to day of year.
 
         Must be used within a PyMC model context.
@@ -299,6 +304,8 @@ class FourierBase:
         ----------
         dayofyear : pt.TensorLike
             Day of year.
+        result_callback : Callable[[pt.TensorVariable], None], optional
+            Callback function to apply to the result, by default None
 
         Returns
         -------
@@ -314,8 +321,6 @@ class FourierBase:
         beta = self.prior.create_variable(self.variable_name)
 
         fourier_modes = generate_fourier_modes(periods=periods, n_order=self.n_order)
-        if self.prior.dims == (self.prefix,):
-            return fourier_modes @ beta
 
         DUMMY_DIM = "DATE"
 
@@ -323,10 +328,13 @@ class FourierBase:
         result_dims = (DUMMY_DIM, *self.prior.dims)
         dim_handler = create_dim_handler(result_dims)
 
-        return (
-            dim_handler(fourier_modes, (DUMMY_DIM, self.prefix))
-            * dim_handler(beta, self.prior.dims)
-        ).sum(axis=prefix_idx + 1)
+        result = dim_handler(fourier_modes, (DUMMY_DIM, self.prefix)) * dim_handler(
+            beta, self.prior.dims
+        )
+        if result_callback is not None:
+            result_callback(result)
+
+        return result.sum(axis=prefix_idx + 1)
 
     def sample_prior(self, coords: dict | None = None, **kwargs) -> xr.Dataset:
         """Sample the prior distributions.

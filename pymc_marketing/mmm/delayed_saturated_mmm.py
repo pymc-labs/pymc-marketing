@@ -460,9 +460,18 @@ class BaseMMM(BaseValidateMMM):
                     dims="date",
                 )
 
+                def create_deterministic(x: pt.TensorVariable) -> None:
+                    pm.Deterministic(
+                        "fourier_contributions",
+                        x,
+                        dims=("date", *self.yearly_fourier.prior.dims),
+                    )
+
                 yearly_seasonality_contribution = pm.Deterministic(
                     name="yearly_seasonality_contribution",
-                    var=self.yearly_fourier.apply(dayofyear),
+                    var=self.yearly_fourier.apply(
+                        dayofyear, result_callback=create_deterministic
+                    ),
                     dims="date",
                 )
 
