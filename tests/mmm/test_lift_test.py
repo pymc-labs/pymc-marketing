@@ -582,7 +582,7 @@ def saturation_functions() -> list[SaturationTransformation]:
     ]
     for transformation in transformations:
         for config in transformation.function_priors.values():
-            config["dims"] = "channel"
+            config.dims = "channel"
 
     return transformations
 

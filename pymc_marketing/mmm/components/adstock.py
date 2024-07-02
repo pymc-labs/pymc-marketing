@@ -26,12 +26,13 @@ Create a new adstock transformation:
 .. code-block:: python
 
     from pymc_marketing.mmm import AdstockTransformation
+    from pymc_marketing.prior import Prior
 
     class MyAdstock(AdstockTransformation):
         def function(self, x, alpha):
             return x * alpha
 
-        default_priors = {"alpha": {"dist": "HalfNormal", "kwargs": {"sigma": 1}}}
+        default_priors = {"alpha": Prior("HalfNormal", sigma=1)}
 
 Plot the default priors for an adstock transformation:
 
@@ -62,6 +63,7 @@ from pymc_marketing.mmm.transformers import (
     geometric_adstock,
     weibull_adstock,
 )
+from pymc_marketing.prior import Prior
 
 
 class AdstockTransformation(Transformation):
@@ -158,7 +160,7 @@ class GeometricAdstock(AdstockTransformation):
             x, alpha=alpha, l_max=self.l_max, normalize=self.normalize, mode=self.mode
         )
 
-    default_priors = {"alpha": {"dist": "Beta", "kwargs": {"alpha": 1, "beta": 3}}}
+    default_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
 
 
 class DelayedAdstock(AdstockTransformation):
@@ -196,8 +198,8 @@ class DelayedAdstock(AdstockTransformation):
         )
 
     default_priors = {
-        "alpha": {"dist": "Beta", "kwargs": {"alpha": 1, "beta": 3}},
-        "theta": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "alpha": Prior("Beta", alpha=1, beta=3),
+        "theta": Prior("HalfNormal", sigma=1),
     }
 
 
@@ -251,8 +253,8 @@ class WeibullAdstock(AdstockTransformation):
         )
 
     default_priors = {
-        "lam": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-        "k": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        "lam": Prior("HalfNormal", sigma=1),
+        "k": Prior("HalfNormal", sigma=1),
     }
 
 

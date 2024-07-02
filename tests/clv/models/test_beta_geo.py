@@ -22,6 +22,7 @@ import xarray as xr
 from lifetimes.fitters.beta_geo_fitter import BetaGeoFitter
 
 from pymc_marketing.clv.models.beta_geo import BetaGeoModel
+from pymc_marketing.prior import Prior
 
 
 class TestBetaGeoModel:
@@ -78,19 +79,19 @@ class TestBetaGeoModel:
     @pytest.fixture(scope="class")
     def model_config(self):
         return {
-            "a_prior": {"dist": "HalfNormal", "kwargs": {}},
-            "b_prior": {"dist": "HalfStudentT", "kwargs": {"nu": 4}},
-            "alpha_prior": {"dist": "HalfCauchy", "kwargs": {"beta": 2}},
-            "r_prior": {"dist": "Gamma", "kwargs": {"alpha": 1, "beta": 1}},
+            "a_prior": Prior("HalfNormal"),
+            "b_prior": Prior("HalfStudentT", nu=4),
+            "alpha_prior": Prior("HalfCauchy", beta=2),
+            "r_prior": Prior("Gamma", alpha=1, beta=1),
         }
 
     @pytest.fixture(scope="class")
     def default_model_config(self):
         return {
-            "a_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "b_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "r_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "a_prior": Prior("HalfFlat"),
+            "b_prior": Prior("HalfFlat"),
+            "alpha_prior": Prior("HalfFlat"),
+            "r_prior": Prior("HalfFlat"),
         }
 
     def test_model(self, model_config, default_model_config):
@@ -103,26 +104,26 @@ class TestBetaGeoModel:
             assert isinstance(
                 model.model["a"].owner.op,
                 pm.HalfFlat
-                if config["a_prior"]["dist"] == "HalfFlat"
-                else getattr(pm, config["a_prior"]["dist"]),
+                if config["a_prior"].distribution == "HalfFlat"
+                else config["a_prior"].pymc_distribution,
             )
             assert isinstance(
                 model.model["b"].owner.op,
                 pm.HalfFlat
-                if config["b_prior"]["dist"] == "HalfFlat"
-                else getattr(pm, config["b_prior"]["dist"]),
+                if config["b_prior"].distribution == "HalfFlat"
+                else config["b_prior"].pymc_distribution,
             )
             assert isinstance(
                 model.model["alpha"].owner.op,
                 pm.HalfFlat
-                if config["alpha_prior"]["dist"] == "HalfFlat"
-                else getattr(pm, config["alpha_prior"]["dist"]),
+                if config["alpha_prior"].distribution == "HalfFlat"
+                else config["alpha_prior"].pymc_distribution,
             )
             assert isinstance(
                 model.model["r"].owner.op,
                 pm.HalfFlat
-                if config["r_prior"]["dist"] == "HalfFlat"
-                else getattr(pm, config["r_prior"]["dist"]),
+                if config["r_prior"].distribution == "HalfFlat"
+                else config["r_prior"].pymc_distribution,
             )
             assert model.model.eval_rv_shapes() == {
                 "a": (),
@@ -187,10 +188,10 @@ class TestBetaGeoModel:
         See Solution #2 on pages 3 and 4 of http://brucehardie.com/notes/027/bgnbd_num_error.pdf
         """
         model_config = {
-            "a_prior": {"dist": "Flat", "kwargs": {}},
-            "b_prior": {"dist": "Flat", "kwargs": {}},
-            "alpha_prior": {"dist": "Flat", "kwargs": {}},
-            "r_prior": {"dist": "Flat", "kwargs": {}},
+            "a_prior": Prior("Flat"),
+            "b_prior": Prior("Flat"),
+            "alpha_prior": Prior("Flat"),
+            "r_prior": Prior("Flat"),
         }
         data = pd.DataFrame(
             {
@@ -387,10 +388,10 @@ class TestBetaGeoModel:
 
     def test_model_repr(self):
         model_config = {
-            "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "r_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "a_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "b_prior": {"dist": "HalfNormal", "kwargs": {"sigma": 10}},
+            "alpha_prior": Prior("HalfFlat"),
+            "r_prior": Prior("HalfFlat"),
+            "a_prior": Prior("HalfFlat"),
+            "b_prior": Prior("HalfNormal", sigma=10),
         }
         model = BetaGeoModel(
             data=self.data,

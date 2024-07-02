@@ -31,6 +31,7 @@ from pymc_marketing.clv.utils import (
     rfm_train_test_split,
     to_xarray,
 )
+from pymc_marketing.prior import Prior
 from tests.conftest import set_model_fit
 
 
@@ -63,10 +64,10 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
 
     model_config = {
         # Narrow Gaussian centered at MLE params from lifetimes BetaGeoFitter
-        "a_prior": {"dist": "DiracDelta", "kwargs": {"c": 1.85034151}},
-        "alpha_prior": {"dist": "DiracDelta", "kwargs": {"c": 1.86428187}},
-        "b_prior": {"dist": "DiracDelta", "kwargs": {"c": 3.18105431}},
-        "r_prior": {"dist": "DiracDelta", "kwargs": {"c": 0.16385072}},
+        "a_prior": Prior("DiracDelta", c=1.85034151),
+        "alpha_prior": Prior("DiracDelta", c=1.86428187),
+        "b_prior": Prior("DiracDelta", c=3.18105431),
+        "r_prior": Prior("DiracDelta", c=0.16385072),
     }
     model = BetaGeoModel(
         data=test_summary_data,
@@ -87,10 +88,10 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
 
     model_config = {
         # Narrow Gaussian centered at MLE params from lifetimes ParetoNBDFitter
-        "r_prior": {"dist": "DiracDelta", "kwargs": {"c": 0.5534}},
-        "alpha_prior": {"dist": "DiracDelta", "kwargs": {"c": 10.5802}},
-        "s_prior": {"dist": "DiracDelta", "kwargs": {"c": 0.6061}},
-        "beta_prior": {"dist": "DiracDelta", "kwargs": {"c": 11.6562}},
+        "r_prior": Prior("DiracDelta", c=0.5534),
+        "alpha_prior": Prior("DiracDelta", c=10.5802),
+        "s_prior": Prior("DiracDelta", c=0.6061),
+        "beta_prior": Prior("DiracDelta", c=11.6562),
     }
     pnbd_model = ParetoNBDModel(
         data=test_summary_data,
@@ -115,9 +116,9 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
 
     model_config = {
         # Params used in lifetimes test
-        "p_prior": {"dist": "DiracDelta", "kwargs": {"c": 6.25}},
-        "q_prior": {"dist": "DiracDelta", "kwargs": {"c": 3.74}},
-        "v_prior": {"dist": "DiracDelta", "kwargs": {"c": 15.44}},
+        "p_prior": Prior("DiracDelta", c=6.25),
+        "q_prior": Prior("DiracDelta", c=3.74),
+        "v_prior": Prior("DiracDelta", c=15.44),
     }
     model = GammaGammaModel(
         data=test_summary_data,
