@@ -328,9 +328,24 @@ class FourierBase:
         ).sum(axis=prefix_idx + 1)
 
     def sample_prior(self, coords: dict | None = None, **kwargs) -> xr.Dataset:
+        """Sample the prior distributions.
+
+        Parameters
+        ----------
+        coords : dict, optional
+            Coordinates for the prior distribution, by default None
+        kwargs
+            Additional keywords for sample_prior_predictive
+
+        Returns
+        -------
+        xr.Dataset
+            Prior distribution.
+
+        """
         coords = coords or {}
         coords[self.prefix] = self.nodes
-        return self.prior.sample_prior(coords=coords, name=self.variable_name)
+        return self.prior.sample_prior(coords=coords, name=self.variable_name, **kwargs)
 
     def sample_full_period(
         self, parameters: az.InferenceData | xr.Dataset

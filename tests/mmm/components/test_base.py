@@ -21,7 +21,6 @@ from pymc_marketing.mmm.components.base import (
     MissingDataParameter,
     ParameterPriorException,
     Transformation,
-    selections,
 )
 from pymc_marketing.prior import Prior
 
@@ -260,26 +259,6 @@ def test_new_transformation_plot_curve(
     assert len(axes) == expected_size
 
     plt.close()
-
-
-@pytest.mark.parametrize(
-    "coords, expected",
-    [
-        ({}, [{}]),
-        ({"channel": [1, 2, 3]}, [{"channel": 1}, {"channel": 2}, {"channel": 3}]),
-        (
-            {"channel": [1, 2], "country": ["A", "B"]},
-            [
-                {"channel": 1, "country": "A"},
-                {"channel": 1, "country": "B"},
-                {"channel": 2, "country": "A"},
-                {"channel": 2, "country": "B"},
-            ],
-        ),
-    ],
-)
-def test_selections(coords, expected) -> None:
-    assert list(selections(coords)) == expected
 
 
 def test_change_instance_function_priors_has_no_impact_new_instance(
