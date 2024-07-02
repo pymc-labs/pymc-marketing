@@ -241,7 +241,7 @@ class FourierBase:
     prefix : str, optional
         Alternative prefix for the fourier seasonality, by default None or
         "fourier"
-    prior : dict[str, str | dict[str, float]], optional
+    prior : Prior, optional
         Prior distribution for the fourier seasonality beta parameters, by
         default None
 
@@ -250,8 +250,8 @@ class FourierBase:
     days_in_period : float
         Number of days in a period.
     prefix : str
-        Name of model coordinates and parameter prefix
-    default_prior : dict[str, str | dict[str, float]]
+        Name of model coordinates
+    default_prior : Prior
         Default prior distribution for the fourier seasonality
         beta parameters.
     """
@@ -287,6 +287,7 @@ class FourierBase:
 
     @property
     def variable_name(self) -> str:
+        """Name of variable that multiplies the fourier modes."""
         return f"{self.prefix}_beta"
 
     def apply(self, dayofyear: pt.TensorLike) -> pt.TensorVariable:
@@ -393,6 +394,25 @@ class FourierBase:
         sample_kwargs: dict | None = None,
         hdi_kwargs: dict | None = None,
     ) -> tuple[plt.Figure, npt.NDArray[plt.Axes]]:
+        """Plot the seasonality for one full period.
+
+        Parameters
+        ----------
+        curve : xr.DataArray
+            Sampled full period of the fourier seasonality.
+        subplot_kwargs : dict, optional
+            Keyword arguments for the subplot, by default None
+        sample_kwargs : dict, optional
+            Keyword arguments for the plot_full_period_samples method, by default None
+        hdi_kwargs : dict, optional
+            Keyword arguments for the plot_full_period_hdi method, by default None
+
+        Returns
+        -------
+        tuple[plt.Figure, npt.NDArray[plt.Axes]]
+            Matplotlib figure and axes.
+
+        """
         hdi_kwargs = hdi_kwargs or {}
         sample_kwargs = sample_kwargs or {}
 
@@ -453,6 +473,29 @@ class FourierBase:
         subplot_kwargs: dict[str, Any] | None = None,
         plot_kwargs: dict[str, Any] | None = None,
     ) -> tuple[plt.Figure, npt.NDArray[plt.Axes]]:
+        """Plot samples from the curve.
+
+        Parameters
+        ----------
+        samples : xr.DataArray
+            Samples from the curve.
+        rng : np.random.Generator, optional
+            Random number generator, by default None
+        axes : npt.NDArray[plt.Axes], optional
+            Matplotlib axes, by default None
+        n : int, optional
+            Number of samples to plot, by default 10
+        subplot_kwargs : dict, optional
+            Keyword arguments for the subplot, by default None
+        plot_kwargs : dict, optional
+            Keyword arguments for the plot function, by default None
+
+        Returns
+        -------
+        tuple[plt.Figure, npt.NDArray[plt.Axes]]
+            Matplotlib figure and axes.
+
+        """
         return plot_samples(
             samples,
             non_grid_names={"chain", "draw", "day"},
@@ -465,12 +508,94 @@ class FourierBase:
 
 
 class YearlyFourier(FourierBase):
-    """Yearly fourier seasonality."""
+    """Yearly fourier seasonality.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import arviz as az
+
+        from pymc_marketing.mmm import YearlyFourier
+
+        az.style.use("arviz-white")
+
+        yearly = YearlyFourier(n_order=2)
+        prior = yearly.sample_prior(samples=100)
+        curve = yearly.sample_full_period(prior)
+
+        _, axes = yearly.plot_full_period(curve)
+        axes[0].set(title="Prior Yearly Fourier Seasonality")
+        plt.show()
+
+    Parameters
+    ----------
+    n_order : int
+        Number of fourier modes to use.
+    prefix : str, optional
+        Alternative prefix for the fourier seasonality, by default None or
+        "fourier"
+    prior : Prior, optional
+        Prior distribution for the fourier seasonality beta parameters, by
+        default None
+
+    Attributes
+    ----------
+    days_in_period : float
+        Number of days in a period.
+    prefix : str
+        Name of model coordinates
+    default_prior : Prior
+        Default prior distribution for the fourier seasonality
+        beta parameters.
+
+    """
 
     days_in_period = DAYS_IN_YEAR
 
 
 class MonthlyFourier(FourierBase):
-    """Monthly fourier seasonality."""
+    """Monthly fourier seasonality.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import arviz as az
+
+        from pymc_marketing.mmm import MonthlyFourier
+
+        az.style.use("arviz-white")
+
+        yearly = MonthlyFourier(n_order=2)
+        prior = yearly.sample_prior(samples=100)
+        curve = yearly.sample_full_period(prior)
+
+        _, axes = yearly.plot_full_period(curve)
+        axes[0].set(title="Prior Monthly Fourier Seasonality")
+        plt.show()
+
+    Parameters
+    ----------
+    n_order : int
+        Number of fourier modes to use.
+    prefix : str, optional
+        Alternative prefix for the fourier seasonality, by default None or
+        "fourier"
+    prior : Prior, optional
+        Prior distribution for the fourier seasonality beta parameters, by
+        default None
+
+    Attributes
+    ----------
+    days_in_period : float
+        Number of days in a period.
+    prefix : str
+        Name of model coordinates
+    default_prior : Prior
+        Default prior distribution for the fourier seasonality
+        beta parameters.
+
+    """
 
     days_in_period = DAYS_IN_MONTH
