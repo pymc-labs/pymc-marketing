@@ -11,9 +11,17 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import arviz as az
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import pytest
+import xarray as xr
 
-from pymc_marketing.mmm.components.base import (
+from pymc_marketing.mmm.plot import (
+    plot_hdi,
+    plot_samples,
+    random_samples,
     selections,
 )
 
@@ -36,3 +44,64 @@ from pymc_marketing.mmm.components.base import (
 )
 def test_selections(coords, expected) -> None:
     assert list(selections(coords)) == expected
+
+
+@pytest.fixture
+def sample_frame() -> pd.DataFrame:
+    index = pd.MultiIndex.from_product(
+        [
+            range(1),
+            range(10),
+        ]
+    )
+    return pd.DataFrame(
+        np.random.randn(10, 1),
+        index=index,
+        columns=["y"],
+    )
+
+
+def test_random_samples(sample_frame) -> None:
+    rng = np.random.default_rng(0)
+    n = 5
+    idx = random_samples(rng, n=n, n_chains=1, n_draws=10)
+
+    assert len(idx) == n
+    assert idx == [
+        (0, 4),
+        (0, 7),
+        (0, 2),
+        (0, 3),
+        (0, 5),
+    ]
+    df_sub = sample_frame.loc[idx, :]
+    assert len(df_sub) == n
+
+
+@pytest.fixture
+def mock_curve() -> xr.DataArray:
+    coords = {
+        "chain": np.arange(1),
+        "draw": np.arange(15),
+        "geo": np.arange(5),
+        "day": np.arange(31),
+    }
+    return xr.DataArray(
+        np.ones((1, 15, 5, 31)),
+        coords=coords,
+    )
+
+
+def test_plot_samples(mock_curve) -> None:
+    fig, axes = plot_samples(mock_curve, non_grid_names={"chain", "draw", "day"})
+
+    assert axes.size == 5
+    assert isinstance(fig, plt.Figure)
+
+
+def test_plot_hdi(mock_curve) -> None:
+    conf = az.hdi(mock_curve)["x"]
+    fig, axes = plot_hdi(conf, non_grid_names={"hdi", "day"})
+
+    assert axes.size == 5
+    assert isinstance(fig, plt.Figure)

@@ -268,6 +268,9 @@ class FourierBase:
         prefix: str | None = None,
         prior: Prior | None = None,
     ) -> None:
+        if not isinstance(n_order, int) or n_order < 1:
+            raise ValueError(f"n_order must be a positive integer. Not {n_order}")
+
         self.n_order = n_order
         self.prefix = prefix or self.prefix
         self.prior = prior or self.default_prior

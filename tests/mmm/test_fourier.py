@@ -13,10 +13,11 @@
 #   limitations under the License.
 import matplotlib.pyplot as plt
 import numpy as np
+import pymc as pm
 import pytest
 import xarray as xr
 
-from pymc_marketing.mmm.fourier import YearlyFourier
+from pymc_marketing.mmm.fourier import YearlyFourier, generate_fourier_modes
 from pymc_marketing.prior import Prior
 
 
@@ -143,3 +144,97 @@ def test_plot_full_period() -> None:
 
     assert isinstance(fig, plt.Figure)
     assert axes.shape == (2, 2)
+
+
+@pytest.mark.parametrize("n_order", [0, -1, -100, 2.5])
+def test_bad_order(n_order) -> None:
+    with pytest.raises(ValueError, match="n_order must be a positive integer"):
+        YearlyFourier(n_order=n_order)
+
+
+@pytest.mark.parametrize(
+    "periods, n_order, expected_shape",
+    [
+        (np.linspace(start=0.0, stop=1.0, num=50), 10, (50, 10 * 2)),
+        (np.linspace(start=-1.0, stop=1.0, num=70), 9, (70, 9 * 2)),
+        (np.ones(shape=1), 1, (1, 1 * 2)),
+    ],
+)
+def test_fourier_modes_shape(periods, n_order, expected_shape) -> None:
+    result = generate_fourier_modes(periods, n_order)
+    assert result.eval().shape == expected_shape
+
+
+@pytest.mark.parametrize(
+    "periods, n_order",
+    [
+        (np.linspace(start=0.0, stop=1.0, num=50), 10),
+        (np.linspace(start=-1.0, stop=1.0, num=70), 9),
+        (np.ones(shape=1), 1),
+    ],
+)
+def test_fourier_modes_range(periods, n_order):
+    fourier_modes = generate_fourier_modes(periods=periods, n_order=n_order).eval()
+
+    assert fourier_modes.min() >= -1.0
+    assert fourier_modes.max() <= 1.0
+
+
+@pytest.mark.parametrize(
+    "periods, n_order",
+    [
+        (np.linspace(start=-1.0, stop=1.0, num=100), 10),
+        (np.linspace(start=-10.0, stop=2.0, num=170), 60),
+        (np.linspace(start=-15, stop=5.0, num=160), 20),
+    ],
+)
+def test_fourier_modes_frequency_integer_range(periods, n_order):
+    fourier_modes = generate_fourier_modes(periods=periods, n_order=n_order).eval()
+
+    assert (fourier_modes[:, :n_order].mean(axis=0) < 1e-10).all()
+    assert (fourier_modes[:-1, n_order:].mean(axis=0) < 1e-10).all()
+
+    assert fourier_modes[fourier_modes > 0].shape
+    assert fourier_modes[fourier_modes < 0].shape
+    assert fourier_modes[fourier_modes == 0].shape
+    assert fourier_modes[fourier_modes == 1].shape
+
+
+@pytest.mark.parametrize(
+    "periods, n_order",
+    [
+        (np.linspace(start=0.0, stop=1.0, num=100), 10),
+        (np.linspace(start=0.0, stop=2.0, num=170), 60),
+        (np.linspace(start=0.0, stop=5.0, num=160), 20),
+        (np.linspace(start=-9.0, stop=1.0, num=100), 10),
+        (np.linspace(start=-80.0, stop=2.0, num=170), 60),
+        (np.linspace(start=-100.0, stop=-5.0, num=160), 20),
+    ],
+)
+def test_fourier_modes_pythagoras(periods, n_order):
+    fourier_modes = generate_fourier_modes(periods=periods, n_order=n_order).eval()
+    norm = fourier_modes[:, :n_order] ** 2 + fourier_modes[:, n_order:] ** 2
+
+    assert (abs(norm - 1) < 1e-10).all()
+
+
+def test_apply_result_callback() -> None:
+    n_order = 3
+    fourier = YearlyFourier(n_order=n_order)
+
+    def result_callback(x):
+        pm.Deterministic(
+            "components",
+            x,
+            dims=("dayofyear", *fourier.prior.dims),
+        )
+
+    dayofyear = np.arange(365)
+    coords = {
+        "dayofyear": dayofyear,
+    }
+    with pm.Model(coords=coords) as model:
+        fourier.apply(dayofyear, result_callback=result_callback)
+
+    assert "components" in model
+    assert model["components"].eval().shape == (365, n_order * 2)
