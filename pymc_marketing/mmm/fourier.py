@@ -29,8 +29,6 @@ Use yearly fourier seasonality for custom Marketing Mix Model.
 .. code-block:: python
 
     import pandas as pd
-    import numpy as np
-
     import pymc as pm
 
     from pymc_marketing.mmm import YearlyFourier
@@ -40,6 +38,7 @@ Use yearly fourier seasonality for custom Marketing Mix Model.
     dates = pd.date_range("2023-01-01", periods=52, freq="W-MON")
 
     dayofyear = dates.dayofyear.to_numpy()
+
     with pm.Model() as model:
         fourier_trend = yearly.apply(dayofyear)
 
@@ -198,6 +197,9 @@ from pymc_marketing.mmm.plot import (
     plot_samples,
 )
 from pymc_marketing.prior import Prior, create_dim_handler
+
+X_NAME: str = "day"
+NON_GRID_NAMES: frozenset[str] = frozenset({X_NAME})
 
 
 def generate_fourier_modes(
@@ -451,7 +453,7 @@ class FourierBase:
         """
         return plot_curve(
             curve,
-            non_grid_names={"day"},
+            non_grid_names=set(NON_GRID_NAMES),
             subplot_kwargs=subplot_kwargs,
             sample_kwargs=sample_kwargs,
             hdi_kwargs=hdi_kwargs,
@@ -487,7 +489,7 @@ class FourierBase:
         """
         return plot_hdi(
             curve,
-            non_grid_names={"day"},
+            non_grid_names=set(NON_GRID_NAMES),
             hdi_kwargs=hdi_kwargs,
             subplot_kwargs=subplot_kwargs,
             plot_kwargs=plot_kwargs,
@@ -528,7 +530,7 @@ class FourierBase:
         """
         return plot_samples(
             curve,
-            non_grid_names={"day"},
+            non_grid_names=set(NON_GRID_NAMES),
             n=n,
             rng=rng,
             axes=axes,
@@ -543,13 +545,12 @@ class YearlyFourier(FourierBase):
     .. plot::
         :context: close-figs
 
+        import arviz as az
+        import matplotlib.pyplot as plt
         import numpy as np
 
-        import matplotlib.pyplot as plt
-        import arviz as az
-
-        from pymc_marketing.prior import Prior
         from pymc_marketing.mmm import YearlyFourier
+        from pymc_marketing.prior import Prior
 
         az.style.use("arviz-white")
 
@@ -599,10 +600,9 @@ class MonthlyFourier(FourierBase):
     .. plot::
         :context: close-figs
 
-        import numpy as np
-
-        import matplotlib.pyplot as plt
         import arviz as az
+        import matplotlib.pyplot as plt
+        import numpy as np
 
         from pymc_marketing.mmm import MonthlyFourier
         from pymc_marketing.prior import Prior

@@ -53,11 +53,11 @@ def test_sample_prior() -> None:
     }
 
 
-def test_sample_full_period() -> None:
+def test_sample_curve() -> None:
     n_order = 2
     yearly = YearlyFourier(n_order=n_order)
     prior = yearly.sample_prior(samples=10)
-    curve = yearly.sample_full_period(prior)
+    curve = yearly.sample_curve(prior)
 
     assert curve.sizes == {
         "chain": 1,
@@ -100,9 +100,9 @@ def mock_parameters() -> xr.Dataset:
     )
 
 
-def test_sample_full_period_additional_dims(mock_parameters) -> None:
+def test_sample_curve_additional_dims(mock_parameters) -> None:
     yearly = YearlyFourier(n_order=2)
-    curve = yearly.sample_full_period(mock_parameters)
+    curve = yearly.sample_curve(mock_parameters)
 
     assert curve.sizes == {
         "chain": 1,
@@ -120,7 +120,7 @@ def test_additional_dimension() -> None:
         "yet_another_dim": range(3),
     }
     prior = yearly.sample_prior(samples=10, coords=coords)
-    curve = yearly.sample_full_period(prior)
+    curve = yearly.sample_curve(prior)
 
     assert curve.sizes == {
         "chain": 1,
@@ -131,16 +131,16 @@ def test_additional_dimension() -> None:
     }
 
 
-def test_plot_full_period() -> None:
+def test_plot_curve() -> None:
     prior = Prior("Normal", dims=("fourier", "additional_dim"))
     yearly = YearlyFourier(n_order=2, prior=prior)
 
     coords = {"additional_dim": range(4)}
     prior = yearly.sample_prior(samples=10, coords=coords)
-    curve = yearly.sample_full_period(prior)
+    curve = yearly.sample_curve(prior)
 
     subplot_kwargs = {"ncols": 2}
-    fig, axes = yearly.plot_full_period(curve, subplot_kwargs=subplot_kwargs)
+    fig, axes = yearly.plot_curve(curve, subplot_kwargs=subplot_kwargs)
 
     assert isinstance(fig, plt.Figure)
     assert axes.shape == (2, 2)

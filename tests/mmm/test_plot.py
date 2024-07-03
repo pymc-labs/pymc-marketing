@@ -11,7 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -100,8 +99,7 @@ def test_plot_samples(mock_curve) -> None:
 
 
 def test_plot_hdi(mock_curve) -> None:
-    conf = az.hdi(mock_curve)["x"]
-    fig, axes = plot_hdi(conf, non_grid_names={"hdi", "day"})
+    fig, axes = plot_hdi(mock_curve, non_grid_names={"day"})
 
     assert axes.size == 5
     assert isinstance(fig, plt.Figure)

@@ -42,7 +42,7 @@ from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import DimHandler, Prior, create_dim_handler
 
 # "x" for saturation, "time since exposure" for adstock
-NON_GRID_NAMES = {"x", "time since exposure"}
+NON_GRID_NAMES: frozenset[str] = frozenset({"x", "time since exposure"})
 
 
 class ParameterPriorException(Exception):
@@ -309,7 +309,7 @@ class Transformation:
         """
         return plot_curve(
             curve,
-            non_grid_names=NON_GRID_NAMES,
+            non_grid_names=set(NON_GRID_NAMES),
             subplot_kwargs=subplot_kwargs,
             sample_kwargs=sample_kwargs,
             hdi_kwargs=hdi_kwargs,
@@ -396,7 +396,7 @@ class Transformation:
         """
         return plot_samples(
             curve,
-            non_grid_names=NON_GRID_NAMES,
+            non_grid_names=set(NON_GRID_NAMES),
             n=n,
             rng=rng,
             axes=axes,
@@ -434,7 +434,7 @@ class Transformation:
         """
         return plot_hdi(
             curve,
-            non_grid_names=NON_GRID_NAMES,
+            non_grid_names=set(NON_GRID_NAMES),
             axes=axes,
             subplot_kwargs=subplot_kwargs,
             plot_kwargs=plot_kwargs,

@@ -74,6 +74,32 @@ def plot_hdi(
     plot_kwargs: dict[str, Any] | None = None,
     axes: npt.NDArray[plt.Axes] | None = None,
 ) -> tuple[plt.Figure, npt.NDArray[plt.Axes]]:
+    """Plot hdi of the curve across coords.
+
+    Parameters
+    ----------
+    curve : xr.DataArray
+        Curve to plot
+    non_grid_names : set[str]
+        The names to exclude from the grid. chain and draw are
+        excluded automatically
+    n : int, optional
+        Number of samples to plot
+    rng : np.random.Generator, optional
+        Random number generator
+    axes : npt.NDArray[plt.Axes], optional
+        Axes to plot on
+    subplot_kwargs : dict, optional
+        Additional kwargs to while creating the fig and axes
+    plot_kwargs : dict, optional
+        Kwargs for the plot function
+
+    Returns
+    -------
+    tuple[plt.Figure, npt.NDArray[plt.Axes]]
+        Figure and the axes
+
+    """
     hdi_kwargs = hdi_kwargs or {}
     conf = az.hdi(curve, **hdi_kwargs)[curve.name]
 
@@ -138,6 +164,32 @@ def plot_samples(
     subplot_kwargs: dict[str, Any] | None = None,
     plot_kwargs: dict[str, Any] | None = None,
 ) -> tuple[plt.Figure, npt.NDArray[plt.Axes]]:
+    """Plot n samples of the curve across coords.
+
+    Parameters
+    ----------
+    curve : xr.DataArray
+        Curve to plot
+    non_grid_names : set[str]
+        The names to exclude from the grid. chain and draw are
+        excluded automatically
+    n : int, optional
+        Number of samples to plot
+    rng : np.random.Generator, optional
+        Random number generator
+    axes : npt.NDArray[plt.Axes], optional
+        Axes to plot on
+    subplot_kwargs : dict, optional
+        Additional kwargs to while creating the fig and axes
+    plot_kwargs : dict, optional
+        Kwargs for the plot function
+
+    Returns
+    -------
+    tuple[plt.Figure, npt.NDArray[plt.Axes]]
+        Figure and the axes
+
+    """
     plot_coords = get_plot_coords(
         curve.coords,
         non_grid_names=non_grid_names.union({"chain", "draw"}),
