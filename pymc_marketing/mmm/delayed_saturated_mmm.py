@@ -157,6 +157,7 @@ class BaseMMM(BaseValidateMMM):
                 n_order=self.yearly_seasonality,
                 prefix="fourier_mode",
                 prior=self.model_config["gamma_fourier"],
+                name="gamma_fourier",
             )
 
     @property

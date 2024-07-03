@@ -248,6 +248,8 @@ class FourierBase:
     prior : Prior, optional
         Prior distribution for the fourier seasonality beta parameters, by
         default None
+    name : str, optional
+        Name of the variable that multiplies the fourier modes, by default None
 
     Attributes
     ----------
@@ -258,6 +260,7 @@ class FourierBase:
     default_prior : Prior
         Default prior distribution for the fourier seasonality
         beta parameters.
+
     """
 
     days_in_period: float
@@ -270,6 +273,7 @@ class FourierBase:
         n_order: int,
         prefix: str | None = None,
         prior: Prior | None = None,
+        name: str | None = None,
     ) -> None:
         if not isinstance(n_order, int) or n_order < 1:
             raise ValueError(f"n_order must be a positive integer. Not {n_order}")
@@ -277,6 +281,10 @@ class FourierBase:
         self.n_order = n_order
         self.prefix = prefix or self.prefix
         self.prior = prior or self.default_prior
+        self.variable_name = name or f"{self.prefix}_beta"
+
+        if self.variable_name == self.prefix:
+            raise ValueError("Variable name cannot be the same as the prefix")
 
         if not self.prior.dims:
             self.prior = self.prior.deepcopy()
@@ -291,11 +299,6 @@ class FourierBase:
         return [
             f"{func}_{i}" for func in ["sin", "cos"] for i in range(1, self.n_order + 1)
         ]
-
-    @property
-    def variable_name(self) -> str:
-        """Name of variable that multiplies the fourier modes."""
-        return f"{self.prefix}_beta"
 
     def apply(
         self,
