@@ -16,6 +16,7 @@ from collections.abc import Generator, MutableMapping, Sequence
 from itertools import product
 from typing import Any
 
+import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
@@ -66,13 +67,20 @@ def selections(
 
 
 def plot_hdi(
-    conf: xr.DataArray,
+    curve: xr.DataArray,
     non_grid_names: set[str],
-    axes: npt.NDArray[plt.Axes] | None = None,
+    hdi_kwargs: dict | None = None,
     subplot_kwargs: dict[str, Any] | None = None,
     plot_kwargs: dict[str, Any] | None = None,
+    axes: npt.NDArray[plt.Axes] | None = None,
 ) -> tuple[plt.Figure, npt.NDArray[plt.Axes]]:
-    plot_coords = get_plot_coords(conf.coords, non_grid_names=non_grid_names)
+    hdi_kwargs = hdi_kwargs or {}
+    conf = az.hdi(curve, **hdi_kwargs)[curve.name]
+
+    plot_coords = get_plot_coords(
+        conf.coords,
+        non_grid_names=non_grid_names.union({"hdi"}),
+    )
     total_size = get_total_coord_size(plot_coords)
 
     if axes is None:
@@ -130,7 +138,10 @@ def plot_samples(
     subplot_kwargs: dict[str, Any] | None = None,
     plot_kwargs: dict[str, Any] | None = None,
 ) -> tuple[plt.Figure, npt.NDArray[plt.Axes]]:
-    plot_coords = get_plot_coords(curve.coords, non_grid_names=non_grid_names)
+    plot_coords = get_plot_coords(
+        curve.coords,
+        non_grid_names=non_grid_names.union({"chain", "draw"}),
+    )
     total_size = get_total_coord_size(plot_coords)
 
     if axes is None:
@@ -166,5 +177,56 @@ def plot_samples(
 
     if not isinstance(axes, np.ndarray):
         axes = np.array([axes])
+
+    return fig, axes
+
+
+def plot_curve(
+    curve: xr.DataArray,
+    non_grid_names: set[str],
+    subplot_kwargs: dict | None = None,
+    sample_kwargs: dict | None = None,
+    hdi_kwargs: dict | None = None,
+) -> tuple[plt.Figure, npt.NDArray[plt.Axes]]:
+    """Plot HDI with samples of the curve across coords.
+
+    Parameters
+    ----------
+    curve : xr.DataArray
+        Curve to plot
+    non_grid_names : set[str]
+        The names to exclude from the grid. HDI and samples both
+        have defaults of hdi and chain, draw, respectively
+    subplot_kwargs : dict, optional
+        Addtional kwargs to while creating the fig and axes
+    sample_kwargs : dict, optional
+        Kwargs for the :func:`plot_curve` function
+    hdi_kwargs : dict, optional
+        Kwargs for the :func:`plot_hdi` function
+
+    Returns
+    -------
+    tuple[plt.Figure, npt.NDArray[plt.Axes]]
+        Figure and the axes
+
+    """
+
+    hdi_kwargs = hdi_kwargs or {}
+    sample_kwargs = sample_kwargs or {}
+
+    if "subplot_kwargs" not in hdi_kwargs:
+        hdi_kwargs["subplot_kwargs"] = subplot_kwargs
+
+    fig, axes = plot_hdi(
+        curve,
+        non_grid_names=non_grid_names,
+        **hdi_kwargs,
+    )
+    fig, axes = plot_samples(
+        curve,
+        non_grid_names=non_grid_names,
+        axes=axes,
+        **sample_kwargs,
+    )
 
     return fig, axes

@@ -25,7 +25,6 @@ from copy import deepcopy
 from inspect import signature
 from typing import Any
 
-import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
@@ -35,16 +34,15 @@ from pymc.distributions.shape_utils import Dims
 from pytensor import tensor as pt
 
 from pymc_marketing.mmm.plot import (
+    plot_curve,
     plot_hdi,
     plot_samples,
 )
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import DimHandler, Prior, create_dim_handler
 
-# chain and draw from sampling
 # "x" for saturation, "time since exposure" for adstock
-# lower, higher from hdi
-NON_GRID_NAMES = {"chain", "draw", "x", "time since exposure", "hdi"}
+NON_GRID_NAMES = {"x", "time since exposure"}
 
 
 class ParameterPriorException(Exception):
@@ -309,16 +307,13 @@ class Transformation:
         tuple[plt.Figure, npt.NDArray[plt.Axes]]
 
         """
-        hdi_kwargs = hdi_kwargs or {}
-        sample_kwargs = sample_kwargs or {}
-
-        if "subplot_kwargs" not in hdi_kwargs:
-            hdi_kwargs["subplot_kwargs"] = subplot_kwargs
-
-        fig, axes = self.plot_curve_hdi(curve, **hdi_kwargs)
-        fig, axes = self.plot_curve_samples(curve, axes=axes, **sample_kwargs)
-
-        return fig, axes
+        return plot_curve(
+            curve,
+            non_grid_names=NON_GRID_NAMES,
+            subplot_kwargs=subplot_kwargs,
+            sample_kwargs=sample_kwargs,
+            hdi_kwargs=hdi_kwargs,
+        )
 
     def _sample_curve(
         self,
@@ -437,11 +432,8 @@ class Transformation:
         tuple[plt.Figure, npt.NDArray[plt.Axes]]
 
         """
-        hdi_kwargs = hdi_kwargs or {}
-        conf = az.hdi(curve, **hdi_kwargs)[curve.name]
-
         return plot_hdi(
-            conf,
+            curve,
             non_grid_names=NON_GRID_NAMES,
             axes=axes,
             subplot_kwargs=subplot_kwargs,

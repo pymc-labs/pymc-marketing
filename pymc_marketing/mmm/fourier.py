@@ -193,6 +193,7 @@ import xarray as xr
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_YEAR
 from pymc_marketing.mmm.plot import (
+    plot_curve,
     plot_hdi,
     plot_samples,
 )
@@ -385,9 +386,7 @@ class FourierBase:
         coords[self.prefix] = self.nodes
         return self.prior.sample_prior(coords=coords, name=self.variable_name, **kwargs)
 
-    def sample_full_period(
-        self, parameters: az.InferenceData | xr.Dataset
-    ) -> xr.DataArray:
+    def sample_curve(self, parameters: az.InferenceData | xr.Dataset) -> xr.DataArray:
         """Create full period of the fourier seasonality.
 
         Parameters
@@ -424,7 +423,7 @@ class FourierBase:
                 var_names=[name],
             ).posterior_predictive[name]
 
-    def plot_full_period(
+    def plot_curve(
         self,
         curve: xr.DataArray,
         subplot_kwargs: dict | None = None,
@@ -450,82 +449,76 @@ class FourierBase:
             Matplotlib figure and axes.
 
         """
-        hdi_kwargs = hdi_kwargs or {}
-        sample_kwargs = sample_kwargs or {}
+        return plot_curve(
+            curve,
+            non_grid_names={"day"},
+            subplot_kwargs=subplot_kwargs,
+            sample_kwargs=sample_kwargs,
+            hdi_kwargs=hdi_kwargs,
+        )
 
-        if "subplot_kwargs" not in hdi_kwargs:
-            hdi_kwargs["subplot_kwargs"] = subplot_kwargs
-
-        fig, axes = self.plot_full_period_hdi(curve, **hdi_kwargs)
-        fig, axes = self.plot_full_period_samples(curve, axes=axes, **sample_kwargs)
-
-        return fig, axes
-
-    def plot_full_period_hdi(
+    def plot_curve_hdi(
         self,
-        samples: xr.DataArray,
+        curve: xr.DataArray,
         hdi_kwargs: dict | None = None,
-        axes: npt.NDArray[plt.Axes] | None = None,
         subplot_kwargs: dict[str, Any] | None = None,
         plot_kwargs: dict[str, Any] | None = None,
+        axes: npt.NDArray[plt.Axes] | None = None,
     ) -> tuple[plt.Figure, npt.NDArray[plt.Axes]]:
         """Plot full period of the fourier seasonality.
 
         Parameters
         ----------
-        parameters : az.InferenceData | xr.Dataset
-            Inference data or dataset containing the fourier parameters.
-            Can be posterior or prior.
-        hdi_prob : float, optional
-            HDI probability, by default 0.95
-        ax : plt.Axes, optional
-            Matplotlib axes, by default None
-        **kwargs
-            Additional keyword arguments for `fill_between`.
+        curve : xr.DataArray
+            The curve to plot.
+        hdi_kwargs : dict, optional
+            Keyword arguments for the az.hdi function. Defaults to None.
+        plot_kwargs : dict, optional
+            Keyword arguments for the fill_between function. Defaults to None.
+        subplot_kwargs : dict, optional
+            Keyword arguments for plt.subplots
+        axes : npt.NDArray[plt.Axes], optional
+            The exact axes to plot on. Overrides any subplot_kwargs
 
         Returns
         -------
-        plt.Axes
-            Modified matplotlib axes.
+        tuple[plt.Figure, npt.NDArray[plt.Axes]]
 
         """
-
-        hdi_kwargs = hdi_kwargs or {}
-        conf = az.hdi(samples, **hdi_kwargs)[f"{self.prefix}_trend"]
-
         return plot_hdi(
-            conf,
-            non_grid_names={"day", "hdi"},
-            axes=axes,
+            curve,
+            non_grid_names={"day"},
+            hdi_kwargs=hdi_kwargs,
             subplot_kwargs=subplot_kwargs,
             plot_kwargs=plot_kwargs,
+            axes=axes,
         )
 
-    def plot_full_period_samples(
+    def plot_curve_samples(
         self,
-        samples: xr.DataArray,
-        rng=None,
-        axes: npt.NDArray[plt.Axes] | None = None,
+        curve: xr.DataArray,
         n: int = 10,
-        subplot_kwargs: dict[str, Any] | None = None,
+        rng: np.random.Generator | None = None,
         plot_kwargs: dict[str, Any] | None = None,
+        subplot_kwargs: dict[str, Any] | None = None,
+        axes: npt.NDArray[plt.Axes] | None = None,
     ) -> tuple[plt.Figure, npt.NDArray[plt.Axes]]:
         """Plot samples from the curve.
 
         Parameters
         ----------
-        samples : xr.DataArray
+        curve : xr.DataArray
             Samples from the curve.
-        rng : np.random.Generator, optional
-            Random number generator, by default None
-        axes : npt.NDArray[plt.Axes], optional
-            Matplotlib axes, by default None
         n : int, optional
             Number of samples to plot, by default 10
-        subplot_kwargs : dict, optional
-            Keyword arguments for the subplot, by default None
+        rng : np.random.Generator, optional
+            Random number generator, by default None
         plot_kwargs : dict, optional
             Keyword arguments for the plot function, by default None
+        subplot_kwargs : dict, optional
+            Keyword arguments for the subplot, by default None
+        axes : npt.NDArray[plt.Axes], optional
+            Matplotlib axes, by default None
 
         Returns
         -------
@@ -534,8 +527,8 @@ class FourierBase:
 
         """
         return plot_samples(
-            samples,
-            non_grid_names={"chain", "draw", "day"},
+            curve,
+            non_grid_names={"day"},
             n=n,
             rng=rng,
             axes=axes,
