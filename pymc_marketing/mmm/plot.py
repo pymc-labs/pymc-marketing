@@ -118,7 +118,7 @@ def plot_hdi(
         fig = plt.gcf()
 
     plot_kwargs = plot_kwargs or {}
-    plot_kwargs = {**{"alpha": 0.3}, **plot_kwargs}
+    plot_kwargs = {**{"alpha": 0.25}, **plot_kwargs}
 
     for i, (ax, sel) in enumerate(
         zip(np.ravel(axes), selections(plot_coords), strict=False)
@@ -266,19 +266,19 @@ def plot_curve(
     hdi_kwargs = hdi_kwargs or {}
     sample_kwargs = sample_kwargs or {}
 
-    if "subplot_kwargs" not in hdi_kwargs:
-        hdi_kwargs["subplot_kwargs"] = subplot_kwargs
+    if "subplot_kwargs" not in sample_kwargs:
+        sample_kwargs["subplot_kwargs"] = subplot_kwargs
 
-    fig, axes = plot_hdi(
-        curve,
-        non_grid_names=non_grid_names,
-        **hdi_kwargs,
-    )
     fig, axes = plot_samples(
         curve,
         non_grid_names=non_grid_names,
-        axes=axes,
         **sample_kwargs,
+    )
+    fig, axes = plot_hdi(
+        curve,
+        non_grid_names=non_grid_names,
+        axes=axes,
+        **hdi_kwargs,
     )
 
     return fig, axes
