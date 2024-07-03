@@ -26,6 +26,14 @@ clv/sBG
 :::
 
 :::{toctree}
+:caption: Product incrementality
+:maxdepth: 1
+
+incrementality/mv_its_saturated
+incrementality/mv_its_unsaturated
+:::
+
+:::{toctree}
 :caption: General
 :maxdepth: 1
 
