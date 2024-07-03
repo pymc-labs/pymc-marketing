@@ -143,14 +143,6 @@ class BaseMMM(BaseValidateMMM):
             self.adstock.update_priors({**self.default_model_config, **model_config})
             self.saturation.update_priors({**self.default_model_config, **model_config})
 
-        self.yearly_seasonality = yearly_seasonality
-        if self.yearly_seasonality is not None:
-            self.yearly_fourier = YearlyFourier(
-                n_order=self.yearly_seasonality,
-                prefix="fourier_mode",
-                prior=self.model_config["gamma_fourier"],
-            )
-
         super().__init__(
             date_column=date_column,
             channel_columns=channel_columns,
@@ -158,6 +150,14 @@ class BaseMMM(BaseValidateMMM):
             sampler_config=sampler_config,
             adstock_max_lag=adstock_max_lag,
         )
+
+        self.yearly_seasonality = yearly_seasonality
+        if self.yearly_seasonality is not None:
+            self.yearly_fourier = YearlyFourier(
+                n_order=self.yearly_seasonality,
+                prefix="fourier_mode",
+                prior=self.model_config["gamma_fourier"],
+            )
 
     @property
     def default_sampler_config(self) -> dict:
@@ -454,7 +454,7 @@ class BaseMMM(BaseValidateMMM):
             if self.yearly_seasonality is not None:
                 dayofyear = pm.Data(
                     name="dayofyear",
-                    values=self.preprocessed_data["X"][
+                    value=self.preprocessed_data["X"][
                         self.date_column
                     ].dt.dayofyear.to_numpy(),
                     dims="date",
