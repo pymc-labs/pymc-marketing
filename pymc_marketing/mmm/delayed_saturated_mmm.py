@@ -459,6 +459,7 @@ class BaseMMM(BaseValidateMMM):
                         self.date_column
                     ].dt.dayofyear.to_numpy(),
                     dims="date",
+                    mutable=True,
                 )
 
                 def create_deterministic(x: pt.TensorVariable) -> None:
