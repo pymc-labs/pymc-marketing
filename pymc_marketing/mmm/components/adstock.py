@@ -280,16 +280,22 @@ def _get_adstock_function(
     if isinstance(function, AdstockTransformation):
         return function
 
-    if function not in ADSTOCK_TRANSFORMATIONS:
+    elif isinstance(function, str):
+        if function not in ADSTOCK_TRANSFORMATIONS:
+            raise ValueError(
+                f"Unknown adstock function: {function}. Choose from {list(ADSTOCK_TRANSFORMATIONS.keys())}"
+            )
+
+        if kwargs:
+            warnings.warn(
+                "The preferred method of initializing a lagging function is to use the class directly.",
+                DeprecationWarning,
+                stacklevel=1,
+            )
+
+        return ADSTOCK_TRANSFORMATIONS[function](**kwargs)
+
+    else:
         raise ValueError(
             f"Unknown adstock function: {function}. Choose from {list(ADSTOCK_TRANSFORMATIONS.keys())}"
         )
-
-    if kwargs:
-        warnings.warn(
-            "The preferred method of initializing a lagging function is to use the class directly.",
-            DeprecationWarning,
-            stacklevel=1,
-        )
-
-    return ADSTOCK_TRANSFORMATIONS[function](**kwargs)
