@@ -54,6 +54,7 @@ import warnings
 
 import numpy as np
 import xarray as xr
+from pydantic import Field, validate_call
 
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.transformers import (
@@ -81,13 +82,20 @@ class AdstockTransformation(Transformation):
     prefix: str = "adstock"
     lookup_name: str
 
+    @validate_call
     def __init__(
         self,
-        l_max: int,
-        normalize: bool = True,
-        mode: ConvMode = ConvMode.After,
-        priors: dict | None = None,
-        prefix: str | None = None,
+        l_max: int = Field(
+            ..., gt=0, description="Maximum lag for the adstock transformation."
+        ),
+        normalize: bool = Field(
+            True, description="Whether to normalize the adstock values."
+        ),
+        mode: ConvMode = Field(ConvMode.After, description="Convolution mode."),
+        priors: dict | None = Field(
+            default=None, description="Priors for the parameters."
+        ),
+        prefix: str | None = Field(None, description="Prefix for the parameters."),
     ) -> None:
         self.l_max = l_max
         self.normalize = normalize

@@ -16,6 +16,7 @@ import pymc as pm
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
+from pydantic import ValidationError
 
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
@@ -88,6 +89,14 @@ def test_get_adstock_function(name, adstock_cls, kwargs):
         adstock = _get_adstock_function(name, **kwargs)
 
     assert isinstance(adstock, adstock_cls)
+
+
+def test_adstock_no_negative_lmax():
+    with pytest.raises(
+        ValidationError,
+        match="1 validation error for __init__\\nl_max\\n  Input should be greater than 0",
+    ):
+        DelayedAdstock(l_max=-1)
 
 
 @pytest.mark.parametrize(

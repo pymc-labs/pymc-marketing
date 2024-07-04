@@ -80,6 +80,7 @@ repository = "https://github.com/pymc-labs/pymc-marketing"
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "RUF", "S", "UP", "W"]
 ignore = [
+    "B008",   # Do not perform calls in argument defaults (this is ok with Field from pydantic)
     "B904",   # raise-without-from-inside-except
     "RUF001", # String contains ambiguous character (such as Greek letters)
     "RUF002", # Docstring contains ambiguous character (such as Greek letters)
