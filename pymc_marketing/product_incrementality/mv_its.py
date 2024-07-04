@@ -1,0 +1,233 @@
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+"""Multivariate Interrupted Time Series Analysis for Product Incrementality."""
+
+import arviz as az
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import pymc as pm
+
+HDI_ALPHA = 0.5
+
+
+class MVITS:
+    """Class to perform a multivariate interrupted time series analysis."""
+
+    def __init__(
+        self,
+        data: pd.DataFrame,
+        treatment_time,
+        background_sales: list[str],
+        innovation_sales: str,
+        rng=42,
+    ):
+        self.data = data
+        self.treatment_time = treatment_time
+        self.background_sales = background_sales
+        self.innovation_sales = innovation_sales
+        self.rng = rng
+        self.interrupted_time_series_algorithm()
+
+    def interrupted_time_series_algorithm(self):
+        """The main algorithm to perform the multivariate interrupted time series analysis."""
+        # build the model - we are fitting on all of the data
+        self.model = build_2_param_model(
+            self.data[self.background_sales], self.data[self.innovation_sales]
+        )
+
+        # fit the model on the pre-intervention data
+        with self.model:
+            self.idata = pm.sample(random_seed=self.rng)
+            self.idata.extend(
+                pm.sample_posterior_predictive(
+                    self.idata, var_names=["mu", "y"], random_seed=self.rng
+                )
+            )
+
+        # Calculate the counterfactual background sales, if the new product had not been introduced
+        zero_sales = np.zeros(self.data[self.innovation_sales].shape, dtype=np.int32)
+        self.counterfactual_model = pm.do(self.model, {"innovation_sales": zero_sales})
+        with self.counterfactual_model:
+            self.idata_counterfactual = pm.sample_posterior_predictive(
+                self.idata, var_names=["mu", "y"], random_seed=self.rng
+            )
+
+        return
+
+    @property
+    def causal_impact(self, variable="mu"):
+        """Calculates the causal impact of the new product on the background products."""
+        # Note: if we compare "mu" then we are comparing the expected sales,
+        # if we compare "y" then we are comparing the actual sales
+        if variable not in ["mu", "y"]:
+            raise ValueError(f"variable must be either 'mu' or 'y', not {variable}")
+
+        return (
+            self.idata.posterior_predictive["mu"]
+            - self.idata_counterfactual.posterior_predictive["mu"]
+        )
+
+    def plot_fit(self, variable="mu"):
+        """Plots the model fit (posterior predictive) of the background products."""
+
+        if variable not in ["mu", "y"]:
+            raise ValueError(f"variable must be either 'mu' or 'y', not {variable}")
+
+        fig, ax = plt.subplots()
+
+        # plot data
+        self.plot_data(ax)
+
+        # plot posterior predictive distribution of sales for each of the background products
+        x = self.data.index.values
+        background_products = list(self.idata.observed_data.background_product.data)
+        for i, background_product in enumerate(background_products):
+            az.plot_hdi(
+                x,
+                self.idata.posterior_predictive[variable]
+                .transpose(..., "time")
+                .sel(background_product=background_product),
+                fill_kwargs={
+                    "alpha": HDI_ALPHA,
+                    "color": f"C{i}",
+                    "label": "Posterior predictive (HDI)",
+                },
+                smooth=False,
+            )
+
+        # formatting
+        ax.legend()
+        ax.set(title="Model fit of sales of background products")
+
+    def plot_counterfactual(self, variable="mu"):
+        """Plots the predicted sales of the background products under the counterfactual
+        scenario of never releasing the new product."""
+        fig, ax = plt.subplots()
+
+        if variable not in ["mu", "y"]:
+            raise ValueError(f"variable must be either 'mu' or 'y', not {variable}")
+
+        # plot data
+        self.plot_data(ax)
+
+        # plot posterior predictive distribution of sales for each of the background products
+        x = self.data.index.values
+        background_products = list(self.idata.observed_data.background_product.data)
+        for i, background_product in enumerate(background_products):
+            az.plot_hdi(
+                x,
+                self.idata_counterfactual.posterior_predictive[variable]
+                .transpose(..., "time")
+                .sel(background_product=background_product),
+                fill_kwargs={
+                    "alpha": HDI_ALPHA,
+                    "color": f"C{i}",
+                    "label": "Posterior predictive (HDI)",
+                },
+                smooth=False,
+            )
+
+        # formatting
+        ax.legend()
+        ax.set(title="Model fit of sales of background products")
+
+    def plot_causal_impact(self):
+        """Plot the inferred causal impact of the new product on the background products."""
+        fig, ax = plt.subplots()
+
+        # plot posterior predictive distribution of sales for each of the background products
+        x = self.data.index.values
+        background_products = list(self.idata.observed_data.background_product.data)
+        for i, background_product in enumerate(background_products):
+            az.plot_hdi(
+                x,
+                self.causal_impact.transpose(..., "time").sel(
+                    background_product=background_product
+                ),
+                fill_kwargs={
+                    "alpha": HDI_ALPHA,
+                    "color": f"C{i}",
+                    "label": "Posterior predictive (HDI)",
+                },
+                smooth=False,
+            )
+
+        # formatting
+        ax.legend()
+        ax.set(title="Model fit of sales of background products")
+
+    def plot_data(self, ax):
+        """Plot the observed data."""
+        self.data.plot(ax=ax, drawstyle="steps-post")
+        # ax.axvline(n_first, linestyle="--", color="gray", zorder=-10)
+        # df.sum(axis=1).plot(label="total sales", color="black", ax=ax)
+        ax.set_ylim(bottom=0)
+
+
+def build_2_param_model(
+    background_sales: pd.DataFrame,
+    innovation_sales: pd.DataFrame,
+    *,
+    alpha_background=0.5,
+):
+    """Return a PyMC model for a multivariate interrupted time series analysis."""
+
+    if not background_sales.index.equals(innovation_sales.index):
+        raise ValueError("Index of background_sales and innovation_sales must match.")
+
+    coords = {
+        "background_product": background_sales.columns,
+        "time": background_sales.index,
+    }
+
+    with pm.Model(coords=coords) as model:
+        background_sales = pm.Data(
+            "background_sales",
+            background_sales.values,
+            mutable=True,
+            dims=("time", "background_product"),
+        )
+        innovation_sales = pm.Data(
+            "innovation_sales", innovation_sales.values, mutable=True, dims=("time",)
+        )
+
+        intercept = pm.Normal(
+            "intercept",
+            mu=pm.math.mean(background_sales),
+            sigma=20,
+            dims="background_product",
+        )
+
+        # Use a dirichlet distribution to model the beta parameters.
+        alpha = np.full(len(coords["background_product"]), alpha_background)
+        beta = pm.Dirichlet("beta", a=alpha, dims="background_product")
+
+        mu = pm.Deterministic(
+            "mu",
+            intercept[None, :] - innovation_sales[:, None] * beta[None, :],
+            dims=("time", "background_product"),
+        )
+
+        sigma = pm.HalfNormal(
+            "background_product_sigma", sigma=10, dims="background_product"
+        )
+        pm.Normal(
+            "y",
+            mu=mu,
+            sigma=sigma,
+            observed=background_sales,
+            dims=("time", "background_product"),
+        )
+    return model
