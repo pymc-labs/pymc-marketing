@@ -16,6 +16,7 @@ dependencies = [
     "matplotlib>=3.5.1",
     "numpy>=1.17",
     "pandas",
+    "pydantic>=2.1.0",
     # NOTE: Used as minimum pymc version with ci.yml `OLDEST_PYMC_VERSION`
     "pymc>=5.12.0,<5.16.0",
     "scikit-learn>=1.1.1",
