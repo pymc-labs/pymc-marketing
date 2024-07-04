@@ -11,4 +11,5 @@
   mmm
   model_config
   prior
+  product_incrementality
 ```

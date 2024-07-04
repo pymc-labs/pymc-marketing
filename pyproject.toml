@@ -64,6 +64,7 @@ packages = [
     "pymc_marketing.mmm.components",
     "pymc_marketing.clv",
     "pymc_marketing.clv.models",
+    "pymc_marketing.product_incrementality"
 ]
 
 [tool.setuptools.dynamic]
