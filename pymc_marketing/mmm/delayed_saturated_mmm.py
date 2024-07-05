@@ -900,8 +900,8 @@ class MMM(
     .. [2] Orduz, J. `"Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns" <https://juanitorduz.github.io/pymc_mmm/>`_.
     """  # noqa: E501
 
-    _model_type = "MMM"
-    version = "0.0.1"
+    _model_type: str = "MMM"
+    version: str = "0.0.1"
 
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float64]
@@ -2163,9 +2163,9 @@ class MMM(
 
 
 class DelayedSaturatedMMM(MMM):
-    _model_type = "MMM"
-    _model_name = "DelayedSaturatedMMM"
-    version = "0.0.3"
+    _model_type: str = "MMM"
+    _model_name: str = "DelayedSaturatedMMM"
+    version: str = "0.0.3"
 
     @validate_call
     def __init__(
