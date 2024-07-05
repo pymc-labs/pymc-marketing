@@ -16,7 +16,7 @@
 import json
 import warnings
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -75,7 +75,7 @@ class BaseMMM(BaseValidateMMM):
         self,
         date_column: str = Field(..., description="Column name of the date variable."),
         channel_columns: list[str] = Field(
-            description="Column names of the media channel variables."
+            min_length=1, description="Column names of the media channel variables."
         ),
         adstock_max_lag: int = Field(
             ...,
@@ -99,13 +99,21 @@ class BaseMMM(BaseValidateMMM):
         validate_data: bool = Field(
             True, description="Whether to validate the data before fitting to model"
         ),
-        control_columns: list[str] | None = Field(
-            None,
-            description="Column names of control variables to be added as additional regressors",
-        ),
-        yearly_seasonality: int | None = Field(
-            None, description="Number of Fourier modes to model yearly seasonality."
-        ),
+        control_columns: Annotated[
+            list[str],
+            Field(
+                min_length=1,
+                description="Column names of control variables to be added as additional regressors",
+            ),
+        ]
+        | None = None,
+        yearly_seasonality: Annotated[
+            int,
+            Field(
+                gt=0, description="Number of Fourier modes to model yearly seasonality."
+            ),
+        ]
+        | None = None,
         adstock_first: bool = Field(
             True, description="Whether to apply adstock first."
         ),
