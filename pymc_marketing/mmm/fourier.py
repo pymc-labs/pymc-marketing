@@ -289,7 +289,7 @@ class FourierBase(BaseModel):
     n_order: int = Field(..., gt=0)
     days_in_period: float = Field(..., gt=0)
     prefix: str | None = Field("fourier")
-    prior: InstanceOf[Prior] | None = Field(Prior("Laplace", mu=0, b=1))
+    prior: InstanceOf[Prior] = Field(Prior("Laplace", mu=0, b=1))
     name: str | None = Field(None)
     variable_name: str | None = Field("None")
 
