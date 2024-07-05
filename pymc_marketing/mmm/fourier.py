@@ -216,6 +216,7 @@ import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
 from pydantic import BaseModel, Field, InstanceOf, model_validator
+from typing_extensions import Self
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_YEAR
 from pymc_marketing.mmm.plot import plot_curve, plot_hdi, plot_samples
@@ -295,13 +296,13 @@ class FourierBase(BaseModel):
             self.prior.dims = self.prefix
 
     @model_validator(mode="after")
-    def check_variable_name(self) -> "FourierBase":
+    def check_variable_name(self) -> Self:
         if self.variable_name == self.prefix:
             raise ValueError("Variable name cannot be the same as the prefix")
         return self
 
     @model_validator(mode="after")
-    def check_prior_has_right_dimensions(self) -> "FourierBase":
+    def check_prior_has_right_dimensions(self) -> Self:
         if self.prefix not in self.prior.dims:
             raise ValueError(f"Prior distribution must have dimension {self.prefix}")
         return self
