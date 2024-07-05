@@ -121,6 +121,11 @@ def test_get_adstock_function_unknown():
         _get_adstock_function(function="Unknown")
 
 
+def test_get_adstock_function_unknown_wrong_type():
+    with pytest.raises(ValueError, match="Unknown adstock function: 1."):
+        _get_adstock_function(function=1)
+
+
 @pytest.mark.parametrize(
     "adstock",
     adstocks(),
