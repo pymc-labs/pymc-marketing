@@ -19,8 +19,33 @@ functions that can be used to model periodic patterns in the data.
 
 There are two types of Fourier seasonality transformations available:
 
-- Yearly Fourier: A yearly seasonality with a period of 365 days
-- Monthly Fourier: A monthly seasonality with a period of 30 days
+- Yearly Fourier: A yearly seasonality with a period of 365.25 days
+- Monthly Fourier: A monthly seasonality with a period of 365.25 / 12 days
+
+.. plot::
+    :context: close-figs
+
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import arviz as az
+    from pymc_marketing.mmm import YearlyFourier
+    from pymc_marketing.prior import Prior
+
+    plt.style.use('arviz-darkgrid')
+
+    prior = Prior(
+        "Normal",
+        mu=[0, 0, -1, 0],
+        sigma=Prior("Gamma", mu=0.10, sigma=0.1, dims="fourier"),
+        dims=("hierarchy", "fourier"),
+    )
+    yearly = YearlyFourier(n_order=2, prior=prior)
+    coords = {"hierarchy": ["A", "B"]}
+    prior = yearly.sample_prior(coords=coords)
+    curve = yearly.sample_curve(prior)
+    fig, _ = yearly.plot_curve(curve, subplot_kwargs={"ncols": 1})
+    fig.suptitle("Yearly Fourier Seasonality")
+    plt.show()
 
 Examples
 --------
@@ -44,16 +69,13 @@ Use yearly fourier seasonality for custom Marketing Mix Model.
 
 Plot the prior fourier seasonality trend.
 
-For more control over the plot, the `sample_full_period` method can be used to
-generate the underlying trend for each sample.
-
 .. code-block:: python
 
     import matplotlib.pyplot as plt
 
     prior = yearly.sample_prior()
-    curve = yearly.sample_full_period(prior)
-    yearly.plot_full_period(curve)
+    curve = yearly.sample_curve(prior)
+    yearly.plot_curve(curve)
     plt.show()
 
 Change the prior distribution of the fourier seasonality.
@@ -90,11 +112,12 @@ All the plotting will still work! Just pass any coords.
 
     coords = {"hierarchy": ["A", "B", "C"]}
     prior = yearly.sample_prior(coords=coords)
-    curve = yearly.sample_full_period(prior)
-    yearly.plot_full_period(curve)
+    curve = yearly.sample_curve(prior)
+    yearly.plot_curve(curve)
     plt.show()
 
-Out of sample predictions with fourier seasonality.
+Out of sample predictions with fourier seasonality by changing the day of year
+used in the model.
 
 .. code-block:: python
 
@@ -148,6 +171,9 @@ the prefix can be changed upon initialization in order to avoid variable name
 conflicts.
 
 .. code-block:: python
+
+    import pandas as pd
+    import pymc as pm
 
     from pymc_marketing.mmm import (
         MonthlyFourier,
