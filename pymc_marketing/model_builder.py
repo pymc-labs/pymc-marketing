@@ -262,7 +262,9 @@ class ModelBuilder(ABC):
         None
         """
 
-    def set_idata_attrs(self, idata=None):
+    def set_idata_attrs(
+        self, idata: az.InferenceData | None = None
+    ) -> az.InferenceData:
         """
         Set attributes on an InferenceData object.
 
@@ -291,11 +293,8 @@ class ModelBuilder(ABC):
         if idata is None:
             raise RuntimeError("No idata provided to set attrs on.")
 
-        def default(x):
-            if isinstance(x, Prior):
-                return x.to_json()
-
-            return x.__dict__
+        def default(x) -> dict[str, Any]:
+            return x.to_json() if isinstance(x, Prior) else x.__dict__
 
         idata.attrs["id"] = self.id
         idata.attrs["model_type"] = self._model_type
