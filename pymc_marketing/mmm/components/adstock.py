@@ -54,7 +54,7 @@ import warnings
 
 import numpy as np
 import xarray as xr
-from pydantic import Field, validate_call
+from pydantic import Field, InstanceOf, validate_call
 
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.transformers import (
@@ -92,7 +92,7 @@ class AdstockTransformation(Transformation):
             True, description="Whether to normalize the adstock values."
         ),
         mode: ConvMode = Field(ConvMode.After, description="Convolution mode."),
-        priors: dict | None = Field(
+        priors: dict[str, str | InstanceOf[Prior]] | None = Field(
             default=None, description="Priors for the parameters."
         ),
         prefix: str | None = Field(None, description="Prefix for the parameters."),
