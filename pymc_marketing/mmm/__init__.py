@@ -18,6 +18,8 @@ from pymc_marketing.mmm.components.adstock import (
     DelayedAdstock,
     GeometricAdstock,
     WeibullAdstock,
+    WeibullCDFAdstock,
+    WeibullPDFAdstock,
 )
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
@@ -51,6 +53,8 @@ __all__ = [
     "TanhSaturation",
     "TanhSaturationBaselined",
     "WeibullAdstock",
+    "WeibullCDFAdstock",
+    "WeibullPDFAdstock",
     "YearlyFourier",
     "base",
     "delayed_saturated_mmm",
