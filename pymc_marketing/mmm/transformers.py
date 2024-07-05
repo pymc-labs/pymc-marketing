@@ -327,6 +327,7 @@ def weibull_adstock(
     axis: int = 0,
     mode: ConvMode = ConvMode.After,
     type: WeibullType | str = WeibullType.PDF,
+    normalize: bool = False,
 ):
     R"""Weibull Adstocking Transformation.
 
@@ -404,6 +405,9 @@ def weibull_adstock(
             where the effect overlaps with both preceding and succeeding elements.
     type : WeibullType or str, by default WeibullType.PDF
         Type of Weibull adstock transformation to be applied (PDF or CDF).
+    normalize : bool, by default False
+        Whether to normalize the weights.
+
 
     Returns
     -------
@@ -427,6 +431,8 @@ def weibull_adstock(
         w = pt.cumprod(padded_w, axis=-1)
     else:
         raise ValueError(f"Wrong WeibullType: {type}, expected of WeibullType")
+
+    w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
     return batched_convolution(x, w, axis=axis, mode=mode)
 
 
