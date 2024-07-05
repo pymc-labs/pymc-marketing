@@ -584,8 +584,6 @@ class YearlyFourier(FourierBase):
         axes[0].set(title="Yearly Fourier Seasonality")
         plt.show()
 
-    Parameters
-    ----------
     n_order : int
         Number of fourier modes to use.
     prefix : str, optional
@@ -593,17 +591,11 @@ class YearlyFourier(FourierBase):
         "fourier"
     prior : Prior, optional
         Prior distribution for the fourier seasonality beta parameters, by
-        default None
-
-    Attributes
-    ----------
-    days_in_period : float
-        Number of days in a period.
-    prefix : str
-        Name of model coordinates
-    default_prior : Prior
-        Default prior distribution for the fourier seasonality
-        beta parameters.
+        default `Prior("Laplace", mu=0, b=1)`
+    name : str, optional
+        Name of the variable that multiplies the fourier modes, by default None
+    variable_name : str, optional
+        Name of the variable that multiplies the fourier modes, by default None
 
     """
 
@@ -639,8 +631,6 @@ class MonthlyFourier(FourierBase):
         axes[0].set(title="Monthly Fourier Seasonality")
         plt.show()
 
-    Parameters
-    ----------
     n_order : int
         Number of fourier modes to use.
     prefix : str, optional
@@ -648,17 +638,11 @@ class MonthlyFourier(FourierBase):
         "fourier"
     prior : Prior, optional
         Prior distribution for the fourier seasonality beta parameters, by
-        default None
-
-    Attributes
-    ----------
-    days_in_period : float
-        Number of days in a period.
-    prefix : str
-        Name of model coordinates
-    default_prior : Prior
-        Default prior distribution for the fourier seasonality
-        beta parameters.
+        default `Prior("Laplace", mu=0, b=1)`
+    name : str, optional
+        Name of the variable that multiplies the fourier modes, by default None
+    variable_name : str, optional
+        Name of the variable that multiplies the fourier modes, by default None
 
     """
 
