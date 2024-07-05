@@ -146,9 +146,25 @@ def test_plot_curve() -> None:
     assert axes.shape == (2, 2)
 
 
-@pytest.mark.parametrize("n_order", [0, -1, -100, 2.5])
-def test_bad_order(n_order) -> None:
-    with pytest.raises(ValueError, match="n_order must be a positive integer"):
+@pytest.mark.parametrize("n_order", [0, -1, -100])
+def test_bad_negative_order(n_order) -> None:
+    with pytest.raises(
+        ValueError,
+        match="1 validation error for YearlyFourier\\nn_order\\n  Input should be greater than 0",
+    ):
+        YearlyFourier(n_order=n_order)
+
+
+@pytest.mark.parametrize(
+    argnames="n_order",
+    argvalues=[2.5, 100.001, "m", None],
+    ids=["neg_float", "neg_float_2", "str", "None"],
+)
+def test_bad_non_integer_order(n_order) -> None:
+    with pytest.raises(
+        ValueError,
+        match="1 validation error for YearlyFourier\nn_order\n  Input should be a valid integer",
+    ):
         YearlyFourier(n_order=n_order)
 
 

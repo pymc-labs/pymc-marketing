@@ -215,13 +215,10 @@ import numpy.typing as npt
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
+from pydantic import BaseModel, Field, InstanceOf, model_validator
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_YEAR
-from pymc_marketing.mmm.plot import (
-    plot_curve,
-    plot_hdi,
-    plot_samples,
-)
+from pymc_marketing.mmm.plot import plot_curve, plot_hdi, plot_samples
 from pymc_marketing.prior import Prior, create_dim_handler
 
 X_NAME: str = "day"
@@ -261,7 +258,7 @@ def generate_fourier_modes(
     )
 
 
-class FourierBase:
+class FourierBase(BaseModel):
     """Base class for Fourier seasonality transformations.
 
     Parameters
@@ -289,35 +286,27 @@ class FourierBase:
 
     """
 
-    days_in_period: float
-    prefix: str = "fourier"
+    n_order: int = Field(..., gt=0)
+    days_in_period: float = Field(..., gt=0)
+    prefix: str | None = Field("fourier")
+    prior: InstanceOf[Prior] | None = Field(Prior("Laplace", mu=0, b=1))
+    name: str | None = Field(None)
+    variable_name: str | None = Field("None")
 
-    default_prior = Prior("Laplace", mu=0, b=1)
+    def model_post_init(self, __context: Any) -> None:
+        self.variable_name = self.name or f"{self.prefix}_beta"
 
-    def __init__(
-        self,
-        n_order: int,
-        prefix: str | None = None,
-        prior: Prior | None = None,
-        name: str | None = None,
-    ) -> None:
-        if not isinstance(n_order, int) or n_order < 1:
-            raise ValueError(f"n_order must be a positive integer. Not {n_order}")
-
-        self.n_order = n_order
-        self.prefix = prefix or self.prefix
-        self.prior = prior or self.default_prior
-        self.variable_name = name or f"{self.prefix}_beta"
-
+    @model_validator(mode="after")
+    def check_variable_name(self) -> "FourierBase":
         if self.variable_name == self.prefix:
             raise ValueError("Variable name cannot be the same as the prefix")
+        return self
 
-        if not self.prior.dims:
-            self.prior = self.prior.deepcopy()
-            self.prior.dims = self.prefix
-
+    @model_validator(mode="after")
+    def check_prior_has_right_dimensions(self) -> "FourierBase":
         if self.prefix not in self.prior.dims:
             raise ValueError(f"Prior distribution must have dimension {self.prefix}")
+        return self
 
     @property
     def nodes(self) -> list[str]:
@@ -620,7 +609,7 @@ class YearlyFourier(FourierBase):
 
     """
 
-    days_in_period = DAYS_IN_YEAR
+    days_in_period: float = DAYS_IN_YEAR
 
 
 class MonthlyFourier(FourierBase):
@@ -675,4 +664,4 @@ class MonthlyFourier(FourierBase):
 
     """
 
-    days_in_period = DAYS_IN_MONTH
+    days_in_period: float = DAYS_IN_MONTH
