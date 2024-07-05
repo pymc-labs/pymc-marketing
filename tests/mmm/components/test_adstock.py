@@ -23,6 +23,8 @@ from pymc_marketing.mmm.components.adstock import (
     DelayedAdstock,
     GeometricAdstock,
     WeibullAdstock,
+    WeibullCDFAdstock,
+    WeibullPDFAdstock,
     _get_adstock_function,
 )
 
@@ -33,6 +35,8 @@ def adstocks() -> list[AdstockTransformation]:
         GeometricAdstock(l_max=10),
         WeibullAdstock(l_max=10, kind="PDF"),
         WeibullAdstock(l_max=10, kind="CDF"),
+        WeibullPDFAdstock(l_max=10),
+        WeibullCDFAdstock(l_max=10),
     ]
 
 
