@@ -88,7 +88,7 @@ class MVITS:
         fig, ax = plt.subplots()
 
         # plot data
-        self.plot_data(ax)
+        self.plot_data(self.data, ax)
 
         # plot posterior predictive distribution of sales for each of the background products
         x = self.data.index.values
@@ -120,7 +120,7 @@ class MVITS:
             raise ValueError(f"variable must be either 'mu' or 'y', not {variable}")
 
         # plot data
-        self.plot_data(ax)
+        self.plot_data(self.data, ax)
 
         # plot posterior predictive distribution of sales for each of the background products
         x = self.data.index.values
@@ -141,7 +141,7 @@ class MVITS:
 
         # formatting
         ax.legend()
-        ax.set(title="Model fit of sales of background products")
+        ax.set(title="Model predictions under the counterfactual scenario")
 
     def plot_causal_impact(self):
         """Plot the inferred causal impact of the new product on the background products."""
@@ -166,14 +166,19 @@ class MVITS:
 
         # formatting
         ax.legend()
-        ax.set(title="Model fit of sales of background products")
+        ax.set(title="Estimated causal impact of new product upon existing products")
 
-    def plot_data(self, ax):
+    @staticmethod
+    def plot_data(data, ax=None):
         """Plot the observed data."""
-        self.data.plot(ax=ax, drawstyle="steps-post")
+        if ax is None:
+            fig, ax = plt.subplots()
+        # self.data.plot(ax=ax, drawstyle="steps-post")
+        data.plot(ax=ax)
         # ax.axvline(n_first, linestyle="--", color="gray", zorder=-10)
         # df.sum(axis=1).plot(label="total sales", color="black", ax=ax)
         ax.set_ylim(bottom=0)
+        return ax
 
 
 def build_2_param_model(
@@ -196,11 +201,10 @@ def build_2_param_model(
         background_sales = pm.Data(
             "background_sales",
             background_sales.values,
-            mutable=True,
             dims=("time", "background_product"),
         )
         innovation_sales = pm.Data(
-            "innovation_sales", innovation_sales.values, mutable=True, dims=("time",)
+            "innovation_sales", innovation_sales.values, dims=("time",)
         )
 
         intercept = pm.Normal(
