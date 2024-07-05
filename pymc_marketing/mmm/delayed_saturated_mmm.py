@@ -2167,6 +2167,7 @@ class DelayedSaturatedMMM(MMM):
     _model_name = "DelayedSaturatedMMM"
     version = "0.0.3"
 
+    @validate_call
     def __init__(
         self,
         date_column: str,
