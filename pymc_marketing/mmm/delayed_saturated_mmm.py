@@ -26,6 +26,7 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import seaborn as sns
+from pydantic import Field, InstanceOf, validate_call
 from xarray import DataArray, Dataset
 
 from pymc_marketing.mmm.base import BaseValidateMMM
@@ -69,21 +70,45 @@ class BaseMMM(BaseValidateMMM):
     _model_type: str = "BaseValidateMMM"
     version: str = "0.0.3"
 
+    @validate_call
     def __init__(
         self,
-        date_column: str,
-        channel_columns: list[str],
-        adstock_max_lag: int,
-        adstock: str | AdstockTransformation,
-        saturation: str | SaturationTransformation,
-        time_varying_intercept: bool = False,
-        time_varying_media: bool = False,
-        model_config: dict | None = None,
-        sampler_config: dict | None = None,
-        validate_data: bool = True,
-        control_columns: list[str] | None = None,
-        yearly_seasonality: int | None = None,
-        adstock_first: bool = True,
+        date_column: str = Field(..., description="Column name of the date variable."),
+        channel_columns: list[str] = Field(
+            description="Column names of the media channel variables."
+        ),
+        adstock_max_lag: int = Field(
+            ...,
+            gt=0,
+            description="Number of lags to consider in the adstock transformation.",
+        ),
+        adstock: str | InstanceOf[AdstockTransformation] = Field(
+            ..., description="Type of adstock transformation to apply."
+        ),
+        saturation: str | InstanceOf[SaturationTransformation] = Field(
+            ..., description="Type of saturation transformation to apply."
+        ),
+        time_varying_intercept: bool = Field(
+            False, description="Whether to consider time-varying intercept."
+        ),
+        time_varying_media: bool = Field(
+            False, description="Whether to consider time-varying media contributions."
+        ),
+        model_config: dict | None = Field(None, description="Model configuration."),
+        sampler_config: dict | None = Field(None, description="Sampler configuration."),
+        validate_data: bool = Field(
+            True, description="Whether to validate the data before fitting to model"
+        ),
+        control_columns: list[str] | None = Field(
+            None,
+            description="Column names of control variables to be added as additional regressors",
+        ),
+        yearly_seasonality: int | None = Field(
+            None, description="Number of Fourier modes to model yearly seasonality."
+        ),
+        adstock_first: bool = Field(
+            True, description="Whether to apply adstock first."
+        ),
         **kwargs,
     ) -> None:
         """Constructor method.
@@ -95,7 +120,7 @@ class BaseMMM(BaseValidateMMM):
         channel_columns : List[str]
             Column names of the media channel variables.
         adstock_max_lag : int, optional
-            Number of lags to consider in the adstock transformation, by default 4
+            Number of lags to consider in the adstock transformation.
         adstock : str | AdstockTransformation
             Type of adstock transformation to apply.
         saturation : str | SaturationTransformation
@@ -108,12 +133,12 @@ class BaseMMM(BaseValidateMMM):
             Whether to consider time-varying media contributions, by default False.
             The `time-varying-media` creates a time media variable centered around 1,
             this variable acts as a global multiplier (scaling factor) for all channels,
-            meaning all media channels share the same latent fluctiation.
+            meaning all media channels share the same latent fluctuation.
         model_config : Dictionary, optional
-            dictionary of parameters that initialise model configuration.
+            Dictionary of parameters that initialise model configuration.
             Class-default defined by the user default_model_config method.
         sampler_config : Dictionary, optional
-            dictionary of parameters that initialise sampler configuration.
+            Dictionary of parameters that initialise sampler configuration.
             Class-default defined by the user default_sampler_config method.
         validate_data : bool, optional
             Whether to validate the data before fitting to model, by default True.
@@ -121,6 +146,8 @@ class BaseMMM(BaseValidateMMM):
             Column names of control variables to be added as additional regressors, by default None
         yearly_seasonality : Optional[int], optional
             Number of Fourier modes to model yearly seasonality, by default None.
+        adstock_first : bool, optional
+            Whether to apply adstock first, by default True.
         """
         self.control_columns = control_columns
         self.adstock_max_lag = adstock_max_lag
