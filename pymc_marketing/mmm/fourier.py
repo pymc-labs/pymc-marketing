@@ -265,24 +265,18 @@ class FourierBase(BaseModel):
     ----------
     n_order : int
         Number of fourier modes to use.
+    days_in_period : float
+        Number of days in a period.
     prefix : str, optional
         Alternative prefix for the fourier seasonality, by default None or
         "fourier"
     prior : Prior, optional
         Prior distribution for the fourier seasonality beta parameters, by
-        default None
+        default `Prior("Laplace", mu=0, b=1)`
     name : str, optional
         Name of the variable that multiplies the fourier modes, by default None
-
-    Attributes
-    ----------
-    days_in_period : float
-        Number of days in a period.
-    prefix : str
-        Name of model coordinates
-    default_prior : Prior
-        Default prior distribution for the fourier seasonality
-        beta parameters.
+    variable_name : str, optional
+        Name of the variable that multiplies the fourier modes, by default None
 
     """
 
@@ -295,6 +289,10 @@ class FourierBase(BaseModel):
 
     def model_post_init(self, __context: Any) -> None:
         self.variable_name = self.name or f"{self.prefix}_beta"
+
+        if not self.prior.dims:
+            self.prior = self.prior.deepcopy()
+            self.prior.dims = self.prefix
 
     @model_validator(mode="after")
     def check_variable_name(self) -> "FourierBase":
