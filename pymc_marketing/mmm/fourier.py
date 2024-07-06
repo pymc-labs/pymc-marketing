@@ -274,8 +274,6 @@ class FourierBase(BaseModel):
     prior : Prior, optional
         Prior distribution for the fourier seasonality beta parameters, by
         default `Prior("Laplace", mu=0, b=1)`
-    name : str, optional
-        Name of the variable that multiplies the fourier modes, by default None
     variable_name : str, optional
         Name of the variable that multiplies the fourier modes, by default None
 
@@ -283,13 +281,13 @@ class FourierBase(BaseModel):
 
     n_order: int = Field(..., gt=0)
     days_in_period: float = Field(..., gt=0)
-    prefix: str | None = Field("fourier")
+    prefix: str = Field("fourier")
     prior: InstanceOf[Prior] = Field(Prior("Laplace", mu=0, b=1))
-    name: str | None = Field(None)
-    variable_name: str | None = Field("None")
+    variable_name: str | None = Field(None)
 
     def model_post_init(self, __context: Any) -> None:
-        self.variable_name = self.name or f"{self.prefix}_beta"
+        if self.variable_name is None:
+            self.variable_name = f"{self.prefix}_beta"
 
         if not self.prior.dims:
             self.prior = self.prior.deepcopy()

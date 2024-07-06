@@ -256,15 +256,14 @@ def test_apply_result_callback() -> None:
     assert model["components"].eval().shape == (365, n_order * 2)
 
 
-def test_error_with_prefix_and_name() -> None:
+def test_error_with_prefix_and_variable_name() -> None:
     name = "variable_name"
     with pytest.raises(ValueError, match="Variable name cannot"):
-        YearlyFourier(n_order=2, name=name, prefix=name)
+        YearlyFourier(n_order=2, prefix=name, variable_name=name)
 
 
 def test_change_name() -> None:
     variable_name = "variable_name"
-    fourier = YearlyFourier(n_order=2, name=variable_name)
-    assert fourier.variable_name == variable_name
+    fourier = YearlyFourier(n_order=2, variable_name=variable_name)
     prior = fourier.sample_prior(samples=10)
     assert variable_name in prior
