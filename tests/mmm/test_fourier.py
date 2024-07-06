@@ -267,3 +267,8 @@ def test_change_name() -> None:
     fourier = YearlyFourier(n_order=2, variable_name=variable_name)
     prior = fourier.sample_prior(samples=10)
     assert variable_name in prior
+
+
+def test_serialization_to_json() -> None:
+    fourier = YearlyFourier(n_order=2)
+    fourier.model_dump_json()
