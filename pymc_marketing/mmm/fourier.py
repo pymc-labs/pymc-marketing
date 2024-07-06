@@ -275,7 +275,8 @@ class FourierBase(BaseModel):
         Prior distribution for the fourier seasonality beta parameters, by
         default `Prior("Laplace", mu=0, b=1)`
     variable_name : str, optional
-        Name of the variable that multiplies the fourier modes, by default None
+        Name of the variable that multiplies the fourier modes. By default None,
+        in which case it is set to the `{prefix}_beta`.
 
     """
 
