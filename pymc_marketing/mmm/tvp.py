@@ -132,7 +132,7 @@ def time_varying_prior(
     X: pt.sharedvar.TensorSharedVariable,
     dims: Dims,
     X_mid: int | float | None = None,
-    hsgp_kwargs: HSGPKwargs | None = None,
+    hsgp_kwargs: dict | HSGPKwargs | None = None,
 ) -> pt.TensorVariable:
     """Time varying prior, based on the Hilbert Space Gaussian Process (HSGP).
 
@@ -151,7 +151,7 @@ def time_varying_prior(
         the time dimension, and the second may be any other dimension, across
         which independent time varying priors for each coordinate are desired
         (e.g. channels).
-    hsgp_kwargs : HSGPKwargs
+    hsgp_kwargs : dict | HSGPKwargs
         Keyword arguments for the Hilbert Space Gaussian Process. By default it is None,
         in which case the default parameters are used. See `HSGPKwargs` for more information.
 
@@ -171,6 +171,9 @@ def time_varying_prior(
 
     if hsgp_kwargs is None:
         hsgp_kwargs = HSGPKwargs()
+
+    elif isinstance(hsgp_kwargs, dict):
+        hsgp_kwargs = HSGPKwargs(**hsgp_kwargs)
 
     if X_mid is None:
         X_mid = float(X.mean().eval())
@@ -206,7 +209,7 @@ def create_time_varying_gp_multiplier(
     time_index: pt.sharedvar.TensorSharedVariable,
     time_index_mid: int,
     time_resolution: int,
-    model_config: dict[str, HSGPKwargs],
+    model_config: dict[str, dict | HSGPKwargs],
 ) -> pt.TensorVariable:
     """Create a time-varying Gaussian Process multiplier.
 
@@ -233,21 +236,21 @@ def create_time_varying_gp_multiplier(
         Time-varying Gaussian Process multiplier for a given variable.
     """
 
-    hsgp_kwargs = model_config[f"{name}_tvp_config"]
+    if isinstance(config := model_config[f"{name}_tvp_config"], dict):
+        hsgp_kwargs = HSGPKwargs(**config)
 
     if hsgp_kwargs.L is None:
         hsgp_kwargs.L = time_index_mid + DAYS_IN_YEAR / time_resolution
     if hsgp_kwargs.ls_mu is None:
         hsgp_kwargs.ls_mu = DAYS_IN_YEAR / time_resolution * 2
 
-    multiplier = time_varying_prior(
+    return time_varying_prior(
         name=f"{name}_temporal_latent_multiplier",
         X=time_index,
         X_mid=time_index_mid,
         dims=dims,
         hsgp_kwargs=hsgp_kwargs,
     )
-    return multiplier
 
 
 def infer_time_index(

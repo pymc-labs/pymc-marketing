@@ -45,10 +45,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
-from pymc_marketing.mmm.tvp import (
-    create_time_varying_gp_multiplier,
-    infer_time_index,
-)
+from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
@@ -195,7 +192,7 @@ class BaseMMM(BaseValidateMMM):
                 n_order=self.yearly_seasonality,
                 prefix="fourier_mode",
                 prior=self.model_config["gamma_fourier"],
-                name="gamma_fourier",
+                variable_name="gamma_fourier",
             )
 
     @property
@@ -540,7 +537,7 @@ class BaseMMM(BaseValidateMMM):
                 "m": 200,
                 "L": None,
                 "eta_lam": 1,
-                "ls_mu": None,
+                "ls_mu": 5,
                 "ls_sigma": 10,
                 "cov_func": None,
             }
@@ -549,7 +546,7 @@ class BaseMMM(BaseValidateMMM):
                 "m": 200,
                 "L": None,
                 "eta_lam": 1,
-                "ls_mu": None,
+                "ls_mu": 5,
                 "ls_sigma": 10,
                 "cov_func": None,
             }
