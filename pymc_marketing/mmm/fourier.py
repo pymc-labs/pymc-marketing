@@ -215,7 +215,7 @@ import numpy.typing as npt
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
-from pydantic import BaseModel, Field, InstanceOf, model_validator
+from pydantic import BaseModel, Field, InstanceOf, field_serializer, model_validator
 from typing_extensions import Self
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_YEAR
@@ -305,6 +305,10 @@ class FourierBase(BaseModel):
         if self.prefix not in self.prior.dims:
             raise ValueError(f"Prior distribution must have dimension {self.prefix}")
         return self
+
+    @field_serializer("prior", when_used="json")
+    def serialize_prior(prior: Prior) -> dict[str, Any]:
+        return prior.to_json()
 
     @property
     def nodes(self) -> list[str]:
