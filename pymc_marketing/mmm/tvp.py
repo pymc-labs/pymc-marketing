@@ -132,7 +132,7 @@ def time_varying_prior(
     X: pt.sharedvar.TensorSharedVariable,
     dims: Dims,
     X_mid: int | float | None = None,
-    hsgp_kwargs: dict | HSGPKwargs | None = None,
+    hsgp_kwargs: HSGPKwargs | None = None,
 ) -> pt.TensorVariable:
     """Time varying prior, based on the Hilbert Space Gaussian Process (HSGP).
 
@@ -151,7 +151,7 @@ def time_varying_prior(
         the time dimension, and the second may be any other dimension, across
         which independent time varying priors for each coordinate are desired
         (e.g. channels).
-    hsgp_kwargs : dict | HSGPKwargs
+    hsgp_kwargs : HSGPKwargs
         Keyword arguments for the Hilbert Space Gaussian Process. By default it is None,
         in which case the default parameters are used. See `HSGPKwargs` for more information.
 
