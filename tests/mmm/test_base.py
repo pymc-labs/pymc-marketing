@@ -21,12 +21,15 @@ import pytest
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import FunctionTransformer, Pipeline
 
-from pymc_marketing.mmm.base import MMM
+from pymc_marketing.mmm.base import BaseValidateMMM as MMM
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
 )
-from pymc_marketing.mmm.validating import validation_method_X, validation_method_y
+from pymc_marketing.mmm.validating import (
+    validation_method_X,
+    validation_method_y,
+)
 
 seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
@@ -124,9 +127,11 @@ def toy_mmm(request, toy_X, toy_y):
 
 
 class TestMMM:
-    @patch("pymc_marketing.mmm.base.MMM.validate_target")
-    @patch("pymc_marketing.mmm.base.MMM.validate_date_col")
-    @patch("pymc_marketing.mmm.base.MMM.validate_channel_columns")
+    @patch("pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target")
+    @patch("pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col")
+    @patch(
+        "pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns"
+    )
     @pytest.mark.parametrize(
         "toy_mmm",
         [
@@ -220,8 +225,6 @@ class MyScaler(BaseEstimator, TransformerMixin):
 
 
 def test_validate_and_preprocess(toy_X, toy_y, test_mmm):
-    test_mmm
-
     test_mmm.validate("X", toy_X)
     test_mmm.mock_method1.assert_called_once_with(test_mmm, toy_X)
 
@@ -265,7 +268,9 @@ def test_calling_prior_predictive_before_fit_raises_error(test_mmm, toy_X, toy_y
     test_mmm.idata = None
     with pytest.raises(
         RuntimeError,
-        match=re.escape("The model hasn't been fit yet, call .fit() first"),
+        match=re.escape(
+            "The model hasn't been sampled yet, call .sample_prior_predictive() first"
+        ),
     ):
         test_mmm.prior_predictive
 
@@ -292,7 +297,7 @@ def test_calling_prior_before_sample_prior_predictive_raises_error(
     with pytest.raises(
         RuntimeError,
         match=re.escape(
-            "The model hasn't been fit yet, call .sample_prior_predictive() with extend_idata=True first"
+            "The model hasn't been sampled yet, call .sample_prior_predictive() first",
         ),
     ):
         test_mmm.prior

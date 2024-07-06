@@ -10,6 +10,8 @@ mmm/mmm_example
 mmm/mmm_budget_allocation_example
 mmm/mmm_lift_test
 mmm/mmm_tvp_example
+mmm/mmm_time_varying_media_example
+mmm/mmm_components
 :::
 
 :::{toctree}
@@ -28,4 +30,5 @@ clv/sBG
 :maxdepth: 1
 
 general/other_nuts_samplers
+general/model_configuration
 :::

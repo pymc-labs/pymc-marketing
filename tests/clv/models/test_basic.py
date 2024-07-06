@@ -20,6 +20,7 @@ import pytest
 from arviz import InferenceData, from_dict
 
 from pymc_marketing.clv.models.basic import CLVModel
+from pymc_marketing.prior import Prior
 from tests.conftest import set_model_fit
 
 
@@ -34,13 +35,12 @@ class CLVModelTest(CLVModel):
     @property
     def default_model_config(self):
         return {
-            "x": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}},
+            "x": Prior("Normal", mu=0, sigma=1),
         }
 
     def build_model(self):
-        x_prior = self._create_distribution(self.model_config["x"])
         with pm.Model() as self.model:
-            x = self.model.register_rv(x_prior, name="x")
+            x = self.model_config["x"].create_variable("x")
             pm.Normal("y", mu=x, sigma=1, observed=self.data["y"])
 
 
@@ -63,16 +63,6 @@ class TestCLVModel:
 
         model.build_model()
         assert model.__repr__() == "CLVModelTest\nx ~ Normal(0, 1)\ny ~ Normal(x, 1)"
-
-    def test_create_distribution_from_wrong_prior(self):
-        model = CLVModelTest()
-        with pytest.raises(
-            ValueError,
-            match="Distribution definitely_not_PyMC_dist does not exist in PyMC",
-        ):
-            model._create_distribution(
-                {"dist": "definitely_not_PyMC_dist", "kwargs": {"alpha": 1, "beta": 1}}
-            )
 
     def test_fit_mcmc(self):
         model = CLVModelTest()
@@ -188,3 +178,14 @@ class TestCLVModel:
         assert len(thin_model.idata.posterior["x"].draw) == 50
         assert thin_model.data is not model.data
         assert np.all(thin_model.data == model.data)
+
+    def test_model_config_warns(self) -> None:
+        model_config = {
+            "x": {"dist": "StudentT", "kwargs": {"mu": 0, "sigma": 5, "nu": 15}},
+        }
+        with pytest.warns(DeprecationWarning, match="x is automatically"):
+            model = CLVModelTest(model_config=model_config)
+
+        assert model.model_config == {
+            "x": Prior("StudentT", mu=0, sigma=5, nu=15),
+        }
