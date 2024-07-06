@@ -295,13 +295,13 @@ class FourierBase(BaseModel):
             self.prior.dims = self.prefix
 
     @model_validator(mode="after")
-    def check_variable_name(self) -> Self:
+    def _check_variable_name(self) -> Self:
         if self.variable_name == self.prefix:
             raise ValueError("Variable name cannot be the same as the prefix")
         return self
 
     @model_validator(mode="after")
-    def check_prior_has_right_dimensions(self) -> Self:
+    def _check_prior_has_right_dimensions(self) -> Self:
         if self.prefix not in self.prior.dims:
             raise ValueError(f"Prior distribution must have dimension {self.prefix}")
         return self

@@ -45,7 +45,11 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
-from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
+from pymc_marketing.mmm.tvp import (
+    HSGPKwargs,
+    create_time_varying_gp_multiplier,
+    infer_time_index,
+)
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
@@ -533,23 +537,23 @@ class BaseMMM(BaseValidateMMM):
         }
 
         if self.time_varying_intercept:
-            base_config["intercept_tvp_config"] = {  # type: ignore
-                "m": 200,
-                "L": None,
-                "eta_lam": 1,
-                "ls_mu": 5,
-                "ls_sigma": 10,
-                "cov_func": None,
-            }
+            base_config["intercept_tvp_config"] = HSGPKwargs(
+                m=200,
+                L=None,
+                eta_lam=1,
+                ls_mu=5,
+                ls_sigma=10,
+                cov_func=None,
+            )
         if self.time_varying_media:
-            base_config["media_tvp_config"] = {  # type: ignore
-                "m": 200,
-                "L": None,
-                "eta_lam": 1,
-                "ls_mu": 5,
-                "ls_sigma": 10,
-                "cov_func": None,
-            }
+            base_config["media_tvp_config"] = HSGPKwargs(
+                m=200,
+                L=None,
+                eta_lam=1,
+                ls_mu=5,
+                ls_sigma=10,
+                cov_func=None,
+            )
 
         for media_transform in [self.adstock, self.saturation]:
             for dist in media_transform.function_priors.values():
