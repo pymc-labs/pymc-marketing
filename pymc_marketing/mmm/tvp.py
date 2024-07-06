@@ -209,7 +209,7 @@ def create_time_varying_gp_multiplier(
     time_index: pt.sharedvar.TensorSharedVariable,
     time_index_mid: int,
     time_resolution: int,
-    model_config: dict[str, dict | HSGPKwargs],
+    model_config: dict | HSGPKwargs,
 ) -> pt.TensorVariable:
     """Create a time-varying Gaussian Process multiplier.
 
@@ -227,7 +227,7 @@ def create_time_varying_gp_multiplier(
         Midpoint of the time points.
     time_resolution : int
         Resolution of time points.
-    model_config : dict[str, HSGPKwargs]
+    model_config : dict | HSGPKwargs
         Configuration dictionary for the model.
 
     Returns
@@ -238,6 +238,8 @@ def create_time_varying_gp_multiplier(
 
     if isinstance(config := model_config[f"{name}_tvp_config"], dict):
         hsgp_kwargs = HSGPKwargs(**config)
+    else:
+        hsgp_kwargs = config
 
     if hsgp_kwargs.L is None:
         hsgp_kwargs.L = time_index_mid + DAYS_IN_YEAR / time_resolution
