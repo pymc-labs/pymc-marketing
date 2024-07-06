@@ -101,10 +101,19 @@ from pymc_marketing.constants import DAYS_IN_YEAR
 class HSGPKwargs(BaseModel):
     """HSGP keyword arguments for the time-varying prior.
 
-    See _[1] and _[2] for the theoretical background on the Hilbert Space Gaussian Process (HSGP).
-    See , _[6] for a practical guide through the method using code examples.
-    See {class}`HSGP <pymc.gp.HSGP>` for more information on the Hilbert Space Gaussian Process in PyMC.
-    We also recommend the following resources for a more practical introduction to HSGP: _[3], _[4], _[5]
+    See [1]_ and [2]_ for the theoretical background on the Hilbert Space Gaussian Process (HSGP).
+    See , [6]_ for a practical guide through the method using code examples.
+    See the :class:`~pymc.gp.HSGP` class for more information on the Hilbert Space Gaussian Process in PyMC.
+    We also recommend the following resources for a more practical introduction to HSGP: [3]_, [4]_, [5]_.
+
+    References
+    ----------
+    .. [1] Solin, A., Sarkka, S. (2019) Hilbert Space Methods for Reduced-Rank Gaussian Process Regression.
+    .. [2] Ruitort-Mayol, G., and Anderson, M., and Solin, A., and Vehtari, A. (2022). Practical Hilbert Space Approximate Bayesian Gaussian Processes for Probabilistic Programming.
+    .. [3] PyMC Example Gallery: `"Gaussian Processes: HSGP Reference & First Steps" <https://www.pymc.io/projects/examples/en/latest/gaussian_processes/HSGP-Basic.html>`_.
+    .. [4] PyMC Example Gallery: `"Gaussian Processes: HSGP Advanced Usage" <https://www.pymc.io/projects/examples/en/latest/gaussian_processes/HSGP-Advanced.html>`_.
+    .. [5] PyMC Example Gallery: `"Baby Births Modelling with HSGPs" <https://www.pymc.io/projects/examples/en/latest/gaussian_processes/GP-Births.html>`_.
+    .. [6] Orduz, J. `"A Conceptual and Practical Introduction to Hilbert Space GPs Approximation Methods" <https://juanitorduz.github.io/hsgp_intro/>`_.
 
     Parameters
     ----------
@@ -120,17 +129,8 @@ class HSGPKwargs(BaseModel):
         Mean of the inverse gamma prior for the lengthscale. Default is 5.
     ls_sigma : float
         Standard deviation of the inverse gamma prior for the lengthscale. Default is 5.
-    cov_func : pm.gp.cov.Covariance, optional
+    cov_func : ~pymc.gp.cov.Covariance, optional
         Gaussian process Covariance function. By default it is None.
-
-    References
-    ----------
-    .. [1] Solin, A., Sarkka, S. (2019) Hilbert Space Methods for Reduced-Rank Gaussian Process Regression.
-    .. [2] Ruitort-Mayol, G., and Anderson, M., and Solin, A., and Vehtari, A. (2022). Practical Hilbert Space Approximate Bayesian Gaussian Processes for Probabilistic Programming.
-    .. [3] PyMC Example Gallery: `"Gaussian Processes: HSGP Reference & First Steps" <https://www.pymc.io/projects/examples/en/latest/gaussian_processes/HSGP-Basic.html>`_.
-    .. [4] PyMC Example Gallery: `"Gaussian Processes: HSGP Advanced Usage" <https://www.pymc.io/projects/examples/en/latest/gaussian_processes/HSGP-Advanced.html>`_.
-    .. [5] PyMC Example Gallery: `"Baby Births Modelling with HSGPs" <https://www.pymc.io/projects/examples/en/latest/gaussian_processes/GP-Births.html>`_.
-    .. [6] Orduz, J. `"A Conceptual and Practical Introduction to Hilbert Space GPs Approximation Methods" <https://juanitorduz.github.io/hsgp_intro/>`_.
     """  # noqa E501
 
     m: int = Field(200, description="Number of basis functions")
