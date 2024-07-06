@@ -323,6 +323,7 @@ class Prior:
             self._correct_non_centered_distribution()
 
         self._parameters_are_at_least_subset_of_pymc()
+        self._convert_lists_to_numpy()
         self._parameters_are_correct_type()
 
     def _parameters_are_at_least_subset_of_pymc(self) -> None:
@@ -334,6 +335,17 @@ class Prior:
                 f"parameters {set(pymc_params)}"
             )
             raise ValueError(msg)
+
+    def _convert_lists_to_numpy(self) -> None:
+        def convert(x):
+            if not isinstance(x, list):
+                return x
+
+            return np.array(x)
+
+        self.parameters = {
+            key: convert(value) for key, value in self.parameters.items()
+        }
 
     def _parameters_are_correct_type(self) -> None:
         supported_types = (int, float, np.ndarray, Prior, pt.TensorVariable)

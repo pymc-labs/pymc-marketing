@@ -28,7 +28,6 @@ import pytensor.tensor as pt
 import seaborn as sns
 from xarray import DataArray, Dataset
 
-from pymc_marketing.constants import DAYS_IN_YEAR
 from pymc_marketing.mmm.base import BaseValidateMMM
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.components.adstock import (
@@ -39,6 +38,7 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     _get_saturation_function,
 )
+from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
@@ -48,7 +48,6 @@ from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
-    generate_fourier_modes,
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
 from pymc_marketing.model_config import parse_model_config
@@ -127,7 +126,6 @@ class BaseMMM(BaseValidateMMM):
         self.adstock_max_lag = adstock_max_lag
         self.time_varying_intercept = time_varying_intercept
         self.time_varying_media = time_varying_media
-        self.yearly_seasonality = yearly_seasonality
         self.date_column = date_column
         self.validate_data = validate_data
 
@@ -152,6 +150,15 @@ class BaseMMM(BaseValidateMMM):
             sampler_config=sampler_config,
             adstock_max_lag=adstock_max_lag,
         )
+
+        self.yearly_seasonality = yearly_seasonality
+        if self.yearly_seasonality is not None:
+            self.yearly_fourier = YearlyFourier(
+                n_order=self.yearly_seasonality,
+                prefix="fourier_mode",
+                prior=self.model_config["gamma_fourier"],
+                name="gamma_fourier",
+            )
 
     @property
     def default_sampler_config(self) -> dict:
@@ -213,13 +220,6 @@ class BaseMMM(BaseValidateMMM):
             control_data = X[self.control_columns]
             coords["control"] = self.control_columns
             X_data = pd.concat([X_data, control_data], axis=1)
-
-        fourier_features: pd.DataFrame | None = None
-        if self.yearly_seasonality is not None:
-            fourier_features = self._get_fourier_models_data(X=X)
-            self.fourier_columns = fourier_features.columns
-            coords["fourier_mode"] = fourier_features.columns.to_numpy()
-            X_data = pd.concat([X_data, fourier_features], axis=1)
 
         self.model_coords = coords
         if self.validate_data:
@@ -452,38 +452,29 @@ class BaseMMM(BaseValidateMMM):
 
                 mu_var += control_contributions.sum(axis=-1)
 
-            if (
-                hasattr(self, "fourier_columns")
-                and self.fourier_columns is not None
-                and len(self.fourier_columns) > 0
-                and all(
-                    column in self.preprocessed_data["X"].columns
-                    for column in self.fourier_columns
-                )
-            ):
-                fourier_data_ = pm.Data(
-                    name="fourier_data",
-                    value=self.preprocessed_data["X"][self.fourier_columns],
-                    dims=("date", "fourier_mode"),
+            if self.yearly_seasonality is not None:
+                dayofyear = pm.Data(
+                    name="dayofyear",
+                    value=self.preprocessed_data["X"][
+                        self.date_column
+                    ].dt.dayofyear.to_numpy(),
+                    dims="date",
                     mutable=True,
                 )
-                if self.model_config["gamma_fourier"].dims != ("fourier_mode",):
-                    self.model_config["gamma_fourier"].dims = "fourier_mode"
 
-                gamma_fourier = self.model_config["gamma_fourier"].create_variable(
-                    name="gamma_fourier"
-                )
-
-                fourier_contribution = pm.Deterministic(
-                    name="fourier_contributions",
-                    var=fourier_data_ * gamma_fourier,
-                    dims=("date", "fourier_mode"),
-                )
+                def create_deterministic(x: pt.TensorVariable) -> None:
+                    pm.Deterministic(
+                        "fourier_contributions",
+                        x,
+                        dims=("date", *self.yearly_fourier.prior.dims),
+                    )
 
                 yearly_seasonality_contribution = pm.Deterministic(
                     name="yearly_seasonality_contribution",
-                    var=fourier_contribution.sum(axis=-1),
-                    dims=("date"),
+                    var=self.yearly_fourier.apply(
+                        dayofyear, result_callback=create_deterministic
+                    ),
+                    dims="date",
                 )
 
                 mu_var += yearly_seasonality_contribution
@@ -535,36 +526,6 @@ class BaseMMM(BaseValidateMMM):
             **self.adstock.model_config,
             **self.saturation.model_config,
         }
-
-    def _get_fourier_models_data(self, X) -> pd.DataFrame:
-        """Generates fourier modes to model seasonality.
-
-        Parameters
-        ----------
-        X : Union[pd.DataFrame, pd.Series], shape (n_obs, n_features)
-            Input data for the model. To generate the Fourier modes, it must contain a date column.
-
-        Returns
-        -------
-        pd.DataFrame
-            Fourier modes (sin and cos with different frequencies) as columns in a dataframe.
-
-        References
-        ----------
-        https://www.pymc.io/projects/examples/en/latest/time_series/Air_passengers-Prophet_with_Bayesian_workflow.html
-        """
-        if self.yearly_seasonality is None:
-            raise ValueError("yearly_seasonality must be specified.")
-        date_data: pd.Series = pd.to_datetime(
-            arg=X[self.date_column], format="%Y-%m-%d"
-        )
-        periods: npt.NDArray[np.float64] = (
-            date_data.dt.dayofyear.to_numpy() / DAYS_IN_YEAR
-        )
-        return generate_fourier_modes(
-            periods=periods,
-            n_order=self.yearly_seasonality,
-        )
 
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float64]
@@ -735,8 +696,8 @@ class BaseMMM(BaseValidateMMM):
             )
             data["control_data"] = control_transformation(control_data)
 
-        if hasattr(self, "fourier_columns"):
-            data["fourier_data"] = self._get_fourier_models_data(X)
+        if self.yearly_seasonality is not None:
+            data["dayofyear"] = X[self.date_column].dt.dayofyear.to_numpy()
 
         if self.time_varying_intercept | self.time_varying_media:
             data["time_index"] = infer_time_index(

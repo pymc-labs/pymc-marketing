@@ -18,6 +18,8 @@ from pymc_marketing.mmm.components.adstock import (
     DelayedAdstock,
     GeometricAdstock,
     WeibullAdstock,
+    WeibullCDFAdstock,
+    WeibullPDFAdstock,
 )
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
@@ -28,6 +30,7 @@ from pymc_marketing.mmm.components.saturation import (
     TanhSaturationBaselined,
 )
 from pymc_marketing.mmm.delayed_saturated_mmm import MMM, DelayedSaturatedMMM
+from pymc_marketing.mmm.fourier import MonthlyFourier, YearlyFourier
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
@@ -35,26 +38,30 @@ from pymc_marketing.mmm.preprocessing import (
 from pymc_marketing.mmm.validating import validation_method_X, validation_method_y
 
 __all__ = [
+    "AdstockTransformation",
+    "BaseValidateMMM",
+    "DelayedAdstock",
+    "DelayedSaturatedMMM",
+    "GeometricAdstock",
+    "HillSaturation",
+    "LogisticSaturation",
+    "MMM",
+    "MMMModelBuilder",
+    "MichaelisMentenSaturation",
+    "MonthlyFourier",
+    "SaturationTransformation",
+    "TanhSaturation",
+    "TanhSaturationBaselined",
+    "WeibullAdstock",
+    "WeibullCDFAdstock",
+    "WeibullPDFAdstock",
+    "YearlyFourier",
     "base",
     "delayed_saturated_mmm",
     "preprocessing",
-    "validating",
-    "MMM",
-    "MMMModelBuilder",
-    "BaseValidateMMM",
-    "DelayedSaturatedMMM",
     "preprocessing_method_X",
     "preprocessing_method_y",
+    "validating",
     "validation_method_X",
     "validation_method_y",
-    "AdstockTransformation",
-    "DelayedAdstock",
-    "GeometricAdstock",
-    "WeibullAdstock",
-    "SaturationTransformation",
-    "MichaelisMentenSaturation",
-    "HillSaturation",
-    "LogisticSaturation",
-    "TanhSaturation",
-    "TanhSaturationBaselined",
 ]

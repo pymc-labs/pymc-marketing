@@ -395,38 +395,6 @@ class TestDelayedSaturatedMMM:
             "intercept",
         ]
 
-    @pytest.mark.parametrize(
-        argnames="yearly_seasonality",
-        argvalues=[None, 1, 2],
-        ids=["no_yearly_seasonality", "yearly_seasonality=1", "yearly_seasonality=2"],
-    )
-    def test_get_fourier_models_data(
-        self, toy_X: pd.DataFrame, toy_y: pd.Series, yearly_seasonality: int | None
-    ) -> None:
-        mmm = BaseMMM(
-            date_column="date",
-            channel_columns=["channel_1", "channel_2"],
-            control_columns=["control_1", "control_2"],
-            adstock_max_lag=2,
-            yearly_seasonality=yearly_seasonality,
-            adstock="geometric",
-            saturation="logistic",
-        )
-        if yearly_seasonality is None:
-            with pytest.raises(ValueError):
-                mmm._get_fourier_models_data(toy_X)
-
-        else:
-            fourier_modes_data: pd.DataFrame | None = mmm._get_fourier_models_data(
-                toy_X
-            )
-            assert fourier_modes_data.shape == (
-                toy_X.shape[0],
-                2 * yearly_seasonality,
-            )
-            assert fourier_modes_data.max().max() <= 1
-            assert fourier_modes_data.min().min() >= -1
-
     def test_channel_contributions_forward_pass_recovers_contribution(
         self,
         mmm_fitted: MMM,
