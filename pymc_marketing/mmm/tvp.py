@@ -94,6 +94,7 @@ from pymc.distributions.shape_utils import Dims
 
 from pymc_marketing.constants import DAYS_IN_YEAR
 
+
 def time_varying_prior(
     name: str,
     X: pt.sharedvar.TensorSharedVariable,
