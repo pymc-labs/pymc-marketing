@@ -45,11 +45,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
-from pymc_marketing.mmm.tvp import (
-    HSGPKwargs,
-    create_time_varying_gp_multiplier,
-    infer_time_index,
-)
+from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
@@ -98,9 +94,7 @@ class BaseMMM(BaseValidateMMM):
         time_varying_media: bool = Field(
             False, description="Whether to consider time-varying media contributions."
         ),
-        model_config: dict[str, Prior | HSGPKwargs] | None = Field(
-            None, description="Model configuration."
-        ),
+        model_config: dict | None = Field(None, description="Model configuration."),
         sampler_config: dict | None = Field(None, description="Sampler configuration."),
         validate_data: bool = Field(
             True, description="Whether to validate the data before fitting to model"
