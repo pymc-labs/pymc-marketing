@@ -24,7 +24,7 @@ class ModelConfigError(Exception):
     """Exception raised for errors in model configuration."""
 
 
-ModelConfig = dict[str, Prior | Any]
+ModelConfig = dict[str, HSGPKwargs | Prior | Any]
 
 
 def parse_model_config(
@@ -38,6 +38,8 @@ def parse_model_config(
     ----------
     model_config : dict
         The model configuration dictionary.
+    hsgp_kwargs_fields : list[str], optional
+        A list of keys to parse as HSGP kwargs.
     non_distributions : list[str], optional
         A list of keys to ignore when parsing the model configuration
         dictionary due to them not being distributions.
@@ -53,6 +55,7 @@ def parse_model_config(
 
     .. code-block:: python
 
+        from pymc_marketing.hsgp_kwargs import HSGPKwargs
         from pymc_marketing.model_config import parse_model_config
         from pymc_marketing.prior import Prior
 
@@ -65,18 +68,28 @@ def parse_model_config(
                 },
             },
             "beta": Prior("HalfNormal"),
-            "tvp_intercept": {
+            "intercept_tvp_config": {
+                "m": 200,
+                "L": 119.17,
+                "eta_lam": 1.0,
+                "ls_mu": 5.0,
+                "ls_sigma": 10.0,
+                "cov_func": None,
+            },
+            "other_intercept": {
                 "key": "Some other non-distribution configuration",
             },
         }
 
         parsed_model_config = parse_model_config(
             model_config,
-            non_distributions=["tvp_intercept"],
+            hsgp_kwargs_fields=["intercept_tvp_config"],
+            non_distributions=["other_intercept"],
         )
         # {'alpha': Prior("Normal", mu=0, sigma=1),
         #  'beta': Prior("HalfNormal"),
-        #  'tvp_intercept': {'key': 'Some other non-distribution configuration'}}
+        #  'intercept_tvp_config': HSGPKwargs(m=200, L=119.17, eta_lam=1.0, ls_mu=5.0, ls_sigma=10.0, cov_func=None),
+        #  'other_intercept': {'key': 'Some other non-distribution configuration'}}
 
     Parsing with an error:
 
@@ -137,11 +150,12 @@ def parse_model_config(
         except Exception as e:
             parse_errors.append(f"Parameter {name}: {e}")
 
-    result = {
+    # Parse the model configuration to extrat the `Prior` objects.
+    result: ModelConfig = {
         name: handle_prior_config(name, prior_config)
         for name, prior_config in model_config.items()
     }
-
+    # Parse the model configuration to extract the `HSGPKwargs` objects.
     result = {name: handle_hggp_kwargs(name, config) for name, config in result.items()}
 
     if parse_errors:
