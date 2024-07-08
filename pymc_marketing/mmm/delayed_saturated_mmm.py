@@ -664,13 +664,13 @@ class BaseMMM(BaseValidateMMM):
         y = dataset[model.output_var].values
         model.build_model(X, y)
         # All previously used data is in idata.
-        # if model.id != idata.attrs["id"]:
-        #     error_msg = (
-        #         f"The file '{fname}' does not contain "
-        #         "an inference data of the same model or "
-        #         f"configuration as '{cls._model_type}'"
-        #     )
-        #     raise ValueError(error_msg)
+        if model.id != idata.attrs["id"]:
+            error_msg = (
+                f"The file '{fname}' does not contain "
+                "an inference data of the same model or "
+                f"configuration as '{cls._model_type}'"
+            )
+            raise ValueError(error_msg)
 
         return model
 

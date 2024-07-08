@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+
 import hashlib
 import json
 import warnings
@@ -26,7 +27,6 @@ import pymc as pm
 import xarray as xr
 from pymc.util import RandomState
 
-from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.prior import Prior
 
 # If scikit-learn is available, use its data validator
@@ -64,13 +64,14 @@ class ModelBuilder(ABC):
 
         Parameters
         ----------
+        data : Dictionary, optional
+            It is the data we need to train the model on.
         model_config : Dictionary, optional
             dictionary of parameters that initialise model configuration.
             Class-default defined by the user default_model_config method.
         sampler_config : Dictionary, optional
             dictionary of parameters that initialise sampler configuration.
             Class-default defined by the user default_sampler_config method.
-
         Examples
         --------
         >>> class MyModel(ModelBuilder):
@@ -261,9 +262,7 @@ class ModelBuilder(ABC):
         None
         """
 
-    def set_idata_attrs(
-        self, idata: az.InferenceData | None = None
-    ) -> az.InferenceData:
+    def set_idata_attrs(self, idata=None):
         """
         Set attributes on an InferenceData object.
 
@@ -292,13 +291,11 @@ class ModelBuilder(ABC):
         if idata is None:
             raise RuntimeError("No idata provided to set attrs on.")
 
-        def default(x) -> dict[str, Any]:
+        def default(x):
             if isinstance(x, Prior):
                 return x.to_json()
-            elif isinstance(x, HSGPKwargs):
-                return x.model_dump(mode="json")
-            else:
-                return x.__dict__
+
+            return x.__dict__
 
         idata.attrs["id"] = self.id
         idata.attrs["model_type"] = self._model_type
