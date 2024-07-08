@@ -35,7 +35,7 @@ $$
 
 where $\vec{sales}_{your}$, $\vec{sales}_{comp}$, and $\vec{sales}_{new}$ are the observed time series of sales of all your products, your competitors products, and your new product, respectively.
 
-The parameter $c \in [0, 1]$ is the proportion of new product sales that are cannibalistic, that is, have been taken from your existing products. The parameter $1-c$ is the proportion of new product sales that are incremental, that is, have been taken from your competitors products. We can place a prior on $c$ to reflect our prior beliefs about the level of incrementality of the new product, but we need not specify the form of this at this point.
+The parameter $c \in [0, 1]$ is the proportion of new product sales that are cannibalistic, that is, have been taken from your existing products. The parameter $1-c$ is the proportion of new product sales that are incremental, that is, have been taken from your competitors products. We can place a Beta prior on $c$ to reflect our prior beliefs about the level of incrementality of the new product for example
 
 The parameters  $\sigma_{your}$ and $\sigma_{comp}$ are the standard deviations of the observation noise for your sales and your competitors sales, respectively. We can also place priors on these parameters to reflect our prior beliefs about the level of noise in the data.
 
@@ -45,27 +45,50 @@ This leaves the terms $\gamma_{your}$ and $\gamma_{comp}$, which are terms that 
 We could relax one of the simplifications - rather than model aggregated sales for your or your competitors products, we could model sales for each product individually. This would allow us to see which products are most affected by the new product release. We could write the new likelihood terms as:
 
 $$
-\vec{sales}_{p} \sim \mathrm{Normal}(\gamma_{p} - \beta_i \cdot \vec{sales}_{new}, \sigma_{p})
+\begin{aligned}
+\vec{sales}_1 \sim & \mathrm{Normal}(\gamma_1 - \beta_1 \cdot \vec{sales}_{new}, \sigma_1)\\
+\vec{sales}_2 \sim & \mathrm{Normal}(\gamma_2 - \beta_2 \cdot \vec{sales}_{new}, \sigma_2)\\
+\vdots \\
+\vec{sales}_P \sim & \mathrm{Normal}(\gamma_P - \beta_P \cdot \vec{sales}_{new}, \sigma_P)
+\end{aligned}
 $$
 
 So now we have products $p=1, \ldots, P$ and we could model the sales of each product individually. We now have a new parameter $\beta_i$ for each product, which is the proportion of new product sales that are cannibalistic for that product. This allows us to see which products are most affected by the new product release. Because we have the assumption that the market is saturated, we can see that the sum of the $\beta_i$'s should equal 1. So it might be natural to place a Dirichlet prior on the $\beta_i$'s.
 
 As long as we have a list of which products are your products and which are your competitors products, we can simply sum the approriate $\beta_i$'s to get the cannibalistic and incremental sales for your products and your competitors products.
 
-## Model 3 - relaxing independence assumptions
-We could relax the assumption that the sales of your products and your competitors products are independent. We could model the sales of your products and your competitors products as a multivariate normal distribution. This would allow us to model the correlation between the sales of your products and your competitors products. We could write the new likelihood as:
+```{admonition} The generalized model
+:class: note
+Note that you could re-write this model equivalently as:
 
 $$
-\vec{sales}_{p}
+\begin{bmatrix}
+\vec{sales}_1 \\
+\vec{sales}_2 \\
+\vdots \\
+\vec{sales}_P
+\end{bmatrix}
 \sim \mathrm{MultivariateNormal}\left(
-\gamma_{p} - \beta_i \cdot \vec{sales}_{new},
+\begin{bmatrix}
+\gamma_{1} - \beta_1 \cdot \vec{sales}_{new} \\
+\gamma_{2} - \beta_2 \cdot \vec{sales}_{new} \\
+\vdots \\
+\gamma_{P} - \beta_P \cdot \vec{sales}_{new}
+\end{bmatrix},
 \Sigma
 \right)
 $$
 
-where $\Sigma$ is the covariance matrix of the multivariate normal distribution. This would allow us to model the correlation between the sales of your products and your competitors products. The diagonal elements of $\Sigma$ would be the variances of the sales of your products and your competitors products, and the off-diagonal elements would be the covariance between the sales of your products and your competitors products. We could place priors on the elements of $\Sigma$ to reflect our prior beliefs about the correlation between the sales of your products and your competitors products.
+We can embody the assumption that all the product sales are independent of each other by setting the off-diagonal elements of the covariance matrix $\Sigma$ to zero. The diagonal elements of the covariance matrix are the variances of the observation noise for each product $[ \sigma_1, \sigma_2 \ldots, \sigma_P ]$.
+```
 
-The disadvantage of this model is that we would have a lot of parameters to estimate. For example, if there are $P$ products then we could have to estimate $P$ $\beta_i$'s and $P$ variances and $P(P-1)/2$ covariances. This need not be a problem - we could place hierarchical priors on the $\beta_i$'s and the variances for example, but it could be problematic with the covariances if we have a large number of products.
+## Model 3 - relaxing independence assumptions
+We could relax the assumption that the sales of your products and your competitors products are independent. We could model the sales of your products and your competitors products as a multivariate normal distribution (see box above).
 
-## Model N - the simplest unsaturated market model
+The key difference would be to additionally estimate the off-diagnal elements of the covariance matrix. This would allow us to model the correlation between the sales of all products. This might require us to put more work in to specifying the prior on the covariance matrix, but in some situations the benefits of this approach could be worth it.
+
+The disadvantage of this model is that we would have a lot of parameters to estimate. For example, if there are $P$ products then we could have to estimate $P$ $\beta_i$'s and $P$ standard deviations and $P(P-1)/2$ covariances. This need not be a problem - we could place hierarchical priors on the $\beta_i$'s and the standard deviations for example, but it could be problematic with the covariances if we have a large number of products.
+
+## Model 4 - Moving to an unsaturated market
+
 COMING SOON
