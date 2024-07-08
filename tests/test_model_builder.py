@@ -110,8 +110,8 @@ class ModelBuilderTest(ModelBuilder):
         with pm.Model(coords=coords) as self.model:
             if model_config is None:
                 model_config = self.default_model_config
-            x = pm.MutableData("x", self.X["input"].values)
-            y_data = pm.MutableData("y_data", self.y)
+            x = pm.Data("x", self.X["input"].values)
+            y_data = pm.Data("y_data", self.y)
 
             # prior parameters
             a_loc = model_config["a"]["loc"]
