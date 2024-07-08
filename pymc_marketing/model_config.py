@@ -28,7 +28,9 @@ ModelConfig = dict[str, Prior | Any]
 
 
 def parse_model_config(
-    model_config: ModelConfig, non_distributions: list[str] | None = None
+    model_config: ModelConfig,
+    hsgp_kwargs_fields: list[str] | None = None,
+    non_distributions: list[str] | None = None,
 ) -> ModelConfig:
     """Parse the model config dictionary.
 
@@ -98,11 +100,12 @@ def parse_model_config(
 
     """
     non_distributions = non_distributions or []
+    hsgp_kwargs_fields = hsgp_kwargs_fields or []
 
     parse_errors = []
 
     def handle_prior_config(name, prior_config):
-        if name in non_distributions:
+        if name in non_distributions or name in hsgp_kwargs_fields:
             return prior_config
 
         if isinstance(prior_config, Prior):
@@ -122,7 +125,7 @@ def parse_model_config(
             return dist
 
     def handle_hggp_kwargs(name, config):
-        if name not in non_distributions:
+        if name not in hsgp_kwargs_fields:
             return config
 
         if isinstance(config, HSGPKwargs):

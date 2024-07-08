@@ -172,7 +172,7 @@ class BaseMMM(BaseValidateMMM):
         model_config = model_config or {}
         model_config = parse_model_config(
             model_config,  # type: ignore
-            non_distributions=["intercept_tvp_config", "media_tvp_config"],
+            hsgp_kwargs_fields=["intercept_tvp_config", "media_tvp_config"],
         )
 
         if model_config is not None:
