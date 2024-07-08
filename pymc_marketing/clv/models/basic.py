@@ -20,7 +20,7 @@ from typing import cast
 import arviz as az
 import pandas as pd
 import pymc as pm
-from pydantic import ConfigDict, validate_call
+from pydantic import ConfigDict, InstanceOf, validate_call
 from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
 from pymc.model.core import Model
@@ -38,7 +38,7 @@ class CLVModel(ModelBuilder):
         self,
         data: pd.DataFrame,
         *,
-        model_config: ModelConfig | None = None,
+        model_config: InstanceOf[ModelConfig] | None = None,
         sampler_config: dict | None = None,
         non_distributions: list[str] | None = None,
     ):

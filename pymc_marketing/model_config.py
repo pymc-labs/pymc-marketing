@@ -24,7 +24,7 @@ class ModelConfigError(Exception):
     """Exception raised for errors in model configuration."""
 
 
-ModelConfig = dict[str, Prior | Any]
+ModelConfig = dict[str, HSGPKwargs | Prior | Any]
 
 
 def parse_model_config(
