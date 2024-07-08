@@ -604,27 +604,32 @@ class BaseMMM(BaseValidateMMM):
         model_config = cls._model_config_formatting(
             json.loads(idata.attrs["model_config"])
         )
-        model = cls(
-            date_column=json.loads(idata.attrs["date_column"]),
-            control_columns=json.loads(idata.attrs["control_columns"]),
-            # Media Transformations
-            channel_columns=json.loads(idata.attrs["channel_columns"]),
-            adstock_max_lag=json.loads(idata.attrs["adstock_max_lag"]),
-            adstock=json.loads(idata.attrs.get("adstock", "geometric")),
-            saturation=json.loads(idata.attrs.get("saturation", "logistic")),
-            adstock_first=json.loads(idata.attrs.get("adstock_first", True)),
-            # Seasonality
-            yearly_seasonality=json.loads(idata.attrs["yearly_seasonality"]),
-            # TVP
-            time_varying_intercept=json.loads(
-                idata.attrs.get("time_varying_intercept", False)
-            ),
-            time_varying_media=json.loads(idata.attrs.get("time_varying_media", False)),
-            # Configurations
-            validate_data=json.loads(idata.attrs["validate_data"]),
-            model_config=model_config,
-            sampler_config=json.loads(idata.attrs["sampler_config"]),
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=DeprecationWarning)
+            model = cls(
+                date_column=json.loads(idata.attrs["date_column"]),
+                control_columns=json.loads(idata.attrs["control_columns"]),
+                # Media Transformations
+                channel_columns=json.loads(idata.attrs["channel_columns"]),
+                adstock_max_lag=json.loads(idata.attrs["adstock_max_lag"]),
+                adstock=json.loads(idata.attrs.get("adstock", "geometric")),
+                saturation=json.loads(idata.attrs.get("saturation", "logistic")),
+                adstock_first=json.loads(idata.attrs.get("adstock_first", True)),
+                # Seasonality
+                yearly_seasonality=json.loads(idata.attrs["yearly_seasonality"]),
+                # TVP
+                time_varying_intercept=json.loads(
+                    idata.attrs.get("time_varying_intercept", False)
+                ),
+                time_varying_media=json.loads(
+                    idata.attrs.get("time_varying_media", False)
+                ),
+                # Configurations
+                validate_data=json.loads(idata.attrs["validate_data"]),
+                model_config=model_config,
+                sampler_config=json.loads(idata.attrs["sampler_config"]),
+            )
+
         model.idata = idata
         dataset = idata.fit_data.to_dataframe()
         X = dataset.drop(columns=[model.output_var])
