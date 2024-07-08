@@ -203,11 +203,9 @@ class BaseMMM(BaseValidateMMM):
         date_data = X[self.date_column]
         channel_data = X[self.channel_columns]
 
-        self.coords_mutable: dict[str, Any] = {
-            "date": date_data,
-        }
         coords: dict[str, Any] = {
             "channel": self.channel_columns,
+            "date": date_data,
         }
 
         new_X_dict = {
@@ -250,6 +248,8 @@ class BaseMMM(BaseValidateMMM):
         idata.attrs["adstock_max_lag"] = json.dumps(self.adstock_max_lag)
         idata.attrs["validate_data"] = json.dumps(self.validate_data)
         idata.attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
+        idata.attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
+        idata.attrs["time_varying_media"] = json.dumps(self.time_varying_media)
 
     def forward_pass(
         self, x: pt.TensorVariable | npt.NDArray[np.float64]
@@ -347,20 +347,17 @@ class BaseMMM(BaseValidateMMM):
         self._generate_and_preprocess_model_data(X, y)
         with pm.Model(
             coords=self.model_coords,
-            coords_mutable=self.coords_mutable,
         ) as self.model:
             channel_data_ = pm.Data(
                 name="channel_data",
                 value=self.preprocessed_data["X"][self.channel_columns],
                 dims=("date", "channel"),
-                mutable=True,
             )
 
             target_ = pm.Data(
                 name="target",
                 value=self.preprocessed_data["y"],
                 dims="date",
-                mutable=True,
             )
             if self.time_varying_intercept | self.time_varying_media:
                 time_index = pm.Data(
@@ -441,7 +438,6 @@ class BaseMMM(BaseValidateMMM):
                     name="control_data",
                     value=self.preprocessed_data["X"][self.control_columns],
                     dims=("date", "control"),
-                    mutable=True,
                 )
 
                 control_contributions = pm.Deterministic(
@@ -459,7 +455,6 @@ class BaseMMM(BaseValidateMMM):
                         self.date_column
                     ].dt.dayofyear.to_numpy(),
                     dims="date",
-                    mutable=True,
                 )
 
                 def create_deterministic(x: pt.TensorVariable) -> None:
@@ -544,7 +539,6 @@ class BaseMMM(BaseValidateMMM):
         """
         coords = {
             **self.model_coords,
-            **self.coords_mutable,
         }
         with pm.Model(coords=coords):
             pm.Deterministic(
@@ -602,19 +596,32 @@ class BaseMMM(BaseValidateMMM):
         model_config = cls._model_config_formatting(
             json.loads(idata.attrs["model_config"])
         )
-        model = cls(
-            date_column=json.loads(idata.attrs["date_column"]),
-            control_columns=json.loads(idata.attrs["control_columns"]),
-            channel_columns=json.loads(idata.attrs["channel_columns"]),
-            adstock_max_lag=json.loads(idata.attrs["adstock_max_lag"]),
-            adstock=json.loads(idata.attrs.get("adstock", "geometric")),
-            saturation=json.loads(idata.attrs.get("saturation", "logistic")),
-            adstock_first=json.loads(idata.attrs.get("adstock_first", True)),
-            validate_data=json.loads(idata.attrs["validate_data"]),
-            yearly_seasonality=json.loads(idata.attrs["yearly_seasonality"]),
-            model_config=model_config,
-            sampler_config=json.loads(idata.attrs["sampler_config"]),
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=DeprecationWarning)
+            model = cls(
+                date_column=json.loads(idata.attrs["date_column"]),
+                control_columns=json.loads(idata.attrs["control_columns"]),
+                # Media Transformations
+                channel_columns=json.loads(idata.attrs["channel_columns"]),
+                adstock_max_lag=json.loads(idata.attrs["adstock_max_lag"]),
+                adstock=json.loads(idata.attrs.get("adstock", "geometric")),
+                saturation=json.loads(idata.attrs.get("saturation", "logistic")),
+                adstock_first=json.loads(idata.attrs.get("adstock_first", True)),
+                # Seasonality
+                yearly_seasonality=json.loads(idata.attrs["yearly_seasonality"]),
+                # TVP
+                time_varying_intercept=json.loads(
+                    idata.attrs.get("time_varying_intercept", False)
+                ),
+                time_varying_media=json.loads(
+                    idata.attrs.get("time_varying_media", False)
+                ),
+                # Configurations
+                validate_data=json.loads(idata.attrs["validate_data"]),
+                model_config=model_config,
+                sampler_config=json.loads(idata.attrs["sampler_config"]),
+            )
+
         model.idata = idata
         dataset = idata.fit_data.to_dataframe()
         X = dataset.drop(columns=[model.output_var])
@@ -622,8 +629,11 @@ class BaseMMM(BaseValidateMMM):
         model.build_model(X, y)
         # All previously used data is in idata.
         if model.id != idata.attrs["id"]:
-            error_msg = f"""The file '{fname}' does not contain an inference data of the same model
-        or configuration as '{cls._model_type}'"""
+            error_msg = (
+                f"The file '{fname}' does not contain "
+                "an inference data of the same model or "
+                f"configuration as '{cls._model_type}'"
+            )
             raise ValueError(error_msg)
 
         return model

@@ -31,7 +31,7 @@ dependencies = [
     "numpy>=1.17",
     "pandas",
     # NOTE: Used as minimum pymc version with ci.yml `OLDEST_PYMC_VERSION`
-    "pymc>=5.12.0,<5.16.0",
+    "pymc>=5.13.0,<5.16.0",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "xarray",
