@@ -38,18 +38,18 @@ class MVITS:
         self.background_sales = background_sales
         self.innovation_sales = innovation_sales
         self.rng = rng
-        self.interrupted_time_series_algorithm()
 
-    def interrupted_time_series_algorithm(self):
-        """The main algorithm to perform the multivariate interrupted time series analysis."""
         # build the model - we are fitting on all of the data
         self.model = build_2_param_model(
-            self.data[self.background_sales], self.data[self.innovation_sales]
+            self.data[self.background_sales],
+            self.data[self.innovation_sales],
+            treatment_time,
         )
 
-        # fit the model on the pre-intervention data
+        # sample from prior, posterior, posterior predictive
         with self.model:
-            self.idata = pm.sample(random_seed=self.rng)
+            self.idata = pm.sample_prior_predictive(random_seed=self.rng)
+            self.idata.extend(pm.sample(random_seed=self.rng))
             self.idata.extend(
                 pm.sample_posterior_predictive(
                     self.idata, var_names=["mu", "y"], random_seed=self.rng
@@ -109,7 +109,7 @@ class MVITS:
 
         # formatting
         ax.legend()
-        ax.set(title="Model fit of sales of background products")
+        ax.set(title="Model fit of sales of background products", ylabel="Sales")
 
     def plot_counterfactual(self, variable="mu"):
         """Plots the predicted sales of the background products under the counterfactual
@@ -141,28 +141,68 @@ class MVITS:
 
         # formatting
         ax.legend()
-        ax.set(title="Model predictions under the counterfactual scenario")
+        ax.set(
+            title="Model predictions under the counterfactual scenario", ylabel="Sales"
+        )
 
-    def plot_causal_impact(self):
+    def plot_causal_impact(self, type="sales"):
         """Plot the inferred causal impact of the new product on the background products."""
         fig, ax = plt.subplots()
 
         # plot posterior predictive distribution of sales for each of the background products
         x = self.data.index.values
         background_products = list(self.idata.observed_data.background_product.data)
-        for i, background_product in enumerate(background_products):
-            az.plot_hdi(
-                x,
-                self.causal_impact.transpose(..., "time").sel(
+
+        if type == "sales":
+            for i, background_product in enumerate(background_products):
+                az.plot_hdi(
+                    x,
+                    self.causal_impact.transpose(..., "time").sel(
+                        background_product=background_product
+                    ),
+                    fill_kwargs={
+                        "alpha": HDI_ALPHA,
+                        "color": f"C{i}",
+                        "label": "Posterior predictive (HDI)",
+                    },
+                    smooth=False,
+                )
+            ax.set(ylabel="Change in sales caused by new product")
+
+        elif type == "market_share":
+            """change in terms of market share in percent is given by:
+            (causal_impact / total_sales) * 100
+            """
+            import matplotlib.ticker as mtick
+
+            # divide the causal impact change in sales by the counterfactual predicted sales
+            variable = "mu"
+            for i, background_product in enumerate(background_products):
+                causal_impact = self.causal_impact.transpose(..., "time").sel(
                     background_product=background_product
-                ),
-                fill_kwargs={
-                    "alpha": HDI_ALPHA,
-                    "color": f"C{i}",
-                    "label": "Posterior predictive (HDI)",
-                },
-                smooth=False,
-            )
+                )
+                total_sales = (
+                    self.idata_counterfactual.posterior_predictive[variable]
+                    .transpose(..., "time")
+                    .sum(dim="background_product")
+                )
+                causal_impact_market_share = (causal_impact / total_sales) * 100
+
+                az.plot_hdi(
+                    x,
+                    causal_impact_market_share,
+                    fill_kwargs={
+                        "alpha": HDI_ALPHA,
+                        "color": f"C{i}",
+                        "label": f"{background_product} - Posterior predictive (HDI)",
+                    },
+                    smooth=False,
+                )
+            ax.set(ylabel="Change in market share caused by new product")
+            ax.yaxis.set_major_formatter(mtick.PercentFormatter())
+
+        else:
+            raise ValueError("`type` must be either 'sales' or 'market_share'.")
 
         # formatting
         ax.legend()
@@ -178,12 +218,14 @@ class MVITS:
         # ax.axvline(n_first, linestyle="--", color="gray", zorder=-10)
         # df.sum(axis=1).plot(label="total sales", color="black", ax=ax)
         ax.set_ylim(bottom=0)
+        ax.set(ylabel="Sales")
         return ax
 
 
 def build_2_param_model(
     background_sales: pd.DataFrame,
-    innovation_sales: pd.DataFrame,
+    innovation_sales: pd.Series,
+    treatment_time,
     *,
     alpha_background=0.5,
 ):
@@ -198,7 +240,8 @@ def build_2_param_model(
     }
 
     with pm.Model(coords=coords) as model:
-        background_sales = pm.Data(
+        # data
+        _background_sales = pm.Data(
             "background_sales",
             background_sales.values,
             dims=("time", "background_product"),
@@ -207,31 +250,36 @@ def build_2_param_model(
             "innovation_sales", innovation_sales.values, dims=("time",)
         )
 
+        # priors
         intercept = pm.Normal(
             "intercept",
-            mu=pm.math.mean(background_sales),
-            sigma=20,
+            mu=pm.math.mean(background_sales[:treatment_time], axis=0),
+            sigma=np.std(background_sales[:treatment_time], axis=0),
+            # sigma=20,
             dims="background_product",
+        )
+
+        sigma = pm.HalfNormal(
+            "background_product_sigma", sigma=10, dims="background_product"
         )
 
         # Use a dirichlet distribution to model the beta parameters.
         alpha = np.full(len(coords["background_product"]), alpha_background)
         beta = pm.Dirichlet("beta", a=alpha, dims="background_product")
 
+        # expectation
         mu = pm.Deterministic(
             "mu",
             intercept[None, :] - innovation_sales[:, None] * beta[None, :],
             dims=("time", "background_product"),
         )
 
-        sigma = pm.HalfNormal(
-            "background_product_sigma", sigma=10, dims="background_product"
-        )
+        # likelihood
         pm.Normal(
             "y",
             mu=mu,
             sigma=sigma,
-            observed=background_sales,
+            observed=_background_sales,
             dims=("time", "background_product"),
         )
     return model
