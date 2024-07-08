@@ -16,6 +16,7 @@
 import warnings
 from typing import Any
 
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.prior import Prior
 
 
@@ -120,10 +121,26 @@ def parse_model_config(
 
             return dist
 
+    def handle_hggp_kwargs(name, config):
+        if name not in non_distributions:
+            return config
+
+        if isinstance(config, HSGPKwargs):
+            return config
+
+        try:
+            hsgp_kwargs = HSGPKwargs.model_validate(config)
+            return hsgp_kwargs
+        except Exception as e:
+            parse_errors.append(f"Parameter {name}: {e}")
+
     result = {
         name: handle_prior_config(name, prior_config)
         for name, prior_config in model_config.items()
     }
+
+    result = {name: handle_hggp_kwargs(name, config) for name, config in result.items()}
+
     if parse_errors:
         combined_errors = ", ".join(parse_errors)
         msg = (
