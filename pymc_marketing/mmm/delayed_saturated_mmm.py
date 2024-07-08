@@ -250,6 +250,8 @@ class BaseMMM(BaseValidateMMM):
         idata.attrs["adstock_max_lag"] = json.dumps(self.adstock_max_lag)
         idata.attrs["validate_data"] = json.dumps(self.validate_data)
         idata.attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
+        idata.attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
+        idata.attrs["time_varying_media"] = json.dumps(self.time_varying_media)
 
     def forward_pass(
         self, x: pt.TensorVariable | npt.NDArray[np.float64]
@@ -605,13 +607,21 @@ class BaseMMM(BaseValidateMMM):
         model = cls(
             date_column=json.loads(idata.attrs["date_column"]),
             control_columns=json.loads(idata.attrs["control_columns"]),
+            # Media Transformations
             channel_columns=json.loads(idata.attrs["channel_columns"]),
             adstock_max_lag=json.loads(idata.attrs["adstock_max_lag"]),
             adstock=json.loads(idata.attrs.get("adstock", "geometric")),
             saturation=json.loads(idata.attrs.get("saturation", "logistic")),
             adstock_first=json.loads(idata.attrs.get("adstock_first", True)),
-            validate_data=json.loads(idata.attrs["validate_data"]),
+            # Seasonality
             yearly_seasonality=json.loads(idata.attrs["yearly_seasonality"]),
+            # TVP
+            time_varying_intercept=json.loads(
+                idata.attrs.get("time_varying_intercept", False)
+            ),
+            time_varying_media=json.loads(idata.attrs.get("time_varying_media", False)),
+            # Configurations
+            validate_data=json.loads(idata.attrs["validate_data"]),
             model_config=model_config,
             sampler_config=json.loads(idata.attrs["sampler_config"]),
         )
@@ -622,8 +632,11 @@ class BaseMMM(BaseValidateMMM):
         model.build_model(X, y)
         # All previously used data is in idata.
         if model.id != idata.attrs["id"]:
-            error_msg = f"""The file '{fname}' does not contain an inference data of the same model
-        or configuration as '{cls._model_type}'"""
+            error_msg = (
+                f"The file '{fname}' does not contain "
+                "an inference data of the same model or "
+                f"configuration as '{cls._model_type}'"
+            )
             raise ValueError(error_msg)
 
         return model

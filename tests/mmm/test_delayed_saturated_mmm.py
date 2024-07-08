@@ -1017,3 +1017,38 @@ def test_initialize_defaults_channel_media_dims() -> None:
     for transform in [mmm.adstock, mmm.saturation]:
         for config in transform.function_priors.values():
             assert config.dims == ("channel",)
+
+
+@pytest.mark.parametrize(
+    "time_varying_intercept, time_varying_media",
+    [
+        (True, False),
+        (False, True),
+        (True, True),
+    ],
+)
+def test_save_load_with_tvp(
+    time_varying_intercept, time_varying_media, toy_X, toy_y
+) -> None:
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        adstock="geometric",
+        saturation="logistic",
+        adstock_max_lag=5,
+        time_varying_intercept=time_varying_intercept,
+        time_varying_media=time_varying_media,
+    )
+    mmm = mock_fit(mmm, toy_X, toy_y)
+
+    file = "tmp-model"
+    mmm.save(file)
+    loaded_mmm = MMM.load(file)
+
+    assert mmm.time_varying_intercept == loaded_mmm.time_varying_intercept
+    assert mmm.time_varying_intercept == time_varying_intercept
+    assert mmm.time_varying_media == loaded_mmm.time_varying_media
+    assert mmm.time_varying_media == time_varying_media
+
+    # clean up
+    os.remove(file)
