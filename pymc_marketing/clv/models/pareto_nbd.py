@@ -240,11 +240,11 @@ class ParetoNBDModel(CLVModel):
             "purchase_covariate": self.purchase_covariate_cols,
             "dropout_covariate": self.dropout_covariate_cols,
             "obs_var": ["recency", "frequency"],
+            "customer_id": self.data["customer_id"],
         }
-        mutable_coords = {"customer_id": self.data["customer_id"]}
-        with pm.Model(coords=coords, coords_mutable=mutable_coords) as self.model:
+        with pm.Model(coords=coords) as self.model:
             if self.purchase_covariate_cols:
-                purchase_data = pm.MutableData(
+                purchase_data = pm.Data(
                     "purchase_data",
                     self.data[self.purchase_covariate_cols],
                     dims=["customer_id", "purchase_covariate"],
@@ -273,7 +273,7 @@ class ParetoNBDModel(CLVModel):
 
             # churn priors
             if self.dropout_covariate_cols:
-                dropout_data = pm.MutableData(
+                dropout_data = pm.Data(
                     "dropout_data",
                     self.data[self.dropout_covariate_cols],
                     dims=["customer_id", "dropout_covariate"],

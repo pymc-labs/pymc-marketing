@@ -261,7 +261,7 @@ class TestParetoNBD:
             s = pm.Gamma(name="s", alpha=5, beta=1, size=s_size)
             beta = pm.Gamma(name="beta", alpha=5, beta=1, size=beta_size)
 
-            T = pm.MutableData(name="T", value=np.array(10))
+            T = pm.Data(name="T", value=np.array(10))
 
             ParetoNBD(
                 name="pareto_nbd",
@@ -436,7 +436,7 @@ class TestBetaGeoBetaBinom:
             gamma = pm.Normal(name="gamma", mu=gamma_true, sigma=1e-4, size=gamma_size)
             delta = pm.Normal(name="delta", mu=delta_true, sigma=1e-4, size=delta_size)
 
-            T = pm.MutableData(name="T", value=np.array(T_true))
+            T = pm.Data(name="T", value=np.array(T_true))
 
             BetaGeoBetaBinom(
                 name="beta_geo_beta_binom",
