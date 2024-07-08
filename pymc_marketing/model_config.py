@@ -16,6 +16,7 @@
 import warnings
 from typing import Any
 
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.prior import Prior
 
 
@@ -100,17 +101,25 @@ def parse_model_config(
 
     parse_errors = []
 
-    def handle_prior_config(name, prior_config):
+    def handle_config(name, prior_config):
         if name in non_distributions:
             return prior_config
 
         if isinstance(prior_config, Prior):
             return prior_config
 
+        # Try to parse the prior configuration as a Prior
         try:
             dist = Prior.from_json(prior_config)
         except Exception as e:
             parse_errors.append(f"Parameter {name}: {e}")
+
+            # Try to parse the prior configuration as HSGPKwargs
+            try:
+                dist = HSGPKwargs.from_json(prior_config)
+            except Exception as e:
+                parse_errors.append(f"Parameter {name}: {e}")
+
         else:
             msg = (
                 f"{name} is automatically converted to {dist}. "
@@ -121,7 +130,7 @@ def parse_model_config(
             return dist
 
     result = {
-        name: handle_prior_config(name, prior_config)
+        name: handle_config(name, prior_config)
         for name, prior_config in model_config.items()
     }
     if parse_errors:
