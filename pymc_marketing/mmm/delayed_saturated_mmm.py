@@ -242,11 +242,9 @@ class BaseMMM(BaseValidateMMM):
         date_data = X[self.date_column]
         channel_data = X[self.channel_columns]
 
-        self.coords_mutable: dict[str, Any] = {
-            "date": date_data,
-        }
         coords: dict[str, Any] = {
             "channel": self.channel_columns,
+            "date": date_data,
         }
 
         new_X_dict = {
@@ -388,20 +386,17 @@ class BaseMMM(BaseValidateMMM):
         self._generate_and_preprocess_model_data(X, y)
         with pm.Model(
             coords=self.model_coords,
-            coords_mutable=self.coords_mutable,
         ) as self.model:
             channel_data_ = pm.Data(
                 name="channel_data",
                 value=self.preprocessed_data["X"][self.channel_columns],
                 dims=("date", "channel"),
-                mutable=True,
             )
 
             target_ = pm.Data(
                 name="target",
                 value=self.preprocessed_data["y"],
                 dims="date",
-                mutable=True,
             )
             if self.time_varying_intercept | self.time_varying_media:
                 time_index = pm.Data(
@@ -482,7 +477,6 @@ class BaseMMM(BaseValidateMMM):
                     name="control_data",
                     value=self.preprocessed_data["X"][self.control_columns],
                     dims=("date", "control"),
-                    mutable=True,
                 )
 
                 control_contributions = pm.Deterministic(
@@ -500,7 +494,6 @@ class BaseMMM(BaseValidateMMM):
                         self.date_column
                     ].dt.dayofyear.to_numpy(),
                     dims="date",
-                    mutable=True,
                 )
 
                 def create_deterministic(x: pt.TensorVariable) -> None:
@@ -585,7 +578,6 @@ class BaseMMM(BaseValidateMMM):
         """
         coords = {
             **self.model_coords,
-            **self.coords_mutable,
         }
         with pm.Model(coords=coords):
             pm.Deterministic(
