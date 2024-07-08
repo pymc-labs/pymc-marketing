@@ -17,8 +17,8 @@ import pymc as pm
 import pytensor.tensor as pt
 import pytest
 
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.tvp import (
-    HSGPKwargs,
     create_time_varying_gp_multiplier,
     infer_time_index,
     time_varying_prior,

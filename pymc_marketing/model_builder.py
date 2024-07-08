@@ -12,7 +12,6 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-
 import hashlib
 import json
 import warnings
@@ -27,6 +26,7 @@ import pymc as pm
 import xarray as xr
 from pymc.util import RandomState
 
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.prior import Prior
 
 # If scikit-learn is available, use its data validator
@@ -293,7 +293,12 @@ class ModelBuilder(ABC):
             raise RuntimeError("No idata provided to set attrs on.")
 
         def default(x) -> dict[str, Any]:
-            return x.to_json() if isinstance(x, Prior) else x.__dict__
+            if isinstance(x, Prior):
+                return x.to_json()
+            elif isinstance(x, HSGPKwargs):
+                return x.model_dump(mode="json")
+            else:
+                return x.__dict__
 
         idata.attrs["id"] = self.id
         idata.attrs["model_type"] = self._model_type

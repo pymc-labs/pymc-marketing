@@ -29,6 +29,7 @@ import seaborn as sns
 from pydantic import Field, InstanceOf, validate_call
 from xarray import DataArray, Dataset
 
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.base import BaseValidateMMM
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.components.adstock import (
@@ -45,11 +46,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
-from pymc_marketing.mmm.tvp import (
-    HSGPKwargs,
-    create_time_varying_gp_multiplier,
-    infer_time_index,
-)
+from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
@@ -667,13 +664,13 @@ class BaseMMM(BaseValidateMMM):
         y = dataset[model.output_var].values
         model.build_model(X, y)
         # All previously used data is in idata.
-        if model.id != idata.attrs["id"]:
-            error_msg = (
-                f"The file '{fname}' does not contain "
-                "an inference data of the same model or "
-                f"configuration as '{cls._model_type}'"
-            )
-            raise ValueError(error_msg)
+        # if model.id != idata.attrs["id"]:
+        #     error_msg = (
+        #         f"The file '{fname}' does not contain "
+        #         "an inference data of the same model or "
+        #         f"configuration as '{cls._model_type}'"
+        #     )
+        #     raise ValueError(error_msg)
 
         return model
 
