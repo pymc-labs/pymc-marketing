@@ -16,6 +16,8 @@
 import warnings
 from typing import Any
 
+from pydantic_core import from_json
+
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.prior import Prior
 
@@ -111,12 +113,10 @@ def parse_model_config(
         # Try to parse the prior configuration as a Prior
         try:
             dist = Prior.from_json(prior_config)
-        except Exception as e:
-            parse_errors.append(f"Parameter {name}: {e}")
-
+        except Exception:
             # Try to parse the prior configuration as HSGPKwargs
             try:
-                dist = HSGPKwargs.from_json(prior_config)
+                dist = HSGPKwargs(**from_json(prior_config))
             except Exception as e:
                 parse_errors.append(f"Parameter {name}: {e}")
 
