@@ -5,17 +5,18 @@ Let's say your company sells many products into a busy market with many competit
 One way this is typically done is by releasing new products that you believe will appeal to customers more than your competitors’ products. But how do you know if your new products are successful? If your new product sells, those sales could be coming from a variety of sources:
 * **Market growth**: These are sales that come from new customers entering the market. This would be a desirable outcome.
 * **Incremental sales**: These are sales that come from customers who would have bought a competitor’s product if you hadn’t released your new product. This is also a good outcome.
-* **Cannibalistic sales**: These are 'bad' sales in that they come from customers who would have bought one of your existing products if you hadn’t released your new product. So while the new product's sales are non-zero, they are cannibalizing sales from your existing products.
+* **Cannibalistic sales**: These sales have come from customers who would have bought one of your existing products if you hadn’t released your new product. So while the new product's sales are non-zero, they are cannibalizing sales from your existing products.
 
 So we can imagine a busy marketplace of products, where each product has a certain number of sales. We also have many new products being released and old products being discontinued.
 
 In an effort to understand where sales are coming from we may have purchased retail sales data which gives us time series data on the sales of all products in the market. But how can we use this data to understand where our sales are coming from?
 
 If we can do this, then we could gain valuable insights that could inform our company’s product portfolio decisions. For example, we could:
-* Understand which products are driving market growth 👍
-* Understand which products are incremental, taking sales from competitors 👍
-* Understand which products are cannibalizing sales from other products 👎
+* Understand which products are driving market growth
+* Understand which products are incremental, taking sales from competitors
+* Understand which products are cannibalizing sales from other products
 
+We might be tempted to think of cannibalistic sales as 'bad'. But this need not be the case, it depends entirely on your product strategy. For example, it could be that you want to constantly improve your product line up, releasing products with better attributes which are superior to competitors. In this case, you would expect sales of older products to decrease as customers switch to the new products. This can be a desirable outcome.
 
 ## Causal inference in product incrementality
 
