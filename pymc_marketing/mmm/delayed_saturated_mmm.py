@@ -122,8 +122,8 @@ class BaseMMM(BaseValidateMMM):
     ) -> None:
         """Constructor method.
 
-        Parameters
-        ----------
+        Parameter
+        ---------
         date_column : str
             Column name of the date variable.
         channel_columns : List[str]
@@ -413,7 +413,7 @@ class BaseMMM(BaseValidateMMM):
                     time_index=time_index,
                     time_index_mid=self._time_index_mid,
                     time_resolution=self._time_resolution,
-                    model_config=self.model_config,
+                    hsgp_kwargs=self.model_config["intercept_tvp_config"],
                 )
                 intercept = pm.Deterministic(
                     name="intercept",
@@ -438,7 +438,7 @@ class BaseMMM(BaseValidateMMM):
                     time_index=time_index,
                     time_index_mid=self._time_index_mid,
                     time_resolution=self._time_resolution,
-                    model_config=self.model_config,
+                    hsgp_kwargs=self.model_config["media_tvp_config"],
                 )
                 channel_contributions = pm.Deterministic(
                     name="channel_contributions",
