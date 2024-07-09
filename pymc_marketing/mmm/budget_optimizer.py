@@ -17,6 +17,7 @@ import warnings
 from typing import Any
 
 import numpy as np
+from pydantic import BaseModel, ConfigDict, Field
 from scipy.optimize import minimize
 
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
@@ -30,7 +31,7 @@ class MinimizeException(Exception):
         super().__init__(message)
 
 
-class BudgetOptimizer:
+class BudgetOptimizer(BaseModel):
     """
     A class for optimizing budget allocation in a marketing mix model.
 
@@ -58,19 +59,21 @@ class BudgetOptimizer:
         Default is True.
     """
 
-    def __init__(
-        self,
-        adstock: AdstockTransformation,
-        saturation: SaturationTransformation,
-        num_days: int,
-        parameters: dict[str, dict[str, dict[str, float]]],
-        adstock_first: bool = True,
-    ):
-        self.adstock = adstock
-        self.saturation = saturation
-        self.num_days = num_days
-        self.parameters = parameters
-        self.adstock_first = adstock_first
+    adstock: AdstockTransformation = Field(
+        ..., description="The adstock transformation class."
+    )
+    saturation: SaturationTransformation = Field(
+        ..., description="The saturation transformation class."
+    )
+    num_days: int = Field(..., gt=0, description="The number of days.")
+    parameters: dict[str, dict[str, dict[str, float]]] = Field(
+        ..., description="A dictionary of parameters for each channel."
+    )
+    adstock_first: bool = Field(
+        True,
+        description="Whether to apply adstock transformation first or saturation transformation first.",
+    )
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def objective(self, budgets: list[float]) -> float:
         """

@@ -20,6 +20,7 @@ from typing import cast
 import arviz as az
 import pandas as pd
 import pymc as pm
+from pydantic import ConfigDict, InstanceOf, validate_call
 from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
 from pymc.model.core import Model
@@ -32,11 +33,12 @@ from pymc_marketing.model_config import ModelConfig, parse_model_config
 class CLVModel(ModelBuilder):
     _model_type = "CLVModel"
 
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def __init__(
         self,
         data: pd.DataFrame,
         *,
-        model_config: ModelConfig | None = None,
+        model_config: InstanceOf[ModelConfig] | None = None,
         sampler_config: dict | None = None,
         non_distributions: list[str] | None = None,
     ):
@@ -65,7 +67,7 @@ class CLVModel(ModelBuilder):
                 if data[required_col].nunique() != n:
                     raise ValueError(f"Column {required_col} has duplicate entries")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if not hasattr(self, "model"):
             return self._model_type
         else:

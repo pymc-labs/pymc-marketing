@@ -78,7 +78,13 @@ def test_allocate_budget(
     saturation = _get_saturation_function(function="logistic")
 
     # Create BudgetOptimizer Instance
-    optimizer = BudgetOptimizer(adstock, saturation, 30, parameters, adstock_first=True)
+    optimizer = BudgetOptimizer(
+        adstock=adstock,
+        saturation=saturation,
+        num_days=30,
+        parameters=parameters,
+        adstock_first=True,
+    )
 
     # Allocate Budget
     optimal_budgets, total_response = optimizer.allocate_budget(
@@ -118,7 +124,13 @@ def test_allocate_budget_zero_total(
 ):
     adstock = _get_adstock_function(function="geometric", l_max=4)
     saturation = _get_saturation_function(function="logistic")
-    optimizer = BudgetOptimizer(adstock, saturation, 30, parameters, adstock_first=True)
+    optimizer = BudgetOptimizer(
+        adstock=adstock,
+        saturation=saturation,
+        num_days=30,
+        parameters=parameters,
+        adstock_first=True,
+    )
     optimal_budgets, total_response = optimizer.allocate_budget(
         total_budget, budget_bounds
     )
@@ -147,7 +159,13 @@ def test_allocate_budget_custom_minimize_args(minimize_mock) -> None:
 
     adstock = _get_adstock_function(function="geometric", l_max=4)
     saturation = _get_saturation_function(function="logistic")
-    optimizer = BudgetOptimizer(adstock, saturation, 30, parameters, adstock_first=True)
+    optimizer = optimizer = BudgetOptimizer(
+        adstock=adstock,
+        saturation=saturation,
+        num_days=30,
+        parameters=parameters,
+        adstock_first=True,
+    )
     optimizer.allocate_budget(
         total_budget, budget_bounds, minimize_kwargs=minimize_kwargs
     )
@@ -196,7 +214,13 @@ def test_allocate_budget_infeasible_constraints(
 ):
     adstock = _get_adstock_function(function="geometric", l_max=4)
     saturation = _get_saturation_function(function="logistic")
-    optimizer = BudgetOptimizer(adstock, saturation, 30, parameters, adstock_first=True)
+    optimizer = optimizer = BudgetOptimizer(
+        adstock=adstock,
+        saturation=saturation,
+        num_days=30,
+        parameters=parameters,
+        adstock_first=True,
+    )
 
     with pytest.raises(MinimizeException, match="Optimization failed"):
         optimizer.allocate_budget(total_budget, budget_bounds, custom_constraints)

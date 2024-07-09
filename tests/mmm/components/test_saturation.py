@@ -18,6 +18,7 @@ import pymc as pm
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
+from pydantic import ValidationError
 
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
@@ -209,3 +210,20 @@ def test_sample_curve_with_additional_dims(
 
     assert curve.coords["channel"].to_numpy().tolist() == ["C1", "C2", "C3"]
     assert "random_dim" not in curve.coords
+
+
+@pytest.mark.parametrize(
+    argnames="max_value", argvalues=[0, -1], ids=["zero", "negative"]
+)
+def test_sample_curve_with_bad_max_value(max_value) -> None:
+    dummy_distribution = Prior("HalfNormal", dims="channel")
+    priors = {
+        "alpha": dummy_distribution,
+        "lam": dummy_distribution,
+    }
+    saturation = MichaelisMentenSaturation(priors=priors)
+
+    with pytest.raises(ValidationError):
+        saturation.sample_curve(
+            parameters=mock_menten_parameters_with_additional_dim, max_value=max_value
+        )
