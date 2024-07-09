@@ -388,7 +388,7 @@ class MMMModelBuilder(ModelBuilder):
 
             if original_scale:
                 likelihood_hdi = self.get_target_transformer().inverse_transform(
-                    Xt=likelihood_hdi
+                    likelihood_hdi
                 )
 
             ax.fill_between(

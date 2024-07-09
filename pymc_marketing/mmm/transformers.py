@@ -437,10 +437,10 @@ def weibull_adstock(
 
 
 def logistic_saturation(x, lam: npt.NDArray[np.float64] | float = 0.5):
-    """Logistic saturation transformation.
+    r"""Logistic saturation transformation.
 
     .. math::
-        f(x) = \\frac{1 - e^{-\lambda x}}{1 + e^{-\lambda x}}
+        f(x) = \frac{1 - e^{-\lambda x}}{1 + e^{-\lambda x}}
 
     .. plot::
         :context: close-figs
@@ -474,7 +474,7 @@ def logistic_saturation(x, lam: npt.NDArray[np.float64] | float = 0.5):
     -------
     tensor
         Transformed tensor.
-    """  # noqa: W605
+    """
     return (1 - pt.exp(-lam * x)) / (1 + pt.exp(-lam * x))
 
 

@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import warnings
+
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
@@ -30,14 +32,16 @@ from pymc_marketing.mmm.components.adstock import (
 
 
 def adstocks() -> list[AdstockTransformation]:
-    return [
-        DelayedAdstock(l_max=10),
-        GeometricAdstock(l_max=10),
-        WeibullAdstock(l_max=10, kind="PDF"),
-        WeibullAdstock(l_max=10, kind="CDF"),
-        WeibullPDFAdstock(l_max=10),
-        WeibullCDFAdstock(l_max=10),
-    ]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return [
+            DelayedAdstock(l_max=10),
+            GeometricAdstock(l_max=10),
+            WeibullAdstock(l_max=10, kind="PDF"),
+            WeibullAdstock(l_max=10, kind="CDF"),
+            WeibullPDFAdstock(l_max=10),
+            WeibullCDFAdstock(l_max=10),
+        ]
 
 
 @pytest.fixture

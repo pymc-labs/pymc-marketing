@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import warnings
+
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -55,14 +57,20 @@ def mock_fit_base(model, X: pd.DataFrame, y: np.ndarray, **kwargs):
     with model.model:
         idata = pm.sample_prior_predictive(random_seed=rng, **kwargs)
 
-    idata.add_groups(
-        {
-            "posterior": idata.prior,
-            "fit_data": pd.concat(
-                [X, pd.Series(y, index=X.index, name="y")], axis=1
-            ).to_xarray(),
-        }
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=UserWarning,
+            message="The group fit_data is not defined in the InferenceData scheme",
+        )
+        idata.add_groups(
+            {
+                "posterior": idata.prior,
+                "fit_data": pd.concat(
+                    [X, pd.Series(y, index=X.index, name="y")], axis=1
+                ).to_xarray(),
+            }
+        )
     model.idata = idata
     model.set_idata_attrs(idata=idata)
 
@@ -174,14 +182,20 @@ def mock_fit(model: MMM, X: pd.DataFrame, y: np.ndarray, **kwargs):
     model.preprocess("X", X)
     model.preprocess("y", y)
 
-    idata.add_groups(
-        {
-            "posterior": idata.prior,
-            "fit_data": pd.concat(
-                [X, pd.Series(y, index=X.index, name="y")], axis=1
-            ).to_xarray(),
-        }
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=UserWarning,
+            message="The group fit_data is not defined in the InferenceData scheme",
+        )
+        idata.add_groups(
+            {
+                "posterior": idata.prior,
+                "fit_data": pd.concat(
+                    [X, pd.Series(y, index=X.index, name="y")], axis=1
+                ).to_xarray(),
+            }
+        )
     model.idata = idata
     model.set_idata_attrs(idata=idata)
 

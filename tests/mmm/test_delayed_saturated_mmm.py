@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import os
+import warnings
 
 import arviz as az
 import numpy as np
@@ -39,14 +40,20 @@ def mock_fit(model, X: pd.DataFrame, y: np.ndarray, **kwargs):
     model.preprocess("X", X)
     model.preprocess("y", y)
 
-    idata.add_groups(
-        {
-            "posterior": idata.prior,
-            "fit_data": pd.concat(
-                [X, pd.Series(y, index=X.index, name="y")], axis=1
-            ).to_xarray(),
-        }
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=UserWarning,
+            message="The group fit_data is not defined in the InferenceData scheme",
+        )
+        idata.add_groups(
+            {
+                "posterior": idata.prior,
+                "fit_data": pd.concat(
+                    [X, pd.Series(y, index=X.index, name="y")], axis=1
+                ).to_xarray(),
+            }
+        )
     model.idata = idata
     model.set_idata_attrs(idata=idata)
 

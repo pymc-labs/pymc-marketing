@@ -192,11 +192,16 @@ class CLVModel(ModelBuilder):
     @classmethod
     def _build_with_idata(cls, idata: az.InferenceData):
         dataset = idata.fit_data.to_dataframe()
-        model = cls(
-            dataset,
-            model_config=json.loads(idata.attrs["model_config"]),  # type: ignore
-            sampler_config=json.loads(idata.attrs["sampler_config"]),
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=DeprecationWarning,
+            )
+            model = cls(
+                dataset,
+                model_config=json.loads(idata.attrs["model_config"]),  # type: ignore
+                sampler_config=json.loads(idata.attrs["sampler_config"]),
+            )
         model.idata = idata
         model.build_model()  # type: ignore
         if model.id != idata.attrs["id"]:
