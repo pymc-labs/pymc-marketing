@@ -141,8 +141,6 @@ def time_varying_prior(
     if hsgp_kwargs is None:
         hsgp_kwargs = HSGPKwargs()
 
-    elif isinstance(hsgp_kwargs, dict):
-        hsgp_kwargs = HSGPKwargs(**hsgp_kwargs)
 
     if X_mid is None:
         X_mid = float(X.mean().eval())
