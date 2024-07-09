@@ -236,7 +236,13 @@ class BaseMMM(BaseValidateMMM):
         _time_resolution: int
             The time resolution of the date index. Used by TVP.
         """
-        date_data = X[self.date_column]
+        try:
+            date_data = pd.to_datetime(X[self.date_column])
+        except Exception as e:
+            raise ValueError(
+                f"Could not convert {self.date_column} to datetime. Please check the date format."
+            ) from e
+
         channel_data = X[self.channel_columns]
 
         coords: dict[str, Any] = {

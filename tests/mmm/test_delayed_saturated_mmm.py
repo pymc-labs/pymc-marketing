@@ -82,6 +82,23 @@ def toy_X(generate_data) -> pd.DataFrame:
     return generate_data(date_data)
 
 
+@pytest.fixture(scope="module")
+def toy_X_with_bad_dates() -> pd.DataFrame:
+    bad_date_data = ["a", "b", "c", "d", "e"]
+    n: int = len(bad_date_data)
+    return pd.DataFrame(
+        data={
+            "date": bad_date_data,
+            "channel_1": rng.integers(low=0, high=400, size=n),
+            "channel_2": rng.integers(low=0, high=50, size=n),
+            "control_1": rng.gamma(shape=1000, scale=500, size=n),
+            "control_2": rng.gamma(shape=100, scale=5, size=n),
+            "other_column_1": rng.integers(low=0, high=100, size=n),
+            "other_column_2": rng.normal(loc=0, scale=1, size=n),
+        }
+    )
+
+
 @pytest.fixture(scope="class")
 def model_config_requiring_serialization() -> dict:
     model_config = {
@@ -205,6 +222,22 @@ class TestDelayedSaturatedMMM:
 
         assert model.sampler_config == model2.sampler_config
         os.remove("test_save_load")
+
+    def test_bad_date_column(self, toy_X_with_bad_dates) -> None:
+        with pytest.raises(
+            ValueError,
+            match="Could not convert bad_date_column to datetime. Please check the date format.",
+        ):
+            my_mmm = MMM(
+                date_column="bad_date_column",
+                channel_columns=["channel_1", "channel_2"],
+                adstock_max_lag=4,
+                control_columns=["control_1", "control_2"],
+                adstock="geometric",
+                saturation="logistic",
+            )
+            y = np.ones(toy_X_with_bad_dates.shape[0])
+            my_mmm.build_model(X=toy_X_with_bad_dates, y=y)
 
     @pytest.mark.parametrize(
         argnames="adstock_max_lag",
