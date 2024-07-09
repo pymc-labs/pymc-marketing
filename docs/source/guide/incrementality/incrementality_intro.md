@@ -1,4 +1,4 @@
-# Introduction to product incrementality
+# Introduction to causal product incrementality analysis
 
 Let's say your company sells many products into a busy market with many competitors. Over time, both you and your competitors have been releasing new products and discontinuing old ones. Your goal, depending on your company’s strategy, might be to increase market share, sales volume, or profit margins.
 
