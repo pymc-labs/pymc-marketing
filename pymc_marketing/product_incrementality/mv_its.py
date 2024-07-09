@@ -32,12 +32,14 @@ class MVITS:
         background_sales: list[str],
         innovation_sales: str,
         rng=42,
+        sample_kwargs: dict | None = None,
     ):
         self.data = data
         self.treatment_time = treatment_time
         self.background_sales = background_sales
         self.innovation_sales = innovation_sales
         self.rng = rng
+        self.sample_kwargs = sample_kwargs if sample_kwargs is not None else {}
 
         # build the model - we are fitting on all of the data
         self.model = build_2_param_model(
@@ -49,10 +51,12 @@ class MVITS:
         # sample from prior, posterior, posterior predictive
         with self.model:
             self.idata = pm.sample_prior_predictive(random_seed=self.rng)
-            self.idata.extend(pm.sample(random_seed=self.rng))
+            self.idata.extend(pm.sample(**self.sample_kwargs, random_seed=self.rng))
             self.idata.extend(
                 pm.sample_posterior_predictive(
-                    self.idata, var_names=["mu", "y"], random_seed=self.rng
+                    self.idata,
+                    var_names=["mu", "y"],
+                    random_seed=self.rng,
                 )
             )
 
