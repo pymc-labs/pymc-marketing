@@ -91,6 +91,7 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
+from pydantic import validate_call
 from pymc.distributions.shape_utils import Dims
 
 
@@ -254,6 +255,7 @@ class Prior:
     pymc_distribution: type[pm.Distribution]
     pytensor_transform: Callable[[pt.TensorLike], pt.TensorLike] | None
 
+    @validate_call
     def __init__(
         self,
         distribution: str,
@@ -281,9 +283,6 @@ class Prior:
         if hasattr(self, "_distribution"):
             raise AttributeError("Can't change the distribution")
 
-        if not isinstance(distribution, str):
-            raise ValueError("Distribution must be a string")
-
         self._distribution = distribution
         self.pymc_distribution = _get_pymc_distribution(distribution)
 
@@ -294,9 +293,6 @@ class Prior:
 
     @transform.setter
     def transform(self, transform: str | None) -> None:
-        if not isinstance(transform, str) and transform is not None:
-            raise ValueError("Transform must be a string or None")
-
         self._transform = transform
         self.pytensor_transform = not transform or _get_transform(transform)  # type: ignore
 

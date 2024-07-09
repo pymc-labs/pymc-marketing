@@ -16,7 +16,7 @@
 import json
 import warnings
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -26,8 +26,10 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import seaborn as sns
+from pydantic import Field, InstanceOf, validate_call
 from xarray import DataArray, Dataset
 
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.base import BaseValidateMMM
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.components.adstock import (
@@ -69,33 +71,65 @@ class BaseMMM(BaseValidateMMM):
     _model_type: str = "BaseValidateMMM"
     version: str = "0.0.3"
 
+    @validate_call
     def __init__(
         self,
-        date_column: str,
-        channel_columns: list[str],
-        adstock_max_lag: int,
-        adstock: str | AdstockTransformation,
-        saturation: str | SaturationTransformation,
-        time_varying_intercept: bool = False,
-        time_varying_media: bool = False,
-        model_config: dict | None = None,
-        sampler_config: dict | None = None,
-        validate_data: bool = True,
-        control_columns: list[str] | None = None,
-        yearly_seasonality: int | None = None,
-        adstock_first: bool = True,
+        date_column: str = Field(..., description="Column name of the date variable."),
+        channel_columns: list[str] = Field(
+            min_length=1, description="Column names of the media channel variables."
+        ),
+        adstock_max_lag: int = Field(
+            ...,
+            gt=0,
+            description="Number of lags to consider in the adstock transformation.",
+        ),
+        adstock: str | InstanceOf[AdstockTransformation] = Field(
+            ..., description="Type of adstock transformation to apply."
+        ),
+        saturation: str | InstanceOf[SaturationTransformation] = Field(
+            ..., description="Type of saturation transformation to apply."
+        ),
+        time_varying_intercept: bool = Field(
+            False, description="Whether to consider time-varying intercept."
+        ),
+        time_varying_media: bool = Field(
+            False, description="Whether to consider time-varying media contributions."
+        ),
+        model_config: dict | None = Field(None, description="Model configuration."),
+        sampler_config: dict | None = Field(None, description="Sampler configuration."),
+        validate_data: bool = Field(
+            True, description="Whether to validate the data before fitting to model"
+        ),
+        control_columns: Annotated[
+            list[str],
+            Field(
+                min_length=1,
+                description="Column names of control variables to be added as additional regressors",
+            ),
+        ]
+        | None = None,
+        yearly_seasonality: Annotated[
+            int,
+            Field(
+                gt=0, description="Number of Fourier modes to model yearly seasonality."
+            ),
+        ]
+        | None = None,
+        adstock_first: bool = Field(
+            True, description="Whether to apply adstock first."
+        ),
         **kwargs,
     ) -> None:
         """Constructor method.
 
-        Parameters
-        ----------
+        Parameter
+        ---------
         date_column : str
             Column name of the date variable.
         channel_columns : List[str]
             Column names of the media channel variables.
         adstock_max_lag : int, optional
-            Number of lags to consider in the adstock transformation, by default 4
+            Number of lags to consider in the adstock transformation.
         adstock : str | AdstockTransformation
             Type of adstock transformation to apply.
         saturation : str | SaturationTransformation
@@ -108,12 +142,12 @@ class BaseMMM(BaseValidateMMM):
             Whether to consider time-varying media contributions, by default False.
             The `time-varying-media` creates a time media variable centered around 1,
             this variable acts as a global multiplier (scaling factor) for all channels,
-            meaning all media channels share the same latent fluctiation.
+            meaning all media channels share the same latent fluctuation.
         model_config : Dictionary, optional
-            dictionary of parameters that initialise model configuration.
+            Dictionary of parameters that initialise model configuration.
             Class-default defined by the user default_model_config method.
         sampler_config : Dictionary, optional
-            dictionary of parameters that initialise sampler configuration.
+            Dictionary of parameters that initialise sampler configuration.
             Class-default defined by the user default_sampler_config method.
         validate_data : bool, optional
             Whether to validate the data before fitting to model, by default True.
@@ -121,6 +155,8 @@ class BaseMMM(BaseValidateMMM):
             Column names of control variables to be added as additional regressors, by default None
         yearly_seasonality : Optional[int], optional
             Number of Fourier modes to model yearly seasonality, by default None.
+        adstock_first : bool, optional
+            Whether to apply adstock first, by default True.
         """
         self.control_columns = control_columns
         self.adstock_max_lag = adstock_max_lag
@@ -136,7 +172,7 @@ class BaseMMM(BaseValidateMMM):
         model_config = model_config or {}
         model_config = parse_model_config(
             model_config,  # type: ignore
-            non_distributions=["intercept_tvp_config", "media_tvp_config"],
+            hsgp_kwargs_fields=["intercept_tvp_config", "media_tvp_config"],
         )
 
         if model_config is not None:
@@ -157,7 +193,7 @@ class BaseMMM(BaseValidateMMM):
                 n_order=self.yearly_seasonality,
                 prefix="fourier_mode",
                 prior=self.model_config["gamma_fourier"],
-                name="gamma_fourier",
+                variable_name="gamma_fourier",
             )
 
     @property
@@ -377,7 +413,7 @@ class BaseMMM(BaseValidateMMM):
                     time_index=time_index,
                     time_index_mid=self._time_index_mid,
                     time_resolution=self._time_resolution,
-                    model_config=self.model_config,
+                    hsgp_kwargs=self.model_config["intercept_tvp_config"],
                 )
                 intercept = pm.Deterministic(
                     name="intercept",
@@ -402,7 +438,7 @@ class BaseMMM(BaseValidateMMM):
                     time_index=time_index,
                     time_index_mid=self._time_index_mid,
                     time_resolution=self._time_resolution,
-                    model_config=self.model_config,
+                    hsgp_kwargs=self.model_config["media_tvp_config"],
                 )
                 channel_contributions = pm.Deterministic(
                     name="channel_contributions",
@@ -493,23 +529,23 @@ class BaseMMM(BaseValidateMMM):
         }
 
         if self.time_varying_intercept:
-            base_config["intercept_tvp_config"] = {  # type: ignore
-                "m": 200,
-                "L": None,
-                "eta_lam": 1,
-                "ls_mu": None,
-                "ls_sigma": 10,
-                "cov_func": None,
-            }
+            base_config["intercept_tvp_config"] = HSGPKwargs(
+                m=200,
+                L=None,
+                eta_lam=1,
+                ls_mu=5,
+                ls_sigma=10,
+                cov_func=None,
+            )
         if self.time_varying_media:
-            base_config["media_tvp_config"] = {  # type: ignore
-                "m": 200,
-                "L": None,
-                "eta_lam": 1,
-                "ls_mu": None,
-                "ls_sigma": 10,
-                "cov_func": None,
-            }
+            base_config["media_tvp_config"] = HSGPKwargs(
+                m=200,
+                L=None,
+                eta_lam=1,
+                ls_mu=5,
+                ls_sigma=10,
+                cov_func=None,
+            )
 
         for media_transform in [self.adstock, self.saturation]:
             for dist in media_transform.function_priors.values():
@@ -883,8 +919,8 @@ class MMM(
     .. [2] Orduz, J. `"Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns" <https://juanitorduz.github.io/pymc_mmm/>`_.
     """  # noqa: E501
 
-    _model_type = "MMM"
-    version = "0.0.1"
+    _model_type: str = "MMM"
+    version: str = "0.0.1"
 
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float64]
@@ -2146,10 +2182,11 @@ class MMM(
 
 
 class DelayedSaturatedMMM(MMM):
-    _model_type = "MMM"
-    _model_name = "DelayedSaturatedMMM"
-    version = "0.0.3"
+    _model_type: str = "MMM"
+    _model_name: str = "DelayedSaturatedMMM"
+    version: str = "0.0.3"
 
+    @validate_call
     def __init__(
         self,
         date_column: str,

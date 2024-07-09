@@ -1046,7 +1046,6 @@ def test_save_load_with_tvp(
     file = "tmp-model"
     mmm.save(file)
     loaded_mmm = MMM.load(file)
-
     assert mmm.time_varying_intercept == loaded_mmm.time_varying_intercept
     assert mmm.time_varying_intercept == time_varying_intercept
     assert mmm.time_varying_media == loaded_mmm.time_varying_media
