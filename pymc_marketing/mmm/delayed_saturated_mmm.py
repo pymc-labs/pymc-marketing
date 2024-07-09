@@ -125,7 +125,7 @@ class BaseMMM(BaseValidateMMM):
         Parameter
         ---------
         date_column : str
-            Column name of the date variable.
+            Column name of the date variable. Must be parsable using ~pandas.to_datetime.
         channel_columns : List[str]
             Column names of the media channel variables.
         adstock_max_lag : int, optional
