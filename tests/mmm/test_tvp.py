@@ -129,7 +129,7 @@ def test_create_time_varying_intercept(coords, model_config):
             time_index=time_index,
             time_index_mid=time_index_mid,
             time_resolution=time_resolution,
-            model_config=model_config,
+            hsgp_kwargs=model_config["intercept_tvp_config"],
         )
         assert isinstance(result, pt.TensorVariable)
 
