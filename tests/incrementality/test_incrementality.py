@@ -37,41 +37,6 @@ scenario = {
 sample_kwargs = {"tune": 100, "draws": 100}
 
 
-def generate_data(
-    total_sales_mu: int,
-    total_sales_sigma: float,
-    treatment_time: int,
-    n_observations: int,
-    market_shares_before,
-    market_shares_after,
-    market_share_labels,
-):
-    rates = np.array(
-        treatment_time * market_shares_before
-        + (n_observations - treatment_time) * market_shares_after
-    )
-
-    # Generate total demand (sales) as normally distributed around some average level of
-    # sales
-    total = (
-        rng.normal(loc=total_sales_mu, scale=total_sales_sigma, size=n_observations)
-    ).astype(int)
-
-    # Ensure total sales are never negative
-    total[total < 0] = 0
-
-    # Generate sales counts
-    counts = rng.multinomial(total, rates)
-
-    # Convert to DataFrame
-    data = pd.DataFrame(counts)
-    data.columns = market_share_labels
-    data.columns.name = "product"
-    data.index.name = "day"
-    data["pre"] = data.index < treatment_time
-    return data
-
-
 def test_plot_data():
     data = generate_constrained_data(**scenario)
     ax = MVITS.plot_data(data)
