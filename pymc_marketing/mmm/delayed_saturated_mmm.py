@@ -16,7 +16,7 @@
 import json
 import warnings
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -26,9 +26,10 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import seaborn as sns
+from pydantic import Field, InstanceOf, validate_call
 from xarray import DataArray, Dataset
 
-from pymc_marketing.constants import DAYS_IN_YEAR
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.base import BaseValidateMMM
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.components.adstock import (
@@ -39,6 +40,7 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     _get_saturation_function,
 )
+from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
@@ -48,7 +50,6 @@ from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
-    generate_fourier_modes,
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
 from pymc_marketing.model_config import parse_model_config
@@ -70,33 +71,65 @@ class BaseMMM(BaseValidateMMM):
     _model_type: str = "BaseValidateMMM"
     version: str = "0.0.3"
 
+    @validate_call
     def __init__(
         self,
-        date_column: str,
-        channel_columns: list[str],
-        adstock_max_lag: int,
-        adstock: str | AdstockTransformation,
-        saturation: str | SaturationTransformation,
-        time_varying_intercept: bool = False,
-        time_varying_media: bool = False,
-        model_config: dict | None = None,
-        sampler_config: dict | None = None,
-        validate_data: bool = True,
-        control_columns: list[str] | None = None,
-        yearly_seasonality: int | None = None,
-        adstock_first: bool = True,
+        date_column: str = Field(..., description="Column name of the date variable."),
+        channel_columns: list[str] = Field(
+            min_length=1, description="Column names of the media channel variables."
+        ),
+        adstock_max_lag: int = Field(
+            ...,
+            gt=0,
+            description="Number of lags to consider in the adstock transformation.",
+        ),
+        adstock: str | InstanceOf[AdstockTransformation] = Field(
+            ..., description="Type of adstock transformation to apply."
+        ),
+        saturation: str | InstanceOf[SaturationTransformation] = Field(
+            ..., description="Type of saturation transformation to apply."
+        ),
+        time_varying_intercept: bool = Field(
+            False, description="Whether to consider time-varying intercept."
+        ),
+        time_varying_media: bool = Field(
+            False, description="Whether to consider time-varying media contributions."
+        ),
+        model_config: dict | None = Field(None, description="Model configuration."),
+        sampler_config: dict | None = Field(None, description="Sampler configuration."),
+        validate_data: bool = Field(
+            True, description="Whether to validate the data before fitting to model"
+        ),
+        control_columns: Annotated[
+            list[str],
+            Field(
+                min_length=1,
+                description="Column names of control variables to be added as additional regressors",
+            ),
+        ]
+        | None = None,
+        yearly_seasonality: Annotated[
+            int,
+            Field(
+                gt=0, description="Number of Fourier modes to model yearly seasonality."
+            ),
+        ]
+        | None = None,
+        adstock_first: bool = Field(
+            True, description="Whether to apply adstock first."
+        ),
         **kwargs,
     ) -> None:
         """Constructor method.
 
-        Parameters
-        ----------
+        Parameter
+        ---------
         date_column : str
-            Column name of the date variable.
+            Column name of the date variable. Must be parsable using ~pandas.to_datetime.
         channel_columns : List[str]
             Column names of the media channel variables.
         adstock_max_lag : int, optional
-            Number of lags to consider in the adstock transformation, by default 4
+            Number of lags to consider in the adstock transformation.
         adstock : str | AdstockTransformation
             Type of adstock transformation to apply.
         saturation : str | SaturationTransformation
@@ -109,12 +142,12 @@ class BaseMMM(BaseValidateMMM):
             Whether to consider time-varying media contributions, by default False.
             The `time-varying-media` creates a time media variable centered around 1,
             this variable acts as a global multiplier (scaling factor) for all channels,
-            meaning all media channels share the same latent fluctiation.
+            meaning all media channels share the same latent fluctuation.
         model_config : Dictionary, optional
-            dictionary of parameters that initialise model configuration.
+            Dictionary of parameters that initialise model configuration.
             Class-default defined by the user default_model_config method.
         sampler_config : Dictionary, optional
-            dictionary of parameters that initialise sampler configuration.
+            Dictionary of parameters that initialise sampler configuration.
             Class-default defined by the user default_sampler_config method.
         validate_data : bool, optional
             Whether to validate the data before fitting to model, by default True.
@@ -122,12 +155,13 @@ class BaseMMM(BaseValidateMMM):
             Column names of control variables to be added as additional regressors, by default None
         yearly_seasonality : Optional[int], optional
             Number of Fourier modes to model yearly seasonality, by default None.
+        adstock_first : bool, optional
+            Whether to apply adstock first, by default True.
         """
         self.control_columns = control_columns
         self.adstock_max_lag = adstock_max_lag
         self.time_varying_intercept = time_varying_intercept
         self.time_varying_media = time_varying_media
-        self.yearly_seasonality = yearly_seasonality
         self.date_column = date_column
         self.validate_data = validate_data
 
@@ -138,7 +172,7 @@ class BaseMMM(BaseValidateMMM):
         model_config = model_config or {}
         model_config = parse_model_config(
             model_config,  # type: ignore
-            non_distributions=["intercept_tvp_config", "media_tvp_config"],
+            hsgp_kwargs_fields=["intercept_tvp_config", "media_tvp_config"],
         )
 
         if model_config is not None:
@@ -152,6 +186,15 @@ class BaseMMM(BaseValidateMMM):
             sampler_config=sampler_config,
             adstock_max_lag=adstock_max_lag,
         )
+
+        self.yearly_seasonality = yearly_seasonality
+        if self.yearly_seasonality is not None:
+            self.yearly_fourier = YearlyFourier(
+                n_order=self.yearly_seasonality,
+                prefix="fourier_mode",
+                prior=self.model_config["gamma_fourier"],
+                variable_name="gamma_fourier",
+            )
 
     @property
     def default_sampler_config(self) -> dict:
@@ -193,14 +236,18 @@ class BaseMMM(BaseValidateMMM):
         _time_resolution: int
             The time resolution of the date index. Used by TVP.
         """
-        date_data = X[self.date_column]
+        try:
+            date_data = pd.to_datetime(X[self.date_column])
+        except Exception as e:
+            raise ValueError(
+                f"Could not convert {self.date_column} to datetime. Please check the date format."
+            ) from e
+
         channel_data = X[self.channel_columns]
 
-        self.coords_mutable: dict[str, Any] = {
-            "date": date_data,
-        }
         coords: dict[str, Any] = {
             "channel": self.channel_columns,
+            "date": date_data,
         }
 
         new_X_dict = {
@@ -213,13 +260,6 @@ class BaseMMM(BaseValidateMMM):
             control_data = X[self.control_columns]
             coords["control"] = self.control_columns
             X_data = pd.concat([X_data, control_data], axis=1)
-
-        fourier_features: pd.DataFrame | None = None
-        if self.yearly_seasonality is not None:
-            fourier_features = self._get_fourier_models_data(X=X)
-            self.fourier_columns = fourier_features.columns
-            coords["fourier_mode"] = fourier_features.columns.to_numpy()
-            X_data = pd.concat([X_data, fourier_features], axis=1)
 
         self.model_coords = coords
         if self.validate_data:
@@ -250,6 +290,8 @@ class BaseMMM(BaseValidateMMM):
         idata.attrs["adstock_max_lag"] = json.dumps(self.adstock_max_lag)
         idata.attrs["validate_data"] = json.dumps(self.validate_data)
         idata.attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
+        idata.attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
+        idata.attrs["time_varying_media"] = json.dumps(self.time_varying_media)
 
     def forward_pass(
         self, x: pt.TensorVariable | npt.NDArray[np.float64]
@@ -347,20 +389,17 @@ class BaseMMM(BaseValidateMMM):
         self._generate_and_preprocess_model_data(X, y)
         with pm.Model(
             coords=self.model_coords,
-            coords_mutable=self.coords_mutable,
         ) as self.model:
             channel_data_ = pm.Data(
                 name="channel_data",
                 value=self.preprocessed_data["X"][self.channel_columns],
                 dims=("date", "channel"),
-                mutable=True,
             )
 
             target_ = pm.Data(
                 name="target",
                 value=self.preprocessed_data["y"],
                 dims="date",
-                mutable=True,
             )
             if self.time_varying_intercept | self.time_varying_media:
                 time_index = pm.Data(
@@ -380,7 +419,7 @@ class BaseMMM(BaseValidateMMM):
                     time_index=time_index,
                     time_index_mid=self._time_index_mid,
                     time_resolution=self._time_resolution,
-                    model_config=self.model_config,
+                    hsgp_kwargs=self.model_config["intercept_tvp_config"],
                 )
                 intercept = pm.Deterministic(
                     name="intercept",
@@ -405,7 +444,7 @@ class BaseMMM(BaseValidateMMM):
                     time_index=time_index,
                     time_index_mid=self._time_index_mid,
                     time_resolution=self._time_resolution,
-                    model_config=self.model_config,
+                    hsgp_kwargs=self.model_config["media_tvp_config"],
                 )
                 channel_contributions = pm.Deterministic(
                     name="channel_contributions",
@@ -441,7 +480,6 @@ class BaseMMM(BaseValidateMMM):
                     name="control_data",
                     value=self.preprocessed_data["X"][self.control_columns],
                     dims=("date", "control"),
-                    mutable=True,
                 )
 
                 control_contributions = pm.Deterministic(
@@ -452,38 +490,28 @@ class BaseMMM(BaseValidateMMM):
 
                 mu_var += control_contributions.sum(axis=-1)
 
-            if (
-                hasattr(self, "fourier_columns")
-                and self.fourier_columns is not None
-                and len(self.fourier_columns) > 0
-                and all(
-                    column in self.preprocessed_data["X"].columns
-                    for column in self.fourier_columns
-                )
-            ):
-                fourier_data_ = pm.Data(
-                    name="fourier_data",
-                    value=self.preprocessed_data["X"][self.fourier_columns],
-                    dims=("date", "fourier_mode"),
-                    mutable=True,
-                )
-                if self.model_config["gamma_fourier"].dims != ("fourier_mode",):
-                    self.model_config["gamma_fourier"].dims = "fourier_mode"
-
-                gamma_fourier = self.model_config["gamma_fourier"].create_variable(
-                    name="gamma_fourier"
+            if self.yearly_seasonality is not None:
+                dayofyear = pm.Data(
+                    name="dayofyear",
+                    value=self.preprocessed_data["X"][
+                        self.date_column
+                    ].dt.dayofyear.to_numpy(),
+                    dims="date",
                 )
 
-                fourier_contribution = pm.Deterministic(
-                    name="fourier_contributions",
-                    var=fourier_data_ * gamma_fourier,
-                    dims=("date", "fourier_mode"),
-                )
+                def create_deterministic(x: pt.TensorVariable) -> None:
+                    pm.Deterministic(
+                        "fourier_contributions",
+                        x,
+                        dims=("date", *self.yearly_fourier.prior.dims),
+                    )
 
                 yearly_seasonality_contribution = pm.Deterministic(
                     name="yearly_seasonality_contribution",
-                    var=fourier_contribution.sum(axis=-1),
-                    dims=("date"),
+                    var=self.yearly_fourier.apply(
+                        dayofyear, result_callback=create_deterministic
+                    ),
+                    dims="date",
                 )
 
                 mu_var += yearly_seasonality_contribution
@@ -507,23 +535,23 @@ class BaseMMM(BaseValidateMMM):
         }
 
         if self.time_varying_intercept:
-            base_config["intercept_tvp_config"] = {  # type: ignore
-                "m": 200,
-                "L": None,
-                "eta_lam": 1,
-                "ls_mu": None,
-                "ls_sigma": 10,
-                "cov_func": None,
-            }
+            base_config["intercept_tvp_config"] = HSGPKwargs(
+                m=200,
+                L=None,
+                eta_lam=1,
+                ls_mu=5,
+                ls_sigma=10,
+                cov_func=None,
+            )
         if self.time_varying_media:
-            base_config["media_tvp_config"] = {  # type: ignore
-                "m": 200,
-                "L": None,
-                "eta_lam": 1,
-                "ls_mu": None,
-                "ls_sigma": 10,
-                "cov_func": None,
-            }
+            base_config["media_tvp_config"] = HSGPKwargs(
+                m=200,
+                L=None,
+                eta_lam=1,
+                ls_mu=5,
+                ls_sigma=10,
+                cov_func=None,
+            )
 
         for media_transform in [self.adstock, self.saturation]:
             for dist in media_transform.function_priors.values():
@@ -535,36 +563,6 @@ class BaseMMM(BaseValidateMMM):
             **self.adstock.model_config,
             **self.saturation.model_config,
         }
-
-    def _get_fourier_models_data(self, X) -> pd.DataFrame:
-        """Generates fourier modes to model seasonality.
-
-        Parameters
-        ----------
-        X : Union[pd.DataFrame, pd.Series], shape (n_obs, n_features)
-            Input data for the model. To generate the Fourier modes, it must contain a date column.
-
-        Returns
-        -------
-        pd.DataFrame
-            Fourier modes (sin and cos with different frequencies) as columns in a dataframe.
-
-        References
-        ----------
-        https://www.pymc.io/projects/examples/en/latest/time_series/Air_passengers-Prophet_with_Bayesian_workflow.html
-        """
-        if self.yearly_seasonality is None:
-            raise ValueError("yearly_seasonality must be specified.")
-        date_data: pd.Series = pd.to_datetime(
-            arg=X[self.date_column], format="%Y-%m-%d"
-        )
-        periods: npt.NDArray[np.float64] = (
-            date_data.dt.dayofyear.to_numpy() / DAYS_IN_YEAR
-        )
-        return generate_fourier_modes(
-            periods=periods,
-            n_order=self.yearly_seasonality,
-        )
 
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float64]
@@ -583,7 +581,6 @@ class BaseMMM(BaseValidateMMM):
         """
         coords = {
             **self.model_coords,
-            **self.coords_mutable,
         }
         with pm.Model(coords=coords):
             pm.Deterministic(
@@ -641,19 +638,32 @@ class BaseMMM(BaseValidateMMM):
         model_config = cls._model_config_formatting(
             json.loads(idata.attrs["model_config"])
         )
-        model = cls(
-            date_column=json.loads(idata.attrs["date_column"]),
-            control_columns=json.loads(idata.attrs["control_columns"]),
-            channel_columns=json.loads(idata.attrs["channel_columns"]),
-            adstock_max_lag=json.loads(idata.attrs["adstock_max_lag"]),
-            adstock=json.loads(idata.attrs.get("adstock", "geometric")),
-            saturation=json.loads(idata.attrs.get("saturation", "logistic")),
-            adstock_first=json.loads(idata.attrs.get("adstock_first", True)),
-            validate_data=json.loads(idata.attrs["validate_data"]),
-            yearly_seasonality=json.loads(idata.attrs["yearly_seasonality"]),
-            model_config=model_config,
-            sampler_config=json.loads(idata.attrs["sampler_config"]),
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=DeprecationWarning)
+            model = cls(
+                date_column=json.loads(idata.attrs["date_column"]),
+                control_columns=json.loads(idata.attrs["control_columns"]),
+                # Media Transformations
+                channel_columns=json.loads(idata.attrs["channel_columns"]),
+                adstock_max_lag=json.loads(idata.attrs["adstock_max_lag"]),
+                adstock=json.loads(idata.attrs.get("adstock", "geometric")),
+                saturation=json.loads(idata.attrs.get("saturation", "logistic")),
+                adstock_first=json.loads(idata.attrs.get("adstock_first", True)),
+                # Seasonality
+                yearly_seasonality=json.loads(idata.attrs["yearly_seasonality"]),
+                # TVP
+                time_varying_intercept=json.loads(
+                    idata.attrs.get("time_varying_intercept", False)
+                ),
+                time_varying_media=json.loads(
+                    idata.attrs.get("time_varying_media", False)
+                ),
+                # Configurations
+                validate_data=json.loads(idata.attrs["validate_data"]),
+                model_config=model_config,
+                sampler_config=json.loads(idata.attrs["sampler_config"]),
+            )
+
         model.idata = idata
         dataset = idata.fit_data.to_dataframe()
         X = dataset.drop(columns=[model.output_var])
@@ -661,8 +671,11 @@ class BaseMMM(BaseValidateMMM):
         model.build_model(X, y)
         # All previously used data is in idata.
         if model.id != idata.attrs["id"]:
-            error_msg = f"""The file '{fname}' does not contain an inference data of the same model
-        or configuration as '{cls._model_type}'"""
+            error_msg = (
+                f"The file '{fname}' does not contain "
+                "an inference data of the same model or "
+                f"configuration as '{cls._model_type}'"
+            )
             raise ValueError(error_msg)
 
         return model
@@ -735,8 +748,8 @@ class BaseMMM(BaseValidateMMM):
             )
             data["control_data"] = control_transformation(control_data)
 
-        if hasattr(self, "fourier_columns"):
-            data["fourier_data"] = self._get_fourier_models_data(X)
+        if self.yearly_seasonality is not None:
+            data["dayofyear"] = X[self.date_column].dt.dayofyear.to_numpy()
 
         if self.time_varying_intercept | self.time_varying_media:
             data["time_index"] = infer_time_index(
@@ -912,8 +925,8 @@ class MMM(
     .. [2] Orduz, J. `"Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns" <https://juanitorduz.github.io/pymc_mmm/>`_.
     """  # noqa: E501
 
-    _model_type = "MMM"
-    version = "0.0.1"
+    _model_type: str = "MMM"
+    version: str = "0.0.1"
 
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float64]
@@ -2175,10 +2188,11 @@ class MMM(
 
 
 class DelayedSaturatedMMM(MMM):
-    _model_type = "MMM"
-    _model_name = "DelayedSaturatedMMM"
-    version = "0.0.3"
+    _model_type: str = "MMM"
+    _model_name: str = "DelayedSaturatedMMM"
+    version: str = "0.0.3"
 
+    @validate_call
     def __init__(
         self,
         date_column: str,

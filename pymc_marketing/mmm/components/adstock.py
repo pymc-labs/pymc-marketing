@@ -54,6 +54,7 @@ import warnings
 
 import numpy as np
 import xarray as xr
+from pydantic import Field, InstanceOf, validate_call
 
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.transformers import (
@@ -81,13 +82,20 @@ class AdstockTransformation(Transformation):
     prefix: str = "adstock"
     lookup_name: str
 
+    @validate_call
     def __init__(
         self,
-        l_max: int,
-        normalize: bool = True,
-        mode: ConvMode = ConvMode.After,
-        priors: dict | None = None,
-        prefix: str | None = None,
+        l_max: int = Field(
+            ..., gt=0, description="Maximum lag for the adstock transformation."
+        ),
+        normalize: bool = Field(
+            True, description="Whether to normalize the adstock values."
+        ),
+        mode: ConvMode = Field(ConvMode.After, description="Convolution mode."),
+        priors: dict[str, str | InstanceOf[Prior]] | None = Field(
+            default=None, description="Priors for the parameters."
+        ),
+        prefix: str | None = Field(None, description="Prefix for the parameters."),
     ) -> None:
         self.l_max = l_max
         self.normalize = normalize
@@ -203,6 +211,88 @@ class DelayedAdstock(AdstockTransformation):
     }
 
 
+class WeibullPDFAdstock(AdstockTransformation):
+    """Wrapper around weibull adstock with PDF function.
+
+    For more information, see :func:`pymc_marketing.mmm.transformers.weibull_adstock`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import WeibullPDFAdstock
+
+        rng = np.random.default_rng(0)
+
+        adstock = WeibullPDFAdstock(l_max=10)
+        prior = adstock.sample_prior(random_seed=rng)
+        curve = adstock.sample_curve(prior)
+        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
+
+    """
+
+    lookup_name = "weibull_pdf"
+
+    def function(self, x, lam, k):
+        return weibull_adstock(
+            x=x,
+            lam=lam,
+            k=k,
+            l_max=self.l_max,
+            mode=self.mode,
+            type=WeibullType.PDF,
+            normalize=self.normalize,
+        )
+
+    default_priors = {
+        "lam": Prior("Gamma", mu=2, sigma=1),
+        "k": Prior("Gamma", mu=3, sigma=1),
+    }
+
+
+class WeibullCDFAdstock(AdstockTransformation):
+    """Wrapper around weibull adstock with CDF function.
+
+    For more information, see :func:`pymc_marketing.mmm.transformers.weibull_adstock`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import WeibullCDFAdstock
+
+        rng = np.random.default_rng(0)
+
+        adstock = WeibullCDFAdstock(l_max=10)
+        prior = adstock.sample_prior(random_seed=rng)
+        curve = adstock.sample_curve(prior)
+        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
+
+    """
+
+    lookup_name = "weibull_cdf"
+
+    def function(self, x, lam, k):
+        return weibull_adstock(
+            x=x,
+            lam=lam,
+            k=k,
+            l_max=self.l_max,
+            mode=self.mode,
+            type=WeibullType.CDF,
+            normalize=self.normalize,
+        )
+
+    default_priors = {
+        "lam": Prior("Gamma", mu=2, sigma=2.5),
+        "k": Prior("Gamma", mu=2, sigma=2.5),
+    }
+
+
 class WeibullAdstock(AdstockTransformation):
     """Wrapper around weibull adstock function.
 
@@ -242,6 +332,13 @@ class WeibullAdstock(AdstockTransformation):
             l_max=l_max, normalize=normalize, mode=mode, priors=priors, prefix=prefix
         )
 
+        msg = f"Use the Weibull{kind}Adstock class instead for better default priors."
+        warnings.warn(
+            msg,
+            UserWarning,
+            stacklevel=1,
+        )
+
     def function(self, x, lam, k):
         return weibull_adstock(
             x=x,
@@ -250,6 +347,7 @@ class WeibullAdstock(AdstockTransformation):
             l_max=self.l_max,
             mode=self.mode,
             type=self.kind,
+            normalize=self.normalize,
         )
 
     default_priors = {
@@ -260,7 +358,13 @@ class WeibullAdstock(AdstockTransformation):
 
 ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {
     cls.lookup_name: cls  # type: ignore
-    for cls in [GeometricAdstock, DelayedAdstock, WeibullAdstock]
+    for cls in [
+        GeometricAdstock,
+        DelayedAdstock,
+        WeibullAdstock,
+        WeibullPDFAdstock,
+        WeibullCDFAdstock,
+    ]
 }
 
 
@@ -272,16 +376,22 @@ def _get_adstock_function(
     if isinstance(function, AdstockTransformation):
         return function
 
-    if function not in ADSTOCK_TRANSFORMATIONS:
+    elif isinstance(function, str):
+        if function not in ADSTOCK_TRANSFORMATIONS:
+            raise ValueError(
+                f"Unknown adstock function: {function}. Choose from {list(ADSTOCK_TRANSFORMATIONS.keys())}"
+            )
+
+        if kwargs:
+            warnings.warn(
+                "The preferred method of initializing a lagging function is to use the class directly.",
+                DeprecationWarning,
+                stacklevel=1,
+            )
+
+        return ADSTOCK_TRANSFORMATIONS[function](**kwargs)
+
+    else:
         raise ValueError(
             f"Unknown adstock function: {function}. Choose from {list(ADSTOCK_TRANSFORMATIONS.keys())}"
         )
-
-    if kwargs:
-        warnings.warn(
-            "The preferred method of initializing a lagging function is to use the class directly.",
-            DeprecationWarning,
-            stacklevel=1,
-        )
-
-    return ADSTOCK_TRANSFORMATIONS[function](**kwargs)

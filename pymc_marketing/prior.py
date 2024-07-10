@@ -91,6 +91,7 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
+from pydantic import validate_call
 from pymc.distributions.shape_utils import Dims
 
 
@@ -254,6 +255,7 @@ class Prior:
     pymc_distribution: type[pm.Distribution]
     pytensor_transform: Callable[[pt.TensorLike], pt.TensorLike] | None
 
+    @validate_call
     def __init__(
         self,
         distribution: str,
@@ -281,9 +283,6 @@ class Prior:
         if hasattr(self, "_distribution"):
             raise AttributeError("Can't change the distribution")
 
-        if not isinstance(distribution, str):
-            raise ValueError("Distribution must be a string")
-
         self._distribution = distribution
         self.pymc_distribution = _get_pymc_distribution(distribution)
 
@@ -294,9 +293,6 @@ class Prior:
 
     @transform.setter
     def transform(self, transform: str | None) -> None:
-        if not isinstance(transform, str) and transform is not None:
-            raise ValueError("Transform must be a string or None")
-
         self._transform = transform
         self.pytensor_transform = not transform or _get_transform(transform)  # type: ignore
 
@@ -323,6 +319,7 @@ class Prior:
             self._correct_non_centered_distribution()
 
         self._parameters_are_at_least_subset_of_pymc()
+        self._convert_lists_to_numpy()
         self._parameters_are_correct_type()
 
     def _parameters_are_at_least_subset_of_pymc(self) -> None:
@@ -334,6 +331,17 @@ class Prior:
                 f"parameters {set(pymc_params)}"
             )
             raise ValueError(msg)
+
+    def _convert_lists_to_numpy(self) -> None:
+        def convert(x):
+            if not isinstance(x, list):
+                return x
+
+            return np.array(x)
+
+        self.parameters = {
+            key: convert(value) for key, value in self.parameters.items()
+        }
 
     def _parameters_are_correct_type(self) -> None:
         supported_types = (int, float, np.ndarray, Prior, pt.TensorVariable)

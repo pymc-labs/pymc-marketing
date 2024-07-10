@@ -21,13 +21,10 @@ Use the subclasses directly for custom transformations:
 """
 
 import warnings
-from collections.abc import Generator, MutableMapping, Sequence
 from copy import deepcopy
 from inspect import signature
-from itertools import product
 from typing import Any
 
-import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
@@ -36,55 +33,16 @@ import xarray as xr
 from pymc.distributions.shape_utils import Dims
 from pytensor import tensor as pt
 
+from pymc_marketing.mmm.plot import (
+    plot_curve,
+    plot_hdi,
+    plot_samples,
+)
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import DimHandler, Prior, create_dim_handler
 
-Values = Sequence[Any] | npt.NDArray[Any]
-Coords = dict[str, Values]
-
-# chain and draw from sampling
 # "x" for saturation, "time since exposure" for adstock
-NON_GRID_NAMES = {"chain", "draw", "x", "time since exposure"}
-
-
-def get_plot_coords(coords: Coords) -> Coords:
-    plot_coord_names = list(key for key in coords.keys() if key not in NON_GRID_NAMES)
-    return {name: np.array(coords[name]) for name in plot_coord_names}
-
-
-def get_total_coord_size(coords: Coords) -> int:
-    total_size: int = (
-        1 if coords == {} else np.prod([len(values) for values in coords.values()])  # type: ignore
-    )
-    if total_size >= 12:
-        warnings.warn("Large number of coordinates!", stacklevel=2)
-
-    return total_size
-
-
-def set_subplot_kwargs_defaults(
-    subplot_kwargs: MutableMapping[str, Any],
-    total_size: int,
-) -> None:
-    if "ncols" in subplot_kwargs and "nrows" in subplot_kwargs:
-        raise ValueError("Only specify one")
-
-    if "ncols" not in subplot_kwargs and "nrows" not in subplot_kwargs:
-        subplot_kwargs["ncols"] = total_size
-
-    if "ncols" in subplot_kwargs:
-        subplot_kwargs["nrows"] = total_size // subplot_kwargs["ncols"]
-    elif "nrows" in subplot_kwargs:
-        subplot_kwargs["ncols"] = total_size // subplot_kwargs["nrows"]
-
-
-def selections(
-    coords: Coords,
-) -> Generator[dict[str, Any], None, None]:
-    """Helper to create generator of selections."""
-    coord_names = coords.keys()
-    for values in product(*coords.values()):
-        yield {name: value for name, value in zip(coord_names, values, strict=True)}
+NON_GRID_NAMES: frozenset[str] = frozenset({"x", "time since exposure"})
 
 
 class ParameterPriorException(Exception):
@@ -349,16 +307,13 @@ class Transformation:
         tuple[plt.Figure, npt.NDArray[plt.Axes]]
 
         """
-        hdi_kwargs = hdi_kwargs or {}
-        sample_kwargs = sample_kwargs or {}
-
-        if "subplot_kwargs" not in hdi_kwargs:
-            hdi_kwargs["subplot_kwargs"] = subplot_kwargs
-
-        fig, axes = self.plot_curve_hdi(curve, **hdi_kwargs)
-        fig, axes = self.plot_curve_samples(curve, axes=axes, **sample_kwargs)
-
-        return fig, axes
+        return plot_curve(
+            curve,
+            non_grid_names=set(NON_GRID_NAMES),
+            subplot_kwargs=subplot_kwargs,
+            sample_kwargs=sample_kwargs,
+            hdi_kwargs=hdi_kwargs,
+        )
 
     def _sample_curve(
         self,
@@ -439,36 +394,15 @@ class Transformation:
             The axes with the plot.
 
         """
-        plot_coords = get_plot_coords(curve.coords)
-        total_size = get_total_coord_size(plot_coords)
-
-        if axes is None:
-            subplot_kwargs = subplot_kwargs or {}
-            set_subplot_kwargs_defaults(subplot_kwargs, total_size)
-            fig, axes = plt.subplots(**subplot_kwargs)
-        else:
-            fig = plt.gcf()
-
-        plot_kwargs = plot_kwargs or {}
-        plot_kwargs["alpha"] = plot_kwargs.get("alpha", 0.3)
-        plot_kwargs["legend"] = False
-
-        for i, (ax, sel) in enumerate(
-            zip(np.ravel(axes), selections(plot_coords), strict=False)
-        ):
-            color = f"C{i}"
-
-            df_curve = curve.sel(sel).to_series().unstack()
-            df_sample = df_curve.sample(n=n, random_state=rng)
-
-            df_sample.T.plot(ax=ax, color=color, **plot_kwargs)
-            title = ", ".join(f"{name}={value}" for name, value in sel.items())
-            ax.set_title(title)
-
-        if not isinstance(axes, np.ndarray):
-            axes = np.array([axes])
-
-        return fig, axes
+        return plot_samples(
+            curve,
+            non_grid_names=set(NON_GRID_NAMES),
+            n=n,
+            rng=rng,
+            axes=axes,
+            subplot_kwargs=subplot_kwargs,
+            plot_kwargs=plot_kwargs,
+        )
 
     def plot_curve_hdi(
         self,
@@ -498,42 +432,13 @@ class Transformation:
         tuple[plt.Figure, npt.NDArray[plt.Axes]]
 
         """
-        plot_coords = get_plot_coords(curve.coords)
-        total_size = get_total_coord_size(plot_coords)
-
-        hdi_kwargs = hdi_kwargs or {}
-        conf = az.hdi(curve, **hdi_kwargs)[curve.name]
-
-        if axes is None:
-            subplot_kwargs = subplot_kwargs or {}
-            set_subplot_kwargs_defaults(subplot_kwargs, total_size)
-            fig, axes = plt.subplots(**subplot_kwargs)
-        else:
-            fig = plt.gcf()
-
-        plot_kwargs = plot_kwargs or {}
-        plot_kwargs["alpha"] = plot_kwargs.get("alpha", 0.3)
-
-        for i, (ax, sel) in enumerate(
-            zip(np.ravel(axes), selections(plot_coords), strict=False)
-        ):
-            color = f"C{i}"
-            df_conf = conf.sel(sel).to_series().unstack()
-
-            ax.fill_between(
-                x=df_conf.index,
-                y1=df_conf["lower"],
-                y2=df_conf["higher"],
-                color=color,
-                **plot_kwargs,
-            )
-            title = ", ".join(f"{name}={value}" for name, value in sel.items())
-            ax.set_title(title)
-
-        if not isinstance(axes, np.ndarray):
-            axes = np.array([axes])
-
-        return fig, axes
+        return plot_hdi(
+            curve,
+            non_grid_names=set(NON_GRID_NAMES),
+            axes=axes,
+            subplot_kwargs=subplot_kwargs,
+            plot_kwargs=plot_kwargs,
+        )
 
     def apply(self, x: pt.TensorLike, dims: Dims | None = None) -> pt.TensorVariable:
         """Called within a model context.

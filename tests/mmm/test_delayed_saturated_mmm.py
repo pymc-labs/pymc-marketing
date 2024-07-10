@@ -82,6 +82,23 @@ def toy_X(generate_data) -> pd.DataFrame:
     return generate_data(date_data)
 
 
+@pytest.fixture(scope="module")
+def toy_X_with_bad_dates() -> pd.DataFrame:
+    bad_date_data = ["a", "b", "c", "d", "e"]
+    n: int = len(bad_date_data)
+    return pd.DataFrame(
+        data={
+            "date": bad_date_data,
+            "channel_1": rng.integers(low=0, high=400, size=n),
+            "channel_2": rng.integers(low=0, high=50, size=n),
+            "control_1": rng.gamma(shape=1000, scale=500, size=n),
+            "control_2": rng.gamma(shape=100, scale=5, size=n),
+            "other_column_1": rng.integers(low=0, high=100, size=n),
+            "other_column_2": rng.normal(loc=0, scale=1, size=n),
+        }
+    )
+
+
 @pytest.fixture(scope="class")
 def model_config_requiring_serialization() -> dict:
     model_config = {
@@ -205,6 +222,22 @@ class TestDelayedSaturatedMMM:
 
         assert model.sampler_config == model2.sampler_config
         os.remove("test_save_load")
+
+    def test_bad_date_column(self, toy_X_with_bad_dates) -> None:
+        with pytest.raises(
+            ValueError,
+            match="Could not convert bad_date_column to datetime. Please check the date format.",
+        ):
+            my_mmm = MMM(
+                date_column="bad_date_column",
+                channel_columns=["channel_1", "channel_2"],
+                adstock_max_lag=4,
+                control_columns=["control_1", "control_2"],
+                adstock="geometric",
+                saturation="logistic",
+            )
+            y = np.ones(toy_X_with_bad_dates.shape[0])
+            my_mmm.build_model(X=toy_X_with_bad_dates, y=y)
 
     @pytest.mark.parametrize(
         argnames="adstock_max_lag",
@@ -394,38 +427,6 @@ class TestDelayedSaturatedMMM:
             "yearly_seasonality",
             "intercept",
         ]
-
-    @pytest.mark.parametrize(
-        argnames="yearly_seasonality",
-        argvalues=[None, 1, 2],
-        ids=["no_yearly_seasonality", "yearly_seasonality=1", "yearly_seasonality=2"],
-    )
-    def test_get_fourier_models_data(
-        self, toy_X: pd.DataFrame, toy_y: pd.Series, yearly_seasonality: int | None
-    ) -> None:
-        mmm = BaseMMM(
-            date_column="date",
-            channel_columns=["channel_1", "channel_2"],
-            control_columns=["control_1", "control_2"],
-            adstock_max_lag=2,
-            yearly_seasonality=yearly_seasonality,
-            adstock="geometric",
-            saturation="logistic",
-        )
-        if yearly_seasonality is None:
-            with pytest.raises(ValueError):
-                mmm._get_fourier_models_data(toy_X)
-
-        else:
-            fourier_modes_data: pd.DataFrame | None = mmm._get_fourier_models_data(
-                toy_X
-            )
-            assert fourier_modes_data.shape == (
-                toy_X.shape[0],
-                2 * yearly_seasonality,
-            )
-            assert fourier_modes_data.max().max() <= 1
-            assert fourier_modes_data.min().min() >= -1
 
     def test_channel_contributions_forward_pass_recovers_contribution(
         self,
@@ -669,9 +670,11 @@ class TestDelayedSaturatedMMM:
         # Apply the monkeypatch for the property
         monkeypatch.setattr(MMM, "id", property(mock_property))
 
-        error_msg = """The file 'test_model' does not contain an inference data of the same model
-        or configuration as 'MMM'"""
-
+        error_msg = (
+            "The file 'test_model' does not "
+            "contain an inference data of the "
+            "same model or configuration as 'MMM'"
+        )
         with pytest.raises(ValueError, match=error_msg):
             MMM.load("test_model")
         os.remove("test_model")
@@ -1049,3 +1052,37 @@ def test_initialize_defaults_channel_media_dims() -> None:
     for transform in [mmm.adstock, mmm.saturation]:
         for config in transform.function_priors.values():
             assert config.dims == ("channel",)
+
+
+@pytest.mark.parametrize(
+    "time_varying_intercept, time_varying_media",
+    [
+        (True, False),
+        (False, True),
+        (True, True),
+    ],
+)
+def test_save_load_with_tvp(
+    time_varying_intercept, time_varying_media, toy_X, toy_y
+) -> None:
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        adstock="geometric",
+        saturation="logistic",
+        adstock_max_lag=5,
+        time_varying_intercept=time_varying_intercept,
+        time_varying_media=time_varying_media,
+    )
+    mmm = mock_fit(mmm, toy_X, toy_y)
+
+    file = "tmp-model"
+    mmm.save(file)
+    loaded_mmm = MMM.load(file)
+    assert mmm.time_varying_intercept == loaded_mmm.time_varying_intercept
+    assert mmm.time_varying_intercept == time_varying_intercept
+    assert mmm.time_varying_media == loaded_mmm.time_varying_media
+    assert mmm.time_varying_media == time_varying_media
+
+    # clean up
+    os.remove(file)

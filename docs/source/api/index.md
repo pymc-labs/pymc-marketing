@@ -8,8 +8,10 @@
   :toctree: generated/
 
   clv
+  hsgp_kwargs
   mmm
   model_config
+  model_builder
   prior
   product_incrementality
 ```
