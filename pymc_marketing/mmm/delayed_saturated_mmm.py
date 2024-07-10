@@ -54,6 +54,7 @@ from pymc_marketing.mmm.utils import (
 from pymc_marketing.mmm.validating import ValidateControlColumns
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import Prior
+from pymc_marketing.utils import from_netcdf
 
 __all__ = ["BaseMMM", "MMM", "DelayedSaturatedMMM"]
 
@@ -159,7 +160,6 @@ class BaseMMM(BaseValidateMMM):
             Whether to apply adstock first, by default True.
         """
         self.control_columns = control_columns
-        self.adstock_max_lag = adstock_max_lag
         self.time_varying_intercept = time_varying_intercept
         self.time_varying_media = time_varying_media
         self.date_column = date_column
@@ -281,7 +281,7 @@ class BaseMMM(BaseValidateMMM):
         idata.attrs["adstock_first"] = json.dumps(self.adstock_first)
         idata.attrs["control_columns"] = json.dumps(self.control_columns)
         idata.attrs["channel_columns"] = json.dumps(self.channel_columns)
-        idata.attrs["adstock_max_lag"] = json.dumps(self.adstock_max_lag)
+        idata.attrs["adstock_max_lag"] = json.dumps(self.adstock.l_max)
         idata.attrs["validate_data"] = json.dumps(self.validate_data)
         idata.attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
         idata.attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
@@ -628,7 +628,7 @@ class BaseMMM(BaseValidateMMM):
         """
 
         filepath = Path(fname)
-        idata = az.from_netcdf(filepath)
+        idata = from_netcdf(filepath)
         model_config = cls._model_config_formatting(
             json.loads(idata.attrs["model_config"])
         )

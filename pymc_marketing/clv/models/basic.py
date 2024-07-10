@@ -28,6 +28,7 @@ from xarray import Dataset
 
 from pymc_marketing.model_builder import ModelBuilder
 from pymc_marketing.model_config import ModelConfig, parse_model_config
+from pymc_marketing.utils import from_netcdf
 
 
 class CLVModel(ModelBuilder):
@@ -186,7 +187,7 @@ class CLVModel(ModelBuilder):
         >>> imported_model = MyModel.load(name)
         """
         filepath = Path(str(fname))
-        idata = az.from_netcdf(filepath)
+        idata = from_netcdf(filepath)
         return cls._build_with_idata(idata)
 
     @classmethod

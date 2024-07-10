@@ -29,6 +29,7 @@ from pymc.util import RandomState
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.prior import Prior
+from pymc_marketing.utils import from_netcdf
 
 # If scikit-learn is available, use its data validator
 try:
@@ -398,13 +399,7 @@ class ModelBuilder(ABC):
         >>> imported_model = MyModel.load(name)
         """
         filepath = Path(str(fname))
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message=r"fit_data group is not defined in the InferenceData scheme",
-            )
-            idata = az.from_netcdf(filepath)
+        idata = from_netcdf(filepath)
 
         # needs to be converted, because json.loads was changing tuple to list
         model_config = cls._model_config_formatting(
