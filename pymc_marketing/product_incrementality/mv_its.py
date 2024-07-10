@@ -184,6 +184,7 @@ class MVITS:
         # formatting
         ax.legend()
         ax.set(title="Model fit of sales of background products", ylabel="Sales")
+        return ax
 
     def plot_counterfactual(self, variable="mu"):
         """Plots the predicted sales of the background products under the counterfactual
@@ -218,6 +219,7 @@ class MVITS:
         ax.set(
             title="Model predictions under the counterfactual scenario", ylabel="Sales"
         )
+        return ax
 
     def plot_causal_impact(self, type="sales"):
         """Plot the inferred causal impact of the new product on the background products."""
@@ -281,6 +283,7 @@ class MVITS:
         # formatting
         ax.legend()
         ax.set(title="Estimated causal impact of new product upon existing products")
+        return ax
 
     @staticmethod
     def plot_data(data, ax=None):
