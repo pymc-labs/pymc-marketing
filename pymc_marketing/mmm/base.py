@@ -54,7 +54,7 @@ class MMMModelBuilder(ModelBuilder):
     _model_type = "BaseMMM"
     version = "0.0.2"
 
-    @validate_call()
+    @validate_call
     def __init__(
         self,
         date_column: str = Field(..., description="Column name of the date variable."),
