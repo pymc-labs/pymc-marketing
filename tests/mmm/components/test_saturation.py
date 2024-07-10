@@ -22,6 +22,7 @@ from pydantic import ValidationError
 
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
+    InverseScaledLogisticSaturation,
     LogisticSaturation,
     MichaelisMentenSaturation,
     TanhSaturation,
@@ -40,6 +41,7 @@ def model() -> pm.Model:
 def saturation_functions():
     return [
         LogisticSaturation(),
+        InverseScaledLogisticSaturation(),
         TanhSaturation(),
         TanhSaturationBaselined(),
         MichaelisMentenSaturation(),
@@ -93,6 +95,7 @@ def test_support_for_lift_test_integrations(saturation) -> None:
 @pytest.mark.parametrize(
     "name, saturation_cls",
     [
+        ("inverse_scaled_logistic", InverseScaledLogisticSaturation),
         ("logistic", LogisticSaturation),
         ("tanh", TanhSaturation),
         ("tanh_baselined", TanhSaturationBaselined),

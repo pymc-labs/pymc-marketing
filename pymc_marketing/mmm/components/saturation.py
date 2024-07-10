@@ -76,6 +76,7 @@ from pydantic import Field, InstanceOf, validate_call
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.transformers import (
     hill_saturation,
+    inverse_scaled_logistic_saturation,
     logistic_saturation,
     michaelis_menten,
     tanh_saturation,
@@ -194,6 +195,39 @@ class LogisticSaturation(SaturationTransformation):
 
     def function(self, x, lam, beta):
         return beta * logistic_saturation(x, lam)
+
+    default_priors = {
+        "lam": Prior("Gamma", alpha=3, beta=1),
+        "beta": Prior("HalfNormal", sigma=2),
+    }
+
+
+class InverseScaledLogisticSaturation(SaturationTransformation):
+    """Wrapper around inverse scaled logistic saturation function.
+
+    For more information, see :func:`pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import InverseScaledLogisticSaturation
+
+        rng = np.random.default_rng(0)
+
+        adstock = InverseScaledLogisticSaturation()
+        prior = adstock.sample_prior(random_seed=rng)
+        curve = adstock.sample_curve(prior)
+        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
+
+    """
+
+    lookup_name = "inverse_scaled_logistic"
+
+    def function(self, x, lam, beta):
+        return beta * inverse_scaled_logistic_saturation(x, lam)
 
     default_priors = {
         "lam": Prior("Gamma", alpha=3, beta=1),
@@ -339,6 +373,7 @@ SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
     cls.lookup_name: cls
     for cls in [
         LogisticSaturation,
+        InverseScaledLogisticSaturation,
         TanhSaturation,
         TanhSaturationBaselined,
         MichaelisMentenSaturation,

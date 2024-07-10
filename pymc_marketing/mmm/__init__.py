@@ -23,6 +23,7 @@ from pymc_marketing.mmm.components.adstock import (
 )
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
+    InverseScaledLogisticSaturation,
     LogisticSaturation,
     MichaelisMentenSaturation,
     SaturationTransformation,
@@ -45,6 +46,7 @@ __all__ = [
     "GeometricAdstock",
     "HillSaturation",
     "LogisticSaturation",
+    "InverseScaledLogisticSaturation",
     "MMM",
     "MMMModelBuilder",
     "MichaelisMentenSaturation",
