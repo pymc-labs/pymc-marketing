@@ -46,6 +46,7 @@ from pymc_marketing.mmm.validating import (
 from pymc_marketing.model_builder import ModelBuilder
 
 __all__ = ["MMMModelBuilder", "BaseValidateMMM"]
+from pydantic import Field, validate_call
 
 
 class MMMModelBuilder(ModelBuilder):
@@ -53,12 +54,15 @@ class MMMModelBuilder(ModelBuilder):
     _model_type = "BaseMMM"
     version = "0.0.2"
 
+    @validate_call
     def __init__(
         self,
-        date_column: str,
-        channel_columns: list[str] | tuple[str],
-        model_config: dict | None = None,
-        sampler_config: dict | None = None,
+        date_column: str = Field(..., description="Column name of the date variable."),
+        channel_columns: list[str] = Field(
+            min_length=1, description="Column names of the media channel variables."
+        ),
+        model_config: dict | None = Field(None, description="Model configuration."),
+        sampler_config: dict | None = Field(None, description="Sampler configuration."),
         **kwargs,
     ) -> None:
         self.date_column: str = date_column
