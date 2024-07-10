@@ -358,7 +358,7 @@ def test_constrain(mocker) -> None:
     var = Prior("Normal", mu=0, sigma=1)
 
     mocker.patch(
-        "pymc.find_constrained_prior",
+        "pymc.find_saturated_prior",
         return_value={
             "mu": 5,
             "sigma": 2,

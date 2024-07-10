@@ -13,8 +13,8 @@
 #   limitations under the License.
 from pymc_marketing.product_incrementality.mv_its import (
     MVITS,
-    generate_constrained_data,
-    generate_unconstrained_data,
+    generate_saturated_data,
+    generate_unsaturated_data,
 )
 
-__all__ = ["MVITS", "generate_constrained_data", "generate_unconstrained_data"]
+__all__ = ["MVITS", "generate_saturated_data", "generate_unsaturated_data"]

@@ -319,7 +319,7 @@ class MVITS:
         return ax
 
 
-def generate_constrained_data(
+def generate_saturated_data(
     total_sales_mu: int,
     total_sales_sigma: float,
     treatment_time: int,
@@ -354,7 +354,7 @@ def generate_constrained_data(
     return data
 
 
-def generate_unconstrained_data(
+def generate_unsaturated_data(
     total_sales_before: list[int],
     total_sales_after: list[int],
     total_sales_sigma: float,
