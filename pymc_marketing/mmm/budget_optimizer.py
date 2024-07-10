@@ -167,9 +167,8 @@ class BudgetOptimizer(BaseModel):
                 "No budget bounds provided. Using default bounds (0, total_budget) for each channel.",
                 stacklevel=2,
             )
-        else:
-            if not isinstance(budget_bounds, dict):
-                raise TypeError("`budget_bounds` should be a dictionary.")
+        elif not isinstance(budget_bounds, dict):
+            raise TypeError("`budget_bounds` should be a dictionary.")
 
         if custom_constraints is None:
             constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
@@ -177,11 +176,10 @@ class BudgetOptimizer(BaseModel):
                 "Using default equality constraint: The sum of all budgets should be equal to the total budget.",
                 stacklevel=2,
             )
+        elif not isinstance(custom_constraints, dict):
+            raise TypeError("`custom_constraints` should be a dictionary.")
         else:
-            if not isinstance(custom_constraints, dict):
-                raise TypeError("`custom_constraints` should be a dictionary.")
-            else:
-                constraints = custom_constraints
+            constraints = custom_constraints
 
         num_channels = len(self.parameters.keys())
         initial_guess = np.ones(num_channels) * total_budget / num_channels
