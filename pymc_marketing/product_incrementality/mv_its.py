@@ -23,7 +23,8 @@ HDI_ALPHA = 0.5
 
 
 class MVITS:
-    """Class to perform a multivariate interrupted time series analysis."""
+    """Class to perform a multivariate interrupted time series analysis with the
+    specific intent of determining where the sales of a new product came from."""
 
     def __init__(
         self,
@@ -41,11 +42,11 @@ class MVITS:
         self.rng = rng
         self.sample_kwargs = sample_kwargs if sample_kwargs is not None else {}
 
-        # build the model - we are fitting on all of the data
-        self.model = build_2_param_model(
+        # build the model
+        self.model = self.build_model(
             self.data[self.background_sales],
             self.data[self.innovation_sales],
-            treatment_time,
+            treatment_time=self.treatment_time,
         )
 
         # sample from prior, posterior, posterior predictive
@@ -69,6 +70,75 @@ class MVITS:
             )
 
         return
+
+    @staticmethod
+    def build_model(
+        background_sales: pd.DataFrame,
+        innovation_sales: pd.Series,
+        treatment_time,
+        *,
+        alpha_background=0.5,
+    ):
+        """Return a PyMC model for a multivariate interrupted time series analysis."""
+
+        if not background_sales.index.equals(innovation_sales.index):
+            raise ValueError(
+                "Index of background_sales and innovation_sales must match."
+            )
+
+        # note: type hints for coords required for mypi to not get confused
+        coords: dict[str, list[str]] = {
+            "background_product": list(background_sales.columns),
+            "time": list(background_sales.index.values),
+        }
+
+        print(coords["background_product"])
+        print(type(coords["background_product"]))
+        print(len(coords["background_product"]))
+
+        with pm.Model(coords=coords) as model:
+            # data
+            _background_sales = pm.Data(
+                "background_sales",
+                background_sales.values,
+                dims=("time", "background_product"),
+            )
+            innovation_sales = pm.Data(
+                "innovation_sales", innovation_sales.values, dims=("time",)
+            )
+
+            # priors
+            intercept = pm.Normal(
+                "intercept",
+                mu=pm.math.mean(background_sales[:treatment_time], axis=0),
+                sigma=np.std(background_sales[:treatment_time], axis=0),
+                # sigma=20,
+                dims="background_product",
+            )
+
+            sigma = pm.HalfNormal(
+                "background_product_sigma", sigma=10, dims="background_product"
+            )
+
+            alpha = np.full(len(coords["background_product"]), alpha_background)
+            beta = pm.Dirichlet("beta", a=alpha, dims="background_product")
+
+            # expectation
+            mu = pm.Deterministic(
+                "mu",
+                intercept[None, :] - innovation_sales[:, None] * beta[None, :],
+                dims=("time", "background_product"),
+            )
+
+            # likelihood
+            pm.Normal(
+                "y",
+                mu=mu,
+                sigma=sigma,
+                observed=_background_sales,
+                dims=("time", "background_product"),
+            )
+        return model
 
     @property
     def causal_impact(self, variable="mu"):
@@ -217,73 +287,9 @@ class MVITS:
         """Plot the observed data."""
         if ax is None:
             fig, ax = plt.subplots()
-        # self.data.plot(ax=ax, drawstyle="steps-post")
         data.plot(ax=ax)
-        # ax.axvline(n_first, linestyle="--", color="gray", zorder=-10)
-        # df.sum(axis=1).plot(label="total sales", color="black", ax=ax)
+        data.sum(axis=1).plot(label="total sales", color="black", ax=ax)
         ax.set_ylim(bottom=0)
         ax.set(ylabel="Sales")
+        ax.legend()
         return ax
-
-
-def build_2_param_model(
-    background_sales: pd.DataFrame,
-    innovation_sales: pd.Series,
-    treatment_time,
-    *,
-    alpha_background=0.5,
-):
-    """Return a PyMC model for a multivariate interrupted time series analysis."""
-
-    if not background_sales.index.equals(innovation_sales.index):
-        raise ValueError("Index of background_sales and innovation_sales must match.")
-
-    coords = {
-        "background_product": background_sales.columns,
-        "time": background_sales.index,
-    }
-
-    with pm.Model(coords=coords) as model:
-        # data
-        _background_sales = pm.Data(
-            "background_sales",
-            background_sales.values,
-            dims=("time", "background_product"),
-        )
-        innovation_sales = pm.Data(
-            "innovation_sales", innovation_sales.values, dims=("time",)
-        )
-
-        # priors
-        intercept = pm.Normal(
-            "intercept",
-            mu=pm.math.mean(background_sales[:treatment_time], axis=0),
-            sigma=np.std(background_sales[:treatment_time], axis=0),
-            # sigma=20,
-            dims="background_product",
-        )
-
-        sigma = pm.HalfNormal(
-            "background_product_sigma", sigma=10, dims="background_product"
-        )
-
-        # Use a dirichlet distribution to model the beta parameters.
-        alpha = np.full(len(coords["background_product"]), alpha_background)
-        beta = pm.Dirichlet("beta", a=alpha, dims="background_product")
-
-        # expectation
-        mu = pm.Deterministic(
-            "mu",
-            intercept[None, :] - innovation_sales[:, None] * beta[None, :],
-            dims=("time", "background_product"),
-        )
-
-        # likelihood
-        pm.Normal(
-            "y",
-            mu=mu,
-            sigma=sigma,
-            observed=_background_sales,
-            dims=("time", "background_product"),
-        )
-    return model

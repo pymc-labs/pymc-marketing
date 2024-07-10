@@ -11,6 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-from pymc_marketing.product_incrementality.mv_its import MVITS, build_2_param_model
+from pymc_marketing.product_incrementality.mv_its import MVITS
 
-__all__ = ["MVITS", "build_2_param_model"]
+__all__ = ["MVITS"]
