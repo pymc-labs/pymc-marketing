@@ -15,7 +15,11 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from pymc_marketing.product_incrementality.mv_its import MVITS
+from pymc_marketing.product_incrementality.mv_its import (
+    MVITS,
+    generate_constrained_data,
+    generate_unconstrained_data,
+)
 
 rng = np.random.default_rng(123)
 
@@ -27,6 +31,7 @@ scenario = {
     "market_shares_before": [[0.7, 0.3, 0]],
     "market_shares_after": [[0.65, 0.25, 0.1]],
     "market_share_labels": ["competitor", "own", "new"],
+    "rng": rng,
 }
 
 sample_kwargs = {"tune": 100, "draws": 100}
@@ -67,58 +72,15 @@ def generate_data(
     return data
 
 
-def generate_unconstrained_data(
-    total_sales_before: list[int],
-    total_sales_after: list[int],
-    total_sales_sigma: float,
-    treatment_time: int,
-    n_observations: int,
-    market_shares_before: list[list[float]],
-    market_shares_after: list[list[float]],
-    market_share_labels: list[str],
-):
-    """This function generates synthetic data for the MVITS model. Notably, we can
-    define different total sales levels before and after the introduction of the new
-    model"""
-
-    rates = np.array(
-        treatment_time * market_shares_before
-        + (n_observations - treatment_time) * market_shares_after
-    )
-
-    total_sales_mu = np.array(
-        treatment_time * total_sales_before
-        + (n_observations - treatment_time) * total_sales_after
-    )
-
-    total = (
-        rng.normal(loc=total_sales_mu, scale=total_sales_sigma, size=n_observations)
-    ).astype(int)
-
-    # Ensure total sales are never negative
-    total[total < 0] = 0
-
-    # Generate sales counts
-    counts = rng.multinomial(total, rates)
-
-    # Convert to DataFrame
-    data = pd.DataFrame(counts)
-    data.columns = market_share_labels
-    data.columns.name = "product"
-    data.index.name = "day"
-    data["pre"] = data.index < treatment_time
-    return data
-
-
 def test_plot_data():
-    data = generate_data(**scenario)
+    data = generate_constrained_data(**scenario)
     ax = MVITS.plot_data(data)
-    assert ax is not None
+    assert isinstance(ax, plt.Axes)
 
 
 def test_MVITS_saturated():
     """Test the MVITS class with unsaturated data"""
-    data = generate_data(**scenario)
+    data = generate_constrained_data(**scenario)
     result = MVITS(
         data,
         treatment_time=scenario["treatment_time"],
@@ -157,8 +119,11 @@ def test_MVITS_unsaturated_good_data():
         "market_shares_before": [[500 / 800, 300 / 800, 0]],
         "market_shares_after": [[400 / 950, 200 / 950, 350 / 950]],
         "market_share_labels": ["competitor", "own", "new"],
+        "rng": rng,
     }
     data = generate_unconstrained_data(**scenario1)
+    assert isinstance(data, pd.DataFrame)
+
     result = MVITS(
         data,
         treatment_time=scenario1["treatment_time"],
@@ -198,8 +163,11 @@ def test_MVITS_unsaturated_bad_data():
         "market_shares_before": [[0.7, 0.3, 0]],
         "market_shares_after": [[0.65, 0.25, 0.1]],
         "market_share_labels": ["competitor", "own", "new"],
+        "rng": rng,
     }
     data = generate_unconstrained_data(**scenario2)
+    assert isinstance(data, pd.DataFrame)
+
     result = MVITS(
         data,
         treatment_time=scenario2["treatment_time"],

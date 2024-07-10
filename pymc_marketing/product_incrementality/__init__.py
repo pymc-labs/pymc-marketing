@@ -11,6 +11,10 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-from pymc_marketing.product_incrementality.mv_its import MVITS
+from pymc_marketing.product_incrementality.mv_its import (
+    MVITS,
+    generate_constrained_data,
+    generate_unconstrained_data,
+)
 
-__all__ = ["MVITS"]
+__all__ = ["MVITS", "generate_constrained_data", "generate_unconstrained_data"]

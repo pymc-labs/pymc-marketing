@@ -317,3 +317,82 @@ class MVITS:
         ax.set(ylabel="Sales")
         ax.legend()
         return ax
+
+
+def generate_constrained_data(
+    total_sales_mu: int,
+    total_sales_sigma: float,
+    treatment_time: int,
+    n_observations: int,
+    market_shares_before,
+    market_shares_after,
+    market_share_labels,
+    rng: np.random.Generator,
+):
+    rates = np.array(
+        treatment_time * market_shares_before
+        + (n_observations - treatment_time) * market_shares_after
+    )
+
+    # Generate total demand (sales) as normally distributed around some average level of sales
+    total = (
+        rng.normal(loc=total_sales_mu, scale=total_sales_sigma, size=n_observations)
+    ).astype(int)
+
+    # Ensure total sales are never negative
+    total[total < 0] = 0
+
+    # Generate sales counts
+    counts = rng.multinomial(total, rates)
+
+    # Convert to DataFrame
+    data = pd.DataFrame(counts)
+    data.columns = market_share_labels
+    data.columns.name = "product"
+    data.index.name = "day"
+    data["pre"] = data.index < treatment_time
+    return data
+
+
+def generate_unconstrained_data(
+    total_sales_before: list[int],
+    total_sales_after: list[int],
+    total_sales_sigma: float,
+    treatment_time: int,
+    n_observations: int,
+    market_shares_before: list[list[float]],
+    market_shares_after: list[list[float]],
+    market_share_labels: list[str],
+    rng: np.random.Generator,
+):
+    """This function generates synthetic data for the MVITS model. Notably, we can
+    define different total sales levels before and after the introduction of the new
+    model"""
+
+    rates = np.array(
+        treatment_time * market_shares_before
+        + (n_observations - treatment_time) * market_shares_after
+    )
+
+    total_sales_mu = np.array(
+        treatment_time * total_sales_before
+        + (n_observations - treatment_time) * total_sales_after
+    )
+
+    total = (
+        rng.normal(loc=total_sales_mu, scale=total_sales_sigma, size=n_observations)
+    ).astype(int)
+
+    # Ensure total sales are never negative
+    total[total < 0] = 0
+
+    # Generate sales counts
+    counts = rng.multinomial(total, rates)
+
+    # Convert to DataFrame
+    data = pd.DataFrame(counts)
+    data.columns = pd.Index(market_share_labels)
+    data.columns.name = "product"
+    data.index.name = "day"
+    data["pre"] = data.index < treatment_time
+    return data
