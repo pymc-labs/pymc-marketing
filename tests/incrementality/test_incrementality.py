@@ -46,7 +46,51 @@ def generate_data(
         + (n_observations - treatment_time) * market_shares_after
     )
 
-    # Generate total demand (sales) as normally distributed around some average level of sales
+    # Generate total demand (sales) as normally distributed around some average level of
+    # sales
+    total = (
+        rng.normal(loc=total_sales_mu, scale=total_sales_sigma, size=n_observations)
+    ).astype(int)
+
+    # Ensure total sales are never negative
+    total[total < 0] = 0
+
+    # Generate sales counts
+    counts = rng.multinomial(total, rates)
+
+    # Convert to DataFrame
+    data = pd.DataFrame(counts)
+    data.columns = market_share_labels
+    data.columns.name = "product"
+    data.index.name = "day"
+    data["pre"] = data.index < treatment_time
+    return data
+
+
+def generate_unconstrained_data(
+    total_sales_before: list[int],
+    total_sales_after: list[int],
+    total_sales_sigma: float,
+    treatment_time: int,
+    n_observations: int,
+    market_shares_before: list[list[float]],
+    market_shares_after: list[list[float]],
+    market_share_labels: list[str],
+):
+    """This function generates synthetic data for the MVITS model. Notably, we can
+    define different total sales levels before and after the introduction of the new
+    model"""
+
+    rates = np.array(
+        treatment_time * market_shares_before
+        + (n_observations - treatment_time) * market_shares_after
+    )
+
+    total_sales_mu = np.array(
+        treatment_time * total_sales_before
+        + (n_observations - treatment_time) * total_sales_after
+    )
+
     total = (
         rng.normal(loc=total_sales_mu, scale=total_sales_sigma, size=n_observations)
     ).astype(int)
@@ -72,13 +116,96 @@ def test_plot_data():
     assert ax is not None
 
 
-def test_MVITS():
+def test_MVITS_saturated():
+    """Test the MVITS class with unsaturated data"""
     data = generate_data(**scenario)
     result = MVITS(
         data,
         treatment_time=scenario["treatment_time"],
         background_sales=["competitor", "own"],
         innovation_sales="new",
+        rng=rng,
+        sample_kwargs=sample_kwargs,
+    )
+    assert isinstance(result, MVITS)
+
+    ax = result.plot_fit()
+    assert isinstance(ax, plt.Axes)
+
+    ax = result.plot_counterfactual()
+    assert isinstance(ax, plt.Axes)
+
+    ax = result.plot_causal_impact()
+    assert isinstance(ax, plt.Axes)
+
+    result.plot_causal_impact(type="sales")
+    assert isinstance(ax, plt.Axes)
+
+    result.plot_causal_impact(type="market_share")
+    assert isinstance(ax, plt.Axes)
+
+
+def test_MVITS_unsaturated_good_data():
+    """We will test the `unsaturated` version of the MVITS model. And we will do this
+    with data that it is designed to handle."""
+    scenario1 = {
+        "total_sales_before": [800],
+        "total_sales_after": [950],
+        "total_sales_sigma": 10,
+        "treatment_time": 40,
+        "n_observations": 100,
+        "market_shares_before": [[500 / 800, 300 / 800, 0]],
+        "market_shares_after": [[400 / 950, 200 / 950, 350 / 950]],
+        "market_share_labels": ["competitor", "own", "new"],
+    }
+    data = generate_unconstrained_data(**scenario1)
+    result = MVITS(
+        data,
+        treatment_time=scenario1["treatment_time"],
+        background_sales=["competitor", "own"],
+        market_saturated=False,
+        innovation_sales="new",
+        rng=rng,
+        sample_kwargs=sample_kwargs,
+    )
+    assert isinstance(result, MVITS)
+
+    ax = result.plot_fit()
+    assert isinstance(ax, plt.Axes)
+
+    ax = result.plot_counterfactual()
+    assert isinstance(ax, plt.Axes)
+
+    ax = result.plot_causal_impact()
+    assert isinstance(ax, plt.Axes)
+
+    result.plot_causal_impact(type="sales")
+    assert isinstance(ax, plt.Axes)
+
+    result.plot_causal_impact(type="market_share")
+    assert isinstance(ax, plt.Axes)
+
+
+def test_MVITS_unsaturated_bad_data():
+    """We will test the `unsaturated` version of the MVITS model. And we will do this
+    with data that it is not designed to handle."""
+    scenario2 = {
+        "total_sales_before": [1000],
+        "total_sales_after": [1400],
+        "total_sales_sigma": 20,
+        "treatment_time": 40,
+        "n_observations": 100,
+        "market_shares_before": [[0.7, 0.3, 0]],
+        "market_shares_after": [[0.65, 0.25, 0.1]],
+        "market_share_labels": ["competitor", "own", "new"],
+    }
+    data = generate_unconstrained_data(**scenario2)
+    result = MVITS(
+        data,
+        treatment_time=scenario2["treatment_time"],
+        background_sales=["competitor", "own"],
+        innovation_sales="new",
+        market_saturated=False,
         rng=rng,
         sample_kwargs=sample_kwargs,
     )

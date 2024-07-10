@@ -1,4 +1,4 @@
-# Multivariate interrupted time series models for saturated markets
+# Multivariate interrupted time series models
 
 One modeling approach we could use for causal analysis of product incrementality is the multivariate interrupted time series (MV-ITS) model. This model is a generalization of the interrupted time series model (ITS), which is a common approach in causal inference. The MV-ITS model allows us to estimate the causal impact of an intervention (e.g., a new product introduction) on multiple outcomes (e.g., sales of multiple products) simultaneously.
 
@@ -118,3 +118,21 @@ $$
 $$
 
 The disadvantage of this model is that we would have a lot of parameters to estimate. For example, if there are $P$ products then we could have to estimate $P$ $\beta_i$'s and $P$ standard deviations and $P(P-1)/2$ covariances. This need not be a problem - we could place hierarchical priors on the $\beta_i$'s and the standard deviations for example, but it could be problematic with the covariances if we have a large number of products.
+
+## Moving to an unsaturated market
+
+Thus far we have considered the market as saturated. That is, it is assumed that the total sales of existing products are reduced by the same amount as the sales of the new product.
+
+We could relax this assumption and consider an unsaturated market. More specifically, we could model the reduction of sales of existing products is less than the sales of the new product. Putting that another way, introduction of a new product leads to a reduction in existing product sales _but_ there are _additional_ sales of the new product which do not come from a reduction in the sales of existing products.
+
+This requires only a minor change to the multivariate normal form of the model.
+
+Specifically, rather than having $P$ products which are the source of new product sales, we could simply add a psuedo-product which represents new sales. The first $P$ products are as normal, all the existing products. The final pseudo product would represent the market growth. We could simply add an additional $\beta$ parameter and specifcy the prior as:
+
+$$
+\beta_1, \beta_2, \ldots, \beta_P, \beta_{P+1} \sim \mathrm{Dirichlet}(\alpha_1, \ldots, \alpha_P, \alpha_{P+1})
+$$
+
+The rest of the model remains unchanged.
+
+Previously the sum of the $\beta$ parameters would be 1, which means that all new product sales are taken from existing products. Now the sum of the $\beta$ parameters relating to existing products ($\beta_1, \beta_2, \ldots, \beta_P$) could be less than 1. When $\beta_{P+1}>0$ then it means that the new product has caused the market to grow - some of the new product sales not come from reductions in sales of existing products.

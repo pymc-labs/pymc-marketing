@@ -32,6 +32,7 @@ class MVITS:
         treatment_time,
         background_sales: list[str],
         innovation_sales: str,
+        market_saturated: bool = True,
         rng=42,
         sample_kwargs: dict | None = None,
     ):
@@ -41,11 +42,13 @@ class MVITS:
         self.innovation_sales = innovation_sales
         self.rng = rng
         self.sample_kwargs = sample_kwargs if sample_kwargs is not None else {}
+        self.market_saturated = market_saturated
 
         # build the model
         self.model = self.build_model(
             self.data[self.background_sales],
             self.data[self.innovation_sales],
+            self.market_saturated,
             treatment_time=self.treatment_time,
         )
 
@@ -75,6 +78,7 @@ class MVITS:
     def build_model(
         background_sales: pd.DataFrame,
         innovation_sales: pd.Series,
+        market_saturated: bool,
         treatment_time,
         *,
         alpha_background=0.5,
@@ -90,11 +94,13 @@ class MVITS:
         coords: dict[str, list[str]] = {
             "background_product": list(background_sales.columns),
             "time": list(background_sales.index.values),
+            "all_sources": [
+                *list(background_sales.columns),
+                "new",
+            ],  # for non-saturated market only
+            # "all_sources": list(background_sales.columns)
+            # + ["new"],  # for non-saturated market only
         }
-
-        print(coords["background_product"])
-        print(type(coords["background_product"]))
-        print(len(coords["background_product"]))
 
         with pm.Model(coords=coords) as model:
             # data
@@ -120,8 +126,23 @@ class MVITS:
                 "background_product_sigma", sigma=10, dims="background_product"
             )
 
-            alpha = np.full(len(coords["background_product"]), alpha_background)
-            beta = pm.Dirichlet("beta", a=alpha, dims="background_product")
+            if market_saturated:
+                """We assume the market is saturated. The sum of the beta's will be 1.
+                This means that the reduction in sales of existing products will equal
+                the increase in sales of the new product, such that the total sales
+                remain constant."""
+                alpha = np.full(len(coords["background_product"]), alpha_background)
+                beta = pm.Dirichlet("beta", a=alpha, dims="background_product")
+            else:
+                """We assume the market is not saturated. The sum of the beta's will be
+                less than 1. This means that the reduction in sales of existing products
+                will be less than the increase in sales of the new product."""
+                alpha_all = np.full(len(coords["all_sources"]), alpha_background)
+                beta_all = pm.Dirichlet("beta_all", a=alpha_all, dims="all_sources")
+                beta = pm.Deterministic(
+                    "beta", beta_all[:-1], dims="background_product"
+                )
+                pm.Deterministic("new sales", beta_all[-1])
 
             # expectation
             mu = pm.Deterministic(
