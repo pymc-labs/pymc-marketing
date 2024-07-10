@@ -15,6 +15,7 @@
 
 import arviz as az
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -242,7 +243,36 @@ class MVITS:
         )
         return ax
 
-    def plot_causal_impact(self, type="sales"):
+    def plot_causal_impact_sales(self):
+        """Plot the inferred causal impact of the new product on the sales of the
+        background products."""
+        fig, ax = plt.subplots()
+
+        # plot posterior predictive distribution of sales for each of the background products
+        x = self.data.index.values
+        background_products = list(self.idata.observed_data.background_product.data)
+
+        for i, background_product in enumerate(background_products):
+            az.plot_hdi(
+                x,
+                self.causal_impact.transpose(..., "time").sel(
+                    background_product=background_product
+                ),
+                fill_kwargs={
+                    "alpha": HDI_ALPHA,
+                    "color": f"C{i}",
+                    "label": "Posterior predictive (HDI)",
+                },
+                smooth=False,
+            )
+        ax.set(ylabel="Change in sales caused by new product")
+
+        # formatting
+        ax.legend()
+        ax.set(title="Estimated causal impact of new product upon existing products")
+        return ax
+
+    def plot_causal_impact_market_share(self):
         """Plot the inferred causal impact of the new product on the background products."""
         fig, ax = plt.subplots()
 
@@ -250,56 +280,31 @@ class MVITS:
         x = self.data.index.values
         background_products = list(self.idata.observed_data.background_product.data)
 
-        if type == "sales":
-            for i, background_product in enumerate(background_products):
-                az.plot_hdi(
-                    x,
-                    self.causal_impact.transpose(..., "time").sel(
-                        background_product=background_product
-                    ),
-                    fill_kwargs={
-                        "alpha": HDI_ALPHA,
-                        "color": f"C{i}",
-                        "label": "Posterior predictive (HDI)",
-                    },
-                    smooth=False,
-                )
-            ax.set(ylabel="Change in sales caused by new product")
+        # divide the causal impact change in sales by the counterfactual predicted sales
+        variable = "mu"
+        for i, background_product in enumerate(background_products):
+            causal_impact = self.causal_impact.transpose(..., "time").sel(
+                background_product=background_product
+            )
+            total_sales = (
+                self.idata_counterfactual.posterior_predictive[variable]
+                .transpose(..., "time")
+                .sum(dim="background_product")
+            )
+            causal_impact_market_share = (causal_impact / total_sales) * 100
 
-        elif type == "market_share":
-            """change in terms of market share in percent is given by:
-            (causal_impact / total_sales) * 100
-            """
-            import matplotlib.ticker as mtick
-
-            # divide the causal impact change in sales by the counterfactual predicted sales
-            variable = "mu"
-            for i, background_product in enumerate(background_products):
-                causal_impact = self.causal_impact.transpose(..., "time").sel(
-                    background_product=background_product
-                )
-                total_sales = (
-                    self.idata_counterfactual.posterior_predictive[variable]
-                    .transpose(..., "time")
-                    .sum(dim="background_product")
-                )
-                causal_impact_market_share = (causal_impact / total_sales) * 100
-
-                az.plot_hdi(
-                    x,
-                    causal_impact_market_share,
-                    fill_kwargs={
-                        "alpha": HDI_ALPHA,
-                        "color": f"C{i}",
-                        "label": f"{background_product} - Posterior predictive (HDI)",
-                    },
-                    smooth=False,
-                )
-            ax.set(ylabel="Change in market share caused by new product")
-            ax.yaxis.set_major_formatter(mtick.PercentFormatter())
-
-        else:
-            raise ValueError("`type` must be either 'sales' or 'market_share'.")
+            az.plot_hdi(
+                x,
+                causal_impact_market_share,
+                fill_kwargs={
+                    "alpha": HDI_ALPHA,
+                    "color": f"C{i}",
+                    "label": f"{background_product} - Posterior predictive (HDI)",
+                },
+                smooth=False,
+            )
+        ax.set(ylabel="Change in market share caused by new product")
+        ax.yaxis.set_major_formatter(mtick.PercentFormatter())
 
         # formatting
         ax.legend()
