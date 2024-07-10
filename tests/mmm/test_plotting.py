@@ -19,6 +19,8 @@ import pymc as pm
 import pytest
 from matplotlib import pyplot as plt
 
+from pymc_marketing.mmm.components.adstock import GeometricAdstock
+from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.delayed_saturated_mmm import MMM, BaseMMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleTarget
 
@@ -99,22 +101,23 @@ class TestBasePlotting:
             class ToyMMM(BaseMMM, MaxAbsScaleTarget):
                 pass
 
+        adstock = GeometricAdstock(l_max=4)
+        saturation = LogisticSaturation()
+
         if control == "without_controls":
             mmm = ToyMMM(
                 date_column="date",
                 channel_columns=["channel_1", "channel_2"],
-                adstock_max_lag=4,
-                adstock="geometric",
-                saturation="logistic",
+                adstock=adstock,
+                saturation=saturation,
             )
         elif control == "with_controls":
             mmm = ToyMMM(
                 date_column="date",
-                adstock_max_lag=4,
                 control_columns=["control_1", "control_2"],
                 channel_columns=["channel_1", "channel_2"],
-                adstock="geometric",
-                saturation="logistic",
+                adstock=adstock,
+                saturation=saturation,
             )
 
         for transform in [mmm.adstock, mmm.saturation]:
@@ -163,13 +166,14 @@ class TestBasePlotting:
 
 @pytest.fixture(scope="module")
 def mock_mmm() -> MMM:
+    adstock = GeometricAdstock(l_max=4)
+    saturation = LogisticSaturation()
     return MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
-        adstock_max_lag=4,
         control_columns=["control_1", "control_2"],
-        adstock="geometric",
-        saturation="logistic",
+        adstock=adstock,
+        saturation=saturation,
     )
 
 

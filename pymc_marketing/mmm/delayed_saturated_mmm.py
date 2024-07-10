@@ -78,16 +78,16 @@ class BaseMMM(BaseValidateMMM):
         channel_columns: list[str] = Field(
             min_length=1, description="Column names of the media channel variables."
         ),
-        adstock_max_lag: int = Field(
-            ...,
-            gt=0,
-            description="Number of lags to consider in the adstock transformation.",
-        ),
         adstock: str | InstanceOf[AdstockTransformation] = Field(
             ..., description="Type of adstock transformation to apply."
         ),
         saturation: str | InstanceOf[SaturationTransformation] = Field(
             ..., description="Type of saturation transformation to apply."
+        ),
+        adstock_max_lag: int | None = Field(
+            None,
+            gt=0,
+            description="Number of lags to consider in the adstock transformation.",
         ),
         time_varying_intercept: bool = Field(
             False, description="Whether to consider time-varying intercept."
