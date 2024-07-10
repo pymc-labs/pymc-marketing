@@ -62,16 +62,19 @@ scenario_unsaturated_good = {
 sample_kwargs = {"tune": 100, "draws": 100}
 
 
-def test_plot_data():
-    data = generate_saturated_data(**scenario_saturated)
-    ax = MVITS.plot_data(data)
+@pytest.fixture
+def saturated_data_fixture():
+    return generate_saturated_data(**scenario_saturated)
+
+
+def test_plot_data(saturated_data_fixture):
+    ax = MVITS.plot_data(saturated_data_fixture)
     assert isinstance(ax, plt.Axes)
 
 
-def test_MVITS_saturated():
-    data = generate_saturated_data(**scenario_saturated)
+def test_MVITS_saturated(saturated_data_fixture):
     result = MVITS(
-        data,
+        saturated_data_fixture,
         treatment_time=scenario_saturated["treatment_time"],
         background_sales=["competitor", "own"],
         innovation_sales="new",
