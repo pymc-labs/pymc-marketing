@@ -28,6 +28,7 @@ from pymc_marketing.mmm.transformers import (
     delayed_adstock,
     geometric_adstock,
     hill_saturation,
+    inverse_scaled_logistic_saturation,
     logistic_saturation,
     michaelis_menten,
     tanh_saturation,
@@ -339,6 +340,32 @@ class TestSaturationTransformers:
     )
     def test_logistic_saturation_min_max_value(self, x, lam):
         y = logistic_saturation(x=x, lam=lam)
+        y_eval = y.eval()
+        assert y_eval.max() <= 1
+        assert y_eval.min() >= 0
+
+    def test_inverse_scaled_logistic_saturation_lam_half(self):
+        x = np.array([0.5] * 100)
+        y = inverse_scaled_logistic_saturation(x=x, lam=0.5, eps=np.ln(3))
+        expected = np.array([0.5] * 100)
+        np.testing.assert_almost_equal(
+            y.eval(),
+            expected,
+            decimal=5,
+            err_msg="The function does not behave as expected at lambda 0.5.",
+        )
+
+    @pytest.mark.parametrize(
+        "x, lam",
+        [
+            (np.ones(shape=(100)), 0.5),
+            (np.linspace(start=0.0, stop=1.0, num=50), 10),
+            (np.linspace(start=200, stop=1000, num=50), 0.001),
+            (np.zeros(shape=(100)), 1),
+        ],
+    )
+    def test_inverse_scaled_logistic_saturation_min_max_value(self, x, lam):
+        y = inverse_scaled_logistic_saturation(x=x, lam=lam)
         y_eval = y.eval()
         assert y_eval.max() <= 1
         assert y_eval.min() >= 0

@@ -482,6 +482,9 @@ def inverse_scaled_logistic_saturation(
     x, lam: npt.NDArray[np.float64] | float = 0.5, eps: float = np.log(3)
 ):
     """Inverse scaled logistic saturation transformation.
+        It offers a more intuitive alternative to logistic_saturation,
+        allowing for lambda to be interpreted as the half saturation point,
+        when using default values for lam and eps.
 
     .. math::
         f(x) = \\frac{1 - e^{-x*\epsilon/\lambda}}{1 + e^{-x*\epsilon/\lambda}}
@@ -514,7 +517,7 @@ def inverse_scaled_logistic_saturation(
     lam : float or array-like, optional, by default 0.5
         Saturation parameter.
     eps : float or array-like, optional, by default ln(3)
-        Scaling parameter.
+        Scaling parameter. ln(3) results in halfway saturation for lam = 0.5
 
     Returns
     -------
