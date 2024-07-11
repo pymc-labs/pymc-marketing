@@ -412,7 +412,7 @@ class ParetoNBDModel(CLVModel):
             purchase_coefficient = self.fit_result["purchase_coefficient"]
             alpha = alpha_scale * np.exp(
                 -xarray.dot(
-                    purchase_coefficient, purchase_xarray, dims="purchase_covariate"
+                    purchase_coefficient, purchase_xarray, dim="purchase_covariate"
                 )
             )
             alpha.name = "alpha"
@@ -429,7 +429,7 @@ class ParetoNBDModel(CLVModel):
             dropout_coefficient = self.fit_result["dropout_coefficient"]
             beta = beta_scale * np.exp(
                 -xarray.dot(
-                    dropout_coefficient, dropout_xarray, dims="dropout_covariate"
+                    dropout_coefficient, dropout_xarray, dim="dropout_covariate"
                 )
             )
             beta.name = "beta"

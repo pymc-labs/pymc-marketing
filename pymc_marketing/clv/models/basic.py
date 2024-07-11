@@ -28,6 +28,7 @@ from xarray import Dataset
 
 from pymc_marketing.model_builder import ModelBuilder
 from pymc_marketing.model_config import ModelConfig, parse_model_config
+from pymc_marketing.utils import from_netcdf
 
 
 class CLVModel(ModelBuilder):
@@ -186,17 +187,22 @@ class CLVModel(ModelBuilder):
         >>> imported_model = MyModel.load(name)
         """
         filepath = Path(str(fname))
-        idata = az.from_netcdf(filepath)
+        idata = from_netcdf(filepath)
         return cls._build_with_idata(idata)
 
     @classmethod
     def _build_with_idata(cls, idata: az.InferenceData):
         dataset = idata.fit_data.to_dataframe()
-        model = cls(
-            dataset,
-            model_config=json.loads(idata.attrs["model_config"]),  # type: ignore
-            sampler_config=json.loads(idata.attrs["sampler_config"]),
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=DeprecationWarning,
+            )
+            model = cls(
+                dataset,
+                model_config=json.loads(idata.attrs["model_config"]),  # type: ignore
+                sampler_config=json.loads(idata.attrs["sampler_config"]),
+            )
         model.idata = idata
         model.build_model()  # type: ignore
         if model.id != idata.attrs["id"]:
