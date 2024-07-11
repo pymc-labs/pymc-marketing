@@ -63,7 +63,6 @@ class MMMModelBuilder(ModelBuilder):
         ),
         model_config: dict | None = Field(None, description="Model configuration."),
         sampler_config: dict | None = Field(None, description="Sampler configuration."),
-        **kwargs,
     ) -> None:
         self.date_column: str = date_column
         self.channel_columns: list[str] | tuple[str] = channel_columns
@@ -392,7 +391,7 @@ class MMMModelBuilder(ModelBuilder):
 
             if original_scale:
                 likelihood_hdi = self.get_target_transformer().inverse_transform(
-                    Xt=likelihood_hdi
+                    likelihood_hdi
                 )
 
             ax.fill_between(

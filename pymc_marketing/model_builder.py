@@ -29,6 +29,7 @@ from pymc.util import RandomState
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.prior import Prior
+from pymc_marketing.utils import from_netcdf
 
 # If scikit-learn is available, use its data validator
 try:
@@ -398,7 +399,8 @@ class ModelBuilder(ABC):
         >>> imported_model = MyModel.load(name)
         """
         filepath = Path(str(fname))
-        idata = az.from_netcdf(filepath)
+        idata = from_netcdf(filepath)
+
         # needs to be converted, because json.loads was changing tuple to list
         model_config = cls._model_config_formatting(
             json.loads(idata.attrs["model_config"])

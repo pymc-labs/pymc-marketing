@@ -227,7 +227,7 @@ def test_fit(fitted_model_instance):
     rng = np.random.default_rng(42)
     assert fitted_model_instance.idata is not None
     assert "posterior" in fitted_model_instance.idata.groups()
-    assert fitted_model_instance.idata.posterior.dims["draw"] == 100
+    assert fitted_model_instance.idata.posterior.sizes["draw"] == 100
 
     prediction_data = pd.DataFrame({"input": rng.uniform(low=0, high=1, size=100)})
     fitted_model_instance.predict(prediction_data)
@@ -271,8 +271,8 @@ def test_sample_posterior_predictive(fitted_model_instance, combined):
     pred = fitted_model_instance.sample_posterior_predictive(
         prediction_data, combined=combined, extend_idata=True
     )
-    chains = fitted_model_instance.idata.sample_stats.dims["chain"]
-    draws = fitted_model_instance.idata.sample_stats.dims["draw"]
+    chains = fitted_model_instance.idata.sample_stats.sizes["chain"]
+    draws = fitted_model_instance.idata.sample_stats.sizes["draw"]
     expected_shape = (n_pred, chains * draws) if combined else (chains, draws, n_pred)
     assert pred[fitted_model_instance.output_var].shape == expected_shape
     assert np.issubdtype(pred[fitted_model_instance.output_var].dtype, np.floating)
