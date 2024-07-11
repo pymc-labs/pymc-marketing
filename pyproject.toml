@@ -53,7 +53,7 @@ docs = [
     "blackjax",
     "nutpie",
     "numba",
-    "pydata-sphinx-theme>=0.12.0.dev0",
+    "labs-sphinx-theme @ git+https://github.com/pymc-labs/labs-sphinx-theme",
     "sphinx-copybutton",
     "sphinx-autodoc-typehints",
     "sphinxext-opengraph",
