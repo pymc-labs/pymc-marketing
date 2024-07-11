@@ -161,6 +161,59 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
         plot_curve(prior["f"], {"time"}, subplot_kwargs=subplot_kwargs)
         plt.show()
 
+    New data predictions with HSGP
+
+    .. code-block:: python
+
+        import pandas as pd
+
+        import pymc as pm
+        import numpy as np
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.hsgp_kwargs import HSGP
+        from pymc_marketing.mmm.plot import plot_curve
+
+        hsgp = HSGP(
+            ls_lower=1,
+            ls_upper=15,
+            drop_first=True,
+            centered=True,
+            cov_func="matern52",
+        )
+
+        n = 52
+        X = np.arange(n)
+
+        dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
+        coords = {
+            "time": dates,
+            "channel": ["A", "B"]
+        }
+        with pm.Model(coords=coords) as model:
+            data = pm.Data("data", X, dims="time")
+            f = (
+                hsgp
+                .register_data(data)
+                .create_variable("f", ("time", "channel"))
+            )
+            prior = pm.sample_prior_predictive().prior
+
+        with model:
+            pm.set_data(
+                {
+                    "data": np.arange(n, n + 10),
+                },
+                coords={"time": pd.date_range("2023-01-01", periods=10, freq="W-MON")},
+            )
+            post = pm.sample_posterior_predictive(prior, var_names=["f"])
+
+        chain, draw = 0, 50
+        ax = prior["f"].loc[chain, draw].to_series().unstack().plot()
+        post.posterior_predictive["f"].loc[chain, draw].to_series().unstack().plot(ax=ax, linestyle="--")
+        plt.show()
+
     """
 
     ls_lower: float = Field(1.0, gt=0, description="Lower bound for the lengthscales")
