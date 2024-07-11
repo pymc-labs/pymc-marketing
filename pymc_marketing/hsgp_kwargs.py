@@ -13,13 +13,15 @@
 #   limitations under the License.
 """Class to store and validate keyword argument for the Hilbert Space Gaussian Process (HSGP) components."""
 
+from enum import Enum
 from typing import Annotated
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
-from pydantic import BaseModel, Field, InstanceOf
+from pydantic import BaseModel, Field, InstanceOf, model_validator
 from pymc.distributions.shape_utils import Dims
+from typing_extensions import Self
 
 from pymc_marketing.prior import Prior
 
@@ -106,6 +108,12 @@ def approx_hsgp_hyperparams(
     return m, c
 
 
+class CovFunc(str, Enum):
+    ExpQuad = "expquad"
+    Matern52 = "matern52"
+    Matern32 = "matern32"
+
+
 class HSGP(BaseModel, extra="allow"):  # type: ignore
     """HSGP configuration.
 
@@ -129,6 +137,7 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
             ls_lower=1,
             ls_upper=15,
             drop_first=True,
+            centered=True,
             cov_func="matern52",
         )
 
@@ -139,25 +148,41 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
         dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
         coords = {
             "time": dates,
+            "channel": ["A", "B"]
         }
         with pm.Model(coords=coords) as model:
-            f = hsgp.create_variable("f", "time")
+            f = hsgp.create_variable("f", ("time", "channel"))
 
             prior = pm.sample_prior_predictive().prior
 
-        plot_curve(prior["f"], {"time"})
+        subplot_kwargs = {
+            "ncols": 1,
+        }
+        plot_curve(prior["f"], {"time"}, subplot_kwargs=subplot_kwargs)
         plt.show()
+
     """
 
-    ls_lower: float = 1.0
-    ls_upper: float | None = None
-    ls_mass: float = 0.90
-    eta_upper: float = 1.0
-    eta_mass: float = 0.05
-    centered: bool = False
-    drop_first: bool = True
-    X_mid: float | None = None
-    cov_func: str = "expquad"
+    ls_lower: float = Field(1.0, gt=0, description="Lower bound for the lengthscales")
+    ls_upper: float | None = Field(
+        None, gt=0, description="Upper bound for the lengthscales"
+    )
+    ls_mass: float = Field(0.90, gt=0, lt=1, description="Mass of the lengthscales")
+    eta_upper: float = Field(1.0, gt=0, description="Upper bound for the variance")
+    eta_mass: float = Field(0.05, gt=0, lt=1, description="Mass of the variance")
+    centered: bool = Field(False, description="Whether the model is centered or not")
+    drop_first: bool = Field(
+        True, description="Whether to drop the first basis function"
+    )
+    X_mid: float | None = Field(None, description="The mean of the data")
+    cov_func: CovFunc = Field(CovFunc.ExpQuad, description="The covariance function")
+
+    @model_validator(mode="after")
+    def _check_lower_below_upper(self) -> Self:
+        if self.ls_upper is not None and self.ls_lower >= self.ls_upper:
+            raise ValueError("Lower bound must be below the upper bound")
+
+        return self
 
     @property
     def eta(self) -> Prior:
@@ -260,10 +285,10 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
 
         if self.centered:
             hsgp_coefs = pm.Normal(f"{name}_hsgp_coefs", sigma=sqrt_psd, dims=hsgp_dims)
-            f = phi @ hsgp_coefs
+            f = phi @ hsgp_coefs.T
         else:
             hsgp_coefs = pm.Normal(f"{name}_hsgp_coefs", dims=hsgp_dims)
-            f = phi @ (hsgp_coefs * sqrt_psd)
+            f = phi @ (hsgp_coefs * sqrt_psd).T
 
         return pm.Deterministic(name, f, dims=dims)
 
