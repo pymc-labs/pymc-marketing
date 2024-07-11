@@ -137,7 +137,7 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
             ls_lower=1,
             ls_upper=15,
             drop_first=True,
-            centered=True,
+            centered=False,
             cov_func="matern52",
         )
 
@@ -148,17 +148,13 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
         dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
         coords = {
             "time": dates,
-            "channel": ["A", "B"]
         }
         with pm.Model(coords=coords) as model:
-            f = hsgp.create_variable("f", ("time", "channel"))
+            f = hsgp.create_variable("f", "time")
 
             prior = pm.sample_prior_predictive().prior
 
-        subplot_kwargs = {
-            "ncols": 1,
-        }
-        plot_curve(prior["f"], {"time"}, subplot_kwargs=subplot_kwargs)
+        plot_curve(prior["f"], {"time"})
         plt.show()
 
     New data predictions with HSGP
@@ -336,13 +332,10 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
             self.X[:, None] - self.X_mid,
         )
 
-        if self.centered:
-            hsgp_coefs = pm.Normal(f"{name}_hsgp_coefs", sigma=sqrt_psd, dims=hsgp_dims)
-            f = phi @ hsgp_coefs.T
-        else:
-            hsgp_coefs = pm.Normal(f"{name}_hsgp_coefs", dims=hsgp_dims)
-            f = phi @ (hsgp_coefs * sqrt_psd).T
-
+        hsgp_coefs = Prior(
+            "Normal", mu=0, sigma=sqrt_psd, dims=hsgp_dims, centered=self.centered
+        ).create_variable(f"{name}_hsgp_coefs")
+        f = phi @ hsgp_coefs.T
         return pm.Deterministic(name, f, dims=dims)
 
 
