@@ -161,7 +161,7 @@ def time_varying_prior(
         hsgp_dims = (dims[1], "m")
 
     gp = pm.gp.HSGP(m=[hsgp_kwargs.m], L=[hsgp_kwargs.L], cov_func=cov_func)
-    phi, sqrt_psd = gp.prior_linearized(Xs=X[:, None] - X_mid)
+    phi, sqrt_psd = gp.prior_linearized(X[:, None] - X_mid)
     hsgp_coefs = pm.Normal(f"{name}_hsgp_coefs", dims=hsgp_dims)
     f = phi @ (hsgp_coefs * sqrt_psd).T
     f = pt.softplus(f)
