@@ -241,10 +241,9 @@ class TestDelayedSaturatedMMM:
             my_mmm = MMM(
                 date_column="bad_date_column",
                 channel_columns=["channel_1", "channel_2"],
-                adstock_max_lag=4,
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
                 control_columns=["control_1", "control_2"],
-                adstock="geometric",
-                saturation="logistic",
             )
             y = np.ones(toy_X_with_bad_dates.shape[0])
             my_mmm.build_model(X=toy_X_with_bad_dates, y=y)
