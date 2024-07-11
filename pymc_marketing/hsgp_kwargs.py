@@ -118,20 +118,27 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
         import pandas as pd
 
         import pymc as pm
-        import pytensor.tensor as pt
+        import numpy as np
+
+        import matplotlib.pyplot as plt
 
         from pymc_marketing.hsgp_kwargs import HSGP
         from pymc_marketing.mmm.plot import plot_curve
 
-        hsgp = HSGP(drop_first=True, cov_func="matern52")
+        hsgp = HSGP(
+            ls_lower=1,
+            ls_upper=15,
+            drop_first=True,
+            cov_func="matern52",
+        )
 
-        X = pt.as_tensor_variable(np.arange(100))
+        n = 52
+        X = np.arange(n)
         hsgp.register_data(X)
 
-        dates = pd.date_range("2022-01-01", periods=100)
+        dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
         coords = {
             "time": dates,
-            "channel": ["A", "B"],
         }
         with pm.Model(coords=coords) as model:
             f = hsgp.create_variable("f", "time")
