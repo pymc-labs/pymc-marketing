@@ -88,7 +88,10 @@ class BaseMMM(BaseValidateMMM):
         adstock_max_lag: int | None = Field(
             None,
             gt=0,
-            description="Number of lags to consider in the adstock transformation.",
+            description=(
+                "Number of lags to consider in the adstock transformation. "
+                "Defaults to the max lag of the adstock transformation."
+            ),
         ),
         time_varying_intercept: bool = Field(
             False, description="Whether to consider time-varying intercept."
@@ -129,12 +132,13 @@ class BaseMMM(BaseValidateMMM):
             Column name of the date variable. Must be parsable using ~pandas.to_datetime.
         channel_columns : List[str]
             Column names of the media channel variables.
-        adstock_max_lag : int, optional
-            Number of lags to consider in the adstock transformation.
         adstock : str | AdstockTransformation
             Type of adstock transformation to apply.
         saturation : str | SaturationTransformation
             Type of saturation transformation to apply.
+        adstock_max_lag : int, optional
+            Number of lags to consider in the adstock transformation. Defaults to the
+            max lag of the adstock transformation.
         time_varying_intercept : bool, optional
             Whether to consider time-varying intercept, by default False.
             Because the `time-varying` variable is centered around 1 and acts as a multiplier,
