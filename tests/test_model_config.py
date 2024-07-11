@@ -17,10 +17,8 @@ import warnings
 import numpy as np
 import pytest
 
-from pymc_marketing.model_config import (
-    ModelConfigError,
-    parse_model_config,
-)
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
+from pymc_marketing.model_config import ModelConfigError, parse_model_config
 from pymc_marketing.prior import Prior
 
 
@@ -142,6 +140,15 @@ def model_config():
             "dims": ("channel", "geo"),
             "centered": False,
         },
+        # TVP Intercept
+        "intercept_tvp_config": {
+            "m": 200,
+            "L": 119.17,
+            "eta_lam": 1.0,
+            "ls_mu": 5.0,
+            "ls_sigma": 10.0,
+            "cov_func": None,
+        },
         # Incorrect config
         "error": {
             "dist": "Normal",
@@ -166,6 +173,7 @@ def test_parse_model_config(model_config) -> None:
 
         result = parse_model_config(
             to_parse,
+            hsgp_kwargs_fields=["intercept_tvp_config"],
             non_distributions=non_distributions,
         )
 
@@ -202,6 +210,14 @@ def test_parse_model_config(model_config) -> None:
             sigma=Prior("HalfNormal", sigma=1.0, dims="geo"),
             dims=("channel", "geo"),
             centered=False,
+        ),
+        "intercept_tvp_config": HSGPKwargs(
+            m=200,
+            L=119.17,
+            eta_lam=1.0,
+            ls_mu=5.0,
+            ls_sigma=10.0,
+            cov_func=None,
         ),
         "error": {
             "dist": "Normal",

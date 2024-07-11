@@ -71,6 +71,7 @@ for saturation parameter of logistic saturation.
 
 import numpy as np
 import xarray as xr
+from pydantic import Field, InstanceOf, validate_call
 
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.transformers import (
@@ -130,10 +131,13 @@ class SaturationTransformation(Transformation):
 
     prefix: str = "saturation"
 
+    @validate_call
     def sample_curve(
         self,
-        parameters: xr.Dataset,
-        max_value: float = 1.0,
+        parameters: InstanceOf[xr.Dataset] = Field(
+            ..., description="Parameters of the saturation transformation."
+        ),
+        max_value: float = Field(1.0, gt=0, description="Maximum range value."),
     ) -> xr.DataArray:
         """Sample the curve of the saturation transformation given parameters.
 

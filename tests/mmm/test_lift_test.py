@@ -325,15 +325,13 @@ def test_add_lift_measurements_before_new_data(
     channels = ["organic", "paid", "social"]
     coords = {
         "channel": channels,
-    }
-    coords_mutable = {
         "date": ["2020-01-01", "2020-01-02", "2020-01-03"],
     }
-    with pm.Model(coords=coords, coords_mutable=coords_mutable) as model:
+    with pm.Model(coords=coords) as model:
         alpha = pm.HalfNormal("alpha", dims="channel")
         lam = pm.HalfNormal("lam", dims="channel")
 
-        X = pm.Data("X", np.ones((3, 3)), dims=("date", "channel"), mutable=True)
+        X = pm.Data("X", np.ones((3, 3)), dims=("date", "channel"))
         pm.Deterministic(
             "random_operation",
             X + alpha + lam,

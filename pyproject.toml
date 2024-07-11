@@ -30,8 +30,9 @@ dependencies = [
     "matplotlib>=3.5.1",
     "numpy>=1.17",
     "pandas",
+    "pydantic>=2.1.0",
     # NOTE: Used as minimum pymc version with ci.yml `OLDEST_PYMC_VERSION`
-    "pymc>=5.12.0,<5.16.0",
+    "pymc>=5.13.0,<5.16.0",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "xarray",
@@ -93,6 +94,7 @@ repository = "https://github.com/pymc-labs/pymc-marketing"
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "RUF", "S", "UP", "W"]
 ignore = [
+    "B008",   # Do not perform calls in argument defaults (this is ok with Field from pydantic)
     "B904",   # raise-without-from-inside-except
     "RUF001", # String contains ambiguous character (such as Greek letters)
     "RUF002", # Docstring contains ambiguous character (such as Greek letters)

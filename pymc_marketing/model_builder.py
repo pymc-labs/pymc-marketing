@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-
+"""Base class responsible of the high level API for model building, fitting saving and loading."""
 
 import hashlib
 import json
@@ -27,6 +27,7 @@ import pymc as pm
 import xarray as xr
 from pymc.util import RandomState
 
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.prior import Prior
 
 # If scikit-learn is available, use its data validator
@@ -64,8 +65,6 @@ class ModelBuilder(ABC):
 
         Parameters
         ----------
-        data : Dictionary, optional
-            It is the data we need to train the model on.
         model_config : Dictionary, optional
             dictionary of parameters that initialise model configuration.
             Class-default defined by the user default_model_config method.
@@ -262,7 +261,9 @@ class ModelBuilder(ABC):
         None
         """
 
-    def set_idata_attrs(self, idata=None):
+    def set_idata_attrs(
+        self, idata: az.InferenceData | None = None
+    ) -> az.InferenceData:
         """
         Set attributes on an InferenceData object.
 
@@ -294,7 +295,8 @@ class ModelBuilder(ABC):
         def default(x):
             if isinstance(x, Prior):
                 return x.to_json()
-
+            elif isinstance(x, HSGPKwargs):
+                return x.model_dump(mode="json")
             return x.__dict__
 
         idata.attrs["id"] = self.id

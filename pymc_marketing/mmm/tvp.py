@@ -93,6 +93,7 @@ import pytensor.tensor as pt
 from pymc.distributions.shape_utils import Dims
 
 from pymc_marketing.constants import DAYS_IN_YEAR
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 
 
 def time_varying_prior(
@@ -100,12 +101,7 @@ def time_varying_prior(
     X: pt.sharedvar.TensorSharedVariable,
     dims: Dims,
     X_mid: int | float | None = None,
-    m: int = 200,
-    L: int | float | None = None,
-    eta_lam: float = 1,
-    ls_mu: float = 5,
-    ls_sigma: float = 5,
-    cov_func: pm.gp.cov.Covariance | None = None,
+    hsgp_kwargs: HSGPKwargs | None = None,
 ) -> pt.TensorVariable:
     """Time varying prior, based on the Hilbert Space Gaussian Process (HSGP).
 
@@ -124,20 +120,9 @@ def time_varying_prior(
         the time dimension, and the second may be any other dimension, across
         which independent time varying priors for each coordinate are desired
         (e.g. channels).
-    m : int
-        Number of basis functions.
-    L : int
-        Extent of basis functions. Set this to reflect the expected range of
-        in+out-of-sample data (considering that time-indices are zero-centered).
-        Default is `X_mid * 2` (identical to `c=2` in HSGP).
-    eta_lam : float
-        Exponential prior for the variance.
-    ls_mu : float
-        Mean of the inverse gamma prior for the lengthscale.
-    ls_sigma : float
-        Standard deviation of the inverse gamma prior for the lengthscale.
-    cov_func : pm.gp.cov.Covariance
-        Covariance function.
+    hsgp_kwargs : HSGPKwargs
+        Keyword arguments for the Hilbert Space Gaussian Process. By default it is None,
+        in which case the default parameters are used. See `HSGPKwargs` for more information.
 
     Returns
     -------
@@ -153,25 +138,30 @@ def time_varying_prior(
         Regression.
     """
 
+    if hsgp_kwargs is None:
+        hsgp_kwargs = HSGPKwargs()
+
     if X_mid is None:
         X_mid = float(X.mean().eval())
-    if L is None:
-        L = X_mid * 2
+    if hsgp_kwargs.L is None:
+        hsgp_kwargs.L = X_mid * 2
 
     model = pm.modelcontext(None)
 
-    if cov_func is None:
-        eta = pm.Exponential(f"{name}_eta", lam=eta_lam)
-        ls = pm.InverseGamma(f"{name}_ls", mu=ls_mu, sigma=ls_sigma)
+    if hsgp_kwargs.cov_func is None:
+        eta = pm.Exponential(f"{name}_eta", lam=hsgp_kwargs.eta_lam)
+        ls = pm.InverseGamma(
+            f"{name}_ls", mu=hsgp_kwargs.ls_mu, sigma=hsgp_kwargs.ls_sigma
+        )
         cov_func = eta**2 * pm.gp.cov.Matern52(1, ls=ls)
 
-    model.add_coord("m", np.arange(m))  # type: ignore
+    model.add_coord("m", np.arange(hsgp_kwargs.m))  # type: ignore
     hsgp_dims: str | tuple[str, str] = "m"
     if isinstance(dims, tuple):
         hsgp_dims = (dims[1], "m")
 
-    gp = pm.gp.HSGP(m=[m], L=[L], cov_func=cov_func)
-    phi, sqrt_psd = gp.prior_linearized(X=X[:, None] - X_mid)
+    gp = pm.gp.HSGP(m=[hsgp_kwargs.m], L=[hsgp_kwargs.L], cov_func=cov_func)
+    phi, sqrt_psd = gp.prior_linearized(X[:, None] - X_mid)
     hsgp_coefs = pm.Normal(f"{name}_hsgp_coefs", dims=hsgp_dims)
     f = phi @ (hsgp_coefs * sqrt_psd).T
     f = pt.softplus(f)
@@ -185,7 +175,7 @@ def create_time_varying_gp_multiplier(
     time_index: pt.sharedvar.TensorSharedVariable,
     time_index_mid: int,
     time_resolution: int,
-    model_config: dict,
+    hsgp_kwargs: HSGPKwargs,
 ) -> pt.TensorVariable:
     """Create a time-varying Gaussian Process multiplier.
 
@@ -203,30 +193,26 @@ def create_time_varying_gp_multiplier(
         Midpoint of the time points.
     time_resolution : int
         Resolution of time points.
-    model_config : dict
-        Configuration dictionary for the model.
+    hsgp_kwargsg : HSGPKwargs
+        Keyword arguments for the Hilbert Space Gaussian Process (HSGP) component.
 
     Returns
     -------
     pt.TensorVariable
         Time-varying Gaussian Process multiplier for a given variable.
     """
+    if hsgp_kwargs.L is None:
+        hsgp_kwargs.L = time_index_mid + DAYS_IN_YEAR / time_resolution
+    if hsgp_kwargs.ls_mu is None:
+        hsgp_kwargs.ls_mu = DAYS_IN_YEAR / time_resolution * 2
 
-    tvp_config = model_config[f"{name}_tvp_config"]
-
-    if tvp_config["L"] is None:
-        tvp_config["L"] = time_index_mid + DAYS_IN_YEAR / time_resolution
-    if tvp_config["ls_mu"] is None:
-        tvp_config["ls_mu"] = DAYS_IN_YEAR / time_resolution * 2
-
-    multiplier = time_varying_prior(
+    return time_varying_prior(
         name=f"{name}_temporal_latent_multiplier",
         X=time_index,
         X_mid=time_index_mid,
         dims=dims,
-        **tvp_config,
+        hsgp_kwargs=hsgp_kwargs,
     )
-    return multiplier
 
 
 def infer_time_index(
