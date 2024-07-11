@@ -34,9 +34,11 @@ from pymc_marketing.mmm.base import BaseValidateMMM
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
+    GeometricAdstock,
     _get_adstock_function,
 )
 from pymc_marketing.mmm.components.saturation import (
+    LogisticSaturation,
     SaturationTransformation,
     _get_saturation_function,
 )
@@ -122,7 +124,6 @@ class BaseMMM(BaseValidateMMM):
         adstock_first: bool = Field(
             True, description="Whether to apply adstock first."
         ),
-        **kwargs,
     ) -> None:
         """Constructor method.
 
@@ -170,7 +171,18 @@ class BaseMMM(BaseValidateMMM):
         self.validate_data = validate_data
 
         self.adstock_first = adstock_first
-        self.adstock = _get_adstock_function(function=adstock, l_max=adstock_max_lag)
+
+        if adstock_max_lag is not None:
+            warnings.warn(
+                "The `adstock_max_lag` parameter is deprecated. Use `adstock` directly",
+                DeprecationWarning,
+                stacklevel=1,
+            )
+            adstock_kwargs = {"l_max": adstock_max_lag}
+        else:
+            adstock_kwargs = {}
+
+        self.adstock = _get_adstock_function(function=adstock, **adstock_kwargs)
         self.saturation = _get_saturation_function(function=saturation)
 
         model_config = model_config or {}
@@ -188,7 +200,6 @@ class BaseMMM(BaseValidateMMM):
             channel_columns=channel_columns,
             model_config=model_config,
             sampler_config=sampler_config,
-            adstock_max_lag=adstock_max_lag,
         )
 
         self.yearly_seasonality = yearly_seasonality
@@ -362,7 +373,11 @@ class BaseMMM(BaseValidateMMM):
 
         .. code-block:: python
 
-            from pymc_marketing.mmm import MMM
+            from pymc_marketing.mmm import (
+                GeometricAdstock,
+                LogisticSaturation
+                MMM,
+            )
             from pymc_marketing.prior import Prior
 
             custom_config = {
@@ -378,12 +393,13 @@ class BaseMMM(BaseValidateMMM):
             model = MMM(
                 date_column="date_week",
                 channel_columns=["x1", "x2"],
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
                 control_columns=[
                     "event_1",
                     "event_2",
                     "t",
                 ],
-                adstock_max_lag=8,
                 yearly_seasonality=2,
                 model_config=custom_config,
             )
@@ -848,22 +864,25 @@ class MMM(
         import numpy as np
         import pandas as pd
 
-        from pymc_marketing.mmm import MMM
+        from pymc_marketing.mmm import (
+            GeometricAdstock,
+            LogisticSaturation
+            MMM,
+        )
 
         data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
         data = pd.read_csv(data_url, parse_dates=["date_week"])
 
         mmm = MMM(
             date_column="date_week",
-            adstock="geometric",
-            saturation="logistic",
             channel_columns=["x1", "x2"],
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
             control_columns=[
                 "event_1",
                 "event_2",
                 "t",
             ],
-            adstock_max_lag=8,
             yearly_seasonality=2,
         )
 
@@ -884,8 +903,12 @@ class MMM(
 
         import numpy as np
 
+        from pymc_marketing.mmm import (
+            GeometricAdstock,
+            LogisticSaturation
+            MMM,
+        )
         from pymc_marketing.prior import Prior
-        from pymc_marketing.mmm import MMM
 
         my_model_config = {
             "beta_channel": Prior("LogNormal", mu=np.array([2, 1]), sigma=1),
@@ -893,18 +916,17 @@ class MMM(
         }
 
         mmm = MMM(
-            adstock="geometric",
-            saturation="logistic",
-            model_config=my_model_config,
             date_column="date_week",
             channel_columns=["x1", "x2"],
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
             control_columns=[
                 "event_1",
                 "event_2",
                 "t",
             ],
-            adstock_max_lag=8,
             yearly_seasonality=2,
+            model_config=my_model_config,
         )
 
     As you can see, we can configure all prior and likelihood distributions via the `model_config`.
@@ -1769,18 +1791,21 @@ class MMM(
             import pandas as pd
             import numpy as np
 
-            from pymc_marketing.mmm import MMM
+            from pymc_marketing.mmm import (
+                GeometricAdstock,
+                LogisticSaturation,
+                MMM,
+            )
 
             model = MMM(
-                adstock="geometric",
-                saturation="logistic",
                 date_column="date_week",
                 channel_columns=["x1", "x2"],
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
                 control_columns=[
                     "event_1",
                     "event_2",
                 ],
-                adstock_max_lag=8,
                 yearly_seasonality=2,
             )
 
@@ -2210,7 +2235,6 @@ class DelayedSaturatedMMM(MMM):
         control_columns: list[str] | None = None,
         yearly_seasonality: int | None = None,
         adstock_first: bool = True,
-        **kwargs,
     ) -> None:
         """
         Wrapper function for DelayedSaturatedMMM class initializer.
@@ -2221,13 +2245,15 @@ class DelayedSaturatedMMM(MMM):
         warnings.warn(
             "The DelayedSaturatedMMM class is deprecated. Please use the MMM class instead.",
             DeprecationWarning,
-            stacklevel=2,
+            stacklevel=1,
         )
+
+        adstock = GeometricAdstock(l_max=adstock_max_lag)
+        saturation = LogisticSaturation()
 
         super().__init__(
             date_column=date_column,
             channel_columns=channel_columns,
-            adstock_max_lag=adstock_max_lag,
             time_varying_intercept=time_varying_intercept,
             time_varying_media=time_varying_media,
             model_config=model_config,
@@ -2235,8 +2261,7 @@ class DelayedSaturatedMMM(MMM):
             validate_data=validate_data,
             control_columns=control_columns,
             yearly_seasonality=yearly_seasonality,
-            adstock="geometric",
-            saturation="logistic",
+            adstock=adstock,
+            saturation=saturation,
             adstock_first=adstock_first,
-            **kwargs,
         )
