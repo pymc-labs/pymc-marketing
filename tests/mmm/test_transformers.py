@@ -355,16 +355,9 @@ class TestSaturationTransformers:
             err_msg="The function does not behave as expected at lambda 0.5.",
         )
 
-    @pytest.mark.parametrize(
-        "x, lam",
-        [
-            (np.ones(shape=(100)), 0.5),
-            (np.linspace(start=0.0, stop=1.0, num=50), 10),
-            (np.linspace(start=200, stop=1000, num=50), 0.001),
-            (np.zeros(shape=(100)), 1),
-        ],
-    )
     def test_inverse_scaled_logistic_saturation_min_max_value(self, x, lam):
+        x = np.array([0, 1, 100, 500, 5000])
+        lam = np.array([...])[:, None]
         y = inverse_scaled_logistic_saturation(x=x, lam=lam)
         y_eval = y.eval()
         assert y_eval.max() <= 1
