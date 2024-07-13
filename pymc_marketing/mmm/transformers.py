@@ -517,7 +517,7 @@ def inverse_scaled_logistic_saturation(
     lam : float or array-like, optional, by default 0.5
         Saturation parameter.
     eps : float or array-like, optional, by default ln(3)
-        Scaling parameter. ln(3) results in halfway saturation
+        Scaling parameter. ln(3) results in halfway saturation at lam
 
     Returns
     -------
