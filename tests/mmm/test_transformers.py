@@ -346,7 +346,7 @@ class TestSaturationTransformers:
 
     def test_inverse_scaled_logistic_saturation_lam_half(self):
         x = np.array([0.5] * 100)
-        y = inverse_scaled_logistic_saturation(x=x, lam=0.5, eps=np.ln(3))
+        y = inverse_scaled_logistic_saturation(x=x, lam=0.5, eps=np.log(3))
         expected = np.array([0.5] * 100)
         np.testing.assert_almost_equal(
             y.eval(),
@@ -355,9 +355,12 @@ class TestSaturationTransformers:
             err_msg="The function does not behave as expected at lambda 0.5.",
         )
 
-    def test_inverse_scaled_logistic_saturation_min_max_value(self, x, lam):
+    def test_inverse_scaled_logistic_saturation_min_max_value(self):
         x = np.array([0, 1, 100, 500, 5000])
-        lam = np.array([...])[:, None]
+        lam = np.array([0.01, 0.25, 0.75, 1.5, 5.0, 10.0, 15.0])[:, None]
+        x = pt.as_tensor_variable(x)
+        lam = pt.as_tensor_variable(lam)
+
         y = inverse_scaled_logistic_saturation(x=x, lam=lam)
         y_eval = y.eval()
         assert y_eval.max() <= 1

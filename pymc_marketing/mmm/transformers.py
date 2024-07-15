@@ -483,8 +483,8 @@ def inverse_scaled_logistic_saturation(
 ):
     """Inverse scaled logistic saturation transformation.
         It offers a more intuitive alternative to logistic_saturation,
-        allowing for lambda to be interpreted as the half saturation point,
-        when using default values for lam and eps.
+        allowing for lambda to be interpreted as the half saturation point
+        when using default value for eps.
 
     .. math::
         f(x) = \\frac{1 - e^{-x*\epsilon/\lambda}}{1 + e^{-x*\epsilon/\lambda}}
