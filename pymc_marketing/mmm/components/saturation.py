@@ -230,7 +230,7 @@ class InverseScaledLogisticSaturation(SaturationTransformation):
         return beta * inverse_scaled_logistic_saturation(x, lam)
 
     default_priors = {
-        "lam": Prior("Gamma", alpha=0.3, beta=0.6),
+        "lam": Prior("Gamma", alpha=0.5, beta=1),
         "beta": Prior("HalfNormal", sigma=2),
     }
 
