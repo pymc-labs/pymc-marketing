@@ -358,8 +358,6 @@ class TestSaturationTransformers:
     def test_inverse_scaled_logistic_saturation_min_max_value(self):
         x = np.array([0, 1, 100, 500, 5000])
         lam = np.array([0.01, 0.25, 0.75, 1.5, 5.0, 10.0, 15.0])[:, None]
-        x = pt.as_tensor_variable(x)
-        lam = pt.as_tensor_variable(lam)
 
         y = inverse_scaled_logistic_saturation(x=x, lam=lam)
         y_eval = y.eval()
