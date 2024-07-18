@@ -178,6 +178,7 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
             drop_first=True,
             centered=True,
             cov_func="matern52",
+            dims=("time", "channel"),
         )
 
         n = 52
@@ -193,7 +194,7 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
             f = (
                 hsgp
                 .register_data(data)
-                .create_variable("f", ("time", "channel"))
+                .create_variable("f")
             )
             prior = pm.sample_prior_predictive().prior
 
@@ -272,7 +273,7 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
 
         """
 
-        self.X: pt.TensorVariable = pt.as_tensor_variable(X)
+        self.X = pt.as_tensor_variable(X)
 
         return self
 
