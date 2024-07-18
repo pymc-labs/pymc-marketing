@@ -28,6 +28,7 @@ from pymc_marketing.mmm.transformers import (
     delayed_adstock,
     geometric_adstock,
     hill_saturation,
+    inverse_scaled_logistic_saturation,
     logistic_saturation,
     michaelis_menten,
     tanh_saturation,
@@ -339,6 +340,26 @@ class TestSaturationTransformers:
     )
     def test_logistic_saturation_min_max_value(self, x, lam):
         y = logistic_saturation(x=x, lam=lam)
+        y_eval = y.eval()
+        assert y_eval.max() <= 1
+        assert y_eval.min() >= 0
+
+    def test_inverse_scaled_logistic_saturation_lam_half(self):
+        x = np.array([0.01, 0.1, 0.5, 1, 100])
+        y = inverse_scaled_logistic_saturation(x=x, lam=x)
+        expected = np.array([0.5] * len(x))
+        np.testing.assert_almost_equal(
+            y.eval(),
+            expected,
+            decimal=5,
+            err_msg="The function does not behave as expected at the default value for eps",
+        )
+
+    def test_inverse_scaled_logistic_saturation_min_max_value(self):
+        x = np.array([0, 1, 100, 500, 5000])
+        lam = np.array([0.01, 0.25, 0.75, 1.5, 5.0, 10.0, 15.0])[:, None]
+
+        y = inverse_scaled_logistic_saturation(x=x, lam=lam)
         y_eval = y.eval()
         assert y_eval.max() <= 1
         assert y_eval.min() >= 0
