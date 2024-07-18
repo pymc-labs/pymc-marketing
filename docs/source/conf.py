@@ -133,7 +133,7 @@ html_theme_options = {
         "image_light": "flat_logo.png",
         "image_dark": "flat_logo_darkmode.png",
     },
-    "analytics": {"google_analytics_id": "G-DNPNG22HVY"}
+    "analytics": {"google_analytics_id": "G-DNPNG22HVY"},
 }
 html_context = {
     "github_user": "pymc-labs",
