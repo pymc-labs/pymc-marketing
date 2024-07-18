@@ -29,7 +29,7 @@ import seaborn as sns
 from pydantic import Field, InstanceOf, validate_call
 from xarray import DataArray, Dataset
 
-from pymc_marketing.hsgp_kwargs import HSGPKwargs
+from pymc_marketing.hsgp_kwargs import HSGP
 from pymc_marketing.mmm.base import BaseValidateMMM
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.components.adstock import (
@@ -48,7 +48,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
-from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
+from pymc_marketing.mmm.tvp import infer_time_index
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
@@ -424,7 +424,7 @@ class BaseMMM(BaseValidateMMM):
             if self.time_varying_intercept | self.time_varying_media:
                 time_index = pm.Data(
                     "time_index",
-                    self._time_index,
+                    np.arange(0, X.shape[0]),
                     dims="date",
                 )
 
@@ -433,17 +433,17 @@ class BaseMMM(BaseValidateMMM):
                     "baseline_intercept"
                 )
 
-                intercept_latent_process = create_time_varying_gp_multiplier(
-                    name="intercept",
-                    dims="date",
-                    time_index=time_index,
-                    time_index_mid=self._time_index_mid,
-                    time_resolution=self._time_resolution,
-                    hsgp_kwargs=self.model_config["intercept_tvp_config"],
+                intercept_latent_process = (
+                    self.model_config["intercept_tvp_config"]
+                    .register_data(time_index)
+                    .create_variable(
+                        name="intercept_temporal_latent_multiplier",
+                        dims="date",
+                    )
                 )
                 intercept = pm.Deterministic(
                     name="intercept",
-                    var=baseline_intercept * intercept_latent_process,
+                    var=pt.exp(baseline_intercept + intercept_latent_process),
                     dims="date",
                 )
             else:
@@ -458,14 +458,15 @@ class BaseMMM(BaseValidateMMM):
                     dims=("date", "channel"),
                 )
 
-                media_latent_process = create_time_varying_gp_multiplier(
-                    name="media",
-                    dims="date",
-                    time_index=time_index,
-                    time_index_mid=self._time_index_mid,
-                    time_resolution=self._time_resolution,
-                    hsgp_kwargs=self.model_config["media_tvp_config"],
+                media_latent_process = (
+                    self.model_config["media_tvp_config"]
+                    .register_data(time_index)
+                    .create_variable(
+                        name="media_temporal_latent_multiplier",
+                        dims="date",
+                    )
                 )
+
                 channel_contributions = pm.Deterministic(
                     name="channel_contributions",
                     var=baseline_channel_contributions * media_latent_process[:, None],
@@ -555,23 +556,9 @@ class BaseMMM(BaseValidateMMM):
         }
 
         if self.time_varying_intercept:
-            base_config["intercept_tvp_config"] = HSGPKwargs(
-                m=200,
-                L=None,
-                eta_lam=1,
-                ls_mu=5,
-                ls_sigma=10,
-                cov_func=None,
-            )
+            base_config["intercept_tvp_config"] = HSGP()
         if self.time_varying_media:
-            base_config["media_tvp_config"] = HSGPKwargs(
-                m=200,
-                L=None,
-                eta_lam=1,
-                ls_mu=5,
-                ls_sigma=10,
-                cov_func=None,
-            )
+            base_config["media_tvp_config"] = HSGP()
 
         for media_transform in [self.adstock, self.saturation]:
             for dist in media_transform.function_priors.values():

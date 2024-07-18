@@ -139,6 +139,7 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
             drop_first=True,
             centered=False,
             cov_func="matern52",
+            dims="time",
         )
 
         n = 52
@@ -150,7 +151,7 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
             "time": dates,
         }
         with pm.Model(coords=coords) as model:
-            f = hsgp.create_variable("f", "time")
+            f = hsgp.create_variable("f")
 
             prior = pm.sample_prior_predictive().prior
 
@@ -223,6 +224,11 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
     drop_first: bool = Field(
         True, description="Whether to drop the first basis function"
     )
+    X: InstanceOf[pt.TensorVariable] | None = Field(
+        None,
+        description="The data to be used in the model",
+        exclude=True,
+    )
     X_mid: float | None = Field(None, description="The mean of the data")
     cov_func: CovFunc = Field(CovFunc.ExpQuad, description="The covariance function")
 
@@ -270,15 +276,13 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
 
         return self
 
-    def create_variable(self, name: str, dims: Dims) -> pt.TensorVariable:
+    def create_variable(self, name: str) -> pt.TensorVariable:
         """Create a variable from HSGP configuration.
 
         Parameters
         ----------
         name : str
             The name of the variable.
-        dims : Dims
-            The dimensions of the variable.
 
         Returns
         -------
@@ -312,8 +316,8 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
         model.add_coord(coord_name, np.arange(m - 1))
 
         hsgp_dims: Dims
-        if isinstance(dims, tuple):
-            hsgp_dims = (dims[1], coord_name)
+        if isinstance(self.dims, tuple):
+            hsgp_dims = (self.dims[1], coord_name)
         else:
             hsgp_dims = coord_name
 
@@ -336,7 +340,7 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
             "Normal", mu=0, sigma=sqrt_psd, dims=hsgp_dims, centered=self.centered
         ).create_variable(f"{name}_hsgp_coefs")
         f = phi @ hsgp_coefs.T
-        return pm.Deterministic(name, f, dims=dims)
+        return pm.Deterministic(name, f, dims=self.dims)
 
 
 class HSGPKwargs(BaseModel):
