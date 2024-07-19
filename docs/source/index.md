@@ -1,4 +1,14 @@
-# PyMC Marketing: Open Source Marketing Analytics Solution
+:::{image} _static/marketing-logo-dark.jpg
+:align: center
+:class: only-dark
+:::
+
+:::{image} _static/marketing-logo-light.jpg
+:align: center
+:class: only-light
+:::
+
+# PyMC-Marketing - Open Source Marketing Analytics Solution
 
 **Unlock the power of marketing analytics with PyMC-Marketing – the python based open source solution for smarter decision-making.** Marketing mix modeling and customer lifetime value modules allow businesses to make data-driven decisions about their marketing campaigns. Optimize your marketing strategy and unlock the full potential of your customer data.
 
