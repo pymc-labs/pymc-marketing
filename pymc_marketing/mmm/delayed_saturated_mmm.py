@@ -173,8 +173,12 @@ class BaseMMM(BaseValidateMMM):
         self.adstock_first = adstock_first
 
         if adstock_max_lag is not None:
+            msg = (
+                "The `adstock_max_lag` parameter is deprecated and will be removed in 0.9.0. "
+                "Use the `adstock` parameter directly"
+            )
             warnings.warn(
-                "The `adstock_max_lag` parameter is deprecated. Use `adstock` directly",
+                msg,
                 DeprecationWarning,
                 stacklevel=1,
             )
@@ -2242,8 +2246,13 @@ class DelayedSaturatedMMM(MMM):
         Warns that MMM class should be used instead and returns an instance of MMM with
         geometric adstock and logistic saturation.
         """
+        msg = (
+            "The DelayedSaturatedMMM class is deprecated and "
+            "will be removed in 0.9.0. "
+            "Please use the MMM class instead."
+        )
         warnings.warn(
-            "The DelayedSaturatedMMM class is deprecated. Please use the MMM class instead.",
+            msg,
             DeprecationWarning,
             stacklevel=1,
         )
