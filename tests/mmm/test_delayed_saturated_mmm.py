@@ -1000,8 +1000,10 @@ def test_add_lift_test_measurements_no_model() -> None:
 
 
 def test_delayed_saturated_mmm_raises_deprecation_warning() -> None:
+    match = "The DelayedSaturatedMMM class is deprecated and will be removed in 0.9.0"
     with pytest.warns(
-        DeprecationWarning, match="The DelayedSaturatedMMM class is deprecated"
+        DeprecationWarning,
+        match=match,
     ):
         DelayedSaturatedMMM(
             date_column="date",
