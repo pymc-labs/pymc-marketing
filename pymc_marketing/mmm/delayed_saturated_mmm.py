@@ -1683,7 +1683,7 @@ class MMM(
         Sample from the model's posterior predictive distribution.
 
         Parameters
-        ---------
+        ----------
         X_pred : array, shape (n_pred, n_features)
             The input data used for prediction.
         extend_idata : Boolean determining whether the predictions should be added to inference data object.
