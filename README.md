@@ -72,14 +72,19 @@ Leverage our Bayesian MMM API to tailor your marketing strategies effectively. L
 
 ```python
 import pandas as pd
-from pymc_marketing.mmm import MMM
+
+from pymc_marketing.mmm import (
+    GeometricAdstock,
+    LogisticSaturation,
+    MMM,
+)
 
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
 data = pd.read_csv(data_url, parse_dates=["date_week"])
 
 mmm = MMM(
-    adstock="geometric",
-    saturation="logistic",
+    adstock=GeometricAdstock(l_max=8),
+    saturation=LogisticSaturation(),
     date_column="date_week",
     channel_columns=["x1", "x2"],
     control_columns=[
@@ -87,7 +92,6 @@ mmm = MMM(
         "event_2",
         "t",
     ],
-    adstock_max_lag=8,
     yearly_seasonality=2,
 )
 ```
@@ -110,9 +114,6 @@ Once the model is fitted, we can further optimize our budget allocation as we ar
 </center>
 
 Explore a hands-on [simulated example](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
-
-${\color{red}\textbf{Warning!}}$ We will deprecate the `DelayedSaturatedMMM` class in the next releases.
-Please use the `MMM` class instead.
 
 ### Essential Reading for Marketing Mix Modeling (MMM)
 

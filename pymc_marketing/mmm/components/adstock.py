@@ -332,7 +332,10 @@ class WeibullAdstock(AdstockTransformation):
             l_max=l_max, normalize=normalize, mode=mode, priors=priors, prefix=prefix
         )
 
-        msg = f"Use the Weibull{kind}Adstock class instead for better default priors."
+        msg = (
+            f"Use the Weibull{kind}Adstock class instead for better default priors. "
+            "This class will deprecate in 0.9.0."
+        )
         warnings.warn(
             msg,
             UserWarning,
@@ -383,8 +386,13 @@ def _get_adstock_function(
             )
 
         if kwargs:
+            msg = (
+                "The preferred method of initializing a "
+                "lagging function is to use the class directly. "
+                "String support will deprecate in 0.9.0."
+            )
             warnings.warn(
-                "The preferred method of initializing a lagging function is to use the class directly.",
+                msg,
                 DeprecationWarning,
                 stacklevel=1,
             )
