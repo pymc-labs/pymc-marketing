@@ -1686,17 +1686,19 @@ class MMM(
         ----------
         X_pred : array, shape (n_pred, n_features)
             The input data used for prediction.
-        extend_idata : Boolean determining whether the predictions should be added to inference data object.
+        extend_idata : bool, optional
+            Boolean determining whether the predictions should be added to inference data object. Defaults to True.
+        combined: bool, optional
+            Combine chain and draw dims into sample. Won't work if a dim named sample already exists. Defaults to True.
+        include_last_observations: bool, optional
+            Boolean determining whether to include the last observations of the training data in order to carry over
+            costs with the adstock transformation. Assumes that X_pred are the next predictions following the
+            training data.Defaults to False.
+        original_scale: bool, optional
+            Boolean determining whether to return the predictions in the original scale of the target variable.
             Defaults to True.
-        combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
-            Defaults to True.
-        include_last_observations: Boolean determining whether to include the last observations of the training
-            data in order to carry over costs with the adstock transformation.
-            Assumes that X_pred are the next predictions following the training data.
-            Defaults to False.
-        original_scale: Boolean determining whether to return the predictions in the original scale
-            of the target variable. Defaults to True.
-        **sample_posterior_predictive_kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
+        **sample_posterior_predictive_kwargs
+            Additional arguments to pass to pymc.sample_posterior_predictive
 
         Returns
         -------
