@@ -391,6 +391,7 @@ SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
         TanhSaturationBaselined,
         MichaelisMentenSaturation,
         HillSaturation,
+        RootSaturation
     ]
 }
 
