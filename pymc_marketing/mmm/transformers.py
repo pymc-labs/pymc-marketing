@@ -933,7 +933,7 @@ def hill_saturation(
         plt.figure(figsize=(12, 4))
         for i, sigma in enumerate(sigmas):
             plt.subplot(1, 3, i+1)
-            y = hill_saturation(x, sigma, 2, 5)
+            y = hill_saturation(x, sigma, 2, 5).eval()
             plt.plot(x, y)
             plt.xlabel('x')
             plt.ylabel('Hill Saturation')
@@ -945,7 +945,7 @@ def hill_saturation(
         plt.figure(figsize=(12, 4))
         for i, beta in enumerate(betas):
             plt.subplot(1, 3, i+1)
-            y = hill_saturation(x, 1, beta, 5)
+            y = hill_saturation(x, 1, beta, 5).eval()
             plt.plot(x, y)
             plt.xlabel('x')
             plt.ylabel('Hill Saturation')
@@ -957,7 +957,7 @@ def hill_saturation(
         plt.figure(figsize=(12, 4))
         for i, lam in enumerate(lams):
             plt.subplot(1, 3, i+1)
-            y = hill_saturation(x, 1, 2, lam)
+            y = hill_saturation(x, 1, 2, lam).eval()
             plt.plot(x, y)
             plt.xlabel('x')
             plt.ylabel('Hill Saturation')
