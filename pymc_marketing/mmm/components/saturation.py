@@ -81,6 +81,7 @@ from pymc_marketing.mmm.transformers import (
     michaelis_menten,
     tanh_saturation,
     tanh_saturation_baselined,
+    root_saturation
 )
 from pymc_marketing.prior import Prior
 
@@ -367,6 +368,18 @@ class HillSaturation(SaturationTransformation):
         "beta": Prior("HalfNormal", sigma=2),
         "lam": Prior("HalfNormal", sigma=2),
     }
+
+class RootSaturation(SaturationTransformation): 
+
+    lookup_name = "root"
+
+    function = root_saturation
+
+    # REMINDER
+    default_priors = {
+        "alpha": Prior("Beta", alpha=1, beta=2),
+        "beta": Prior("Gamma", mu=1, sigma=1),
+    }    
 
 
 SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
