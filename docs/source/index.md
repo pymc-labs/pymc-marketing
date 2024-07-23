@@ -111,13 +111,20 @@ Start VS Code and ensure that the "Jupyter" extension is installed. Press Ctrl +
 
 ```python
 import pandas as pd
-from pymc_marketing.mmm import DelayedSaturatedMMM
+
+from pymc_marketing.mmm import (
+    GeometricAdstock,
+    LogisticSaturation,
+    MMM,
+)
 
 
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
 data = pd.read_csv(data_url, parse_dates=['date_week'])
 
-mmm = DelayedSaturatedMMM(
+mmm = MMM(
+    adstock=GeometricAdstock(l_max=8),
+    saturation=LogisticSaturation(),
     date_column="date_week",
     channel_columns=["x1", "x2"],
     control_columns=[
@@ -125,7 +132,6 @@ mmm = DelayedSaturatedMMM(
         "event_2",
         "t",
     ],
-    adstock_max_lag=8,
     yearly_seasonality=2,
 )
 ```
@@ -133,8 +139,8 @@ mmm = DelayedSaturatedMMM(
 Initiate fitting and get a visualization of some of the outputs with:
 
 ```python
-X = data.drop('y',axis=1)
-y = data['y']
+X = data.drop("y",axis=1)
+y = data["y"]
 mmm.fit(X,y)
 mmm.plot_components_contributions();
 ```
