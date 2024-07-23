@@ -392,9 +392,8 @@ class RootSaturation(SaturationTransformation):
 
     """
 
-    lookup_name = "root"
-
-    function = root_saturation
+    def function(self, x, alpha, beta):
+        return beta * root_saturation(x, alpha)
 
     # REMINDER
     default_priors = {

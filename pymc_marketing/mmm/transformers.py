@@ -1033,4 +1033,4 @@ def root_saturation(
     ----------
 
     """
-    return x ** alpha
+    return x**alpha
