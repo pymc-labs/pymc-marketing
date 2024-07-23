@@ -26,3 +26,8 @@ cleandocs:
 
 run_notebooks:
 	python scripts/run_notebooks/runner.py
+
+uml:
+	pip install .[docs]
+	pyreverse pymc_marketing/mmm -d docs/source/uml -f 'ALL' -o png -p mmm
+	pyreverse pymc_marketing/clv -d docs/source/uml -f 'ALL' -o png -p clv
