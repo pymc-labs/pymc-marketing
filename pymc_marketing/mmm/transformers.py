@@ -985,3 +985,52 @@ def hill_saturation(
         The value of the Hill function for each input value of x.
     """
     return sigma / (1 + pt.exp(-beta * (x - lam)))
+
+
+def root_saturation(
+    x: pt.TensorLike,
+    alpha: pt.TensorLike,
+) -> pt.TensorVariable:
+    r"""Root saturation transformation.
+
+    .. math::
+        f(x) = x^{\alpha}
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import root_saturation
+        plt.style.use('arviz-darkgrid')
+        alpha_values = [0.25, 0.5, 0.75, 1, 1.25]
+        x = np.linspace(0, 5, 100)
+        ax = plt.subplot(111)
+        for alpha in alpha_values:
+            y = root_saturation(x, alpha=alpha).eval()
+            plt.plot(x, y, label=f'alpha = {alpha}')
+        plt.xlabel('spend', fontsize=12)
+        plt.ylabel('f(spend)', fontsize=12)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.show()
+
+    Parameters
+    ----------
+    x : tensor
+        Input tensor.
+    alpha : float
+        Exponent for the root transformation. Must be non-negative.
+
+    Returns
+    -------
+    tensor
+        Transformed tensor.
+
+    References
+    ----------
+
+    """
+    return x ** alpha
