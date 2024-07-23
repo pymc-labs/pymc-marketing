@@ -1,4 +1,4 @@
-.PHONY: init lint check_lint test html cleandocs run_notebooks
+.PHONY: init lint check_lint format check_format test html cleandocs run_notebooks uml
 
 PACKAGE_DIR = pymc_marketing
 
