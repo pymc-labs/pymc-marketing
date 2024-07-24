@@ -267,8 +267,7 @@ def plot_curve(
         if values.size == 1 and coord not in curve.indexes:
             scalar_coords_to_drop.append(coord)
 
-    for coord in scalar_coords_to_drop:
-        curve = curve.reset_coords(coord, drop=True)
+    curve = curve.reset_coords(scalar_coords_to_drop, drop=True)
 
     hdi_kwargs = hdi_kwargs or {}
     sample_kwargs = sample_kwargs or {}
