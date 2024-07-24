@@ -34,6 +34,7 @@ Explore these topics further by watching our video on [Bayesian Marketing Mix Mo
 
 ### Community Resources
 
+- [PyMC-Marketing Discussions](https://github.com/pymc-labs/pymc-marketing/discussions)
 - [Bayesian discord server](https://discord.gg/swztKRaVKe)
 - [PyMC discourse](https://discourse.pymc.io/)
 
