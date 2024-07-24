@@ -37,7 +37,7 @@ Explore these topics further by watching our video on [Bayesian Marketing Mix Mo
 - [PyMC-Marketing Discussions](https://github.com/pymc-labs/pymc-marketing/discussions)
 - [PyMC discourse](https://discourse.pymc.io/)
 - [Bayesian discord server](https://discord.gg/swztKRaVKe)
-- (MMM Hub Slack)[https://www.mmmhub.org/slack]
+- [MMM Hub Slack](https://www.mmmhub.org/slack)
 
 ## Quick Installation Guide for Marketing Mix Modeling (MMM) & CLV
 
