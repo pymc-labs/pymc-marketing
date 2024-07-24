@@ -298,19 +298,21 @@ class BaseMMM(BaseValidateMMM):
                 self.X[self.date_column].iloc[1] - self.X[self.date_column].iloc[0]
             ).days
 
-    def _save_input_params(self, idata) -> None:
-        """Saves input parameters to the attrs of idata."""
-        idata.attrs["date_column"] = json.dumps(self.date_column)
-        idata.attrs["adstock"] = json.dumps(self.adstock.lookup_name)
-        idata.attrs["saturation"] = json.dumps(self.saturation.lookup_name)
-        idata.attrs["adstock_first"] = json.dumps(self.adstock_first)
-        idata.attrs["control_columns"] = json.dumps(self.control_columns)
-        idata.attrs["channel_columns"] = json.dumps(self.channel_columns)
-        idata.attrs["adstock_max_lag"] = json.dumps(self.adstock.l_max)
-        idata.attrs["validate_data"] = json.dumps(self.validate_data)
-        idata.attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
-        idata.attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
-        idata.attrs["time_varying_media"] = json.dumps(self.time_varying_media)
+    def create_idata_attrs(self) -> dict[str, str]:
+        attrs = super().create_idata_attrs()
+        attrs["date_column"] = json.dumps(self.date_column)
+        attrs["adstock"] = json.dumps(self.adstock.lookup_name)
+        attrs["saturation"] = json.dumps(self.saturation.lookup_name)
+        attrs["adstock_first"] = json.dumps(self.adstock_first)
+        attrs["control_columns"] = json.dumps(self.control_columns)
+        attrs["channel_columns"] = json.dumps(self.channel_columns)
+        attrs["adstock_max_lag"] = json.dumps(self.adstock.l_max)
+        attrs["validate_data"] = json.dumps(self.validate_data)
+        attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
+        attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
+        attrs["time_varying_media"] = json.dumps(self.time_varying_media)
+
+        return attrs
 
     def forward_pass(
         self, x: pt.TensorVariable | npt.NDArray[np.float64]

@@ -17,6 +17,7 @@ import hashlib
 import json
 import warnings
 from abc import ABC, abstractmethod
+from inspect import signature
 from pathlib import Path
 from typing import Any
 
@@ -264,6 +265,27 @@ class ModelBuilder(ABC):
         None
         """
 
+    def create_idata_attrs(self) -> dict[str, str]:
+        def default(x):
+            if isinstance(x, Prior):
+                return x.to_json()
+            elif isinstance(x, HSGPKwargs):
+                return x.model_dump(mode="json")
+            return x.__dict__
+
+        attrs: dict[str, str] = {}
+
+        attrs["id"] = self.id
+        attrs["model_type"] = self._model_type
+        attrs["version"] = self.version
+        attrs["sampler_config"] = json.dumps(self.sampler_config)
+        attrs["model_config"] = json.dumps(
+            self._serializable_model_config,
+            default=default,
+        )
+
+        return attrs
+
     def set_idata_attrs(
         self, idata: az.InferenceData | None = None
     ) -> az.InferenceData:
@@ -277,12 +299,15 @@ class ModelBuilder(ABC):
 
         Raises
         ------
+        ValueError
+            If the attrs are missing.
         RuntimeError
             If no InferenceData object is provided.
 
         Returns
         -------
-        None
+        InferenceData
+            The InferenceData instance with the attrs set
 
         Examples
         --------
@@ -295,24 +320,18 @@ class ModelBuilder(ABC):
         if idata is None:
             raise RuntimeError("No idata provided to set attrs on.")
 
-        def default(x):
-            if isinstance(x, Prior):
-                return x.to_json()
-            elif isinstance(x, HSGPKwargs):
-                return x.model_dump(mode="json")
-            return x.__dict__
+        attrs = self.create_idata_attrs()
+        init_parameters: set[str] = set(signature(self.__init__).parameters.keys())  # type: ignore
+        attrs_keys = set(attrs.keys())
 
-        idata.attrs["id"] = self.id
-        idata.attrs["model_type"] = self._model_type
-        idata.attrs["version"] = self.version
-        idata.attrs["sampler_config"] = json.dumps(self.sampler_config)
-        idata.attrs["model_config"] = json.dumps(
-            self._serializable_model_config,
-            default=default,
-        )
-        # Only classes with non-dataset parameters will implement save_input_params
-        if hasattr(self, "_save_input_params"):
-            self._save_input_params(idata)
+        if missing_keys := init_parameters - attrs_keys:
+            msg = (
+                f"__init__ has parameters that are not in the attrs: {missing_keys}."
+                "The save and load functionality will not work correctly."
+            )
+            raise ValueError(msg)
+
+        idata.attrs = attrs
         return idata
 
     def save(self, fname: str) -> None:
