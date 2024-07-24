@@ -322,6 +322,8 @@ class ModelBuilder(ABC):
 
         attrs = self.create_idata_attrs()
         init_parameters: set[str] = set(signature(self.__init__).parameters.keys())  # type: ignore
+        # Remove since this will be stored in the fit_data group of InferenceData
+        init_parameters -= {"data"}
         attrs_keys = set(attrs.keys())
 
         if missing_keys := init_parameters - attrs_keys:
