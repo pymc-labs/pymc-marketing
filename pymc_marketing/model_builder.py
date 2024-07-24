@@ -72,6 +72,7 @@ class ModelBuilder(ABC):
         sampler_config : Dictionary, optional
             dictionary of parameters that initialise sampler configuration.
             Class-default defined by the user default_sampler_config method.
+
         Examples
         --------
         >>> class MyModel(ModelBuilder):
@@ -150,6 +151,7 @@ class ModelBuilder(ABC):
         """
         Returns a class default config dict for model builder if no model_config is provided on class initialization
         Useful for understanding structure of required model_config to allow its customization by users
+
         Examples
         --------
         >>>     @classmethod
@@ -436,28 +438,28 @@ class ModelBuilder(ABC):
         Fit a model using the data passed as a parameter.
         Sets attrs to inference data of the model.
 
-
         Parameters
         ----------
-        X : array-like if sklearn is available, otherwise array, shape (n_obs, n_features)
-            The training input samples.
-        y : array-like if sklearn is available, otherwise array, shape (n_obs,)
-            The target values (real numbers).
+        X : array-like | array, shape (n_obs, n_features)
+            The training input samples. If scikit-learn is available, array-like, otherwise array.
+        y : array-like | array, shape (n_obs,)
+            The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
         progressbar : bool
-            Specifies whether the fit progressbar should be displayed
-        predictor_names: Optional[List[str]] = None,
-            Allows for custom naming of predictors given in a form of 2dArray
+            Specifies whether the fit progress bar should be displayed.
+        predictor_names : Optional[List[str]] = None,
+            Allows for custom naming of predictors when given in a form of a 2D array.
             Allows for naming of predictors when given in a form of np.ndarray, if not provided
             the predictors will be named like predictor1, predictor2...
         random_seed : Optional[RandomState]
-            Provides sampler with initial random seed for obtaining reproducible samples
+            Provides sampler with initial random seed for obtaining reproducible samples.
         **kwargs : Any
             Custom sampler settings can be provided in form of keyword arguments.
 
         Returns
         -------
         self : az.InferenceData
-            returns inference data of the fitted model.
+            Returns inference data of the fitted model.
+
         Examples
         --------
         >>> model = MyModel()
@@ -522,9 +524,10 @@ class ModelBuilder(ABC):
 
         Parameters
         ----------
-        X_pred : array-like if sklearn is available, otherwise array, shape (n_pred, n_features)
-            The input data used for prediction.
-        extend_idata : Boolean determining whether the predictions should be added to inference data object.
+        X_pred : array-like | array, shape (n_pred, n_features)
+            The input data used for prediction. If scikit-learn is available, array-like, otherwise array.
+        extend_idata : Boolean
+            Determine whether the predictions should be added to inference data object.
             Defaults to True.
         **kwargs: Additional arguments to pass to sample_posterior_predictive method
 
@@ -575,9 +578,11 @@ class ModelBuilder(ABC):
         samples : int
             Number of samples from the prior parameter distributions to generate.
             If not set, uses sampler_config['draws'] if that is available, otherwise defaults to 500.
-        extend_idata : Boolean determining whether the predictions should be added to inference data object.
+        extend_idata : Boolean
+            Determine whether the predictions should be added to inference data object.
             Defaults to True.
-        combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
+        combined: Boolean
+            Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
         **kwargs: Additional arguments to pass to pymc.sample_prior_predictive
 
@@ -624,9 +629,11 @@ class ModelBuilder(ABC):
         ----------
         X_pred : array, shape (n_pred, n_features)
             The input data used for prediction using prior distribution..
-        extend_idata : Boolean determining whether the predictions should be added to inference data object.
+        extend_idata : Boolean
+            Determine whether the predictions should be added to inference data object.
             Defaults to True.
-        combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
+        combined: Boolean
+            Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
         **sample_posterior_predictive_kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
 
@@ -704,18 +711,21 @@ class ModelBuilder(ABC):
 
         Parameters
         ----------
-        X_pred : array-like if sklearn is available, otherwise array, shape (n_pred, n_features)
-            The input data used for prediction.
-        extend_idata : Boolean determining whether the predictions should be added to inference data object.
+        X_pred : array-like | array, shape (n_pred, n_features)
+            The input data used for prediction. If scikit-learn is available, array-like, otherwise array.
+        extend_idata : Boolean
+            Determine whether the predictions should be added to inference data object.
             Defaults to True.
-        combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
+        combined: Boolean
+            Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
         **kwargs: Additional arguments to pass to sample_posterior_predictive method
 
         Returns
         -------
-        y_pred : DataArray, shape (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred)
-            Posterior predictive samples for each input X_pred
+        y_pred : DataArray
+            Posterior predictive samples for each input X_pred.
+            Shape is (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred).
         """
 
         X_pred = self._validate_data(X_pred)
