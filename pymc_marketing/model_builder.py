@@ -713,8 +713,8 @@ class ModelBuilder(ABC):
         ----------
         X_pred : array-like | array, shape (n_pred, n_features)
             The input data used for prediction. If scikit-learn is available, array-like, otherwise array.
-        extend_idata : Boolean 
-            determine whether the predictions should be added to inference data object.
+        extend_idata : Boolean
+            Determine whether the predictions should be added to inference data object.
             Defaults to True.
         combined: Boolean
             Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
@@ -723,8 +723,9 @@ class ModelBuilder(ABC):
 
         Returns
         -------
-        y_pred : DataArray, shape (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred)
-            Posterior predictive samples for each input X_pred
+        y_pred : DataArray
+            Posterior predictive samples for each input X_pred.
+            Shape is (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred).
         """
 
         X_pred = self._validate_data(X_pred)
