@@ -156,6 +156,7 @@ class TestBasePlotting:
                 },
             ),
             ("plot_components_contributions", {}),
+            ("plot_components_contributions", {"original_scale": True}),
         ],
     )
     def test_plots(self, plotting_mmm, func_plot_name, kwargs_plot) -> None:
