@@ -924,7 +924,7 @@ def hill_saturation(
 
     .. plot::
         :context: close-figs
-        
+
         import numpy as np
         import matplotlib.pyplot as plt
         from pymc_marketing.mmm.transformers import hill_saturation
