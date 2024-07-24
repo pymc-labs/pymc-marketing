@@ -538,9 +538,45 @@ class MMMModelBuilder(ModelBuilder):
         ]
         return contributions.sum(contracted_dims) if contracted_dims else contributions
 
-    def plot_components_contributions(self, **plt_kwargs: Any) -> plt.Figure:
+    def get_ts_contribution_posterior(
+        self, var_contribution: str, original_scale: bool = False
+    ) -> DataArray:
+        """Get the posterior distribution of the time series contributions of a given variable.
+
+        Parameters
+        ----------
+        var_contribution : str
+            The variable for which to get the contributions.
+        original_scale : bool, optional
+            Whether to plot in the original scale.
+
+        Returns
+        -------
+        DataArray
+        """
+        contributions = self._format_model_contributions(
+            var_contribution=var_contribution
+        )
+
+        if original_scale:
+            return apply_sklearn_transformer_across_dim(
+                data=contributions,
+                func=self.get_target_transformer().inverse_transform,
+                dim_name="date",
+            )
+
+        return contributions
+
+    def plot_components_contributions(
+        self, original_scale: bool = False, **plt_kwargs: Any
+    ) -> plt.Figure:
         """Plot the target variable and the posterior predictive model components in
         the scaled space.
+
+        Parameters
+        ----------
+        original_scale : bool, optional
+            Whether to plot in the original scale.
 
         **plt_kwargs
             Additional keyword arguments to pass to `plt.subplots`.
@@ -549,9 +585,10 @@ class MMMModelBuilder(ModelBuilder):
         -------
         plt.Figure
         """
-        channel_contributions = self._format_model_contributions(
-            var_contribution="channel_contributions"
+        channel_contributions = self.get_ts_contribution_posterior(
+            var_contribution="channel_contributions", original_scale=original_scale
         )
+
         means = [channel_contributions.mean(["chain", "draw"])]
         contribution_vars = [
             az.hdi(channel_contributions, hdi_prob=0.94).channel_contributions
@@ -563,9 +600,10 @@ class MMMModelBuilder(ModelBuilder):
             strict=True,
         ):
             if getattr(self, arg, None):
-                contributions = self._format_model_contributions(
-                    var_contribution=var_contribution
+                contributions = self.get_ts_contribution_posterior(
+                    var_contribution=var_contribution, original_scale=original_scale
                 )
+
                 means.append(contributions.mean(["chain", "draw"]))
                 contribution_vars.append(
                     az.hdi(contributions, hdi_prob=0.94)[var_contribution]
@@ -604,6 +642,13 @@ class MMMModelBuilder(ModelBuilder):
                 self.fit_result, var_names=["intercept"], combined=False
             )
 
+            if original_scale:
+                intercept = apply_sklearn_transformer_across_dim(
+                    data=intercept,
+                    func=self.get_target_transformer().inverse_transform,
+                    dim_name="chain",
+                )
+
             if intercept.ndim == 2:
                 # Intercept has a stationary prior
                 intercept_hdi = np.repeat(
@@ -628,17 +673,28 @@ class MMMModelBuilder(ModelBuilder):
                 alpha=0.25,
                 label="$94\\%$ HDI (intercept)",
             )
+
+            y_to_plot = (
+                self.get_target_transformer().inverse_transform(
+                    self.preprocessed_data["y"].reshape(-1, 1)
+                )
+                if original_scale
+                else self.preprocessed_data["y"]
+            )
+
+            ylabel = self.output_var if original_scale else f"{self.output_var} scaled"
+
             ax.plot(
                 np.asarray(self.X[self.date_column]),
-                np.asarray(self.preprocessed_data["y"]),  # type: ignore
-                label="scaled target",
+                y_to_plot,
+                label=ylabel,
                 color="black",
             )
-            ax.legend(title="components", loc="center left", bbox_to_anchor=(1, 0.5))
+            ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.1), ncol=3)
             ax.set(
                 title="Posterior Predictive Model Components",
                 xlabel="date",
-                ylabel=self.output_var,
+                ylabel=ylabel,
             )
         return fig
 
