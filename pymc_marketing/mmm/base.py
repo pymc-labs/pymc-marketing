@@ -538,6 +538,110 @@ class MMMModelBuilder(ModelBuilder):
         ]
         return contributions.sum(contracted_dims) if contracted_dims else contributions
 
+    def plot_components_contributions(self, **plt_kwargs: Any) -> plt.Figure:
+        """Plot the target variable and the posterior predictive model components in
+        the scaled space.
+
+        **plt_kwargs
+            Additional keyword arguments to pass to `plt.subplots`.
+
+        Returns
+        -------
+        plt.Figure
+        """
+        channel_contributions = self._format_model_contributions(
+            var_contribution="channel_contributions"
+        )
+        means = [channel_contributions.mean(["chain", "draw"])]
+        contribution_vars = [
+            az.hdi(channel_contributions, hdi_prob=0.94).channel_contributions
+        ]
+
+        for arg, var_contribution in zip(
+            ["control_columns", "yearly_seasonality"],
+            ["control_contributions", "fourier_contributions"],
+            strict=True,
+        ):
+            if getattr(self, arg, None):
+                contributions = self._format_model_contributions(
+                    var_contribution=var_contribution
+                )
+                means.append(contributions.mean(["chain", "draw"]))
+                contribution_vars.append(
+                    az.hdi(contributions, hdi_prob=0.94)[var_contribution]
+                )
+
+        fig, ax = plt.subplots(**plt_kwargs)
+
+        for i, (mean, hdi, var_contribution) in enumerate(
+            zip(
+                means,
+                contribution_vars,
+                [
+                    "channel_contribution",
+                    "control_contribution",
+                    "fourier_contribution",
+                ],
+                strict=False,
+            )
+        ):
+            if self.X is not None:
+                ax.fill_between(
+                    x=self.X[self.date_column],
+                    y1=hdi.isel(hdi=0),
+                    y2=hdi.isel(hdi=1),
+                    color=f"C{i}",
+                    alpha=0.25,
+                    label=f"$94\\%$ HDI ({var_contribution})",
+                )
+                ax.plot(
+                    np.asarray(self.X[self.date_column]),
+                    np.asarray(mean),
+                    color=f"C{i}",
+                )
+        if self.X is not None:
+            intercept = az.extract(
+                self.fit_result, var_names=["intercept"], combined=False
+            )
+
+            if intercept.ndim == 2:
+                # Intercept has a stationary prior
+                intercept_hdi = np.repeat(
+                    a=az.hdi(intercept).intercept.data[None, ...],
+                    repeats=self.X[self.date_column].shape[0],
+                    axis=0,
+                )
+            elif intercept.ndim == 3:
+                # Intercept has a time-varying prior
+                intercept_hdi = az.hdi(intercept).intercept.data
+
+            ax.plot(
+                np.asarray(self.X[self.date_column]),
+                np.full(len(self.X[self.date_column]), intercept.mean().data),
+                color=f"C{i + 1}",
+            )
+            ax.fill_between(
+                x=self.X[self.date_column],
+                y1=intercept_hdi[:, 0],
+                y2=intercept_hdi[:, 1],
+                color=f"C{i + 1}",
+                alpha=0.25,
+                label="$94\\%$ HDI (intercept)",
+            )
+            ax.plot(
+                np.asarray(self.X[self.date_column]),
+                np.asarray(self.preprocessed_data["y"]),  # type: ignore
+                label="scaled target",
+                color="black",
+            )
+            ax.legend(title="components", loc="center left", bbox_to_anchor=(1, 0.5))
+            ax.set(
+                title="Posterior Predictive Model Components",
+                xlabel="date",
+                ylabel=self.output_var,
+            )
+        return fig
+
     def compute_channel_contribution_original_scale(self) -> DataArray:
         """Compute the channel contributions in the original scale of the target variable.
 
