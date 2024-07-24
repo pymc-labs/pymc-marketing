@@ -152,6 +152,12 @@ We recommend that your contribution complies with the following guidelines befor
     make format
     ```
 
+- To run doctests:
+
+    ```bash
+    make doctest
+    ```
+
 ## Overview of the MMM codebase
 
 Packages
