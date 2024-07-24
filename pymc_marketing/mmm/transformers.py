@@ -211,7 +211,7 @@ def geometric_adstock(
         The axis of ``x`` along witch to apply the convolution
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
-        of the input signal, denoted as "x." The default mode is ConvMode.Before.
+        of the input signal, denoted as "x." The default mode is ConvMode.After.
 
         - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
         - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
@@ -293,7 +293,7 @@ def delayed_adstock(
         The axis of ``x`` along witch to apply the convolution
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
-        of the input signal, denoted as "x." The default mode is ConvMode.Before.
+        of the input signal, denoted as "x." The default mode is ConvMode.After.
 
         - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
         - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
@@ -396,7 +396,7 @@ def weibull_adstock(
         The axis of ``x`` along witch to apply the convolution
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
-        of the input signal, denoted as "x." The default mode is ConvMode.Before.
+        of the input signal, denoted as "x." The default mode is ConvMode.After.
 
         - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
         - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
