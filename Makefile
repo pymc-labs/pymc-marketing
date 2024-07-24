@@ -1,17 +1,27 @@
-.PHONY: init lint check_lint test html cleandocs run_notebooks
+.PHONY: init lint check_lint format check_format test html cleandocs run_notebooks uml
+
+PACKAGE_DIR = pymc_marketing
 
 init:
 	python3 -m pip install -e .
 
 lint:
 	pip install .[lint]
-	ruff . --fix
+	ruff check $(PACKAGE_DIR) --fix
 	mypy .
 
 check_lint:
 	pip install .[lint]
-	ruff .
+	ruff check $(PACKAGE_DIR)
 	mypy .
+
+format:
+	pip install .[lint]
+	ruff format $(PACKAGE_DIR)
+
+check_format:
+	pip install .[lint]
+	ruff format --check $(PACKAGE_DIR)
 
 test:
 	pip install .[test]
