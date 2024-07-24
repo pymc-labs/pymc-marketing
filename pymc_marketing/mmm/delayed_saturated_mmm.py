@@ -1210,10 +1210,10 @@ class MMM(
 
             y_to_plot = (
                 self.get_target_transformer().inverse_transform(
-                    self.preprocessed_data["y"].reshape(-1, 1)
+                    np.asarray(self.preprocessed_data["y"]).reshape(-1, 1)
                 )
                 if original_scale
-                else self.preprocessed_data["y"]
+                else np.asarray(self.preprocessed_data["y"])
             )
 
             ylabel = self.output_var if original_scale else f"{self.output_var} scaled"
