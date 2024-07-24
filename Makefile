@@ -27,6 +27,10 @@ test:
 	pip install .[test]
 	pytest
 
+doctest:
+	pip install .[test]
+	pytest --doctest-modules $(PACKAGE_DIR)
+
 html:
 	pip install .[docs]
 	sphinx-build docs/source docs/build -b html
