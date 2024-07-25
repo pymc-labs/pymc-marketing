@@ -1029,8 +1029,5 @@ def root_saturation(
     tensor
         Transformed tensor.
 
-    References
-    ----------
-
     """
     return x**alpha
