@@ -1080,13 +1080,15 @@ class MMM(
         Parameters
         ----------
         var_contribution : str
-            The variable for which to get the contributions.
+            The variable for which to get the contributions. It must be a valid variable
+            in the `fit_result` attribute.
         original_scale : bool, optional
             Whether to plot in the original scale.
 
         Returns
         -------
         DataArray
+            The posterior distribution of the time series contributions.
         """
         contributions = self._format_model_contributions(
             var_contribution=var_contribution
