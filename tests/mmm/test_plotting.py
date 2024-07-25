@@ -219,6 +219,8 @@ def mock_fitted_mmm(mock_mmm, toy_X, toy_y):
         ("plot_direct_contribution_curves", {"same_axes": True}),
         ("plot_direct_contribution_curves", {"channels": ["channel_2"]}),
         ("plot_channel_parameter", {"param_name": "adstock_alpha"}),
+        ("plot_components_contributions", {}),
+        ("plot_components_contributions", {"original_scale": True}),
     ],
 )
 def test_delayed_saturated_mmm_plots(
