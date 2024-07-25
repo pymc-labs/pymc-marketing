@@ -2070,7 +2070,7 @@ class MMM(
 
     def plot_budget_allocation(
         self,
-        samples: az.InferenceData,
+        samples: Dataset,
         figsize: tuple[float, float] = (12, 6),
         ax: plt.Axes | None = None,
         original_scale: bool = True,
@@ -2080,8 +2080,8 @@ class MMM(
 
         Parameters
         ----------
-        samples : az.InferenceData
-            The inference data containing the channel contributions.
+        samples : Dataset
+            The dataset containing the channel contributions.
         figsize : tuple[float, float], optional
             The size of the figure to be created, by default (12, 6).
         ax : plt.Axes, optional
