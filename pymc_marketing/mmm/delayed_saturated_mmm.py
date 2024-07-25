@@ -1072,6 +1072,168 @@ class MMM(
         )
         return fig
 
+    def get_ts_contribution_posterior(
+        self, var_contribution: str, original_scale: bool = False
+    ) -> DataArray:
+        """Get the posterior distribution of the time series contributions of a given variable.
+
+        Parameters
+        ----------
+        var_contribution : str
+            The variable for which to get the contributions. It must be a valid variable
+            in the `fit_result` attribute.
+        original_scale : bool, optional
+            Whether to plot in the original scale.
+
+        Returns
+        -------
+        DataArray
+            The posterior distribution of the time series contributions.
+        """
+        contributions = self._format_model_contributions(
+            var_contribution=var_contribution
+        )
+
+        if original_scale:
+            return apply_sklearn_transformer_across_dim(
+                data=contributions,
+                func=self.get_target_transformer().inverse_transform,
+                dim_name="date",
+            )
+
+        return contributions
+
+    def plot_components_contributions(
+        self, original_scale: bool = False, **plt_kwargs: Any
+    ) -> plt.Figure:
+        """Plot the target variable and the posterior predictive model components in
+        the scaled space.
+
+        Parameters
+        ----------
+        original_scale : bool, optional
+            Whether to plot in the original scale.
+
+        **plt_kwargs
+            Additional keyword arguments to pass to `plt.subplots`.
+
+        Returns
+        -------
+        plt.Figure
+        """
+        channel_contributions = self.get_ts_contribution_posterior(
+            var_contribution="channel_contributions", original_scale=original_scale
+        )
+
+        means = [channel_contributions.mean(["chain", "draw"])]
+        contribution_vars = [
+            az.hdi(channel_contributions, hdi_prob=0.94).channel_contributions
+        ]
+
+        for arg, var_contribution in zip(
+            ["control_columns", "yearly_seasonality"],
+            ["control_contributions", "fourier_contributions"],
+            strict=True,
+        ):
+            if getattr(self, arg, None):
+                contributions = self.get_ts_contribution_posterior(
+                    var_contribution=var_contribution, original_scale=original_scale
+                )
+
+                means.append(contributions.mean(["chain", "draw"]))
+                contribution_vars.append(
+                    az.hdi(contributions, hdi_prob=0.94)[var_contribution]
+                )
+
+        fig, ax = plt.subplots(**plt_kwargs)
+
+        for i, (mean, hdi, var_contribution) in enumerate(
+            zip(
+                means,
+                contribution_vars,
+                [
+                    "channel_contribution",
+                    "control_contribution",
+                    "fourier_contribution",
+                ],
+                strict=False,
+            )
+        ):
+            if self.X is not None:
+                ax.fill_between(
+                    x=self.X[self.date_column],
+                    y1=hdi.isel(hdi=0),
+                    y2=hdi.isel(hdi=1),
+                    color=f"C{i}",
+                    alpha=0.25,
+                    label=f"$94\\%$ HDI ({var_contribution})",
+                )
+                ax.plot(
+                    np.asarray(self.X[self.date_column]),
+                    np.asarray(mean),
+                    color=f"C{i}",
+                )
+        if self.X is not None:
+            intercept = az.extract(
+                self.fit_result, var_names=["intercept"], combined=False
+            )
+
+            if original_scale:
+                intercept = apply_sklearn_transformer_across_dim(
+                    data=intercept,
+                    func=self.get_target_transformer().inverse_transform,
+                    dim_name="chain",
+                )
+
+            if intercept.ndim == 2:
+                # Intercept has a stationary prior
+                intercept_hdi = np.repeat(
+                    a=az.hdi(intercept).intercept.data[None, ...],
+                    repeats=self.X[self.date_column].shape[0],
+                    axis=0,
+                )
+            elif intercept.ndim == 3:
+                # Intercept has a time-varying prior
+                intercept_hdi = az.hdi(intercept).intercept.data
+
+            ax.plot(
+                np.asarray(self.X[self.date_column]),
+                np.full(len(self.X[self.date_column]), intercept.mean().data),
+                color=f"C{i + 1}",
+            )
+            ax.fill_between(
+                x=self.X[self.date_column],
+                y1=intercept_hdi[:, 0],
+                y2=intercept_hdi[:, 1],
+                color=f"C{i + 1}",
+                alpha=0.25,
+                label="$94\\%$ HDI (intercept)",
+            )
+
+            y_to_plot = (
+                self.get_target_transformer().inverse_transform(
+                    np.asarray(self.preprocessed_data["y"]).reshape(-1, 1)
+                )
+                if original_scale
+                else np.asarray(self.preprocessed_data["y"])
+            )
+
+            ylabel = self.output_var if original_scale else f"{self.output_var} scaled"
+
+            ax.plot(
+                np.asarray(self.X[self.date_column]),
+                y_to_plot,
+                label=ylabel,
+                color="black",
+            )
+            ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.1), ncol=3)
+            ax.set(
+                title="Posterior Predictive Model Components",
+                xlabel="date",
+                ylabel=ylabel,
+            )
+        return fig
+
     def plot_channel_contributions_grid(
         self,
         start: float,
@@ -2070,7 +2232,7 @@ class MMM(
 
     def plot_budget_allocation(
         self,
-        samples: az.InferenceData,
+        samples: Dataset,
         figsize: tuple[float, float] = (12, 6),
         ax: plt.Axes | None = None,
         original_scale: bool = True,
@@ -2080,8 +2242,8 @@ class MMM(
 
         Parameters
         ----------
-        samples : az.InferenceData
-            The inference data containing the channel contributions.
+        samples : Dataset
+            The dataset containing the channel contributions.
         figsize : tuple[float, float], optional
             The size of the figure to be created, by default (12, 6).
         ax : plt.Axes, optional
@@ -2169,7 +2331,7 @@ class MMM(
 
     def plot_allocated_contribution_by_channel(
         self,
-        samples: az.InferenceData,
+        samples: Dataset,
         lower_quantile: float = 0.025,
         upper_quantile: float = 0.975,
         original_scale: bool = True,
@@ -2183,8 +2345,8 @@ class MMM(
 
         Parameters
         ----------
-        samples : az.InferenceData
-            The inference data containing the samples of channel contributions.
+        samples : Dataset
+            The dataset containing the samples of channel contributions.
         lower_quantile : float, optional
             The lower quantile for the uncertainty interval. Default is 0.025.
         upper_quantile : float, optional
