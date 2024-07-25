@@ -300,7 +300,7 @@ class ModelBuilder(ABC):
         Raises
         ------
         ValueError
-            If the attrs are missing.
+            If the attrs are missing for a property initialization of the class
         RuntimeError
             If no InferenceData object is provided.
 
