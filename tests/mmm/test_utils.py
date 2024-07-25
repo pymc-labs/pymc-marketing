@@ -21,6 +21,7 @@ from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     compute_sigmoid_second_derivative,
     create_new_spend_data,
+    drop_scalar_coords,
     estimate_menten_parameters,
     estimate_sigmoid_parameters,
     find_sigmoid_inflection_point,
@@ -281,3 +282,34 @@ def test_create_new_spend_data_value_errors() -> None:
             one_time=True,
             spend_leading_up=np.array([3, 4, 5]),
         )
+
+
+@pytest.fixture
+def mock_curve_with_scalars() -> xr.DataArray:
+    coords = {
+        "x": [1, 2, 3],
+        "y": [10, 20, 30],
+        "scalar1": 42,  # Scalar coordinate
+        "scalar2": 3.14,  # Another scalar coordinate
+    }
+    data = np.random.rand(3, 3)
+    return xr.DataArray(data, coords=coords, dims=["x", "y"])
+
+
+def test_drop_scalar_coords(mock_curve_with_scalars) -> None:
+    original_curve = mock_curve_with_scalars.copy(deep=True)  # Make a deep copy
+    curve = drop_scalar_coords(mock_curve_with_scalars)
+
+    # Ensure scalar coordinates are removed
+    assert "scalar1" not in curve.coords
+    assert "scalar2" not in curve.coords
+
+    # Ensure other coordinates are still present
+    assert "x" in curve.coords
+    assert "y" in curve.coords
+
+    # Ensure data shape is unchanged
+    assert curve.shape == (3, 3)
+
+    # Ensure the original DataArray was not modified
+    xr.testing.assert_identical(mock_curve_with_scalars, original_curve)
