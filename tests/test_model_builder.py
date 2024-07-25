@@ -194,8 +194,12 @@ def test_save_load(fitted_model_instance):
     temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
     fitted_model_instance.save(temp.name)
     test_builder2 = ModelBuilderTest.load(temp.name)
+
     assert fitted_model_instance.idata.groups() == test_builder2.idata.groups()
     assert fitted_model_instance.id == test_builder2.id
+    assert fitted_model_instance.model_config == test_builder2.model_config
+    assert fitted_model_instance.sampler_config == test_builder2.sampler_config
+
     x_pred = rng.uniform(low=0, high=1, size=100)
     prediction_data = pd.DataFrame({"input": x_pred})
     pred1 = fitted_model_instance.predict(prediction_data)
@@ -212,7 +216,8 @@ def test_initial_build_and_fit(fitted_model_instance, check_idata=True) -> Model
 
 def test_save_without_fit_raises_runtime_error():
     model_builder = ModelBuilderTest()
-    with pytest.raises(RuntimeError):
+    match = "The model hasn't been fit yet"
+    with pytest.raises(RuntimeError, match=match):
         model_builder.save("saved_model")
 
 
