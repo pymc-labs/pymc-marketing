@@ -374,3 +374,67 @@ def test_second_fit(toy_X, toy_y):
     id_after = id(model.idata)
 
     assert id_before != id_after
+
+
+class InsufficientModel(ModelBuilder):
+    def __init__(
+        self, model_config=None, sampler_config=None, new_parameter=None
+    ) -> None:
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
+        self.new_parameter = new_parameter
+
+    def _data_setter(self, X: pd.DataFrame, y: pd.Series = None) -> None:
+        pass
+
+    def build_model(self, X: pd.DataFrame, y: pd.Series, model_config=None) -> None:
+        with pm.Model() as self.model:
+            intercept = pm.Normal("intercept")
+            sigma = pm.HalfNormal("sigma")
+
+            pm.Normal("output", mu=intercept, sigma=sigma, observed=y)
+
+    @property
+    def output_var(self) -> str:
+        return "output"
+
+    @property
+    def default_model_config(self) -> dict:
+        return {}
+
+    @property
+    def default_sampler_config(self) -> dict:
+        return {}
+
+    def _generate_and_preprocess_model_data(
+        self,
+        X,
+        y,
+    ) -> None:
+        pass
+
+    def _serializable_model_config(self) -> dict[str, int | float | dict]:
+        return {}
+
+
+def test_insufficient_attrs() -> None:
+    model = InsufficientModel()
+
+    X_pred = [1, 2, 3]
+
+    match = "__init__ has parameters that are not in the attrs"
+    with pytest.raises(ValueError, match=match):
+        model.sample_prior_predictive(X_pred=X_pred)
+
+
+def test_incorrect_set_idata_attrs_override() -> None:
+    class IncorrectSetAttrs(InsufficientModel):
+        def create_idata_attrs(self) -> dict:
+            return {"new_parameter": self.new_parameter}
+
+    model = IncorrectSetAttrs()
+
+    X_pred = [1, 2, 3]
+
+    match = "Missing required keys in attrs"
+    with pytest.raises(ValueError, match=match):
+        model.sample_prior_predictive(X_pred=X_pred)

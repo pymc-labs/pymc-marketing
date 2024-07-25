@@ -15,7 +15,6 @@
 
 import json
 import warnings
-from pathlib import Path
 from typing import Annotated, Any
 
 import arviz as az
@@ -56,7 +55,6 @@ from pymc_marketing.mmm.utils import (
 from pymc_marketing.mmm.validating import ValidateControlColumns
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import Prior
-from pymc_marketing.utils import from_netcdf
 
 __all__ = ["BaseMMM", "MMM", "DelayedSaturatedMMM"]
 
@@ -638,73 +636,26 @@ class BaseMMM(BaseValidateMMM):
         return ndarray_to_list(serializable_config)
 
     @classmethod
-    def load(cls, fname: str):
-        """
-        Creates a MMM instance from a file,
-        instantiating the model with the saved original input parameters.
-        Loads inference data for the model.
-
-        Parameters
-        ----------
-        fname : string
-            This denotes the name with path from where idata should be loaded from.
-
-        Returns
-        -------
-        Returns an instance of MMM.
-
-        Raises
-        ------
-        ValueError
-            If the inference data that is loaded doesn't match with the model.
-        """
-
-        filepath = Path(fname)
-        idata = from_netcdf(filepath)
-        model_config = cls._model_config_formatting(
-            json.loads(idata.attrs["model_config"])
-        )
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
-            model = cls(
-                date_column=json.loads(idata.attrs["date_column"]),
-                control_columns=json.loads(idata.attrs["control_columns"]),
-                # Media Transformations
-                channel_columns=json.loads(idata.attrs["channel_columns"]),
-                adstock_max_lag=json.loads(idata.attrs["adstock_max_lag"]),
-                adstock=json.loads(idata.attrs.get("adstock", "geometric")),
-                saturation=json.loads(idata.attrs.get("saturation", "logistic")),
-                adstock_first=json.loads(idata.attrs.get("adstock_first", True)),
-                # Seasonality
-                yearly_seasonality=json.loads(idata.attrs["yearly_seasonality"]),
-                # TVP
-                time_varying_intercept=json.loads(
-                    idata.attrs.get("time_varying_intercept", False)
-                ),
-                time_varying_media=json.loads(
-                    idata.attrs.get("time_varying_media", False)
-                ),
-                # Configurations
-                validate_data=json.loads(idata.attrs["validate_data"]),
-                model_config=model_config,
-                sampler_config=json.loads(idata.attrs["sampler_config"]),
-            )
-
-        model.idata = idata
-        dataset = idata.fit_data.to_dataframe()
-        X = dataset.drop(columns=[model.output_var])
-        y = dataset[model.output_var].values
-        model.build_model(X, y)
-        # All previously used data is in idata.
-        if model.id != idata.attrs["id"]:
-            error_msg = (
-                f"The file '{fname}' does not contain "
-                "an inference data of the same model or "
-                f"configuration as '{cls._model_type}'"
-            )
-            raise ValueError(error_msg)
-
-        return model
+    def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
+        return {
+            "model_config": cls._model_config_formatting(
+                json.loads(attrs["model_config"])
+            ),
+            "date_column": json.loads(attrs["date_column"]),
+            "control_columns": json.loads(attrs["control_columns"]),
+            "channel_columns": json.loads(attrs["channel_columns"]),
+            "adstock_max_lag": json.loads(attrs["adstock_max_lag"]),
+            "adstock": json.loads(attrs.get("adstock", "geometric")),
+            "saturation": json.loads(attrs.get("saturation", "logistic")),
+            "adstock_first": json.loads(attrs.get("adstock_first", True)),
+            "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
+            "time_varying_intercept": json.loads(
+                attrs.get("time_varying_intercept", False)
+            ),
+            "time_varying_media": json.loads(attrs.get("time_varying_media", False)),
+            "validate_data": json.loads(attrs["validate_data"]),
+            "sampler_config": json.loads(attrs["sampler_config"]),
+        }
 
     def _data_setter(
         self,

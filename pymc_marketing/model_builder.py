@@ -136,7 +136,7 @@ class ModelBuilder(ABC):
 
     @property
     @abstractmethod
-    def output_var(self):
+    def output_var(self) -> str:
         """
         Returns the name of the output variable of the model.
 
@@ -311,9 +311,13 @@ class ModelBuilder(ABC):
 
         Examples
         --------
-        >>> model = MyModel(ModelBuilder)
-        >>> idata = az.InferenceData(your_dataset)
-        >>> model.set_idata_attrs(idata=idata)
+        Set the attrs for an InferenceData object manually.
+
+        .. code-block:: python
+
+            idata: az.InferenceData = ...
+            model.set_idata_attrs(idata=idata)
+
         """
         if idata is None:
             idata = self.idata
@@ -321,14 +325,28 @@ class ModelBuilder(ABC):
             raise RuntimeError("No idata provided to set attrs on.")
 
         attrs = self.create_idata_attrs()
+        attrs_keys = set(attrs.keys())
+        required_keys = {
+            "id",
+            "model_type",
+            "version",
+            "sampler_config",
+            "model_config",
+        }
+        if missing_keys := required_keys - attrs_keys:
+            msg = (
+                f"Missing required keys in attrs: {missing_keys}. "
+                "Call super().create_idata_attrs()."
+            )
+            raise ValueError(msg)
+
         init_parameters: set[str] = set(signature(self.__init__).parameters.keys())  # type: ignore
         # Remove since this will be stored in the fit_data group of InferenceData
         init_parameters -= {"data"}
-        attrs_keys = set(attrs.keys())
 
         if missing_keys := init_parameters - attrs_keys:
             msg = (
-                f"__init__ has parameters that are not in the attrs: {missing_keys}."
+                f"__init__ has parameters that are not in the attrs: {missing_keys}. "
                 "The save and load functionality will not work correctly."
             )
             raise ValueError(msg)
@@ -396,9 +414,19 @@ class ModelBuilder(ABC):
         return model_config
 
     @classmethod
+    def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
+        return {
+            "model_config": cls._model_config_formatting(
+                json.loads(attrs["model_config"])
+            ),
+            "sampler_config": json.loads(attrs["sampler_config"]),
+        }
+
+    @classmethod
     def load(cls, fname: str):
         """
         Creates a ModelBuilder instance from a file,
+
         Loads inference data for the model.
 
         Parameters
@@ -414,24 +442,27 @@ class ModelBuilder(ABC):
         ------
         ValueError
             If the inference data that is loaded doesn't match with the model.
+
         Examples
         --------
-        >>> class MyModel(ModelBuilder):
-        >>>     ...
-        >>> name = './mymodel.nc'
-        >>> imported_model = MyModel.load(name)
+        Load a model from a file
+
+        .. code-block:: python
+
+            file_name: str = "./mymodel.nc"
+            model = MyModel.load(file_name)
+
         """
         filepath = Path(str(fname))
         idata = from_netcdf(filepath)
 
         # needs to be converted, because json.loads was changing tuple to list
-        model_config = cls._model_config_formatting(
-            json.loads(idata.attrs["model_config"])
-        )
-        model = cls(
-            model_config=model_config,
-            sampler_config=json.loads(idata.attrs["sampler_config"]),
-        )
+        init_kwargs = cls.attrs_to_init_kwargs(idata.attrs)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=DeprecationWarning)
+            model = cls(**init_kwargs)
+
         model.idata = idata
         dataset = idata.fit_data.to_dataframe()
         X = dataset.drop(columns=[model.output_var])
@@ -440,8 +471,11 @@ class ModelBuilder(ABC):
         # All previously used data is in idata.
 
         if model.id != idata.attrs["id"]:
-            error_msg = f"""The file '{fname}' does not contain an inference data of the same model
-            or configuration as '{cls._model_type}'"""
+            error_msg = (
+                f"The file '{fname}' does not contain "
+                "an inference data of the same model "
+                f"or configuration as '{cls._model_type}'"
+            )
             raise ValueError(error_msg)
 
         return model
