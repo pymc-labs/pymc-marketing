@@ -27,10 +27,21 @@ from tests.conftest import set_model_fit
 class CLVModelTest(CLVModel):
     _model_type = "CLVModelTest"
 
-    def __init__(self, data=None, **kwargs):
+    def __init__(
+        self,
+        data=None,
+        model_config=None,
+        sampler_config: dict | None = None,
+    ):
         if data is None:
             data = pd.DataFrame({"y": np.random.randn(10)})
-        super().__init__(data=data, **kwargs)
+
+        super().__init__(
+            data=data,
+            model_config=model_config,
+            sampler_config=sampler_config,
+            non_distributions=[],
+        )
 
     @property
     def default_model_config(self):
