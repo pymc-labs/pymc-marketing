@@ -1001,6 +1001,7 @@ def root_saturation(
 
     .. plot::
         :context: close-figs
+
         import matplotlib.pyplot as plt
         import numpy as np
         import arviz as az

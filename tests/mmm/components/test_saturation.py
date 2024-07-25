@@ -25,6 +25,7 @@ from pymc_marketing.mmm.components.saturation import (
     InverseScaledLogisticSaturation,
     LogisticSaturation,
     MichaelisMentenSaturation,
+    RootSaturation,
     TanhSaturation,
     TanhSaturationBaselined,
     _get_saturation_function,
@@ -46,6 +47,7 @@ def saturation_functions():
         TanhSaturationBaselined(),
         MichaelisMentenSaturation(),
         HillSaturation(),
+        RootSaturation(),
     ]
 
 
@@ -101,6 +103,7 @@ def test_support_for_lift_test_integrations(saturation) -> None:
         ("tanh_baselined", TanhSaturationBaselined),
         ("michaelis_menten", MichaelisMentenSaturation),
         ("hill", HillSaturation),
+        ("root", RootSaturation),
     ],
 )
 def test_get_saturation_function(name, saturation_cls) -> None:
