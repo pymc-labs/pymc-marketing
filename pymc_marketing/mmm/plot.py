@@ -22,6 +22,8 @@ import numpy as np
 import numpy.typing as npt
 import xarray as xr
 
+from pymc_marketing.mmm.utils import drop_scalar_coords
+
 Values = Sequence[Any] | npt.NDArray[Any]
 Coords = dict[str, Values]
 
@@ -100,6 +102,8 @@ def plot_hdi(
         Figure and the axes
 
     """
+    curve = drop_scalar_coords(curve)
+
     hdi_kwargs = hdi_kwargs or {}
     conf = az.hdi(curve, **hdi_kwargs)[curve.name]
 
@@ -190,6 +194,8 @@ def plot_samples(
         Figure and the axes
 
     """
+    curve = drop_scalar_coords(curve)
+
     plot_coords = get_plot_coords(
         curve.coords,
         non_grid_names=non_grid_names.union({"chain", "draw"}),
@@ -262,6 +268,7 @@ def plot_curve(
         Figure and the axes
 
     """
+    curve = drop_scalar_coords(curve)
 
     hdi_kwargs = hdi_kwargs or {}
     sample_kwargs = sample_kwargs or {}
