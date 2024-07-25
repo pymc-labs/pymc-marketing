@@ -11,26 +11,97 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""
+Time Varying Gaussian Process Multiplier for Marketing Mix Modeling (MMM).
+Designed to model time-varying effects in marketing mix models (MMM).
+
+This module provides a time-varying Gaussian Process (GP) multiplier,
+using the Hilbert Space Gaussian Process (HSGP) approximation.
+
+Examples
+--------
+
+Create a basic PyMC model using the time-varying GP multiplier:
+
+.. code-block:: python
+
+    import numpy as np
+    import pymc as pm
+    import pandas as pd
+    from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
+
+    # Generate example data
+    np.random.seed(0)
+    dates = pd.date_range(start="2020-01-01", periods=365)
+    sales = np.random.normal(100, 10, size=len(dates))
+
+    # Infer time index
+    time_index = infer_time_index(dates, dates, time_resolution=5)
+
+    # Define model configuration
+    model_config = {
+        "sales_tvp_config": {
+            "m": 200,
+            "L": None,
+            "eta_lam": 1,
+            "ls_mu": None,
+            "ls_sigma": 5,
+            "cov_func": None,
+        }
+    }
+
+    with pm.Model() as model:
+        # Shared time index variable
+        time_index_shared = pm.Data("time_index", time_index)
+
+        # Base parameter
+        base_sales = pm.Normal("base_sales", mu=100, sigma=10)
+
+        # Time-varying GP multiplier
+        varying_coefficient = create_time_varying_gp_multiplier(
+            name="sales",
+            dims="time",
+            time_index=time_index_shared,
+            time_index_mid=int(len(dates) / 2),
+            time_resolution=5,
+            model_config=model_config,
+        )
+
+        # Final sales parameter
+        sales_estimated = base_sales * varying_coefficient
+
+        # Likelihood
+        pm.Normal("obs", mu=sales_estimated, sigma=10, observed=sales)
+
+    # Sample from the model
+    with model:
+        trace = pm.sample()
+
+    # Plot results
+    import matplotlib.pyplot as plt
+
+    pm.plot_trace(trace, var_names=["base_sales"])
+    plt.show()
+
+"""
+
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
+from pymc.distributions.shape_utils import Dims
 
 from pymc_marketing.constants import DAYS_IN_YEAR
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 
 
 def time_varying_prior(
     name: str,
     X: pt.sharedvar.TensorSharedVariable,
-    dims: tuple[str, str] | str,
+    dims: Dims,
     X_mid: int | float | None = None,
-    m: int = 200,
-    L: int | float | None = None,
-    eta_lam: float = 1,
-    ls_mu: float = 5,
-    ls_sigma: float = 5,
-    cov_func: pm.gp.cov.Covariance | None = None,
+    hsgp_kwargs: HSGPKwargs | None = None,
 ) -> pt.TensorVariable:
     """Time varying prior, based on the Hilbert Space Gaussian Process (HSGP).
 
@@ -49,20 +120,9 @@ def time_varying_prior(
         the time dimension, and the second may be any other dimension, across
         which independent time varying priors for each coordinate are desired
         (e.g. channels).
-    m : int
-        Number of basis functions.
-    L : int
-        Extent of basis functions. Set this to reflect the expected range of
-        in+out-of-sample data (considering that time-indices are zero-centered).
-        Default is `X_mid * 2` (identical to `c=2` in HSGP).
-    eta_lam : float
-        Exponential prior for the variance.
-    ls_mu : float
-        Mean of the inverse gamma prior for the lengthscale.
-    ls_sigma : float
-        Standard deviation of the inverse gamma prior for the lengthscale.
-    cov_func : pm.gp.cov.Covariance
-        Covariance function.
+    hsgp_kwargs : HSGPKwargs
+        Keyword arguments for the Hilbert Space Gaussian Process. By default it is None,
+        in which case the default parameters are used. See `HSGPKwargs` for more information.
 
     Returns
     -------
@@ -78,77 +138,81 @@ def time_varying_prior(
         Regression.
     """
 
+    if hsgp_kwargs is None:
+        hsgp_kwargs = HSGPKwargs()
+
     if X_mid is None:
         X_mid = float(X.mean().eval())
-    if L is None:
-        L = X_mid * 2
+    if hsgp_kwargs.L is None:
+        hsgp_kwargs.L = X_mid * 2
 
     model = pm.modelcontext(None)
 
-    if cov_func is None:
-        eta = pm.Exponential(f"{name}_eta", lam=eta_lam)
-        ls = pm.InverseGamma(f"{name}_ls", mu=ls_mu, sigma=ls_sigma)
+    if hsgp_kwargs.cov_func is None:
+        eta = pm.Exponential(f"{name}_eta", lam=hsgp_kwargs.eta_lam)
+        ls = pm.InverseGamma(
+            f"{name}_ls", mu=hsgp_kwargs.ls_mu, sigma=hsgp_kwargs.ls_sigma
+        )
         cov_func = eta**2 * pm.gp.cov.Matern52(1, ls=ls)
 
-    model.add_coord("m", np.arange(m))  # type: ignore
+    model.add_coord("m", np.arange(hsgp_kwargs.m))  # type: ignore
     hsgp_dims: str | tuple[str, str] = "m"
     if isinstance(dims, tuple):
         hsgp_dims = (dims[1], "m")
 
-    gp = pm.gp.HSGP(m=[m], L=[L], cov_func=cov_func)
-    phi, sqrt_psd = gp.prior_linearized(Xs=X[:, None] - X_mid)
+    gp = pm.gp.HSGP(m=[hsgp_kwargs.m], L=[hsgp_kwargs.L], cov_func=cov_func)
+    phi, sqrt_psd = gp.prior_linearized(X[:, None] - X_mid)
     hsgp_coefs = pm.Normal(f"{name}_hsgp_coefs", dims=hsgp_dims)
     f = phi @ (hsgp_coefs * sqrt_psd).T
+    f = pt.softplus(f)
     centered_f = f - f.mean(axis=0) + 1
     return pm.Deterministic(name, centered_f, dims=dims)
 
 
-def create_time_varying_intercept(
+def create_time_varying_gp_multiplier(
+    name: str,
+    dims: Dims,
     time_index: pt.sharedvar.TensorSharedVariable,
     time_index_mid: int,
     time_resolution: int,
-    intercept_dist: pm.Distribution,
-    model_config: dict,
+    hsgp_kwargs: HSGPKwargs,
 ) -> pt.TensorVariable:
-    """Create time-varying intercept.
+    """Create a time-varying Gaussian Process multiplier.
+
+    Create a time-varying Gaussian Process multiplier based on the provided parameters.
 
     Parameters
     ----------
-    time_index : 1d array-like of int
-        Time points.
+    name : str
+        Name of the Gaussian Process multiplier.
+    dims : tuple[str, str] | str
+        Dimensions for the multiplier.
+    time_index : pt.sharedvar.TensorSharedVariable
+        Shared variable containing time points.
     time_index_mid : int
         Midpoint of the time points.
     time_resolution : int
-        Time resolution.
-    model_config : dict
-        Model configuration.
+        Resolution of time points.
+    hsgp_kwargsg : HSGPKwargs
+        Keyword arguments for the Hilbert Space Gaussian Process (HSGP) component.
+
+    Returns
+    -------
+    pt.TensorVariable
+        Time-varying Gaussian Process multiplier for a given variable.
     """
+    if hsgp_kwargs.L is None:
+        hsgp_kwargs.L = time_index_mid + DAYS_IN_YEAR / time_resolution
+    if hsgp_kwargs.ls_mu is None:
+        hsgp_kwargs.ls_mu = DAYS_IN_YEAR / time_resolution * 2
 
-    with pm.modelcontext(None):
-        if model_config["intercept_tvp_kwargs"]["L"] is None:
-            model_config["intercept_tvp_kwargs"]["L"] = (
-                time_index_mid + DAYS_IN_YEAR / time_resolution
-            )
-        if model_config["intercept_tvp_kwargs"]["ls_mu"] is None:
-            model_config["intercept_tvp_kwargs"]["ls_mu"] = (
-                DAYS_IN_YEAR / time_resolution * 2
-            )
-
-        multiplier = time_varying_prior(
-            name="intercept_time_varying_multiplier",
-            X=time_index,
-            dims="date",
-            X_mid=time_index_mid,
-            **model_config["intercept_tvp_kwargs"],
-        )
-        intercept_base = intercept_dist(
-            name="intercept_base", **model_config["intercept"]["kwargs"]
-        )
-        return pm.Deterministic(
-            name="intercept",
-            var=intercept_base * multiplier,
-            dims="date",
-        )
+    return time_varying_prior(
+        name=f"{name}_temporal_latent_multiplier",
+        X=time_index,
+        X_mid=time_index_mid,
+        dims=dims,
+        hsgp_kwargs=hsgp_kwargs,
+    )
 
 
 def infer_time_index(

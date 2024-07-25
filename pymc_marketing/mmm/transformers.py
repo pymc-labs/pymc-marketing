@@ -327,6 +327,7 @@ def weibull_adstock(
     axis: int = 0,
     mode: ConvMode = ConvMode.After,
     type: WeibullType | str = WeibullType.PDF,
+    normalize: bool = False,
 ):
     R"""Weibull Adstocking Transformation.
 
@@ -404,6 +405,9 @@ def weibull_adstock(
             where the effect overlaps with both preceding and succeeding elements.
     type : WeibullType or str, by default WeibullType.PDF
         Type of Weibull adstock transformation to be applied (PDF or CDF).
+    normalize : bool, by default False
+        Whether to normalize the weights.
+
 
     Returns
     -------
@@ -427,14 +431,16 @@ def weibull_adstock(
         w = pt.cumprod(padded_w, axis=-1)
     else:
         raise ValueError(f"Wrong WeibullType: {type}, expected of WeibullType")
+
+    w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
     return batched_convolution(x, w, axis=axis, mode=mode)
 
 
-def logistic_saturation(x, lam: npt.NDArray[np.float_] | float = 0.5):
-    """Logistic saturation transformation.
+def logistic_saturation(x, lam: npt.NDArray[np.float64] | float = 0.5):
+    r"""Logistic saturation transformation.
 
     .. math::
-        f(x) = \\frac{1 - e^{-\lambda x}}{1 + e^{-\lambda x}}
+        f(x) = \frac{1 - e^{-\lambda x}}{1 + e^{-\lambda x}}
 
     .. plot::
         :context: close-figs
@@ -468,8 +474,57 @@ def logistic_saturation(x, lam: npt.NDArray[np.float_] | float = 0.5):
     -------
     tensor
         Transformed tensor.
-    """  # noqa: W605
+    """
     return (1 - pt.exp(-lam * x)) / (1 + pt.exp(-lam * x))
+
+
+def inverse_scaled_logistic_saturation(
+    x, lam: npt.NDArray[np.float64] | float = 0.5, eps: float = np.log(3)
+):
+    """Inverse scaled logistic saturation transformation.
+        It offers a more intuitive alternative to logistic_saturation,
+        allowing for lambda to be interpreted as the half saturation point
+        when using default value for eps.
+
+    .. math::
+        f(x) = \\frac{1 - e^{-x*\epsilon/\lambda}}{1 + e^{-x*\epsilon/\lambda}}
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import inverse_scaled_logistic_saturation
+        plt.style.use('arviz-darkgrid')
+        lam = np.array([0.25, 0.5, 1, 2, 4])
+        x = np.linspace(0, 5, 100)
+        ax = plt.subplot(111)
+        for l in lam:
+            y = inverse_scaled_logistic_saturation(x, lam=l).eval()
+            plt.plot(x, y, label=f'lam = {l}')
+        plt.xlabel('spend', fontsize=12)
+        plt.ylabel('f(spend)', fontsize=12)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.show()
+
+    Parameters
+    ----------
+    x : tensor
+        Input tensor.
+    lam : float or array-like, optional, by default 0.5
+        Saturation parameter.
+    eps : float or array-like, optional, by default ln(3)
+        Scaling parameter. ln(3) results in halfway saturation at lam
+
+    Returns
+    -------
+    tensor
+        Transformed tensor.
+    """  # noqa: W605
+    return logistic_saturation(x, eps / lam)
 
 
 class TanhSaturationParameters(NamedTuple):
@@ -842,3 +897,140 @@ def michaelis_menten(
     """
 
     return alpha * x / (lam + x)
+
+
+def hill_saturation(
+    x: pt.TensorLike,
+    sigma: pt.TensorLike,
+    beta: pt.TensorLike,
+    lam: pt.TensorLike,
+) -> pt.TensorVariable:
+    r"""Hill Saturation Function
+
+    .. math::
+        f(x) = \frac{\sigma}{1 + e^{-\beta(x - \lambda)}}
+
+    where:
+     - :math:`\sigma` is the maximum value (upper asymptote)
+     - :math:`\beta` is the slope parameter
+     - :math:`\lambda` is the transition point on the X-axis
+     - :math:`x` is the independent variable
+
+    This function computes the Hill sigmoidal response curve, which is commonly
+    used to describe the saturation effect in biological systems. The curve is
+    characterized by its sigmoidal shape, representing a gradual transition from
+    a low, nearly zero level to a high plateau, the maximum value the function
+    will approach as the independent variable grows large.
+
+    .. plot::
+        :context: close-figs
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from pymc_marketing.mmm.transformers import hill_saturation
+        x = np.linspace(0, 10, 100)
+        # Varying sigma
+        sigmas = [0.5, 1, 1.5]
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
+        for i, sigma in enumerate(sigmas):
+            plt.subplot(1, 3, i+1)
+            y = hill_saturation(x, sigma, 2, 5).eval()
+            plt.plot(x, y)
+            plt.xlabel('x')
+            plt.title(f'Sigma = {sigma}')
+        plt.subplot(1,3,1)
+        plt.ylabel('Hill Saturation')
+        plt.tight_layout()
+        plt.show()
+        # Varying beta
+        betas = [1, 2, 3]
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
+        for i, beta in enumerate(betas):
+            plt.subplot(1, 3, i+1)
+            y = hill_saturation(x, 1, beta, 5).eval()
+            plt.plot(x, y)
+            plt.xlabel('x')
+            plt.title(f'Beta = {beta}')
+        plt.subplot(1,3,1)
+        plt.ylabel('Hill Saturation')
+        plt.tight_layout()
+        plt.show()
+        # Varying lam
+        lams = [3, 5, 7]
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
+        for i, lam in enumerate(lams):
+            plt.subplot(1, 3, i+1)
+            y = hill_saturation(x, 1, 2, lam).eval()
+            plt.plot(x, y)
+            plt.xlabel('x')
+            plt.title(f'Lambda = {lam}')
+        plt.subplot(1,3,1)
+        plt.ylabel('Hill Saturation')
+        plt.tight_layout()
+        plt.show()
+    Parameters
+    ----------
+    x : float or array-like
+        The independent variable, typically representing the concentration of a
+        substrate or the intensity of a stimulus.
+    sigma : float
+        The upper asymptote of the curve, representing the maximum value the
+        function will approach as x grows large.
+    beta : float
+        The slope parameter, determining the steepness of the curve.
+    lam : float
+        The x-value of the midpoint where the curve transitions from exponential
+        growth to saturation.
+
+    Returns
+    -------
+    float or array-like
+        The value of the Hill function for each input value of x.
+    """
+    return sigma / (1 + pt.exp(-beta * (x - lam)))
+
+
+def root_saturation(
+    x: pt.TensorLike,
+    alpha: pt.TensorLike,
+) -> pt.TensorVariable:
+    r"""Root saturation transformation.
+
+    .. math::
+        f(x) = x^{\alpha}
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import root_saturation
+        plt.style.use('arviz-darkgrid')
+        alpha = np.array([0.1, 0.3, 0.5, 0.7])
+        x = np.linspace(0, 5, 100)
+        ax = plt.subplot(111)
+        for a in alpha:
+            y = root_saturation(x, alpha=a)
+            plt.plot(x, y, label=f'alpha = {a}')
+        plt.xlabel('spend', fontsize=12)
+        plt.ylabel('f(spend)', fontsize=12)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.show()
+
+    Parameters
+    ----------
+    x : tensor
+        Input tensor.
+    alpha : float
+        Exponent for the root transformation. Must be non-negative.
+
+    Returns
+    -------
+    tensor
+        Transformed tensor.
+
+    """
+    return x**alpha

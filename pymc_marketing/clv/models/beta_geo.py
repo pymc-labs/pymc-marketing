@@ -11,13 +11,14 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import warnings
 from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
-import xarray as xr
+import xarray
 from pymc.distributions.dist_math import check_parameters
 from pymc.util import RandomState
 from pytensor.tensor import TensorVariable
@@ -25,66 +26,75 @@ from scipy.special import expit, hyp2f1
 
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
+from pymc_marketing.model_config import ModelConfig
+from pymc_marketing.prior import Prior
 
 
 class BetaGeoModel(CLVModel):
-    r"""Beta-Geo Negative Binomial Distribution (BG/NBD) model
+    r"""Beta-Geometric Negative Binomial Distribution (BG/NBD) model for a non-contractual customer population
+    across continuous time. First introduced by Fader, Hardie & Lee [1]_, with additional predictive methods
+    and enhancements in [2]_ and [3]_.
 
-    In the BG/NBD model, the frequency of customer purchases is modelled as the time
-    of each purchase has an instantaneous probability of occurrence (hazard) and, at
-    every purchase, a probability of "dropout", i.e. no longer being a customer.
+    The BG/NBD model assumes dropout probabilities for the customer population are Beta distributed,
+    and time between transactions follows a Gamma distribution while the customer is still active.
 
-    Customer-specific data needed for statistical inference include 1) the total
-    number of purchases (:math:`x`) and 2) the time of the last, i.e. xth, purchase. The
-    omission of purchase times :math:`t_1, ..., t_x` is due to a telescoping sum in the
-    exponential function of the joint likelihood; see Section 4.1 of [1] for more
-    details.
+    This model requires data to be summarized by *recency*, *frequency*, and *T* for each customer,
+    using `clv.utils.rfm_summary()` or equivalent. Modeling assumptions require *T >= recency*.
 
-    Methods below are adapted from the BetaGeoFitter class from the lifetimes package
+    Predictive methods have been adapted from the *BetaGeoFitter* class in the legacy *lifetimes* library
     (see https://github.com/CamDavidsonPilon/lifetimes/).
-
 
     Parameters
     ----------
-    data: pd.DataFrame
+    data : ~pandas.DataFrame
         DataFrame containing the following columns:
-            * `frequency`: number of repeat purchases (with possible values 0, 1, 2, ...)
-            * `recency`: time between the first and the last purchase (with possible values 0, 1, 2, ...)
-            * `T`: time between the first purchase and the end of the observation
-                period (with possible values 0, 1, 2, ...)
-            * `customer_id`: unique customer identifier
-    model_config: dict, optional
-        Dictionary of model prior parameters. If not provided, the model will use default priors specified in
-        the `default_model_config` class attribute.
-    sampler_config: dict, optional
-        Dictionary of sampler parameters. Defaults to None.
+            * `customer_id`: Unique customer identifier
+            * `frequency`: Number of repeat purchases
+            * `recency`: Time between the first and the last purchase
+            * `T`: Time between the first purchase and the end of the observation period
+    model_config : dict, optional
+        Dictionary of model prior parameters:
+            * `a_prior`: Shape parameter for time until dropout; defaults to `pymc.HalfFlat()`
+            * `b_prior`: Shape parameter for time until dropout; defaults to `pymc.HalfFlat()`
+            * `alpha_prior`: Scale parameter for time between purchases; defaults to `pymc.HalfFlat()`
+            * `r_prior`: Scale parameter for time between purchases; defaults to `pymc.HalfFlat()`
+    sampler_config : dict, optional
+        Dictionary of sampler parameters. Defaults to *None*.
 
     Examples
     --------
-    BG/NBD model for customer
-
     .. code-block:: python
 
-        import pandas as pd
+        from pymc_marketing.prior import Prior
+        from pymc_marketing.clv import BetaGeoModel, rfm_summary
 
-        import pymc as pm
-        from pymc_marketing.clv import BetaGeoModel
+        # customer identifiers and purchase datetimes
+        # are all that's needed to start modeling
+        data = [
+            [1, "2024-01-01"],
+            [1, "2024-02-06"],
+            [2, "2024-01-01"],
+            [3, "2024-01-02"],
+            [3, "2024-01-05"],
+            [4, "2024-01-16"],
+            [4, "2024-02-05"],
+            [5, "2024-01-17"],
+            [5, "2024-01-18"],
+            [5, "2024-01-19"],
+        ]
+        raw_data = pd.DataFrame(data, columns=["id", "date"]
 
-        data = pd.DataFrame({
-            "frequency": [4, 0, 6, 3],
-            "recency": [30.73, 1.72, 0., 0.],
-            "T": [38.86, 38.86, 38.86, 38.86],
-        })
-        data["customer_id"] = data.index
+        # preprocess data
+        rfm_df = rfm_summary(raw_data,'id','date')
 
-        prior_distribution = {"dist": "Gamma", "kwargs": {"alpha": 0.1, "beta": 0.1}}
+        # model_config and sampler_configs are optional
         model = BetaGeoModel(
             data=data,
             model_config={
-                "r_prior": prior_distribution,
-                "alpha_prior": prior_distribution,
-                "a_prior": prior_distribution,
-                "b_prior": prior_distribution,
+                "r_prior": Prior("Gamma", alpha=0.1, beta=1),
+                "alpha_prior": Prior("Gamma", alpha=0.1, beta=1),
+                "a_prior": Prior("Gamma", alpha=0.1, beta=1),
+                "b_prior": Prior("Gamma", alpha=0.1, beta=1),
             },
             sampler_config={
                 "draws": 1000,
@@ -93,36 +103,36 @@ class BetaGeoModel(CLVModel):
                 "cores": 2,
             },
         )
-        model.build_model()
+
+        # The default 'mcmc' fit_method provides informative predictions
+        # and reliable performance on small datasets
         model.fit()
         print(model.fit_summary())
 
-        # Estimating the expected number of purchases for a randomly chosen
-        # individual in a future time period of length t
-        expected_num_purchases = model.expected_num_purchases(
-            t=[2, 5, 7, 10],
-        )
+        # Maximum a Posteriori can quickly fit a model to large datasets,
+        # but will give limited insights into predictive uncertainty.
+        model.fit(fit_method='map')
+        print(model.fit_summary())
 
-        # Predicting the customer-specific number of purchases for a future
-        # time interval of length t given their previous frequency and recency
-        expected_num_purchases_new_customer = model.expected_num_purchases_new_customer(
-            t=[5, 5, 5, 5],
-            frequency=[5, 2, 1, 8],
-            recency=[7, 4, 2.5, 11],
-            T=[10, 8, 10, 22],
-        )
+        # Predict number of purchases for current customers
+        # over the next 10 time periods
+        expected_purchases = model.expected_purchases(future_t=10)
+
+        # Predict probability customers are still active
+        probability_alive = model.expected_probability_alive()
+
+        # Predict number of purchases for a new customer over 't' time periods
+        expected_purchases_new_customer = model.expected_purchases_new_customer(t=10)
 
     References
     ----------
-    .. [1] Fader, P. S., Hardie, B. G., & Lee, K. L. (2005). “Counting your customers”
-           the easy way: An alternative to the Pareto/NBD model. Marketing science,
+    .. [1] Fader, P. S., Hardie, B. G., & Lee, K. L. (2005). “Counting your customers
+           the easy way: An alternative to the Pareto/NBD model." Marketing science,
            24(2), 275-284. http://brucehardie.com/papers/018/fader_et_al_mksc_05.pdf
-    .. [2] Fader, P. S., Hardie, B. G., & Lee, K. L. (2008). Computing
-           P (alive) using the BG/NBD model. Research Note available via
-           http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
-    .. [3] Fader, P. S. & Hardie, B. G. (2013) Overcoming the BG/NBD Model's #NUM!
-           Error Problem. Research Note available via
-           http://brucehardie.com/notes/027/bgnbd_num_error.pdf.
+    .. [2] Fader, P. S., Hardie, B. G., & Lee, K. L. (2008). "Computing
+           P (alive) using the BG/NBD model." http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
+    .. [3] Fader, P. S. & Hardie, B. G. (2013) "Overcoming the BG/NBD Model's #NUM!
+           Error Problem." http://brucehardie.com/notes/027/bgnbd_num_error.pdf.
     """
 
     _model_type = "BG/NBD"  # Beta-Geometric Negative Binomial Distribution
@@ -145,27 +155,21 @@ class BetaGeoModel(CLVModel):
         )
 
     @property
-    def default_model_config(self) -> dict[str, dict]:
+    def default_model_config(self) -> ModelConfig:
         return {
-            "a_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "b_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
-            "r_prior": {"dist": "HalfFlat", "kwargs": {}},
+            "a_prior": Prior("HalfFlat"),
+            "b_prior": Prior("HalfFlat"),
+            "alpha_prior": Prior("HalfFlat"),
+            "r_prior": Prior("HalfFlat"),
         }
 
     def build_model(self) -> None:  # type: ignore[override]
-        a_prior = self._create_distribution(self.model_config["a_prior"])
-        b_prior = self._create_distribution(self.model_config["b_prior"])
-        alpha_prior = self._create_distribution(self.model_config["alpha_prior"])
-        r_prior = self._create_distribution(self.model_config["r_prior"])
-
         coords = {"customer_id": self.data["customer_id"]}
         with pm.Model(coords=coords) as self.model:
-            a = self.model.register_rv(a_prior, name="a")
-            b = self.model.register_rv(b_prior, name="b")
-
-            alpha = self.model.register_rv(alpha_prior, name="alpha")
-            r = self.model.register_rv(r_prior, name="r")
+            a = self.model_config["a_prior"].create_variable("a")
+            b = self.model_config["b_prior"].create_variable("b")
+            alpha = self.model_config["alpha_prior"].create_variable("alpha")
+            r = self.model_config["r_prior"].create_variable("r")
 
             def logp(t_x, x, a, b, r, alpha, T):
                 """
@@ -212,6 +216,7 @@ class BetaGeoModel(CLVModel):
                 ),
             )
 
+    # TODO: delete this utility after API standardization is completed
     def _unload_params(self):
         trace = self.idata.posterior
         a = trace["a"]
@@ -221,7 +226,45 @@ class BetaGeoModel(CLVModel):
 
         return a, b, alpha, r
 
-    # taken from https://lifetimes.readthedocs.io/en/latest/lifetimes.fitters.html
+    def _extract_predictive_variables(
+        self,
+        data: pd.DataFrame,
+        customer_varnames: Sequence[str] = (),
+    ) -> xarray.Dataset:
+        """Utility function assigning default customer arguments
+        for predictive methods and converting to xarrays.
+        """
+        self._validate_cols(
+            data,
+            required_cols=[
+                "customer_id",
+                *customer_varnames,
+            ],
+            must_be_unique=["customer_id"],
+        )
+
+        a = self.fit_result["a"]
+        b = self.fit_result["b"]
+        alpha = self.fit_result["alpha"]
+        r = self.fit_result["r"]
+
+        customer_vars = to_xarray(
+            data["customer_id"],
+            *[data[customer_varname] for customer_varname in customer_varnames],
+        )
+        if len(customer_varnames) == 1:
+            customer_vars = [customer_vars]
+
+        return xarray.combine_by_coords(
+            (
+                a,
+                b,
+                alpha,
+                r,
+                *customer_vars,
+            )
+        )
+
     def expected_num_purchases(
         self,
         customer_id: np.ndarray | pd.Series,
@@ -229,33 +272,17 @@ class BetaGeoModel(CLVModel):
         frequency: np.ndarray | pd.Series | TensorVariable,
         recency: np.ndarray | pd.Series | TensorVariable,
         T: np.ndarray | pd.Series | TensorVariable,
-    ) -> xr.DataArray:
+    ) -> xarray.DataArray:
         r"""
-        Given a purchase history/profile of :math:`x` and :math:`t_x` for an individual
-        customer, this method returns the expected number of future purchases in the
-        next time interval of length :math:`t`, i.e. :math:`(T, T + t]`. The closed form
-        solution for this equation is available as (10) from [1] linked above. With
-        :math:`\text{hyp2f1}` being the Gaussian hypergeometric function, the
-        expectation is defined as below.
-
-        .. math::
-
-           \mathbb{E}\left[Y(t) \mid x, t_x, T, r, \alpha, a, b\right] =
-           \frac
-           {
-            \frac{a + b + x - 1}{a - 1}\left[
-                1 - \left(\frac{\alpha + T}{\alpha + T + t}\right)^{r + x}
-                \text{hyp2f1}\left(
-                    r + x, b + x; a + b + x, \frac{1}{\alpha + T + t}
-                \right)
-            \right]
-           }
-           {
-            1 + \delta_{x > 0} \frac{a}{b + x - 1} \left(
-                \frac{\alpha + T}{\alpha + T + t}
-            \right)^{r + x}
-           }
+        This is a deprecated method and will be removed in a future release.
+        Please use `BetaGeoModel.expected_purchases` instead.
         """
+        warnings.warn(
+            "Deprecated method. Use 'expected_purchases' instead.",
+            FutureWarning,
+            stacklevel=1,
+        )
+
         t = np.asarray(t)
         if t.size != 1:
             t = to_xarray(customer_id, t)
@@ -284,83 +311,182 @@ class BetaGeoModel(CLVModel):
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
-    def expected_probability_alive(
+    def expected_purchases(
         self,
-        customer_id: np.ndarray | pd.Series,
-        frequency: np.ndarray | pd.Series,
-        recency: np.ndarray | pd.Series,
-        T: np.ndarray | pd.Series,
-    ) -> xr.DataArray:
+        data: pd.DataFrame | None = None,
+        *,
+        future_t: int | np.ndarray | pd.Series | None = None,
+    ) -> xarray.DataArray:
         r"""
-        Posterior expected value of the probability of being alive at time T. The
-        derivation of the closed form solution is available in [2].
+        Predict the expected number of future purchases across *future_t* time periods given *recency*, *frequency*,
+        and *T* for each customer. *data* parameter is only required for out-of-sample customers.
 
-        .. math::
-            P\left( \text{alive} \mid x, t_x, T, r, \alpha, a, b \right)
-            = 1 \Big/
-                \left\{
-                    1 + \delta_{x>0} \frac{a}{b + x - 1}
-                        \left(
-                            \frac{\alpha + T}{\alpha + t_x}
-                        \right)^{r + x}
-                \right\}
+        Adapted from equation (10) in [1]_, and *lifetimes* package:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L201
+
+        Parameters
+        ----------
+        future_t : int, array_like
+            Number of time periods to predict expected purchases.
+        data : ~pandas.DataFrame
+            Optional dataframe containing the following columns:
+
+            * `customer_id`: Unique customer identifier
+            * `frequency`: Number of repeat purchases
+            * `recency`: Time between the first and the last purchase
+            * `T`: Time between first purchase and end of observation period; model assumptions require T >= recency
+
+        References
+        ----------
+        .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005a),
+            "Counting Your Customers the Easy Way: An Alternative to the
+            Pareto/NBD Model," Marketing Science, 24 (2), 275-84.
+            https://www.brucehardie.com/papers/bgnbd_2004-04-20.pdf
         """
-        T = np.asarray(T)
-        if T.size != 1:
-            T = to_xarray(customer_id, T)
+        if data is None:
+            data = self.data
 
-        frequency, recency = to_xarray(customer_id, frequency, recency)
+        if future_t is not None:
+            data = data.assign(future_t=future_t)
 
-        a, b, alpha, r = self._unload_params()
-
-        log_div = (r + frequency) * np.log((alpha + T) / (alpha + recency)) + np.log(
-            a / (b + np.maximum(frequency, 1) - 1)
+        dataset = self._extract_predictive_variables(
+            data, customer_varnames=["frequency", "recency", "T", "future_t"]
         )
+        a = dataset["a"]
+        b = dataset["b"]
+        alpha = dataset["alpha"]
+        r = dataset["r"]
+        x = dataset["frequency"]
+        t_x = dataset["recency"]
+        T = dataset["T"]
+        t = dataset["future_t"]
 
-        return xr.where(frequency == 0, 1.0, expit(-log_div)).transpose(
+        numerator = 1 - ((alpha + T) / (alpha + T + t)) ** (r + x) * hyp2f1(
+            r + x,
+            b + x,
+            a + b + x - 1,
+            t / (alpha + T + t),
+        )
+        numerator *= (a + b + x - 1) / (a - 1)
+        denominator = 1 + (x > 0) * (a / (b + x - 1)) * (
+            (alpha + T) / (alpha + t_x)
+        ) ** (r + x)
+
+        return (numerator / denominator).transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
-    def expected_num_purchases_new_customer(
+    def expected_probability_alive(
         self,
-        t: np.ndarray | pd.Series,
-    ):
+        data: pd.DataFrame | None = None,
+    ) -> xarray.DataArray:
         r"""
-        Posterior expected number of purchases for any interval of length :math:`t`. See
-        equation (9) of [1].
+        Estimate probability a customer with history *frequency*, *recency*, and *T*
+        is currently active. *data* parameter is only required for out-of-sample customers.
 
-        The customer_id shouldn't matter too much here since no individual-specific data
-        is conditioned on.
+        Adapted from page (2) in Bruce Hardie's notes [1]_, and *lifetimes* package:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L260
 
-        .. math::
-            \mathbb{E}\left(X(t) \mid r, \alpha, a, b \right)
-            = \frac{a + b - 1}{a - 1}
-            \left[
-                1 - \left(\frac{\alpha}{\alpha + t}\right)^r
-                \text{hyp2f1}\left(r, b; a + b - 1; \frac{t}{\alpha + t}\right)
-            \right]
+        Parameters
+        ----------
+        data : *pandas.DataFrame
+            Optional dataframe containing the following columns:
 
+            * `customer_id`: Unique customer identifier
+            * `frequency`: Number of repeat purchases
+            * `recency`: Time between the first and the last purchase
+            * `T`: Time between first purchase and end of observation period, model assumptions require T >= recency
+
+        References
+        ----------
+        .. [1] Fader, P. S., Hardie, B. G., & Lee, K. L. (2008). Computing
+               P (alive) using the BG/NBD model. http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
         """
-        t = np.asarray(t)
-        if t.size != 1:
-            t = to_xarray(range(len(t)), t, dim="t")
+        if data is None:
+            data = self.data
 
-        a, b, alpha, r = self._unload_params()
+        dataset = self._extract_predictive_variables(
+            data, customer_varnames=["frequency", "recency", "T"]
+        )
+        a = dataset["a"]
+        b = dataset["b"]
+        alpha = dataset["alpha"]
+        r = dataset["r"]
+        x = dataset["frequency"]
+        t_x = dataset["recency"]
+        T = dataset["T"]
 
-        left_term = (a + b - 1) / (a - 1)
-        right_term = 1 - (alpha / (alpha + t)) ** r * hyp2f1(
+        log_div = (r + x) * np.log((alpha + T) / (alpha + t_x)) + np.log(
+            a / (b + np.maximum(x, 1) - 1)
+        )
+
+        return xarray.where(x == 0, 1.0, expit(-log_div)).transpose(
+            "chain", "draw", "customer_id", missing_dims="ignore"
+        )
+
+    def expected_num_purchases_new_customer(self, *args, **kwargs) -> xarray.DataArray:
+        """
+        This is a deprecated method and will be removed in a future release.
+        Please use `BetaGeoModel.expected_purchases_new_customer` instead.
+        """
+        warnings.warn(
+            "Deprecated method. Use 'expected_purchases_new_customer' instead.",
+            FutureWarning,
+            stacklevel=1,
+        )
+        self.expected_purchases_new_customer(*args, **kwargs)
+
+    def expected_purchases_new_customer(
+        self,
+        data: pd.DataFrame | None = None,
+        *,
+        t: np.ndarray | pd.Series,
+    ) -> xarray.DataArray:
+        r"""
+        Expected number of purchases for a new customer across *t* time periods.
+
+        Adapted from equation (9) in [1]_, and `lifetimes` library:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L328
+
+        Parameters
+        ----------
+        t : array_like
+            Number of time periods over which to estimate purchases.
+        References
+        ----------
+        .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005a),
+            "Counting Your Customers the Easy Way: An Alternative to the
+            Pareto/NBD Model," Marketing Science, 24 (2), 275-84.
+            http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf
+        """
+        # TODO: This is extraneous now, but needed for future covariate support.
+        if data is None:
+            data = self.data
+
+        if t is not None:
+            data = data.assign(t=t)
+
+        dataset = self._extract_predictive_variables(data, customer_varnames=["t"])
+        a = dataset["a"]
+        b = dataset["b"]
+        alpha = dataset["alpha"]
+        r = dataset["r"]
+        t = dataset["t"]
+
+        first_term = (a + b - 1) / (a - 1)
+        second_term = 1 - (alpha / (alpha + t)) ** r * hyp2f1(
             r, b, a + b - 1, t / (alpha + t)
         )
 
-        return (left_term * right_term).transpose(
-            "chain", "draw", "t", missing_dims="ignore"
+        return (first_term * second_term).transpose(
+            "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
     def _distribution_new_customers(
         self,
         random_seed: RandomState | None = None,
         var_names: Sequence[str] = ("population_dropout", "population_purchase_rate"),
-    ) -> xr.Dataset:
+    ) -> xarray.Dataset:
         with pm.Model():
             a = pm.HalfFlat("a")
             b = pm.HalfFlat("b")
@@ -386,11 +512,10 @@ class BetaGeoModel(CLVModel):
     def distribution_new_customer_dropout(
         self,
         random_seed: RandomState | None = None,
-    ) -> xr.Dataset:
+    ) -> xarray.Dataset:
         """Sample the Beta distribution for the population-level dropout rate.
 
-        This is the probability that a new customer will not make another purchase ("drops out")
-        immediately after any previous purchase.
+        This is the probability that a new customer will "drop out" and make no further purchases.
 
         Parameters
         ----------
@@ -399,7 +524,7 @@ class BetaGeoModel(CLVModel):
 
         Returns
         -------
-        xr.Dataset
+        xarray.Dataset
             Dataset containing the posterior samples for the population-level dropout rate.
         """
         return self._distribution_new_customers(
@@ -410,7 +535,7 @@ class BetaGeoModel(CLVModel):
     def distribution_new_customer_purchase_rate(
         self,
         random_seed: RandomState | None = None,
-    ) -> xr.Dataset:
+    ) -> xarray.Dataset:
         """Sample the Gamma distribution for the population-level purchase rate.
 
         This is the purchase rate for a new customer and determines the time between
@@ -423,7 +548,7 @@ class BetaGeoModel(CLVModel):
 
         Returns
         -------
-        xr.Dataset
+        xarray.Dataset
             Dataset containing the posterior samples for the population-level purchase rate.
         """
         return self._distribution_new_customers(

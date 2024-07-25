@@ -20,24 +20,35 @@ from typing import cast
 import arviz as az
 import pandas as pd
 import pymc as pm
+from pydantic import ConfigDict, InstanceOf, validate_call
 from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
 from pymc.model.core import Model
 from xarray import Dataset
 
 from pymc_marketing.model_builder import ModelBuilder
+from pymc_marketing.model_config import ModelConfig, parse_model_config
+from pymc_marketing.utils import from_netcdf
 
 
 class CLVModel(ModelBuilder):
     _model_type = "CLVModel"
 
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def __init__(
         self,
         data: pd.DataFrame,
         *,
-        model_config: dict | None = None,
+        model_config: InstanceOf[ModelConfig] | None = None,
         sampler_config: dict | None = None,
+        non_distributions: list[str] | None = None,
     ):
+        model_config = model_config or {}
+        model_config = parse_model_config(
+            model_config,
+            non_distributions=non_distributions,
+        )
+
         super().__init__(model_config, sampler_config)
         self.data = data
 
@@ -57,8 +68,8 @@ class CLVModel(ModelBuilder):
                 if data[required_col].nunique() != n:
                     raise ValueError(f"Column {required_col} has duplicate entries")
 
-    def __repr__(self):
-        if self.model is None:
+    def __repr__(self) -> str:
+        if not hasattr(self, "model"):
             return self._model_type
         else:
             return f"{self._model_type}\n{self.model.str_repr()}"
@@ -176,17 +187,22 @@ class CLVModel(ModelBuilder):
         >>> imported_model = MyModel.load(name)
         """
         filepath = Path(str(fname))
-        idata = az.from_netcdf(filepath)
+        idata = from_netcdf(filepath)
         return cls._build_with_idata(idata)
 
     @classmethod
     def _build_with_idata(cls, idata: az.InferenceData):
         dataset = idata.fit_data.to_dataframe()
-        model = cls(
-            dataset,
-            model_config=json.loads(idata.attrs["model_config"]),  # type: ignore
-            sampler_config=json.loads(idata.attrs["sampler_config"]),
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=DeprecationWarning,
+            )
+            model = cls(
+                dataset,
+                model_config=json.loads(idata.attrs["model_config"]),  # type: ignore
+                sampler_config=json.loads(idata.attrs["sampler_config"]),
+            )
         model.idata = idata
         model.build_model()  # type: ignore
         if model.id != idata.attrs["id"]:
@@ -223,13 +239,6 @@ class CLVModel(ModelBuilder):
         assert self.idata is not None  # noqa: S101
         new_idata = self.idata.isel(draw=slice(None, None, keep_every)).copy()
         return type(self)._build_with_idata(new_idata)
-
-    @staticmethod
-    def _create_distribution(dist: dict, shape=()):
-        try:
-            return getattr(pm, dist["dist"]).dist(**dist.get("kwargs", {}), shape=shape)
-        except AttributeError:
-            raise ValueError(f"Distribution {dist['dist']} does not exist in PyMC")
 
     @property
     def default_sampler_config(self) -> dict:

@@ -1,6 +1,6 @@
 <div align="center">
 
-![PyMC-Marketing Logo](docs/source/_static/marketing-logo-light.jpg)
+![PyMC-Marketing Logo](https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/marketing-logo-light.jpg)
 
 </div>
 
@@ -25,7 +25,7 @@ Unlock the power of **Marketing Mix Modeling (MMM)** and **Customer Lifetime Val
 This repository is supported by [PyMC Labs](https://www.pymc-labs.com).
 
 <center>
-    <img src="docs/source/_static/labs-logo-light.png" width="50%" />
+    <img src="https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/labs-logo-light.png" width="50%" />
 </center>
 
 For businesses looking to integrate PyMC-Marketing into their operational framework, [PyMC Labs](https://www.pymc-labs.com) offers expert consulting and training. Our team is proficient in state-of-the-art Bayesian modeling techniques, with a focus on Marketing Mix Models (MMMs) and Customer Lifetime Value (CLV). For more information see [here](#-schedule-a-free-consultation-for-mmm--clv-strategy).
@@ -34,8 +34,10 @@ Explore these topics further by watching our video on [Bayesian Marketing Mix Mo
 
 ### Community Resources
 
-- [Bayesian discord server](https://discord.gg/swztKRaVKe)
+- [PyMC-Marketing Discussions](https://github.com/pymc-labs/pymc-marketing/discussions)
 - [PyMC discourse](https://discourse.pymc.io/)
+- [Bayesian discord server](https://discord.gg/swztKRaVKe)
+- [MMM Hub Slack](https://www.mmmhub.org/slack)
 
 ## Quick Installation Guide for Marketing Mix Modeling (MMM) & CLV
 
@@ -54,13 +56,16 @@ We provide a `Dockerfile` to build a Docker image for PyMC-Marketing so that is 
 
 ## In-depth Bayesian Marketing Mix Modeling (MMM) in PyMC
 
-Leverage our Bayesian MMM API to tailor your marketing strategies effectively. Based on the research [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017)](https://research.google/pubs/pub46001/),  and integrating the expertise from core PyMC developers, our API provides:
+Leverage our Bayesian MMM API to tailor your marketing strategies effectively. Leveraging on top of the research article [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017)](https://research.google/pubs/pub46001/),  and extending it by integrating the expertise from core PyMC developers, our API provides:
 
 - **Custom Priors and Likelihoods**: Tailor your model to your specific business needs by including domain knowledge via prior distributions.
 - **Adstock Transformation**: Optimize the carry-over effects in your marketing channels.
 - **Saturation Effects**: Understand the diminishing returns in media investments.
+- **Customize adstock and saturation functions:** You can select from a variety of adstock and saturation functions. You can even implement your own custom functions.
 - **Time-varying Intercept:** Capture time-varying baseline contributions in your model (using modern and efficient Gaussian processes approximation methods).
+- **Time-varying Media Contribution:** Capture time-varying media efficiency in your model (using modern and efficient Gaussian processes approximation methods).
 - **Visualization and Model Diagnostics**: Get a comprehensive view of your model's performance and insights.
+- **Choose among many inference algorithms**: We provide the option to choose between various NUTS samplers (e.g. BlackJax, NumPyro and Nutpie). See the [example notebook](https://www.pymc-marketing.io/en/stable/notebooks/general/other_nuts_samplers.html) for more details.
 - **Out-of-sample Predictions**: Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.
 - **Budget Optimization**: Allocate your marketing spend efficiently across various channels for maximum ROI.
 - **Experiment Calibration**: Fine-tune your model based on empirical experiments for a more unified view of marketing.
@@ -69,12 +74,19 @@ Leverage our Bayesian MMM API to tailor your marketing strategies effectively. B
 
 ```python
 import pandas as pd
-from pymc_marketing.mmm import DelayedSaturatedMMM
+
+from pymc_marketing.mmm import (
+    GeometricAdstock,
+    LogisticSaturation,
+    MMM,
+)
 
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
-data = pd.read_csv(data_url, parse_dates=['date_week'])
+data = pd.read_csv(data_url, parse_dates=["date_week"])
 
-mmm = DelayedSaturatedMMM(
+mmm = MMM(
+    adstock=GeometricAdstock(l_max=8),
+    saturation=LogisticSaturation(),
     date_column="date_week",
     channel_columns=["x1", "x2"],
     control_columns=[
@@ -82,7 +94,6 @@ mmm = DelayedSaturatedMMM(
         "event_2",
         "t",
     ],
-    adstock_max_lag=8,
     yearly_seasonality=2,
 )
 ```
@@ -96,7 +107,7 @@ mmm.fit(X,y)
 mmm.plot_components_contributions();
 ```
 
-![](/docs/source/_static/mmm_plot_components_contributions.png)
+![](https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/mmm_plot_components_contributions.png)
 
 Once the model is fitted, we can further optimize our budget allocation as we are including diminishing returns and carry-over effects in our model.
 
@@ -127,10 +138,10 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 
 ### Examples
 
-|                | **Non-contractual** | **Contractual**                 |
-|----------------|---------------------|---------------------------------|
-| **Continuous** | Buying groceries    | Audible                         |
-| **Discrete**   | Cinema ticket       | Monthly or yearly subscriptions |
+|                | **Non-contractual** | **Contractual**                |
+|----------------|---------------------|--------------------------------|
+| **Continuous** | online purchases    | ad conversion time             |
+| **Discrete**   | concerts & sports events   | recurring subscriptions |
 
 ### CLV Quickstart
 
@@ -151,7 +162,7 @@ beta_geo_model.fit()
 
 Once fitted, we can use the model to predict the number of future purchases for known customers, the probability that they are still alive, and get various visualizations plotted.
 
-![](/docs/source/_static/expected_purchases.png)
+![](https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/expected_purchases.png)
 
 See the Examples section for more on this.
 

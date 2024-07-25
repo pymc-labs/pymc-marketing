@@ -17,8 +17,9 @@ import pymc as pm
 import pytensor.tensor as pt
 import pytest
 
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.tvp import (
-    create_time_varying_intercept,
+    create_time_varying_gp_multiplier,
     infer_time_index,
     time_varying_prior,
 )
@@ -33,26 +34,25 @@ def coords():
 
 
 @pytest.fixture
-def model_config():
+def model_config() -> dict[str, HSGPKwargs]:
     return {
-        "intercept_tvp_kwargs": {
-            "m": 200,
-            "eta_lam": 1,
-            "ls_mu": None,
-            "ls_sigma": 5,
-            "L": None,
-        },
-        "intercept": {
-            "dist": pm.Normal,
-            "kwargs": {"mu": 0, "sigma": 1},
-        },
+        "intercept_tvp_config": HSGPKwargs(
+            m=200,
+            L=None,
+            eta_lam=1,
+            ls_mu=5,
+            ls_sigma=5,
+        )
     }
 
 
 def test_time_varying_prior(coords):
     with pm.Model(coords=coords) as model:
         X = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
-        prior = time_varying_prior(name="test", X=X, X_mid=2, dims="date", m=3, L=10)
+        hsgp_kwargs = HSGPKwargs(m=3, L=10, eta_lam=1, ls_sigma=5)
+        prior = time_varying_prior(
+            name="test", X=X, X_mid=2, dims="date", hsgp_kwargs=hsgp_kwargs
+        )
 
         # Assert output verification
         assert isinstance(prior, pt.TensorVariable)
@@ -93,8 +93,9 @@ def test_calling_without_default_args(coords):
 def test_multidimensional(coords):
     with pm.Model(coords=coords) as model:
         X = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
+        hsgp_kwargs = HSGPKwargs(m=7)
         prior = time_varying_prior(
-            name="test", X=X, X_mid=2, dims=("date", "channel"), m=7
+            name="test", X=X, X_mid=2, dims=("date", "channel"), hsgp_kwargs=hsgp_kwargs
         )
 
         # Assert internal parameters are created correctly
@@ -111,17 +112,24 @@ def test_multidimensional(coords):
 def test_calling_without_model():
     with pytest.raises(TypeError, match="No model on context stack."):
         X = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
-        time_varying_prior(name="test", X=X, X_mid=2, dims="date", m=5, L=10)
+        hsgp_kwargs = HSGPKwargs(m=5, L=10)
+        time_varying_prior(
+            name="test", X=X, X_mid=2, dims="date", hsgp_kwargs=hsgp_kwargs
+        )
 
 
 def test_create_time_varying_intercept(coords, model_config):
     time_index_mid = 2
     time_resolution = 1
-    intercept_dist = model_config["intercept"]["dist"]
     with pm.Model(coords=coords):
         time_index = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
-        result = create_time_varying_intercept(
-            time_index, time_index_mid, time_resolution, intercept_dist, model_config
+        result = create_time_varying_gp_multiplier(
+            name="intercept",
+            dims="date",
+            time_index=time_index,
+            time_index_mid=time_index_mid,
+            time_resolution=time_resolution,
+            hsgp_kwargs=model_config["intercept_tvp_config"],
         )
         assert isinstance(result, pt.TensorVariable)
 

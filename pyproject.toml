@@ -10,14 +10,29 @@ readme = "README.md"
 license = { file = "LICENSE" }
 dynamic = ["version"]
 maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.io" }]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: Apache Software License",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+]
 
 dependencies = [
     "arviz>=0.13.0",
     "matplotlib>=3.5.1",
     "numpy>=1.17",
     "pandas",
+    "pydantic>=2.1.0",
     # NOTE: Used as minimum pymc version with ci.yml `OLDEST_PYMC_VERSION`
-    "pymc>=5.12.0",
+    "pymc>=5.13.0,<5.16.0",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "xarray",
@@ -26,24 +41,43 @@ dependencies = [
 
 [project.optional-dependencies]
 docs = [
-    "sphinx",
+    "blackjax",
+    "fastprogress",
+    "graphviz",
     "ipython!=8.7.0",
-    "myst-parser",
+    "labs-sphinx-theme",
+    "lifetimes",
     "myst-nb<=1.0.0",
-    "pydata-sphinx-theme>=0.12.0.dev0",
-    "sphinx-copybutton",
+    "myst-parser",
+    "numba",
+    "numpydoc",
+    "numpyro",
+    "nutpie",
+    "pylint",
     "sphinx-autodoc-typehints",
-    "sphinxext-opengraph",
-    "sphinx-notfound-page",
+    "sphinx-copybutton",
     "sphinx-design",
+    "sphinx-notfound-page",
+    "sphinx",
+    "sphinxext-opengraph",
+    "watermark",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
-test = ["lifetimes==0.11.3", "pytest==7.0.1", "pytest-cov==3.0.0"]
+test = [
+    "graphviz==0.20.1",
+    "lifetimes==0.11.3",
+    "papermill",
+    "preliz==0.8.0",
+    "pytest-cov==3.0.0",
+    "pytest-mock==3.14.0",
+    "pytest==7.0.1",
+]
 
 [tool.setuptools]
 packages = [
     "pymc_marketing",
     "pymc_marketing.mmm",
+    "pymc_marketing.mmm.components",
     "pymc_marketing.clv",
     "pymc_marketing.clv.models",
 ]
@@ -61,6 +95,7 @@ repository = "https://github.com/pymc-labs/pymc-marketing"
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "RUF", "S", "UP", "W"]
 ignore = [
+    "B008",   # Do not perform calls in argument defaults (this is ok with Field from pydantic)
     "B904",   # raise-without-from-inside-except
     "RUF001", # String contains ambiguous character (such as Greek letters)
     "RUF002", # Docstring contains ambiguous character (such as Greek letters)
@@ -77,6 +112,9 @@ ignore = [
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 120
+
+[tool.ruff]
+extend-include = ["*.ipynb"]
 
 [tool.pytest.ini_options]
 addopts = [

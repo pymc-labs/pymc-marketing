@@ -13,7 +13,6 @@
 #   limitations under the License.
 """Utility functions for the Marketing Mix Modeling module."""
 
-import re
 from collections.abc import Callable
 from typing import Any
 
@@ -24,38 +23,6 @@ import xarray as xr
 from scipy.optimize import curve_fit, minimize_scalar
 
 from pymc_marketing.mmm.transformers import michaelis_menten
-
-
-def generate_fourier_modes(
-    periods: npt.NDArray[np.float_], n_order: int
-) -> pd.DataFrame:
-    """Generate Fourier modes.
-
-    Parameters
-    ----------
-    periods : array-like of float
-        Input array denoting the period range.
-    n_order : int
-        Maximum order of Fourier modes.
-
-    Returns
-    -------
-    pd.DataFrame
-        Fourier modes (sin and cos with different frequencies) as columns in a dataframe.
-
-    References
-    ----------
-    See :ref:`examples:Air_passengers-Prophet_with_Bayesian_workflow` in PyMC examples collection.
-    """
-    if n_order < 1:
-        raise ValueError("n_order must be greater than or equal to 1")
-    return pd.DataFrame(
-        {
-            f"{func}_order_{order}": getattr(np, func)(2 * np.pi * periods * order)
-            for order in range(1, n_order + 1)
-            for func in ("sin", "cos")
-        }
-    )
 
 
 def estimate_menten_parameters(
@@ -226,32 +193,6 @@ def find_sigmoid_inflection_point(
     return x_inflection, y_inflection
 
 
-def standardize_scenarios_dict_keys(d: dict, keywords: list[str]):
-    """
-    Standardize the keys in a dictionary based on a list of keywords.
-
-    This function iterates over the keys in the dictionary and the keywords.
-    If a keyword is found in a key (case-insensitive), the key is replaced with the keyword.
-
-    Parameters
-    ----------
-    d : dict
-        The dictionary whose keys are to be standardized.
-    keywords : list
-        The list of keywords to standardize the keys to.
-
-    Returns
-    -------
-    None
-        The function modifies the given dictionary in-place and doesn't return any object.
-    """
-    for keyword in keywords:
-        for key in list(d.keys()):
-            if re.search(keyword, key, re.IGNORECASE):
-                d[keyword] = d.pop(key)
-                break
-
-
 def apply_sklearn_transformer_across_dim(
     data: xr.DataArray,
     func: Callable[[np.ndarray], np.ndarray],
@@ -420,3 +361,30 @@ def create_new_spend_data(
             spend,
         ]
     )
+
+
+def drop_scalar_coords(curve: xr.DataArray) -> xr.DataArray:
+    """
+    Remove scalar coordinates from an xarray DataArray.
+
+    This function identifies and removes scalar coordinates from the given
+    DataArray. Scalar coordinates are those with a single value that are
+    not part of the DataArray's indexes. The function returns a new DataArray
+    with the scalar coordinates removed.
+
+    Parameters
+    ----------
+    curve : xr.DataArray
+        The input DataArray from which scalar coordinates will be removed.
+
+    Returns
+    -------
+    xr.DataArray
+        A new DataArray with the identified scalar coordinates removed.
+    """
+    scalar_coords_to_drop = []
+    for coord, values in curve.coords.items():
+        if values.size == 1 and coord not in curve.indexes:
+            scalar_coords_to_drop.append(coord)
+
+    return curve.reset_coords(scalar_coords_to_drop, drop=True)

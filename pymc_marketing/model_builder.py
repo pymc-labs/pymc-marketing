@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-
+"""Base class responsible of the high level API for model building, fitting saving and loading."""
 
 import hashlib
 import json
@@ -26,6 +26,10 @@ import pandas as pd
 import pymc as pm
 import xarray as xr
 from pymc.util import RandomState
+
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
+from pymc_marketing.prior import Prior
+from pymc_marketing.utils import from_netcdf
 
 # If scikit-learn is available, use its data validator
 try:
@@ -62,14 +66,13 @@ class ModelBuilder(ABC):
 
         Parameters
         ----------
-        data : Dictionary, optional
-            It is the data we need to train the model on.
         model_config : Dictionary, optional
             dictionary of parameters that initialise model configuration.
             Class-default defined by the user default_model_config method.
         sampler_config : Dictionary, optional
             dictionary of parameters that initialise sampler configuration.
             Class-default defined by the user default_sampler_config method.
+
         Examples
         --------
         >>> class MyModel(ModelBuilder):
@@ -86,7 +89,7 @@ class ModelBuilder(ABC):
         self.model_config = (
             self.default_model_config | model_config
         )  # parameters for priors etc.
-        self.model: pm.Model | None = None  # Set by build_model
+        self.model: pm.Model
         self.idata: az.InferenceData | None = None  # idata is generated during fitting
         self.is_fitted_ = False
 
@@ -148,6 +151,7 @@ class ModelBuilder(ABC):
         """
         Returns a class default config dict for model builder if no model_config is provided on class initialization
         Useful for understanding structure of required model_config to allow its customization by users
+
         Examples
         --------
         >>>     @classmethod
@@ -260,7 +264,9 @@ class ModelBuilder(ABC):
         None
         """
 
-    def set_idata_attrs(self, idata=None):
+    def set_idata_attrs(
+        self, idata: az.InferenceData | None = None
+    ) -> az.InferenceData:
         """
         Set attributes on an InferenceData object.
 
@@ -288,11 +294,22 @@ class ModelBuilder(ABC):
             idata = self.idata
         if idata is None:
             raise RuntimeError("No idata provided to set attrs on.")
+
+        def default(x):
+            if isinstance(x, Prior):
+                return x.to_json()
+            elif isinstance(x, HSGPKwargs):
+                return x.model_dump(mode="json")
+            return x.__dict__
+
         idata.attrs["id"] = self.id
         idata.attrs["model_type"] = self._model_type
         idata.attrs["version"] = self.version
         idata.attrs["sampler_config"] = json.dumps(self.sampler_config)
-        idata.attrs["model_config"] = json.dumps(self._serializable_model_config)
+        idata.attrs["model_config"] = json.dumps(
+            self._serializable_model_config,
+            default=default,
+        )
         # Only classes with non-dataset parameters will implement save_input_params
         if hasattr(self, "_save_input_params"):
             self._save_input_params(idata)
@@ -384,7 +401,8 @@ class ModelBuilder(ABC):
         >>> imported_model = MyModel.load(name)
         """
         filepath = Path(str(fname))
-        idata = az.from_netcdf(filepath)
+        idata = from_netcdf(filepath)
+
         # needs to be converted, because json.loads was changing tuple to list
         model_config = cls._model_config_formatting(
             json.loads(idata.attrs["model_config"])
@@ -420,28 +438,28 @@ class ModelBuilder(ABC):
         Fit a model using the data passed as a parameter.
         Sets attrs to inference data of the model.
 
-
         Parameters
         ----------
-        X : array-like if sklearn is available, otherwise array, shape (n_obs, n_features)
-            The training input samples.
-        y : array-like if sklearn is available, otherwise array, shape (n_obs,)
-            The target values (real numbers).
+        X : array-like | array, shape (n_obs, n_features)
+            The training input samples. If scikit-learn is available, array-like, otherwise array.
+        y : array-like | array, shape (n_obs,)
+            The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
         progressbar : bool
-            Specifies whether the fit progressbar should be displayed
-        predictor_names: Optional[List[str]] = None,
-            Allows for custom naming of predictors given in a form of 2dArray
+            Specifies whether the fit progress bar should be displayed.
+        predictor_names : Optional[List[str]] = None,
+            Allows for custom naming of predictors when given in a form of a 2D array.
             Allows for naming of predictors when given in a form of np.ndarray, if not provided
             the predictors will be named like predictor1, predictor2...
         random_seed : Optional[RandomState]
-            Provides sampler with initial random seed for obtaining reproducible samples
+            Provides sampler with initial random seed for obtaining reproducible samples.
         **kwargs : Any
             Custom sampler settings can be provided in form of keyword arguments.
 
         Returns
         -------
         self : az.InferenceData
-            returns inference data of the fitted model.
+            Returns inference data of the fitted model.
+
         Examples
         --------
         >>> model = MyModel()
@@ -458,7 +476,7 @@ class ModelBuilder(ABC):
         if self.X is None or self.y is None:
             raise ValueError("X and y must be set before calling build_model!")
 
-        if self.model is None:
+        if not hasattr(self, "model"):
             self.build_model(self.X, self.y)
 
         sampler_config = self.sampler_config.copy()
@@ -466,16 +484,24 @@ class ModelBuilder(ABC):
         sampler_config["random_seed"] = random_seed
         sampler_config.update(**kwargs)
 
-        sampler_config.update(**kwargs)
-        if self.model is not None:
-            with self.model:
-                sampler_args = {**self.sampler_config, **kwargs}
-                self.idata = pm.sample(**sampler_args)
+        sampler_args = {**self.sampler_config, **kwargs}
+        with self.model:
+            idata = pm.sample(**sampler_args)
+
+        if self.idata:
+            self.idata = self.idata.copy()
+            self.idata.extend(idata, join="right")
+        else:
+            self.idata = idata
 
         X_df = pd.DataFrame(X, columns=X.columns)
         combined_data = pd.concat([X_df, y_df], axis=1)
         if not all(combined_data.columns):
             raise ValueError("All columns must have non-empty names")
+
+        if "fit_data" in self.idata:
+            del self.idata.fit_data
+
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
@@ -497,10 +523,11 @@ class ModelBuilder(ABC):
         for each input row is the expected output value, computed as the mean of MCMC samples.
 
         Parameters
-        ---------
-        X_pred : array-like if sklearn is available, otherwise array, shape (n_pred, n_features)
-            The input data used for prediction.
-        extend_idata : Boolean determining whether the predictions should be added to inference data object.
+        ----------
+        X_pred : array-like | array, shape (n_pred, n_features)
+            The input data used for prediction. If scikit-learn is available, array-like, otherwise array.
+        extend_idata : Boolean
+            Determine whether the predictions should be added to inference data object.
             Defaults to True.
         **kwargs: Additional arguments to pass to sample_posterior_predictive method
 
@@ -537,7 +564,7 @@ class ModelBuilder(ABC):
         X_pred,
         y_pred=None,
         samples: int | None = None,
-        extend_idata: bool = False,
+        extend_idata: bool = True,
         combined: bool = True,
         **kwargs,
     ):
@@ -545,15 +572,17 @@ class ModelBuilder(ABC):
         Sample from the model's prior predictive distribution.
 
         Parameters
-        ---------
+        ----------
         X_pred : array, shape (n_pred, n_features)
             The input data used for prediction using prior distribution.
         samples : int
             Number of samples from the prior parameter distributions to generate.
             If not set, uses sampler_config['draws'] if that is available, otherwise defaults to 500.
-        extend_idata : Boolean determining whether the predictions should be added to inference data object.
-            Defaults to False.
-        combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
+        extend_idata : Boolean
+            Determine whether the predictions should be added to inference data object.
+            Defaults to True.
+        combined: Boolean
+            Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
         **kwargs: Additional arguments to pass to pymc.sample_prior_predictive
 
@@ -567,21 +596,18 @@ class ModelBuilder(ABC):
         if samples is None:
             samples = self.sampler_config.get("draws", 500)
 
-        if self.model is None:
+        if not hasattr(self, "model"):
             self.build_model(X_pred, y_pred)
 
-        self._data_setter(X_pred, y_pred)
-        if self.model is not None:
-            with self.model:  # sample with new input data
-                prior_pred: az.InferenceData = pm.sample_prior_predictive(
-                    samples, **kwargs
-                )
-                self.set_idata_attrs(prior_pred)
-                if extend_idata:
-                    if self.idata is not None:
-                        self.idata.extend(prior_pred, join="right")
-                    else:
-                        self.idata = prior_pred
+        with self.model:  # sample with new input data
+            prior_pred: az.InferenceData = pm.sample_prior_predictive(samples, **kwargs)
+            self.set_idata_attrs(prior_pred)
+
+        if extend_idata:
+            if self.idata is not None:
+                self.idata.extend(prior_pred, join="right")
+            else:
+                self.idata = prior_pred
 
         prior_predictive_samples = az.extract(
             prior_pred, "prior_predictive", combined=combined
@@ -590,20 +616,26 @@ class ModelBuilder(ABC):
         return prior_predictive_samples
 
     def sample_posterior_predictive(
-        self, X_pred, extend_idata: bool = True, combined: bool = True, **kwargs
+        self,
+        X_pred,
+        extend_idata: bool = True,
+        combined: bool = True,
+        **sample_posterior_predictive_kwargs,
     ):
         """
         Sample from the model's posterior predictive distribution.
 
         Parameters
-        ---------
+        ----------
         X_pred : array, shape (n_pred, n_features)
             The input data used for prediction using prior distribution..
-        extend_idata : Boolean determining whether the predictions should be added to inference data object.
+        extend_idata : Boolean
+            Determine whether the predictions should be added to inference data object.
             Defaults to True.
-        combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
+        combined: Boolean
+            Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
-        **kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
+        **sample_posterior_predictive_kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
 
         Returns
         -------
@@ -612,16 +644,21 @@ class ModelBuilder(ABC):
         """
         self._data_setter(X_pred)
 
-        with self.model:  # type: ignore
-            post_pred = pm.sample_posterior_predictive(self.idata, **kwargs)
-            if extend_idata:
-                self.idata.extend(post_pred, join="right")  # type: ignore
+        with self.model:
+            post_pred = pm.sample_posterior_predictive(
+                self.idata, **sample_posterior_predictive_kwargs
+            )
 
-        posterior_predictive_samples = az.extract(
-            post_pred, "posterior_predictive", combined=combined
+        if extend_idata:
+            self.idata.extend(post_pred, join="right")  # type: ignore
+
+        variable_name = (
+            "predictions"
+            if sample_posterior_predictive_kwargs.get("predictions")
+            else "posterior_predictive"
         )
 
-        return posterior_predictive_samples
+        return az.extract(post_pred, variable_name, combined=combined)
 
     def get_params(self, deep=True):
         """
@@ -673,19 +710,22 @@ class ModelBuilder(ABC):
         Generate posterior predictive samples on unseen data.
 
         Parameters
-        ---------
-        X_pred : array-like if sklearn is available, otherwise array, shape (n_pred, n_features)
-            The input data used for prediction.
-        extend_idata : Boolean determining whether the predictions should be added to inference data object.
+        ----------
+        X_pred : array-like | array, shape (n_pred, n_features)
+            The input data used for prediction. If scikit-learn is available, array-like, otherwise array.
+        extend_idata : Boolean
+            Determine whether the predictions should be added to inference data object.
             Defaults to True.
-        combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
+        combined: Boolean
+            Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
         **kwargs: Additional arguments to pass to sample_posterior_predictive method
 
         Returns
         -------
-        y_pred : DataArray, shape (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred)
-            Posterior predictive samples for each input X_pred
+        y_pred : DataArray
+            Posterior predictive samples for each input X_pred.
+            Shape is (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred).
         """
 
         X_pred = self._validate_data(X_pred)

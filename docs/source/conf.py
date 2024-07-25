@@ -22,9 +22,10 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.mathjax",
     "sphinx.ext.intersphinx",
-    "sphinx.ext.napoleon",
+    # "sphinx.ext.napoleon",
     "sphinx_autodoc_typehints",
     # extensions provided by other packages
+    "numpydoc",
     "matplotlib.sphinxext.plot_directive",  # needed to plot in docstrings
     "myst_nb",
     "notfound.extension",
@@ -81,20 +82,46 @@ nb_kernel_rgx_aliases = {".*": "python3"}
 myst_enable_extensions = ["colon_fence", "deflist", "dollarmath", "amsmath"]
 myst_heading_anchors = 0
 
+# numpydoc and autodoc typehints config
+numpydoc_show_class_members = False
+numpydoc_xref_param_type = True
+# fmt: off
+numpydoc_xref_ignore = {
+    "of", "or", "optional", "default", "numeric", "type", "scalar", "1D", "2D", "3D", "nD", "array",
+    "instance", "M", "N"
+}
+# fmt: on
+numpydoc_xref_aliases = {
+    "TensorVariable": ":class:`~pytensor.tensor.TensorVariable`",
+    "RandomVariable": ":class:`~pytensor.tensor.random.RandomVariable`",
+    "ndarray": ":class:`~numpy.ndarray`",
+    "InferenceData": ":class:`~arviz.InferenceData`",
+    "Model": ":class:`~pymc.Model`",
+    "tensor_like": ":term:`tensor_like`",
+    "unnamed_distribution": ":term:`unnamed_distribution`",
+}
+# don't add a return type section, use standard return with type info
+typehints_document_rtype = False
+
 # intersphinx configuration to ease linking arviz docs
 intersphinx_mapping = {
     "arviz": ("https://python.arviz.org/en/latest/", None),
-    "pytensor": ("https://pytensor.readthedocs.io/en/latest/", None),
-    "numpy": ("https://numpy.org/doc/stable/", None),
-    "pymc": ("https://www.pymc.io/projects/docs/en/stable/", None),
     "examples": ("https://www.pymc.io/projects/examples/en/latest/", None),
+    "mpl": ("https://matplotlib.org/stable", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "pandas": ("https://pandas.pydata.org/pandas-docs/stable/", None),
+    "pymc": ("https://www.pymc.io/projects/docs/en/stable/", None),
+    "pytensor": ("https://pytensor.readthedocs.io/en/latest/", None),
+    "python": ("https://docs.python.org/3/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+    "xarray": ("https://docs.xarray.dev/en/stable/", None),
 }
 
 # -- Options for HTML output ----------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = "pydata_sphinx_theme"
+html_theme = "labs_sphinx_theme"
 
 html_favicon = "_static/favicon.ico"
 
@@ -103,40 +130,10 @@ html_favicon = "_static/favicon.ico"
 # documentation.
 html_theme_options = {
     "logo": {
-        "image_light": "marketing-logo-light.jpg",
-        "image_dark": "marketing-logo-dark.jpg",
+        "image_light": "flat_logo.png",
+        "image_dark": "flat_logo_darkmode.png",
     },
-    "navbar_align": "right",
-    "navbar_start": ["navbar-logo", "navbar-name"],
-    "navbar_end": ["theme-switcher"],
-    "footer_start": ["copyright", "footer-links"],
-    "footer_end": ["sphinx-version", "theme-version"],
-    "github_url": "https://github.com/pymc-labs/pymc-marketing",
-    "twitter_url": "https://twitter.com/pymc_labs",
-    "icon_links": [
-        {
-            "name": "LinkedIn",
-            "url": "https://www.linkedin.com/company/pymc-labs/",
-            "icon": "fa-brands fa-linkedin",
-            "type": "fontawesome",
-        },
-        {
-            "name": "MeetUp",
-            "url": "https://www.meetup.com/pymc-labs-online-meetup/",
-            "icon": "fa-brands fa-meetup",
-            "type": "fontawesome",
-        },
-        {
-            "name": "YouTube",
-            "url": "https://www.youtube.com/c/PyMCLabs",
-            "icon": "fa-brands fa-youtube",
-            "type": "fontawesome",
-        },
-    ],
-    "use_edit_page_button": True,
-    "external_links": [
-        {"name": "About PyMC Labs", "url": "https://pymc-labs.io"},
-    ],
+    "analytics": {"google_analytics_id": "G-DNPNG22HVY"},
 }
 html_context = {
     "github_user": "pymc-labs",
@@ -150,7 +147,6 @@ html_context = {
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static/"]
-html_css_files = ["custom.css"]
 
 # -- Options for LaTeX output ---------------------------------------------
 

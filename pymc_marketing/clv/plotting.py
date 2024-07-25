@@ -172,7 +172,7 @@ def _create_frequency_recency_meshes(
 
 def plot_frequency_recency_matrix(
     model: BetaGeoModel | ParetoNBDModel,
-    t=1,
+    future_t: int = 1,
     max_frequency: int | None = None,
     max_recency: int | None = None,
     title: str | None = None,
@@ -182,20 +182,19 @@ def plot_frequency_recency_matrix(
     **kwargs,
 ) -> plt.Axes:
     """
-    Plot recency frequency matrix as heatmap.
-    Plot a figure of expected transactions in T next units of time by a customer's frequency and recency.
+    Plot expected transactions in *future_t* time periods as a heatmap
+    based on customer population *frequency* and *recency*.
 
     Parameters
     ----------
     model: CLV model
         A fitted CLV model.
-    t: float, optional
-        Next units of time to make predictions for
+    future_t: float, optional
+        Future time periods over which to run predictions.
     max_frequency: int, optional
-        The maximum frequency to plot. Default is max observed frequency.
+        The maximum *frequency* to plot. Defaults to max observed *frequency*.
     max_recency: int, optional
-        The maximum recency to plot. This also determines the age of the customer.
-        Default to max observed age.
+        The maximum *recency* to plot. This also determines the age of the customer. Defaults to max observed *recency*.
     title: str, optional
         Figure title
     xlabel: str, optional
@@ -222,38 +221,25 @@ def plot_frequency_recency_matrix(
         max_recency=max_recency,
     )
 
-    # FIXME: This is a hotfix for ParetoNBDModel, as it has a different API from BetaGeoModel
-    #  We should harmonize them!
-    if isinstance(model, ParetoNBDModel):
-        transaction_data = pd.DataFrame(
-            {
-                "customer_id": np.arange(mesh_recency.size),  # placeholder
-                "frequency": mesh_frequency.ravel(),
-                "recency": mesh_recency.ravel(),
-                "T": max_recency,
-            }
-        )
+    # create dataframe for model input
+    transaction_data = pd.DataFrame(
+        {
+            "customer_id": np.arange(mesh_recency.size),  # placeholder
+            "frequency": mesh_frequency.ravel(),
+            "recency": mesh_recency.ravel(),
+            "T": max_recency,
+        }
+    )
 
-        Z = (
-            model.expected_purchases(
-                data=transaction_data,
-                future_t=t,
-            )
-            .mean(("draw", "chain"))
-            .values.reshape(mesh_recency.shape)
+    # run model predictions to create heatmap values
+    Z = (
+        model.expected_purchases(
+            data=transaction_data,
+            future_t=future_t,
         )
-    else:
-        Z = (
-            model.expected_num_purchases(
-                customer_id=np.arange(mesh_recency.size),  # placeholder
-                frequency=mesh_frequency.ravel(),
-                recency=mesh_recency.ravel(),
-                T=max_recency,
-                t=t,
-            )
-            .mean(("draw", "chain"))
-            .values.reshape(mesh_recency.shape)
-        )
+        .mean(("draw", "chain"))
+        .values.reshape(mesh_recency.shape)
+    )
 
     if ax is None:
         ax = plt.subplot(111)
@@ -262,7 +248,7 @@ def plot_frequency_recency_matrix(
     if title is None:
         title = (
             "Expected Number of Future Purchases for {} Unit{} of Time,".format(
-                t, "s"[t == 1 :]
+                future_t, "s"[future_t == 1 :]
             )
             + "\nby Frequency and Recency of a Customer"
         )
@@ -292,19 +278,16 @@ def plot_probability_alive_matrix(
     **kwargs,
 ) -> plt.Axes:
     """
-    Plot probability alive matrix as heatmap.
-    Plot a figure of the probability a customer is alive based on their
-    frequency and recency.
+    Plot probability alive matrix as a heatmap based on customer population *frequency* and *recency*.
 
     Parameters
     ----------
     model: CLV model
         A fitted CLV model.
     max_frequency: int, optional
-        The maximum frequency to plot. Default is max observed frequency.
+        The maximum *frequency* to plot. Defaults to max observed *frequency*.
     max_recency: int, optional
-        The maximum recency to plot. This also determines the age of the customer.
-        Default to max observed age.
+        The maximum *recency* to plot. This also determines the age of the customer. Defaults to max observed *recency*.
     title: str, optional
         Figure title
     xlabel: str, optional
@@ -331,37 +314,23 @@ def plot_probability_alive_matrix(
         max_frequency=max_frequency,
         max_recency=max_recency,
     )
-    # FIXME: This is a hotfix for ParetoNBDModel, as it has a different API from BetaGeoModel
-    #  We should harmonize them!
-    if isinstance(model, ParetoNBDModel):
-        transaction_data = pd.DataFrame(
-            {
-                "customer_id": np.arange(mesh_recency.size),  # placeholder
-                "frequency": mesh_frequency.ravel(),
-                "recency": mesh_recency.ravel(),
-                "T": max_recency,
-            }
-        )
 
-        Z = (
-            model.expected_probability_alive(
-                data=transaction_data,
-                future_t=0,  # TODO: This can be a function parameter in the case of ParetoNBDModel
-            )
-            .mean(("draw", "chain"))
-            .values.reshape(mesh_recency.shape)
-        )
-    else:
-        Z = (
-            model.expected_probability_alive(
-                customer_id=np.arange(mesh_recency.size),  # placeholder
-                frequency=mesh_frequency.ravel(),
-                recency=mesh_recency.ravel(),
-                T=max_recency,  # type: ignore
-            )
-            .mean(("draw", "chain"))
-            .values.reshape(mesh_recency.shape)
-        )
+    # create dataframe for model input
+    transaction_data = pd.DataFrame(
+        {
+            "customer_id": np.arange(mesh_recency.size),  # placeholder
+            "frequency": mesh_frequency.ravel(),
+            "recency": mesh_recency.ravel(),
+            "T": max_recency,
+        }
+    )
+
+    # run model predictions to create heatmap values
+    Z = (
+        model.expected_probability_alive(data=transaction_data)
+        .mean(("draw", "chain"))
+        .values.reshape(mesh_recency.shape)
+    )
 
     interpolation = kwargs.pop("interpolation", "none")
 

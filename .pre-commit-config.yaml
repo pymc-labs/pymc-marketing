@@ -11,25 +11,22 @@ repos:
           - --exclude=docs/
           - --exclude=scripts/
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.4
+    rev: v0.5.4
     hooks:
       - id: ruff
+        types_or: [python, pyi, jupyter]
         args: ["--fix", "--output-format=full"]
+        exclude: ^docs/source/notebooks/clv/dev/
       - id: ruff-format
+        types_or: [python, pyi, jupyter]
+        exclude: ^docs/source/notebooks/clv/dev/
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
+    rev: v1.11.0
     hooks:
       - id: mypy
         args: [--ignore-missing-imports]
         files: ^pymc_marketing/
         additional_dependencies: [numpy>=1.20, pandas-stubs]
-  - repo: https://github.com/nbQA-dev/nbQA
-    rev: 1.8.5
-    hooks:
-      - id: nbqa-ruff
-        args: ["--fix", "--output-format=full"]
-        files: ^docs/source/notebooks/
-        exclude: ^docs/source/notebooks/clv/dev/
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
