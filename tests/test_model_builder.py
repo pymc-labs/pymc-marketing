@@ -70,7 +70,7 @@ def fitted_model_instance(toy_X):
     model = ModelBuilderTest(
         model_config=model_config,
         sampler_config=sampler_config,
-        test_parameter="test_paramter",
+        test_parameter="test_parameter",
     )
     model.fit(
         toy_X,
@@ -128,8 +128,11 @@ class ModelBuilderTest(ModelBuilder):
             # observed data
             pm.Normal("output", a + b * x, obs_error, shape=x.shape, observed=y_data)
 
-    def _save_input_params(self, idata):
-        idata.attrs["test_paramter"] = json.dumps(self.test_parameter)
+    def create_idata_attrs(self):
+        attrs = super().create_idata_attrs()
+        attrs["test_parameter"] = json.dumps(self.test_parameter)
+
+        return attrs
 
     @property
     def output_var(self):
@@ -183,7 +186,7 @@ def test_model_and_sampler_config():
 
 
 def test_save_input_params(fitted_model_instance):
-    assert fitted_model_instance.idata.attrs["test_paramter"] == '"test_paramter"'
+    assert fitted_model_instance.idata.attrs["test_parameter"] == '"test_parameter"'
 
 
 def test_save_load(fitted_model_instance):
