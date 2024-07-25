@@ -998,18 +998,17 @@ def root_saturation(
 
     .. plot::
         :context: close-figs
-
         import matplotlib.pyplot as plt
         import numpy as np
         import arviz as az
         from pymc_marketing.mmm.transformers import root_saturation
         plt.style.use('arviz-darkgrid')
-        alpha_values = [0.25, 0.5, 0.75, 1, 1.25]
+        alpha = np.array([0.1, 0.3, 0.5, 0.7])
         x = np.linspace(0, 5, 100)
         ax = plt.subplot(111)
-        for alpha in alpha_values:
-            y = root_saturation(x, alpha=alpha).eval()
-            plt.plot(x, y, label=f'alpha = {alpha}')
+        for a in alpha:
+            y = root_saturation(x, alpha=a)
+            plt.plot(x, y, label=f'alpha = {a}')
         plt.xlabel('spend', fontsize=12)
         plt.ylabel('f(spend)', fontsize=12)
         box = ax.get_position()
