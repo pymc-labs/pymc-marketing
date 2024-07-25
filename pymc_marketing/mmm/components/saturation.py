@@ -79,6 +79,7 @@ from pymc_marketing.mmm.transformers import (
     inverse_scaled_logistic_saturation,
     logistic_saturation,
     michaelis_menten,
+    root_saturation,
     tanh_saturation,
     tanh_saturation_baselined,
 )
@@ -369,6 +370,39 @@ class HillSaturation(SaturationTransformation):
     }
 
 
+class RootSaturation(SaturationTransformation):
+    """Wrapper around Root saturation function.
+
+    For more information, see :func:`pymc_marketing.mmm.transformers.root_saturation`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import RootSaturation
+
+        rng = np.random.default_rng(0)
+
+        saturation = RootSaturation()
+        prior = saturation.sample_prior(random_seed=rng)
+        curve = saturation.sample_curve(prior)
+        saturation.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
+
+    """
+
+    lookup_name = "root"
+
+    def function(self, x, alpha, beta):
+        return beta * root_saturation(x, alpha)
+
+    default_priors = {
+        "alpha": Prior("Beta", alpha=1, beta=2),
+        "beta": Prior("Gamma", mu=1, sigma=1),
+    }
+
+
 SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
     cls.lookup_name: cls
     for cls in [
@@ -378,6 +412,7 @@ SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
         TanhSaturationBaselined,
         MichaelisMentenSaturation,
         HillSaturation,
+        RootSaturation,
     ]
 }
 
