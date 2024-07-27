@@ -406,23 +406,53 @@ class BetaGeoBetaBinomModel(CLVModel):
         )
 
     # TODO: docstrings
-    def expected_purchase_probability(
-        self,
-        data: pd.DataFrame | None = None,
-        *,
-        n_purchases: int | None = None,
-        future_t: int | np.ndarray | pd.Series | None = None,
-    ) -> xarray.DataArray:
-        pass
-
-    # TODO: docstrings
     def expected_purchases_new_customer(
         self,
         data: pd.DataFrame | None = None,
         *,
         t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        pass
+        r"""
+        Expected number of purchases for a new customer across *t* time periods.
+
+        Adapted from equation (9) in [1]_, and `lifetimes` library:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L328
+
+        Parameters
+        ----------
+        t : array_like
+            Number of time periods over which to estimate purchases.
+        References
+        ----------
+        .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005a),
+            "Counting Your Customers the Easy Way: An Alternative to the
+            Pareto/NBD Model," Marketing Science, 24 (2), 275-84.
+            http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf
+        """
+        if data is None:
+            data = self.data
+
+        if t is not None:
+            data = data.assign(t=t)
+
+        dataset = self._extract_predictive_variables(data, customer_varnames=["t"])
+        alpha = dataset["alpha"]
+        beta = dataset["beta"]
+        gamma = dataset["gamma"]
+        delta = dataset["delta"]
+        t = dataset["t"]
+
+        first_term = alpha / (alpha + beta) * delta / (gamma - 1)
+        second_term = 1 - exp(
+            gammaln(gamma + delta)
+            + gammaln(1 + delta + t)
+            - gammaln(gamma + delta + t)
+            - gammaln(1 + delta)
+        )
+
+        return (first_term * second_term).transpose(
+            "chain", "draw", "customer_id", missing_dims="ignore"
+        )
 
     def distribution_new_customer(
         self,
