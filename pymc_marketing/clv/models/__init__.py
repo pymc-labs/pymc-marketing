@@ -13,6 +13,7 @@
 #   limitations under the License.
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.models.beta_geo import BetaGeoModel
+from pymc_marketing.clv.models.beta_geo_beta_binom import BetaGeoBetaBinomModel
 from pymc_marketing.clv.models.gamma_gamma import (
     GammaGammaModel,
     GammaGammaModelIndividual,
@@ -25,6 +26,7 @@ __all__ = (
     "GammaGammaModel",
     "GammaGammaModelIndividual",
     "BetaGeoModel",
+    "BetaGeoBetaBinomModel",
     "ParetoNBDModel",
     "ShiftedBetaGeoModelIndividual",
 )

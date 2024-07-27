@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 from pymc_marketing.clv.models import (
+    BetaGeoBetaBinomModel,
     BetaGeoModel,
     GammaGammaModel,
     GammaGammaModelIndividual,
@@ -32,6 +33,7 @@ from pymc_marketing.clv.utils import (
 
 __all__ = (
     "BetaGeoModel",
+    "BetaGeoBetaBinomModel",
     "ParetoNBDModel",
     "GammaGammaModel",
     "GammaGammaModelIndividual",
