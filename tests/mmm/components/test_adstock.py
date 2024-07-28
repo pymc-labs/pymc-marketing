@@ -198,3 +198,13 @@ def test_register_adstock_transformation() -> None:
     assert adstock == NewTransformation(
         l_max=10, mode=ConvMode.Before, normalize=False, priors={}
     )
+
+
+def test_repr() -> None:
+    assert repr(GeometricAdstock(l_max=10)) == (
+        "GeometricAdstock(prefix='adstock', l_max=10, "
+        "normalize=True, "
+        "mode='After', "
+        "priors={'alpha': Prior(\"Beta\", alpha=1, beta=3)}"
+        ")"
+    )

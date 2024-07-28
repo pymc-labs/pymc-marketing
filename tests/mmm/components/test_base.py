@@ -305,3 +305,39 @@ def test_change_instance_function_priors_has_no_impact_on_class(
         "a": Prior("HalfNormal", sigma=1),
         "b": Prior("HalfNormal", sigma=1),
     }
+
+
+def test_equality() -> None:
+    class NewClass(Transformation):
+        prefix = "new"
+        lookup_name: str = "new_transformation"
+        default_priors = {
+            "a": Prior("HalfNormal", sigma=1),
+            "b": Prior("HalfNormal", sigma=1),
+        }
+
+        def function(self, x, a, b):
+            return a * b * x
+
+    class AnotherNewClass(Transformation):
+        prefix = "new"
+        lookup_name: str = "new_transformation"
+        default_priors = {
+            "a": Prior("HalfNormal", sigma=1),
+            "b": Prior("HalfNormal", sigma=1),
+        }
+
+        def function(self, x, a, b):
+            return a * b * x
+
+    assert NewClass() == NewClass()
+    assert NewClass() != AnotherNewClass()
+
+
+def test_repr(new_transformation) -> None:
+    assert repr(new_transformation) == (
+        "NewTransformation("
+        "prefix='new', "
+        "priors={'a': Prior(\"HalfNormal\", sigma=1), 'b': Prior(\"HalfNormal\", sigma=1)}"
+        ")"
+    )
