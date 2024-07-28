@@ -647,12 +647,12 @@ class BaseMMM(BaseValidateMMM):
             "adstock_max_lag": json.loads(attrs["adstock_max_lag"]),
             "adstock": json.loads(attrs.get("adstock", "geometric")),
             "saturation": json.loads(attrs.get("saturation", "logistic")),
-            "adstock_first": json.loads(attrs.get("adstock_first", True)),
+            "adstock_first": json.loads(attrs.get("adstock_first", "true")),
             "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
             "time_varying_intercept": json.loads(
-                attrs.get("time_varying_intercept", False)
+                attrs.get("time_varying_intercept", "false")
             ),
-            "time_varying_media": json.loads(attrs.get("time_varying_media", False)),
+            "time_varying_media": json.loads(attrs.get("time_varying_media", "false")),
             "validate_data": json.loads(attrs["validate_data"]),
             "sampler_config": json.loads(attrs["sampler_config"]),
         }
