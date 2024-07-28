@@ -1125,18 +1125,35 @@ def test_missing_attrs_to_defaults(toy_X, toy_y) -> None:
         adstock=GeometricAdstock(l_max=4),
         saturation=LogisticSaturation(),
         adstock_first=False,
+        time_varying_intercept=False,
+        time_varying_media=False,
     )
     mmm = mock_fit(mmm, toy_X, toy_y)
     mmm.idata.attrs.pop("adstock")
     mmm.idata.attrs.pop("saturation")
     mmm.idata.attrs.pop("adstock_first")
+    mmm.idata.attrs.pop("time_varying_intercept")
+    mmm.idata.attrs.pop("time_varying_media")
 
     file = "tmp-model"
     mmm.save(file)
 
     loaded_mmm = MMM.load(file)
+
+    attrs = loaded_mmm.idata.attrs
+    for key in [
+        "adstock",
+        "saturation",
+        "adstock_first",
+        "time_varying_intercept",
+        "time_varying_media",
+    ]:
+        assert key not in attrs
+
     assert loaded_mmm.adstock.lookup_name == "geometric"
     assert loaded_mmm.saturation.lookup_name == "logistic"
+    assert not loaded_mmm.time_varying_intercept
+    assert not loaded_mmm.time_varying_media
     # Falsely loaded
     assert loaded_mmm.adstock_first
 
