@@ -468,6 +468,31 @@ class TestDelayedSaturatedMMM:
         argvalues=[False, True],
         ids=["scaled", "original-scale"],
     )
+    @pytest.mark.parametrize(
+        argnames="var_contribution",
+        argvalues=["channel_contributions", "control_contributions"],
+        ids=["channel_contribution", "control_contribution"],
+    )
+    def test_get_ts_contribution_posterior(
+        self,
+        mmm_fitted_with_posterior_predictive: MMM,
+        var_contribution: str,
+        original_scale: bool,
+    ):
+        ts_posterior = (
+            mmm_fitted_with_posterior_predictive.get_ts_contribution_posterior(
+                var_contribution=var_contribution, original_scale=original_scale
+            )
+        )
+        assert ts_posterior.dims == ("chain", "draw", "date")
+        assert ts_posterior.chain.size == 1
+        assert ts_posterior.draw.size == 500
+
+    @pytest.mark.parametrize(
+        argnames="original_scale",
+        argvalues=[False, True],
+        ids=["scaled", "original-scale"],
+    )
     def test_get_errors(
         self,
         mmm_fitted_with_posterior_predictive: MMM,
