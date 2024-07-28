@@ -97,9 +97,10 @@ class Transformation:
 
     Parameters
     ----------
-    priors : dict, optional
+    priors : dict[str, Prior], optional
         Dictionary with the priors for the parameters of the function. The keys should be the
-        parameter names and the values should be dictionaries with the distribution and kwargs.
+        parameter names and the values the priors. If not provided, it will use the default
+        priors from the subclass.
     prefix : str, optional
         The prefix for the variables that will be created. If not provided, it will use the prefix
         from the subclass.
@@ -112,11 +113,42 @@ class Transformation:
     lookup_name: str
 
     def __init__(
-        self, priors: dict[str, Any | Prior] | None = None, prefix: str | None = None
+        self, priors: dict[str, Prior] | None = None, prefix: str | None = None
     ) -> None:
         self._checks()
         self.function_priors = priors  # type: ignore
         self.prefix = prefix or self.prefix
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"prefix={self.prefix!r}, "
+            f"priors={self.function_priors}"
+            ")"
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the transformation to a dictionary.
+
+        Returns
+        -------
+        dict
+            The dictionary defining the transformation.
+
+        """
+        return {
+            "lookup_name": self.lookup_name,
+            "prefix": self.prefix,
+            "priors": {
+                key: value.to_json() for key, value in self.function_priors.items()
+            },
+        }
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, self.__class__):
+            return False
+
+        return self.to_dict() == other.to_dict()
 
     @property
     def function_priors(self) -> dict[str, Prior]:
@@ -137,7 +169,7 @@ class Transformation:
 
         Parameters
         ----------
-        priors : dict
+        priors : dict[str, Prior]
             Dictionary with the new priors for the parameters of the function.
 
         Examples
@@ -150,6 +182,7 @@ class Transformation:
             from pymc_marketing.prior import Prior
 
             class MyTransformation(Transformation):
+                lookup_name: str = "my_transformation"
                 prefix: str = "transformation"
                 function = lambda x, lam: x * lam
                 default_priors = {"lam": Prior("Gamma", alpha=3, beta=1)}
@@ -199,6 +232,9 @@ class Transformation:
 
         if not hasattr(self, "function"):
             raise NotImplementedError("function must be implemented in the subclass")
+
+        if not hasattr(self, "lookup_name"):
+            raise NotImplementedError("lookup_name must be implemented in the subclass")
 
     def _has_defaults_for_all_arguments(self) -> None:
         function_signature = signature(self.function)

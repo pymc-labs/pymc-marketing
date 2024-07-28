@@ -29,6 +29,7 @@ from pymc_marketing.mmm.components.saturation import (
     TanhSaturation,
     TanhSaturationBaselined,
     _get_saturation_function,
+    saturation_from_dict,
 )
 from pymc_marketing.prior import Prior
 
@@ -233,3 +234,24 @@ def test_sample_curve_with_bad_max_value(max_value) -> None:
         saturation.sample_curve(
             parameters=mock_menten_parameters_with_additional_dim, max_value=max_value
         )
+
+
+def test_saturation_from_dict() -> None:
+    data = {
+        "lookup_name": "michaelis_menten",
+        "priors": {
+            "alpha": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+            "lam": {
+                "dist": "HalfNormal",
+                "kwargs": {"sigma": 1},
+            },
+        },
+    }
+
+    saturation = saturation_from_dict(data)
+    assert saturation == MichaelisMentenSaturation(
+        priors={
+            "alpha": Prior("HalfNormal", sigma=1),
+            "lam": Prior("HalfNormal", sigma=1),
+        }
+    )
