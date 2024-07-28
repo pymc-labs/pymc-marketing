@@ -645,8 +645,8 @@ class BaseMMM(BaseValidateMMM):
             "control_columns": json.loads(attrs["control_columns"]),
             "channel_columns": json.loads(attrs["channel_columns"]),
             "adstock_max_lag": json.loads(attrs["adstock_max_lag"]),
-            "adstock": json.loads(attrs.get("adstock", "geometric")),
-            "saturation": json.loads(attrs.get("saturation", "logistic")),
+            "adstock": json.loads(attrs.get("adstock", '"geometric"')),
+            "saturation": json.loads(attrs.get("saturation", '"logistic"')),
             "adstock_first": json.loads(attrs.get("adstock_first", "true")),
             "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
             "time_varying_intercept": json.loads(

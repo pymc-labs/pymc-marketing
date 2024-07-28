@@ -1115,3 +1115,30 @@ def test_save_load_with_tvp(
 
     # clean up
     os.remove(file)
+
+
+def test_missing_attrs_to_defaults(toy_X, toy_y) -> None:
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        adstock_first=False,
+    )
+    mmm = mock_fit(mmm, toy_X, toy_y)
+    mmm.idata.attrs.pop("adstock")
+    mmm.idata.attrs.pop("saturation")
+    mmm.idata.attrs.pop("adstock_first")
+
+    file = "tmp-model"
+    mmm.save(file)
+
+    loaded_mmm = MMM.load(file)
+    assert loaded_mmm.adstock.lookup_name == "geometric"
+    assert loaded_mmm.saturation.lookup_name == "logistic"
+    # Falsely loaded
+    assert loaded_mmm.adstock_first
+
+    # clean up
+    os.remove(file)
