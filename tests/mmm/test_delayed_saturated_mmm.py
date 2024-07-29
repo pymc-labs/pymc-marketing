@@ -1176,8 +1176,8 @@ def test_save_load_with_media_transformation(mmm_with_media_config_fitted) -> No
     # clean up
     del SATURATION_TRANSFORMATIONS[CustomSaturation.lookup_name]
     os.remove(file)
-    
-    
+
+
 def test_missing_attrs_to_defaults(toy_X, toy_y) -> None:
     mmm = MMM(
         date_column="date",
