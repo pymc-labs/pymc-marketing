@@ -58,7 +58,7 @@ def batched_convolution(
         ax = plt.subplot(111)
         for mode in [ConvMode.Before, ConvMode.Overlap, ConvMode.After]:
             y = batched_convolution(spends, w, mode=mode).eval()
-            suffix = "\n(default)" if mode == ConvMode.Before else ""
+            suffix = "\n(default)" if mode == ConvMode.After else ""
             plt.plot(x, y, label=f'{mode.value}{suffix}')
         plt.xlabel('time since spend', fontsize=12)
         plt.ylabel('f(time since spend)', fontsize=12)
@@ -70,9 +70,9 @@ def batched_convolution(
 
     Parameters
     ----------
-    x :
+    x : tensor_like
         The array to convolve.
-    w :
+    w : tensor_like
         The weight of the convolution. The last axis of ``w`` determines the number of steps
         to use in the convolution.
     axis : int
@@ -89,7 +89,7 @@ def batched_convolution(
 
     Returns
     -------
-    y :
+    y : tensor_like
         The result of convolving ``x`` with ``w`` along the desired axis. The shape of the
         result will match the shape of ``x`` up to broadcasting with ``w``. The convolved
         axis will show the results of left padding zeros to ``x`` while applying the
