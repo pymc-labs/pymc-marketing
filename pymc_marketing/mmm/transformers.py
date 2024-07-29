@@ -924,47 +924,50 @@ def hill_saturation(
 
     .. plot::
         :context: close-figs
+
         import numpy as np
         import matplotlib.pyplot as plt
         from pymc_marketing.mmm.transformers import hill_saturation
         x = np.linspace(0, 10, 100)
         # Varying sigma
         sigmas = [0.5, 1, 1.5]
-        plt.figure(figsize=(12, 4))
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
         for i, sigma in enumerate(sigmas):
             plt.subplot(1, 3, i+1)
-            y = hill_saturation(x, sigma, 2, 5)
+            y = hill_saturation(x, sigma, 2, 5).eval()
             plt.plot(x, y)
             plt.xlabel('x')
-            plt.ylabel('Hill Saturation')
             plt.title(f'Sigma = {sigma}')
+        plt.subplot(1,3,1)
+        plt.ylabel('Hill Saturation')
         plt.tight_layout()
         plt.show()
         # Varying beta
         betas = [1, 2, 3]
-        plt.figure(figsize=(12, 4))
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
         for i, beta in enumerate(betas):
             plt.subplot(1, 3, i+1)
-            y = hill_saturation(x, 1, beta, 5)
+            y = hill_saturation(x, 1, beta, 5).eval()
             plt.plot(x, y)
             plt.xlabel('x')
-            plt.ylabel('Hill Saturation')
             plt.title(f'Beta = {beta}')
+        plt.subplot(1,3,1)
+        plt.ylabel('Hill Saturation')
         plt.tight_layout()
         plt.show()
         # Varying lam
         lams = [3, 5, 7]
-        plt.figure(figsize=(12, 4))
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
         for i, lam in enumerate(lams):
             plt.subplot(1, 3, i+1)
-            y = hill_saturation(x, 1, 2, lam)
+            y = hill_saturation(x, 1, 2, lam).eval()
             plt.plot(x, y)
             plt.xlabel('x')
-            plt.ylabel('Hill Saturation')
             plt.title(f'Lambda = {lam}')
+        plt.subplot(1,3,1)
+        plt.ylabel('Hill Saturation')
         plt.tight_layout()
         plt.show()
-
     Parameters
     ----------
     x : float or array-like
@@ -985,3 +988,49 @@ def hill_saturation(
         The value of the Hill function for each input value of x.
     """
     return sigma / (1 + pt.exp(-beta * (x - lam)))
+
+
+def root_saturation(
+    x: pt.TensorLike,
+    alpha: pt.TensorLike,
+) -> pt.TensorVariable:
+    r"""Root saturation transformation.
+
+    .. math::
+        f(x) = x^{\alpha}
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import root_saturation
+        plt.style.use('arviz-darkgrid')
+        alpha = np.array([0.1, 0.3, 0.5, 0.7])
+        x = np.linspace(0, 5, 100)
+        ax = plt.subplot(111)
+        for a in alpha:
+            y = root_saturation(x, alpha=a)
+            plt.plot(x, y, label=f'alpha = {a}')
+        plt.xlabel('spend', fontsize=12)
+        plt.ylabel('f(spend)', fontsize=12)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.show()
+
+    Parameters
+    ----------
+    x : tensor
+        Input tensor.
+    alpha : float
+        Exponent for the root transformation. Must be non-negative.
+
+    Returns
+    -------
+    tensor
+        Transformed tensor.
+
+    """
+    return x**alpha

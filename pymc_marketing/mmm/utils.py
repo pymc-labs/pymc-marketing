@@ -361,3 +361,30 @@ def create_new_spend_data(
             spend,
         ]
     )
+
+
+def drop_scalar_coords(curve: xr.DataArray) -> xr.DataArray:
+    """
+    Remove scalar coordinates from an xarray DataArray.
+
+    This function identifies and removes scalar coordinates from the given
+    DataArray. Scalar coordinates are those with a single value that are
+    not part of the DataArray's indexes. The function returns a new DataArray
+    with the scalar coordinates removed.
+
+    Parameters
+    ----------
+    curve : xr.DataArray
+        The input DataArray from which scalar coordinates will be removed.
+
+    Returns
+    -------
+    xr.DataArray
+        A new DataArray with the identified scalar coordinates removed.
+    """
+    scalar_coords_to_drop = []
+    for coord, values in curve.coords.items():
+        if values.size == 1 and coord not in curve.indexes:
+            scalar_coords_to_drop.append(coord)
+
+    return curve.reset_coords(scalar_coords_to_drop, drop=True)

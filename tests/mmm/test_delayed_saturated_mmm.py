@@ -468,6 +468,31 @@ class TestDelayedSaturatedMMM:
         argvalues=[False, True],
         ids=["scaled", "original-scale"],
     )
+    @pytest.mark.parametrize(
+        argnames="var_contribution",
+        argvalues=["channel_contributions", "control_contributions"],
+        ids=["channel_contribution", "control_contribution"],
+    )
+    def test_get_ts_contribution_posterior(
+        self,
+        mmm_fitted_with_posterior_predictive: MMM,
+        var_contribution: str,
+        original_scale: bool,
+    ):
+        ts_posterior = (
+            mmm_fitted_with_posterior_predictive.get_ts_contribution_posterior(
+                var_contribution=var_contribution, original_scale=original_scale
+            )
+        )
+        assert ts_posterior.dims == ("chain", "draw", "date")
+        assert ts_posterior.chain.size == 1
+        assert ts_posterior.draw.size == 500
+
+    @pytest.mark.parametrize(
+        argnames="original_scale",
+        argvalues=[False, True],
+        ids=["scaled", "original-scale"],
+    )
     def test_get_errors(
         self,
         mmm_fitted_with_posterior_predictive: MMM,
@@ -1087,6 +1112,50 @@ def test_save_load_with_tvp(
     assert mmm.time_varying_intercept == time_varying_intercept
     assert mmm.time_varying_media == loaded_mmm.time_varying_media
     assert mmm.time_varying_media == time_varying_media
+
+    # clean up
+    os.remove(file)
+
+
+def test_missing_attrs_to_defaults(toy_X, toy_y) -> None:
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        adstock_first=False,
+        time_varying_intercept=False,
+        time_varying_media=False,
+    )
+    mmm = mock_fit(mmm, toy_X, toy_y)
+    mmm.idata.attrs.pop("adstock")
+    mmm.idata.attrs.pop("saturation")
+    mmm.idata.attrs.pop("adstock_first")
+    mmm.idata.attrs.pop("time_varying_intercept")
+    mmm.idata.attrs.pop("time_varying_media")
+
+    file = "tmp-model"
+    mmm.save(file)
+
+    loaded_mmm = MMM.load(file)
+
+    attrs = loaded_mmm.idata.attrs
+    for key in [
+        "adstock",
+        "saturation",
+        "adstock_first",
+        "time_varying_intercept",
+        "time_varying_media",
+    ]:
+        assert key not in attrs
+
+    assert loaded_mmm.adstock.lookup_name == "geometric"
+    assert loaded_mmm.saturation.lookup_name == "logistic"
+    assert not loaded_mmm.time_varying_intercept
+    assert not loaded_mmm.time_varying_media
+    # Falsely loaded
+    assert loaded_mmm.adstock_first
 
     # clean up
     os.remove(file)
