@@ -911,7 +911,7 @@ class MMM(
     """  # noqa: E501
 
     _model_type: str = "MMM"
-    version: str = "0.0.1"
+    version: str = "0.0.2"
 
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float64]
