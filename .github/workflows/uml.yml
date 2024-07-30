@@ -22,7 +22,7 @@ jobs:
 
       - name: Update the UML Diagrams
         run: |
-          apt-get update && apt-get install -y graphviz
+          sudo apt-get update && sudo apt-get install -y graphviz
           make uml
 
       - name: Configure Git
