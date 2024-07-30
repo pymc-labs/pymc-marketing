@@ -15,7 +15,6 @@
 
 import json
 import warnings
-from pathlib import Path
 from typing import Annotated, Any
 
 import arviz as az
@@ -36,11 +35,13 @@ from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     GeometricAdstock,
     _get_adstock_function,
+    adstock_from_dict,
 )
 from pymc_marketing.mmm.components.saturation import (
     LogisticSaturation,
     SaturationTransformation,
     _get_saturation_function,
+    saturation_from_dict,
 )
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.lift_test import (
@@ -56,7 +57,6 @@ from pymc_marketing.mmm.utils import (
 from pymc_marketing.mmm.validating import ValidateControlColumns
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import Prior
-from pymc_marketing.utils import from_netcdf
 
 __all__ = ["BaseMMM", "MMM", "DelayedSaturatedMMM"]
 
@@ -298,19 +298,21 @@ class BaseMMM(BaseValidateMMM):
                 self.X[self.date_column].iloc[1] - self.X[self.date_column].iloc[0]
             ).days
 
-    def _save_input_params(self, idata) -> None:
-        """Saves input parameters to the attrs of idata."""
-        idata.attrs["date_column"] = json.dumps(self.date_column)
-        idata.attrs["adstock"] = json.dumps(self.adstock.lookup_name)
-        idata.attrs["saturation"] = json.dumps(self.saturation.lookup_name)
-        idata.attrs["adstock_first"] = json.dumps(self.adstock_first)
-        idata.attrs["control_columns"] = json.dumps(self.control_columns)
-        idata.attrs["channel_columns"] = json.dumps(self.channel_columns)
-        idata.attrs["adstock_max_lag"] = json.dumps(self.adstock.l_max)
-        idata.attrs["validate_data"] = json.dumps(self.validate_data)
-        idata.attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
-        idata.attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
-        idata.attrs["time_varying_media"] = json.dumps(self.time_varying_media)
+    def create_idata_attrs(self) -> dict[str, str]:
+        attrs = super().create_idata_attrs()
+        attrs["date_column"] = json.dumps(self.date_column)
+        attrs["adstock"] = json.dumps(self.adstock.to_dict())
+        attrs["saturation"] = json.dumps(self.saturation.to_dict())
+        attrs["adstock_first"] = json.dumps(self.adstock_first)
+        attrs["control_columns"] = json.dumps(self.control_columns)
+        attrs["channel_columns"] = json.dumps(self.channel_columns)
+        attrs["adstock_max_lag"] = json.dumps(self.adstock.l_max)
+        attrs["validate_data"] = json.dumps(self.validate_data)
+        attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
+        attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
+        attrs["time_varying_media"] = json.dumps(self.time_varying_media)
+
+        return attrs
 
     def forward_pass(
         self, x: pt.TensorVariable | npt.NDArray[np.float64]
@@ -636,73 +638,26 @@ class BaseMMM(BaseValidateMMM):
         return ndarray_to_list(serializable_config)
 
     @classmethod
-    def load(cls, fname: str):
-        """
-        Creates a MMM instance from a file,
-        instantiating the model with the saved original input parameters.
-        Loads inference data for the model.
-
-        Parameters
-        ----------
-        fname : string
-            This denotes the name with path from where idata should be loaded from.
-
-        Returns
-        -------
-        Returns an instance of MMM.
-
-        Raises
-        ------
-        ValueError
-            If the inference data that is loaded doesn't match with the model.
-        """
-
-        filepath = Path(fname)
-        idata = from_netcdf(filepath)
-        model_config = cls._model_config_formatting(
-            json.loads(idata.attrs["model_config"])
-        )
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
-            model = cls(
-                date_column=json.loads(idata.attrs["date_column"]),
-                control_columns=json.loads(idata.attrs["control_columns"]),
-                # Media Transformations
-                channel_columns=json.loads(idata.attrs["channel_columns"]),
-                adstock_max_lag=json.loads(idata.attrs["adstock_max_lag"]),
-                adstock=json.loads(idata.attrs.get("adstock", "geometric")),
-                saturation=json.loads(idata.attrs.get("saturation", "logistic")),
-                adstock_first=json.loads(idata.attrs.get("adstock_first", True)),
-                # Seasonality
-                yearly_seasonality=json.loads(idata.attrs["yearly_seasonality"]),
-                # TVP
-                time_varying_intercept=json.loads(
-                    idata.attrs.get("time_varying_intercept", False)
-                ),
-                time_varying_media=json.loads(
-                    idata.attrs.get("time_varying_media", False)
-                ),
-                # Configurations
-                validate_data=json.loads(idata.attrs["validate_data"]),
-                model_config=model_config,
-                sampler_config=json.loads(idata.attrs["sampler_config"]),
-            )
-
-        model.idata = idata
-        dataset = idata.fit_data.to_dataframe()
-        X = dataset.drop(columns=[model.output_var])
-        y = dataset[model.output_var].values
-        model.build_model(X, y)
-        # All previously used data is in idata.
-        if model.id != idata.attrs["id"]:
-            error_msg = (
-                f"The file '{fname}' does not contain "
-                "an inference data of the same model or "
-                f"configuration as '{cls._model_type}'"
-            )
-            raise ValueError(error_msg)
-
-        return model
+    def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
+        return {
+            "model_config": cls._model_config_formatting(
+                json.loads(attrs["model_config"])
+            ),
+            "date_column": json.loads(attrs["date_column"]),
+            "control_columns": json.loads(attrs["control_columns"]),
+            "channel_columns": json.loads(attrs["channel_columns"]),
+            "adstock_max_lag": json.loads(attrs["adstock_max_lag"]),
+            "adstock": adstock_from_dict(json.loads(attrs["adstock"])),
+            "saturation": saturation_from_dict(json.loads(attrs["saturation"])),
+            "adstock_first": json.loads(attrs.get("adstock_first", "true")),
+            "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
+            "time_varying_intercept": json.loads(
+                attrs.get("time_varying_intercept", "false")
+            ),
+            "time_varying_media": json.loads(attrs.get("time_varying_media", "false")),
+            "validate_data": json.loads(attrs["validate_data"]),
+            "sampler_config": json.loads(attrs["sampler_config"]),
+        }
 
     def _data_setter(
         self,
@@ -956,7 +911,7 @@ class MMM(
     """  # noqa: E501
 
     _model_type: str = "MMM"
-    version: str = "0.0.1"
+    version: str = "0.0.2"
 
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float64]

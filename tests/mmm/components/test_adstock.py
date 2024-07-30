@@ -21,6 +21,7 @@ import xarray as xr
 from pydantic import ValidationError
 
 from pymc_marketing.mmm.components.adstock import (
+    ADSTOCK_TRANSFORMATIONS,
     AdstockTransformation,
     DelayedAdstock,
     GeometricAdstock,
@@ -28,7 +29,11 @@ from pymc_marketing.mmm.components.adstock import (
     WeibullCDFAdstock,
     WeibullPDFAdstock,
     _get_adstock_function,
+    adstock_from_dict,
+    register_adstock_transformation,
 )
+from pymc_marketing.mmm.transformers import ConvMode
+from pymc_marketing.prior import Prior
 
 
 def adstocks() -> list[AdstockTransformation]:
@@ -141,3 +146,65 @@ def test_adstock_sample_curve(adstock) -> None:
     assert isinstance(curve, xr.DataArray)
     assert curve.name == "adstock"
     assert curve.shape == (1, 500, adstock.l_max)
+
+
+def test_adstock_from_dict() -> None:
+    data = {
+        "lookup_name": "geometric",
+        "l_max": 10,
+        "prefix": "test",
+        "mode": "Before",
+        "priors": {
+            "alpha": {
+                "dist": "Beta",
+                "kwargs": {
+                    "alpha": 1,
+                    "beta": 2,
+                },
+            },
+        },
+    }
+
+    adstock = adstock_from_dict(data)
+    assert adstock == GeometricAdstock(
+        l_max=10,
+        prefix="test",
+        priors={
+            "alpha": Prior("Beta", alpha=1, beta=2),
+        },
+        mode=ConvMode.Before,
+    )
+
+
+def test_register_adstock_transformation() -> None:
+    class NewTransformation(AdstockTransformation):
+        lookup_name: str = "new_transformation"
+        default_priors = {}
+
+        def function(self, x):
+            return x
+
+    register_adstock_transformation(NewTransformation)
+    assert "new_transformation" in ADSTOCK_TRANSFORMATIONS
+
+    data = {
+        "lookup_name": "new_transformation",
+        "l_max": 10,
+        "normalize": False,
+        "mode": "Before",
+        "priors": {},
+    }
+    adstock = adstock_from_dict(data)
+    assert adstock == NewTransformation(
+        l_max=10, mode=ConvMode.Before, normalize=False, priors={}
+    )
+
+
+def test_repr() -> None:
+    assert repr(GeometricAdstock(l_max=10)) == (
+        "GeometricAdstock(prefix='adstock', l_max=10, "
+        "normalize=True, "
+        "mode='After', "
+        "priors={'alpha': Prior(\"Beta\", alpha=1, beta=3)}"
+        ")"
+    )
