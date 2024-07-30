@@ -2,10 +2,9 @@ name: Update the UML Diagrams
 
 on:
   pull_request:
-    types: [closed]
     branches: [main]
   push:
-    branches: [automate-uml]
+    branches: [main]
 
 jobs:
   build:
