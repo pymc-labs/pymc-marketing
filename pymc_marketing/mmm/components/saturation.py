@@ -28,6 +28,8 @@ Create a new saturation transformation:
     from pymc_marketing.prior import Prior
 
     class InfiniteReturns(SaturationTransformation):
+        lookup_name: str = "infinite_returns"
+
         def function(self, x, b):
             return b * x
 
@@ -109,6 +111,7 @@ class SaturationTransformation(Transformation):
             return b * x
 
         class InfiniteReturns(SaturationTransformation):
+            lookup_name = "infinite_returns"
             function = infinite_returns
             default_priors = {"b": Prior("HalfNormal")}
 
@@ -415,6 +418,21 @@ SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
         RootSaturation,
     ]
 }
+
+
+def register_saturation_transformation(cls: type[SaturationTransformation]) -> None:
+    """Register a new saturation transformation."""
+    SATURATION_TRANSFORMATIONS[cls.lookup_name] = cls
+
+
+def saturation_from_dict(data: dict) -> SaturationTransformation:
+    data = data.copy()
+    cls = SATURATION_TRANSFORMATIONS[data.pop("lookup_name")]
+
+    data["priors"] = {
+        key: Prior.from_json(value) for key, value in data["priors"].items()
+    }
+    return cls(**data)
 
 
 def _get_saturation_function(

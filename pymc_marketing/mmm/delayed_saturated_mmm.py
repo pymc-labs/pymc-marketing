@@ -35,11 +35,13 @@ from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     GeometricAdstock,
     _get_adstock_function,
+    adstock_from_dict,
 )
 from pymc_marketing.mmm.components.saturation import (
     LogisticSaturation,
     SaturationTransformation,
     _get_saturation_function,
+    saturation_from_dict,
 )
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.lift_test import (
@@ -299,8 +301,8 @@ class BaseMMM(BaseValidateMMM):
     def create_idata_attrs(self) -> dict[str, str]:
         attrs = super().create_idata_attrs()
         attrs["date_column"] = json.dumps(self.date_column)
-        attrs["adstock"] = json.dumps(self.adstock.lookup_name)
-        attrs["saturation"] = json.dumps(self.saturation.lookup_name)
+        attrs["adstock"] = json.dumps(self.adstock.to_dict())
+        attrs["saturation"] = json.dumps(self.saturation.to_dict())
         attrs["adstock_first"] = json.dumps(self.adstock_first)
         attrs["control_columns"] = json.dumps(self.control_columns)
         attrs["channel_columns"] = json.dumps(self.channel_columns)
@@ -645,8 +647,8 @@ class BaseMMM(BaseValidateMMM):
             "control_columns": json.loads(attrs["control_columns"]),
             "channel_columns": json.loads(attrs["channel_columns"]),
             "adstock_max_lag": json.loads(attrs["adstock_max_lag"]),
-            "adstock": json.loads(attrs.get("adstock", '"geometric"')),
-            "saturation": json.loads(attrs.get("saturation", '"logistic"')),
+            "adstock": adstock_from_dict(json.loads(attrs["adstock"])),
+            "saturation": saturation_from_dict(json.loads(attrs["saturation"])),
             "adstock_first": json.loads(attrs.get("adstock_first", "true")),
             "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
             "time_varying_intercept": json.loads(
@@ -909,7 +911,7 @@ class MMM(
     """  # noqa: E501
 
     _model_type: str = "MMM"
-    version: str = "0.0.1"
+    version: str = "0.0.2"
 
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float64]
