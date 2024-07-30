@@ -1,0 +1,44 @@
+name: Update the UML Diagrams
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "pymc_marketing/**"
+  push:
+    branches: [main]
+    paths:
+      - "pymc_marketing/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.10"
+
+      - name: Configure Git Identity
+        run: |
+          git config user.name "$(git log -n 1 --pretty=format:%an)"
+          git config user.email "$(git log -n 1 --pretty=format:%ae)"
+
+      - name: Update the UML Diagrams
+        run: |
+          sudo apt-get update && sudo apt-get install -y graphviz
+          make uml
+
+      - name: Push up the changes
+        run: |
+          git add docs/source/uml/*.png
+          if git diff --staged --exit-code; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update UML Diagrams"
+            git push
+          fi
