@@ -29,6 +29,8 @@ Create a new adstock transformation:
     from pymc_marketing.prior import Prior
 
     class MyAdstock(AdstockTransformation):
+        lookup_name: str = "my_adstock"
+
         def function(self, x, alpha):
             return x * alpha
 
@@ -92,7 +94,7 @@ class AdstockTransformation(Transformation):
             True, description="Whether to normalize the adstock values."
         ),
         mode: ConvMode = Field(ConvMode.After, description="Convolution mode."),
-        priors: dict[str, str | InstanceOf[Prior]] | None = Field(
+        priors: dict[str, InstanceOf[Prior]] | None = Field(
             default=None, description="Priors for the parameters."
         ),
         prefix: str | None = Field(None, description="Prefix for the parameters."),
@@ -102,6 +104,27 @@ class AdstockTransformation(Transformation):
         self.mode = mode
 
         super().__init__(priors=priors, prefix=prefix)
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"prefix={self.prefix!r}, "
+            f"l_max={self.l_max}, "
+            f"normalize={self.normalize}, "
+            f"mode={self.mode.name!r}, "
+            f"priors={self.function_priors}"
+            ")"
+        )
+
+    def to_dict(self) -> dict:
+        """Convert the adstock transformation to a dictionary."""
+        data = super().to_dict()
+
+        data["l_max"] = self.l_max
+        data["normalize"] = self.normalize
+        data["mode"] = self.mode.name
+
+        return data
 
     def sample_curve(
         self,
@@ -369,6 +392,21 @@ ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {
         WeibullCDFAdstock,
     ]
 }
+
+
+def register_adstock_transformation(cls: type[AdstockTransformation]) -> None:
+    """Register a new adstock transformation."""
+    ADSTOCK_TRANSFORMATIONS[cls.lookup_name] = cls
+
+
+def adstock_from_dict(data: dict) -> AdstockTransformation:
+    """Create an adstock transformation from a dictionary."""
+    data = data.copy()
+    lookup_name = data.pop("lookup_name")
+    cls = ADSTOCK_TRANSFORMATIONS[lookup_name]
+
+    data["priors"] = {k: Prior.from_json(v) for k, v in data["priors"].items()}
+    return cls(**data)
 
 
 def _get_adstock_function(
