@@ -1,0 +1,35 @@
+name: Update the UML Diagrams
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  push:
+    branches: [automate-uml]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.10"
+
+      - name: Update the UML Diagrams
+        run: make uml
+
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Push up the changes
+        run: |
+          git add docs/source/uml/*.png
+          git commit -m "Update UML Diagrams"
+          git push
