@@ -50,6 +50,16 @@ def test_new_transformation_missing_function() -> None:
         NewTransformation()
 
 
+def test_new_transformation_missing_lookup_name() -> None:
+    class NewTransformation(Transformation):
+        prefix = "new"
+        default_priors = {}
+        function = lambda x: x  # noqa: E731
+
+    with pytest.raises(NotImplementedError, match="lookup_name must be implemented"):
+        NewTransformation()
+
+
 lambda_function = lambda x, a: x + a  # noqa: E731
 
 
@@ -72,6 +82,7 @@ def method_like_function(self, x, a):
 )
 def test_new_transformation_function_works_on_instances(function) -> None:
     class NewTransformation(Transformation):
+        lookup_name: str = "new_transformation"
         prefix = "new"
         default_priors = {"a": "dummy"}
         function = function
@@ -92,6 +103,7 @@ def test_new_transformation_missing_data_parameter() -> None:
 
     class NewTransformation(Transformation):
         prefix = "new"
+        lookup_name: str = "new_transformation"
         function = function_without_reserved_parameter
         default_priors = {"a": "dummy"}
 
@@ -105,6 +117,7 @@ def test_new_transformation_missing_priors() -> None:
 
     class NewTransformation(Transformation):
         prefix = "new"
+        lookup_name: str = "new_transformation"
         function = method_like_function
         default_priors = {"a": "dummy"}
 
@@ -115,6 +128,7 @@ def test_new_transformation_missing_priors() -> None:
 def test_new_transformation_missing_parameter() -> None:
     class NewTransformation(Transformation):
         prefix = "new"
+        lookup_name: str = "new_transformation"
         function = method_like_function
         default_priors = {"b": "dummy"}
 
@@ -128,6 +142,7 @@ def test_new_transformation_missing_parameter() -> None:
 def new_transformation_class() -> type[Transformation]:
     class NewTransformation(Transformation):
         prefix = "new"
+        lookup_name: str = "new_transformation"
 
         def function(self, x, a, b):
             return a * b * x
@@ -290,3 +305,39 @@ def test_change_instance_function_priors_has_no_impact_on_class(
         "a": Prior("HalfNormal", sigma=1),
         "b": Prior("HalfNormal", sigma=1),
     }
+
+
+def test_equality() -> None:
+    class NewClass(Transformation):
+        prefix = "new"
+        lookup_name: str = "new_transformation"
+        default_priors = {
+            "a": Prior("HalfNormal", sigma=1),
+            "b": Prior("HalfNormal", sigma=1),
+        }
+
+        def function(self, x, a, b):
+            return a * b * x
+
+    class AnotherNewClass(Transformation):
+        prefix = "new"
+        lookup_name: str = "new_transformation"
+        default_priors = {
+            "a": Prior("HalfNormal", sigma=1),
+            "b": Prior("HalfNormal", sigma=1),
+        }
+
+        def function(self, x, a, b):
+            return a * b * x
+
+    assert NewClass() == NewClass()
+    assert NewClass() != AnotherNewClass()
+
+
+def test_repr(new_transformation) -> None:
+    assert repr(new_transformation) == (
+        "NewTransformation("
+        "prefix='new', "
+        "priors={'a': Prior(\"HalfNormal\", sigma=1), 'b': Prior(\"HalfNormal\", sigma=1)}"
+        ")"
+    )
