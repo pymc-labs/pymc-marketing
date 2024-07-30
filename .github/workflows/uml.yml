@@ -21,7 +21,9 @@ jobs:
           python-version: "3.10"
 
       - name: Update the UML Diagrams
-        run: make uml
+        run: |
+          apt-get update && apt-get install -y graphviz
+          make uml
 
       - name: Configure Git
         run: |
