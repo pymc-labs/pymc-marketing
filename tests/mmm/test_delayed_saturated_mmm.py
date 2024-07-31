@@ -24,8 +24,11 @@ from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.components.adstock import DelayedAdstock, GeometricAdstock
 from pymc_marketing.mmm.components.saturation import (
+    SATURATION_TRANSFORMATIONS,
     LogisticSaturation,
     MichaelisMentenSaturation,
+    SaturationTransformation,
+    register_saturation_transformation,
 )
 from pymc_marketing.mmm.delayed_saturated_mmm import MMM, BaseMMM, DelayedSaturatedMMM
 from pymc_marketing.prior import Prior
@@ -1117,6 +1120,64 @@ def test_save_load_with_tvp(
     os.remove(file)
 
 
+class CustomSaturation(SaturationTransformation):
+    lookup_name: str = "custom_saturation"
+
+    def function(self, x, beta):
+        return beta * x
+
+    default_priors = {
+        "beta": Prior("HalfNormal", sigma=2.5),
+    }
+
+
+@pytest.fixture(scope="module")
+def mmm_with_media_config() -> MMM:
+    return MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=4, normalize=False, mode="Before"),
+        saturation=CustomSaturation(),
+    )
+
+
+@pytest.fixture(scope="module")
+def mmm_with_media_config_fitted(
+    mmm_with_media_config: MMM,
+    toy_X: pd.DataFrame,
+    toy_y: pd.Series,
+) -> MMM:
+    return mock_fit(mmm_with_media_config, toy_X, toy_y)
+
+
+def test_save_load_with_media_transformation(mmm_with_media_config_fitted) -> None:
+    file = "tmp-model"
+    mmm_with_media_config_fitted.save(file)
+
+    register_saturation_transformation(CustomSaturation)
+
+    loaded_mmm = MMM.load(file)
+
+    assert loaded_mmm.adstock == GeometricAdstock(
+        l_max=4,
+        normalize=False,
+        mode="Before",
+        priors={
+            "alpha": Prior("Beta", alpha=1, beta=3, dims="channel"),
+        },
+    )
+    assert loaded_mmm.saturation == CustomSaturation(
+        priors={
+            "beta": Prior("HalfNormal", sigma=2.5, dims="channel"),
+        }
+    )
+
+    # clean up
+    del SATURATION_TRANSFORMATIONS[CustomSaturation.lookup_name]
+    os.remove(file)
+
+
 def test_missing_attrs_to_defaults(toy_X, toy_y) -> None:
     mmm = MMM(
         date_column="date",
@@ -1129,8 +1190,6 @@ def test_missing_attrs_to_defaults(toy_X, toy_y) -> None:
         time_varying_media=False,
     )
     mmm = mock_fit(mmm, toy_X, toy_y)
-    mmm.idata.attrs.pop("adstock")
-    mmm.idata.attrs.pop("saturation")
     mmm.idata.attrs.pop("adstock_first")
     mmm.idata.attrs.pop("time_varying_intercept")
     mmm.idata.attrs.pop("time_varying_media")
@@ -1142,16 +1201,12 @@ def test_missing_attrs_to_defaults(toy_X, toy_y) -> None:
 
     attrs = loaded_mmm.idata.attrs
     for key in [
-        "adstock",
-        "saturation",
         "adstock_first",
         "time_varying_intercept",
         "time_varying_media",
     ]:
         assert key not in attrs
 
-    assert loaded_mmm.adstock.lookup_name == "geometric"
-    assert loaded_mmm.saturation.lookup_name == "logistic"
     assert not loaded_mmm.time_varying_intercept
     assert not loaded_mmm.time_varying_media
     # Falsely loaded
