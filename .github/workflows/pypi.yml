@@ -2,13 +2,10 @@ name: PyPI
 on:
   pull_request:
     branches: [main]
-    paths: '**.py'
   push:
     branches: [main]
-    paths: '**.py'
   release:
     types: [published]
-    paths: '**.py'
 
 jobs:
   build:
