@@ -7,19 +7,19 @@ on:
 
 jobs:
 
-  build:
+    build:
 
-    runs-on: ubuntu-latest
+        runs-on: ubuntu-latest
 
-    steps:
-      - name: Check the deployed service URL
-        uses: jtalk/url-health-check-action@v4
-        with:
-          # Check the following URLs one by one sequentially
-          url: https://pymc-marketing-app.streamlit.app/
-          # Follow redirects, or just report success on 3xx status codes
-          follow-redirect: no # Optional, defaults to "no"
-          # Fail this action after this many failed attempts
-          max-attempts: 3 # Optional, defaults to 1
-          # Delay between retries
-          retry-delay: 5s # Optional, only applicable to max-attempts > 1
+        steps:
+        - name: Check the deployed service URL
+          uses: jtalk/url-health-check-action@v4
+          with:
+            # Check the following URLs one by one sequentially
+            url: https://pymc-marketing-app.streamlit.app/
+            # Follow redirects, or just report success on 3xx status codes
+            follow-redirect: false # Optional, defaults to false
+            # Fail this action after this many failed attempts
+            max-attempts: 3 # Optional, defaults to 1
+            # Delay between retries
+            retry-delay: 5s # Optional, only applicable to max-attempts > 1
