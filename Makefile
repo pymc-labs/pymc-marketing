@@ -1,43 +1,62 @@
-.PHONY: init lint check_lint format check_format test html cleandocs run_notebooks uml
+#################################################################################
+# GLOBALS                                                                       #
+#################################################################################
 
 PACKAGE_DIR = pymc_marketing
 
-init:
+#################################################################################
+# COMMANDS                                                                      #
+#################################################################################
+
+.PHONY: init lint check_lint format check_format test html cleandocs run_notebooks uml help
+
+init: ## Install the package in editable mode
 	python3 -m pip install -e .
 
-lint:
+lint: ## Install linting dependencies and run linter (ruff and mypy)
 	pip install .[lint]
 	ruff check $(PACKAGE_DIR) --fix
 	mypy .
 
-check_lint:
+check_lint: ## Install linting dependencies and check linting (ruff and mypy)
 	pip install .[lint]
 	ruff check $(PACKAGE_DIR)
 	mypy .
 
-format:
+format: ## Install linting dependencies and format code (ruff)
 	pip install .[lint]
 	ruff format $(PACKAGE_DIR)
 
-check_format:
+check_format: ## Install linting dependencies and check code formatting (ruff)
 	pip install .[lint]
 	ruff format --check $(PACKAGE_DIR)
 
-test:
+test:  ## Install test dependencies and run tests
 	pip install .[test]
 	pytest
 
-html:
+html: ## Install documentation dependencies and build HTML docs
 	pip install .[docs]
 	sphinx-build docs/source docs/build -b html
 
-cleandocs:
+cleandocs: ## Clean the documentation build directories
 	rm -r "docs/build" "docs/jupyter_execute" "docs/source/api/generated"
 
-run_notebooks:
+run_notebooks: ## Run Jupyter notebooks
 	python scripts/run_notebooks/runner.py
 
-uml:
+uml: ## Install documentation dependencies and generate UML diagrams
 	pip install .[docs]
 	pyreverse pymc_marketing/mmm -d docs/source/uml -f 'ALL' -o png -p mmm
 	pyreverse pymc_marketing/clv -d docs/source/uml -f 'ALL' -o png -p clv
+
+
+#################################################################################
+# Self Documenting Commands                                                     #
+#################################################################################
+
+.DEFAULT_GOAL := help
+
+help: ## Show this help message
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+	awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
