@@ -12,6 +12,8 @@ dependencies:
 - pandas
 - streamlit>=1.25.0
 - pip
+- pydantic
+- preliz
 # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
 - pymc>=5.12.0,<5.16.0
 - scikit-learn>=1.1.1
@@ -41,3 +43,4 @@ dependencies:
 - lifetimes==0.11.3
 - pytest==7.0.1
 - pytest-cov==3.0.0
+- pytest-mock
