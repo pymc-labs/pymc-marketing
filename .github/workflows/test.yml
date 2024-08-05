@@ -76,13 +76,3 @@ jobs:
     - name: Run notebooks
       run: make run_notebooks
 
-
-  all:
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    name: All checks
-    needs: [ test, test_slow ]
-    steps:
-      - name: Confirm checks passed
-        if: ${{ (needs.test.result != 'success' || needs.test_slow.result != 'success') }}
-        run: exit 1
