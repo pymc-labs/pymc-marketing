@@ -10,6 +10,8 @@ on:
     paths:
       - "pymc_marketing/**"
 
+permissions: write-all
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -39,6 +41,9 @@ jobs:
           if git diff --staged --exit-code; then
             echo "No changes to commit"
           else
+            echo "Committing the changes"
             git commit -m "Update UML Diagrams"
-            git push
+            git push origin HEAD:${GITHUB_HEAD_REF}
           fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
