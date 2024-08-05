@@ -43,3 +43,5 @@ jobs:
             git commit -m "Update UML Diagrams"
             git push origin HEAD:${GITHUB_HEAD_REF}
           fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
