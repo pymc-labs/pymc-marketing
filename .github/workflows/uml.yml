@@ -16,7 +16,8 @@ jobs:
     permissions: write-all
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -41,7 +42,6 @@ jobs:
           else
             echo "Committing the changes"
             git commit -m "Update UML Diagrams"
-            git pull
             git push origin HEAD:${GITHUB_HEAD_REF:-main}
           fi
         env:
