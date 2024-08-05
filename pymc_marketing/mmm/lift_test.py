@@ -27,6 +27,8 @@ from pymc_marketing.mmm.components.saturation import SaturationTransformation
 
 
 class MissingLiftTestError(Exception):
+    """Error when some of the lift tests are not in the model."""
+
     def __init__(self, missing_values: npt.NDArray[np.int_]) -> None:
         self.missing_values = missing_values
         super().__init__(
