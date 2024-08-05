@@ -58,7 +58,7 @@ def batched_convolution(
         ax = plt.subplot(111)
         for mode in [ConvMode.Before, ConvMode.Overlap, ConvMode.After]:
             y = batched_convolution(spends, w, mode=mode).eval()
-            suffix = "\n(default)" if mode == ConvMode.Before else ""
+            suffix = "\n(default)" if mode == ConvMode.After else ""
             plt.plot(x, y, label=f'{mode.value}{suffix}')
         plt.xlabel('time since spend', fontsize=12)
         plt.ylabel('f(time since spend)', fontsize=12)
@@ -70,16 +70,16 @@ def batched_convolution(
 
     Parameters
     ----------
-    x :
+    x : tensor_like
         The array to convolve.
-    w :
+    w : tensor_like
         The weight of the convolution. The last axis of ``w`` determines the number of steps
         to use in the convolution.
     axis : int
         The axis of ``x`` along witch to apply the convolution
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
-        of the input signal, denoted as "x." The default mode is ConvMode.Before.
+        of the input signal, denoted as "x." The default mode is ConvMode.After.
 
         - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
         - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
@@ -89,7 +89,7 @@ def batched_convolution(
 
     Returns
     -------
-    y :
+    y : tensor_like
         The result of convolving ``x`` with ``w`` along the desired axis. The shape of the
         result will match the shape of ``x`` up to broadcasting with ``w``. The convolved
         axis will show the results of left padding zeros to ``x`` while applying the
@@ -211,7 +211,7 @@ def geometric_adstock(
         The axis of ``x`` along witch to apply the convolution
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
-        of the input signal, denoted as "x." The default mode is ConvMode.Before.
+        of the input signal, denoted as "x." The default mode is ConvMode.After.
 
         - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
         - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
@@ -293,7 +293,7 @@ def delayed_adstock(
         The axis of ``x`` along witch to apply the convolution
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
-        of the input signal, denoted as "x." The default mode is ConvMode.Before.
+        of the input signal, denoted as "x." The default mode is ConvMode.After.
 
         - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
         - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
@@ -396,7 +396,7 @@ def weibull_adstock(
         The axis of ``x`` along witch to apply the convolution
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
-        of the input signal, denoted as "x." The default mode is ConvMode.Before.
+        of the input signal, denoted as "x." The default mode is ConvMode.After.
 
         - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
         - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
@@ -924,47 +924,50 @@ def hill_saturation(
 
     .. plot::
         :context: close-figs
+
         import numpy as np
         import matplotlib.pyplot as plt
         from pymc_marketing.mmm.transformers import hill_saturation
         x = np.linspace(0, 10, 100)
         # Varying sigma
         sigmas = [0.5, 1, 1.5]
-        plt.figure(figsize=(12, 4))
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
         for i, sigma in enumerate(sigmas):
             plt.subplot(1, 3, i+1)
-            y = hill_saturation(x, sigma, 2, 5)
+            y = hill_saturation(x, sigma, 2, 5).eval()
             plt.plot(x, y)
             plt.xlabel('x')
-            plt.ylabel('Hill Saturation')
             plt.title(f'Sigma = {sigma}')
+        plt.subplot(1,3,1)
+        plt.ylabel('Hill Saturation')
         plt.tight_layout()
         plt.show()
         # Varying beta
         betas = [1, 2, 3]
-        plt.figure(figsize=(12, 4))
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
         for i, beta in enumerate(betas):
             plt.subplot(1, 3, i+1)
-            y = hill_saturation(x, 1, beta, 5)
+            y = hill_saturation(x, 1, beta, 5).eval()
             plt.plot(x, y)
             plt.xlabel('x')
-            plt.ylabel('Hill Saturation')
             plt.title(f'Beta = {beta}')
+        plt.subplot(1,3,1)
+        plt.ylabel('Hill Saturation')
         plt.tight_layout()
         plt.show()
         # Varying lam
         lams = [3, 5, 7]
-        plt.figure(figsize=(12, 4))
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
         for i, lam in enumerate(lams):
             plt.subplot(1, 3, i+1)
-            y = hill_saturation(x, 1, 2, lam)
+            y = hill_saturation(x, 1, 2, lam).eval()
             plt.plot(x, y)
             plt.xlabel('x')
-            plt.ylabel('Hill Saturation')
             plt.title(f'Lambda = {lam}')
+        plt.subplot(1,3,1)
+        plt.ylabel('Hill Saturation')
         plt.tight_layout()
         plt.show()
-
     Parameters
     ----------
     x : float or array-like
@@ -985,3 +988,49 @@ def hill_saturation(
         The value of the Hill function for each input value of x.
     """
     return sigma / (1 + pt.exp(-beta * (x - lam)))
+
+
+def root_saturation(
+    x: pt.TensorLike,
+    alpha: pt.TensorLike,
+) -> pt.TensorVariable:
+    r"""Root saturation transformation.
+
+    .. math::
+        f(x) = x^{\alpha}
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import root_saturation
+        plt.style.use('arviz-darkgrid')
+        alpha = np.array([0.1, 0.3, 0.5, 0.7])
+        x = np.linspace(0, 5, 100)
+        ax = plt.subplot(111)
+        for a in alpha:
+            y = root_saturation(x, alpha=a)
+            plt.plot(x, y, label=f'alpha = {a}')
+        plt.xlabel('spend', fontsize=12)
+        plt.ylabel('f(spend)', fontsize=12)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.show()
+
+    Parameters
+    ----------
+    x : tensor
+        Input tensor.
+    alpha : float
+        Exponent for the root transformation. Must be non-negative.
+
+    Returns
+    -------
+    tensor
+        Transformed tensor.
+
+    """
+    return x**alpha

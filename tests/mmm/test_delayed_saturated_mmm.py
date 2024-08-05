@@ -24,8 +24,11 @@ from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.components.adstock import DelayedAdstock, GeometricAdstock
 from pymc_marketing.mmm.components.saturation import (
+    SATURATION_TRANSFORMATIONS,
     LogisticSaturation,
     MichaelisMentenSaturation,
+    SaturationTransformation,
+    register_saturation_transformation,
 )
 from pymc_marketing.mmm.delayed_saturated_mmm import MMM, BaseMMM, DelayedSaturatedMMM
 from pymc_marketing.prior import Prior
@@ -462,6 +465,31 @@ class TestDelayedSaturatedMMM:
             x=channel_contributions_forward_pass_mean / channel_contributions_mean,
             y=mmm_fitted.y.max(),
         )
+
+    @pytest.mark.parametrize(
+        argnames="original_scale",
+        argvalues=[False, True],
+        ids=["scaled", "original-scale"],
+    )
+    @pytest.mark.parametrize(
+        argnames="var_contribution",
+        argvalues=["channel_contributions", "control_contributions"],
+        ids=["channel_contribution", "control_contribution"],
+    )
+    def test_get_ts_contribution_posterior(
+        self,
+        mmm_fitted_with_posterior_predictive: MMM,
+        var_contribution: str,
+        original_scale: bool,
+    ):
+        ts_posterior = (
+            mmm_fitted_with_posterior_predictive.get_ts_contribution_posterior(
+                var_contribution=var_contribution, original_scale=original_scale
+            )
+        )
+        assert ts_posterior.dims == ("chain", "draw", "date")
+        assert ts_posterior.chain.size == 1
+        assert ts_posterior.draw.size == 500
 
     @pytest.mark.parametrize(
         argnames="original_scale",
@@ -1087,6 +1115,102 @@ def test_save_load_with_tvp(
     assert mmm.time_varying_intercept == time_varying_intercept
     assert mmm.time_varying_media == loaded_mmm.time_varying_media
     assert mmm.time_varying_media == time_varying_media
+
+    # clean up
+    os.remove(file)
+
+
+class CustomSaturation(SaturationTransformation):
+    lookup_name: str = "custom_saturation"
+
+    def function(self, x, beta):
+        return beta * x
+
+    default_priors = {
+        "beta": Prior("HalfNormal", sigma=2.5),
+    }
+
+
+@pytest.fixture(scope="module")
+def mmm_with_media_config() -> MMM:
+    return MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=4, normalize=False, mode="Before"),
+        saturation=CustomSaturation(),
+    )
+
+
+@pytest.fixture(scope="module")
+def mmm_with_media_config_fitted(
+    mmm_with_media_config: MMM,
+    toy_X: pd.DataFrame,
+    toy_y: pd.Series,
+) -> MMM:
+    return mock_fit(mmm_with_media_config, toy_X, toy_y)
+
+
+def test_save_load_with_media_transformation(mmm_with_media_config_fitted) -> None:
+    file = "tmp-model"
+    mmm_with_media_config_fitted.save(file)
+
+    register_saturation_transformation(CustomSaturation)
+
+    loaded_mmm = MMM.load(file)
+
+    assert loaded_mmm.adstock == GeometricAdstock(
+        l_max=4,
+        normalize=False,
+        mode="Before",
+        priors={
+            "alpha": Prior("Beta", alpha=1, beta=3, dims="channel"),
+        },
+    )
+    assert loaded_mmm.saturation == CustomSaturation(
+        priors={
+            "beta": Prior("HalfNormal", sigma=2.5, dims="channel"),
+        }
+    )
+
+    # clean up
+    del SATURATION_TRANSFORMATIONS[CustomSaturation.lookup_name]
+    os.remove(file)
+
+
+def test_missing_attrs_to_defaults(toy_X, toy_y) -> None:
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        adstock_first=False,
+        time_varying_intercept=False,
+        time_varying_media=False,
+    )
+    mmm = mock_fit(mmm, toy_X, toy_y)
+    mmm.idata.attrs.pop("adstock_first")
+    mmm.idata.attrs.pop("time_varying_intercept")
+    mmm.idata.attrs.pop("time_varying_media")
+
+    file = "tmp-model"
+    mmm.save(file)
+
+    loaded_mmm = MMM.load(file)
+
+    attrs = loaded_mmm.idata.attrs
+    for key in [
+        "adstock_first",
+        "time_varying_intercept",
+        "time_varying_media",
+    ]:
+        assert key not in attrs
+
+    assert not loaded_mmm.time_varying_intercept
+    assert not loaded_mmm.time_varying_media
+    # Falsely loaded
+    assert loaded_mmm.adstock_first
 
     # clean up
     os.remove(file)

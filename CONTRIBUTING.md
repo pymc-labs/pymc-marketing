@@ -128,24 +128,29 @@ We recommend that your contribution complies with the following guidelines befor
   ```bash
   make check_lint
   ```
-  If you want to fix linting errors automatically, run
+- If you want to fix linting errors automatically, run
 
   ```bash
   make lint
   ```
 
-1. To run tests:
+- To run tests:
 
     ```bash
     make test
     ```
 
-6. To check code style:
+- To check code style:
 
     ```bash
-    make check_lint
+    make check_format
     ```
 
+- To fix code style automatically:
+
+    ```bash
+    make format
+    ```
 
 ## Overview of the MMM codebase
 

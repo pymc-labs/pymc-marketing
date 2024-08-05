@@ -8,13 +8,15 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 
 KERNEL_NAME: str = "python3"
-NOTEBOOKS_PATH = Path("docs/source/notebooks")
+DOC_SOURCE = Path("docs/source")
+NOTEBOOKS_PATH = DOC_SOURCE / "notebooks"
 NOTEBOOKS_SKIP: list[str] = [
     "mmm_budget_allocation_example.ipynb",  # This works locally but not on GitHub Actions
     "mmm_tvp_example.ipynb",  # This notebook takes too long to run
 ]
 NOTEBOOKS: list[Path] = list(NOTEBOOKS_PATH.glob("*/*.ipynb"))
 NOTEBOOKS = [nb for nb in NOTEBOOKS if nb.name not in NOTEBOOKS_SKIP]
+NOTEBOOKS.append(DOC_SOURCE / "guide" / "benefits" / "model_deployment.ipynb")
 
 
 def setup_logging() -> None:

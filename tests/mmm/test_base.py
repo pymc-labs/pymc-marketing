@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import json
 import re
 from unittest.mock import Mock, patch
 
@@ -65,11 +66,30 @@ def toy_mmm(request, toy_X, toy_y):
     channel_columns = request.param["channel_columns"]
 
     class ToyMMM(MMM):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
+        def __init__(
+            self,
+            date_column: str,
+            channel_columns,
+            model_config=None,
+            sampler_config=None,
+        ) -> None:
+            super().__init__(
+                date_column=date_column,
+                channel_columns=channel_columns,
+                model_config=model_config,
+                sampler_config=sampler_config,
+            )
+
             self.X = None
             self.y = None
             self.preprocessed_data = {"X": None, "y": None}
+
+        def create_idata_attrs(self) -> dict[str, str]:
+            attrs = super().create_idata_attrs()
+            attrs["date_column"] = self.data_column
+            attrs["channel_columns"] = self.channel_columns
+
+            return attrs
 
         def build_model(*args, **kwargs):
             pass
@@ -169,11 +189,30 @@ def test_mmm():
         mock_method2 = Mock()
         validation_methods = [(mock_method1,), (mock_method2,)]
 
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
+        def __init__(
+            self,
+            date_column: str,
+            channel_columns,
+            model_config=None,
+            sampler_config=None,
+        ) -> None:
+            super().__init__(
+                date_column=date_column,
+                channel_columns=channel_columns,
+                model_config=model_config,
+                sampler_config=sampler_config,
+            )
+
             self.X = None
             self.y = None
             self.preprocessed_data = {"X": None, "y": None}
+
+        def create_idata_attrs(self) -> dict[str, str]:
+            attrs = super().create_idata_attrs()
+            attrs["date_column"] = self.date_column
+            attrs["channel_columns"] = json.dumps(self.channel_columns)
+
+            return attrs
 
         def build_model(self, toy_X, *args, **kwargs):
             with pm.Model() as self.model:
