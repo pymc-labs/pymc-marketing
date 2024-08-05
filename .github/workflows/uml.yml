@@ -35,10 +35,11 @@ jobs:
 
       - name: Push up the changes
         run: |
-          git add docs/source/uml/*.png
+          git add docs/source/_static/*.png
           if git diff --staged --exit-code; then
             echo "No changes to commit"
           else
+            echo "Committing the changes"
             git commit -m "Update UML Diagrams"
-            git push
+            git push origin HEAD:${GITHUB_HEAD_REF}
           fi
