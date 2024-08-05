@@ -10,15 +10,15 @@ on:
     paths:
       - "pymc_marketing/**"
 
-permissions: write-all
-
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    permissions: write-all
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || 'main' }}
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -43,7 +43,7 @@ jobs:
           else
             echo "Committing the changes"
             git commit -m "Update UML Diagrams"
-            git push origin HEAD:${GITHUB_HEAD_REF}
+            git push origin HEAD:${GITHUB_HEAD_REF:-main}
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
