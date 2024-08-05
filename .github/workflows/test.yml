@@ -75,4 +75,3 @@ jobs:
         pip install -e .[test]
     - name: Run notebooks
       run: make run_notebooks
-
