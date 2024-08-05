@@ -35,7 +35,7 @@ jobs:
 
       - name: Push up the changes
         run: |
-          git add docs/source/_static/*.png
+          git add docs/source/uml/*.png
           if git diff --staged --exit-code; then
             echo "No changes to commit"
           else
