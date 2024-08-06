@@ -12,10 +12,6 @@ on:
       - '**.py'
       - '**.ipynb'
 
-env:
-  # The lower bound from the pyproject.toml file
-  OLDEST_PYMC_VERSION: "$(grep -E 'pymc *>' pyproject.toml | sed -n 's/.*>=\\([0-9]*\\.[0-9]*\\.[0-9]*\\).*/\\1/p')"
-
 jobs:
   example_notebooks:
     runs-on: ubuntu-latest
