@@ -20,7 +20,7 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 
-from pymc_marketing.mmm.components.saturation import (
+from pymc_marketing.mmm import (
     HillSaturation,
     InverseScaledLogisticSaturation,
     LogisticSaturation,
@@ -28,9 +28,9 @@ from pymc_marketing.mmm.components.saturation import (
     RootSaturation,
     TanhSaturation,
     TanhSaturationBaselined,
-    _get_saturation_function,
     saturation_from_dict,
 )
+from pymc_marketing.mmm.components.saturation import _get_saturation_function
 from pymc_marketing.prior import Prior
 
 
