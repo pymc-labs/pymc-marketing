@@ -1,0 +1,34 @@
+name: Test Notebook
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '**.py'
+      - '**.ipynb'
+  push:
+    branches: [main]
+    paths:
+      - '**.py'
+      - '**.ipynb'
+
+env:
+  # The lower bound from the pyproject.toml file
+  OLDEST_PYMC_VERSION: "$(grep -E 'pymc *>' pyproject.toml | sed -n 's/.*>=\\([0-9]*\\.[0-9]*\\.[0-9]*\\).*/\\1/p')"
+
+jobs:
+  example_notebooks:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.12"
+    - name: Install dependencies
+      run: |
+        sudo apt-get install graphviz
+        pip install -e .[docs]
+        pip install -e .[test]
+    - name: Run notebooks
+      run: make run_notebooks

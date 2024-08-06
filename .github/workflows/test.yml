@@ -60,18 +60,12 @@ jobs:
           name: "test_slow"
           fail_ci_if_error: false
 
-  example_notebooks:
+  all:
+    if: ${{ always() }}
     runs-on: ubuntu-latest
+    name: All checks
+    needs: [ test, test_slow ]
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python
-      uses: actions/setup-python@v3
-      with:
-        python-version: "3.12"
-    - name: Install dependencies
-      run: |
-        sudo apt-get install graphviz
-        pip install -e .[docs]
-        pip install -e .[test]
-    - name: Run notebooks
-      run: make run_notebooks
+      - name: Confirm checks passed
+        if: ${{ (needs.test.result != 'success' || needs.test_slow.result != 'success') }}
+        run: exit 1
