@@ -26,7 +26,6 @@ from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
-from pymc_marketing.prior import Prior
 
 
 # TODO: Docstring Examples
@@ -79,10 +78,10 @@ class BetaGeoBetaBinomModel(CLVModel):
         model = BetaGeoBetaBinomModel(
             data=rfm_df,
             model_config={
-                "alpha_prior": Prior("Weibull", alpha=2, beta=1),
-                "beta_prior: Prior("Weibull", alpha=2, beta=10),
-                "gamma_prior": Prior("Weibull", alpha=2, beta=1),
-                "delta_prior": Prior("Weibull", alpha=2, beta=10),
+                "alpha_prior": Prior("HalfFlat"),
+                "beta_prior": Prior("HalfFlat"),
+                "gamma_prior": Prior("HalfFlat"),
+                "delta_prior": Prior("HalfFlat"),
             },
         )
 
@@ -165,10 +164,10 @@ class BetaGeoBetaBinomModel(CLVModel):
     @property
     def default_model_config(self) -> ModelConfig:
         return {
-            "alpha_prior": Prior("HalfFlat"),
-            "beta_prior": Prior("HalfFlat"),
-            "gamma_prior": Prior("HalfFlat"),
-            "delta_prior": Prior("HalfFlat"),
+            "alpha_prior": None,
+            "beta_prior": None,
+            "gamma_prior": None,
+            "delta_prior": None,
         }
 
     def build_model(self) -> None:  # type: ignore[override]
@@ -178,11 +177,49 @@ class BetaGeoBetaBinomModel(CLVModel):
         }
         with pm.Model(coords=coords) as self.model:
             # purchase rate priors
-            alpha = self.model_config["alpha_prior"].create_variable("alpha")
-            beta = self.model_config["beta_prior"].create_variable("beta")
+            if (
+                self.model_config["alpha_prior"]
+                or self.model_config["beta_prior"] is None
+            ):
+                # hierarchical pooling of purchase rate priors
+                phi_purchase = pm.Uniform(
+                    "phi_purchase",
+                    lower=0,
+                    upper=1,
+                )
+                kappa_purchase = pm.Pareto(
+                    "kappa_purchase",
+                    alpha=1,
+                    m=1,
+                )
+                alpha = pm.Deterministic("alpha", phi_purchase * kappa_purchase)
+                beta = pm.Deterministic("beta", (1.0 - phi_purchase) * kappa_purchase)
+            else:
+                alpha = self.model_config["alpha_prior"].create_variable("alpha")
+                beta = self.model_config["beta_prior"].create_variable("beta")
+
             # dropout priors
-            gamma = self.model_config["gamma_prior"].create_variable("gamma")
-            delta = self.model_config["delta_prior"].create_variable("delta")
+            if (
+                self.model_config["gamma_prior"]
+                or self.model_config["delta_prior"] is None
+            ):
+                # hierarchical pooling of dropout rate priors
+                phi_dropout = pm.Uniform(
+                    "phi_dropout",
+                    lower=0,
+                    upper=1,
+                )
+                kappa_dropout = pm.Pareto(
+                    "kappa_dropout",
+                    alpha=1,
+                    m=1,
+                )
+
+                gamma = pm.Deterministic("gamma", phi_dropout * kappa_dropout)
+                delta = pm.Deterministic("delta", (1.0 - phi_dropout) * kappa_dropout)
+            else:
+                gamma = self.model_config["gamma_prior"].create_variable("gamma")
+                delta = self.model_config["delta_prior"].create_variable("delta")
 
             BetaGeoBetaBinom(
                 name="recency_frequency",
@@ -454,7 +491,7 @@ class BetaGeoBetaBinomModel(CLVModel):
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
-    def distribution_new_customer(
+    def _distribution_new_customers(
         self,
         data: pd.DataFrame | None = None,
         *,
@@ -504,6 +541,8 @@ class BetaGeoBetaBinomModel(CLVModel):
             # For map fit add a dummy draw dimension
             dataset = dataset.squeeze("draw").expand_dims(draw=range(1000))
 
+        # coords = self.model.coords.copy()  # type: ignore
+        # coords["customer_id"] = data["customer_id"]
         with pm.Model():
             alpha = pm.Flat("alpha")
             beta = pm.Flat("beta")
@@ -527,7 +566,7 @@ class BetaGeoBetaBinomModel(CLVModel):
                 beta=beta,
                 gamma=gamma,
                 delta=delta,
-                dims=["customer_id", "obs_var"],
+                T=T,
             )
 
             return pm.sample_posterior_predictive(
@@ -564,7 +603,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         ~xarray.Dataset
             Dataset containing the posterior samples for the population-level dropout rate.
         """
-        return self.distribution_new_customer(
+        return self._distribution_new_customers(
             data=data,
             random_seed=random_seed,
             var_names=["dropout"],
@@ -598,7 +637,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         ~xarray.Dataset
             Dataset containing the posterior samples for the population-level purchase rate.
         """
-        return self.distribution_new_customer(
+        return self._distribution_new_customers(
             data=data,
             random_seed=random_seed,
             var_names=["purchase_rate"],
@@ -635,7 +674,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         ~xarray.Dataset
             Dataset containing the posterior samples for the customer population.
         """
-        return self.distribution_new_customer(
+        return self._distribution_new_customers(
             data=data,
             T=T,
             random_seed=random_seed,

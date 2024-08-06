@@ -32,10 +32,10 @@ class TestBetaGeoBetaBinomModel:
         cls.rng = np.random.default_rng(34)
 
         # parameters
-        cls.alpha_true = 0.793
-        cls.beta_true = 2.426
-        cls.delta_true = 4.414
-        cls.gamma_true = 0.243
+        cls.alpha_true = 1.2035
+        cls.beta_true = 0.7497
+        cls.delta_true = 2.7834
+        cls.gamma_true = 0.6567
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
         test_data = pd.read_csv("data/bgbb_donations.csv")
@@ -48,6 +48,7 @@ class TestBetaGeoBetaBinomModel:
 
         # Instantiate model with CDNOW data for testing
         cls.model = BetaGeoBetaBinomModel(cls.data)
+        cls.model.build_model()
 
         # Also instantiate lifetimes model for comparison
         cls.lifetimes_model = BetaGeoBetaBinomFitter()
@@ -296,23 +297,25 @@ class TestBetaGeoBetaBinomModel:
         N = 1000
         # TODO: do these match the greek letters in the research?
         p = pm.Beta.dist(self.alpha_true, self.beta_true, size=N)
-        lam = pm.Beta.dist(self.delta_true, self.gamma_true, size=N)
+        theta = pm.Beta.dist(self.delta_true, self.gamma_true, size=N)
 
         rtol = 0.15
         np.testing.assert_allclose(
-            new_customer_dropout.mean(), pm.draw(p.mean(), random_seed=rng), rtol=rtol
+            new_customer_dropout.mean(),
+            pm.draw(theta.mean(), random_seed=rng),
+            rtol=rtol,
         )
         np.testing.assert_allclose(
-            new_customer_dropout.var(), pm.draw(p.var(), random_seed=rng), rtol=rtol
+            new_customer_dropout.var(), pm.draw(theta.var(), random_seed=rng), rtol=rtol
         )
         np.testing.assert_allclose(
             new_customer_purchase_rate.mean(),
-            pm.draw(lam.mean(), random_seed=rng),
+            pm.draw(p.mean(), random_seed=rng),
             rtol=rtol,
         )
         np.testing.assert_allclose(
             new_customer_purchase_rate.var(),
-            pm.draw(lam.var(), random_seed=rng),
+            pm.draw(p.var(), random_seed=rng),
             rtol=rtol,
         )
 
