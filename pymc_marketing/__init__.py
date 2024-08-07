@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-from pymc_marketing import clv, mmm
+from pymc_marketing import clv, mmm, product_incrementality
 from pymc_marketing.version import __version__
 
-__all__ = ["clv", "mmm", "__version__"]
+__all__ = ["clv", "mmm", "product_incrementality", "__version__"]
