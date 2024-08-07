@@ -7,6 +7,8 @@
 ----
 
 ![Build](https://github.com/pymc-labs/pymc-marketing/actions/workflows/ci.yml/badge.svg)
+![Test](https://github.com/pymc-labs/pymc-marketing/actions/workflows/test.yml/badge.svg)
+![Notebook](https://github.com/pymc-labs/pymc-marketing/actions/workflows/test_notebook.yml/badge.svg)
 [![codecov](https://codecov.io/gh/pymc-labs/pymc-marketing/branch/main/graph/badge.svg?token=OBV3BS5TYE)](https://codecov.io/gh/pymc-labs/pymc-marketing)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![docs](https://readthedocs.org/projects/pymc-marketing/badge/?version=latest)](https://docs.readthedocs.io/en/latest/)
