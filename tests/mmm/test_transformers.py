@@ -505,9 +505,11 @@ class TestSaturationTransformers:
     )
     def test_hill_behavior_at_lambda(self, x, sigma, beta, lam, expected):
         y = hill_saturation(x, sigma, beta, lam).eval()
+        offset = sigma / (1 + np.exp(beta * lam))
+        expected_with_offset = expected - offset
         np.testing.assert_almost_equal(
             y,
-            expected,
+            expected_with_offset,
             decimal=5,
             err_msg="The function does not behave as expected at lambda.",
         )
@@ -537,7 +539,8 @@ class TestSaturationTransformers:
     def test_hill_asymptotic_behavior(self, sigma, beta, lam):
         x = 1e6  # A very large value to approximate infinity
         y = hill_saturation(x, sigma, beta, lam).eval()
-        expected = sigma * (1 - 1 / (1 + np.exp(beta * lam)))
+        offset = sigma / (1 + np.exp(beta * lam))
+        expected = sigma - offset
         np.testing.assert_almost_equal(
             y,
             expected,
