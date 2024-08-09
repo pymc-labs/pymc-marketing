@@ -908,7 +908,7 @@ def hill_saturation(
     r"""Hill Saturation Function
 
     .. math::
-        f(x) = \frac{\sigma}{1 + e^{-\beta(x - \lambda)}}
+        f(x) = \frac{\sigma}{1 + e^{-\beta(x - \lambda)}} - \frac{\sigma}{1 + e^{\beta\lambda}}
 
     where:
      - :math:`\sigma` is the maximum value (upper asymptote)
@@ -968,6 +968,7 @@ def hill_saturation(
         plt.ylabel('Hill Saturation')
         plt.tight_layout()
         plt.show()
+
     Parameters
     ----------
     x : float or array-like
@@ -987,7 +988,7 @@ def hill_saturation(
     float or array-like
         The value of the Hill function for each input value of x.
     """
-    return sigma / (1 + pt.exp(-beta * (x - lam)))
+    return sigma / (1 + pt.exp(-beta * (x - lam))) - sigma / (1 + pt.exp(beta * lam))
 
 
 def root_saturation(

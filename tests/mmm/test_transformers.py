@@ -466,10 +466,22 @@ class TestSaturationTransformers:
             (3, 2, -1),
         ],
     )
-    def test_monotonicity(self, sigma, beta, lam):
+    def test_hill_monotonicity(self, sigma, beta, lam):
         x = np.linspace(-10, 10, 100)
         y = hill_saturation(x, sigma, beta, lam).eval()
         assert np.all(np.diff(y) >= 0), "The function is not monotonic."
+
+    @pytest.mark.parametrize(
+        "sigma, beta, lam",
+        [
+            (1, 1, 0),
+            (2, 0.5, 1),
+            (3, 2, -1),
+        ],
+    )
+    def test_hill_zero(self, sigma, beta, lam):
+        y = hill_saturation(0, sigma, beta, lam).eval()
+        assert pytest.approx(y, 0.0)
 
     @pytest.mark.parametrize(
         "x, sigma, beta, lam",
