@@ -491,7 +491,7 @@ class TestSaturationTransformers:
             (-3, 3, 2, -1),
         ],
     )
-    def test_sigma_upper_bound(self, x, sigma, beta, lam):
+    def test_hill_sigma_upper_bound(self, x, sigma, beta, lam):
         y = hill_saturation(x, sigma, beta, lam).eval()
         assert y <= sigma, f"The output {y} exceeds the upper bound sigma {sigma}."
 
@@ -503,7 +503,7 @@ class TestSaturationTransformers:
             (-1, 3, 2, -1, 1.5),
         ],
     )
-    def test_behavior_at_lambda(self, x, sigma, beta, lam, expected):
+    def test_hill_behavior_at_lambda(self, x, sigma, beta, lam, expected):
         y = hill_saturation(x, sigma, beta, lam).eval()
         np.testing.assert_almost_equal(
             y,
@@ -520,7 +520,7 @@ class TestSaturationTransformers:
             (np.array([1, 2, 3]), 3, 2, 2),
         ],
     )
-    def test_vectorized_input(self, x, sigma, beta, lam):
+    def test_hill_vectorized_input(self, x, sigma, beta, lam):
         y = hill_saturation(x, sigma, beta, lam).eval()
         assert (
             y.shape == x.shape
@@ -534,7 +534,7 @@ class TestSaturationTransformers:
             (3, 2, -1),
         ],
     )
-    def test_asymptotic_behavior(self, sigma, beta, lam):
+    def test_hill_asymptotic_behavior(self, sigma, beta, lam):
         x = 1e6  # A very large value to approximate infinity
         y = hill_saturation(x, sigma, beta, lam).eval()
         np.testing.assert_almost_equal(
