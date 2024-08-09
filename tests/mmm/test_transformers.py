@@ -481,7 +481,7 @@ class TestSaturationTransformers:
     )
     def test_hill_zero(self, sigma, beta, lam):
         y = hill_saturation(0, sigma, beta, lam).eval()
-        assert pytest.approx(y, 0.0)
+        assert y == pytest.approx(0.0)
 
     @pytest.mark.parametrize(
         "x, sigma, beta, lam",
@@ -537,9 +537,10 @@ class TestSaturationTransformers:
     def test_hill_asymptotic_behavior(self, sigma, beta, lam):
         x = 1e6  # A very large value to approximate infinity
         y = hill_saturation(x, sigma, beta, lam).eval()
+        expected = sigma * (1 - 1 / (1 + np.exp(beta * lam)))
         np.testing.assert_almost_equal(
             y,
-            sigma,
+            expected,
             decimal=5,
             err_msg="The function does not approach sigma as x approaches infinity.",
         )
