@@ -26,6 +26,7 @@ from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
+from pymc_marketing.prior import Prior
 
 
 # TODO: Docstring Examples
@@ -168,6 +169,10 @@ class BetaGeoBetaBinomModel(CLVModel):
             "beta_prior": None,
             "gamma_prior": None,
             "delta_prior": None,
+            "phi_purchase_prior": Prior("Uniform", lower=0, upper=1),
+            "kappa_purchase_prior": Prior("Pareto", alpha=1, m=1),
+            "phi_dropout_prior": Prior("Uniform", lower=0, upper=1),
+            "kappa_dropout_prior": Prior("Pareto", alpha=1, m=1),
         }
 
     def build_model(self) -> None:  # type: ignore[override]
@@ -178,20 +183,17 @@ class BetaGeoBetaBinomModel(CLVModel):
         with pm.Model(coords=coords) as self.model:
             # purchase rate priors
             if (
-                self.model_config["alpha_prior"]
+                self.model_config["alpha_prior"] is None
                 or self.model_config["beta_prior"] is None
             ):
                 # hierarchical pooling of purchase rate priors
-                phi_purchase = pm.Uniform(
-                    "phi_purchase",
-                    lower=0,
-                    upper=1,
+                phi_purchase = self.model_config["phi_purchase_prior"].create_variable(
+                    "phi_purchase"
                 )
-                kappa_purchase = pm.Pareto(
-                    "kappa_purchase",
-                    alpha=1,
-                    m=1,
-                )
+                kappa_purchase = self.model_config[
+                    "kappa_purchase_prior"
+                ].create_variable("kappa_purchase")
+
                 alpha = pm.Deterministic("alpha", phi_purchase * kappa_purchase)
                 beta = pm.Deterministic("beta", (1.0 - phi_purchase) * kappa_purchase)
             else:
@@ -200,20 +202,16 @@ class BetaGeoBetaBinomModel(CLVModel):
 
             # dropout priors
             if (
-                self.model_config["gamma_prior"]
+                self.model_config["gamma_prior"] is None
                 or self.model_config["delta_prior"] is None
             ):
                 # hierarchical pooling of dropout rate priors
-                phi_dropout = pm.Uniform(
-                    "phi_dropout",
-                    lower=0,
-                    upper=1,
+                phi_dropout = self.model_config["phi_dropout_prior"].create_variable(
+                    "phi_dropout"
                 )
-                kappa_dropout = pm.Pareto(
-                    "kappa_dropout",
-                    alpha=1,
-                    m=1,
-                )
+                kappa_dropout = self.model_config[
+                    "kappa_dropout_prior"
+                ].create_variable("kappa_dropout")
 
                 gamma = pm.Deterministic("gamma", phi_dropout * kappa_dropout)
                 delta = pm.Deterministic("delta", (1.0 - phi_dropout) * kappa_dropout)
@@ -248,12 +246,11 @@ class BetaGeoBetaBinomModel(CLVModel):
         """
         Utility function for using BG/BB log-likelihood in predictive methods.
         """
-        # Add one dummy dimension to the right of the scalar parameters, so they broadcast with the `T` vector
         bgbb_dist = BetaGeoBetaBinom.dist(
-            alpha=alpha.values[..., None],
-            beta=beta.values[..., None],
-            gamma=gamma.values[..., None],
-            delta=delta.values[..., None],
+            alpha=alpha.squeeze().values[..., None],
+            beta=beta.squeeze().values[..., None],
+            gamma=gamma.squeeze().values[..., None],
+            delta=delta.squeeze().values[..., None],
             T=T.values,
         )
         values = np.vstack((t_x.values, x.values)).T

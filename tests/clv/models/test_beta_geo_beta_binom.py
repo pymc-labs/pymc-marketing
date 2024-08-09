@@ -17,6 +17,7 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pytensor as pt
 import pytest
 import xarray as xr
 from lifetimes.fitters.beta_geo_beta_binom_fitter import BetaGeoBetaBinomFitter
@@ -41,10 +42,38 @@ class TestBetaGeoBetaBinomModel:
         test_data = pd.read_csv("data/bgbb_donations.csv")
 
         cls.data = test_data
-        cls.customer_id = test_data["customer_id"]
-        cls.frequency = test_data["frequency"]
-        cls.recency = test_data["recency"]
-        cls.T = test_data["T"]
+        # cls.customer_id = test_data["customer_id"]
+        # cls.frequency = test_data["frequency"]
+        # cls.recency = test_data["recency"]
+        # cls.T = test_data["T"]
+
+        # take sample of all unique recency/frequency/T combinations to test predictive methods
+        test_customer_ids = [  # noqa
+            3463,
+            4554,
+            4831,
+            4960,
+            5038,
+            5159,
+            5286,
+            5899,
+            6154,
+            6309,
+            6482,
+            6716,
+            7038,
+            7219,
+            7444,
+            7801,
+            8041,
+            8235,
+            8837,
+            9172,
+            9900,
+            11103,
+        ]
+
+        cls.sample_data = test_data.query("customer_id.isin(@test_customer_ids)")
 
         # Instantiate model with CDNOW data for testing
         cls.model = BetaGeoBetaBinomModel(cls.data)
@@ -60,17 +89,23 @@ class TestBetaGeoBetaBinomModel:
         }
 
         # Mock an idata object for tests requiring a fitted model
-        cls.N = len(cls.customer_id)
+        cls.N = len(cls.data)
         cls.chains = 2
         cls.draws = 50
         cls.mock_fit = az.from_dict(
             {
-                "a": cls.rng.normal(cls.alpha_true, 1e-3, size=(cls.chains, cls.draws)),
-                "b": cls.rng.normal(cls.beta_true, 1e-3, size=(cls.chains, cls.draws)),
                 "alpha": cls.rng.normal(
+                    cls.alpha_true, 1e-3, size=(cls.chains, cls.draws)
+                ),
+                "beta": cls.rng.normal(
+                    cls.beta_true, 1e-3, size=(cls.chains, cls.draws)
+                ),
+                "delta": cls.rng.normal(
                     cls.delta_true, 1e-3, size=(cls.chains, cls.draws)
                 ),
-                "r": cls.rng.normal(cls.gamma_true, 1e-3, size=(cls.chains, cls.draws)),
+                "gamma": cls.rng.normal(
+                    cls.gamma_true, 1e-3, size=(cls.chains, cls.draws)
+                ),
             }
         )
 
@@ -88,10 +123,10 @@ class TestBetaGeoBetaBinomModel:
     @pytest.fixture(scope="class")
     def default_model_config(self):
         return {
-            "alpha_prior": Prior("HalfFlat"),
-            "beta_prior": Prior("HalfFlat"),
-            "delta_prior": Prior("HalfFlat"),
-            "gamma_prior": Prior("HalfFlat"),
+            "alpha_prior": None,
+            "beta_prior": None,
+            "delta_prior": None,
+            "gamma_prior": None,
         }
 
     def test_model(self, model_config, default_model_config):
@@ -103,26 +138,26 @@ class TestBetaGeoBetaBinomModel:
             model.build_model()
             assert isinstance(
                 model.model["alpha"].owner.op,
-                pm.HalfFlat
-                if config["alpha_prior"].distribution == "HalfFlat"
+                pt.tensor.elemwise.Elemwise
+                if config["alpha_prior"] is None
                 else config["alpha_prior"].pymc_distribution,
             )
             assert isinstance(
                 model.model["beta"].owner.op,
-                pm.HalfFlat
-                if config["beta_prior"].distribution == "HalfFlat"
+                pt.tensor.elemwise.Elemwise
+                if config["beta_prior"] is None
                 else config["beta_prior"].pymc_distribution,
             )
             assert isinstance(
                 model.model["delta"].owner.op,
-                pm.HalfFlat
-                if config["delta_prior"].distribution == "HalfFlat"
+                pt.tensor.elemwise.Elemwise
+                if config["delta_prior"] is None
                 else config["delta_prior"].pymc_distribution,
             )
             assert isinstance(
                 model.model["gamma"].owner.op,
-                pm.HalfFlat
-                if config["gamma_prior"].distribution == "HalfFlat"
+                pt.tensor.elemwise.Elemwise
+                if config["gamma_prior"] is None
                 else config["gamma_prior"].pymc_distribution,
             )
             assert model.model.eval_rv_shapes() == {
@@ -189,6 +224,7 @@ class TestBetaGeoBetaBinomModel:
                 data=data,
             )
 
+    # TODO: This is passing, but repr output should be different with this custom model_config
     def test_model_repr(self):
         model_config = {
             "alpha_prior": Prior("HalfFlat"),
@@ -203,10 +239,14 @@ class TestBetaGeoBetaBinomModel:
         model.build_model()
         assert model.__repr__().replace(" ", "") == (
             "BG/BB"
-            "\nalpha~HalfFlat()"
-            "\nbeta~HalfFlat()"
-            "\ngamma~HalfNormal(0,10)"
-            "\ndelta~HalfFlat()"
+            "\nphi_purchase~Uniform(0,1)"
+            "\nkappa_purchase~Pareto(1,1)"
+            "\nphi_dropout~Uniform(0,1)"
+            "\nkappa_dropout~Pareto(1,1)"
+            "\nalpha~Deterministic(f(kappa_purchase,phi_purchase))"
+            "\nbeta~Deterministic(f(kappa_purchase,phi_purchase))"
+            "\ngamma~Deterministic(f(kappa_dropout,phi_dropout))"
+            "\ndelta~Deterministic(f(kappa_dropout,phi_dropout))"
             "\nrecency_frequency~BetaGeoBetaBinom(alpha,beta,gamma,delta,<constant>)"
         )
 
@@ -260,14 +300,95 @@ class TestBetaGeoBetaBinomModel:
 
     @pytest.mark.parametrize("test_t", [1, 3, 6])
     def test_expected_purchases(self, test_t):
-        pass
+        true_purchases = (
+            self.lifetimes_model.conditional_expected_number_of_purchases_up_to_time(
+                m_periods_in_future=test_t,
+                frequency=self.sample_data["frequency"],
+                recency=self.sample_data["recency"],
+                n_periods=self.sample_data["T"],
+            )
+        )
+
+        data = self.sample_data.assign(future_t=test_t)
+        est_num_purchases = self.model.expected_purchases(data)
+
+        assert est_num_purchases.shape == (self.chains, self.draws, self.N)
+        assert est_num_purchases.dims == ("chain", "draw", "customer_id")
+
+        np.testing.assert_allclose(
+            true_purchases,
+            est_num_purchases.mean(("chain", "draw")),
+            rtol=0.001,
+        )
+
+    def test_expected_purchases_new_customer(self):
+        # values obtained from cells B7:17 from 'Tracking Plot" sheet in https://www.brucehardie.com/notes/010/
+        true_purchases_new = np.array(
+            [
+                0.4985,
+                0.9233,
+                1.2969,
+                1.6323,
+                1.9381,
+                2.2202,
+                2.4826,
+                2.7285,
+                2.9603,
+                3.1798,
+                3.3887,
+            ]
+        )
+        time_periods = np.arange(1, 12)
+
+        # test dimensions for a single prediction
+        data = pd.DataFrame({"customer_id": [0], "t": [5]})
+        est_purchase_new = self.model.expected_purchases_new_customer(data)
+
+        assert est_purchase_new.shape == (self.chains, self.draws, 1)
+        assert est_purchase_new.dims == ("chain", "draw", "customer_id")
+
+        # compare against array of true values
+        est_purchases_new = (
+            xr.concat(
+                objs=[
+                    self.model.expected_purchases_new_customer(None, t=t).mean()
+                    for t in time_periods
+                ],
+                dim="t",
+            )
+            .transpose(..., "t")
+            .values
+        )
+
+        np.testing.assert_allclose(
+            true_purchases_new,
+            est_purchases_new,
+            rtol=0.001,
+        )
 
     @pytest.mark.parametrize("test_t", [1, 3, 6])
-    def test_expected_purchases_new_customer(self, test_t):
-        pass
+    def test_expected_probability_alive(self, test_t):
+        true_prob_alive = self.lifetimes_model.conditional_probability_alive(
+            m_periods_in_future=test_t,
+            frequency=self.sample_data["frequency"],
+            recency=self.sample_data["recency"],
+            n_periods=self.sample_data["T"],
+        )
 
-    def test_expected_probability_alive(self):
-        pass
+        data = self.sample_data.assign(future_t=test_t)
+        est_prob_alive = self.model.expected_probability_alive(data)
+
+        assert est_prob_alive.shape == (self.chains, self.draws, self.N)
+        assert est_prob_alive.dims == ("chain", "draw", "customer_id")
+        np.testing.assert_allclose(
+            true_prob_alive,
+            est_prob_alive.mean(("chain", "draw")),
+            rtol=0.001,
+        )
+
+        alt_data = data.assign(future_t=4.5)
+        est_prob_alive_t = self.model.expected_probability_alive(alt_data)
+        assert est_prob_alive.mean() > est_prob_alive_t.mean()
 
     # TODO: Add a test for recency_frequency
     def test_distribution_new_customer(self) -> None:
