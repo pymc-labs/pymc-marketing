@@ -52,6 +52,9 @@ def save_data(model: Model, idata: az.InferenceData) -> None:
         if var.name in idata.observed_data
     }
 
+    if not features and not targets:
+        return
+
     data = mlflow.data.from_numpy(features=features, targets=targets)
     mlflow.log_input(data, context="sample")
 
