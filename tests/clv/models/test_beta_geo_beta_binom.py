@@ -120,56 +120,65 @@ class TestBetaGeoBetaBinomModel:
             "gamma_prior": Prior("Gamma", alpha=1, beta=1),
         }
 
-    @pytest.fixture(scope="class")
-    def default_model_config(self):
-        return {
-            "alpha_prior": None,
-            "beta_prior": None,
-            "delta_prior": None,
-            "gamma_prior": None,
-        }
+    def test_model(self, model_config):
+        # this test requires a different setup from other models due to default_model_config containing NoneTypes
+        default_model = BetaGeoBetaBinomModel(
+            data=self.data,
+            model_config=None,
+        )
+        custom_model = BetaGeoBetaBinomModel(
+            data=self.data,
+            model_config=model_config,
+        )
 
-    def test_model(self, model_config, default_model_config):
-        for config in (model_config, default_model_config):
-            model = BetaGeoBetaBinomModel(
-                data=self.data,
-                model_config=config,
-            )
+        for model in (default_model, custom_model):
             model.build_model()
             assert isinstance(
                 model.model["alpha"].owner.op,
                 pt.tensor.elemwise.Elemwise
-                if config["alpha_prior"] is None
-                else config["alpha_prior"].pymc_distribution,
+                if model.model_config["alpha_prior"] is None
+                else model.model_config["alpha_prior"].pymc_distribution,
             )
             assert isinstance(
                 model.model["beta"].owner.op,
                 pt.tensor.elemwise.Elemwise
-                if config["beta_prior"] is None
-                else config["beta_prior"].pymc_distribution,
+                if model.model_config["beta_prior"] is None
+                else model.model_config["beta_prior"].pymc_distribution,
             )
             assert isinstance(
                 model.model["delta"].owner.op,
                 pt.tensor.elemwise.Elemwise
-                if config["delta_prior"] is None
-                else config["delta_prior"].pymc_distribution,
+                if model.model_config["delta_prior"] is None
+                else model.model_config["delta_prior"].pymc_distribution,
             )
             assert isinstance(
                 model.model["gamma"].owner.op,
                 pt.tensor.elemwise.Elemwise
-                if config["gamma_prior"] is None
-                else config["gamma_prior"].pymc_distribution,
+                if model.model_config["gamma_prior"] is None
+                else model.model_config["gamma_prior"].pymc_distribution,
             )
-            assert model.model.eval_rv_shapes() == {
-                "alpha": (),
-                "alpha_log__": (),
-                "beta": (),
-                "beta_log__": (),
-                "delta": (),
-                "delta_log__": (),
-                "gamma": (),
-                "gamma_log__": (),
-            }
+
+        assert default_model.model.eval_rv_shapes() == {
+            "kappa_dropout": (),
+            "kappa_dropout_interval__": (),
+            "kappa_purchase": (),
+            "kappa_purchase_interval__": (),
+            "phi_dropout": (),
+            "phi_dropout_interval__": (),
+            "phi_purchase": (),
+            "phi_purchase_interval__": (),
+        }
+
+        assert custom_model.model.eval_rv_shapes() == {
+            "alpha": (),
+            "alpha_log__": (),
+            "beta": (),
+            "beta_log__": (),
+            "delta": (),
+            "delta_log__": (),
+            "gamma": (),
+            "gamma_log__": (),
+        }
 
     def test_missing_cols(self):
         data_invalid = self.data.drop(columns="customer_id")
@@ -224,31 +233,44 @@ class TestBetaGeoBetaBinomModel:
                 data=data,
             )
 
-    # TODO: This is passing, but repr output should be different with this custom model_config
-    def test_model_repr(self):
-        model_config = {
-            "alpha_prior": Prior("HalfFlat"),
-            "beta_prior": Prior("HalfFlat"),
-            "delta_prior": Prior("HalfFlat"),
-            "gamma_prior": Prior("HalfNormal", sigma=10),
-        }
+    @pytest.mark.parametrize("custom_config", (True, False))
+    def test_model_repr(self, custom_config):
+        if custom_config:
+            model_config = {
+                "alpha_prior": Prior("HalfFlat"),
+                "beta_prior": Prior("HalfFlat"),
+                "delta_prior": Prior("HalfFlat"),
+                "gamma_prior": Prior("HalfNormal", sigma=10),
+            }
+            repr = (
+                "BG/BB"
+                "\nalpha~HalfFlat()"
+                "\nbeta~HalfFlat()"
+                "\ngamma~HalfNormal(0,10)"
+                "\ndelta~HalfFlat()"
+                "\nrecency_frequency~BetaGeoBetaBinom(alpha,beta,gamma,delta,<constant>)"
+            )
+        else:
+            model_config = None
+            repr = (
+                "BG/BB"
+                "\nphi_purchase~Uniform(0,1)"
+                "\nkappa_purchase~Pareto(1,1)"
+                "\nphi_dropout~Uniform(0,1)"
+                "\nkappa_dropout~Pareto(1,1)"
+                "\nalpha~Deterministic(f(kappa_purchase,phi_purchase))"
+                "\nbeta~Deterministic(f(kappa_purchase,phi_purchase))"
+                "\ngamma~Deterministic(f(kappa_dropout,phi_dropout))"
+                "\ndelta~Deterministic(f(kappa_dropout,phi_dropout))"
+                "\nrecency_frequency~BetaGeoBetaBinom(alpha,beta,gamma,delta,<constant>)"
+            )
         model = BetaGeoBetaBinomModel(
             data=self.data,
             model_config=model_config,
         )
         model.build_model()
-        assert model.__repr__().replace(" ", "") == (
-            "BG/BB"
-            "\nphi_purchase~Uniform(0,1)"
-            "\nkappa_purchase~Pareto(1,1)"
-            "\nphi_dropout~Uniform(0,1)"
-            "\nkappa_dropout~Pareto(1,1)"
-            "\nalpha~Deterministic(f(kappa_purchase,phi_purchase))"
-            "\nbeta~Deterministic(f(kappa_purchase,phi_purchase))"
-            "\ngamma~Deterministic(f(kappa_dropout,phi_dropout))"
-            "\ndelta~Deterministic(f(kappa_dropout,phi_dropout))"
-            "\nrecency_frequency~BetaGeoBetaBinom(alpha,beta,gamma,delta,<constant>)"
-        )
+
+        assert model.__repr__().replace(" ", "") == repr
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
@@ -440,6 +462,7 @@ class TestBetaGeoBetaBinomModel:
             rtol=rtol,
         )
 
+    # TODO: Deterministic Priors are needed for this test to pass (or just do away with the current model setup for now)
     def test_save_load(self):
         self.model.build_model()
         self.model.fit("map", maxeval=1)

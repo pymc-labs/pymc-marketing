@@ -247,10 +247,10 @@ class BetaGeoBetaBinomModel(CLVModel):
         Utility function for using BG/BB log-likelihood in predictive methods.
         """
         bgbb_dist = BetaGeoBetaBinom.dist(
-            alpha=alpha.squeeze().values[..., None],
-            beta=beta.squeeze().values[..., None],
-            gamma=gamma.squeeze().values[..., None],
-            delta=delta.squeeze().values[..., None],
+            alpha=alpha.values,
+            beta=beta.values,
+            gamma=gamma.values,
+            delta=delta.values,
             T=T.values,
         )
         values = np.vstack((t_x.values, x.values)).T
