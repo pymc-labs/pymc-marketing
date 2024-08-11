@@ -201,6 +201,7 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
     assert parsed_inputs["features_shape"] == {
         "channel_data": [135, 2],
         "control_data": [135, 2],
+        "dayofyear": [135],
     }
     assert parsed_inputs["targets_shape"] == {
         "y": [135],
