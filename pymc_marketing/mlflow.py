@@ -122,7 +122,7 @@ def diagnostics_sample(idata: az.InferenceData, var_names) -> None:
         )
 
     if tuning_step := sample_stats.attrs.get("tuning_steps"):
-        mlflow.log_metric("tuning_steps", tuning_step)
+        mlflow.log_param("tuning_steps", tuning_step)
     mlflow.log_param("draws", posterior.sizes["draw"])
     mlflow.log_param("chains", posterior.sizes["chain"])
 
