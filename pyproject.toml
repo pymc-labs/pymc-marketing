@@ -71,6 +71,7 @@ test = [
     "pytest-cov==3.0.0",
     "pytest-mock==3.14.0",
     "pytest==7.0.1",
+    "mlflow>=2.0.0",
 ]
 
 [tool.setuptools]
