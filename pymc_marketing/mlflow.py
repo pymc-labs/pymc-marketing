@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import json
 import os
 from functools import wraps
 from pathlib import Path
@@ -27,6 +28,8 @@ except ImportError:
 
 from mlflow.utils.autologging_utils import autologging_integration
 
+from pymc_marketing.mmm import MMM
+
 FLAVOR_NAME = "pymc"
 
 
@@ -39,10 +42,14 @@ def save_arviz_summary(idata: az.InferenceData, path: str | Path, var_names) -> 
 
 def save_data(model: Model, idata: az.InferenceData) -> None:
     features = {
-        var.name: idata.constant_data[var.name].to_numpy() for var in model.data_vars
+        var.name: idata.constant_data[var.name].to_numpy()
+        for var in model.data_vars
+        if var.name in idata.constant_data
     }
     targets = {
-        var.name: idata.observed_data[var.name].to_numpy() for var in model.observed_RVs
+        var.name: idata.observed_data[var.name].to_numpy()
+        for var in model.observed_RVs
+        if var.name in idata.observed_data
     }
 
     data = mlflow.data.from_numpy(features=features, targets=targets)
@@ -142,8 +149,9 @@ def autolog(
     log_datasets: bool = True,
     sampling_diagnostics: bool = True,
     model_info: bool = True,
-    end_run_after_sample: bool = True,
+    end_run_after_sample: bool = False,
     summary_var_names: list[str] | None = None,
+    log_mmm: bool = True,
     disable: bool = False,
     silent: bool = False,
 ) -> None:
@@ -172,3 +180,32 @@ def autolog(
         return new_sample
 
     pm.sample = patch_sample(pm.sample)
+
+    def patch_mmm_fit(fit):
+        @wraps(fit)
+        def new_fit(*args, **kwargs):
+            idata = fit(*args, **kwargs)
+            if not log_mmm:
+                return idata
+
+            mlflow.log_params(
+                idata.attrs,
+            )
+            mlflow.log_param(
+                "adstock_name",
+                json.loads(idata.attrs["adstock"])["lookup_name"],
+            )
+            mlflow.log_param(
+                "saturation_name",
+                json.loads(idata.attrs["saturation"])["lookup_name"],
+            )
+            save_file = "idata.nc"
+            idata.to_netcdf(save_file)
+            mlflow.log_artifact(local_path=save_file)
+            os.remove(save_file)
+
+            return idata
+
+        return new_fit
+
+    MMM.fit = patch_mmm_fit(MMM.fit)
