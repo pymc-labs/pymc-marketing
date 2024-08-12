@@ -72,7 +72,6 @@ Autologging for a PyMC-Marketing model:
 
     X = data.drop("y",axis=1)
     y = data["y"]
-    mmm.fit(X,y)
 
     mmm = MMM(
         adstock=GeometricAdstock(l_max=8),
