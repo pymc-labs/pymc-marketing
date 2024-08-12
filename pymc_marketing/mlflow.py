@@ -11,6 +11,94 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""MLflow logging utilities for PyMC models.
+
+This module provides utilities to log various aspects of PyMC models to MLflow
+which is then extended to PyMC-Marketing models.
+
+Autologging is supported for PyMC models and PyMC-Marketing models. This including
+logging of sampler diagnostics, model information, data used in the model, and
+InferenceData objects.
+
+The autologging can be enabled by calling the `autolog` function. This function
+patches the `pymc.sample` and `MMM.fit` calls to log the required information.
+
+Examples
+--------
+Autologging for a PyMC model:
+
+.. code-block:: python
+
+    import mlflow
+
+    import pymc as pm
+
+    import pymc_marketing.mlflow
+
+    pymc_marketing.mlflow.autolog()
+
+    # Usual PyMC model code
+    with pm.Model() as model:
+        mu = pm.Normal("mu", mu=0, sigma=1)
+        obs = pm.Normal("obs", mu=mu, sigma=1, observed=[1, 2, 3])
+
+    # Incorporate into MLflow workflow
+    mlflow.set_experiment("PyMC Experiment")
+
+    with mlflow.start_run():
+        idata = pm.sample(model=model)
+
+Autologging for a PyMC-Marketing model:
+
+.. code-block:: python
+
+    import pandas as pd
+
+    import mlflow
+
+    from pymc_marketing.mmm import (
+        GeometricAdstock,
+        LogisticSaturation,
+        MMM,
+    )
+    import pymc_marketing.mlflow
+
+    pymc_marketing.mlflow.autolog(log_mmm=True)
+
+    # Usual PyMC-Marketing model code
+
+    data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
+    data = pd.read_csv(data_url, parse_dates=["date_week"])
+
+    X = data.drop("y",axis=1)
+    y = data["y"]
+    mmm.fit(X,y)
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        date_column="date_week",
+        channel_columns=["x1", "x2"],
+        control_columns=[
+            "event_1",
+            "event_2",
+            "t",
+        ],
+        yearly_seasonality=2,
+    )
+
+    # Incorporate into MLflow workflow
+
+    mlflow.set_experiment("MMM Experiment")
+
+    with mlflow.start_run():
+        idata = mmm.fit(X, y)
+
+        fig = mmm.plot_components_contributions()
+        mlflow.log_figure(fig, "components.png")
+
+"""
+
 import json
 import os
 from functools import wraps
@@ -33,14 +121,47 @@ from pymc_marketing.mmm import MMM
 FLAVOR_NAME = "pymc"
 
 
-def save_arviz_summary(idata: az.InferenceData, path: str | Path, var_names) -> None:
+def log_arviz_summary(
+    idata: az.InferenceData,
+    path: str | Path,
+    var_names: list[str] | None = None,
+) -> None:
+    """Log the ArviZ summary as an artifact on MLflow.
+
+    Automatically removes the file after logging.
+
+    Parameters
+    ----------
+    idata : az.InferenceData
+        The InferenceData object returned by the sampling method.
+    path : str | Path
+        The path to save the summary as HTML.
+    var_names : list[str], optional
+        The names of the variables to include in the summary. Default is
+        all the variables in the InferenceData object.
+
+    """
     df_summary = az.summary(idata, var_names=var_names)
     df_summary.to_html(path)
     mlflow.log_artifact(str(path))
     os.remove(path)
 
 
-def save_data(model: Model, idata: az.InferenceData) -> None:
+def log_data(model: Model, idata: az.InferenceData) -> None:
+    """Log the data used in the model to MLflow.
+
+    Saved in the form of numpy arrays based on all the constant and observed data
+    in the model.
+
+    Parameters
+    ----------
+    model : Model
+        The PyMC model object.
+    idata : az.InferenceData
+        The InferenceData object returned by the sampling method.
+
+    """
+
     features = {
         var.name: idata.constant_data[var.name].to_numpy()
         for var in model.data_vars
@@ -59,7 +180,19 @@ def save_data(model: Model, idata: az.InferenceData) -> None:
     mlflow.log_input(data, context="sample")
 
 
-def save_model_graph(model: Model, path: str | Path) -> None:
+def log_model_graph(model: Model, path: str | Path) -> None:
+    """Log the model graph PDF as artifact on MLflow.
+
+    Automatically removes the file after logging.
+
+    Parameters
+    ----------
+    model : Model
+        The PyMC model object.
+    path : str | Path
+        The path to save the model graph
+
+    """
     try:
         graph = pm.model_to_graphviz(model)
     except ImportError:
@@ -75,7 +208,7 @@ def save_model_graph(model: Model, path: str | Path) -> None:
         os.remove(path)
 
 
-def get_random_variable_name(rv) -> str:
+def _get_random_variable_name(rv) -> str:
     # Taken from new version of pymc/model_graph.py
     symbol = rv.owner.op.__class__.__name__
 
@@ -85,7 +218,15 @@ def get_random_variable_name(rv) -> str:
     return symbol
 
 
-def save_types_of_parameters(model: Model) -> None:
+def log_types_of_parameters(model: Model) -> None:
+    """Log the types of parameters in a PyMC model to MLflow.
+
+    Parameters
+    ----------
+    model : Model
+        The PyMC model object.
+
+    """
     mlflow.log_param("n_free_RVs", len(model.free_RVs))
     mlflow.log_param("n_observed_RVs", len(model.observed_RVs))
     mlflow.log_param(
@@ -95,31 +236,74 @@ def save_types_of_parameters(model: Model) -> None:
     mlflow.log_param("n_potentials", len(model.potentials))
 
 
-def save_likelihood_type(model: Model) -> None:
-    observed_RVs_types = [get_random_variable_name(rv) for rv in model.observed_RVs]
+def log_likelihood_type(model: Model) -> None:
+    """Save the likelihood type of the model to MLflow.
+
+    Parameters
+    ----------
+    model : Model
+        The PyMC model object.
+
+    """
+    observed_RVs_types = [_get_random_variable_name(rv) for rv in model.observed_RVs]
     if len(observed_RVs_types) == 1:
         mlflow.log_param("likelihood", observed_RVs_types[0])
     elif len(observed_RVs_types) > 1:
         mlflow.log_param("observed_RVs_types", observed_RVs_types)
 
 
-def log_model_info(model: Model) -> None:
-    save_types_of_parameters(model)
+def log_model_derived_info(model: Model) -> None:
+    """Log various model derived information to MLflow.
+
+    Includes:
+
+    - The types of parameters in the model.
+    - The likelihood type of the model.
+    - The model representation (str).
+    - The model coordinates (coords.json).
+
+    """
+    log_types_of_parameters(model)
 
     mlflow.log_text(model.str_repr(), "model_repr.txt")
-    mlflow.log_dict(
-        model.coords,
-        "coords.json",
-    )
 
-    save_model_graph(model, "model_graph")
+    if model.coords:
+        mlflow.log_dict(
+            model.coords,
+            "coords.json",
+        )
 
-    save_likelihood_type(model)
+    log_model_graph(model, "model_graph")
+    log_likelihood_type(model)
 
 
-def diagnostics_sample(idata: az.InferenceData, var_names) -> None:
-    posterior = idata.posterior
-    sample_stats = idata.sample_stats
+def log_sample_diagnostics(
+    idata: az.InferenceData,
+) -> None:
+    """Log sample diagnostics to MLflow.
+
+    Includes:
+
+    - The total number of divergences
+    - The total sampling time in seconds (if available)
+    - The time per draw in seconds (if available)
+    - The number of tuning steps (if available)
+    - The number of draws
+    - The number of chains
+    - The inference library used
+    - The version of the inference library
+    - The version of ArviZ
+
+    """
+    if "posterior" not in idata:
+        raise ValueError("InferenceData object does not contain posterior samples.")
+
+    if "sample_stats" not in idata:
+        raise ValueError("InferenceData object does not contain sample stats.")
+
+    posterior = idata["posterior"]
+    sample_stats = idata["sample_stats"]
+
     diverging = sample_stats["diverging"]
 
     total_divergences = diverging.sum().item()
@@ -144,39 +328,76 @@ def diagnostics_sample(idata: az.InferenceData, var_names) -> None:
         )
     mlflow.log_param("arviz_version", posterior.attrs["arviz_version"])
 
-    save_arviz_summary(idata, "summary.html", var_names=var_names)
+
+def log_inference_data(
+    idata: az.InferenceData,
+    save_file: str | Path = "idata.nc",
+) -> None:
+    """Log the InferenceData to MLflow.
+
+    Parameters
+    ----------
+    idata : az.InferenceData
+        The InferenceData object returned by the sampling method.
+    save_file : str | Path
+        The path to save the InferenceData object as a net
+        CDF file.
+
+    """
+    idata.to_netcdf(str(save_file))
+    mlflow.log_artifact(local_path=str(save_file))
+    os.remove(save_file)
 
 
 @autologging_integration(FLAVOR_NAME)
 def autolog(
+    log_sampler_info: bool = True,
     log_datasets: bool = True,
-    sampling_diagnostics: bool = True,
-    model_info: bool = True,
-    end_run_after_sample: bool = False,
+    log_model_info: bool = True,
     summary_var_names: list[str] | None = None,
     log_mmm: bool = True,
     disable: bool = False,
     silent: bool = False,
 ) -> None:
+    """Autologging support for PyMC models and PyMC-Marketing models.
+
+    Parameters
+    ----------
+    log_sampler_info : bool, optional
+        Whether to log sampler diagnostics. Default is True.
+    log_datasets : bool, optional
+        Whether to log the data used in the model. Default is True.
+    log_model_info : bool, optional
+        Whether to log model information. Default is True.
+    summary_var_names : list[str], optional
+        The names of the variables to include in the ArviZ summary. Default is
+        all the variables in the InferenceData object.
+    log_mmm : bool, optional
+        Whether to log PyMC-Marketing MMM models. Default is True.
+    disable : bool, optional
+        Whether to disable autologging. Default is False.
+    silent : bool, optional
+        Whether to suppress all warnings. Default is False.
+
+    """
+
     def patch_sample(sample):
         @wraps(sample)
         def new_sample(*args, **kwargs):
             idata = sample(*args, **kwargs)
-            if sampling_diagnostics:
-                diagnostics_sample(idata, var_names=summary_var_names)
-
-            model = pm.modelcontext(kwargs.get("model"))
-            if model_info:
-                log_model_info(model)
-
-            if log_datasets:
-                save_data(model=model, idata=idata)
-
             mlflow.log_param("pymc_version", pm.__version__)
             mlflow.log_param("nuts_sampler", kwargs.get("nuts_sampler", "pymc"))
 
-            if end_run_after_sample:
-                mlflow.end_run()
+            if log_sampler_info:
+                log_sample_diagnostics(idata)
+                log_arviz_summary(idata, "summary.html", var_names=summary_var_names)
+
+            model = pm.modelcontext(kwargs.get("model"))
+            if log_model_info:
+                log_model_derived_info(model)
+
+            if log_datasets:
+                log_data(model=model, idata=idata)
 
             return idata
 
@@ -188,8 +409,6 @@ def autolog(
         @wraps(fit)
         def new_fit(*args, **kwargs):
             idata = fit(*args, **kwargs)
-            if not log_mmm:
-                return idata
 
             mlflow.log_params(
                 idata.attrs,
@@ -202,13 +421,11 @@ def autolog(
                 "saturation_name",
                 json.loads(idata.attrs["saturation"])["lookup_name"],
             )
-            save_file = "idata.nc"
-            idata.to_netcdf(save_file)
-            mlflow.log_artifact(local_path=save_file)
-            os.remove(save_file)
+            log_inference_data(idata, save_file="idata.nc")
 
             return idata
 
         return new_fit
 
-    MMM.fit = patch_mmm_fit(MMM.fit)
+    if log_mmm:
+        MMM.fit = patch_mmm_fit(MMM.fit)
