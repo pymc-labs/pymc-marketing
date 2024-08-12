@@ -342,6 +342,27 @@ class MichaelisMentenSaturation(SaturationTransformation):
 
 
 class HillSaturation(SaturationTransformation):
+    """Wrapper around Hill saturation function.
+
+    For more information, see :func:`pymc_marketing.mmm.transformers.hill_function`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import HillSaturation
+
+        rng = np.random.default_rng(0)
+
+        adstock = HillSaturation()
+        prior = adstock.sample_prior(random_seed=rng)
+        curve = adstock.sample_curve(prior)
+        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
+
+    """
+
     lookup_name = "hill"
 
     def function(self, x, slope, kappa, beta):

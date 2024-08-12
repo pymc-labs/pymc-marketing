@@ -48,6 +48,7 @@ def saturation_functions():
         TanhSaturation(),
         TanhSaturationBaselined(),
         MichaelisMentenSaturation(),
+        HillSaturation(),
         HillSaturationSigmoid(),
         RootSaturation(),
     ]
