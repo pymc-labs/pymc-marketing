@@ -908,10 +908,10 @@ def hill_saturation(
     r"""Hill Saturation Function
 
     .. math::
-        f(x) = \frac{\sigma}{1 + e^{-\beta(x - \lambda)}}
+        f(x) = \frac{\sigma}{1 + e^{-\beta(x - \lambda)}} - \frac{\sigma}{1 + e^{\beta\lambda}}
 
     where:
-     - :math:`\sigma` is the maximum value (upper asymptote)
+     - :math:`\sigma` is the upper asymptote
      - :math:`\beta` is the slope parameter
      - :math:`\lambda` is the transition point on the X-axis
      - :math:`x` is the independent variable
@@ -920,7 +920,9 @@ def hill_saturation(
     used to describe the saturation effect in biological systems. The curve is
     characterized by its sigmoidal shape, representing a gradual transition from
     a low, nearly zero level to a high plateau, the maximum value the function
-    will approach as the independent variable grows large.
+    will approach as the independent variable grows large. In this implementation,
+    we add an offset to the sigmoid function to ensure that the function always passes
+    through the origin as we expect zero spend to result in zero contribution.
 
     .. plot::
         :context: close-figs
@@ -968,6 +970,7 @@ def hill_saturation(
         plt.ylabel('Hill Saturation')
         plt.tight_layout()
         plt.show()
+
     Parameters
     ----------
     x : float or array-like
@@ -987,7 +990,7 @@ def hill_saturation(
     float or array-like
         The value of the Hill function for each input value of x.
     """
-    return sigma / (1 + pt.exp(-beta * (x - lam)))
+    return sigma / (1 + pt.exp(-beta * (x - lam))) - sigma / (1 + pt.exp(beta * lam))
 
 
 def root_saturation(
