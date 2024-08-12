@@ -899,8 +899,12 @@ def michaelis_menten(
     return alpha * x / (lam + x)
 
 
-def hill_function(x, slope, kappa) -> pt.TensorVariable:
-    return 1 - (kappa**slope) / (kappa**slope + x**slope)
+def hill_function(
+    x: pt.TensorLike, slope: pt.TensorLike, kappa: pt.TensorLike
+) -> pt.TensorVariable:
+    return pt.as_tensor_variable(
+        1 - pt.power(kappa, slope) / (pt.power(kappa, slope) + pt.power(x, slope))
+    )
 
 
 def hill_saturation_sigmoid(
