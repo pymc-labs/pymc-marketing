@@ -27,7 +27,8 @@ from pymc_marketing.mmm.transformers import (
     batched_convolution,
     delayed_adstock,
     geometric_adstock,
-    hill_saturation,
+    hill_function,
+    hill_saturation_sigmoid,
     inverse_scaled_logistic_saturation,
     logistic_saturation,
     michaelis_menten,
@@ -466,9 +467,9 @@ class TestSaturationTransformers:
             (3, 2, -1),
         ],
     )
-    def test_hill_monotonicity(self, sigma, beta, lam):
+    def test_hill_sigmoid_monotonicity(self, sigma, beta, lam):
         x = np.linspace(-10, 10, 100)
-        y = hill_saturation(x, sigma, beta, lam).eval()
+        y = hill_saturation_sigmoid(x, sigma, beta, lam).eval()
         assert np.all(np.diff(y) >= 0), "The function is not monotonic."
 
     @pytest.mark.parametrize(
@@ -479,8 +480,8 @@ class TestSaturationTransformers:
             (3, 2, -1),
         ],
     )
-    def test_hill_zero(self, sigma, beta, lam):
-        y = hill_saturation(0, sigma, beta, lam).eval()
+    def test_hill_sigmoid_zero(self, sigma, beta, lam):
+        y = hill_saturation_sigmoid(0, sigma, beta, lam).eval()
         assert y == pytest.approx(0.0)
 
     @pytest.mark.parametrize(
@@ -491,8 +492,8 @@ class TestSaturationTransformers:
             (-3, 3, 2, -1),
         ],
     )
-    def test_hill_sigma_upper_bound(self, x, sigma, beta, lam):
-        y = hill_saturation(x, sigma, beta, lam).eval()
+    def test_hill_sigmoid_sigma_upper_bound(self, x, sigma, beta, lam):
+        y = hill_saturation_sigmoid(x, sigma, beta, lam).eval()
         assert y <= sigma, f"The output {y} exceeds the upper bound sigma {sigma}."
 
     @pytest.mark.parametrize(
@@ -503,8 +504,8 @@ class TestSaturationTransformers:
             (-1, 3, 2, -1, 1.5),
         ],
     )
-    def test_hill_behavior_at_lambda(self, x, sigma, beta, lam, expected):
-        y = hill_saturation(x, sigma, beta, lam).eval()
+    def test_hill_sigmoid_behavior_at_lambda(self, x, sigma, beta, lam, expected):
+        y = hill_saturation_sigmoid(x, sigma, beta, lam).eval()
         offset = sigma / (1 + np.exp(beta * lam))
         expected_with_offset = expected - offset
         np.testing.assert_almost_equal(
@@ -522,8 +523,8 @@ class TestSaturationTransformers:
             (np.array([1, 2, 3]), 3, 2, 2),
         ],
     )
-    def test_hill_vectorized_input(self, x, sigma, beta, lam):
-        y = hill_saturation(x, sigma, beta, lam).eval()
+    def test_hill_sigmoid_vectorized_input(self, x, sigma, beta, lam):
+        y = hill_saturation_sigmoid(x, sigma, beta, lam).eval()
         assert (
             y.shape == x.shape
         ), "The function did not return the correct shape for vectorized input."
@@ -536,11 +537,107 @@ class TestSaturationTransformers:
             (3, 2, -1),
         ],
     )
-    def test_hill_asymptotic_behavior(self, sigma, beta, lam):
+    def test_hill_sigmoid_asymptotic_behavior(self, sigma, beta, lam):
         x = 1e6  # A very large value to approximate infinity
-        y = hill_saturation(x, sigma, beta, lam).eval()
+        y = hill_saturation_sigmoid(x, sigma, beta, lam).eval()
         offset = sigma / (1 + np.exp(beta * lam))
         expected = sigma - offset
+        np.testing.assert_almost_equal(
+            y,
+            expected,
+            decimal=5,
+            err_msg="The function does not approach sigma as x approaches infinity.",
+        )
+
+    @pytest.mark.parametrize(
+        argnames=["slope", "kappa"],
+        argvalues=[
+            (1, 1),
+            (2, 0.5),
+            (3, 2),
+        ],
+        ids=["slope=1, kappa=1", "slope=2, kappa=0.5", "slope=3, kappa=2"],
+    )
+    def test_hill_monotonicity(self, slope, kappa):
+        x = np.linspace(0, 10, 100)
+        y = hill_function(x, slope, kappa).eval()
+        assert np.all(np.diff(y) >= 0), "The function is not monotonic."
+
+    @pytest.mark.parametrize(
+        argnames=["slope", "kappa"],
+        argvalues=[
+            (1, 1),
+            (2, 0.5),
+            (3, 2),
+        ],
+        ids=["slope=1, kappa=1", "slope=2, kappa=0.5", "slope=3, kappa=2"],
+    )
+    def test_hill_zero(self, slope, kappa):
+        y = hill_function(0, slope, kappa).eval()
+        assert y == pytest.approx(0.0)
+
+    @pytest.mark.parametrize(
+        argnames=["x", "slope", "kappa"],
+        argvalues=[
+            (1, 1, 1),
+            (2, 0.5, 0.5),
+            (3, 2, 2),
+        ],
+        ids=[
+            "x=1, slope=1, kappa=1",
+            "x=2, slope=0.5, kappa=0.5",
+            "x=3, slope=2, kappa=2",
+        ],
+    )
+    def test_hill_upper_bound(self, x, slope, kappa):
+        y = hill_function(x, slope, kappa).eval()
+        assert y <= 1, f"The output {y} exceeds the upper bound 1."
+
+    @pytest.mark.parametrize(
+        argnames=["slope", "kappa"],
+        argvalues=[
+            (1, 1),
+            (2, 0.5),
+            (3, 2),
+        ],
+        ids=["slope=1, kappa=1", "slope=2, kappa=0.5", "slope=3, kappa=2"],
+    )
+    def test_hill_behavior_at_midpoint(self, slope, kappa):
+        y = hill_function(kappa, slope, kappa).eval()
+        expected = 0.5
+        np.testing.assert_almost_equal(
+            y,
+            expected,
+            decimal=5,
+            err_msg="The function does not behave as expected at the midpoint.",
+        )
+
+    @pytest.mark.parametrize(
+        "x, slope, kappa",
+        [
+            (np.array([0, 1, 2]), 1, 1),
+            (np.array([-1, 0, 1]), 2, 0.5),
+            (np.array([1, 2, 3]), 3, 2),
+        ],
+    )
+    def test_hill_vectorized_input(self, x, slope, kappa):
+        y = hill_function(x, slope, kappa).eval()
+        assert (
+            y.shape == x.shape
+        ), "The function did not return the correct shape for vectorized input."
+
+    @pytest.mark.parametrize(
+        "slope, kappa",
+        [
+            (1, 1),
+            (2, 0.5),
+            (3, 2),
+        ],
+    )
+    def test_hill_asymptotic_behavior(self, slope, kappa):
+        x = 1e6  # A very large value to approximate infinity
+        y = hill_function(x, slope, kappa).eval()
+        expected = 1
         np.testing.assert_almost_equal(
             y,
             expected,

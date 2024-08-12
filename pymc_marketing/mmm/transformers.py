@@ -899,13 +899,86 @@ def michaelis_menten(
     return alpha * x / (lam + x)
 
 
-def hill_saturation(
+def hill_function(
+    x: pt.TensorLike, slope: pt.TensorLike, kappa: pt.TensorLike
+) -> pt.TensorVariable:
+    r"""Hill Function
+
+    .. math::
+        f(x) = 1 - \frac{\kappa^s}{\kappa^s + x^s}
+
+    where:
+     - :math:`s` is the slope of the hill.
+     - :math:`\kappa` is the half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s` and :math:`\kappa`.
+     - :math:`x` is the independent variable and must be non-negative.
+
+    Hill function from Equation (5) in the paper [1]_.
+
+    .. plot::
+        :context: close-figs
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from pymc_marketing.mmm.transformers import hill_function
+        x = np.linspace(0, 10, 100)
+        # Varying slope
+        slopes = [0.3, 0.7, 1.2]
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
+        for i, slope in enumerate(slopes):
+            plt.subplot(1, 3, i+1)
+            y = hill_function(x, slope, 2).eval()
+            plt.plot(x, y)
+            plt.xlabel('x')
+            plt.title(f'Slope = {slope}')
+        plt.subplot(1,3,1)
+        plt.ylabel('Hill Saturation Sigmoid')
+        plt.tight_layout()
+        plt.show()
+        # Varying kappa
+        kappas = [1, 5, 10]
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
+        for i, kappa in enumerate(kappas):
+            plt.subplot(1, 3, i+1)
+            y = hill_function(x, 1, kappa).eval()
+            plt.plot(x, y)
+            plt.xlabel('x')
+            plt.title(f'Kappa = {kappa}')
+        plt.subplot(1,3,1)
+        plt.ylabel('Hill Saturation Sigmoid')
+        plt.tight_layout()
+        plt.show()
+
+    Parameters
+    ----------
+    x : float or array-like
+        The independent variable, typically representing the concentration of a
+        substrate or the intensity of a stimulus.
+    slope : float
+        The slope of the hill. Must pe non-positive.
+    kappa : float
+        The half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s` and :math:`\kappa`.
+
+    Returns
+    -------
+    float
+        The value of the Hill function given the parameters.
+
+    References
+    ----------
+    .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
+    """  # noqa: E501
+    return pt.as_tensor_variable(
+        1 - pt.power(kappa, slope) / (pt.power(kappa, slope) + pt.power(x, slope))
+    )
+
+
+def hill_saturation_sigmoid(
     x: pt.TensorLike,
     sigma: pt.TensorLike,
     beta: pt.TensorLike,
     lam: pt.TensorLike,
 ) -> pt.TensorVariable:
-    r"""Hill Saturation Function
+    r"""Hill Saturation Sigmoid Function
 
     .. math::
         f(x) = \frac{\sigma}{1 + e^{-\beta(x - \lambda)}} - \frac{\sigma}{1 + e^{\beta\lambda}}
@@ -929,19 +1002,19 @@ def hill_saturation(
 
         import numpy as np
         import matplotlib.pyplot as plt
-        from pymc_marketing.mmm.transformers import hill_saturation
+        from pymc_marketing.mmm.transformers import hill_saturation_sigmoid
         x = np.linspace(0, 10, 100)
         # Varying sigma
         sigmas = [0.5, 1, 1.5]
         fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
         for i, sigma in enumerate(sigmas):
             plt.subplot(1, 3, i+1)
-            y = hill_saturation(x, sigma, 2, 5).eval()
+            y = hill_saturation_sigmoid(x, sigma, 2, 5).eval()
             plt.plot(x, y)
             plt.xlabel('x')
             plt.title(f'Sigma = {sigma}')
         plt.subplot(1,3,1)
-        plt.ylabel('Hill Saturation')
+        plt.ylabel('Hill Saturation Sigmoid')
         plt.tight_layout()
         plt.show()
         # Varying beta
@@ -949,12 +1022,12 @@ def hill_saturation(
         fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
         for i, beta in enumerate(betas):
             plt.subplot(1, 3, i+1)
-            y = hill_saturation(x, 1, beta, 5).eval()
+            y = hill_saturation_sigmoid(x, 1, beta, 5).eval()
             plt.plot(x, y)
             plt.xlabel('x')
             plt.title(f'Beta = {beta}')
         plt.subplot(1,3,1)
-        plt.ylabel('Hill Saturation')
+        plt.ylabel('Hill Saturation Sigmoid')
         plt.tight_layout()
         plt.show()
         # Varying lam
@@ -962,12 +1035,12 @@ def hill_saturation(
         fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
         for i, lam in enumerate(lams):
             plt.subplot(1, 3, i+1)
-            y = hill_saturation(x, 1, 2, lam).eval()
+            y = hill_saturation_sigmoid(x, 1, 2, lam).eval()
             plt.plot(x, y)
             plt.xlabel('x')
             plt.title(f'Lambda = {lam}')
         plt.subplot(1,3,1)
-        plt.ylabel('Hill Saturation')
+        plt.ylabel('Hill Saturation Sigmoid')
         plt.tight_layout()
         plt.show()
 
@@ -977,8 +1050,8 @@ def hill_saturation(
         The independent variable, typically representing the concentration of a
         substrate or the intensity of a stimulus.
     sigma : float
-        The upper asymptote of the curve, representing the maximum value the
-        function will approach as x grows large.
+        The upper asymptote of the curve, representing the approximate maximum value the
+        function will approach as x grows large. The true maximum value is at `sigma * (1 - 1 / (1 + exp(beta * lam)))`
     beta : float
         The slope parameter, determining the steepness of the curve.
     lam : float
@@ -988,7 +1061,7 @@ def hill_saturation(
     Returns
     -------
     float or array-like
-        The value of the Hill function for each input value of x.
+        The value of the Hill saturation sigmoid function for each input value of x.
     """
     return sigma / (1 + pt.exp(-beta * (x - lam))) - sigma / (1 + pt.exp(beta * lam))
 
