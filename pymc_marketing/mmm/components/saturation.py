@@ -77,6 +77,7 @@ from pydantic import Field, InstanceOf, validate_call
 
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.transformers import (
+    hill_function,
     hill_saturation_sigmoid,
     inverse_scaled_logistic_saturation,
     logistic_saturation,
@@ -340,6 +341,19 @@ class MichaelisMentenSaturation(SaturationTransformation):
     }
 
 
+class HillSaturation(SaturationTransformation):
+    lookup_name = "hill"
+
+    def function(self, x, slope, kappa, beta):
+        return beta * hill_function(x, slope, kappa)
+
+    default_priors = {
+        "slope": Prior("HalfNormal", sigma=1.5),
+        "kappa": Prior("HalfNormal", sigma=1.5),
+        "beta": Prior("HalfNormal", sigma=1.5),
+    }
+
+
 class HillSaturationSigmoid(SaturationTransformation):
     """Wrapper around Hill saturation sigmoid function.
 
@@ -362,7 +376,7 @@ class HillSaturationSigmoid(SaturationTransformation):
 
     """
 
-    lookup_name = "hill"
+    lookup_name = "hill_sigmoid"
 
     function = hill_saturation_sigmoid
 
@@ -414,6 +428,7 @@ SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
         TanhSaturation,
         TanhSaturationBaselined,
         MichaelisMentenSaturation,
+        HillSaturation,
         HillSaturationSigmoid,
         RootSaturation,
     ]
