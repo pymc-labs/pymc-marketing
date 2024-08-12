@@ -20,16 +20,23 @@ import pymc as pm
 import pytest
 from mlflow.client import MlflowClient
 
-from pymc_marketing.mlflow import autolog
+from pymc_marketing.mlflow import autolog, log_model_graph
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
-
-uri: str = "sqlite:///mlruns.db"
-mlflow.set_tracking_uri(uri=uri)
 
 seed = sum(map(ord, "mlflow-with-pymc"))
 rng = np.random.default_rng(seed)
 
-autolog()
+
+@pytest.fixture(scope="module", autouse=True)
+def setup_module():
+    uri: str = "sqlite:///mlruns.db"
+    mlflow.set_tracking_uri(uri=uri)
+    autolog()
+
+    yield
+
+    pm.sample = pm.sample.__wrapped__
+    MMM.fit = MMM.fit.__wrapped__
 
 
 @pytest.fixture(scope="module")
@@ -60,6 +67,20 @@ def get_run_data(run_id):
     artifacts = [f.path for f in client.list_artifacts(run_id)]
     inputs = [inp for inp in run.inputs.dataset_inputs]
     return inputs, data.params, data.metrics, tags, artifacts
+
+
+def test_log_model_graph_no_graphviz(mocker, model) -> None:
+    mocker.patch(
+        "pymc.model_to_graphviz",
+        side_effect=ImportError("No module named 'graphviz'"),
+    )
+    with mlflow.start_run() as run:
+        log_model_graph(model, "model_graph")
+
+    run_id = run.info.run_id
+    artifacts = get_run_data(run_id)[-1]
+
+    assert artifacts == []
 
 
 def metric_checks(metrics, nuts_sampler) -> None:
