@@ -66,8 +66,8 @@ class BaseMMM(BaseValidateMMM):
      Base class for a media mix model using Delayed Adstock and Logistic Saturation (see [1]_).
 
     References
-     ----------
-     .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
+    ----------
+    .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
     """
 
     _model_name: str = "BaseMMM"
