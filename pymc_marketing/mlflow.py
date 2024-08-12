@@ -107,6 +107,7 @@ from pathlib import Path
 import arviz as az
 import pymc as pm
 from pymc.model.core import Model
+from pytensor.tensor import TensorVariable
 
 try:
     import mlflow
@@ -147,6 +148,18 @@ def log_arviz_summary(
     os.remove(path)
 
 
+def _backwards_compatiable_data_vars(model: Model) -> list[TensorVariable]:
+    # TODO: Remove with PyMC update
+    non_data = (
+        model.observed_RVs + model.free_RVs + model.deterministics + model.potentials
+    )
+    vars = {
+        key: value for key, value in model.named_vars.items() if value not in non_data
+    }
+
+    return list(vars.values())
+
+
 def log_data(model: Model, idata: az.InferenceData) -> None:
     """Log the data used in the model to MLflow.
 
@@ -162,9 +175,15 @@ def log_data(model: Model, idata: az.InferenceData) -> None:
 
     """
 
+    data_vars: list[TensorVariable] = (
+        _backwards_compatiable_data_vars(model)
+        if not hasattr(model, "data_vars")
+        else model.data_vars
+    )
+
     features = {
         var.name: idata.constant_data[var.name].to_numpy()
-        for var in model.data_vars
+        for var in data_vars
         if var.name in idata.constant_data
     }
     targets = {

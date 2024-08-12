@@ -217,7 +217,7 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
         draws = 10
         tune = 5
         chains = 1
-        mmm.fit(
+        idata = mmm.fit(
             toy_X,
             toy_y,
             draws=draws,
@@ -251,14 +251,19 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
         "summary.html",
     ]
     assert tags == {}
-    assert len(inputs) == 1
 
+    assert len(inputs) == 1
     parsed_inputs = json.loads(inputs[0].dataset.profile)
-    assert parsed_inputs["features_shape"] == {
+
+    expected_features_shape = {
         "channel_data": [135, 2],
         "control_data": [135, 2],
         "dayofyear": [135],
     }
+    if "target" in idata.constant_data:
+        expected_features_shape["target"] = [135]
+
+    assert parsed_inputs["features_shape"] == expected_features_shape
     assert parsed_inputs["targets_shape"] == {
         "y": [135],
     }
