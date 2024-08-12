@@ -93,6 +93,7 @@ Autologging for a PyMC-Marketing model:
     with mlflow.start_run():
         idata = mmm.fit(X, y)
 
+        # Additional specific logging
         fig = mmm.plot_components_contributions()
         mlflow.log_figure(fig, "components.png")
 
@@ -360,6 +361,12 @@ def autolog(
 ) -> None:
     """Autologging support for PyMC models and PyMC-Marketing models.
 
+    Includes logging of sampler diagnostics, model information, data used in the
+    model, and InferenceData objects upon sampling the models.
+
+    For more information about MLflow, see
+    https://mlflow.org/docs/latest/python_api/mlflow.html
+
     Parameters
     ----------
     log_sampler_info : bool, optional
@@ -377,6 +384,80 @@ def autolog(
         Whether to disable autologging. Default is False.
     silent : bool, optional
         Whether to suppress all warnings. Default is False.
+
+    Examples
+    --------
+    Autologging for a PyMC model:
+
+    .. code-block:: python
+
+        import mlflow
+
+        import pymc as pm
+
+        import pymc_marketing.mlflow
+
+        pymc_marketing.mlflow.autolog()
+
+        # Usual PyMC model code
+        with pm.Model() as model:
+            mu = pm.Normal("mu", mu=0, sigma=1)
+            obs = pm.Normal("obs", mu=mu, sigma=1, observed=[1, 2, 3])
+
+        # Incorporate into MLflow workflow
+        mlflow.set_experiment("PyMC Experiment")
+
+        with mlflow.start_run():
+            idata = pm.sample(model=model)
+
+    Autologging for a PyMC-Marketing model:
+
+    .. code-block:: python
+
+        import pandas as pd
+
+        import mlflow
+
+        from pymc_marketing.mmm import (
+            GeometricAdstock,
+            LogisticSaturation,
+            MMM,
+        )
+        import pymc_marketing.mlflow
+
+        pymc_marketing.mlflow.autolog(log_mmm=True)
+
+        # Usual PyMC-Marketing model code
+
+        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
+        data = pd.read_csv(data_url, parse_dates=["date_week"])
+
+        X = data.drop("y",axis=1)
+        y = data["y"]
+
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
+            date_column="date_week",
+            channel_columns=["x1", "x2"],
+            control_columns=[
+                "event_1",
+                "event_2",
+                "t",
+            ],
+            yearly_seasonality=2,
+        )
+
+        # Incorporate into MLflow workflow
+
+        mlflow.set_experiment("MMM Experiment")
+
+        with mlflow.start_run():
+            idata = mmm.fit(X, y)
+
+            # Additional specific logging
+            fig = mmm.plot_components_contributions()
+            mlflow.log_figure(fig, "components.png")
 
     """
 
