@@ -29,10 +29,11 @@ mlflow.set_tracking_uri(uri=uri)
 seed = sum(map(ord, "mlflow-with-pymc"))
 rng = np.random.default_rng(seed)
 
-autolog(end_run_after_sample=False)
+autolog()
 
 
-def define_model() -> pm.Model:
+@pytest.fixture(scope="module")
+def model() -> pm.Model:
     n_obs = 15
 
     data = rng.normal(loc=5, scale=2, size=n_obs)
@@ -68,6 +69,22 @@ def metric_checks(metrics, nuts_sampler) -> None:
         assert metrics["time_per_draw"] >= 0.0
 
 
+def param_checks(params, draws: int, chains: int, tune: int, nuts_sampler: str) -> None:
+    assert params["draws"] == str(draws)
+    assert params["chains"] == str(chains)
+    if nuts_sampler not in ["numpyro", "blackjax"]:
+        assert params["inference_library"] == nuts_sampler
+    if nuts_sampler not in ["numpyro", "nutpie", "blackjax"]:
+        assert params["tuning_steps"] == str(tune)
+
+    other_keys = ["pymc_version"]
+    if nuts_sampler not in ["numpyro", "blackjax"]:
+        other_keys.extend(["inference_library_version"])
+
+    for other_key in other_keys:
+        assert other_key in params
+
+
 @pytest.mark.parametrize(
     "nuts_sampler",
     [
@@ -77,11 +94,9 @@ def metric_checks(metrics, nuts_sampler) -> None:
         "blackjax",
     ],
 )
-def test_autolog_pymc_model(nuts_sampler) -> None:
+def test_autolog_pymc_model(model, nuts_sampler) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-pymc-model")
     with mlflow.start_run() as run:
-        model = define_model()
-
         draws = 30
         tune = 25
         chains = 2
@@ -98,24 +113,19 @@ def test_autolog_pymc_model(nuts_sampler) -> None:
     run_id = run.info.run_id
     inputs, params, metrics, tags, artifacts = get_run_data(run_id)
 
-    assert params["draws"] == str(draws)
-    assert params["chains"] == str(chains)
-    if nuts_sampler not in ["numpyro", "blackjax"]:
-        assert params["inference_library"] == nuts_sampler
+    param_checks(
+        params=params,
+        draws=draws,
+        chains=chains,
+        tune=tune,
+        nuts_sampler=nuts_sampler,
+    )
+
     assert params["n_free_RVs"] == "2"
     assert params["n_observed_RVs"] == "1"
     assert params["n_deterministics"] == "0"
     assert params["n_potentials"] == "0"
     assert params["likelihood"] == "Normal"
-    if nuts_sampler not in ["numpyro", "nutpie", "blackjax"]:
-        assert params["tuning_steps"] == str(tune)
-
-    other_keys = ["pymc_version"]
-    if nuts_sampler not in ["numpyro", "blackjax"]:
-        other_keys.extend(["inference_library_version"])
-
-    for other_key in other_keys:
-        assert other_key in params
 
     metric_checks(metrics, nuts_sampler)
 
@@ -183,17 +193,42 @@ def mmm() -> MMM:
 def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-mmm")
     with mlflow.start_run() as run:
-        mmm.fit(toy_X, toy_y, draws=10, tune=5, chains=1)
+        draws = 10
+        tune = 5
+        chains = 1
+        mmm.fit(
+            toy_X,
+            toy_y,
+            draws=draws,
+            chains=chains,
+            tune=tune,
+        )
+
+    assert mlflow.active_run() is None
 
     run_id = run.info.run_id
     inputs, params, metrics, tags, artifacts = get_run_data(run_id)
+
+    param_checks(
+        params=params,
+        draws=draws,
+        chains=chains,
+        tune=tune,
+        nuts_sampler="pymc",
+    )
 
     assert params["adstock_name"] == "geometric"
     assert params["saturation_name"] == "logistic"
 
     metric_checks(metrics, "pymc")
 
-    assert "idata.nc" in artifacts
+    assert artifacts == [
+        "coords.json",
+        "idata.nc",
+        "model_graph.pdf",
+        "model_repr.txt",
+        "summary.html",
+    ]
     assert tags == {}
     assert len(inputs) == 1
 
@@ -206,5 +241,3 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
     assert parsed_inputs["targets_shape"] == {
         "y": [135],
     }
-
-    mlflow.end_run()
