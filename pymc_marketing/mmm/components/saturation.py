@@ -367,9 +367,9 @@ class HillSaturation(SaturationTransformation):
     function = hill_saturation
 
     default_priors = {
-        "sigma": Prior("HalfNormal", sigma=2),
-        "beta": Prior("HalfNormal", sigma=2),
-        "lam": Prior("HalfNormal", sigma=2),
+        "sigma": Prior("HalfNormal", sigma=1.5),
+        "beta": Prior("HalfNormal", sigma=1.5),
+        "lam": Prior("HalfNormal", sigma=1.5),
     }
 
 
