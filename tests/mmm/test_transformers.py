@@ -27,7 +27,7 @@ from pymc_marketing.mmm.transformers import (
     batched_convolution,
     delayed_adstock,
     geometric_adstock,
-    hill_saturation,
+    hill_saturation_sigmoid,
     inverse_scaled_logistic_saturation,
     logistic_saturation,
     michaelis_menten,
@@ -468,7 +468,7 @@ class TestSaturationTransformers:
     )
     def test_hill_monotonicity(self, sigma, beta, lam):
         x = np.linspace(-10, 10, 100)
-        y = hill_saturation(x, sigma, beta, lam).eval()
+        y = hill_saturation_sigmoid(x, sigma, beta, lam).eval()
         assert np.all(np.diff(y) >= 0), "The function is not monotonic."
 
     @pytest.mark.parametrize(
@@ -480,7 +480,7 @@ class TestSaturationTransformers:
         ],
     )
     def test_hill_zero(self, sigma, beta, lam):
-        y = hill_saturation(0, sigma, beta, lam).eval()
+        y = hill_saturation_sigmoid(0, sigma, beta, lam).eval()
         assert y == pytest.approx(0.0)
 
     @pytest.mark.parametrize(
@@ -492,7 +492,7 @@ class TestSaturationTransformers:
         ],
     )
     def test_hill_sigma_upper_bound(self, x, sigma, beta, lam):
-        y = hill_saturation(x, sigma, beta, lam).eval()
+        y = hill_saturation_sigmoid(x, sigma, beta, lam).eval()
         assert y <= sigma, f"The output {y} exceeds the upper bound sigma {sigma}."
 
     @pytest.mark.parametrize(
@@ -504,7 +504,7 @@ class TestSaturationTransformers:
         ],
     )
     def test_hill_behavior_at_lambda(self, x, sigma, beta, lam, expected):
-        y = hill_saturation(x, sigma, beta, lam).eval()
+        y = hill_saturation_sigmoid(x, sigma, beta, lam).eval()
         offset = sigma / (1 + np.exp(beta * lam))
         expected_with_offset = expected - offset
         np.testing.assert_almost_equal(
@@ -523,7 +523,7 @@ class TestSaturationTransformers:
         ],
     )
     def test_hill_vectorized_input(self, x, sigma, beta, lam):
-        y = hill_saturation(x, sigma, beta, lam).eval()
+        y = hill_saturation_sigmoid(x, sigma, beta, lam).eval()
         assert (
             y.shape == x.shape
         ), "The function did not return the correct shape for vectorized input."
@@ -538,7 +538,7 @@ class TestSaturationTransformers:
     )
     def test_hill_asymptotic_behavior(self, sigma, beta, lam):
         x = 1e6  # A very large value to approximate infinity
-        y = hill_saturation(x, sigma, beta, lam).eval()
+        y = hill_saturation_sigmoid(x, sigma, beta, lam).eval()
         offset = sigma / (1 + np.exp(beta * lam))
         expected = sigma - offset
         np.testing.assert_almost_equal(

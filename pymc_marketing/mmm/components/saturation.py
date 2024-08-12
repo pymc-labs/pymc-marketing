@@ -77,7 +77,7 @@ from pydantic import Field, InstanceOf, validate_call
 
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.transformers import (
-    hill_saturation,
+    hill_saturation_sigmoid,
     inverse_scaled_logistic_saturation,
     logistic_saturation,
     michaelis_menten,
@@ -340,21 +340,21 @@ class MichaelisMentenSaturation(SaturationTransformation):
     }
 
 
-class HillSaturation(SaturationTransformation):
-    """Wrapper around Hill saturation function.
+class HillSaturationSigmoid(SaturationTransformation):
+    """Wrapper around Hill saturation sigmoid function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.hill_saturation`.
+    For more information, see :func:`pymc_marketing.mmm.transformers.hill_saturation_sigmoid`.
 
     .. plot::
         :context: close-figs
 
         import matplotlib.pyplot as plt
         import numpy as np
-        from pymc_marketing.mmm import HillSaturation
+        from pymc_marketing.mmm import HillSaturationSigmoid
 
         rng = np.random.default_rng(0)
 
-        adstock = HillSaturation()
+        adstock = HillSaturationSigmoid()
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
         adstock.plot_curve(curve, sample_kwargs={"rng": rng})
@@ -364,7 +364,7 @@ class HillSaturation(SaturationTransformation):
 
     lookup_name = "hill"
 
-    function = hill_saturation
+    function = hill_saturation_sigmoid
 
     default_priors = {
         "sigma": Prior("HalfNormal", sigma=1.5),
@@ -414,7 +414,7 @@ SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
         TanhSaturation,
         TanhSaturationBaselined,
         MichaelisMentenSaturation,
-        HillSaturation,
+        HillSaturationSigmoid,
         RootSaturation,
     ]
 }

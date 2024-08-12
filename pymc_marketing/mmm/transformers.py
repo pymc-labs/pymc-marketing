@@ -899,13 +899,13 @@ def michaelis_menten(
     return alpha * x / (lam + x)
 
 
-def hill_saturation(
+def hill_saturation_sigmoid(
     x: pt.TensorLike,
     sigma: pt.TensorLike,
     beta: pt.TensorLike,
     lam: pt.TensorLike,
 ) -> pt.TensorVariable:
-    r"""Hill Saturation Function
+    r"""Hill Saturation Sigmoid Function
 
     .. math::
         f(x) = \frac{\sigma}{1 + e^{-\beta(x - \lambda)}} - \frac{\sigma}{1 + e^{\beta\lambda}}
@@ -977,8 +977,8 @@ def hill_saturation(
         The independent variable, typically representing the concentration of a
         substrate or the intensity of a stimulus.
     sigma : float
-        The upper asymptote of the curve, representing the maximum value the
-        function will approach as x grows large.
+        The upper asymptote of the curve, representing the approximate maximum value the
+        function will approach as x grows large. The true maximum value is at `sigma * (1 - 1 / (1 + exp(beta * lam)))`
     beta : float
         The slope parameter, determining the steepness of the curve.
     lam : float
@@ -988,7 +988,7 @@ def hill_saturation(
     Returns
     -------
     float or array-like
-        The value of the Hill function for each input value of x.
+        The value of the Hill saturation sigmoid function for each input value of x.
     """
     return sigma / (1 + pt.exp(-beta * (x - lam))) - sigma / (1 + pt.exp(beta * lam))
 
