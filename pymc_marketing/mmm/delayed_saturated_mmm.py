@@ -63,7 +63,7 @@ __all__ = ["BaseMMM", "MMM", "DelayedSaturatedMMM"]
 
 class BaseMMM(BaseValidateMMM):
     """
-     Base class for a media mix model using Delayed Adstock and Logistic Saturation (see [1]_).
+    Base class for a media mix model using Delayed Adstock and Logistic Saturation (see [1]_).
 
     References
     ----------
