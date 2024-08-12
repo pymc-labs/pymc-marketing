@@ -466,10 +466,22 @@ class TestSaturationTransformers:
             (3, 2, -1),
         ],
     )
-    def test_monotonicity(self, sigma, beta, lam):
+    def test_hill_monotonicity(self, sigma, beta, lam):
         x = np.linspace(-10, 10, 100)
         y = hill_saturation(x, sigma, beta, lam).eval()
         assert np.all(np.diff(y) >= 0), "The function is not monotonic."
+
+    @pytest.mark.parametrize(
+        "sigma, beta, lam",
+        [
+            (1, 1, 0),
+            (2, 0.5, 1),
+            (3, 2, -1),
+        ],
+    )
+    def test_hill_zero(self, sigma, beta, lam):
+        y = hill_saturation(0, sigma, beta, lam).eval()
+        assert y == pytest.approx(0.0)
 
     @pytest.mark.parametrize(
         "x, sigma, beta, lam",
@@ -479,7 +491,7 @@ class TestSaturationTransformers:
             (-3, 3, 2, -1),
         ],
     )
-    def test_sigma_upper_bound(self, x, sigma, beta, lam):
+    def test_hill_sigma_upper_bound(self, x, sigma, beta, lam):
         y = hill_saturation(x, sigma, beta, lam).eval()
         assert y <= sigma, f"The output {y} exceeds the upper bound sigma {sigma}."
 
@@ -491,11 +503,13 @@ class TestSaturationTransformers:
             (-1, 3, 2, -1, 1.5),
         ],
     )
-    def test_behavior_at_lambda(self, x, sigma, beta, lam, expected):
+    def test_hill_behavior_at_lambda(self, x, sigma, beta, lam, expected):
         y = hill_saturation(x, sigma, beta, lam).eval()
+        offset = sigma / (1 + np.exp(beta * lam))
+        expected_with_offset = expected - offset
         np.testing.assert_almost_equal(
             y,
-            expected,
+            expected_with_offset,
             decimal=5,
             err_msg="The function does not behave as expected at lambda.",
         )
@@ -508,7 +522,7 @@ class TestSaturationTransformers:
             (np.array([1, 2, 3]), 3, 2, 2),
         ],
     )
-    def test_vectorized_input(self, x, sigma, beta, lam):
+    def test_hill_vectorized_input(self, x, sigma, beta, lam):
         y = hill_saturation(x, sigma, beta, lam).eval()
         assert (
             y.shape == x.shape
@@ -522,12 +536,14 @@ class TestSaturationTransformers:
             (3, 2, -1),
         ],
     )
-    def test_asymptotic_behavior(self, sigma, beta, lam):
+    def test_hill_asymptotic_behavior(self, sigma, beta, lam):
         x = 1e6  # A very large value to approximate infinity
         y = hill_saturation(x, sigma, beta, lam).eval()
+        offset = sigma / (1 + np.exp(beta * lam))
+        expected = sigma - offset
         np.testing.assert_almost_equal(
             y,
-            sigma,
+            expected,
             decimal=5,
             err_msg="The function does not approach sigma as x approaches infinity.",
         )
