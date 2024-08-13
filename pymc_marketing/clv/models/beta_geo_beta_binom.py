@@ -165,10 +165,6 @@ class BetaGeoBetaBinomModel(CLVModel):
     @property
     def default_model_config(self) -> ModelConfig:
         return {
-            "alpha_prior": None,
-            "beta_prior": None,
-            "gamma_prior": None,
-            "delta_prior": None,
             "phi_purchase_prior": Prior("Uniform", lower=0, upper=1),
             "kappa_purchase_prior": Prior("Pareto", alpha=1, m=1),
             "phi_dropout_prior": Prior("Uniform", lower=0, upper=1),
@@ -182,10 +178,10 @@ class BetaGeoBetaBinomModel(CLVModel):
         }
         with pm.Model(coords=coords) as self.model:
             # purchase rate priors
-            if (
-                self.model_config["alpha_prior"] is None
-                or self.model_config["beta_prior"] is None
-            ):
+            if "alpha_prior" in self.model_config and "beta_prior" in self.model_config:
+                alpha = self.model_config["alpha_prior"].create_variable("alpha")
+                beta = self.model_config["beta_prior"].create_variable("beta")
+            else:
                 # hierarchical pooling of purchase rate priors
                 phi_purchase = self.model_config["phi_purchase_prior"].create_variable(
                     "phi_purchase"
@@ -196,15 +192,15 @@ class BetaGeoBetaBinomModel(CLVModel):
 
                 alpha = pm.Deterministic("alpha", phi_purchase * kappa_purchase)
                 beta = pm.Deterministic("beta", (1.0 - phi_purchase) * kappa_purchase)
-            else:
-                alpha = self.model_config["alpha_prior"].create_variable("alpha")
-                beta = self.model_config["beta_prior"].create_variable("beta")
 
             # dropout priors
             if (
-                self.model_config["gamma_prior"] is None
-                or self.model_config["delta_prior"] is None
+                "gamma_prior" in self.model_config
+                and "delta_prior" in self.model_config
             ):
+                gamma = self.model_config["gamma_prior"].create_variable("gamma")
+                delta = self.model_config["delta_prior"].create_variable("delta")
+            else:
                 # hierarchical pooling of dropout rate priors
                 phi_dropout = self.model_config["phi_dropout_prior"].create_variable(
                     "phi_dropout"
@@ -215,9 +211,6 @@ class BetaGeoBetaBinomModel(CLVModel):
 
                 gamma = pm.Deterministic("gamma", phi_dropout * kappa_dropout)
                 delta = pm.Deterministic("delta", (1.0 - phi_dropout) * kappa_dropout)
-            else:
-                gamma = self.model_config["gamma_prior"].create_variable("gamma")
-                delta = self.model_config["delta_prior"].create_variable("delta")
 
             BetaGeoBetaBinom(
                 name="recency_frequency",

@@ -136,25 +136,25 @@ class TestBetaGeoBetaBinomModel:
             assert isinstance(
                 model.model["alpha"].owner.op,
                 pt.tensor.elemwise.Elemwise
-                if model.model_config["alpha_prior"] is None
+                if "alpha_prior" not in model.model_config
                 else model.model_config["alpha_prior"].pymc_distribution,
             )
             assert isinstance(
                 model.model["beta"].owner.op,
                 pt.tensor.elemwise.Elemwise
-                if model.model_config["beta_prior"] is None
+                if "beta_prior" not in model.model_config
                 else model.model_config["beta_prior"].pymc_distribution,
             )
             assert isinstance(
                 model.model["delta"].owner.op,
                 pt.tensor.elemwise.Elemwise
-                if model.model_config["delta_prior"] is None
+                if "delta_prior" not in model.model_config
                 else model.model_config["delta_prior"].pymc_distribution,
             )
             assert isinstance(
                 model.model["gamma"].owner.op,
                 pt.tensor.elemwise.Elemwise
-                if model.model_config["gamma_prior"] is None
+                if "gamma_prior" not in model.model_config
                 else model.model_config["gamma_prior"].pymc_distribution,
             )
 
