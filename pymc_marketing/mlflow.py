@@ -111,7 +111,7 @@ from pytensor.tensor import TensorVariable
 
 try:
     import mlflow
-except ImportError:
+except ImportError:  # pragma: no cover
     msg = "This module requires mlflow. Install using `pip install mlflow`"
     raise ImportError(msg)
 
@@ -315,10 +315,10 @@ def log_sample_diagnostics(
 
     """
     if "posterior" not in idata:
-        raise ValueError("InferenceData object does not contain posterior samples.")
+        raise KeyError("InferenceData object does not contain the group posterior.")
 
     if "sample_stats" not in idata:
-        raise ValueError("InferenceData object does not contain sample stats.")
+        raise KeyError("InferenceData object does not contain the group sample_stats.")
 
     posterior = idata["posterior"]
     sample_stats = idata["sample_stats"]
