@@ -102,6 +102,7 @@ Autologging for a PyMC-Marketing model:
 import json
 import logging
 import os
+import warnings
 from functools import wraps
 from pathlib import Path
 
@@ -119,8 +120,18 @@ except ImportError:  # pragma: no cover
 from mlflow.utils.autologging_utils import autologging_integration
 
 from pymc_marketing.mmm import MMM
+from pymc_marketing.version import __version__
 
 FLAVOR_NAME = "pymc"
+
+
+PYMC_MARKETING_ISSUE = "https://github.com/pymc-labs/pymc-marketing/issues/new"
+warning_msg = (
+    "This functionality is experimental and subject to change. "
+    "If you encounter any issues or have suggestions, please raise them at: "
+    f"{PYMC_MARKETING_ISSUE}"
+)
+warnings.warn(warning_msg, FutureWarning, stacklevel=1)
 
 
 def log_arviz_summary(
@@ -493,6 +504,7 @@ def autolog(
         @wraps(sample)
         def new_sample(*args, **kwargs):
             idata = sample(*args, **kwargs)
+            mlflow.log_param("pymc_marketing_version", __version__)
             mlflow.log_param("pymc_version", pm.__version__)
             mlflow.log_param("nuts_sampler", kwargs.get("nuts_sampler", "pymc"))
 
