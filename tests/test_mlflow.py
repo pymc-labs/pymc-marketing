@@ -13,14 +13,21 @@
 #   limitations under the License.
 import json
 
+import arviz as az
 import mlflow
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+import xarray as xr
 from mlflow.client import MlflowClient
 
-from pymc_marketing.mlflow import autolog, log_model_graph
+from pymc_marketing.mlflow import (
+    autolog,
+    log_likelihood_type,
+    log_model_graph,
+    log_sample_diagnostics,
+)
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
 
 seed = sum(map(ord, "mlflow-with-pymc"))
@@ -57,6 +64,37 @@ def model() -> pm.Model:
     return model
 
 
+@pytest.fixture(scope="module")
+def no_input_model() -> pm.Model:
+    with pm.Model() as model:
+        pm.Normal("mu")
+        pm.HalfNormal("sigma")
+
+    return model
+
+
+@pytest.fixture(scope="module")
+def multi_likelihood_model() -> pm.Model:
+    n_obs = 15
+
+    mu = 10
+    scale = 2
+    data1 = pm.draw(pm.Normal.dist(mu=mu, sigma=scale, size=n_obs), random_seed=rng)
+    data2 = pm.draw(pm.Gamma.dist(alpha=mu, beta=scale, size=n_obs), random_seed=rng)
+
+    coords = {
+        "obs_id": np.arange(n_obs),
+    }
+    with pm.Model(coords=coords) as model:
+        mu = pm.Normal("mu", mu=0, sigma=1)
+        sigma = pm.HalfNormal("sigma", sigma=1)
+
+        pm.Normal("obs1", mu=mu, sigma=sigma, observed=data1)
+        pm.Gamma("obs2", mu=mu, sigma=sigma, observed=data2)
+
+    return model
+
+
 def get_run_data(run_id):
     # Adapted from mlflow tests for sklearn autolog
     client = MlflowClient()
@@ -69,10 +107,46 @@ def get_run_data(run_id):
     return inputs, data.params, data.metrics, tags, artifacts
 
 
-def test_log_model_graph_no_graphviz(mocker, model) -> None:
+def test_log_data_no_data(no_input_model) -> None:
+    mlflow.set_experiment("pymc-marketing-test-suite-no-data")
+    with mlflow.start_run() as run:
+        pm.sample(
+            model=no_input_model,
+            chains=1,
+            draws=25,
+            tune=10,
+        )
+
+    run_id = run.info.run_id
+    inputs = get_run_data(run_id)[0]
+
+    assert inputs == []
+
+
+def test_multi_likelihood_type(multi_likelihood_model) -> None:
+    mlflow.set_experiment("pymc-marketing-test-suite-multi-likelihood")
+    with mlflow.start_run() as run:
+        log_likelihood_type(multi_likelihood_model)
+
+    run_id = run.info.run_id
+    params = get_run_data(run_id)[1]
+
+    assert params == {
+        "observed_RVs_types": "['Normal', 'Gamma']",
+    }
+
+
+@pytest.mark.parametrize(
+    "to_patch, side_effect",
+    [
+        ("pymc.model_to_graphviz", ImportError("No module named 'graphviz'")),
+        ("graphviz.graphs.Digraph.render", Exception("Unknown error occurred")),
+    ],
+)
+def test_log_model_graph_no_graphviz(mocker, model, to_patch, side_effect) -> None:
     mocker.patch(
-        "pymc.model_to_graphviz",
-        side_effect=ImportError("No module named 'graphviz'"),
+        to_patch,
+        side_effect=side_effect,
     )
     with mlflow.start_run() as run:
         log_model_graph(model, "model_graph")
@@ -267,3 +341,43 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
     assert parsed_inputs["targets_shape"] == {
         "y": [135],
     }
+
+
+@pytest.fixture(scope="function")
+def mock_idata() -> az.InferenceData:
+    chains = 4
+    draws = 100
+    coords = {
+        "chain": np.arange(chains),
+        "draw": np.arange(draws),
+    }
+    posterior = xr.Dataset(
+        data_vars={
+            "mu": (("chain", "draw"), rng.random(size=(chains, draws))),
+            "sigma": (("chain", "draw"), rng.random(size=(chains, draws))),
+        },
+        coords=coords,
+    )
+    sample_stats = xr.Dataset(
+        data_vars={
+            "diverging": (
+                ("chain", "draw"),
+                rng.integers(0, 2, size=(chains, draws)),
+            ),
+            "energy": (("chain", "draw"), rng.random(size=(chains, draws))),
+        },
+        coords=coords,
+    )
+    return az.InferenceData(
+        posterior=posterior,
+        sample_stats=sample_stats,
+    )
+
+
+@pytest.mark.parametrize("selected_group", ["posterior", "sample_stats"])
+def test_log_sample_diagnostics_missing_group(mock_idata, selected_group: str) -> None:
+    idata = az.InferenceData(**{selected_group: mock_idata[selected_group]})
+    missing_group = "sample_stats" if selected_group == "posterior" else "posterior"
+    match = f"InferenceData object does not contain the group {missing_group}."
+    with pytest.raises(KeyError, match=match):
+        log_sample_diagnostics(idata)
