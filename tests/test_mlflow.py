@@ -32,6 +32,7 @@ from pymc_marketing.mlflow import (
     log_sample_diagnostics,
 )
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
+from pymc_marketing.version import __version__
 
 seed = sum(map(ord, "mlflow-with-pymc"))
 rng = np.random.default_rng(seed)
@@ -234,6 +235,8 @@ def param_checks(params, draws: int, chains: int, tune: int, nuts_sampler: str) 
         assert params["inference_library"] == nuts_sampler
     if nuts_sampler not in ["numpyro", "nutpie", "blackjax"]:
         assert params["tuning_steps"] == str(tune)
+
+    assert params["pymc_marketing_version"] == __version__
 
     other_keys = ["pymc_version"]
     if nuts_sampler not in ["numpyro", "blackjax"]:
