@@ -54,6 +54,7 @@ docs = [
     "numpyro",
     "nutpie",
     "pylint",
+    "pyprojroot",
     "sphinx-autodoc-typehints",
     "sphinx-copybutton",
     "sphinx-design",
