@@ -13,6 +13,8 @@
 #   limitations under the License.
 import json
 import logging
+from collections import namedtuple
+from pathlib import Path
 
 import arviz as az
 import mlflow
@@ -35,7 +37,7 @@ seed = sum(map(ord, "mlflow-with-pymc"))
 rng = np.random.default_rng(seed)
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def setup_module():
     uri: str = "sqlite:///mlruns.db"
     mlflow.set_tracking_uri(uri=uri)
@@ -96,7 +98,13 @@ def multi_likelihood_model() -> pm.Model:
     return model
 
 
-def get_run_data(run_id):
+RunData = namedtuple(
+    "RunData",
+    ["inputs", "params", "metrics", "tags", "artifacts"],
+)
+
+
+def get_run_data(run_id) -> RunData:
     # Adapted from mlflow tests for sklearn autolog
     client = MlflowClient()
     run = client.get_run(run_id)
@@ -105,7 +113,44 @@ def get_run_data(run_id):
     tags = {k: v for k, v in data.tags.items() if not k.startswith("mlflow.")}
     artifacts = [f.path for f in client.list_artifacts(run_id)]
     inputs = [inp for inp in run.inputs.dataset_inputs]
-    return inputs, data.params, data.metrics, tags, artifacts
+
+    return RunData(
+        inputs=inputs,
+        params=data.params,
+        metrics=data.metrics,
+        tags=tags,
+        artifacts=artifacts,
+    )
+
+
+def basic_logging_checks(run_data: RunData) -> None:
+    assert len(run_data.params) > 0
+    assert len(run_data.metrics) > 0
+    assert run_data.tags == {}
+    assert len(run_data.artifacts) > 0
+
+
+def test_file_system_uri_supported(model) -> None:
+    mlflow.set_tracking_uri(uri=Path("./mlruns"))
+    mlflow.set_experiment("pymc-marketing-test-suite-local-file")
+    with mlflow.start_run() as run:
+        pm.sample(
+            model=model,
+            chains=1,
+            tune=25,
+            draws=30,
+        )
+
+    assert mlflow.get_tracking_uri().startswith("file:///")
+    assert mlflow.active_run() is None
+
+    run_id = run.info.run_id
+    run_data = get_run_data(run_id)
+    basic_logging_checks(run_data)
+
+
+def no_input_model_checks(run_data: RunData) -> None:
+    assert run_data.inputs == []
 
 
 def test_log_data_no_data(no_input_model) -> None:
@@ -119,9 +164,10 @@ def test_log_data_no_data(no_input_model) -> None:
         )
 
     run_id = run.info.run_id
-    inputs = get_run_data(run_id)[0]
+    run_data = get_run_data(run_id)
 
-    assert inputs == []
+    no_input_model_checks(run_data)
+    basic_logging_checks(run_data)
 
 
 def test_multi_likelihood_type(multi_likelihood_model) -> None:
@@ -130,9 +176,9 @@ def test_multi_likelihood_type(multi_likelihood_model) -> None:
         log_likelihood_type(multi_likelihood_model)
 
     run_id = run.info.run_id
-    params = get_run_data(run_id)[1]
+    run_data = get_run_data(run_id)
 
-    assert params == {
+    assert run_data.params == {
         "observed_RVs_types": "['Normal', 'Gamma']",
     }
 
@@ -250,7 +296,6 @@ def test_autolog_pymc_model(model, nuts_sampler) -> None:
     ]
 
     assert len(inputs) == 1
-    mlflow.end_run()
 
 
 @pytest.fixture(scope="module")
