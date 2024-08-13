@@ -100,6 +100,7 @@ Autologging for a PyMC-Marketing model:
 """
 
 import json
+import logging
 import os
 from functools import wraps
 from pathlib import Path
@@ -214,12 +215,20 @@ def log_model_graph(model: Model, path: str | Path) -> None:
     """
     try:
         graph = pm.model_to_graphviz(model)
-    except ImportError:
+    except ImportError as e:
+        msg = (
+            "Unable to render the model graph. Please install the graphviz package. "
+            f"{e}"
+        )
+        logging.info(msg)
+
         return None
 
     try:
         saved_path = graph.render(path)
-    except Exception:
+    except Exception as e:
+        msg = f"Unable to render the model graph. {e}"
+        logging.info(msg)
         return None
     else:
         mlflow.log_artifact(saved_path)

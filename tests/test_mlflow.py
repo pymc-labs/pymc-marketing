@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import json
+import logging
 
 import arviz as az
 import mlflow
@@ -137,19 +138,35 @@ def test_multi_likelihood_type(multi_likelihood_model) -> None:
 
 
 @pytest.mark.parametrize(
-    "to_patch, side_effect",
+    "to_patch, side_effect, expected_info_message",
     [
-        ("pymc.model_to_graphviz", ImportError("No module named 'graphviz'")),
-        ("graphviz.graphs.Digraph.render", Exception("Unknown error occurred")),
+        (
+            "pymc.model_to_graphviz",
+            ImportError("No module named 'graphviz'"),
+            "Unable to render the model graph. Please install the graphviz package. No module named 'graphviz'",
+        ),
+        (
+            "graphviz.graphs.Digraph.render",
+            Exception("Unknown error occurred"),
+            "Unable to render the model graph. Unknown error occurred",
+        ),
     ],
+    ids=["no_graphviz", "render_error"],
 )
-def test_log_model_graph_no_graphviz(mocker, model, to_patch, side_effect) -> None:
+def test_log_model_graph_no_graphviz(
+    caplog, mocker, model, to_patch, side_effect, expected_info_message
+) -> None:
     mocker.patch(
         to_patch,
         side_effect=side_effect,
     )
     with mlflow.start_run() as run:
-        log_model_graph(model, "model_graph")
+        with caplog.at_level(logging.INFO):
+            log_model_graph(model, "model_graph")
+
+    assert caplog.messages == [
+        expected_info_message,
+    ]
 
     run_id = run.info.run_id
     artifacts = get_run_data(run_id)[-1]
