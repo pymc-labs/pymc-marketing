@@ -466,6 +466,41 @@ class TestDelayedSaturatedMMM:
             y=mmm_fitted.y.max(),
         )
 
+    def test_allocate_budget_to_maximize_response(self, mmm_fitted: MMM) -> None:
+        budget = 2.0
+        periods = 8
+        time_granularity = "weekly"
+        budget_bounds = {"channel_1": [0.5, 1.2], "channel_2": [0.5, 1.5]}
+        noise_level = 0.1
+
+        # Call the method
+        inference_data = mmm_fitted.allocate_budget_to_maximize_response(
+            budget=budget,
+            time_granularity=time_granularity,
+            periods=periods,
+            budget_bounds=budget_bounds,
+            noise_level=noise_level,
+        )
+
+        # a) Total budget consistency check
+        allocated_budget = sum(mmm_fitted.original_scale_allocation_dict.values())
+        assert np.isclose(
+            allocated_budget, budget, rtol=1e-5
+        ), f"Total allocated budget {allocated_budget} does not match expected budget {budget}"
+
+        # b) Budget boundaries check
+        for channel, bounds in budget_bounds.items():
+            allocation = mmm_fitted.original_scale_allocation_dict[channel]
+            lower_bound, upper_bound = bounds
+            assert (
+                lower_bound <= allocation <= upper_bound
+            ), f"Channel {channel} allocation {allocation} is out of bounds ({lower_bound}, {upper_bound})"
+
+        # c) Periods consistency check
+        assert (
+            len(inference_data.coords["date"]) == periods
+        ), f"Number of periods in the data {len(inference_data.coords['date'])} does not match the expected {periods}"
+
     @pytest.mark.parametrize(
         argnames="original_scale",
         argvalues=[False, True],
