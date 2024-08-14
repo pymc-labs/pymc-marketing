@@ -22,6 +22,7 @@ from pydantic import ValidationError
 
 from pymc_marketing.mmm import (
     HillSaturation,
+    HillSaturationSigmoid,
     InverseScaledLogisticSaturation,
     LogisticSaturation,
     MichaelisMentenSaturation,
@@ -48,6 +49,7 @@ def saturation_functions():
         TanhSaturationBaselined(),
         MichaelisMentenSaturation(),
         HillSaturation(),
+        HillSaturationSigmoid(),
         RootSaturation(),
     ]
 
@@ -104,6 +106,7 @@ def test_support_for_lift_test_integrations(saturation) -> None:
         ("tanh_baselined", TanhSaturationBaselined),
         ("michaelis_menten", MichaelisMentenSaturation),
         ("hill", HillSaturation),
+        ("hill_sigmoid", HillSaturationSigmoid),
         ("root", RootSaturation),
     ],
 )

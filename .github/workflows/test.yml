@@ -1,0 +1,71 @@
+name: Test
+
+on:
+  pull_request:
+    branches: [main]
+    paths: '**.py'
+  push:
+    branches: [main]
+    paths: '**.py'
+
+env:
+  # The lower bound from the pyproject.toml file
+  OLDEST_PYMC_VERSION: "$(grep -E 'pymc *>' pyproject.toml | sed -n 's/.*>=\\([0-9]*\\.[0-9]*\\.[0-9]*\\).*/\\1/p')"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config: [ {python-version: "3.10", oldest-pymc: false}, {python-version: "3.12", oldest-pymc: true}]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.config.python-version }}
+      - name: Install oldest version of PyMC
+        if: ${{ matrix.config.oldest-pymc }}
+        run: pip install pymc==${{ env.OLDEST_PYMC_VERSION }}
+      - name: Run tests
+        run: |
+          pip install -e .[test]
+          pytest --cov-report=xml --no-cov-on-fail --durations=50
+      - name: Check oldest version of PyMC
+        if: ${{ matrix.config.oldest-pymc }}
+        run: python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}'"
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
+          name: ${{ matrix.config.python-version }}
+          fail_ci_if_error: false
+
+  test_slow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+      - name: Run tests
+        run: |
+          pip install -e .[test]
+          pytest --only-slow --cov-report=xml --no-cov-on-fail --durations=50
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
+          name: "test_slow"
+          fail_ci_if_error: false
+
+  all:
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    name: All checks
+    needs: [ test, test_slow ]
+    steps:
+      - name: Confirm checks passed
+        if: ${{ (needs.test.result != 'success' || needs.test_slow.result != 'success') }}
+        run: exit 1

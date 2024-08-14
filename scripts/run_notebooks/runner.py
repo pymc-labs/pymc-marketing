@@ -11,7 +11,6 @@ KERNEL_NAME: str = "python3"
 DOC_SOURCE = Path("docs/source")
 NOTEBOOKS_PATH = DOC_SOURCE / "notebooks"
 NOTEBOOKS_SKIP: list[str] = [
-    "mmm_budget_allocation_example.ipynb",  # This works locally but not on GitHub Actions
     "mmm_tvp_example.ipynb",  # This notebook takes too long to run
 ]
 NOTEBOOKS: list[Path] = list(NOTEBOOKS_PATH.glob("*/*.ipynb"))
