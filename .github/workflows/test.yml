@@ -29,6 +29,7 @@ jobs:
         run: pip install pymc==${{ env.OLDEST_PYMC_VERSION }}
       - name: Run tests
         run: |
+          sudo apt-get install graphviz
           pip install -e .[test]
           pytest --cov-report=xml --no-cov-on-fail --durations=50
       - name: Check oldest version of PyMC
