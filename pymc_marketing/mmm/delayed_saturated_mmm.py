@@ -1990,6 +1990,7 @@ class MMM(
         time_granularity: str,
         time_length: int,
         lag: int,
+        noise_level: float = 0.01,
     ) -> pd.DataFrame:
         """
         Create a synthetic dataset based on the given allocation strategy (Budget) and time granularity.
@@ -2014,6 +2015,8 @@ class MMM(
             The length of the synthetic dataset in terms of the time granularity.
         lag : int
             The lag value (not used in this function).
+        noise_level : int
+            The level of noise added to the allocation strategy (by default 1%).
 
         Returns
         -------
@@ -2063,7 +2066,9 @@ class MMM(
                 self.date_column: pd.to_datetime(new_date),
                 **{
                     channel: allocation_strategy.get(channel, 0)
-                    + np.random.normal(0, 0.1 * allocation_strategy.get(channel, 0))
+                    + np.random.normal(
+                        0, noise_level * allocation_strategy.get(channel, 0)
+                    )
                     for channel in channels
                 },
                 **{control: 0 for control in _controls},
@@ -2078,10 +2083,11 @@ class MMM(
         self,
         budget: float | int,
         time_granularity: str,
-        num_days: int,
+        horizon: int,
         budget_bounds: dict[str, list[Any]] | None = None,
         custom_constraints: dict[str, float] | None = None,
         quantile: float = 0.5,
+        noise_level: float = 0.01,
     ) -> az.InferenceData:
         """
         Allocate the given budget to maximize the response over a specified time period.
@@ -2102,8 +2108,8 @@ class MMM(
             The total budget to be allocated.
         time_granularity : str
             The granularity of the time periods (e.g., 'daily', 'weekly', 'monthly').
-        num_days : int
-            The number of days over which the budget is to be allocated.
+        horizon : int
+            The number of time units over which the budget is to be allocated.
         budget_bounds : dict[str, list[Any]], optional
             A dictionary specifying the lower and upper bounds for the budget allocation
             for each channel. If None, no bounds are applied.
@@ -2144,7 +2150,7 @@ class MMM(
             saturation=self.saturation,
             parameters=parameters_mid,
             adstock_first=self.adstock_first,
-            num_days=num_days,
+            horizon=horizon,
         )
 
         self.optimal_allocation_dict, _ = allocator.allocate_budget(
@@ -2153,9 +2159,11 @@ class MMM(
             custom_constraints=custom_constraints,
         )
 
-        inverse_scaled_channel_spend = self.channel_transformer.inverse_transform(
+        inverse_scaled_channel_spend = (
             np.array([list(self.optimal_allocation_dict.values())])
+            * self.channel_transformer["scaler"].scale_.max()
         )
+
         original_scale_allocation_dict = dict(
             zip(
                 self.optimal_allocation_dict.keys(),
@@ -2172,8 +2180,9 @@ class MMM(
             controls=self.control_columns,
             target_col=self.output_var,
             time_granularity=time_granularity,
-            time_length=num_days,
+            time_length=horizon,
             lag=self.adstock.l_max,
+            noise_level=noise_level,
         )
 
         return self.sample_posterior_predictive(
