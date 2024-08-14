@@ -2083,7 +2083,7 @@ class MMM(
         self,
         budget: float | int,
         time_granularity: str,
-        horizon: int,
+        periods: int,
         budget_bounds: dict[str, list[Any]] | None = None,
         custom_constraints: dict[str, float] | None = None,
         quantile: float = 0.5,
@@ -2108,7 +2108,7 @@ class MMM(
             The total budget to be allocated.
         time_granularity : str
             The granularity of the time periods (e.g., 'daily', 'weekly', 'monthly').
-        horizon : int
+        periods : float
             The number of time units over which the budget is to be allocated.
         budget_bounds : dict[str, list[Any]], optional
             A dictionary specifying the lower and upper bounds for the budget allocation
@@ -2150,7 +2150,7 @@ class MMM(
             saturation=self.saturation,
             parameters=parameters_mid,
             adstock_first=self.adstock_first,
-            horizon=horizon,
+            periods=periods,
         )
 
         self.optimal_allocation_dict, _ = allocator.allocate_budget(
@@ -2164,7 +2164,7 @@ class MMM(
             * self.channel_transformer["scaler"].scale_.max()
         )
 
-        original_scale_allocation_dict = dict(
+        self.original_scale_allocation_dict = dict(
             zip(
                 self.optimal_allocation_dict.keys(),
                 inverse_scaled_channel_spend[0],
@@ -2175,12 +2175,12 @@ class MMM(
         synth_dataset = self._create_synth_dataset(
             df=self.X,
             date_column=self.date_column,
-            allocation_strategy=original_scale_allocation_dict,
+            allocation_strategy=self.original_scale_allocation_dict,
             channels=self.channel_columns,
             controls=self.control_columns,
             target_col=self.output_var,
             time_granularity=time_granularity,
-            time_length=horizon,
+            time_length=periods,
             lag=self.adstock.l_max,
             noise_level=noise_level,
         )
