@@ -50,7 +50,7 @@ class BudgetOptimizer(BaseModel):
         The adstock class.
     saturation : SaturationTransformation
         The saturation class.
-    num_days : int
+    horizon : int
         The number of days.
     parameters : dict
         A dictionary of parameters for each channel.
@@ -65,7 +65,11 @@ class BudgetOptimizer(BaseModel):
     saturation: SaturationTransformation = Field(
         ..., description="The saturation transformation class."
     )
-    num_days: int = Field(..., gt=0, description="The number of days.")
+    horizon: int = Field(
+        ...,
+        gt=0,
+        description="The number of time units over which the budget is to be allocated.",
+    )
     parameters: dict[str, dict[str, dict[str, float]]] = Field(
         ..., description="A dictionary of parameters for each channel."
     )
@@ -108,7 +112,7 @@ class BudgetOptimizer(BaseModel):
                 if self.adstock_first
                 else params["adstock_params"]
             )
-            spend = np.full(self.num_days, budget)
+            spend = np.full(self.horizon, budget)
             spend_extended = np.concatenate([spend, np.zeros(self.adstock.l_max)])
             transformed_spend = second_transform.function(
                 x=first_transform.function(x=spend_extended, **first_params),
