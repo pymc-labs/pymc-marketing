@@ -13,4 +13,5 @@
   model_config
   model_builder
   prior
+  mlflow
 ```
