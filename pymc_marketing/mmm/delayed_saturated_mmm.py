@@ -1990,6 +1990,7 @@ class MMM(
         time_granularity: str,
         time_length: int,
         lag: int,
+        noise_level: float = 0.01,
     ) -> pd.DataFrame:
         """
         Create a synthetic dataset based on the given allocation strategy (Budget) and time granularity.
@@ -2014,6 +2015,8 @@ class MMM(
             The length of the synthetic dataset in terms of the time granularity.
         lag : int
             The lag value (not used in this function).
+        noise_level : int
+            The level of noise added to the allocation strategy (by default 1%).
 
         Returns
         -------
@@ -2063,7 +2066,9 @@ class MMM(
                 self.date_column: pd.to_datetime(new_date),
                 **{
                     channel: allocation_strategy.get(channel, 0)
-                    + np.random.normal(0, 0.1 * allocation_strategy.get(channel, 0))
+                    + np.random.normal(
+                        0, noise_level * allocation_strategy.get(channel, 0)
+                    )
                     for channel in channels
                 },
                 **{control: 0 for control in _controls},
@@ -2078,10 +2083,11 @@ class MMM(
         self,
         budget: float | int,
         time_granularity: str,
-        num_days: int,
-        budget_bounds: dict[str, list[Any]] | None = None,
+        num_periods: int,
+        budget_bounds: dict[str, tuple[float, float]] | None = None,
         custom_constraints: dict[str, float] | None = None,
         quantile: float = 0.5,
+        noise_level: float = 0.01,
     ) -> az.InferenceData:
         """
         Allocate the given budget to maximize the response over a specified time period.
@@ -2101,9 +2107,9 @@ class MMM(
         budget : float or int
             The total budget to be allocated.
         time_granularity : str
-            The granularity of the time periods (e.g., 'daily', 'weekly', 'monthly').
-        num_days : int
-            The number of days over which the budget is to be allocated.
+            The granularity of the time units (num_periods) (e.g., 'daily', 'weekly', 'monthly').
+        num_periods : float
+            The number of time units over which the budget is to be allocated.
         budget_bounds : dict[str, list[Any]], optional
             A dictionary specifying the lower and upper bounds for the budget allocation
             for each channel. If None, no bounds are applied.
@@ -2126,54 +2132,32 @@ class MMM(
             quantile=quantile
         )
 
-        scale_budget = budget / self.channel_transformer["scaler"].scale_.max()
-
-        if isinstance(budget_bounds, dict):
-            scale_budget_bounds: dict[str, tuple[float, float]] | None = {
-                k: (
-                    v[0] / self.channel_transformer["scaler"].scale_.max(),
-                    v[1] / self.channel_transformer["scaler"].scale_.max(),
-                )
-                for k, v in budget_bounds.items()
-            }
-        else:
-            scale_budget_bounds = None
-
         allocator = BudgetOptimizer(
             adstock=self.adstock,
             saturation=self.saturation,
             parameters=parameters_mid,
             adstock_first=self.adstock_first,
-            num_days=num_days,
+            num_periods=num_periods,
+            scales=self.channel_transformer["scaler"].scale_,
         )
 
         self.optimal_allocation_dict, _ = allocator.allocate_budget(
-            total_budget=scale_budget,
-            budget_bounds=scale_budget_bounds,
+            total_budget=budget,
+            budget_bounds=budget_bounds,
             custom_constraints=custom_constraints,
-        )
-
-        inverse_scaled_channel_spend = self.channel_transformer.inverse_transform(
-            np.array([list(self.optimal_allocation_dict.values())])
-        )
-        original_scale_allocation_dict = dict(
-            zip(
-                self.optimal_allocation_dict.keys(),
-                inverse_scaled_channel_spend[0],
-                strict=False,
-            )
         )
 
         synth_dataset = self._create_synth_dataset(
             df=self.X,
             date_column=self.date_column,
-            allocation_strategy=original_scale_allocation_dict,
+            allocation_strategy=self.optimal_allocation_dict,
             channels=self.channel_columns,
             controls=self.control_columns,
             target_col=self.output_var,
             time_granularity=time_granularity,
-            time_length=num_days,
+            time_length=num_periods,
             lag=self.adstock.l_max,
+            noise_level=noise_level,
         )
 
         return self.sample_posterior_predictive(

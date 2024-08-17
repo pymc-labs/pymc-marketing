@@ -50,8 +50,8 @@ class BudgetOptimizer(BaseModel):
         The adstock class.
     saturation : SaturationTransformation
         The saturation class.
-    num_days : int
-        The number of days.
+    num_periods : int
+        The number of time units.
     parameters : dict
         A dictionary of parameters for each channel.
     adstock_first : bool, optional
@@ -65,9 +65,16 @@ class BudgetOptimizer(BaseModel):
     saturation: SaturationTransformation = Field(
         ..., description="The saturation transformation class."
     )
-    num_days: int = Field(..., gt=0, description="The number of days.")
+    num_periods: int = Field(
+        ...,
+        gt=0,
+        description="The number of time units at time granularity which the budget is to be allocated.",
+    )
     parameters: dict[str, dict[str, dict[str, float]]] = Field(
         ..., description="A dictionary of parameters for each channel."
+    )
+    scales: np.ndarray = Field(
+        ..., description="The scale parameter for each channel variable"
     )
     adstock_first: bool = Field(
         True,
@@ -97,7 +104,7 @@ class BudgetOptimizer(BaseModel):
             else (self.saturation, self.adstock)
         )
         for idx, (_channel, params) in enumerate(self.parameters.items()):
-            budget = budgets[idx]
+            budget = budgets[idx] / self.scales[idx]
             first_params = (
                 params["adstock_params"]
                 if self.adstock_first
@@ -108,7 +115,7 @@ class BudgetOptimizer(BaseModel):
                 if self.adstock_first
                 else params["adstock_params"]
             )
-            spend = np.full(self.num_days, budget)
+            spend = np.full(self.num_periods, budget)
             spend_extended = np.concatenate([spend, np.zeros(self.adstock.l_max)])
             transformed_spend = second_transform.function(
                 x=first_transform.function(x=spend_extended, **first_params),
