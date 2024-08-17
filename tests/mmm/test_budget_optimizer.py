@@ -81,9 +81,10 @@ def test_allocate_budget(
     optimizer = BudgetOptimizer(
         adstock=adstock,
         saturation=saturation,
-        num_days=30,
+        num_periods=30,
         parameters=parameters,
         adstock_first=True,
+        scales=np.array([1, 1]),
     )
 
     # Allocate Budget
@@ -130,9 +131,10 @@ def test_allocate_budget_zero_total(
     optimizer = BudgetOptimizer(
         adstock=adstock,
         saturation=saturation,
-        num_days=30,
+        num_periods=30,
         parameters=parameters,
         adstock_first=True,
+        scales=np.array([1, 1]),
     )
     match = "Using default equality constraint"
     with pytest.warns(UserWarning, match=match):
@@ -168,9 +170,10 @@ def test_allocate_budget_custom_minimize_args(minimize_mock) -> None:
     optimizer = optimizer = BudgetOptimizer(
         adstock=adstock,
         saturation=saturation,
-        num_days=30,
+        num_periods=30,
         parameters=parameters,
         adstock_first=True,
+        scales=np.array([1, 1]),
     )
     match = "Using default equality constraint"
     with pytest.warns(UserWarning, match=match):
@@ -226,9 +229,10 @@ def test_allocate_budget_infeasible_constraints(
     optimizer = optimizer = BudgetOptimizer(
         adstock=adstock,
         saturation=saturation,
-        num_days=30,
+        num_periods=30,
         parameters=parameters,
         adstock_first=True,
+        scales=np.array([1, 1]),
     )
 
     with pytest.raises(MinimizeException, match="Optimization failed"):
