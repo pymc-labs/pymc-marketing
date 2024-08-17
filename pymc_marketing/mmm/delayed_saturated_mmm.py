@@ -2083,8 +2083,8 @@ class MMM(
         self,
         budget: float | int,
         time_granularity: str,
-        periods: int,
-        budget_bounds: dict[str, list[Any]] | None = None,
+        num_periods: int,
+        budget_bounds: dict[str, tuple[float, float]] | None = None,
         custom_constraints: dict[str, float] | None = None,
         quantile: float = 0.5,
         noise_level: float = 0.01,
@@ -2107,8 +2107,8 @@ class MMM(
         budget : float or int
             The total budget to be allocated.
         time_granularity : str
-            The granularity of the time periods (e.g., 'daily', 'weekly', 'monthly').
-        periods : float
+            The granularity of the time units (num_periods) (e.g., 'daily', 'weekly', 'monthly').
+        num_periods : float
             The number of time units over which the budget is to be allocated.
         budget_bounds : dict[str, list[Any]], optional
             A dictionary specifying the lower and upper bounds for the budget allocation
@@ -2132,55 +2132,30 @@ class MMM(
             quantile=quantile
         )
 
-        scale_budget = budget / self.channel_transformer["scaler"].scale_.max()
-
-        if isinstance(budget_bounds, dict):
-            scale_budget_bounds: dict[str, tuple[float, float]] | None = {
-                k: (
-                    v[0] / self.channel_transformer["scaler"].scale_.max(),
-                    v[1] / self.channel_transformer["scaler"].scale_.max(),
-                )
-                for k, v in budget_bounds.items()
-            }
-        else:
-            scale_budget_bounds = None
-
         allocator = BudgetOptimizer(
             adstock=self.adstock,
             saturation=self.saturation,
             parameters=parameters_mid,
             adstock_first=self.adstock_first,
-            periods=periods,
+            num_periods=num_periods,
+            scales=self.channel_transformer["scaler"].scale_,
         )
 
         self.optimal_allocation_dict, _ = allocator.allocate_budget(
-            total_budget=scale_budget,
-            budget_bounds=scale_budget_bounds,
+            total_budget=budget,
+            budget_bounds=budget_bounds,
             custom_constraints=custom_constraints,
-        )
-
-        inverse_scaled_channel_spend = (
-            np.array([list(self.optimal_allocation_dict.values())])
-            * self.channel_transformer["scaler"].scale_.max()
-        )
-
-        self.original_scale_allocation_dict = dict(
-            zip(
-                self.optimal_allocation_dict.keys(),
-                inverse_scaled_channel_spend[0],
-                strict=False,
-            )
         )
 
         synth_dataset = self._create_synth_dataset(
             df=self.X,
             date_column=self.date_column,
-            allocation_strategy=self.original_scale_allocation_dict,
+            allocation_strategy=self.optimal_allocation_dict,
             channels=self.channel_columns,
             controls=self.control_columns,
             target_col=self.output_var,
             time_granularity=time_granularity,
-            time_length=periods,
+            time_length=num_periods,
             lag=self.adstock.l_max,
             noise_level=noise_level,
         )
