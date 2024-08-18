@@ -14,6 +14,8 @@ copyright = f"2022, {author}"
 # The master toctree document.
 master_doc = "index"
 
+autodoc_mock_imports = ["mlflow"]
+
 # Add any Sphinx extension module names here, as strings
 extensions = [
     # extensions from sphinx base
