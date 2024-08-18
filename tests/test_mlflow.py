@@ -231,10 +231,13 @@ def metric_checks(metrics, nuts_sampler) -> None:
 def param_checks(params, draws: int, chains: int, tune: int, nuts_sampler: str) -> None:
     assert params["draws"] == str(draws)
     assert params["chains"] == str(chains)
+    assert params["posterior_samples"] == str(draws * chains)
+
     if nuts_sampler not in ["numpyro", "blackjax"]:
         assert params["inference_library"] == nuts_sampler
-    if nuts_sampler not in ["numpyro", "nutpie", "blackjax"]:
-        assert params["tuning_steps"] == str(tune)
+
+    assert params["tuning_steps"] == str(tune)
+    assert params["tuning_samples"] == str(tune * chains)
 
     assert params["pymc_marketing_version"] == __version__
 
