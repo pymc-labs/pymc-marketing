@@ -50,6 +50,9 @@ uml: ## Install documentation dependencies and generate UML diagrams
 	pyreverse pymc_marketing/mmm -d docs/source/uml -f 'ALL' -o png -p mmm
 	pyreverse pymc_marketing/clv -d docs/source/uml -f 'ALL' -o png -p clv
 
+mlflow_server: ## Start MLflow server on port 5000
+	mlflow server --backend-store-uri sqlite:///mlruns.db --default-artifact-root ./mlruns
+
 
 #################################################################################
 # Self Documenting Commands                                                     #
