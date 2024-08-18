@@ -62,6 +62,7 @@ docs = [
     "sphinx",
     "sphinxext-opengraph",
     "watermark",
+    "mlflow>=2.0.0",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
