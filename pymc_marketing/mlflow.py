@@ -304,6 +304,11 @@ def log_model_derived_info(model: Model) -> None:
     - The model representation (str).
     - The model coordinates (coords.json).
 
+    Parameters
+    ----------
+    model : Model
+        The PyMC model object.
+
     """
     log_types_of_parameters(model)
 
@@ -321,6 +326,7 @@ def log_model_derived_info(model: Model) -> None:
 
 def log_sample_diagnostics(
     idata: az.InferenceData,
+    tune: int | None = None,
 ) -> None:
     """Log sample diagnostics to MLflow.
 
@@ -336,6 +342,14 @@ def log_sample_diagnostics(
     - The version of the inference library
     - The version of ArviZ
 
+    Parameters
+    ----------
+    idata : az.InferenceData
+        The InferenceData object returned by the sampling method.
+    tune : int, optional
+        The number of tuning steps used in sampling. Derived from the
+        inference data if not provided.
+
     """
     if "posterior" not in idata:
         raise KeyError("InferenceData object does not contain the group posterior.")
@@ -348,19 +362,28 @@ def log_sample_diagnostics(
 
     diverging = sample_stats["diverging"]
 
+    chains = posterior.sizes["chain"]
+    draws = posterior.sizes["draw"]
+    posterior_samples = chains * draws
+
+    tuning_step = sample_stats.attrs.get("tuning_steps", tune)
+    if tuning_step is not None:
+        tuning_samples = tuning_step * chains
+        mlflow.log_param("tuning_steps", tuning_step)
+        mlflow.log_param("tuning_samples", tuning_samples)
+
     total_divergences = diverging.sum().item()
     mlflow.log_metric("total_divergences", total_divergences)
     if sampling_time := sample_stats.attrs.get("sampling_time"):
         mlflow.log_metric("sampling_time", sampling_time)
         mlflow.log_metric(
             "time_per_draw",
-            sampling_time / (posterior.sizes["draw"] * posterior.sizes["chain"]),
+            sampling_time / posterior_samples,
         )
 
-    if tuning_step := sample_stats.attrs.get("tuning_steps"):
-        mlflow.log_param("tuning_steps", tuning_step)
-    mlflow.log_param("draws", posterior.sizes["draw"])
-    mlflow.log_param("chains", posterior.sizes["chain"])
+    mlflow.log_param("draws", draws)
+    mlflow.log_param("chains", chains)
+    mlflow.log_param("posterior_samples", posterior_samples)
 
     if inference_library := posterior.attrs.get("inference_library"):
         mlflow.log_param("inference_library", inference_library)
@@ -382,8 +405,7 @@ def log_inference_data(
     idata : az.InferenceData
         The InferenceData object returned by the sampling method.
     save_file : str | Path
-        The path to save the InferenceData object as a net
-        CDF file.
+        The path to save the InferenceData object as a netCDF file.
 
     """
     idata.to_netcdf(str(save_file))
@@ -516,8 +538,11 @@ def autolog(
             mlflow.log_param("pymc_version", pm.__version__)
             mlflow.log_param("nuts_sampler", kwargs.get("nuts_sampler", "pymc"))
 
+            # Align with the default values in pymc.sample
+            tune = kwargs.get("tune", 1000)
+
             if log_sampler_info:
-                log_sample_diagnostics(idata)
+                log_sample_diagnostics(idata, tune=tune)
                 log_arviz_summary(
                     idata,
                     "summary.html",
