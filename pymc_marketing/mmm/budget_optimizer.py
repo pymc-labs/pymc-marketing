@@ -104,7 +104,7 @@ class BudgetOptimizer(BaseModel):
             else (self.saturation, self.adstock)
         )
         for idx, (_channel, params) in enumerate(self.parameters.items()):
-            budget = budgets[idx] / self.scales[idx]
+            budget = budgets[idx] / self.scales[idx] * self.scales.max()
             first_params = (
                 params["adstock_params"]
                 if self.adstock_first
@@ -168,17 +168,19 @@ class BudgetOptimizer(BaseModel):
         Exception
             If the optimization fails, an exception is raised with the reason for the failure.
         """
+        scaled_budget = total_budget / self.scales.max()
+
         if budget_bounds is None:
-            budget_bounds = {channel: (0, total_budget) for channel in self.parameters}
+            budget_bounds = {channel: (0, scaled_budget) for channel in self.parameters}
             warnings.warn(
-                "No budget bounds provided. Using default bounds (0, total_budget) for each channel.",
+                "No budget bounds provided. Using default bounds (0, scaled_budget) for each channel.",
                 stacklevel=2,
             )
         elif not isinstance(budget_bounds, dict):
             raise TypeError("`budget_bounds` should be a dictionary.")
 
         if custom_constraints is None:
-            constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
+            constraints = {"type": "eq", "fun": lambda x: np.sum(x) - scaled_budget}
             warnings.warn(
                 "Using default equality constraint: The sum of all budgets should be equal to the total budget.",
                 stacklevel=2,
@@ -189,12 +191,12 @@ class BudgetOptimizer(BaseModel):
             constraints = custom_constraints
 
         num_channels = len(self.parameters.keys())
-        initial_guess = np.ones(num_channels) * total_budget / num_channels
+        initial_guess = np.ones(num_channels) * scaled_budget / num_channels
         bounds = [
             (
                 (budget_bounds[channel][0], budget_bounds[channel][1])
                 if channel in budget_bounds
-                else (0, total_budget)
+                else (0, scaled_budget)
             )
             for channel in self.parameters
         ]
@@ -216,7 +218,9 @@ class BudgetOptimizer(BaseModel):
         if result.success:
             optimal_budgets = {
                 name: budget
-                for name, budget in zip(self.parameters.keys(), result.x, strict=False)
+                for name, budget in zip(
+                    self.parameters.keys(), result.x * self.scales.max(), strict=False
+                )
             }
             return optimal_budgets, -result.fun
         else:
