@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""Shifted Beta Geometric model."""
+
 from collections.abc import Sequence
 
 import numpy as np
@@ -25,7 +27,7 @@ from pymc_marketing.prior import Prior
 
 
 class ShiftedBetaGeoModelIndividual(CLVModel):
-    """Shifted Beta Geometric model
+    """Shifted Beta Geometric model.
 
     Model for customer behavior in a discrete contractual setting. It assumes that:
       * At the end of each period, a customer has a probability `theta` of renewing the contract
@@ -132,12 +134,14 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
 
     @property
     def default_model_config(self) -> dict:
+        """Default model configuration."""
         return {
             "alpha_prior": Prior("HalfFlat"),
             "beta_prior": Prior("HalfFlat"),
         }
 
-    def build_model(self):
+    def build_model(self) -> None:
+        """Build the model."""
         coords = {"customer_id": self.data["customer_id"]}
         with pm.Model(coords=coords) as self.model:
             alpha = self.model_config["alpha_prior"].create_variable("alpha")

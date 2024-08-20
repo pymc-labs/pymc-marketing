@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""Gamma-Gamma Model for expected future monetary value."""
+
 import numpy as np
 import pandas
 import pymc as pm
@@ -25,6 +27,8 @@ from pymc_marketing.prior import Prior
 
 
 class BaseGammaGammaModel(CLVModel):
+    """Base class for Gamma-Gamma models."""
+
     def distribution_customer_spend(
         self,
         data: pandas.DataFrame,
@@ -68,7 +72,9 @@ class BaseGammaGammaModel(CLVModel):
         self,
         data: pandas.DataFrame,
     ) -> xarray.DataArray:
-        """Expected future mean spend value per customer. Based on Eq 5 from [1], p.3.
+        """Compute the expected future mean spend value per customer.
+
+        The computations are based on Eq 5 from [1], p.3.
 
         Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117
 
@@ -132,7 +138,7 @@ class BaseGammaGammaModel(CLVModel):
             ).posterior_predictive["mean_spend"]
 
     def expected_new_customer_spend(self) -> xarray.DataArray:
-        """Expected mean spend value for a new customer."""
+        """Compute the expected mean spend value for a new customer."""
         posterior = self.fit_result
         p_mean = posterior["p"]
         q_mean = posterior["q"]
@@ -154,8 +160,10 @@ class BaseGammaGammaModel(CLVModel):
         discount_rate: float = 0.00,
         time_unit: str = "D",
     ) -> xarray.DataArray:
-        """Compute the average lifetime value for a group of one or more customers,
-        and apply a discount rate for net present value estimations.
+        """Compute the average lifetime value for a group of one or more customers.
+
+        In addition, it applies a discount rate for net present value estimations.
+
         Note `future_t` is measured in months regardless of `time_unit` specified.
 
         Adapted from lifetimes package
@@ -308,13 +316,15 @@ class GammaGammaModel(BaseGammaGammaModel):
 
     @property
     def default_model_config(self) -> ModelConfig:
+        """Default model configuration."""
         return {
             "p_prior": Prior("HalfFlat"),
             "q_prior": Prior("HalfFlat"),
             "v_prior": Prior("HalfFlat"),
         }
 
-    def build_model(self):
+    def build_model(self) -> None:
+        """Build the model."""
         z_mean = pt.as_tensor_variable(self.data["monetary_value"])
         x = pt.as_tensor_variable(self.data["frequency"])
 
@@ -443,13 +453,15 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
     @property
     def default_model_config(self) -> dict:
+        """Default model configuration."""
         return {
             "p_prior": Prior("HalfFlat"),
             "q_prior": Prior("HalfFlat"),
             "v_prior": Prior("HalfFlat"),
         }
 
-    def build_model(self):
+    def build_model(self) -> None:
+        """Build the model."""
         z = self.data["individual_transaction_value"]
 
         coords = {

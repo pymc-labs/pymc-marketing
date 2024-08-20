@@ -11,6 +11,9 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+
+"""Pareto NBD Model."""
+
 import warnings
 from collections.abc import Sequence
 from typing import Literal, cast
@@ -225,6 +228,7 @@ class ParetoNBDModel(CLVModel):
 
     @property
     def default_model_config(self) -> ModelConfig:
+        """Default model configuration."""
         return {
             "r_prior": Prior("Weibull", alpha=2, beta=1),
             "alpha_prior": Prior("Weibull", alpha=2, beta=10),
@@ -237,6 +241,7 @@ class ParetoNBDModel(CLVModel):
         }
 
     def build_model(self) -> None:  # type: ignore[override]
+        """Build the model."""
         coords = {
             "purchase_covariate": self.purchase_covariate_cols,
             "dropout_covariate": self.dropout_covariate_cols,
@@ -385,7 +390,10 @@ class ParetoNBDModel(CLVModel):
         data: pd.DataFrame,
         customer_varnames: Sequence[str] = (),
     ) -> xarray.Dataset:
-        """Utility function assigning default customer arguments
+        """
+        Extract predictive variables from the data.
+
+        Utility function assigning default customer arguments
         for predictive methods and converting to xarrays.
         """
         self._validate_cols(
@@ -461,7 +469,10 @@ class ParetoNBDModel(CLVModel):
         *,
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        """Given *recency*, *frequency*, and *T* for an individual customer, this method predicts the
+        """
+        Compute expected number of future purchases.
+
+        Given *recency*, *frequency*, and *T* for an individual customer, this method predicts the
         expected number of future purchases across *future_t* time periods.
 
         Adapted from equation (41) In Bruce Hardie's notes [1]_, and `lifetimes` package:
@@ -537,8 +548,12 @@ class ParetoNBDModel(CLVModel):
         *,
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        """Compute the probability that a customer with history *frequency*, *recency*, and *T*
-        is currently active. Can also estimate alive probability for *future_t* periods into the future.
+        """
+        Compute expected probability of being alive.
+
+        Compute the probability that a customer with history *frequency*, *recency*, and *T*
+        is currently active.
+        Can also estimate alive probability for *future_t* periods into the future.
 
         Adapted from equation (18) in Bruce Hardie's notes [1]_.
 
@@ -608,7 +623,10 @@ class ParetoNBDModel(CLVModel):
         n_purchases: int | None = None,
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        """Estimate probability of *n_purchases* over *future_t* time periods,
+        """
+        Compute expected probability of *n_purchases* over *future_t* time periods.
+
+        Estimate probability of *n_purchases* over *future_t* time periods,
         given an individual customer's current *frequency*, *recency*, and *T*.
 
 
@@ -788,7 +806,7 @@ class ParetoNBDModel(CLVModel):
         *,
         t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        """Expected number of purchases for a new customer across *t* time periods.
+        """Compute the expected number of purchases for a new customer across *t* time periods.
 
         In a model with covariates, if `data` is not specified, the dataset used for fitting will be used and
         a prediction will be computed for a *new customer* with each set of covariates.
@@ -852,8 +870,7 @@ class ParetoNBDModel(CLVModel):
             "recency_frequency",
         ),
     ) -> xarray.Dataset:
-        """Utility function for posterior predictive sampling of dropout, purchase rate
-        and frequency/recency of new customers.
+        """Compute posterior predictive samples of dropout, purchase rate and frequency/recency of new customers.
 
         In a model with covariates, if `data` is not specified, the dataset used for fitting will be used and
         a prediction will be computed for a *new customer* with each set of covariates.
