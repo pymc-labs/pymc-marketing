@@ -15,7 +15,7 @@
 
 import json
 import warnings
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -217,11 +217,24 @@ class BaseMMM(BaseValidateMMM):
 
     @property
     def default_sampler_config(self) -> dict:
+        """Default sampler configuration for the model.
+
+        Returns
+        -------
+        dict
+            Empty dictionary.
+        """
         return {}
 
     @property
-    def output_var(self):
-        """Define target variable for the model."""
+    def output_var(self) -> Literal["y"]:
+        """Define target variable for the model.
+
+        Returns
+        -------
+        str
+            The target variable for the model.
+        """
         return "y"
 
     def _generate_and_preprocess_model_data(  # type: ignore

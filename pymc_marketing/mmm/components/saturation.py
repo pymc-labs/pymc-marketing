@@ -433,6 +433,7 @@ class RootSaturation(SaturationTransformation):
     lookup_name = "root"
 
     def function(self, x, alpha, beta):
+        """Root saturation function."""
         return beta * root_saturation(x, alpha)
 
     default_priors = {
@@ -457,11 +458,15 @@ SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
 
 
 def register_saturation_transformation(cls: type[SaturationTransformation]) -> None:
-    """Register a new saturation transformation."""
+    """Register a new saturation transformation.
+
+    Helper for use in the MMM to register a new saturation function.
+    """
     SATURATION_TRANSFORMATIONS[cls.lookup_name] = cls
 
 
 def saturation_from_dict(data: dict) -> SaturationTransformation:
+    """Get a saturation function from a dictionary."""
     data = data.copy()
     cls = SATURATION_TRANSFORMATIONS[data.pop("lookup_name")]
 
@@ -474,7 +479,11 @@ def saturation_from_dict(data: dict) -> SaturationTransformation:
 def _get_saturation_function(
     function: str | SaturationTransformation,
 ) -> SaturationTransformation:
-    """Helper for use in the MMM to get a saturation function."""
+    """
+    Get a saturation function.
+
+    Helper for use in the MMM to get a saturation function.
+    """
     if isinstance(function, SaturationTransformation):
         return function
 

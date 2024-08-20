@@ -323,7 +323,7 @@ class GammaGammaModel(BaseGammaGammaModel):
             "v_prior": Prior("HalfFlat"),
         }
 
-    def build_model(self) -> None:
+    def build_model(self) -> None:  # type: ignore[override]
         """Build the model."""
         z_mean = pt.as_tensor_variable(self.data["monetary_value"])
         x = pt.as_tensor_variable(self.data["frequency"])
@@ -460,7 +460,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             "v_prior": Prior("HalfFlat"),
         }
 
-    def build_model(self) -> None:
+    def build_model(self) -> None:  # type: ignore[override]
         """Build the model."""
         z = self.data["individual_transaction_value"]
 

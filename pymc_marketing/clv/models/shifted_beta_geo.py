@@ -140,7 +140,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             "beta_prior": Prior("HalfFlat"),
         }
 
-    def build_model(self) -> None:
+    def build_model(self) -> None:  # type: ignore[override]
         """Build the model."""
         coords = {"customer_id": self.data["customer_id"]}
         with pm.Model(coords=coords) as self.model:

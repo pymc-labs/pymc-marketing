@@ -172,7 +172,7 @@ DimHandler = Callable[[pt.TensorLike, Dims], pt.TensorLike]
 
 
 def create_dim_handler(desired_dims: Dims) -> DimHandler:
-    """Wrapper to act like the previous `create_dim_handler` function."""
+    """Wrap the `handle_dims` function to act like the previous `create_dim_handler` function."""
 
     def func(x: pt.TensorLike, dims: Dims) -> pt.TensorVariable:
         return handle_dims(x, dims, desired_dims)

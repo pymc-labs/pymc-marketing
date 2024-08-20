@@ -108,6 +108,8 @@ class MaxAbsScaleTarget:
 
 
 class MaxAbsScaleChannels:
+    """MaxAbsScaler for the channel data."""
+
     channel_columns: list[str] | tuple[str]
 
     @preprocessing_method_X

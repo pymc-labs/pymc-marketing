@@ -24,6 +24,8 @@ from pytensor.tensor.random.utils import params_broadcast_shapes
 
 
 class ConvMode(str, Enum):
+    """Convolution mode for the convolution."""
+
     # TODO: use StrEnum when we upgrade to python 3.11
     After = "After"
     Before = "Before"
@@ -31,6 +33,8 @@ class ConvMode(str, Enum):
 
 
 class WeibullType(str, Enum):
+    """Weibull type for the Weibull adstock."""
+
     # TODO: use StrEnum when we upgrade to python 3.11
     PDF = "PDF"
     CDF = "CDF"

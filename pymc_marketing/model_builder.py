@@ -39,9 +39,11 @@ try:
 except ImportError:
 
     def check_X_y(X, y, **kwargs):
+        """Check if the input data is valid for the model."""
         return X, y
 
     def check_array(X, **kwargs):
+        """Check if the input data is valid for the model."""
         return X
 
 
@@ -430,6 +432,7 @@ class ModelBuilder(ABC):
 
     @classmethod
     def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
+        """Convert the model configuration and sampler configuration from the attributes to keyword arguments."""
         return {
             "model_config": cls._model_config_formatting(
                 json.loads(attrs["model_config"])
