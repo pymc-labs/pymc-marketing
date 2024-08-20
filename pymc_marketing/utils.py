@@ -18,6 +18,18 @@ import arviz as az
 
 
 def from_netcdf(filepath: str | Path) -> az.InferenceData:
+    """Load inference data from a netcdf file.
+
+    Parameters
+    ----------
+    filepath : str or Path
+        The path to the netcdf file.
+
+    Returns
+    -------
+    az.InferenceData
+        The inference data.
+    """
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
