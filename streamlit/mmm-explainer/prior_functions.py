@@ -11,6 +11,21 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""Functions for plotting prior distributions."""
+
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 # Imports
 import numpy as np
 import plotly.express as px
@@ -51,8 +66,10 @@ def get_distribution(distribution_name=pz.distributions, **params):
 def plot_prior_distribution(
     draws, nbins=100, opacity=0.1, title="Prior Distribution - Visualised"
 ):
-    """Plots samples of a prior distribution as a histogram with a KDE (Kernel Density Estimate) overlay
-    and a violin plot along the top too with quartile values.
+    """Plot samples of a prior distribution as a histogram.
+
+    It uses a KDE (Kernel Density Estimate) overlay and a violin plot along the top too
+    with quartile values.
 
     Parameters
     ----------

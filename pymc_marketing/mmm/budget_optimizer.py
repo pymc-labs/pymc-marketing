@@ -83,8 +83,9 @@ class BudgetOptimizer(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def objective(self, budgets: list[float]) -> float:
-        """Calculate the total response during a period of time given the budgets,
-        considering the saturation and adstock transformations.
+        """Calculate the total response during a period of time given the budgets.
+
+        It considers the saturation and adstock transformations.
 
         Parameters
         ----------

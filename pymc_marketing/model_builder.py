@@ -46,7 +46,9 @@ except ImportError:
 
 
 class ModelBuilder(ABC):
-    """ModelBuilder can be used to provide an easy-to-use API (similar to scikit-learn) for models
+    """Base class for building models with PyMC Marketing.
+
+    It provides an easy-to-use API (similar to scikit-learn) for models
     and help with deployment.
     """
 
@@ -61,7 +63,7 @@ class ModelBuilder(ABC):
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
-        """Initializes model configuration and sampler configuration for the model
+        """Initialize model configuration and sampler configuration for the model.
 
         Parameters
         ----------
@@ -107,7 +109,7 @@ class ModelBuilder(ABC):
         X: np.ndarray | pd.DataFrame,
         y: np.ndarray | pd.Series | None = None,
     ) -> None:
-        """Sets new data in the model.
+        """Set new data in the model.
 
         Parameters
         ----------
@@ -147,7 +149,9 @@ class ModelBuilder(ABC):
     @property
     @abstractmethod
     def default_model_config(self) -> dict:
-        """Returns a class default config dict for model builder if no model_config is provided on class initialization
+        """Return a class default configuration dictionary.
+
+        For model builder if no model_config is provided on class initialization
         Useful for understanding structure of required model_config to allow its customization by users
 
         Examples
@@ -176,7 +180,9 @@ class ModelBuilder(ABC):
     @property
     @abstractmethod
     def default_sampler_config(self) -> dict:
-        """Returns a class default sampler dict for model builder if no sampler_config is provided on class initialization
+        """Return a class default sampler configuration dictionary.
+
+        For model builder if no sampler_config is provided on class initialization
         Useful for understanding structure of required sampler_config to allow its customization by users
 
         Examples
@@ -201,7 +207,8 @@ class ModelBuilder(ABC):
     def _generate_and_preprocess_model_data(
         self, X: pd.DataFrame | pd.Series, y: np.ndarray
     ) -> None:
-        """Applies preprocessing to the data before fitting the model.
+        """Apply preprocessing to the data before fitting the model.
+
         if validate is True, it will check if the data is valid for the model.
         sets self.model_coords based on provided dataset
 
@@ -236,8 +243,9 @@ class ModelBuilder(ABC):
         y: pd.Series | np.ndarray,
         **kwargs,
     ) -> None:
-        """Creates an instance of pm.Model based on provided data and model_config, and
-        attaches it to self.
+        """Create an instance of `pm.Model` based on provided data and model_config.
+
+        It attaches the model to self.model.
 
         Parameters
         ----------
@@ -265,6 +273,14 @@ class ModelBuilder(ABC):
         """
 
     def create_idata_attrs(self) -> dict[str, str]:
+        """Create attributes for the inference data.
+
+        Returns
+        -------
+        dict[str, str]
+            A dictionary of attributes for the inference data.
+        """
+
         def default(x):
             if isinstance(x, Prior):
                 return x.to_json()
@@ -390,7 +406,9 @@ class ModelBuilder(ABC):
 
     @classmethod
     def _model_config_formatting(cls, model_config: dict) -> dict:
-        """Because of json serialization, model_config values that were originally tuples
+        """Format the model configuration.
+
+        Because of json serialization, model_config values that were originally tuples
         or numpy are being encoded as lists. This function converts them back to tuples
         and numpy arrays to ensure correct id encoding.
         """
@@ -421,7 +439,7 @@ class ModelBuilder(ABC):
 
     @classmethod
     def load(cls, fname: str):
-        """Creates a ModelBuilder instance from a file,
+        """Create a ModelBuilder instance from a file.
 
         Loads inference data for the model.
 
@@ -486,6 +504,7 @@ class ModelBuilder(ABC):
         **kwargs: Any,
     ) -> az.InferenceData:
         """Fit a model using the data passed as a parameter.
+
         Sets attrs to inference data of the model.
 
         Parameters
@@ -569,8 +588,9 @@ class ModelBuilder(ABC):
         extend_idata: bool = True,
         **kwargs,
     ) -> np.ndarray:
-        """Uses model to predict on unseen data and return point prediction of all the samples. The point prediction
-        for each input row is the expected output value, computed as the mean of MCMC samples.
+        """Use a model to predict on unseen data and return point prediction of all the samples.
+
+        The point prediction for each input row is the expected output value, computed as the mean of MCMC samples.
 
         Parameters
         ----------
@@ -726,6 +746,7 @@ class ModelBuilder(ABC):
     @abstractmethod
     def _serializable_model_config(self) -> dict[str, int | float | dict]:
         """Converts non-serializable values from model_config to their serializable reversable equivalent.
+
         Data types like pandas DataFrame, Series or datetime aren't JSON serializable,
         so in order to save the model they need to be formatted.
 
