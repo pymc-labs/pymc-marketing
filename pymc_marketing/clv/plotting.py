@@ -181,8 +181,7 @@ def plot_frequency_recency_matrix(
     ax: plt.Axes | None = None,
     **kwargs,
 ) -> plt.Axes:
-    """
-    Plot expected transactions in *future_t* time periods as a heatmap
+    """Plot expected transactions in *future_t* time periods as a heatmap
     based on customer population *frequency* and *recency*.
 
     Parameters
@@ -209,6 +208,7 @@ def plot_frequency_recency_matrix(
     Returns
     -------
     axes: matplotlib.AxesSubplot
+
     """
     if max_frequency is None:
         max_frequency = int(model.data["frequency"].max())
@@ -277,8 +277,7 @@ def plot_probability_alive_matrix(
     ax: plt.Axes | None = None,
     **kwargs,
 ) -> plt.Axes:
-    """
-    Plot probability alive matrix as a heatmap based on customer population *frequency* and *recency*.
+    """Plot probability alive matrix as a heatmap based on customer population *frequency* and *recency*.
 
     Parameters
     ----------
@@ -302,8 +301,8 @@ def plot_probability_alive_matrix(
     Returns
     -------
     axes: matplotlib.AxesSubplot
-    """
 
+    """
     if max_frequency is None:
         max_frequency = int(model.data["frequency"].max())
 

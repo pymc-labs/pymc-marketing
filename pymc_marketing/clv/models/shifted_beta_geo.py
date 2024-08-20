@@ -100,6 +100,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
     .. [1] Fader, P. S., & Hardie, B. G. (2007). How to project customer retention.
            Journal of Interactive Marketing, 21(1), 76-90.
            https://journals.sagepub.com/doi/pdf/10.1002/dir.20074
+
     """
 
     _model_type = "Shifted-Beta-Geometric Model (Individual Customers)"
@@ -164,7 +165,6 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
 
         It ignores that some customers may have already cancelled.
         """
-
         coords = {"customer_id": customer_id}
         with pm.Model(coords=coords):
             alpha = pm.HalfFlat("alpha")

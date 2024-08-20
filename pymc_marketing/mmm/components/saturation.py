@@ -100,7 +100,7 @@ class SaturationTransformation(Transformation):
     By subclassing from this method, lift test integration will come for free!
 
     Examples
-    ----------
+    --------
     Make a non-saturating saturation transformation
 
     .. code-block:: python

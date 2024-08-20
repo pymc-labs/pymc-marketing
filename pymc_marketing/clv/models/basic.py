@@ -99,8 +99,8 @@ class CLVModel(ModelBuilder):
             - "map": Finds maximum a posteriori via `pymc.find_MAP`
         kwargs:
             Other keyword arguments passed to the underlying PyMC routines
-        """
 
+        """
         self.build_model()  # type: ignore
 
         if fit_method == "mcmc":
@@ -120,8 +120,7 @@ class CLVModel(ModelBuilder):
         return self.idata
 
     def _fit_mcmc(self, **kwargs) -> az.InferenceData:
-        """
-        Fit a model using the data passed as a parameter.
+        """Fit a model using the data passed as a parameter.
         Sets attrs to inference data of the model.
 
 
@@ -138,6 +137,7 @@ class CLVModel(ModelBuilder):
         -------
         self : az.InferenceData
             returns inference data of the fitted model.
+
         """
         sampler_config = {}
         if self.sampler_config is not None:
@@ -162,8 +162,7 @@ class CLVModel(ModelBuilder):
 
     @classmethod
     def load(cls, fname: str):
-        """
-        Creates a ModelBuilder instance from a file,
+        """Creates a ModelBuilder instance from a file,
         Loads inference data for the model.
 
         Parameters
@@ -179,12 +178,14 @@ class CLVModel(ModelBuilder):
         ------
         ValueError
             If the inference data that is loaded doesn't match with the model.
+
         Examples
         --------
         >>> class MyModel(ModelBuilder):
         >>>     ...
         >>> name = './mymodel.nc'
         >>> imported_model = MyModel.load(name)
+
         """
         filepath = Path(str(fname))
         idata = from_netcdf(filepath)

@@ -184,9 +184,7 @@ class TestBetaGeoModel:
     def test_numerically_stable_logp(
         self, frequency, recency, logp_value, model_config
     ):
-        """
-        See Solution #2 on pages 3 and 4 of http://brucehardie.com/notes/027/bgnbd_num_error.pdf
-        """
+        """See Solution #2 on pages 3 and 4 of http://brucehardie.com/notes/027/bgnbd_num_error.pdf"""
         model_config = {
             "a_prior": Prior("Flat"),
             "b_prior": Prior("Flat"),

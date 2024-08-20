@@ -30,8 +30,7 @@ class BaseGammaGammaModel(CLVModel):
         data: pandas.DataFrame,
         random_seed: RandomState | None = None,
     ) -> xarray.DataArray:
-        """
-        Posterior distribution of mean spend values for each customer.
+        """Posterior distribution of mean spend values for each customer.
 
         Parameters
         ----------
@@ -44,8 +43,8 @@ class BaseGammaGammaModel(CLVModel):
 
         random_seed : ~RandomState, optional
             Optional random seed to fix sampling results.
-        """
 
+        """
         x = data["frequency"]
         z_mean = data["monetary_value"]
 
@@ -84,8 +83,8 @@ class BaseGammaGammaModel(CLVModel):
         ----------
         .. [1] Fader, P. S., & Hardie, B. G. (2013). "The Gamma-Gamma model of monetary
                value". February, 2, 1-9. https://www.brucehardie.com/notes/025/gamma_gamma.pdf
-        """
 
+        """
         mean_transaction_value, frequency = to_xarray(
             data["customer_id"],
             data["monetary_value"],
@@ -106,8 +105,7 @@ class BaseGammaGammaModel(CLVModel):
     def distribution_new_customer_spend(
         self, n: int = 1, random_seed: RandomState | None = None
     ) -> xarray.DataArray:
-        """
-        Posterior distribution of mean spend values for new customers.
+        """Posterior distribution of mean spend values for new customers.
 
         Parameters
         ----------
@@ -116,6 +114,7 @@ class BaseGammaGammaModel(CLVModel):
 
         random_seed : ~RandomState, optional
             Optional random seed to fix sampling results.
+
         """
         coords = {"new_customer_id": range(n)}
         with pm.Model(coords=coords):
@@ -134,7 +133,6 @@ class BaseGammaGammaModel(CLVModel):
 
     def expected_new_customer_spend(self) -> xarray.DataArray:
         """Expected mean spend value for a new customer."""
-
         posterior = self.fit_result
         p_mean = posterior["p"]
         q_mean = posterior["q"]
@@ -156,8 +154,7 @@ class BaseGammaGammaModel(CLVModel):
         discount_rate: float = 0.00,
         time_unit: str = "D",
     ) -> xarray.DataArray:
-        """
-        Compute the average lifetime value for a group of one or more customers,
+        """Compute the average lifetime value for a group of one or more customers,
         and apply a discount rate for net present value estimations.
         Note `future_t` is measured in months regardless of `time_unit` specified.
 
@@ -190,8 +187,8 @@ class BaseGammaGammaModel(CLVModel):
         -------
         xarray
             DataArray containing estimated customer lifetime values
-        """
 
+        """
         # Use Gamma-Gamma estimates for the expected_spend values
         predicted_monetary_value = self.expected_customer_spend(data=data)
         data.loc[:, "future_spend"] = predicted_monetary_value.mean(
@@ -289,6 +286,7 @@ class GammaGammaModel(BaseGammaGammaModel):
            Using iso-value curves for customer base analysis”, Journal of Marketing
            Research, 42 (November), 415-430.
            https://journals.sagepub.com/doi/pdf/10.1509/jmkr.2005.42.4.415
+
     """
 
     _model_type = "Gamma-Gamma Model (Mean Transactions)"
@@ -425,6 +423,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
            Using iso-value curves for customer base analysis”, Journal of Marketing
            Research, 42 (November), 415-430.
            https://journals.sagepub.com/doi/pdf/10.1509/jmkr.2005.42.4.415
+
     """
 
     _model_type = "Gamma-Gamma Model (Individual Transactions)"

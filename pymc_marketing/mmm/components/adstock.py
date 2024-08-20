@@ -146,7 +146,6 @@ class AdstockTransformation(Transformation):
             Adstocked version of the amount.
 
         """
-
         time_since = np.arange(0, self.l_max)
         coords = {
             "time since exposure": time_since,

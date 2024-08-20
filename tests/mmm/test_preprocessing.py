@@ -52,7 +52,7 @@ def test_preprocessing_method():
     assert vf.__name__ == f.__name__
 
     def f2(x):
-        """bla"""
+        """Bla"""
         return x
 
     vf = preprocessing_method_X(f2)
@@ -63,7 +63,7 @@ def test_preprocessing_method():
     class F:
         @preprocessing_method_X
         def f3(self, x):
-            """bla"""
+            """Bla"""
             return x
 
     vf = F().f3

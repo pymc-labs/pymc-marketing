@@ -54,7 +54,7 @@ def test_validation_method():
     assert vf.__name__ == f.__name__
 
     def f2(x):
-        """bla"""
+        """Bla"""
         return x
 
     vf = validation_method_X(f2)
@@ -65,7 +65,7 @@ def test_validation_method():
     class F:
         @validation_method_X
         def f3(self, x):
-            """bla"""
+            """Bla"""
             return x
 
     vf = F().f3

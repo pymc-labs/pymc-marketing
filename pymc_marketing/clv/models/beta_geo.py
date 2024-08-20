@@ -133,6 +133,7 @@ class BetaGeoModel(CLVModel):
            P (alive) using the BG/NBD model." http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
     .. [3] Fader, P. S. & Hardie, B. G. (2013) "Overcoming the BG/NBD Model's #NUM!
            Error Problem." http://brucehardie.com/notes/027/bgnbd_num_error.pdf.
+
     """
 
     _model_type = "BG/NBD"  # Beta-Geometric Negative Binomial Distribution
@@ -172,8 +173,7 @@ class BetaGeoModel(CLVModel):
             r = self.model_config["r_prior"].create_variable("r")
 
             def logp(t_x, x, a, b, r, alpha, T):
-                """
-                The log-likelihood expression here aligns with expression (4) from [3]
+                """The log-likelihood expression here aligns with expression (4) from [3]
                 due to the possible numerical instability of expression (3).
                 """
                 x_non_zero = x > 0
@@ -273,8 +273,7 @@ class BetaGeoModel(CLVModel):
         recency: np.ndarray | pd.Series | TensorVariable,
         T: np.ndarray | pd.Series | TensorVariable,
     ) -> xarray.DataArray:
-        r"""
-        This is a deprecated method and will be removed in a future release.
+        r"""This is a deprecated method and will be removed in a future release.
         Please use `BetaGeoModel.expected_purchases` instead.
         """
         warnings.warn(
@@ -317,8 +316,7 @@ class BetaGeoModel(CLVModel):
         *,
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        r"""
-        Predict the expected number of future purchases across *future_t* time periods given *recency*, *frequency*,
+        r"""Predict the expected number of future purchases across *future_t* time periods given *recency*, *frequency*,
         and *T* for each customer. *data* parameter is only required for out-of-sample customers.
 
         Adapted from equation (10) in [1]_, and *lifetimes* package:
@@ -342,6 +340,7 @@ class BetaGeoModel(CLVModel):
             "Counting Your Customers the Easy Way: An Alternative to the
             Pareto/NBD Model," Marketing Science, 24 (2), 275-84.
             https://www.brucehardie.com/papers/bgnbd_2004-04-20.pdf
+
         """
         if data is None:
             data = self.data
@@ -380,8 +379,7 @@ class BetaGeoModel(CLVModel):
         self,
         data: pd.DataFrame | None = None,
     ) -> xarray.DataArray:
-        r"""
-        Estimate probability a customer with history *frequency*, *recency*, and *T*
+        r"""Estimate probability a customer with history *frequency*, *recency*, and *T*
         is currently active. *data* parameter is only required for out-of-sample customers.
 
         Adapted from page (2) in Bruce Hardie's notes [1]_, and *lifetimes* package:
@@ -401,6 +399,7 @@ class BetaGeoModel(CLVModel):
         ----------
         .. [1] Fader, P. S., Hardie, B. G., & Lee, K. L. (2008). Computing
                P (alive) using the BG/NBD model. http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
+
         """
         if data is None:
             data = self.data
@@ -425,8 +424,7 @@ class BetaGeoModel(CLVModel):
         )
 
     def expected_num_purchases_new_customer(self, *args, **kwargs) -> xarray.DataArray:
-        """
-        This is a deprecated method and will be removed in a future release.
+        """This is a deprecated method and will be removed in a future release.
         Please use `BetaGeoModel.expected_purchases_new_customer` instead.
         """
         warnings.warn(
@@ -442,8 +440,7 @@ class BetaGeoModel(CLVModel):
         *,
         t: np.ndarray | pd.Series,
     ) -> xarray.DataArray:
-        r"""
-        Expected number of purchases for a new customer across *t* time periods.
+        r"""Expected number of purchases for a new customer across *t* time periods.
 
         Adapted from equation (9) in [1]_, and `lifetimes` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L328
@@ -452,12 +449,14 @@ class BetaGeoModel(CLVModel):
         ----------
         t : array_like
             Number of time periods over which to estimate purchases.
+
         References
         ----------
         .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005a),
             "Counting Your Customers the Easy Way: An Alternative to the
             Pareto/NBD Model," Marketing Science, 24 (2), 275-84.
             http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf
+
         """
         # TODO: This is extraneous now, but needed for future covariate support.
         if data is None:
@@ -526,6 +525,7 @@ class BetaGeoModel(CLVModel):
         -------
         xarray.Dataset
             Dataset containing the posterior samples for the population-level dropout rate.
+
         """
         return self._distribution_new_customers(
             random_seed=random_seed,
@@ -550,6 +550,7 @@ class BetaGeoModel(CLVModel):
         -------
         xarray.Dataset
             Dataset containing the posterior samples for the population-level purchase rate.
+
         """
         return self._distribution_new_customers(
             random_seed=random_seed,

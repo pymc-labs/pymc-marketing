@@ -31,6 +31,21 @@ __all__ = [
 
 
 def preprocessing_method_X(method: Callable) -> Callable:
+    """Tag a method as a preprocessing method for the X data.
+
+    Decorator to mark a method as a preprocessing method for the X data.
+
+    Parameters
+    ----------
+    method : Callable
+        The method to tag as a preprocessing method for the X data.
+
+    Returns
+    -------
+    Callable
+        The tagged method.
+
+    """
     if not hasattr(method, "_tags"):
         method._tags = {}  # type: ignore
     method._tags["preprocessing_X"] = True  # type: ignore

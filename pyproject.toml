@@ -99,7 +99,8 @@ repository = "https://github.com/pymc-labs/pymc-marketing"
 #changelog = ""
 
 [tool.ruff.lint]
-select = ["B", "E", "F", "I", "RUF", "S", "UP", "W"]
+select = ["B", "D", "E", "F", "I", "RUF", "S", "UP", "W"]
+pydocstyle.convention = "numpy"
 ignore = [
     "B008",   # Do not perform calls in argument defaults (this is ok with Field from pydantic)
     "B904",   # raise-without-from-inside-except
@@ -113,6 +114,7 @@ ignore = [
 ]
 "tests/*" = [
     "B018", # Checks for "useless" expressions. This is useful for tests.
+    "D",
     "S101", # Use of assert
 ]
 

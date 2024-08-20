@@ -80,8 +80,7 @@ continuous_non_contractual = ContNonContractRV()
 
 
 class ContNonContract(PositiveContinuous):
-    r"""
-    Individual-level model for the customer lifetime value. See equation (3)
+    r"""Individual-level model for the customer lifetime value. See equation (3)
     from Fader et al. (2005) [1]_.
 
     .. math::
@@ -100,6 +99,7 @@ class ContNonContract(PositiveContinuous):
     .. [1] Fader, Peter S., Bruce GS Hardie, and Ka Lok Lee. "“Counting your customers”
            the easy way: An alternative to the Pareto/NBD model." Marketing science
            24.2 (2005): 275-284.
+
     """
 
     rv_op = continuous_non_contractual
@@ -206,8 +206,7 @@ continuous_contractual = ContContractRV()
 
 
 class ContContract(PositiveContinuous):
-    r"""
-    Distribution class of a continuous contractual data-generating process,
+    r"""Distribution class of a continuous contractual data-generating process,
     that is where purchases can occur at any time point (continuous) and
     churning/dropping out is explicit (contractual).
 
@@ -358,8 +357,7 @@ pareto_nbd = ParetoNBDRV()
 
 
 class ParetoNBD(PositiveContinuous):
-    r"""
-    Population-level distribution class for a continuous, non-contractual, Pareto/NBD process,
+    r"""Population-level distribution class for a continuous, non-contractual, Pareto/NBD process,
     based on Schmittlein, et al. in [2]_.
 
     The likelihood function is derived from equations (22) and (23) of [3]_, with terms
@@ -403,6 +401,7 @@ class ParetoNBD(PositiveContinuous):
     .. [3] Fader, Peter & G. S. Hardie, Bruce (2005).
            "A Note on Deriving the Pareto/NBD Model and Related Expressions."
            http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
+
     """  # noqa: E501
 
     rv_op = pareto_nbd
@@ -555,8 +554,7 @@ beta_geo_beta_binom = BetaGeoBetaBinomRV()
 
 
 class BetaGeoBetaBinom(Discrete):
-    r"""
-    Population-level distribution class for a discrete, non-contractual, Beta-Geometric/Beta-Binomial process,
+    r"""Population-level distribution class for a discrete, non-contractual, Beta-Geometric/Beta-Binomial process,
     based on equation(5) from Fader, et al. in [1]_.
 
     .. math::

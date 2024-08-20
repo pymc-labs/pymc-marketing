@@ -105,8 +105,7 @@ class MMMModelBuilder(ModelBuilder):
             Callable[["MMMModelBuilder", pd.DataFrame | pd.Series | np.ndarray], None]
         ],
     ]:
-        """
-        A property that provides validation methods for features ("X") and the target variable ("y").
+        """A property that provides validation methods for features ("X") and the target variable ("y").
 
         This property scans the methods of the object and returns those marked for validation.
         The methods are marked by having a _tags dictionary attribute,with either "validation_X" or "validation_y"
@@ -136,8 +135,7 @@ class MMMModelBuilder(ModelBuilder):
     def validate(
         self, target: str, data: pd.DataFrame | pd.Series | np.ndarray
     ) -> None:
-        """
-        Validates the input data based on the specified target type.
+        """Validates the input data based on the specified target type.
 
         This function loops over the validation methods specified for
         the target type and applies them to the input data.
@@ -154,6 +152,7 @@ class MMMModelBuilder(ModelBuilder):
         ------
         ValueError
             If the target type is not "X" or "y", a ValueError will be raised.
+
         """
         if target not in ["X", "y"]:
             raise ValueError("Target must be either 'X' or 'y'")
@@ -182,8 +181,7 @@ class MMMModelBuilder(ModelBuilder):
             ]
         ],
     ]:
-        """
-        A property that provides preprocessing methods for features ("X") and the target variable ("y").
+        """A property that provides preprocessing methods for features ("X") and the target variable ("y").
 
         This property scans the methods of the object and returns those marked for preprocessing.
         The methods are marked by having a _tags dictionary attribute, with either "preprocessing_X"
@@ -195,6 +193,7 @@ class MMMModelBuilder(ModelBuilder):
         tuple of list of Callable[["MMMModelBuilder", pd.DataFrame], pd.DataFrame]
             A tuple where the first element is a list of methods for "X" preprocessing, and the second element is a
             list of methods for "y" preprocessing.
+
         """
         return (
             [
@@ -212,8 +211,7 @@ class MMMModelBuilder(ModelBuilder):
     def preprocess(
         self, target: str, data: pd.DataFrame | pd.Series | np.ndarray
     ) -> pd.DataFrame | pd.Series | np.ndarray:
-        """
-        Preprocess the provided data according to the specified target.
+        """Preprocess the provided data according to the specified target.
 
         This method applies preprocessing methods to the data ("X" or "y"), which are specified in the
         preprocessing_methods property of this object. It iteratively applies each method in the appropriate
@@ -241,6 +239,7 @@ class MMMModelBuilder(ModelBuilder):
         -------
         >>> data = pd.DataFrame({"x1": [1, 2, 3], "y": [4, 5, 6]})
         >>> self.preprocess("X", data)
+
         """
         data_cp = data.copy()
         if target == "X":
@@ -259,6 +258,7 @@ class MMMModelBuilder(ModelBuilder):
         Returns
         -------
         Pipeline
+
         """
         try:
             return self.target_transformer  # type: ignore
@@ -357,6 +357,7 @@ class MMMModelBuilder(ModelBuilder):
         Returns
         -------
         plt.Figure
+
         """
         try:
             posterior_predictive_data: Dataset = self.posterior_predictive
@@ -431,6 +432,7 @@ class MMMModelBuilder(ModelBuilder):
         Returns
         -------
         DataArray
+
         """
         try:
             posterior_predictive_data: Dataset = self.posterior_predictive
@@ -491,6 +493,7 @@ class MMMModelBuilder(ModelBuilder):
         Returns
         -------
         plt.Figure
+
         """
         errors = self.get_errors(original_scale=original_scale)
 
@@ -548,6 +551,7 @@ class MMMModelBuilder(ModelBuilder):
         Returns
         -------
         plt.Figure
+
         """
         channel_contributions = self._format_model_contributions(
             var_contribution="channel_contributions"
@@ -648,6 +652,7 @@ class MMMModelBuilder(ModelBuilder):
         Returns
         -------
         DataArray
+
         """
         channel_contribution = az.extract(
             data=self.fit_result, var_names=["channel_contributions"], combined=False
@@ -684,6 +689,7 @@ class MMMModelBuilder(ModelBuilder):
         -------
         pd.DataFrame
             A dataframe with the mean contributions of each channel and control variables over time.
+
         """
         contributions_channel_over_time = (
             az.extract(
@@ -801,8 +807,8 @@ class MMMModelBuilder(ModelBuilder):
         -------
         plt.Figure
             Matplotlib figure with the plot.
-        """
 
+        """
         all_contributions_over_time = self.compute_mean_contributions_over_time(
             original_scale=original_scale
         )
@@ -850,6 +856,7 @@ class MMMModelBuilder(ModelBuilder):
         Returns
         -------
         plt.Figure
+
         """
         channel_contributions_share: DataArray = (
             self._get_channel_contributions_share_samples()
@@ -870,8 +877,7 @@ class MMMModelBuilder(ModelBuilder):
         return pm.model_to_graphviz(self.model, **kwargs)
 
     def _process_decomposition_components(self, data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Process data to compute the sum of contributions by component and calculate their percentages.
+        """Process data to compute the sum of contributions by component and calculate their percentages.
         The output dataframe will have columns for "component", "contribution", and "percentage".
 
         Parameters
@@ -884,8 +890,8 @@ class MMMModelBuilder(ModelBuilder):
         pd.DataFrame
             A dataframe with contributions summed up by component, sorted by contribution in ascending order.
             With an additional column showing the percentage contribution of each component.
-        """
 
+        """
         dataframe = data.copy()
         stack_dataframe = dataframe.stack().reset_index()
         stack_dataframe.columns = pd.Index(["date", "component", "contribution"])
@@ -905,8 +911,7 @@ class MMMModelBuilder(ModelBuilder):
         figsize: tuple[int, int] = (14, 7),
         **kwargs,
     ) -> plt.Figure:
-        """
-        This function creates a waterfall plot. The plot shows the decomposition of the target into its components.
+        """This function creates a waterfall plot. The plot shows the decomposition of the target into its components.
 
         Parameters
         ----------
@@ -921,8 +926,8 @@ class MMMModelBuilder(ModelBuilder):
         -------
         fig : matplotlib.figure.Figure
             The matplotlib figure object.
-        """
 
+        """
         dataframe = self.compute_mean_contributions_over_time(
             original_scale=original_scale
         )

@@ -706,7 +706,6 @@ class Prior:
             ).constrain(lower=0.5, upper=0.8)
 
         """
-
         if self.transform:
             raise ValueError("Can't constrain a transformed variable")
 
