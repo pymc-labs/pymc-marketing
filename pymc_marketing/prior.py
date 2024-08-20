@@ -312,6 +312,7 @@ class Prior:
         self._unique_dims()
 
     def __getitem__(self, key: str) -> Prior | Any:
+        """Return the parameter of the prior."""
         return self.parameters[key]
 
     def _checks(self) -> None:
@@ -395,6 +396,7 @@ class Prior:
             )
 
     def __str__(self) -> str:
+        """Return a string representation of the prior."""
         param_str = ", ".join(
             [f"{param}={value}" for param, value in self.parameters.items()]
         )
@@ -406,6 +408,7 @@ class Prior:
         return f'Prior("{self.distribution}"{param_str}{dim_str}{centered_str}{transform_str})'
 
     def __repr__(self) -> str:
+        """Return a string representation of the prior."""
         return f"{self}"
 
     def _create_parameter(self, param, value, name):
@@ -726,6 +729,7 @@ class Prior:
         )
 
     def __eq__(self, other) -> bool:
+        """Check if two priors are equal."""
         if not isinstance(other, Prior):
             return False
 
@@ -789,6 +793,7 @@ class Prior:
             return pm.sample_prior_predictive(**sample_prior_predictive_kwargs).prior
 
     def __deepcopy__(self, memo) -> Prior:
+        """Return a deep copy of the prior."""
         if id(self) in memo:
             return memo[id(self)]
 
