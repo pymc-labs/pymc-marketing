@@ -99,7 +99,7 @@ repository = "https://github.com/pymc-labs/pymc-marketing"
 #changelog = ""
 
 [tool.ruff.lint]
-select = ["B", "D", "E", "F", "I", "RUF", "S", "UP", "W"]
+select = ["B", "D", "DOC", "E", "F", "I", "RUF", "S", "UP", "W"]
 pydocstyle.convention = "numpy"
 ignore = [
     "B008",   # Do not perform calls in argument defaults (this is ok with Field from pydantic)

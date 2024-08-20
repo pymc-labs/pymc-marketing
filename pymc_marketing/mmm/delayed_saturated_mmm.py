@@ -125,7 +125,7 @@ class BaseMMM(BaseValidateMMM):
             True, description="Whether to apply adstock first."
         ),
     ) -> None:
-        """Constructor method.
+        """Define the constructor method.
 
         Parameter
         ---------
@@ -221,13 +221,13 @@ class BaseMMM(BaseValidateMMM):
 
     @property
     def output_var(self):
-        """Defines target variable for the model"""
+        """Define target variable for the model."""
         return "y"
 
     def _generate_and_preprocess_model_data(  # type: ignore
         self, X: pd.DataFrame | pd.Series, y: pd.Series | np.ndarray
     ) -> None:
-        """Applies preprocessing to the data before fitting the model.
+        """Apply preprocessing to the data before fitting the model.
 
         If validate is True, it will check if the data is valid for the model.
         sets self.model_coords based on provided dataset
@@ -300,6 +300,14 @@ class BaseMMM(BaseValidateMMM):
             ).days
 
     def create_idata_attrs(self) -> dict[str, str]:
+        """Create attributes for the inference data.
+
+        Returns
+        -------
+        dict[str, str]
+            The attributes for the inference data.
+
+        """
         attrs = super().create_idata_attrs()
         attrs["date_column"] = json.dumps(self.date_column)
         attrs["adstock"] = json.dumps(self.adstock.to_dict())
@@ -318,7 +326,7 @@ class BaseMMM(BaseValidateMMM):
     def forward_pass(
         self, x: pt.TensorVariable | npt.NDArray[np.float64]
     ) -> pt.TensorVariable:
-        """Transforms channel input into target contributions of each channel.
+        """Transform channel input into target contributions of each channel.
 
         This method handles the ordering of the adstock and saturation
         transformations.
@@ -351,7 +359,7 @@ class BaseMMM(BaseValidateMMM):
         y: pd.Series | np.ndarray,
         **kwargs,
     ) -> None:
-        """Builds a probabilistic model using PyMC for marketing mix modeling.
+        """Build a probabilistic model using PyMC for marketing mix modeling.
 
         The model incorporates channels, control variables, and Fourier components, applying
         adstock and saturation transformations to the channel data. The final model is
@@ -553,6 +561,7 @@ class BaseMMM(BaseValidateMMM):
 
     @property
     def default_model_config(self) -> dict:
+        """Define the default model configuration."""
         base_config = {
             "intercept": Prior("Normal", mu=0, sigma=2),
             "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
@@ -640,6 +649,14 @@ class BaseMMM(BaseValidateMMM):
 
     @classmethod
     def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
+        """Convert attributes to initialization kwargs.
+
+        Returns
+        -------
+        dict[str, Any]
+            The initialization kwargs.
+
+        """
         return {
             "model_config": cls._model_config_formatting(
                 json.loads(attrs["model_config"])
@@ -665,7 +682,7 @@ class BaseMMM(BaseValidateMMM):
         X: np.ndarray | pd.DataFrame,
         y: np.ndarray | pd.Series | None = None,
     ) -> None:
-        """Sets new data in the model.
+        """Set new data in the model.
 
         This function accepts data in various formats and sets them into the
         model using the PyMC's `set_data` method. The data corresponds to the
@@ -754,9 +771,22 @@ class BaseMMM(BaseValidateMMM):
 
     @classmethod
     def _model_config_formatting(cls, model_config: dict) -> dict:
-        """Because of json serialization, model_config values that were originally tuples
+        """Format the model configuration.
+
+        Because of json serialization, model_config values that were originally tuples
         or numpy are being encoded as lists. This function converts them back to tuples
         and numpy arrays to ensure correct id encoding.
+
+        Parameters
+        ----------
+        model_config : dict
+            The model configuration to format.
+
+        Returns
+        -------
+        dict
+            The formatted model configuration.
+
         """
 
         def format_nested_dict(d: dict) -> dict:
@@ -781,7 +811,7 @@ class MMM(
     ValidateControlColumns,
     BaseMMM,
 ):
-    """Media Mix Model class, Delayed Adstock and logistic saturation as default initialization (see [1]_).
+    r"""Media Mix Model class, Delayed Adstock and logistic saturation as default initialization (see [1]_).
 
     Given a time series target variable :math:`y_{t}` (e.g. sales on conversions), media variables
     :math:`x_{m, t}` (e.g. impressions, clicks or costs) and a set of control covariates :math:`z_{c, t}` (e.g. holidays, special events)
@@ -916,8 +946,9 @@ class MMM(
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float64]
     ) -> npt.NDArray[np.float64]:
-        """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
-        We return the contribution in the original scale of the target variable.
+        """Evaluate the channel contribution for a given channel data and a fitted model.
+
+        Hence, the forward pass.We return the contribution in the original scale of the target variable.
 
         Parameters
         ----------
@@ -1066,8 +1097,10 @@ class MMM(
     def plot_components_contributions(
         self, original_scale: bool = False, **plt_kwargs: Any
     ) -> plt.Figure:
-        """Plot the target variable and the posterior predictive model components in
-        the scaled space.
+        """Plot the target variable and the posterior predictive model components.
+
+        We can plot the target variable and the posterior predictive model components in
+        the scaled space or in the original space.
 
         Parameters
         ----------
@@ -1203,7 +1236,7 @@ class MMM(
         absolute_xrange: bool = False,
         **plt_kwargs: Any,
     ) -> plt.Figure:
-        """Plots a grid of scaled channel contributions for a given grid of share values.
+        """Plot a grid of scaled channel contributions for a given grid of share values.
 
         Parameters
         ----------
@@ -1689,9 +1722,10 @@ class MMM(
         quantile_lower: float = 0.05,
         quantile_upper: float = 0.95,
     ) -> plt.Figure:
-        """Plots the direct contribution curves for each marketing channel. The term "direct" refers to the fact
-        we plot costs vs immediate returns and we do not take into account the lagged
-        effects of the channels e.g. adstock transformations.
+        """Plot the direct contribution curves for each marketing channel.
+
+        The term "direct" refers to the fact that we plot costs vs immediate returns and
+        we do not take into account the lagged effects of the channels e.g. adstock transformations.
 
         Parameters
         ----------
@@ -1802,7 +1836,7 @@ class MMM(
         include_last_observations: bool = False,
         original_scale: bool = True,
         **sample_posterior_predictive_kwargs,
-    ):
+    ) -> DataArray:
         """Sample from the model's posterior predictive distribution.
 
         Parameters
@@ -2330,6 +2364,8 @@ class MMM(
 
 
 class DelayedSaturatedMMM(MMM):
+    """Deprecated class for DelayedSaturatedMMM."""
+
     _model_type: str = "MMM"
     _model_name: str = "DelayedSaturatedMMM"
     version: str = "0.0.3"
@@ -2349,7 +2385,10 @@ class DelayedSaturatedMMM(MMM):
         yearly_seasonality: int | None = None,
         adstock_first: bool = True,
     ) -> None:
-        """Wrapper function for DelayedSaturatedMMM class initializer.
+        """
+        Define constructor.
+
+        Wrapper function for DelayedSaturatedMMM class initializer.
 
         Warns that MMM class should be used instead and returns an instance of MMM with
         geometric adstock and logistic saturation.
