@@ -203,7 +203,7 @@ class NonMonotonicLiftError(Exception):
 
 
 def check_increasing_assumption(df_lift_tests: pd.DataFrame) -> None:
-    """Checks if the lift test results satisfy the increasing assumption.
+    """Check if the lift test results satisfy the increasing assumption.
 
     If delta_x is positive, delta_y must be positive, and vice versa.
     """
@@ -601,7 +601,10 @@ def add_lift_measurements_to_likelihood_from_saturation(
     dist: type[pm.Distribution] = pm.Gamma,
     name: str = "lift_measurements",
 ) -> None:
-    """Wrapper around :func:`add_lift_measurements_to_likelihood` to work with
+    """
+    Add lift measurements to the likelihood from a saturation transformation.
+
+    Wrapper around :func:`add_lift_measurements_to_likelihood` to work with
     SaturationTransformation instances and time-varying variables.
 
     Used internally of the :class:`MMM` class.
