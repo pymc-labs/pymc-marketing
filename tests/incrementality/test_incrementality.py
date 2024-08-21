@@ -62,7 +62,7 @@ scenario_unsaturated_good = {
 sample_kwargs = {"tune": 100, "draws": 100}
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def saturated_data_fixture():
     return generate_saturated_data(**scenario_saturated)
 
