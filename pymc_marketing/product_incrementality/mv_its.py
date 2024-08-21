@@ -87,7 +87,7 @@ class MVITS:
         """Return a PyMC model for a multivariate interrupted time series analysis."""
 
         if not background_sales.index.equals(innovation_sales.index):
-            raise ValueError(
+            raise ValueError(  # pragma: no cover
                 "Index of background_sales and innovation_sales must match."
             )
 
@@ -168,7 +168,9 @@ class MVITS:
         # Note: if we compare "mu" then we are comparing the expected sales,
         # if we compare "y" then we are comparing the actual sales
         if variable not in ["mu", "y"]:
-            raise ValueError(f"variable must be either 'mu' or 'y', not {variable}")
+            raise ValueError(
+                f"variable must be either 'mu' or 'y', not {variable}"
+            )  # pragma: no cover
 
         return (
             self.idata.posterior_predictive["mu"]
@@ -179,7 +181,9 @@ class MVITS:
         """Plots the model fit (posterior predictive) of the background products."""
 
         if variable not in ["mu", "y"]:
-            raise ValueError(f"variable must be either 'mu' or 'y', not {variable}")
+            raise ValueError(
+                f"variable must be either 'mu' or 'y', not {variable}"
+            )  # pragma: no cover
 
         fig, ax = plt.subplots()
 
@@ -214,7 +218,9 @@ class MVITS:
         fig, ax = plt.subplots()
 
         if variable not in ["mu", "y"]:
-            raise ValueError(f"variable must be either 'mu' or 'y', not {variable}")
+            raise ValueError(
+                f"variable must be either 'mu' or 'y', not {variable}"
+            )  # pragma: no cover
 
         # plot data
         self.plot_data(self.data, ax)
