@@ -89,10 +89,10 @@ def test_MVITS_saturated(saturated_data_fixture):
     ax = result.plot_counterfactual()
     assert isinstance(ax, plt.Axes)
 
-    result.plot_causal_impact_sales()
+    ax = result.plot_causal_impact_sales()
     assert isinstance(ax, plt.Axes)
 
-    result.plot_causal_impact_market_share()
+    ax = result.plot_causal_impact_market_share()
     assert isinstance(ax, plt.Axes)
 
 
@@ -123,8 +123,8 @@ def test_MVITS_unsaturated(scenario):
     ax = result.plot_counterfactual()
     assert isinstance(ax, plt.Axes)
 
-    result.plot_causal_impact_sales()
+    ax = result.plot_causal_impact_sales()
     assert isinstance(ax, plt.Axes)
 
-    result.plot_causal_impact_market_share()
+    ax = result.plot_causal_impact_market_share()
     assert isinstance(ax, plt.Axes)
