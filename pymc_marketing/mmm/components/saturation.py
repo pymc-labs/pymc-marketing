@@ -77,7 +77,6 @@ from pydantic import Field, InstanceOf, validate_call
 
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.transformers import (
-    hill_function,
     hill_saturation_sigmoid,
     inverse_scaled_logistic_saturation,
     logistic_saturation,
@@ -344,7 +343,7 @@ class MichaelisMentenSaturation(SaturationTransformation):
 class HillSaturation(SaturationTransformation):
     """Wrapper around Hill saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.hill_function`.
+    For more information, see :func:`pymc_marketing.mmm.transformers.hill_saturation_sigmoid`.
 
     .. plot::
         :context: close-figs
@@ -365,46 +364,12 @@ class HillSaturation(SaturationTransformation):
 
     lookup_name = "hill"
 
-    def function(self, x, slope, kappa, beta):
-        return beta * hill_function(x, slope, kappa)
-
-    default_priors = {
-        "slope": Prior("HalfNormal", sigma=1.5),
-        "kappa": Prior("HalfNormal", sigma=1.5),
-        "beta": Prior("HalfNormal", sigma=1.5),
-    }
-
-
-class HillSaturationSigmoid(SaturationTransformation):
-    """Wrapper around Hill saturation sigmoid function.
-
-    For more information, see :func:`pymc_marketing.mmm.transformers.hill_saturation_sigmoid`.
-
-    .. plot::
-        :context: close-figs
-
-        import matplotlib.pyplot as plt
-        import numpy as np
-        from pymc_marketing.mmm import HillSaturationSigmoid
-
-        rng = np.random.default_rng(0)
-
-        adstock = HillSaturationSigmoid()
-        prior = adstock.sample_prior(random_seed=rng)
-        curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
-        plt.show()
-
-    """
-
-    lookup_name = "hill_sigmoid"
-
     function = hill_saturation_sigmoid
 
     default_priors = {
-        "sigma": Prior("HalfNormal", sigma=1.5),
-        "beta": Prior("HalfNormal", sigma=1.5),
-        "lam": Prior("HalfNormal", sigma=1.5),
+        "sigma": Prior("HalfNormal", sigma=2),
+        "beta": Prior("HalfNormal", sigma=2),
+        "lam": Prior("HalfNormal", sigma=2),
     }
 
 
@@ -450,7 +415,6 @@ SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
         TanhSaturationBaselined,
         MichaelisMentenSaturation,
         HillSaturation,
-        HillSaturationSigmoid,
         RootSaturation,
     ]
 }
@@ -465,9 +429,10 @@ def saturation_from_dict(data: dict) -> SaturationTransformation:
     data = data.copy()
     cls = SATURATION_TRANSFORMATIONS[data.pop("lookup_name")]
 
-    data["priors"] = {
-        key: Prior.from_json(value) for key, value in data["priors"].items()
-    }
+    if "priors" in data.keys():
+        data["priors"] = {
+            key: Prior.from_json(value) for key, value in data["priors"].items()
+        }
     return cls(**data)
 
 
