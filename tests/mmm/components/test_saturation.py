@@ -20,14 +20,18 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 
-from pymc_marketing.mmm.components.saturation import (
+from pymc_marketing.mmm import (
     HillSaturation,
+    HillSaturationSigmoid,
+    InverseScaledLogisticSaturation,
     LogisticSaturation,
     MichaelisMentenSaturation,
+    RootSaturation,
     TanhSaturation,
     TanhSaturationBaselined,
-    _get_saturation_function,
+    saturation_from_dict,
 )
+from pymc_marketing.mmm.components.saturation import _get_saturation_function
 from pymc_marketing.prior import Prior
 
 
@@ -40,10 +44,13 @@ def model() -> pm.Model:
 def saturation_functions():
     return [
         LogisticSaturation(),
+        InverseScaledLogisticSaturation(),
         TanhSaturation(),
         TanhSaturationBaselined(),
         MichaelisMentenSaturation(),
         HillSaturation(),
+        HillSaturationSigmoid(),
+        RootSaturation(),
     ]
 
 
@@ -93,11 +100,14 @@ def test_support_for_lift_test_integrations(saturation) -> None:
 @pytest.mark.parametrize(
     "name, saturation_cls",
     [
+        ("inverse_scaled_logistic", InverseScaledLogisticSaturation),
         ("logistic", LogisticSaturation),
         ("tanh", TanhSaturation),
         ("tanh_baselined", TanhSaturationBaselined),
         ("michaelis_menten", MichaelisMentenSaturation),
         ("hill", HillSaturation),
+        ("hill_sigmoid", HillSaturationSigmoid),
+        ("root", RootSaturation),
     ],
 )
 def test_get_saturation_function(name, saturation_cls) -> None:
@@ -227,3 +237,24 @@ def test_sample_curve_with_bad_max_value(max_value) -> None:
         saturation.sample_curve(
             parameters=mock_menten_parameters_with_additional_dim, max_value=max_value
         )
+
+
+def test_saturation_from_dict() -> None:
+    data = {
+        "lookup_name": "michaelis_menten",
+        "priors": {
+            "alpha": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+            "lam": {
+                "dist": "HalfNormal",
+                "kwargs": {"sigma": 1},
+            },
+        },
+    }
+
+    saturation = saturation_from_dict(data)
+    assert saturation == MichaelisMentenSaturation(
+        priors={
+            "alpha": Prior("HalfNormal", sigma=1),
+            "lam": Prior("HalfNormal", sigma=1),
+        }
+    )

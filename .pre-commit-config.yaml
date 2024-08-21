@@ -11,17 +11,17 @@ repos:
           - --exclude=docs/
           - --exclude=scripts/
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.5.1
+    rev: v0.6.1
     hooks:
       - id: ruff
-        types_or: [ python, pyi, jupyter ]
+        types_or: [python, pyi, jupyter]
         args: ["--fix", "--output-format=full"]
         exclude: ^docs/source/notebooks/clv/dev/
       - id: ruff-format
-        types_or: [ python, pyi, jupyter ]
+        types_or: [python, pyi, jupyter]
         exclude: ^docs/source/notebooks/clv/dev/
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.1
+    rev: v1.11.1
     hooks:
       - id: mypy
         args: [--ignore-missing-imports]

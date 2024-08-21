@@ -15,7 +15,6 @@
 
 import json
 import warnings
-from pathlib import Path
 from typing import Annotated, Any
 
 import arviz as az
@@ -34,11 +33,15 @@ from pymc_marketing.mmm.base import BaseValidateMMM
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
+    GeometricAdstock,
     _get_adstock_function,
+    adstock_from_dict,
 )
 from pymc_marketing.mmm.components.saturation import (
+    LogisticSaturation,
     SaturationTransformation,
     _get_saturation_function,
+    saturation_from_dict,
 )
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.lift_test import (
@@ -78,16 +81,19 @@ class BaseMMM(BaseValidateMMM):
         channel_columns: list[str] = Field(
             min_length=1, description="Column names of the media channel variables."
         ),
-        adstock_max_lag: int = Field(
-            ...,
-            gt=0,
-            description="Number of lags to consider in the adstock transformation.",
-        ),
         adstock: str | InstanceOf[AdstockTransformation] = Field(
             ..., description="Type of adstock transformation to apply."
         ),
         saturation: str | InstanceOf[SaturationTransformation] = Field(
             ..., description="Type of saturation transformation to apply."
+        ),
+        adstock_max_lag: int | None = Field(
+            None,
+            gt=0,
+            description=(
+                "Number of lags to consider in the adstock transformation. "
+                "Defaults to the max lag of the adstock transformation."
+            ),
         ),
         time_varying_intercept: bool = Field(
             False, description="Whether to consider time-varying intercept."
@@ -118,7 +124,6 @@ class BaseMMM(BaseValidateMMM):
         adstock_first: bool = Field(
             True, description="Whether to apply adstock first."
         ),
-        **kwargs,
     ) -> None:
         """Constructor method.
 
@@ -128,12 +133,13 @@ class BaseMMM(BaseValidateMMM):
             Column name of the date variable. Must be parsable using ~pandas.to_datetime.
         channel_columns : List[str]
             Column names of the media channel variables.
-        adstock_max_lag : int, optional
-            Number of lags to consider in the adstock transformation.
         adstock : str | AdstockTransformation
             Type of adstock transformation to apply.
         saturation : str | SaturationTransformation
             Type of saturation transformation to apply.
+        adstock_max_lag : int, optional
+            Number of lags to consider in the adstock transformation. Defaults to the
+            max lag of the adstock transformation.
         time_varying_intercept : bool, optional
             Whether to consider time-varying intercept, by default False.
             Because the `time-varying` variable is centered around 1 and acts as a multiplier,
@@ -159,14 +165,28 @@ class BaseMMM(BaseValidateMMM):
             Whether to apply adstock first, by default True.
         """
         self.control_columns = control_columns
-        self.adstock_max_lag = adstock_max_lag
         self.time_varying_intercept = time_varying_intercept
         self.time_varying_media = time_varying_media
         self.date_column = date_column
         self.validate_data = validate_data
 
         self.adstock_first = adstock_first
-        self.adstock = _get_adstock_function(function=adstock, l_max=adstock_max_lag)
+
+        if adstock_max_lag is not None:
+            msg = (
+                "The `adstock_max_lag` parameter is deprecated and will be removed in 0.9.0. "
+                "Use the `adstock` parameter directly"
+            )
+            warnings.warn(
+                msg,
+                DeprecationWarning,
+                stacklevel=1,
+            )
+            adstock_kwargs = {"l_max": adstock_max_lag}
+        else:
+            adstock_kwargs = {}
+
+        self.adstock = _get_adstock_function(function=adstock, **adstock_kwargs)
         self.saturation = _get_saturation_function(function=saturation)
 
         model_config = model_config or {}
@@ -184,7 +204,6 @@ class BaseMMM(BaseValidateMMM):
             channel_columns=channel_columns,
             model_config=model_config,
             sampler_config=sampler_config,
-            adstock_max_lag=adstock_max_lag,
         )
 
         self.yearly_seasonality = yearly_seasonality
@@ -279,19 +298,21 @@ class BaseMMM(BaseValidateMMM):
                 self.X[self.date_column].iloc[1] - self.X[self.date_column].iloc[0]
             ).days
 
-    def _save_input_params(self, idata) -> None:
-        """Saves input parameters to the attrs of idata."""
-        idata.attrs["date_column"] = json.dumps(self.date_column)
-        idata.attrs["adstock"] = json.dumps(self.adstock.lookup_name)
-        idata.attrs["saturation"] = json.dumps(self.saturation.lookup_name)
-        idata.attrs["adstock_first"] = json.dumps(self.adstock_first)
-        idata.attrs["control_columns"] = json.dumps(self.control_columns)
-        idata.attrs["channel_columns"] = json.dumps(self.channel_columns)
-        idata.attrs["adstock_max_lag"] = json.dumps(self.adstock_max_lag)
-        idata.attrs["validate_data"] = json.dumps(self.validate_data)
-        idata.attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
-        idata.attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
-        idata.attrs["time_varying_media"] = json.dumps(self.time_varying_media)
+    def create_idata_attrs(self) -> dict[str, str]:
+        attrs = super().create_idata_attrs()
+        attrs["date_column"] = json.dumps(self.date_column)
+        attrs["adstock"] = json.dumps(self.adstock.to_dict())
+        attrs["saturation"] = json.dumps(self.saturation.to_dict())
+        attrs["adstock_first"] = json.dumps(self.adstock_first)
+        attrs["control_columns"] = json.dumps(self.control_columns)
+        attrs["channel_columns"] = json.dumps(self.channel_columns)
+        attrs["adstock_max_lag"] = json.dumps(self.adstock.l_max)
+        attrs["validate_data"] = json.dumps(self.validate_data)
+        attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
+        attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
+        attrs["time_varying_media"] = json.dumps(self.time_varying_media)
+
+        return attrs
 
     def forward_pass(
         self, x: pt.TensorVariable | npt.NDArray[np.float64]
@@ -358,7 +379,11 @@ class BaseMMM(BaseValidateMMM):
 
         .. code-block:: python
 
-            from pymc_marketing.mmm import MMM
+            from pymc_marketing.mmm import (
+                GeometricAdstock,
+                LogisticSaturation
+                MMM,
+            )
             from pymc_marketing.prior import Prior
 
             custom_config = {
@@ -374,12 +399,13 @@ class BaseMMM(BaseValidateMMM):
             model = MMM(
                 date_column="date_week",
                 channel_columns=["x1", "x2"],
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
                 control_columns=[
                     "event_1",
                     "event_2",
                     "t",
                 ],
-                adstock_max_lag=8,
                 yearly_seasonality=2,
                 model_config=custom_config,
             )
@@ -612,73 +638,26 @@ class BaseMMM(BaseValidateMMM):
         return ndarray_to_list(serializable_config)
 
     @classmethod
-    def load(cls, fname: str):
-        """
-        Creates a MMM instance from a file,
-        instantiating the model with the saved original input parameters.
-        Loads inference data for the model.
-
-        Parameters
-        ----------
-        fname : string
-            This denotes the name with path from where idata should be loaded from.
-
-        Returns
-        -------
-        Returns an instance of MMM.
-
-        Raises
-        ------
-        ValueError
-            If the inference data that is loaded doesn't match with the model.
-        """
-
-        filepath = Path(fname)
-        idata = az.from_netcdf(filepath)
-        model_config = cls._model_config_formatting(
-            json.loads(idata.attrs["model_config"])
-        )
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
-            model = cls(
-                date_column=json.loads(idata.attrs["date_column"]),
-                control_columns=json.loads(idata.attrs["control_columns"]),
-                # Media Transformations
-                channel_columns=json.loads(idata.attrs["channel_columns"]),
-                adstock_max_lag=json.loads(idata.attrs["adstock_max_lag"]),
-                adstock=json.loads(idata.attrs.get("adstock", "geometric")),
-                saturation=json.loads(idata.attrs.get("saturation", "logistic")),
-                adstock_first=json.loads(idata.attrs.get("adstock_first", True)),
-                # Seasonality
-                yearly_seasonality=json.loads(idata.attrs["yearly_seasonality"]),
-                # TVP
-                time_varying_intercept=json.loads(
-                    idata.attrs.get("time_varying_intercept", False)
-                ),
-                time_varying_media=json.loads(
-                    idata.attrs.get("time_varying_media", False)
-                ),
-                # Configurations
-                validate_data=json.loads(idata.attrs["validate_data"]),
-                model_config=model_config,
-                sampler_config=json.loads(idata.attrs["sampler_config"]),
-            )
-
-        model.idata = idata
-        dataset = idata.fit_data.to_dataframe()
-        X = dataset.drop(columns=[model.output_var])
-        y = dataset[model.output_var].values
-        model.build_model(X, y)
-        # All previously used data is in idata.
-        if model.id != idata.attrs["id"]:
-            error_msg = (
-                f"The file '{fname}' does not contain "
-                "an inference data of the same model or "
-                f"configuration as '{cls._model_type}'"
-            )
-            raise ValueError(error_msg)
-
-        return model
+    def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
+        return {
+            "model_config": cls._model_config_formatting(
+                json.loads(attrs["model_config"])
+            ),
+            "date_column": json.loads(attrs["date_column"]),
+            "control_columns": json.loads(attrs["control_columns"]),
+            "channel_columns": json.loads(attrs["channel_columns"]),
+            "adstock_max_lag": json.loads(attrs["adstock_max_lag"]),
+            "adstock": adstock_from_dict(json.loads(attrs["adstock"])),
+            "saturation": saturation_from_dict(json.loads(attrs["saturation"])),
+            "adstock_first": json.loads(attrs.get("adstock_first", "true")),
+            "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
+            "time_varying_intercept": json.loads(
+                attrs.get("time_varying_intercept", "false")
+            ),
+            "time_varying_media": json.loads(attrs.get("time_varying_media", "false")),
+            "validate_data": json.loads(attrs["validate_data"]),
+            "sampler_config": json.loads(attrs["sampler_config"]),
+        }
 
     def _data_setter(
         self,
@@ -844,22 +823,25 @@ class MMM(
         import numpy as np
         import pandas as pd
 
-        from pymc_marketing.mmm import MMM
+        from pymc_marketing.mmm import (
+            GeometricAdstock,
+            LogisticSaturation
+            MMM,
+        )
 
         data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
         data = pd.read_csv(data_url, parse_dates=["date_week"])
 
         mmm = MMM(
             date_column="date_week",
-            adstock="geometric",
-            saturation="logistic",
             channel_columns=["x1", "x2"],
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
             control_columns=[
                 "event_1",
                 "event_2",
                 "t",
             ],
-            adstock_max_lag=8,
             yearly_seasonality=2,
         )
 
@@ -880,8 +862,12 @@ class MMM(
 
         import numpy as np
 
+        from pymc_marketing.mmm import (
+            GeometricAdstock,
+            LogisticSaturation
+            MMM,
+        )
         from pymc_marketing.prior import Prior
-        from pymc_marketing.mmm import MMM
 
         my_model_config = {
             "beta_channel": Prior("LogNormal", mu=np.array([2, 1]), sigma=1),
@@ -889,18 +875,17 @@ class MMM(
         }
 
         mmm = MMM(
-            adstock="geometric",
-            saturation="logistic",
-            model_config=my_model_config,
             date_column="date_week",
             channel_columns=["x1", "x2"],
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
             control_columns=[
                 "event_1",
                 "event_2",
                 "t",
             ],
-            adstock_max_lag=8,
             yearly_seasonality=2,
+            model_config=my_model_config,
         )
 
     As you can see, we can configure all prior and likelihood distributions via the `model_config`.
@@ -926,7 +911,7 @@ class MMM(
     """  # noqa: E501
 
     _model_type: str = "MMM"
-    version: str = "0.0.1"
+    version: str = "0.0.2"
 
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float64]
@@ -1040,6 +1025,168 @@ class MMM(
             xlabel=param_name,
             ylabel="channel",
         )
+        return fig
+
+    def get_ts_contribution_posterior(
+        self, var_contribution: str, original_scale: bool = False
+    ) -> DataArray:
+        """Get the posterior distribution of the time series contributions of a given variable.
+
+        Parameters
+        ----------
+        var_contribution : str
+            The variable for which to get the contributions. It must be a valid variable
+            in the `fit_result` attribute.
+        original_scale : bool, optional
+            Whether to plot in the original scale.
+
+        Returns
+        -------
+        DataArray
+            The posterior distribution of the time series contributions.
+        """
+        contributions = self._format_model_contributions(
+            var_contribution=var_contribution
+        )
+
+        if original_scale:
+            return apply_sklearn_transformer_across_dim(
+                data=contributions,
+                func=self.get_target_transformer().inverse_transform,
+                dim_name="date",
+            )
+
+        return contributions
+
+    def plot_components_contributions(
+        self, original_scale: bool = False, **plt_kwargs: Any
+    ) -> plt.Figure:
+        """Plot the target variable and the posterior predictive model components in
+        the scaled space.
+
+        Parameters
+        ----------
+        original_scale : bool, optional
+            Whether to plot in the original scale.
+
+        **plt_kwargs
+            Additional keyword arguments to pass to `plt.subplots`.
+
+        Returns
+        -------
+        plt.Figure
+        """
+        channel_contributions = self.get_ts_contribution_posterior(
+            var_contribution="channel_contributions", original_scale=original_scale
+        )
+
+        means = [channel_contributions.mean(["chain", "draw"])]
+        contribution_vars = [
+            az.hdi(channel_contributions, hdi_prob=0.94).channel_contributions
+        ]
+
+        for arg, var_contribution in zip(
+            ["control_columns", "yearly_seasonality"],
+            ["control_contributions", "fourier_contributions"],
+            strict=True,
+        ):
+            if getattr(self, arg, None):
+                contributions = self.get_ts_contribution_posterior(
+                    var_contribution=var_contribution, original_scale=original_scale
+                )
+
+                means.append(contributions.mean(["chain", "draw"]))
+                contribution_vars.append(
+                    az.hdi(contributions, hdi_prob=0.94)[var_contribution]
+                )
+
+        fig, ax = plt.subplots(**plt_kwargs)
+
+        for i, (mean, hdi, var_contribution) in enumerate(
+            zip(
+                means,
+                contribution_vars,
+                [
+                    "channel_contribution",
+                    "control_contribution",
+                    "fourier_contribution",
+                ],
+                strict=False,
+            )
+        ):
+            if self.X is not None:
+                ax.fill_between(
+                    x=self.X[self.date_column],
+                    y1=hdi.isel(hdi=0),
+                    y2=hdi.isel(hdi=1),
+                    color=f"C{i}",
+                    alpha=0.25,
+                    label=f"$94\\%$ HDI ({var_contribution})",
+                )
+                ax.plot(
+                    np.asarray(self.X[self.date_column]),
+                    np.asarray(mean),
+                    color=f"C{i}",
+                )
+        if self.X is not None:
+            intercept = az.extract(
+                self.fit_result, var_names=["intercept"], combined=False
+            )
+
+            if original_scale:
+                intercept = apply_sklearn_transformer_across_dim(
+                    data=intercept,
+                    func=self.get_target_transformer().inverse_transform,
+                    dim_name="chain",
+                )
+
+            if intercept.ndim == 2:
+                # Intercept has a stationary prior
+                intercept_hdi = np.repeat(
+                    a=az.hdi(intercept).intercept.data[None, ...],
+                    repeats=self.X[self.date_column].shape[0],
+                    axis=0,
+                )
+            elif intercept.ndim == 3:
+                # Intercept has a time-varying prior
+                intercept_hdi = az.hdi(intercept).intercept.data
+
+            ax.plot(
+                np.asarray(self.X[self.date_column]),
+                np.full(len(self.X[self.date_column]), intercept.mean().data),
+                color=f"C{i + 1}",
+            )
+            ax.fill_between(
+                x=self.X[self.date_column],
+                y1=intercept_hdi[:, 0],
+                y2=intercept_hdi[:, 1],
+                color=f"C{i + 1}",
+                alpha=0.25,
+                label="$94\\%$ HDI (intercept)",
+            )
+
+            y_to_plot = (
+                self.get_target_transformer().inverse_transform(
+                    np.asarray(self.preprocessed_data["y"]).reshape(-1, 1)
+                )
+                if original_scale
+                else np.asarray(self.preprocessed_data["y"])
+            )
+
+            ylabel = self.output_var if original_scale else f"{self.output_var} scaled"
+
+            ax.plot(
+                np.asarray(self.X[self.date_column]),
+                y_to_plot,
+                label=ylabel,
+                color="black",
+            )
+            ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.1), ncol=3)
+            ax.set(
+                title="Posterior Predictive Model Components",
+                xlabel="date",
+                ylabel=ylabel,
+            )
         return fig
 
     def plot_channel_contributions_grid(
@@ -1653,20 +1800,22 @@ class MMM(
         Sample from the model's posterior predictive distribution.
 
         Parameters
-        ---------
+        ----------
         X_pred : array, shape (n_pred, n_features)
             The input data used for prediction.
-        extend_idata : Boolean determining whether the predictions should be added to inference data object.
+        extend_idata : bool, optional
+            Boolean determining whether the predictions should be added to inference data object. Defaults to True.
+        combined: bool, optional
+            Combine chain and draw dims into sample. Won't work if a dim named sample already exists. Defaults to True.
+        include_last_observations: bool, optional
+            Boolean determining whether to include the last observations of the training data in order to carry over
+            costs with the adstock transformation. Assumes that X_pred are the next predictions following the
+            training data.Defaults to False.
+        original_scale: bool, optional
+            Boolean determining whether to return the predictions in the original scale of the target variable.
             Defaults to True.
-        combined: Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
-            Defaults to True.
-        include_last_observations: Boolean determining whether to include the last observations of the training
-            data in order to carry over costs with the adstock transformation.
-            Assumes that X_pred are the next predictions following the training data.
-            Defaults to False.
-        original_scale: Boolean determining whether to return the predictions in the original scale
-            of the target variable. Defaults to True.
-        **sample_posterior_predictive_kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
+        **sample_posterior_predictive_kwargs
+            Additional arguments to pass to pymc.sample_posterior_predictive
 
         Returns
         -------
@@ -1765,18 +1914,21 @@ class MMM(
             import pandas as pd
             import numpy as np
 
-            from pymc_marketing.mmm import MMM
+            from pymc_marketing.mmm import (
+                GeometricAdstock,
+                LogisticSaturation,
+                MMM,
+            )
 
             model = MMM(
-                adstock="geometric",
-                saturation="logistic",
                 date_column="date_week",
                 channel_columns=["x1", "x2"],
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
                 control_columns=[
                     "event_1",
                     "event_2",
                 ],
-                adstock_max_lag=8,
                 yearly_seasonality=2,
             )
 
@@ -1838,6 +1990,7 @@ class MMM(
         time_granularity: str,
         time_length: int,
         lag: int,
+        noise_level: float = 0.01,
     ) -> pd.DataFrame:
         """
         Create a synthetic dataset based on the given allocation strategy (Budget) and time granularity.
@@ -1862,6 +2015,8 @@ class MMM(
             The length of the synthetic dataset in terms of the time granularity.
         lag : int
             The lag value (not used in this function).
+        noise_level : int
+            The level of noise added to the allocation strategy (by default 1%).
 
         Returns
         -------
@@ -1911,7 +2066,9 @@ class MMM(
                 self.date_column: pd.to_datetime(new_date),
                 **{
                     channel: allocation_strategy.get(channel, 0)
-                    + np.random.normal(0, 0.1 * allocation_strategy.get(channel, 0))
+                    + np.random.normal(
+                        0, noise_level * allocation_strategy.get(channel, 0)
+                    )
                     for channel in channels
                 },
                 **{control: 0 for control in _controls},
@@ -1926,10 +2083,11 @@ class MMM(
         self,
         budget: float | int,
         time_granularity: str,
-        num_days: int,
-        budget_bounds: dict[str, list[Any]] | None = None,
+        num_periods: int,
+        budget_bounds: dict[str, tuple[float, float]] | None = None,
         custom_constraints: dict[str, float] | None = None,
         quantile: float = 0.5,
+        noise_level: float = 0.01,
     ) -> az.InferenceData:
         """
         Allocate the given budget to maximize the response over a specified time period.
@@ -1949,9 +2107,9 @@ class MMM(
         budget : float or int
             The total budget to be allocated.
         time_granularity : str
-            The granularity of the time periods (e.g., 'daily', 'weekly', 'monthly').
-        num_days : int
-            The number of days over which the budget is to be allocated.
+            The granularity of the time units (num_periods) (e.g., 'daily', 'weekly', 'monthly').
+        num_periods : float
+            The number of time units over which the budget is to be allocated.
         budget_bounds : dict[str, list[Any]], optional
             A dictionary specifying the lower and upper bounds for the budget allocation
             for each channel. If None, no bounds are applied.
@@ -1974,54 +2132,32 @@ class MMM(
             quantile=quantile
         )
 
-        scale_budget = budget / self.channel_transformer["scaler"].scale_.max()
-
-        if isinstance(budget_bounds, dict):
-            scale_budget_bounds: dict[str, tuple[float, float]] | None = {
-                k: (
-                    v[0] / self.channel_transformer["scaler"].scale_.max(),
-                    v[1] / self.channel_transformer["scaler"].scale_.max(),
-                )
-                for k, v in budget_bounds.items()
-            }
-        else:
-            scale_budget_bounds = None
-
         allocator = BudgetOptimizer(
             adstock=self.adstock,
             saturation=self.saturation,
             parameters=parameters_mid,
             adstock_first=self.adstock_first,
-            num_days=num_days,
+            num_periods=num_periods,
+            scales=self.channel_transformer["scaler"].scale_,
         )
 
         self.optimal_allocation_dict, _ = allocator.allocate_budget(
-            total_budget=scale_budget,
-            budget_bounds=scale_budget_bounds,
+            total_budget=budget,
+            budget_bounds=budget_bounds,
             custom_constraints=custom_constraints,
-        )
-
-        inverse_scaled_channel_spend = self.channel_transformer.inverse_transform(
-            np.array([list(self.optimal_allocation_dict.values())])
-        )
-        original_scale_allocation_dict = dict(
-            zip(
-                self.optimal_allocation_dict.keys(),
-                inverse_scaled_channel_spend[0],
-                strict=False,
-            )
         )
 
         synth_dataset = self._create_synth_dataset(
             df=self.X,
             date_column=self.date_column,
-            allocation_strategy=original_scale_allocation_dict,
+            allocation_strategy=self.optimal_allocation_dict,
             channels=self.channel_columns,
             controls=self.control_columns,
             target_col=self.output_var,
             time_granularity=time_granularity,
-            time_length=num_days,
+            time_length=num_periods,
             lag=self.adstock.l_max,
+            noise_level=noise_level,
         )
 
         return self.sample_posterior_predictive(
@@ -2035,7 +2171,7 @@ class MMM(
 
     def plot_budget_allocation(
         self,
-        samples: az.InferenceData,
+        samples: Dataset,
         figsize: tuple[float, float] = (12, 6),
         ax: plt.Axes | None = None,
         original_scale: bool = True,
@@ -2045,8 +2181,8 @@ class MMM(
 
         Parameters
         ----------
-        samples : az.InferenceData
-            The inference data containing the channel contributions.
+        samples : Dataset
+            The dataset containing the channel contributions.
         figsize : tuple[float, float], optional
             The size of the figure to be created, by default (12, 6).
         ax : plt.Axes, optional
@@ -2134,7 +2270,7 @@ class MMM(
 
     def plot_allocated_contribution_by_channel(
         self,
-        samples: az.InferenceData,
+        samples: Dataset,
         lower_quantile: float = 0.025,
         upper_quantile: float = 0.975,
         original_scale: bool = True,
@@ -2148,8 +2284,8 @@ class MMM(
 
         Parameters
         ----------
-        samples : az.InferenceData
-            The inference data containing the samples of channel contributions.
+        samples : Dataset
+            The dataset containing the samples of channel contributions.
         lower_quantile : float, optional
             The lower quantile for the uncertainty interval. Default is 0.025.
         upper_quantile : float, optional
@@ -2206,7 +2342,6 @@ class DelayedSaturatedMMM(MMM):
         control_columns: list[str] | None = None,
         yearly_seasonality: int | None = None,
         adstock_first: bool = True,
-        **kwargs,
     ) -> None:
         """
         Wrapper function for DelayedSaturatedMMM class initializer.
@@ -2214,16 +2349,23 @@ class DelayedSaturatedMMM(MMM):
         Warns that MMM class should be used instead and returns an instance of MMM with
         geometric adstock and logistic saturation.
         """
-        warnings.warn(
-            "The DelayedSaturatedMMM class is deprecated. Please use the MMM class instead.",
-            DeprecationWarning,
-            stacklevel=2,
+        msg = (
+            "The DelayedSaturatedMMM class is deprecated and "
+            "will be removed in 0.9.0. "
+            "Please use the MMM class instead."
         )
+        warnings.warn(
+            msg,
+            DeprecationWarning,
+            stacklevel=1,
+        )
+
+        adstock = GeometricAdstock(l_max=adstock_max_lag)
+        saturation = LogisticSaturation()
 
         super().__init__(
             date_column=date_column,
             channel_columns=channel_columns,
-            adstock_max_lag=adstock_max_lag,
             time_varying_intercept=time_varying_intercept,
             time_varying_media=time_varying_media,
             model_config=model_config,
@@ -2231,8 +2373,7 @@ class DelayedSaturatedMMM(MMM):
             validate_data=validate_data,
             control_columns=control_columns,
             yearly_seasonality=yearly_seasonality,
-            adstock="geometric",
-            saturation="logistic",
+            adstock=adstock,
+            saturation=saturation,
             adstock_first=adstock_first,
-            **kwargs,
         )

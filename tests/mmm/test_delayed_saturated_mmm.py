@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import os
+import warnings
 
 import arviz as az
 import numpy as np
@@ -21,8 +22,14 @@ import pytest
 import xarray as xr
 from matplotlib import pyplot as plt
 
-from pymc_marketing.mmm.components.adstock import DelayedAdstock
-from pymc_marketing.mmm.components.saturation import MichaelisMentenSaturation
+from pymc_marketing.mmm.components.adstock import DelayedAdstock, GeometricAdstock
+from pymc_marketing.mmm.components.saturation import (
+    SATURATION_TRANSFORMATIONS,
+    LogisticSaturation,
+    MichaelisMentenSaturation,
+    SaturationTransformation,
+    register_saturation_transformation,
+)
 from pymc_marketing.mmm.delayed_saturated_mmm import MMM, BaseMMM, DelayedSaturatedMMM
 from pymc_marketing.prior import Prior
 
@@ -39,14 +46,20 @@ def mock_fit(model, X: pd.DataFrame, y: np.ndarray, **kwargs):
     model.preprocess("X", X)
     model.preprocess("y", y)
 
-    idata.add_groups(
-        {
-            "posterior": idata.prior,
-            "fit_data": pd.concat(
-                [X, pd.Series(y, index=X.index, name="y")], axis=1
-            ).to_xarray(),
-        }
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=UserWarning,
+            message="The group fit_data is not defined in the InferenceData scheme",
+        )
+        idata.add_groups(
+            {
+                "posterior": idata.prior,
+                "fit_data": pd.concat(
+                    [X, pd.Series(y, index=X.index, name="y")], axis=1
+                ).to_xarray(),
+            }
+        )
     model.idata = idata
     model.set_idata_attrs(idata=idata)
 
@@ -127,10 +140,9 @@ def mmm() -> MMM:
     return MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
-        adstock_max_lag=4,
         control_columns=["control_1", "control_2"],
-        adstock="geometric",
-        saturation="logistic",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
     )
 
 
@@ -139,10 +151,9 @@ def mmm_with_fourier_features() -> MMM:
     return MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
-        adstock_max_lag=4,
         control_columns=["control_1", "control_2"],
-        adstock="geometric",
-        saturation="logistic",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
         yearly_seasonality=2,
     )
 
@@ -201,13 +212,15 @@ class TestDelayedSaturatedMMM:
                         return False
             return True
 
+        l_max = 4
+        adstock = GeometricAdstock(l_max=l_max)
+        saturation = LogisticSaturation()
         model = MMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
-            adstock_max_lag=4,
             model_config=model_config_requiring_serialization,
-            adstock="geometric",
-            saturation="logistic",
+            adstock=adstock,
+            saturation=saturation,
         )
         model = mock_fit(model, toy_X, toy_y)
         model.save("test_save_load")
@@ -215,7 +228,7 @@ class TestDelayedSaturatedMMM:
         assert model.date_column == model2.date_column
         assert model.control_columns == model2.control_columns
         assert model.channel_columns == model2.channel_columns
-        assert model.adstock_max_lag == model2.adstock_max_lag
+        assert model.adstock.l_max == model2.adstock.l_max
         assert model.validate_data == model2.validate_data
         assert model.yearly_seasonality == model2.yearly_seasonality
         assert deep_equal(model.model_config, model2.model_config)
@@ -231,10 +244,9 @@ class TestDelayedSaturatedMMM:
             my_mmm = MMM(
                 date_column="bad_date_column",
                 channel_columns=["channel_1", "channel_2"],
-                adstock_max_lag=4,
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
                 control_columns=["control_1", "control_2"],
-                adstock="geometric",
-                saturation="logistic",
             )
             y = np.ones(toy_X_with_bad_dates.shape[0])
             my_mmm.build_model(X=toy_X_with_bad_dates, y=y)
@@ -290,12 +302,11 @@ class TestDelayedSaturatedMMM:
             date_column="date",
             channel_columns=channel_columns,
             control_columns=control_columns,
-            adstock_max_lag=adstock_max_lag,
             yearly_seasonality=yearly_seasonality,
             time_varying_intercept=time_varying_intercept,
             time_varying_media=time_varying_media,
-            adstock="geometric",
-            saturation="logistic",
+            adstock=GeometricAdstock(l_max=adstock_max_lag),
+            saturation=LogisticSaturation(),
         )
         mmm.build_model(X=toy_X, y=toy_y)
         n_channel: int = len(mmm.channel_columns)
@@ -368,10 +379,9 @@ class TestDelayedSaturatedMMM:
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
             control_columns=["control_1", "control_2"],
-            adstock_max_lag=2,
             yearly_seasonality=2,
-            adstock="geometric",
-            saturation="logistic",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
         )
         assert mmm.version == "0.0.3"
         assert mmm._model_type == "BaseValidateMMM"
@@ -456,6 +466,68 @@ class TestDelayedSaturatedMMM:
             y=mmm_fitted.y.max(),
         )
 
+    def test_allocate_budget_to_maximize_response(self, mmm_fitted: MMM) -> None:
+        budget = 2.0
+        num_periods = 8
+        time_granularity = "weekly"
+        budget_bounds = {"channel_1": [0.5, 1.2], "channel_2": [0.5, 1.5]}
+        noise_level = 0.1
+
+        # Call the method
+        inference_data = mmm_fitted.allocate_budget_to_maximize_response(
+            budget=budget,
+            time_granularity=time_granularity,
+            num_periods=num_periods,
+            budget_bounds=budget_bounds,
+            noise_level=noise_level,
+        )
+
+        inference_periods = len(inference_data.coords["date"])
+
+        # a) Total budget consistency check
+        allocated_budget = sum(mmm_fitted.optimal_allocation_dict.values())
+        assert np.isclose(
+            allocated_budget, budget, rtol=1e-5
+        ), f"Total allocated budget {allocated_budget} does not match expected budget {budget}"
+
+        # b) Budget boundaries check
+        for channel, bounds in budget_bounds.items():
+            allocation = mmm_fitted.optimal_allocation_dict[channel]
+            lower_bound, upper_bound = bounds
+            assert (
+                lower_bound <= allocation <= upper_bound
+            ), f"Channel {channel} allocation {allocation} is out of bounds ({lower_bound}, {upper_bound})"
+
+        # c) num_periods consistency check
+        assert (
+            inference_periods == num_periods
+        ), f"Number of periods in the data {inference_periods} does not match the expected {num_periods}"
+
+    @pytest.mark.parametrize(
+        argnames="original_scale",
+        argvalues=[False, True],
+        ids=["scaled", "original-scale"],
+    )
+    @pytest.mark.parametrize(
+        argnames="var_contribution",
+        argvalues=["channel_contributions", "control_contributions"],
+        ids=["channel_contribution", "control_contribution"],
+    )
+    def test_get_ts_contribution_posterior(
+        self,
+        mmm_fitted_with_posterior_predictive: MMM,
+        var_contribution: str,
+        original_scale: bool,
+    ):
+        ts_posterior = (
+            mmm_fitted_with_posterior_predictive.get_ts_contribution_posterior(
+                var_contribution=var_contribution, original_scale=original_scale
+            )
+        )
+        assert ts_posterior.dims == ("chain", "draw", "date")
+        assert ts_posterior.chain.size == 1
+        assert ts_posterior.draw.size == 500
+
     @pytest.mark.parametrize(
         argnames="original_scale",
         argvalues=[False, True],
@@ -483,10 +555,9 @@ class TestDelayedSaturatedMMM:
         my_mmm = MMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
-            adstock_max_lag=4,
             control_columns=["control_1", "control_2"],
-            adstock="geometric",
-            saturation="logistic",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
         )
         with pytest.raises(
             RuntimeError,
@@ -498,10 +569,9 @@ class TestDelayedSaturatedMMM:
         my_mmm = MMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
-            adstock_max_lag=4,
             control_columns=["control_1", "control_2"],
-            adstock="geometric",
-            saturation="logistic",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
         )
         with pytest.raises(
             RuntimeError,
@@ -601,9 +671,8 @@ class TestDelayedSaturatedMMM:
         base_delayed_saturated_mmm = BaseMMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
-            adstock_max_lag=4,
-            adstock="geometric",
-            saturation="logistic",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
         )
         base_delayed_saturated_mmm = mock_fit(base_delayed_saturated_mmm, toy_X, toy_y)
 
@@ -643,7 +712,7 @@ class TestDelayedSaturatedMMM:
         assert model.date_column == model2.date_column
         assert model.control_columns == model2.control_columns
         assert model.channel_columns == model2.channel_columns
-        assert model.adstock_max_lag == model2.adstock_max_lag
+        assert model.adstock.l_max == model2.adstock.l_max
         assert model.validate_data == model2.validate_data
         assert model.yearly_seasonality == model2.yearly_seasonality
         assert model.model_config == model2.model_config
@@ -659,9 +728,8 @@ class TestDelayedSaturatedMMM:
         DSMMM = MMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
-            adstock_max_lag=4,
-            adstock="geometric",
-            saturation="logistic",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
         )
 
         # Check that the property returns the new value
@@ -712,11 +780,10 @@ class TestDelayedSaturatedMMM:
         model = MMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
-            adstock_max_lag=2,
             yearly_seasonality=2,
             model_config=model_config,
-            adstock="geometric",
-            saturation="logistic",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
         )
 
         model.build_model(X=toy_X, y=toy_y.to_numpy())
@@ -857,7 +924,7 @@ def new_contributions_property_checks(new_contributions, X, model):
     assert coords["channel"].values.tolist() == model.channel_columns
     np.testing.assert_allclose(
         coords["time_since_spend"].values,
-        np.arange(-model.adstock_max_lag, model.adstock_max_lag + 1),
+        np.arange(-model.adstock.l_max, model.adstock.l_max + 1),
     )
 
     # Channel contributions are non-negative
@@ -875,10 +942,9 @@ def test_new_spend_contributions_prior_error() -> None:
     mmm = MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
-        adstock_max_lag=4,
         control_columns=["control_1", "control_2"],
-        adstock="geometric",
-        saturation="logistic",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
     )
     new_spend = np.ones(len(mmm.channel_columns))
     match = "sample_prior_predictive"
@@ -983,13 +1049,14 @@ def test_add_lift_test_measurements(mmm, toy_X, toy_y, df_lift_test) -> None:
 
 
 def test_add_lift_test_measurements_no_model() -> None:
+    adstock = GeometricAdstock(l_max=4)
+    saturation = LogisticSaturation()
     mmm = MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
-        adstock_max_lag=4,
         control_columns=["control_1", "control_2"],
-        adstock="geometric",
-        saturation="logistic",
+        adstock=adstock,
+        saturation=saturation,
     )
     with pytest.raises(RuntimeError, match="The model has not been built yet."):
         mmm.add_lift_test_measurements(
@@ -998,8 +1065,10 @@ def test_add_lift_test_measurements_no_model() -> None:
 
 
 def test_delayed_saturated_mmm_raises_deprecation_warning() -> None:
+    match = "The DelayedSaturatedMMM class is deprecated and will be removed in 0.9.0"
     with pytest.warns(
-        DeprecationWarning, match="The DelayedSaturatedMMM class is deprecated"
+        DeprecationWarning,
+        match=match,
     ):
         DelayedSaturatedMMM(
             date_column="date",
@@ -1010,14 +1079,15 @@ def test_delayed_saturated_mmm_raises_deprecation_warning() -> None:
 
 
 def test_initialize_alternative_with_strings() -> None:
-    mmm = MMM(
-        date_column="date",
-        channel_columns=["channel_1", "channel_2"],
-        adstock_max_lag=4,
-        control_columns=["control_1", "control_2"],
-        adstock="delayed",
-        saturation="michaelis_menten",
-    )
+    with pytest.warns(DeprecationWarning):
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock_max_lag=4,
+            control_columns=["control_1", "control_2"],
+            adstock="delayed",
+            saturation="michaelis_menten",
+        )
 
     assert isinstance(mmm.adstock, DelayedAdstock)
     assert mmm.adstock.l_max == 4
@@ -1028,7 +1098,6 @@ def test_initialize_alternative_with_classes() -> None:
     mmm = MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
-        adstock_max_lag=4,
         control_columns=["control_1", "control_2"],
         adstock=DelayedAdstock(l_max=10),
         saturation=MichaelisMentenSaturation(),
@@ -1043,7 +1112,6 @@ def test_initialize_defaults_channel_media_dims() -> None:
     mmm = MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
-        adstock_max_lag=4,
         control_columns=["control_1", "control_2"],
         adstock=DelayedAdstock(l_max=10),
         saturation=MichaelisMentenSaturation(),
@@ -1065,12 +1133,13 @@ def test_initialize_defaults_channel_media_dims() -> None:
 def test_save_load_with_tvp(
     time_varying_intercept, time_varying_media, toy_X, toy_y
 ) -> None:
+    adstock = GeometricAdstock(l_max=5)
+    saturation = LogisticSaturation()
     mmm = MMM(
         channel_columns=["channel_1", "channel_2"],
         date_column="date",
-        adstock="geometric",
-        saturation="logistic",
-        adstock_max_lag=5,
+        adstock=adstock,
+        saturation=saturation,
         time_varying_intercept=time_varying_intercept,
         time_varying_media=time_varying_media,
     )
@@ -1083,6 +1152,102 @@ def test_save_load_with_tvp(
     assert mmm.time_varying_intercept == time_varying_intercept
     assert mmm.time_varying_media == loaded_mmm.time_varying_media
     assert mmm.time_varying_media == time_varying_media
+
+    # clean up
+    os.remove(file)
+
+
+class CustomSaturation(SaturationTransformation):
+    lookup_name: str = "custom_saturation"
+
+    def function(self, x, beta):
+        return beta * x
+
+    default_priors = {
+        "beta": Prior("HalfNormal", sigma=2.5),
+    }
+
+
+@pytest.fixture(scope="module")
+def mmm_with_media_config() -> MMM:
+    return MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=4, normalize=False, mode="Before"),
+        saturation=CustomSaturation(),
+    )
+
+
+@pytest.fixture(scope="module")
+def mmm_with_media_config_fitted(
+    mmm_with_media_config: MMM,
+    toy_X: pd.DataFrame,
+    toy_y: pd.Series,
+) -> MMM:
+    return mock_fit(mmm_with_media_config, toy_X, toy_y)
+
+
+def test_save_load_with_media_transformation(mmm_with_media_config_fitted) -> None:
+    file = "tmp-model"
+    mmm_with_media_config_fitted.save(file)
+
+    register_saturation_transformation(CustomSaturation)
+
+    loaded_mmm = MMM.load(file)
+
+    assert loaded_mmm.adstock == GeometricAdstock(
+        l_max=4,
+        normalize=False,
+        mode="Before",
+        priors={
+            "alpha": Prior("Beta", alpha=1, beta=3, dims="channel"),
+        },
+    )
+    assert loaded_mmm.saturation == CustomSaturation(
+        priors={
+            "beta": Prior("HalfNormal", sigma=2.5, dims="channel"),
+        }
+    )
+
+    # clean up
+    del SATURATION_TRANSFORMATIONS[CustomSaturation.lookup_name]
+    os.remove(file)
+
+
+def test_missing_attrs_to_defaults(toy_X, toy_y) -> None:
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        adstock_first=False,
+        time_varying_intercept=False,
+        time_varying_media=False,
+    )
+    mmm = mock_fit(mmm, toy_X, toy_y)
+    mmm.idata.attrs.pop("adstock_first")
+    mmm.idata.attrs.pop("time_varying_intercept")
+    mmm.idata.attrs.pop("time_varying_media")
+
+    file = "tmp-model"
+    mmm.save(file)
+
+    loaded_mmm = MMM.load(file)
+
+    attrs = loaded_mmm.idata.attrs
+    for key in [
+        "adstock_first",
+        "time_varying_intercept",
+        "time_varying_media",
+    ]:
+        assert key not in attrs
+
+    assert not loaded_mmm.time_varying_intercept
+    assert not loaded_mmm.time_varying_media
+    # Falsely loaded
+    assert loaded_mmm.adstock_first
 
     # clean up
     os.remove(file)

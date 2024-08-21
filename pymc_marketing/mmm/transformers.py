@@ -58,7 +58,7 @@ def batched_convolution(
         ax = plt.subplot(111)
         for mode in [ConvMode.Before, ConvMode.Overlap, ConvMode.After]:
             y = batched_convolution(spends, w, mode=mode).eval()
-            suffix = "\n(default)" if mode == ConvMode.Before else ""
+            suffix = "\n(default)" if mode == ConvMode.After else ""
             plt.plot(x, y, label=f'{mode.value}{suffix}')
         plt.xlabel('time since spend', fontsize=12)
         plt.ylabel('f(time since spend)', fontsize=12)
@@ -70,16 +70,16 @@ def batched_convolution(
 
     Parameters
     ----------
-    x :
+    x : tensor_like
         The array to convolve.
-    w :
+    w : tensor_like
         The weight of the convolution. The last axis of ``w`` determines the number of steps
         to use in the convolution.
     axis : int
         The axis of ``x`` along witch to apply the convolution
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
-        of the input signal, denoted as "x." The default mode is ConvMode.Before.
+        of the input signal, denoted as "x." The default mode is ConvMode.After.
 
         - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
         - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
@@ -89,7 +89,7 @@ def batched_convolution(
 
     Returns
     -------
-    y :
+    y : tensor_like
         The result of convolving ``x`` with ``w`` along the desired axis. The shape of the
         result will match the shape of ``x`` up to broadcasting with ``w``. The convolved
         axis will show the results of left padding zeros to ``x`` while applying the
@@ -211,7 +211,7 @@ def geometric_adstock(
         The axis of ``x`` along witch to apply the convolution
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
-        of the input signal, denoted as "x." The default mode is ConvMode.Before.
+        of the input signal, denoted as "x." The default mode is ConvMode.After.
 
         - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
         - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
@@ -293,7 +293,7 @@ def delayed_adstock(
         The axis of ``x`` along witch to apply the convolution
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
-        of the input signal, denoted as "x." The default mode is ConvMode.Before.
+        of the input signal, denoted as "x." The default mode is ConvMode.After.
 
         - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
         - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
@@ -396,7 +396,7 @@ def weibull_adstock(
         The axis of ``x`` along witch to apply the convolution
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
-        of the input signal, denoted as "x." The default mode is ConvMode.Before.
+        of the input signal, denoted as "x." The default mode is ConvMode.After.
 
         - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
         - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
@@ -437,10 +437,10 @@ def weibull_adstock(
 
 
 def logistic_saturation(x, lam: npt.NDArray[np.float64] | float = 0.5):
-    """Logistic saturation transformation.
+    r"""Logistic saturation transformation.
 
     .. math::
-        f(x) = \\frac{1 - e^{-\lambda x}}{1 + e^{-\lambda x}}
+        f(x) = \frac{1 - e^{-\lambda x}}{1 + e^{-\lambda x}}
 
     .. plot::
         :context: close-figs
@@ -474,8 +474,57 @@ def logistic_saturation(x, lam: npt.NDArray[np.float64] | float = 0.5):
     -------
     tensor
         Transformed tensor.
-    """  # noqa: W605
+    """
     return (1 - pt.exp(-lam * x)) / (1 + pt.exp(-lam * x))
+
+
+def inverse_scaled_logistic_saturation(
+    x, lam: npt.NDArray[np.float64] | float = 0.5, eps: float = np.log(3)
+):
+    """Inverse scaled logistic saturation transformation.
+        It offers a more intuitive alternative to logistic_saturation,
+        allowing for lambda to be interpreted as the half saturation point
+        when using default value for eps.
+
+    .. math::
+        f(x) = \\frac{1 - e^{-x*\epsilon/\lambda}}{1 + e^{-x*\epsilon/\lambda}}
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import inverse_scaled_logistic_saturation
+        plt.style.use('arviz-darkgrid')
+        lam = np.array([0.25, 0.5, 1, 2, 4])
+        x = np.linspace(0, 5, 100)
+        ax = plt.subplot(111)
+        for l in lam:
+            y = inverse_scaled_logistic_saturation(x, lam=l).eval()
+            plt.plot(x, y, label=f'lam = {l}')
+        plt.xlabel('spend', fontsize=12)
+        plt.ylabel('f(spend)', fontsize=12)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.show()
+
+    Parameters
+    ----------
+    x : tensor
+        Input tensor.
+    lam : float or array-like, optional, by default 0.5
+        Saturation parameter.
+    eps : float or array-like, optional, by default ln(3)
+        Scaling parameter. ln(3) results in halfway saturation at lam
+
+    Returns
+    -------
+    tensor
+        Transformed tensor.
+    """  # noqa: W605
+    return logistic_saturation(x, eps / lam)
 
 
 class TanhSaturationParameters(NamedTuple):
@@ -850,19 +899,92 @@ def michaelis_menten(
     return alpha * x / (lam + x)
 
 
-def hill_saturation(
+def hill_function(
+    x: pt.TensorLike, slope: pt.TensorLike, kappa: pt.TensorLike
+) -> pt.TensorVariable:
+    r"""Hill Function
+
+    .. math::
+        f(x) = 1 - \frac{\kappa^s}{\kappa^s + x^s}
+
+    where:
+     - :math:`s` is the slope of the hill.
+     - :math:`\kappa` is the half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s` and :math:`\kappa`.
+     - :math:`x` is the independent variable and must be non-negative.
+
+    Hill function from Equation (5) in the paper [1]_.
+
+    .. plot::
+        :context: close-figs
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from pymc_marketing.mmm.transformers import hill_function
+        x = np.linspace(0, 10, 100)
+        # Varying slope
+        slopes = [0.3, 0.7, 1.2]
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
+        for i, slope in enumerate(slopes):
+            plt.subplot(1, 3, i+1)
+            y = hill_function(x, slope, 2).eval()
+            plt.plot(x, y)
+            plt.xlabel('x')
+            plt.title(f'Slope = {slope}')
+        plt.subplot(1,3,1)
+        plt.ylabel('Hill Saturation Sigmoid')
+        plt.tight_layout()
+        plt.show()
+        # Varying kappa
+        kappas = [1, 5, 10]
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
+        for i, kappa in enumerate(kappas):
+            plt.subplot(1, 3, i+1)
+            y = hill_function(x, 1, kappa).eval()
+            plt.plot(x, y)
+            plt.xlabel('x')
+            plt.title(f'Kappa = {kappa}')
+        plt.subplot(1,3,1)
+        plt.ylabel('Hill Saturation Sigmoid')
+        plt.tight_layout()
+        plt.show()
+
+    Parameters
+    ----------
+    x : float or array-like
+        The independent variable, typically representing the concentration of a
+        substrate or the intensity of a stimulus.
+    slope : float
+        The slope of the hill. Must pe non-positive.
+    kappa : float
+        The half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s` and :math:`\kappa`.
+
+    Returns
+    -------
+    float
+        The value of the Hill function given the parameters.
+
+    References
+    ----------
+    .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
+    """  # noqa: E501
+    return pt.as_tensor_variable(
+        1 - pt.power(kappa, slope) / (pt.power(kappa, slope) + pt.power(x, slope))
+    )
+
+
+def hill_saturation_sigmoid(
     x: pt.TensorLike,
     sigma: pt.TensorLike,
     beta: pt.TensorLike,
     lam: pt.TensorLike,
 ) -> pt.TensorVariable:
-    r"""Hill Saturation Function
+    r"""Hill Saturation Sigmoid Function
 
     .. math::
-        f(x) = \frac{\sigma}{1 + e^{-\beta(x - \lambda)}}
+        f(x) = \frac{\sigma}{1 + e^{-\beta(x - \lambda)}} - \frac{\sigma}{1 + e^{\beta\lambda}}
 
     where:
-     - :math:`\sigma` is the maximum value (upper asymptote)
+     - :math:`\sigma` is the upper asymptote
      - :math:`\beta` is the slope parameter
      - :math:`\lambda` is the transition point on the X-axis
      - :math:`x` is the independent variable
@@ -871,48 +993,54 @@ def hill_saturation(
     used to describe the saturation effect in biological systems. The curve is
     characterized by its sigmoidal shape, representing a gradual transition from
     a low, nearly zero level to a high plateau, the maximum value the function
-    will approach as the independent variable grows large.
+    will approach as the independent variable grows large. In this implementation,
+    we add an offset to the sigmoid function to ensure that the function always passes
+    through the origin as we expect zero spend to result in zero contribution.
 
     .. plot::
         :context: close-figs
+
         import numpy as np
         import matplotlib.pyplot as plt
-        from pymc_marketing.mmm.transformers import hill_saturation
+        from pymc_marketing.mmm.transformers import hill_saturation_sigmoid
         x = np.linspace(0, 10, 100)
         # Varying sigma
         sigmas = [0.5, 1, 1.5]
-        plt.figure(figsize=(12, 4))
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
         for i, sigma in enumerate(sigmas):
             plt.subplot(1, 3, i+1)
-            y = hill_saturation(x, sigma, 2, 5)
+            y = hill_saturation_sigmoid(x, sigma, 2, 5).eval()
             plt.plot(x, y)
             plt.xlabel('x')
-            plt.ylabel('Hill Saturation')
             plt.title(f'Sigma = {sigma}')
+        plt.subplot(1,3,1)
+        plt.ylabel('Hill Saturation Sigmoid')
         plt.tight_layout()
         plt.show()
         # Varying beta
         betas = [1, 2, 3]
-        plt.figure(figsize=(12, 4))
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
         for i, beta in enumerate(betas):
             plt.subplot(1, 3, i+1)
-            y = hill_saturation(x, 1, beta, 5)
+            y = hill_saturation_sigmoid(x, 1, beta, 5).eval()
             plt.plot(x, y)
             plt.xlabel('x')
-            plt.ylabel('Hill Saturation')
             plt.title(f'Beta = {beta}')
+        plt.subplot(1,3,1)
+        plt.ylabel('Hill Saturation Sigmoid')
         plt.tight_layout()
         plt.show()
         # Varying lam
         lams = [3, 5, 7]
-        plt.figure(figsize=(12, 4))
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
         for i, lam in enumerate(lams):
             plt.subplot(1, 3, i+1)
-            y = hill_saturation(x, 1, 2, lam)
+            y = hill_saturation_sigmoid(x, 1, 2, lam).eval()
             plt.plot(x, y)
             plt.xlabel('x')
-            plt.ylabel('Hill Saturation')
             plt.title(f'Lambda = {lam}')
+        plt.subplot(1,3,1)
+        plt.ylabel('Hill Saturation Sigmoid')
         plt.tight_layout()
         plt.show()
 
@@ -922,8 +1050,8 @@ def hill_saturation(
         The independent variable, typically representing the concentration of a
         substrate or the intensity of a stimulus.
     sigma : float
-        The upper asymptote of the curve, representing the maximum value the
-        function will approach as x grows large.
+        The upper asymptote of the curve, representing the approximate maximum value the
+        function will approach as x grows large. The true maximum value is at `sigma * (1 - 1 / (1 + exp(beta * lam)))`
     beta : float
         The slope parameter, determining the steepness of the curve.
     lam : float
@@ -933,6 +1061,52 @@ def hill_saturation(
     Returns
     -------
     float or array-like
-        The value of the Hill function for each input value of x.
+        The value of the Hill saturation sigmoid function for each input value of x.
     """
-    return sigma / (1 + pt.exp(-beta * (x - lam)))
+    return sigma / (1 + pt.exp(-beta * (x - lam))) - sigma / (1 + pt.exp(beta * lam))
+
+
+def root_saturation(
+    x: pt.TensorLike,
+    alpha: pt.TensorLike,
+) -> pt.TensorVariable:
+    r"""Root saturation transformation.
+
+    .. math::
+        f(x) = x^{\alpha}
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import root_saturation
+        plt.style.use('arviz-darkgrid')
+        alpha = np.array([0.1, 0.3, 0.5, 0.7])
+        x = np.linspace(0, 5, 100)
+        ax = plt.subplot(111)
+        for a in alpha:
+            y = root_saturation(x, alpha=a)
+            plt.plot(x, y, label=f'alpha = {a}')
+        plt.xlabel('spend', fontsize=12)
+        plt.ylabel('f(spend)', fontsize=12)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.show()
+
+    Parameters
+    ----------
+    x : tensor
+        Input tensor.
+    alpha : float
+        Exponent for the root transformation. Must be non-negative.
+
+    Returns
+    -------
+    tensor
+        Transformed tensor.
+
+    """
+    return x**alpha

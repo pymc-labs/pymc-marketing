@@ -41,28 +41,34 @@ dependencies = [
 
 [project.optional-dependencies]
 docs = [
-    "sphinx",
-    "ipython!=8.7.0",
+    "blackjax",
     "fastprogress",
     "graphviz",
+    "ipython!=8.7.0",
+    "labs-sphinx-theme",
     "lifetimes",
-    "myst-parser",
     "myst-nb<=1.0.0",
+    "myst-parser",
+    "numba",
     "numpydoc",
     "numpyro",
-    "blackjax",
     "nutpie",
-    "numba",
-    "pydata-sphinx-theme>=0.12.0.dev0",
-    "sphinx-copybutton",
+    "pylint",
+    "pyprojroot",
     "sphinx-autodoc-typehints",
-    "sphinxext-opengraph",
-    "sphinx-notfound-page",
+    "sphinx-copybutton",
     "sphinx-design",
+    "sphinx-notfound-page",
+    "sphinx",
+    "sphinxext-opengraph",
     "watermark",
+    "mlflow>=2.0.0",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
+    "blackjax",
+    "nutpie",
+    "numpyro",
     "graphviz==0.20.1",
     "lifetimes==0.11.3",
     "papermill",
@@ -70,6 +76,7 @@ test = [
     "pytest-cov==3.0.0",
     "pytest-mock==3.14.0",
     "pytest==7.0.1",
+    "mlflow>=2.0.0",
 ]
 
 [tool.setuptools]
@@ -112,6 +119,9 @@ ignore = [
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 120
+
+[tool.ruff]
+extend-include = ["*.ipynb"]
 
 [tool.pytest.ini_options]
 addopts = [

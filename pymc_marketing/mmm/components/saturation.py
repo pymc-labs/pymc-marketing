@@ -28,6 +28,8 @@ Create a new saturation transformation:
     from pymc_marketing.prior import Prior
 
     class InfiniteReturns(SaturationTransformation):
+        lookup_name: str = "infinite_returns"
+
         def function(self, x, b):
             return b * x
 
@@ -75,9 +77,12 @@ from pydantic import Field, InstanceOf, validate_call
 
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.transformers import (
-    hill_saturation,
+    hill_function,
+    hill_saturation_sigmoid,
+    inverse_scaled_logistic_saturation,
     logistic_saturation,
     michaelis_menten,
+    root_saturation,
     tanh_saturation,
     tanh_saturation_baselined,
 )
@@ -107,6 +112,7 @@ class SaturationTransformation(Transformation):
             return b * x
 
         class InfiniteReturns(SaturationTransformation):
+            lookup_name = "infinite_returns"
             function = infinite_returns
             default_priors = {"b": Prior("HalfNormal")}
 
@@ -197,6 +203,39 @@ class LogisticSaturation(SaturationTransformation):
 
     default_priors = {
         "lam": Prior("Gamma", alpha=3, beta=1),
+        "beta": Prior("HalfNormal", sigma=2),
+    }
+
+
+class InverseScaledLogisticSaturation(SaturationTransformation):
+    """Wrapper around inverse scaled logistic saturation function.
+
+    For more information, see :func:`pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import InverseScaledLogisticSaturation
+
+        rng = np.random.default_rng(0)
+
+        adstock = InverseScaledLogisticSaturation()
+        prior = adstock.sample_prior(random_seed=rng)
+        curve = adstock.sample_curve(prior)
+        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
+
+    """
+
+    lookup_name = "inverse_scaled_logistic"
+
+    def function(self, x, lam, beta):
+        return beta * inverse_scaled_logistic_saturation(x, lam)
+
+    default_priors = {
+        "lam": Prior("Gamma", alpha=0.5, beta=1),
         "beta": Prior("HalfNormal", sigma=2),
     }
 
@@ -305,7 +344,7 @@ class MichaelisMentenSaturation(SaturationTransformation):
 class HillSaturation(SaturationTransformation):
     """Wrapper around Hill saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.hill_saturation`.
+    For more information, see :func:`pymc_marketing.mmm.transformers.hill_function`.
 
     .. plot::
         :context: close-figs
@@ -326,12 +365,79 @@ class HillSaturation(SaturationTransformation):
 
     lookup_name = "hill"
 
-    function = hill_saturation
+    def function(self, x, slope, kappa, beta):
+        return beta * hill_function(x, slope, kappa)
 
     default_priors = {
-        "sigma": Prior("HalfNormal", sigma=2),
-        "beta": Prior("HalfNormal", sigma=2),
-        "lam": Prior("HalfNormal", sigma=2),
+        "slope": Prior("HalfNormal", sigma=1.5),
+        "kappa": Prior("HalfNormal", sigma=1.5),
+        "beta": Prior("HalfNormal", sigma=1.5),
+    }
+
+
+class HillSaturationSigmoid(SaturationTransformation):
+    """Wrapper around Hill saturation sigmoid function.
+
+    For more information, see :func:`pymc_marketing.mmm.transformers.hill_saturation_sigmoid`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import HillSaturationSigmoid
+
+        rng = np.random.default_rng(0)
+
+        adstock = HillSaturationSigmoid()
+        prior = adstock.sample_prior(random_seed=rng)
+        curve = adstock.sample_curve(prior)
+        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
+
+    """
+
+    lookup_name = "hill_sigmoid"
+
+    function = hill_saturation_sigmoid
+
+    default_priors = {
+        "sigma": Prior("HalfNormal", sigma=1.5),
+        "beta": Prior("HalfNormal", sigma=1.5),
+        "lam": Prior("HalfNormal", sigma=1.5),
+    }
+
+
+class RootSaturation(SaturationTransformation):
+    """Wrapper around Root saturation function.
+
+    For more information, see :func:`pymc_marketing.mmm.transformers.root_saturation`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import RootSaturation
+
+        rng = np.random.default_rng(0)
+
+        saturation = RootSaturation()
+        prior = saturation.sample_prior(random_seed=rng)
+        curve = saturation.sample_curve(prior)
+        saturation.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
+
+    """
+
+    lookup_name = "root"
+
+    def function(self, x, alpha, beta):
+        return beta * root_saturation(x, alpha)
+
+    default_priors = {
+        "alpha": Prior("Beta", alpha=1, beta=2),
+        "beta": Prior("Gamma", mu=1, sigma=1),
     }
 
 
@@ -339,12 +445,30 @@ SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
     cls.lookup_name: cls
     for cls in [
         LogisticSaturation,
+        InverseScaledLogisticSaturation,
         TanhSaturation,
         TanhSaturationBaselined,
         MichaelisMentenSaturation,
         HillSaturation,
+        HillSaturationSigmoid,
+        RootSaturation,
     ]
 }
+
+
+def register_saturation_transformation(cls: type[SaturationTransformation]) -> None:
+    """Register a new saturation transformation."""
+    SATURATION_TRANSFORMATIONS[cls.lookup_name] = cls
+
+
+def saturation_from_dict(data: dict) -> SaturationTransformation:
+    data = data.copy()
+    cls = SATURATION_TRANSFORMATIONS[data.pop("lookup_name")]
+
+    data["priors"] = {
+        key: Prior.from_json(value) for key, value in data["priors"].items()
+    }
+    return cls(**data)
 
 
 def _get_saturation_function(
