@@ -31,7 +31,7 @@ class MVITS:
         self,
         data: pd.DataFrame,
         treatment_time,
-        background_sales: list[str],
+        existing_sales: list[str],
         innovation_sales: str,
         market_saturated: bool = True,
         rng=42,
@@ -39,7 +39,7 @@ class MVITS:
     ):
         self.data = data
         self.treatment_time = treatment_time
-        self.background_sales = background_sales
+        self.existing_sales = existing_sales
         self.innovation_sales = innovation_sales
         self.rng = rng
         self.sample_kwargs = sample_kwargs if sample_kwargs is not None else {}
@@ -47,7 +47,7 @@ class MVITS:
 
         # build the model
         self.model = self.build_model(
-            self.data[self.background_sales],
+            self.data[self.existing_sales],
             self.data[self.innovation_sales],
             self.market_saturated,
             treatment_time=self.treatment_time,
@@ -77,7 +77,7 @@ class MVITS:
 
     @staticmethod
     def build_model(
-        background_sales: pd.DataFrame,
+        existing_sales: pd.DataFrame,
         innovation_sales: pd.Series,
         market_saturated: bool,
         treatment_time,
@@ -86,28 +86,28 @@ class MVITS:
     ):
         """Return a PyMC model for a multivariate interrupted time series analysis."""
 
-        if not background_sales.index.equals(innovation_sales.index):
+        if not existing_sales.index.equals(innovation_sales.index):
             raise ValueError(  # pragma: no cover
-                "Index of background_sales and innovation_sales must match."
+                "Index of existing_sales and innovation_sales must match."
             )
 
         # note: type hints for coords required for mypi to not get confused
         coords: dict[str, list[str]] = {
-            "background_product": list(background_sales.columns),
-            "time": list(background_sales.index.values),
+            "background_product": list(existing_sales.columns),
+            "time": list(existing_sales.index.values),
             "all_sources": [
-                *list(background_sales.columns),
+                *list(existing_sales.columns),
                 "new",
             ],  # for non-saturated market only
-            # "all_sources": list(background_sales.columns)
+            # "all_sources": list(existing_sales.columns)
             # + ["new"],  # for non-saturated market only
         }
 
         with pm.Model(coords=coords) as model:
             # data
-            _background_sales = pm.Data(
-                "background_sales",
-                background_sales.values,
+            _existing_sales = pm.Data(
+                "existing_sales",
+                existing_sales.values,
                 dims=("time", "background_product"),
             )
             innovation_sales = pm.Data(
@@ -117,8 +117,8 @@ class MVITS:
             # priors
             intercept = pm.Normal(
                 "intercept",
-                mu=pm.math.mean(background_sales[:treatment_time], axis=0),
-                sigma=np.std(background_sales[:treatment_time], axis=0),
+                mu=pm.math.mean(existing_sales[:treatment_time], axis=0),
+                sigma=np.std(existing_sales[:treatment_time], axis=0),
                 # sigma=20,
                 dims="background_product",
             )
@@ -157,7 +157,7 @@ class MVITS:
                 "y",
                 mu=mu,
                 sigma=sigma,
-                observed=_background_sales,
+                observed=_existing_sales,
                 dims=("time", "background_product"),
             )
         return model
