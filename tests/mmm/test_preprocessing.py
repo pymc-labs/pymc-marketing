@@ -70,7 +70,7 @@ def test_preprocessing_method():
     assert getattr(vf, "_tags", {}).get("preprocessing_X", False)
     assert F.f3.__doc__ == vf.__doc__
     assert F.f3.__name__ == vf.__name__
-    assert vf.__doc__ == "bla"
+    assert vf.__doc__ == "Bla"
     assert vf.__name__ == "f3"
 
 
