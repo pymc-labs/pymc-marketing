@@ -82,8 +82,9 @@ continuous_non_contractual = ContNonContractRV()
 
 
 class ContNonContract(PositiveContinuous):
-    r"""Individual-level model for the customer lifetime value. See equation (3)
-    from Fader et al. (2005) [1]_.
+    r"""Individual-level model for the customer lifetime value.
+
+    See equation (3) from Fader et al. (2005) [1]_.
 
     .. math::
 
@@ -108,9 +109,11 @@ class ContNonContract(PositiveContinuous):
 
     @classmethod
     def dist(cls, lam, p, T, **kwargs):
+        """Get the distribution from the parameters."""
         return super().dist([lam, p, T], **kwargs)
 
     def logp(value, lam, p, T):
+        """Log-likelihood of the distribution."""
         t_x = value[..., 0]
         x = value[..., 1]
 
@@ -208,9 +211,10 @@ continuous_contractual = ContContractRV()
 
 
 class ContContract(PositiveContinuous):
-    r"""Distribution class of a continuous contractual data-generating process,
-    that is where purchases can occur at any time point (continuous) and
-    churning/dropping out is explicit (contractual).
+    r"""Distribution class of a continuous contractual data-generating process.
+
+    That is where purchases can occur at any time point (continuous) and churning/dropping
+    out is explicit (contractual).
 
     .. math::
 
@@ -229,9 +233,11 @@ class ContContract(PositiveContinuous):
 
     @classmethod
     def dist(cls, lam, p, T, **kwargs):
+        """Get the distribution from the parameters."""
         return super().dist([lam, p, T], **kwargs)
 
     def logp(value, lam, p, T):
+        """Log-likelihood of the distribution."""
         t_x = value[..., 0]
         x = value[..., 1]
         churn = value[..., 2]
@@ -359,8 +365,9 @@ pareto_nbd = ParetoNBDRV()
 
 
 class ParetoNBD(PositiveContinuous):
-    r"""Population-level distribution class for a continuous, non-contractual, Pareto/NBD process,
-    based on Schmittlein, et al. in [2]_.
+    r"""Population-level distribution class for a continuous, non-contractual, Pareto/NBD process.
+
+    It is based on Schmittlein, et al. in [2]_.
 
     The likelihood function is derived from equations (22) and (23) of [3]_, with terms
     rearranged for numerical stability.
@@ -410,9 +417,11 @@ class ParetoNBD(PositiveContinuous):
 
     @classmethod
     def dist(cls, r, alpha, s, beta, T, **kwargs):
+        """Get the distribution from the parameters."""
         return super().dist([r, alpha, s, beta, T], **kwargs)
 
     def logp(value, r, alpha, s, beta, T):
+        """Log-likelihood of the distribution."""
         t_x = value[..., 0]
         x = value[..., 1]
 
@@ -556,8 +565,9 @@ beta_geo_beta_binom = BetaGeoBetaBinomRV()
 
 
 class BetaGeoBetaBinom(Discrete):
-    r"""Population-level distribution class for a discrete, non-contractual, Beta-Geometric/Beta-Binomial process,
-    based on equation(5) from Fader, et al. in [1]_.
+    r"""Population-level distribution class for a discrete, non-contractual, Beta-Geometric/Beta-Binomial process.
+
+    It is based on equation(5) from Fader, et al. in [1]_.
 
     .. math::
 
@@ -584,9 +594,11 @@ class BetaGeoBetaBinom(Discrete):
 
     @classmethod
     def dist(cls, alpha, beta, gamma, delta, T, **kwargs):
+        """Get the distribution from the parameters."""
         return super().dist([alpha, beta, gamma, delta, T], **kwargs)
 
     def logp(value, alpha, beta, gamma, delta, T):
+        """Log-likelihood of the distribution."""
         t_x = pt.atleast_1d(value[..., 0])
         x = pt.atleast_1d(value[..., 1])
         scalar_case = t_x.type.broadcastable == (True,)

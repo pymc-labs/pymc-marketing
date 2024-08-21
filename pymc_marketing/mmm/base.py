@@ -50,6 +50,8 @@ from pydantic import Field, validate_call
 
 
 class MMMModelBuilder(ModelBuilder):
+    """Base class for Marketing Mix Models (MMM)."""
+
     model: pm.Model
     _model_type = "BaseMMM"
     version = "0.0.2"
@@ -81,6 +83,7 @@ class MMMModelBuilder(ModelBuilder):
 
     @property
     def methods(self) -> list[Any]:
+        """Get all methods of the object."""
         maybe_methods = [getattr_static(self, attr) for attr in dir(self)]
         return [
             method
@@ -135,7 +138,7 @@ class MMMModelBuilder(ModelBuilder):
     def validate(
         self, target: str, data: pd.DataFrame | pd.Series | np.ndarray
     ) -> None:
-        """Validates the input data based on the specified target type.
+        """Validate the input data based on the specified target type.
 
         This function loops over the validation methods specified for
         the target type and applies them to the input data.
@@ -268,6 +271,7 @@ class MMMModelBuilder(ModelBuilder):
 
     @property
     def prior(self) -> Dataset:
+        """Get the prior data."""
         if self.idata is None or "prior" not in self.idata:
             raise RuntimeError(
                 "The model hasn't been sampled yet, call .sample_prior_predictive() first"
@@ -276,6 +280,7 @@ class MMMModelBuilder(ModelBuilder):
 
     @property
     def prior_predictive(self) -> Dataset:
+        """Get the prior predictive data."""
         if self.idata is None or "prior_predictive" not in self.idata:
             raise RuntimeError(
                 "The model hasn't been sampled yet, call .sample_prior_predictive() first"
@@ -284,12 +289,14 @@ class MMMModelBuilder(ModelBuilder):
 
     @property
     def fit_result(self) -> Dataset:
+        """Get the posterior data."""
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         return self.idata["posterior"]
 
     @property
     def posterior_predictive(self) -> Dataset:
+        """Get the posterior predictive data."""
         if self.idata is None or "posterior_predictive" not in self.idata:
             raise RuntimeError(
                 "The model hasn't been fit yet, call .sample_posterior_predictive() first"
@@ -297,6 +304,18 @@ class MMMModelBuilder(ModelBuilder):
         return self.idata["posterior_predictive"]
 
     def plot_prior_predictive(self, **plt_kwargs: Any) -> plt.Figure:
+        """Plot the prior predictive data.
+
+        Parameters
+        ----------
+        **plt_kwargs
+            Keyword arguments passed to `plt.subplots`.
+
+        Returns
+        -------
+        plt.Figure
+
+        """
         prior_predictive_data: az.InferenceData = self.prior_predictive
 
         likelihood_hdi_94: DataArray = az.hdi(ary=prior_predictive_data, hdi_prob=0.94)[
@@ -542,8 +561,10 @@ class MMMModelBuilder(ModelBuilder):
         return contributions.sum(contracted_dims) if contracted_dims else contributions
 
     def plot_components_contributions(self, **plt_kwargs: Any) -> plt.Figure:
-        """Plot the target variable and the posterior predictive model components in
-        the scaled space.
+        """Plot the target variable and the posterior predictive model components.
+
+        We can plot the target variable and the posterior predictive model components in
+        the scaled space or the original space.
 
         **plt_kwargs
             Additional keyword arguments to pass to `plt.subplots`.
@@ -874,10 +895,18 @@ class MMMModelBuilder(ModelBuilder):
         return fig
 
     def graphviz(self, **kwargs):
+        """Get the graphviz representation of the model.
+
+        Returns
+        -------
+        graphviz.Digraph
+
+        """
         return pm.model_to_graphviz(self.model, **kwargs)
 
     def _process_decomposition_components(self, data: pd.DataFrame) -> pd.DataFrame:
         """Process data to compute the sum of contributions by component and calculate their percentages.
+
         The output dataframe will have columns for "component", "contribution", and "percentage".
 
         Parameters
@@ -911,7 +940,9 @@ class MMMModelBuilder(ModelBuilder):
         figsize: tuple[int, int] = (14, 7),
         **kwargs,
     ) -> plt.Figure:
-        """This function creates a waterfall plot. The plot shows the decomposition of the target into its components.
+        """Create a waterfall plot.
+
+        The plot shows the decomposition of the target into its components.
 
         Parameters
         ----------

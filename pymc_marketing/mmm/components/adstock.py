@@ -106,6 +106,7 @@ class AdstockTransformation(Transformation):
         super().__init__(priors=priors, prefix=prefix)
 
     def __repr__(self) -> str:
+        """Representation of the adstock transformation."""
         return (
             f"{self.__class__.__name__}("
             f"prefix={self.prefix!r}, "
@@ -186,6 +187,7 @@ class GeometricAdstock(AdstockTransformation):
     lookup_name = "geometric"
 
     def function(self, x, alpha):
+        """Geometric adstock function."""
         return geometric_adstock(
             x, alpha=alpha, l_max=self.l_max, normalize=self.normalize, mode=self.mode
         )
@@ -218,6 +220,7 @@ class DelayedAdstock(AdstockTransformation):
     lookup_name = "delayed"
 
     def function(self, x, alpha, theta):
+        """Delayed adstock function."""
         return delayed_adstock(
             x,
             alpha=alpha,
@@ -258,6 +261,7 @@ class WeibullPDFAdstock(AdstockTransformation):
     lookup_name = "weibull_pdf"
 
     def function(self, x, lam, k):
+        """Weibull adstock function."""
         return weibull_adstock(
             x=x,
             lam=lam,
@@ -299,6 +303,7 @@ class WeibullCDFAdstock(AdstockTransformation):
     lookup_name = "weibull_cdf"
 
     def function(self, x, lam, k):
+        """Weibull adstock function."""
         return weibull_adstock(
             x=x,
             lam=lam,
@@ -365,6 +370,7 @@ class WeibullAdstock(AdstockTransformation):
         )
 
     def function(self, x, lam, k):
+        """Weibull adstock function."""
         return weibull_adstock(
             x=x,
             lam=lam,
@@ -412,7 +418,10 @@ def _get_adstock_function(
     function: str | AdstockTransformation,
     **kwargs,
 ) -> AdstockTransformation:
-    """Helper for use in the MMM to get an adstock function."""
+    """Get an adstock function.
+
+    Helper for use in the MMM to get an adstock function from the if registered.
+    """
     if isinstance(function, AdstockTransformation):
         return function
 

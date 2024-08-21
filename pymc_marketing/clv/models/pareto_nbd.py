@@ -366,7 +366,10 @@ class ParetoNBDModel(CLVModel):
         t_x: xarray.DataArray,
         T: xarray.DataArray,
     ) -> xarray.DataArray:
-        """Utility function for using ParetoNBD log-likelihood in predictive methods."""
+        """Log-likelihood of the Pareto/NBD model.
+
+        Utility function for using ParetoNBD log-likelihood in predictive methods.
+        """
         # Add one dummy dimension to the right of the scalar parameters, so they broadcast with the `T` vector
         pareto_dist = ParetoNBD.dist(
             alpha=alpha.values[..., None]
