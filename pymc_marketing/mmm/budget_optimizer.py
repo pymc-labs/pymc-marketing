@@ -176,6 +176,11 @@ class BudgetOptimizer(BaseModel):
                 "No budget bounds provided. Using default bounds (0, scaled_budget) for each channel.",
                 stacklevel=2,
             )
+        elif isinstance(budget_bounds, dict):
+            budget_bounds = {
+                channel: (bound[0] / self.scales.max(), bound[1] / self.scales.max())
+                for (channel, bound) in budget_bounds.items()
+            }
         elif not isinstance(budget_bounds, dict):
             raise TypeError("`budget_bounds` should be a dictionary.")
 
