@@ -32,7 +32,7 @@ class MVITS:
         data: pd.DataFrame,
         treatment_time,
         existing_sales: list[str],
-        innovation_sales: str,
+        treatment_sales: str,
         market_saturated: bool = True,
         rng=42,
         sample_kwargs: dict | None = None,
@@ -40,7 +40,7 @@ class MVITS:
         self.data = data
         self.treatment_time = treatment_time
         self.existing_sales = existing_sales
-        self.innovation_sales = innovation_sales
+        self.treatment_sales = treatment_sales
         self.rng = rng
         self.sample_kwargs = sample_kwargs if sample_kwargs is not None else {}
         self.market_saturated = market_saturated
@@ -48,7 +48,7 @@ class MVITS:
         # build the model
         self.model = self.build_model(
             self.data[self.existing_sales],
-            self.data[self.innovation_sales],
+            self.data[self.treatment_sales],
             self.market_saturated,
             treatment_time=self.treatment_time,
         )
@@ -66,8 +66,8 @@ class MVITS:
             )
 
         # Calculate the counterfactual background sales, if the new product had not been introduced
-        zero_sales = np.zeros(self.data[self.innovation_sales].shape, dtype=np.int32)
-        self.counterfactual_model = pm.do(self.model, {"innovation_sales": zero_sales})
+        zero_sales = np.zeros(self.data[self.treatment_sales].shape, dtype=np.int32)
+        self.counterfactual_model = pm.do(self.model, {"treatment_sales": zero_sales})
         with self.counterfactual_model:
             self.idata_counterfactual = pm.sample_posterior_predictive(
                 self.idata, var_names=["mu", "y"], random_seed=self.rng
@@ -78,7 +78,7 @@ class MVITS:
     @staticmethod
     def build_model(
         existing_sales: pd.DataFrame,
-        innovation_sales: pd.Series,
+        treatment_sales: pd.Series,
         market_saturated: bool,
         treatment_time,
         *,
@@ -86,9 +86,9 @@ class MVITS:
     ):
         """Return a PyMC model for a multivariate interrupted time series analysis."""
 
-        if not existing_sales.index.equals(innovation_sales.index):
+        if not existing_sales.index.equals(treatment_sales.index):
             raise ValueError(  # pragma: no cover
-                "Index of existing_sales and innovation_sales must match."
+                "Index of existing_sales and treatment_sales must match."
             )
 
         # note: type hints for coords required for mypi to not get confused
@@ -110,8 +110,8 @@ class MVITS:
                 existing_sales.values,
                 dims=("time", "background_product"),
             )
-            innovation_sales = pm.Data(
-                "innovation_sales", innovation_sales.values, dims=("time",)
+            treatment_sales = pm.Data(
+                "treatment_sales", treatment_sales.values, dims=("time",)
             )
 
             # priors
@@ -148,7 +148,7 @@ class MVITS:
             # expectation
             mu = pm.Deterministic(
                 "mu",
-                intercept[None, :] - innovation_sales[:, None] * beta[None, :],
+                intercept[None, :] - treatment_sales[:, None] * beta[None, :],
                 dims=("time", "background_product"),
             )
 

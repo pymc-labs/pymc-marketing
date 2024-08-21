@@ -77,7 +77,7 @@ def test_MVITS_saturated(saturated_data_fixture):
         saturated_data_fixture,
         treatment_time=scenario_saturated["treatment_time"],
         existing_sales=["competitor", "own"],
-        innovation_sales="new",
+        treatment_sales="new",
         rng=rng,
         sample_kwargs=sample_kwargs,
     )
@@ -111,7 +111,7 @@ def test_MVITS_unsaturated(scenario):
         treatment_time=scenario_saturated["treatment_time"],
         existing_sales=["competitor", "own"],
         market_saturated=False,
-        innovation_sales="new",
+        treatment_sales="new",
         rng=rng,
         sample_kwargs=sample_kwargs,
     )
