@@ -256,6 +256,14 @@ def test_fit_no_t(toy_X):
     assert "posterior" in model_builder.idata.groups()
 
 
+@pytest.mark.xfail
+def test_fit_dup_Y(toy_X):
+    # create redundant target column in X
+    toy_X = pd.concat((toy_X, toy_y), axis=1)
+    model_builder = ModelBuilderTest()
+    model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
+
+
 @pytest.mark.skipif(
     sys.platform == "win32",
     reason="Permissions for temp files not granted on windows CI.",
