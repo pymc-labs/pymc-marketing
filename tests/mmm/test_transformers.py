@@ -150,15 +150,13 @@ class TestsAdstockTransformers:
         assert y_np[2] == x[2] + alpha * x[1] + (alpha**2) * x[0]
 
     @pytest.mark.parametrize(
-        "x, alpha, l_max",
-        [
-            (np.ones(shape=(100)), -0.3, 10),
-            (np.ones(shape=(100)), -2, 10),
-            (np.ones(shape=(100)), 22.5, 10),
-            (np.ones(shape=(100)), 2, 10),
-        ],
+        "alpha",
+        [-0.3, -2, 22.5, 2],
+        ids=["less_than_zero_0", "less_than_zero_1", "greater_than_one_0", "greater_than_one_1"],
     )
-    def test_geometric_adstock_bad_alpha(self, x, alpha, l_max):
+    def test_geometric_adstock_bad_alpha(self, alpha):
+        l_max = 10
+        x = np.ones(shape=100)
         y = geometric_adstock(x=x, alpha=alpha, l_max=l_max)
         with pytest.raises(ParameterValueError):
             y.eval()
