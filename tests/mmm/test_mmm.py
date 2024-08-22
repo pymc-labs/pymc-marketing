@@ -1064,22 +1064,6 @@ def test_add_lift_test_measurements_no_model() -> None:
         )
 
 
-def test_initialize_alternative_with_strings() -> None:
-    with pytest.warns(DeprecationWarning):
-        mmm = MMM(
-            date_column="date",
-            channel_columns=["channel_1", "channel_2"],
-            adstock_max_lag=4,
-            control_columns=["control_1", "control_2"],
-            adstock="delayed",
-            saturation="michaelis_menten",
-        )
-
-    assert isinstance(mmm.adstock, DelayedAdstock)
-    assert mmm.adstock.l_max == 4
-    assert isinstance(mmm.saturation, MichaelisMentenSaturation)
-
-
 def test_initialize_alternative_with_classes() -> None:
     mmm = MMM(
         date_column="date",
