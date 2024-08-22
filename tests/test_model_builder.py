@@ -257,7 +257,7 @@ def test_fit_no_t(toy_X):
 
 
 @pytest.mark.xfail
-def test_fit_no_t(toy_X):
+def test_fit_dup_Y(toy_X):
     # create redundant target column in X
     toy_X = pd.concat((toy_X, toy_y), axis=1)
     model_builder = ModelBuilderTest()
