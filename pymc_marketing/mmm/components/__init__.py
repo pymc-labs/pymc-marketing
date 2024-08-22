@@ -23,7 +23,7 @@ Use custom transformations for media in the MMM model:
     from pymc_marketing.mmm import (
         SaturationTransformation,
         MMM,
-        WeibullAdstock,
+        WeibullPDFAdstock,
     )
 
     class InfiniteReturns(SaturationTransformation):
@@ -34,7 +34,7 @@ Use custom transformations for media in the MMM model:
 
 
     saturation = InfiniteReturns()
-    adstock = WeibullAdstock(l_max=15, kind="PDF")
+    adstock = WeibullPDFAdstock(l_max=15)
 
     mmm = MMM(
         ...,
