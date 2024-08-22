@@ -152,7 +152,12 @@ class TestsAdstockTransformers:
     @pytest.mark.parametrize(
         "alpha",
         [-0.3, -2, 22.5, 2],
-        ids=["less_than_zero_0", "less_than_zero_1", "greater_than_one_0", "greater_than_one_1"],
+        ids=[
+            "less_than_zero_0",
+            "less_than_zero_1",
+            "greater_than_one_0",
+            "greater_than_one_1",
+        ],
     )
     def test_geometric_adstock_bad_alpha(self, alpha):
         l_max = 10
