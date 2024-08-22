@@ -24,7 +24,6 @@ from pymc_marketing.mmm import (
     AdstockTransformation,
     DelayedAdstock,
     GeometricAdstock,
-    WeibullAdstock,
     WeibullCDFAdstock,
     WeibullPDFAdstock,
     adstock_from_dict,
@@ -44,8 +43,6 @@ def adstocks() -> list[AdstockTransformation]:
         return [
             DelayedAdstock(l_max=10),
             GeometricAdstock(l_max=10),
-            WeibullAdstock(l_max=10, kind="PDF"),
-            WeibullAdstock(l_max=10, kind="CDF"),
             WeibullPDFAdstock(l_max=10),
             WeibullCDFAdstock(l_max=10),
         ]
@@ -95,7 +92,6 @@ def test_default_prefix(adstock) -> None:
     [
         ("delayed", DelayedAdstock, {"l_max": 10}),
         ("geometric", GeometricAdstock, {"l_max": 10}),
-        ("weibull", WeibullAdstock, {"l_max": 10}),
     ],
 )
 def test_get_adstock_function(name, adstock_cls, kwargs):
