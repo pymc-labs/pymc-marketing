@@ -182,17 +182,20 @@ class MVITS:
                 )
             )
 
-    @property
     def causal_impact(self, variable="mu"):
-        """Calculates the causal impact of the new product on the background products."""
-        # Note: if we compare "mu" then we are comparing the expected sales,
-        # if we compare "y" then we are comparing the actual sales
+        """Calculate the causal impact of the new product on the background products.
+
+        Note: if we compare "mu" then we are comparing the expected sales, if we compare
+        "y" then we are comparing the actual sales
+        """
         if variable not in ["mu", "y"]:
             raise ValueError(
                 f"variable must be either 'mu' or 'y', not {variable}"
             )  # pragma: no cover
 
-        return self.idata.posterior_predictive["mu"] - self.idata.predictions["mu"]
+        return (
+            self.idata.posterior_predictive[variable] - self.idata.predictions[variable]
+        )
 
     def plot_fit(self, variable="mu"):
         """Plot the model fit (posterior predictive) of the background products."""
@@ -268,11 +271,14 @@ class MVITS:
         )
         return ax
 
-    def plot_causal_impact_sales(self):
+    def plot_causal_impact_sales(self, variable="mu"):
         """Plot causal impact of sales.
 
         Plot the inferred causal impact of the new product on the sales of the
         background products.
+
+        Note: if we compare "mu" then we are comparing the expected sales, if we compare
+        "y" then we are comparing the actual sales
         """
         fig, ax = plt.subplots()
 
@@ -283,9 +289,9 @@ class MVITS:
         for i, background_product in enumerate(background_products):
             az.plot_hdi(
                 x,
-                self.causal_impact.transpose(..., "time").sel(
-                    background_product=background_product
-                ),
+                self.causal_impact(variable=variable)
+                .transpose(..., "time")
+                .sel(background_product=background_product),
                 fill_kwargs={
                     "alpha": HDI_ALPHA,
                     "color": f"C{i}",
@@ -300,8 +306,12 @@ class MVITS:
         ax.set(title="Estimated causal impact of new product upon existing products")
         return ax
 
-    def plot_causal_impact_market_share(self):
-        """Plot the inferred causal impact of the new product on the background products."""
+    def plot_causal_impact_market_share(self, variable="mu"):
+        """Plot the inferred causal impact of the new product on the background products.
+
+        Note: if we compare "mu" then we are comparing the expected sales, if we compare
+        "y" then we are comparing the actual sales
+        """
         fig, ax = plt.subplots()
 
         # plot posterior predictive distribution of sales for each of the background products
@@ -311,8 +321,10 @@ class MVITS:
         # divide the causal impact change in sales by the counterfactual predicted sales
         variable = "mu"
         for i, background_product in enumerate(background_products):
-            causal_impact = self.causal_impact.transpose(..., "time").sel(
-                background_product=background_product
+            causal_impact = (
+                self.causal_impact(variable=variable)
+                .transpose(..., "time")
+                .sel(background_product=background_product)
             )
             total_sales = (
                 self.idata.predictions[variable]
