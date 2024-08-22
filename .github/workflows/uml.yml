@@ -11,12 +11,6 @@ on:
     paths:
       - "pymc_marketing/**"
 
-  # pull_request:
-  #   types: [closed]
-  #   branches: [main]
-  #   paths:
-  #     - "pymc_marketing/**"
-
 jobs:
   build:
     if: github.event.pull_request.head.repo.owner.login == 'pymc-labs'
@@ -27,7 +21,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref || 'main' }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v2
