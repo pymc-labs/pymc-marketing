@@ -465,9 +465,10 @@ def saturation_from_dict(data: dict) -> SaturationTransformation:
     data = data.copy()
     cls = SATURATION_TRANSFORMATIONS[data.pop("lookup_name")]
 
-    data["priors"] = {
-        key: Prior.from_json(value) for key, value in data["priors"].items()
-    }
+    if "priors" in data:
+        data["priors"] = {
+            key: Prior.from_json(value) for key, value in data["priors"].items()
+        }
     return cls(**data)
 
 
