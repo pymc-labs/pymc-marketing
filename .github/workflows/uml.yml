@@ -19,7 +19,7 @@ on:
 
 jobs:
   build:
-    # if: github.event.pull_request.merged == true
+    if: github.event.pull_request.head.repo.owner.login == 'pymc-labs'
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
