@@ -124,7 +124,9 @@ class MVITS:
             )
 
             sigma = pm.HalfNormal(
-                "background_product_sigma", sigma=10, dims="background_product"
+                "background_product_sigma",
+                sigma=pm.math.mean(existing_sales.std().values),
+                dims="background_product",
             )
 
             if market_saturated:
