@@ -30,13 +30,14 @@ import json
 import sys
 import tempfile
 
+import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
 
-from pymc_marketing.model_builder import ModelBuilder
+from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
 
 
 @pytest.fixture(scope="module")
@@ -438,3 +439,126 @@ def test_incorrect_set_idata_attrs_override() -> None:
     match = "Missing required keys in attrs"
     with pytest.raises(ValueError, match=match):
         model.sample_prior_predictive(X_pred=X_pred)
+
+
+@pytest.mark.parametrize(
+    "sampler_config, fit_kwargs, expected_random_seed",
+    [
+        (
+            {"chains": 1, "draws": 10, "tune": 5, "random_seed": 42},
+            {"progressbar": False, "random_seed": None},
+            42,
+        ),
+        (
+            {"chains": 1, "draws": 10, "tune": 5},
+            {"progressbar": False, "random_seed": 42},
+            42,
+        ),
+        (
+            {"random_seed": 52},
+            {
+                "chains": 1,
+                "draws": 10,
+                "tune": 5,
+                "progressbar": False,
+                "random_seed": 42,
+            },
+            42,
+        ),
+        (
+            {
+                "random_seed": 52,
+                "progressbar": True,
+            },
+            {
+                "chains": 1,
+                "draws": 10,
+                "tune": 5,
+                "progressbar": False,
+                "random_seed": 42,
+            },
+            42,
+        ),
+    ],
+    ids=[
+        "seed_from_sampler_config",
+        "seed_from_fit_kwargs",
+        "override_seed_from_sampler_config",
+        "override_progressbar_from_sampler_config",
+    ],
+)
+def test_create_sample_kwargs(sampler_config, fit_kwargs, expected_random_seed) -> None:
+    sampler_config_before = sampler_config.copy()
+    assert create_sample_kwargs(sampler_config, **fit_kwargs) == {
+        "chains": 1,
+        "draws": 10,
+        "tune": 5,
+        "progressbar": False,
+        "random_seed": expected_random_seed,
+    }
+
+    assert sampler_config_before == sampler_config
+
+
+def create_int_seed():
+    return 42
+
+
+def create_rng_seed():
+    return np.random.default_rng(42)
+
+
+@pytest.mark.parametrize(
+    "create_random_seed",
+    [
+        create_int_seed,
+        create_rng_seed,
+    ],
+    ids=["int", "rng"],
+)
+def test_fit_random_seed_reproducibility(toy_X, toy_y, create_random_seed) -> None:
+    sampler_config = {
+        "chains": 1,
+        "draws": 10,
+        "tune": 5,
+    }
+    model = ModelBuilderTest(sampler_config=sampler_config)
+
+    idata = model.fit(toy_X, toy_y, random_seed=create_random_seed())
+    idata2 = model.fit(toy_X, toy_y, random_seed=create_random_seed())
+
+    assert idata.posterior.equals(idata2.posterior)
+
+
+def test_fit_sampler_config_seed_reproducibility(toy_X, toy_y) -> None:
+    sampler_config = {
+        "chains": 1,
+        "draws": 10,
+        "tune": 5,
+        "random_seed": 42,
+    }
+    model = ModelBuilderTest(sampler_config=sampler_config)
+
+    idata = model.fit(toy_X, toy_y)
+    idata2 = model.fit(toy_X, toy_y)
+
+    assert idata.posterior.equals(idata2.posterior)
+
+
+def test_fit_sampler_config_with_rng_fails(mocker, toy_X, toy_y) -> None:
+    def mock_sample(*args, **kwargs):
+        idata = pm.sample_prior_predictive(10)
+        return az.InferenceData(posterior=idata.prior)
+
+    mocker.patch("pymc.sample", mock_sample)
+    sampler_config = {
+        "chains": 1,
+        "draws": 10,
+        "tune": 5,
+        "random_seed": np.random.default_rng(42),
+    }
+    model = ModelBuilderTest(sampler_config=sampler_config)
+
+    match = "Object of type Generator is not JSON serializable"
+    with pytest.raises(TypeError, match=match):
+        model.fit(toy_X, toy_y)
