@@ -73,9 +73,11 @@ def create_sample_kwargs(
 
     """
     sampler_config = sampler_config.copy()
-    # Set the progress bar but allow it to be overridden by kwargs
-    sampler_config["progressbar"] = sampler_config.get("progressbar", progressbar)
-    sampler_config["random_seed"] = sampler_config.get("random_seed", random_seed)
+
+    sampler_config["progressbar"] = progressbar
+    if random_seed is not None:
+        sampler_config["random_seed"] = random_seed
+
     sampler_config.update(**kwargs)
 
     return sampler_config
