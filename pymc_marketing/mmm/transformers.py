@@ -20,6 +20,7 @@ import numpy as np
 import numpy.typing as npt
 import pymc as pm
 import pytensor.tensor as pt
+from pymc.distributions.dist_math import check_parameters
 from pytensor.tensor.random.utils import params_broadcast_shapes
 
 
@@ -235,6 +236,11 @@ def geometric_adstock(
        with carryover and shape effects." (2017).
 
     """
+    alpha = check_parameters(
+        alpha, [pt.gt(alpha, 0), pt.lt(alpha, 1)], msg="0 <= alpha <= 1"
+    ).eval()
+    l_max = check_parameters(l_max, [pt.gt(l_max, 0)], msg="l_max >= 0").eval()
+
     w = pt.power(pt.as_tensor(alpha)[..., None], pt.arange(l_max, dtype=x.dtype))
     w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
     return batched_convolution(x, w, axis=axis, mode=mode)
