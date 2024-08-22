@@ -47,6 +47,46 @@ except ImportError:
         return X
 
 
+def create_sample_kwargs(
+    sampler_config: dict[str, Any],
+    progressbar: bool | None,
+    random_seed,
+    **kwargs,
+) -> dict[str, Any]:
+    """Create the dictionary of keyword arguments for `pm.sample`.
+
+    Parameters
+    ----------
+    sampler_config : dict
+        The configuration dictionary for the sampler.
+    progressbar : bool, optional
+        Whether to show the progress bar during sampling. Defaults to True.
+    random_seed : RandomState
+        The random seed for the sampler.
+    **kwargs : Any
+        Additional keyword arguments to pass to the sampler.
+
+    Returns
+    -------
+    dict
+        The dictionary of keyword arguments for `pm.sample`.
+
+    """
+    sampler_config = sampler_config.copy()
+
+    if progressbar is not None:
+        sampler_config["progressbar"] = progressbar
+    else:
+        sampler_config["progressbar"] = sampler_config.get("progressbar", True)
+
+    if random_seed is not None:
+        sampler_config["random_seed"] = random_seed
+
+    sampler_config.update(**kwargs)
+
+    return sampler_config
+
+
 class ModelBuilder(ABC):
     """Base class for building models with PyMC Marketing.
 
@@ -501,7 +541,7 @@ class ModelBuilder(ABC):
         self,
         X: pd.DataFrame,
         y: pd.Series | np.ndarray | None = None,
-        progressbar: bool = True,
+        progressbar: bool | None = None,
         predictor_names: list[str] | None = None,
         random_seed: RandomState | None = None,
         **kwargs: Any,
@@ -516,8 +556,8 @@ class ModelBuilder(ABC):
             The training input samples. If scikit-learn is available, array-like, otherwise array.
         y : array-like | array, shape (n_obs,)
             The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
-        progressbar : bool
-            Specifies whether the fit progress bar should be displayed.
+        progressbar : bool, optional
+            Specifies whether the fit progress bar should be displayed. Defaults to True.
         predictor_names : Optional[List[str]] = None,
             Allows for custom naming of predictors when given in a form of a 2D array.
             Allows for naming of predictors when given in a form of np.ndarray, if not provided
@@ -556,14 +596,14 @@ class ModelBuilder(ABC):
         if not hasattr(self, "model"):
             self.build_model(self.X, self.y)
 
-        sampler_config = self.sampler_config.copy()
-        sampler_config["progressbar"] = progressbar
-        sampler_config["random_seed"] = random_seed
-        sampler_config.update(**kwargs)
-
-        sampler_args = {**self.sampler_config, **kwargs}
+        sampler_kwargs = create_sample_kwargs(
+            self.sampler_config,
+            progressbar,
+            random_seed,
+            **kwargs,
+        )
         with self.model:
-            idata = pm.sample(**sampler_args)
+            idata = pm.sample(**sampler_kwargs)
 
         if self.idata:
             self.idata = self.idata.copy()
