@@ -189,7 +189,6 @@ def log_data(model: Model, idata: az.InferenceData) -> None:
         The InferenceData object returned by the sampling method.
 
     """
-
     data_vars: list[TensorVariable] = (
         _backwards_compatiable_data_vars(model)
         if not hasattr(model, "data_vars")
@@ -527,7 +526,6 @@ def autolog(
             mlflow.log_figure(fig, "components.png")
 
     """
-
     arviz_summary_kwargs = arviz_summary_kwargs or {}
 
     def patch_sample(sample):

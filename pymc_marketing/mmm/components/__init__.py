@@ -42,4 +42,5 @@ Use custom transformations for media in the MMM model:
         adstock=adstock,
         adstock_first=True,
     )
+
 """

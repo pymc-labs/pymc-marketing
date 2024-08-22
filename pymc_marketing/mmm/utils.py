@@ -31,8 +31,7 @@ def estimate_menten_parameters(
     contributions: xr.DataArray | Any,
     **kwargs,
 ) -> list[float]:
-    """
-    Estimate the parameters for the Michaelis-Menten function using curve fitting.
+    """Estimate the parameters for the Michaelis-Menten function using curve fitting.
 
     This function extracts the relevant data for the specified channel from both
     the original_dataframe and contributions DataArray resulting from the model.
@@ -48,11 +47,14 @@ def estimate_menten_parameters(
         The original DataFrame containing the channel data.
     contributions : xr.DataArray
         An xarray DataArray containing the contributions data, indexed by channel.
+    **kwargs : dict
+        Additional keyword arguments to pass to the curve_fit function.
 
     Returns
     -------
     List[float]
         The estimated parameters of the extended sigmoid function.
+
     """
     maxfev = kwargs.get("maxfev", 5000)
     lam_initial_estimate = kwargs.get("lam_initial_estimate", 0.001)
@@ -65,7 +67,7 @@ def estimate_menten_parameters(
     # Initial guess for L and k
     initial_guess = [alpha_initial_estimate, lam_initial_estimate]
     # Curve fitting
-    popt, pcov = curve_fit(michaelis_menten, x, y, p0=initial_guess, maxfev=maxfev)
+    popt, _ = curve_fit(michaelis_menten, x, y, p0=initial_guess, maxfev=maxfev)
 
     # Save the parameters
     return popt
@@ -77,8 +79,7 @@ def estimate_sigmoid_parameters(
     contributions: xr.DataArray | Any,
     **kwargs,
 ) -> list[float]:
-    """
-    Estimate the parameters for the sigmoid function using curve fitting.
+    """Estimate the parameters for the sigmoid function using curve fitting.
 
     This function extracts the relevant data for the specified channel from both
     the original_dataframe and contributions DataArray resulting from the model.
@@ -99,6 +100,7 @@ def estimate_sigmoid_parameters(
     -------
     List[float]
         The estimated parameters of the extended sigmoid function.
+
     """
     maxfev = kwargs.get("maxfev", 5000)
     lam_initial_estimate = kwargs.get("lam_initial_estimate", 0.00001)
@@ -126,8 +128,7 @@ def compute_sigmoid_second_derivative(
     alpha: float | np.ndarray | npt.NDArray[np.float64],
     lam: float | np.ndarray | npt.NDArray[np.float64],
 ) -> float | Any:
-    """
-    Compute the second derivative of the extended sigmoid function.
+    """Compute the second derivative of the extended sigmoid function.
 
     The second derivative of a function gives us information about the curvature of the function.
     In the context of the sigmoid function, it helps us identify the inflection point, which is
@@ -146,8 +147,8 @@ def compute_sigmoid_second_derivative(
     -------
     float
         The second derivative of the sigmoid function at the input value.
-    """
 
+    """
     return (
         -alpha
         * lam**2
@@ -161,8 +162,7 @@ def find_sigmoid_inflection_point(
     alpha: float | np.ndarray | npt.NDArray[np.float64],
     lam: float | np.ndarray | npt.NDArray[np.float64],
 ) -> tuple[Any, float]:
-    """
-    Find the inflection point of the extended sigmoid function.
+    """Find the inflection point of the extended sigmoid function.
 
     The inflection point of a function is the point where the function changes its curvature,
     i.e., it changes from being concave up to concave down, or vice versa. For the sigmoid
@@ -179,8 +179,8 @@ def find_sigmoid_inflection_point(
     -------
     tuple
         The x and y coordinates of the inflection point.
-    """
 
+    """
     # Minimize the negative of the absolute value of the second derivative
     result = minimize_scalar(
         lambda x: -abs(compute_sigmoid_second_derivative(x, alpha, lam))
@@ -199,18 +199,25 @@ def apply_sklearn_transformer_across_dim(
     dim_name: str,
     combined: bool = False,
 ) -> xr.DataArray:
-    """Helper function in order to use scikit-learn functions with the xarray target.
+    """Apply a scikit-learn transformer across a dimension of an xarray DataArray.
+
+    Helper function in order to use scikit-learn functions with the xarray target.
 
     Parameters
     ----------
-    data :
-    func : scikit-learn method to apply to the data
-    dim_name : Name of the dimension to apply the function to
-    combined : Flag to indicate if the data coords have been combined or not
+    data : xr.DataArray
+        The input data to transform.
+    func : Callable[[np.ndarray], np.ndarray]
+        scikit-learn method to apply to the data
+    dim_name : str
+        Name of the dimension to apply the function to
+    combined : bool, default False
+        Flag to indicate if the data coords have been combined or not
 
     Returns
     -------
     xr.DataArray
+
     """
     # These are lost during the ufunc
     attrs = data.attrs
@@ -250,6 +257,7 @@ def transform_1d_array(
     -------
     np.ndarray
         The transformed data.
+
     """
     return transform(np.array(y)[:, None]).flatten()
 
@@ -259,16 +267,19 @@ def sigmoid_saturation(
     alpha: float | np.ndarray | npt.NDArray[np.float64],
     lam: float | np.ndarray | npt.NDArray[np.float64],
 ) -> float | Any:
-    """
+    """Sigmoid saturation function.
+
     Parameters
     ----------
-    alpha
+    x : float or np.ndarray
+        The input value for which the function is to be computed.
+    alpha : float or np.ndarray
         α (alpha): Represent the Asymptotic Maximum or Ceiling Value.
-    lam
+    lam : float or np.ndarray
         λ (lambda): affects how quickly the function approaches its upper and lower asymptotes. A higher value of
         lam makes the curve steeper, while a lower value makes it more gradual.
-    """
 
+    """
     if alpha <= 0 or lam <= 0:
         raise ValueError("alpha and lam must be greater than 0")
 
@@ -322,7 +333,7 @@ def create_new_spend_data(
 
 
     Parameters
-    ---------
+    ----------
     spend : np.ndarray
         The spend data for the channels.
     adstock_max_lag : int
@@ -336,6 +347,7 @@ def create_new_spend_data(
     -------
     np.ndarray
         The new spend data for the channel forward pass.
+
     """
     n_channels = len(spend)
 
@@ -364,8 +376,7 @@ def create_new_spend_data(
 
 
 def drop_scalar_coords(curve: xr.DataArray) -> xr.DataArray:
-    """
-    Remove scalar coordinates from an xarray DataArray.
+    """Remove scalar coordinates from an xarray DataArray.
 
     This function identifies and removes scalar coordinates from the given
     DataArray. Scalar coordinates are those with a single value that are
@@ -381,6 +392,7 @@ def drop_scalar_coords(curve: xr.DataArray) -> xr.DataArray:
     -------
     xr.DataArray
         A new DataArray with the identified scalar coordinates removed.
+
     """
     scalar_coords_to_drop = []
     for coord, values in curve.coords.items():

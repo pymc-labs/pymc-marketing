@@ -178,6 +178,24 @@ def test_adstock_from_dict() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "adstock",
+    adstocks(),
+)
+def test_adstock_from_dict_without_priors(adstock) -> None:
+    data = {
+        "lookup_name": adstock.lookup_name,
+        "l_max": 10,
+        "prefix": "test",
+        "mode": "Before",
+    }
+
+    adstock = adstock_from_dict(data)
+    assert adstock.default_priors == {
+        k: Prior.from_json(v) for k, v in adstock.to_dict()["priors"].items()
+    }
+
+
 def test_register_adstock_transformation() -> None:
     class NewTransformation(AdstockTransformation):
         lookup_name: str = "new_transformation"
