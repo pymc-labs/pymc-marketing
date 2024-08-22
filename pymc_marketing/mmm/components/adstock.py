@@ -320,79 +320,11 @@ class WeibullCDFAdstock(AdstockTransformation):
     }
 
 
-class WeibullAdstock(AdstockTransformation):
-    """Wrapper around weibull adstock function.
-
-    For more information, see :func:`pymc_marketing.mmm.transformers.weibull_adstock`.
-
-    .. plot::
-        :context: close-figs
-
-        import matplotlib.pyplot as plt
-        import numpy as np
-        from pymc_marketing.mmm import WeibullAdstock
-
-        rng = np.random.default_rng(0)
-
-        adstock = WeibullAdstock(l_max=10, kind="CDF")
-        prior = adstock.sample_prior(random_seed=rng)
-        curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
-        plt.show()
-
-    """
-
-    lookup_name = "weibull"
-
-    def __init__(
-        self,
-        l_max: int,
-        normalize: bool = True,
-        kind=WeibullType.PDF,
-        mode: ConvMode = ConvMode.After,
-        priors: dict | None = None,
-        prefix: str | None = None,
-    ) -> None:
-        self.kind = kind
-
-        super().__init__(
-            l_max=l_max, normalize=normalize, mode=mode, priors=priors, prefix=prefix
-        )
-
-        msg = (
-            f"Use the Weibull{kind}Adstock class instead for better default priors. "
-            "This class will deprecate in 0.9.0."
-        )
-        warnings.warn(
-            msg,
-            UserWarning,
-            stacklevel=1,
-        )
-
-    def function(self, x, lam, k):
-        """Weibull adstock function."""
-        return weibull_adstock(
-            x=x,
-            lam=lam,
-            k=k,
-            l_max=self.l_max,
-            mode=self.mode,
-            type=self.kind,
-            normalize=self.normalize,
-        )
-
-    default_priors = {
-        "lam": Prior("HalfNormal", sigma=1),
-        "k": Prior("HalfNormal", sigma=1),
-    }
-
-
 ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {
     cls.lookup_name: cls  # type: ignore
     for cls in [
         GeometricAdstock,
         DelayedAdstock,
-        WeibullAdstock,
         WeibullPDFAdstock,
         WeibullCDFAdstock,
     ]
