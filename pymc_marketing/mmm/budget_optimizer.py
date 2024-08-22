@@ -32,8 +32,7 @@ class MinimizeException(Exception):
 
 
 class BudgetOptimizer(BaseModel):
-    """
-    A class for optimizing budget allocation in a marketing mix model.
+    """A class for optimizing budget allocation in a marketing mix model.
 
     The goal of this optimization is to maximize the total expected response
     by allocating the given budget across different marketing channels. The
@@ -57,6 +56,7 @@ class BudgetOptimizer(BaseModel):
     adstock_first : bool, optional
         Whether to apply adstock transformation first or saturation transformation first.
         Default is True.
+
     """
 
     adstock: AdstockTransformation = Field(
@@ -83,9 +83,9 @@ class BudgetOptimizer(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def objective(self, budgets: list[float]) -> float:
-        """
-        Calculate the total response during a period of time given the budgets,
-        considering the saturation and adstock transformations.
+        """Calculate the total response during a period of time given the budgets.
+
+        It considers the saturation and adstock transformations.
 
         Parameters
         ----------
@@ -96,6 +96,7 @@ class BudgetOptimizer(BaseModel):
         -------
         float
             The negative total response value.
+
         """
         total_response = 0
         first_transform, second_transform = (
@@ -131,8 +132,7 @@ class BudgetOptimizer(BaseModel):
         custom_constraints: dict[Any, Any] | None = None,
         minimize_kwargs: dict[str, Any] | None = None,
     ) -> tuple[dict[str, float], float]:
-        """
-        Allocate the budget based on the total budget, budget bounds, and custom constraints.
+        """Allocate the budget based on the total budget, budget bounds, and custom constraints.
 
         The default budget bounds are (0, total_budget) for each channel.
 
@@ -167,6 +167,7 @@ class BudgetOptimizer(BaseModel):
         ------
         Exception
             If the optimization fails, an exception is raised with the reason for the failure.
+
         """
         if budget_bounds is None:
             budget_bounds = {channel: (0, total_budget) for channel in self.parameters}

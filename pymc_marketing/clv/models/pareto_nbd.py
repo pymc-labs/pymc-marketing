@@ -11,6 +11,9 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+
+"""Pareto NBD Model."""
+
 import warnings
 from collections.abc import Sequence
 from typing import Literal, cast
@@ -188,6 +191,7 @@ class ParetoNBDModel(CLVModel):
     .. [5] Fader, Peter & G. S. Hardie, Bruce (2007).
            "Incorporating Time-Invariant Covariates into the Pareto/NBD and BG/NBD Models".
            https://www.brucehardie.com/notes/019/time_invariant_covariates.pdf
+
     """
 
     _model_type = "Pareto/NBD"  # Pareto Negative-Binomial Distribution
@@ -224,6 +228,7 @@ class ParetoNBDModel(CLVModel):
 
     @property
     def default_model_config(self) -> ModelConfig:
+        """Default model configuration."""
         return {
             "r_prior": Prior("Weibull", alpha=2, beta=1),
             "alpha_prior": Prior("Weibull", alpha=2, beta=10),
@@ -236,6 +241,7 @@ class ParetoNBDModel(CLVModel):
         }
 
     def build_model(self) -> None:  # type: ignore[override]
+        """Build the model."""
         coords = {
             "purchase_covariate": self.purchase_covariate_cols,
             "dropout_covariate": self.dropout_covariate_cols,
@@ -331,8 +337,8 @@ class ParetoNBDModel(CLVModel):
 
         kwargs : dict
             Other keyword arguments passed to the underlying PyMC routines
-        """
 
+        """
         mode = get_default_mode()
         if fit_method == "mcmc":
             # Include rewrite in mode
@@ -360,7 +366,8 @@ class ParetoNBDModel(CLVModel):
         t_x: xarray.DataArray,
         T: xarray.DataArray,
     ) -> xarray.DataArray:
-        """
+        """Log-likelihood of the Pareto/NBD model.
+
         Utility function for using ParetoNBD log-likelihood in predictive methods.
         """
         # Add one dummy dimension to the right of the scalar parameters, so they broadcast with the `T` vector
@@ -386,7 +393,10 @@ class ParetoNBDModel(CLVModel):
         data: pd.DataFrame,
         customer_varnames: Sequence[str] = (),
     ) -> xarray.Dataset:
-        """Utility function assigning default customer arguments
+        """
+        Extract predictive variables from the data.
+
+        Utility function assigning default customer arguments
         for predictive methods and converting to xarrays.
         """
         self._validate_cols(
@@ -463,6 +473,8 @@ class ParetoNBDModel(CLVModel):
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
         """
+        Compute expected number of future purchases.
+
         Given *recency*, *frequency*, and *T* for an individual customer, this method predicts the
         expected number of future purchases across *future_t* time periods.
 
@@ -492,6 +504,7 @@ class ParetoNBDModel(CLVModel):
         .. [1] Fader, Peter & G. S. Hardie, Bruce (2005).
                "A Note on Deriving the Pareto/NBD Model and Related Expressions."
                http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
+
         """
         if data is None:
             data = self.data
@@ -539,8 +552,11 @@ class ParetoNBDModel(CLVModel):
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
         """
+        Compute expected probability of being alive.
+
         Compute the probability that a customer with history *frequency*, *recency*, and *T*
-        is currently active. Can also estimate alive probability for *future_t* periods into the future.
+        is currently active.
+        Can also estimate alive probability for *future_t* periods into the future.
 
         Adapted from equation (18) in Bruce Hardie's notes [1]_.
 
@@ -567,6 +583,7 @@ class ParetoNBDModel(CLVModel):
         .. [1] Fader, Peter & G. S. Hardie, Bruce (2014).
                "Additional Results for the Pareto/NBD Model."
                https://www.brucehardie.com/notes/015/additional_pareto_nbd_results.pdf
+
         """
         if data is None:
             data = self.data
@@ -610,6 +627,8 @@ class ParetoNBDModel(CLVModel):
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
         """
+        Compute expected probability of *n_purchases* over *future_t* time periods.
+
         Estimate probability of *n_purchases* over *future_t* time periods,
         given an individual customer's current *frequency*, *recency*, and *T*.
 
@@ -648,6 +667,7 @@ class ParetoNBDModel(CLVModel):
         .. [1] Fader, Peter & G. S. Hardie, Bruce (2014).
                "Deriving the Conditional PMF of the Pareto/NBD Model."
                https://www.brucehardie.com/notes/028/pareto_nbd_conditional_pmf.pdf
+
         """
         if data is None:
             data = self.data
@@ -789,8 +809,7 @@ class ParetoNBDModel(CLVModel):
         *,
         t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        """
-        Expected number of purchases for a new customer across *t* time periods.
+        """Compute the expected number of purchases for a new customer across *t* time periods.
 
         In a model with covariates, if `data` is not specified, the dataset used for fitting will be used and
         a prediction will be computed for a *new customer* with each set of covariates.
@@ -818,6 +837,7 @@ class ParetoNBDModel(CLVModel):
         .. [1] Fader, Peter & G. S. Hardie, Bruce (2005).
                "A Note on Deriving the Pareto/NBD Model and Related Expressions."
                http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
+
         """
         if data is None:
             data = self.data
@@ -853,8 +873,7 @@ class ParetoNBDModel(CLVModel):
             "recency_frequency",
         ),
     ) -> xarray.Dataset:
-        """Utility function for posterior predictive sampling of dropout, purchase rate
-        and frequency/recency of new customers.
+        """Compute posterior predictive samples of dropout, purchase rate and frequency/recency of new customers.
 
         In a model with covariates, if `data` is not specified, the dataset used for fitting will be used and
         a prediction will be computed for a *new customer* with each set of covariates.
@@ -964,6 +983,7 @@ class ParetoNBDModel(CLVModel):
         -------
         ~xarray.Dataset
             Dataset containing the posterior samples for the population-level dropout rate.
+
         """
         return self.distribution_new_customer(
             data=data,
@@ -998,6 +1018,7 @@ class ParetoNBDModel(CLVModel):
         -------
         ~xarray.Dataset
             Dataset containing the posterior samples for the population-level purchase rate.
+
         """
         return self.distribution_new_customer(
             data=data,
@@ -1036,6 +1057,7 @@ class ParetoNBDModel(CLVModel):
         -------
         ~xarray.Dataset
             Dataset containing the posterior samples for the customer population.
+
         """
         return self.distribution_new_customer(
             data=data,

@@ -11,6 +11,9 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+
+"""CLV models."""
+
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.models.beta_geo import BetaGeoModel
 from pymc_marketing.clv.models.gamma_gamma import (

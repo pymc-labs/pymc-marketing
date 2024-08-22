@@ -120,6 +120,7 @@ class Transformation:
         self.prefix = prefix or self.prefix
 
     def __repr__(self) -> str:
+        """Representation of the transformation."""
         return (
             f"{self.__class__.__name__}("
             f"prefix={self.prefix!r}, "
@@ -145,6 +146,7 @@ class Transformation:
         }
 
     def __eq__(self, other: Any) -> bool:
+        """Check if two transformations are equal."""
         if not isinstance(other, self.__class__):
             return False
 
@@ -152,6 +154,7 @@ class Transformation:
 
     @property
     def function_priors(self) -> dict[str, Prior]:
+        """Get the priors for the function."""
         return self._function_priors
 
     @function_priors.setter
@@ -162,7 +165,7 @@ class Transformation:
         self._function_priors = {**deepcopy(self.default_priors), **priors}
 
     def update_priors(self, priors: dict[str, Prior]) -> None:
-        """Helper to update the priors for a function after initialization.
+        """Update the priors for a function after initialization.
 
         Uses {prefix}_{parameter_name} as the key for the priors instead of the parameter name
         in order to be used in the larger MMM.
@@ -477,7 +480,7 @@ class Transformation:
         )
 
     def apply(self, x: pt.TensorLike, dims: Dims | None = None) -> pt.TensorVariable:
-        """Called within a model context.
+        """Call within a model context.
 
         Used internally of the MMM to apply the transformation to the data.
 

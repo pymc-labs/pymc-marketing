@@ -258,3 +258,15 @@ def test_saturation_from_dict() -> None:
             "lam": Prior("HalfNormal", sigma=1),
         }
     )
+
+
+@pytest.mark.parametrize("saturation", saturation_functions())
+def test_saturation_from_dict_without_priors(saturation) -> None:
+    data = {
+        "lookup_name": saturation.lookup_name,
+    }
+
+    saturation = saturation_from_dict(data)
+    assert saturation.default_priors == {
+        k: Prior.from_json(v) for k, v in saturation.to_dict()["priors"].items()
+    }
