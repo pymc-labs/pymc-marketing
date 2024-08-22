@@ -39,15 +39,18 @@ try:
 except ImportError:
 
     def check_X_y(X, y, **kwargs):
+        """Check if the input data is valid for the model."""
         return X, y
 
     def check_array(X, **kwargs):
+        """Check if the input data is valid for the model."""
         return X
 
 
 class ModelBuilder(ABC):
-    """
-    ModelBuilder can be used to provide an easy-to-use API (similar to scikit-learn) for models
+    """Base class for building models with PyMC Marketing.
+
+    It provides an easy-to-use API (similar to scikit-learn) for models
     and help with deployment.
     """
 
@@ -62,8 +65,7 @@ class ModelBuilder(ABC):
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
-        """
-        Initializes model configuration and sampler configuration for the model
+        """Initialize model configuration and sampler configuration for the model.
 
         Parameters
         ----------
@@ -79,6 +81,7 @@ class ModelBuilder(ABC):
         >>> class MyModel(ModelBuilder):
         >>>     ...
         >>> model = MyModel(model_config, sampler_config)
+
         """
         if sampler_config is None:
             sampler_config = {}
@@ -108,8 +111,7 @@ class ModelBuilder(ABC):
         X: np.ndarray | pd.DataFrame,
         y: np.ndarray | pd.Series | None = None,
     ) -> None:
-        """
-        Sets new data in the model.
+        """Set new data in the model.
 
         Parameters
         ----------
@@ -118,8 +120,8 @@ class ModelBuilder(ABC):
         y : array, shape (n_obs,)
             The target values (real numbers).
 
-        Returns:
-        ----------
+        Returns
+        -------
         None
 
         Examples
@@ -137,20 +139,21 @@ class ModelBuilder(ABC):
     @property
     @abstractmethod
     def output_var(self) -> str:
-        """
-        Returns the name of the output variable of the model.
+        """Returns the name of the output variable of the model.
 
         Returns
         -------
         output_var : str
             Name of the output variable of the model.
+
         """
 
     @property
     @abstractmethod
     def default_model_config(self) -> dict:
-        """
-        Returns a class default config dict for model builder if no model_config is provided on class initialization
+        """Return a class default configuration dictionary.
+
+        For model builder if no model_config is provided on class initialization
         Useful for understanding structure of required model_config to allow its customization by users
 
         Examples
@@ -173,14 +176,17 @@ class ModelBuilder(ABC):
         -------
         model_config : dict
             A set of default parameters for predictor distributions that allow to save and recreate the model.
+
         """
 
     @property
     @abstractmethod
     def default_sampler_config(self) -> dict:
-        """
-        Returns a class default sampler dict for model builder if no sampler_config is provided on class initialization
+        """Return a class default sampler configuration dictionary.
+
+        For model builder if no sampler_config is provided on class initialization
         Useful for understanding structure of required sampler_config to allow its customization by users
+
         Examples
         --------
         >>>     @classmethod
@@ -196,21 +202,23 @@ class ModelBuilder(ABC):
         -------
         sampler_config : dict
             A set of default settings for used by model in fit process.
+
         """
 
     @abstractmethod
     def _generate_and_preprocess_model_data(
         self, X: pd.DataFrame | pd.Series, y: np.ndarray
     ) -> None:
-        """
-        Applies preprocessing to the data before fitting the model.
+        """Apply preprocessing to the data before fitting the model.
+
         if validate is True, it will check if the data is valid for the model.
         sets self.model_coords based on provided dataset
 
         In case of optional parameters being passed into the model, this method should implement the conditional
         logic responsible for correct handling of the optional parameters, and including them into the dataset.
 
-        Parameters:
+        Parameters
+        ----------
         X : array, shape (n_obs, n_features)
         y : array, shape (n_obs,)
 
@@ -237,9 +245,9 @@ class ModelBuilder(ABC):
         y: pd.Series | np.ndarray,
         **kwargs,
     ) -> None:
-        """
-        Creates an instance of pm.Model based on provided data and model_config, and
-        attaches it to self.
+        """Create an instance of `pm.Model` based on provided data and model_config.
+
+        It attaches the model to self.model.
 
         Parameters
         ----------
@@ -263,9 +271,18 @@ class ModelBuilder(ABC):
         Returns
         -------
         None
+
         """
 
     def create_idata_attrs(self) -> dict[str, str]:
+        """Create attributes for the inference data.
+
+        Returns
+        -------
+        dict[str, str]
+            A dictionary of attributes for the inference data.
+        """
+
         def default(x):
             if isinstance(x, Prior):
                 return x.to_json()
@@ -289,8 +306,7 @@ class ModelBuilder(ABC):
     def set_idata_attrs(
         self, idata: az.InferenceData | None = None
     ) -> az.InferenceData:
-        """
-        Set attributes on an InferenceData object.
+        """Set attributes on an InferenceData object.
 
         Parameters
         ----------
@@ -355,8 +371,7 @@ class ModelBuilder(ABC):
         return idata
 
     def save(self, fname: str) -> None:
-        """
-        Save the model's inference data to a file.
+        """Save the model's inference data to a file.
 
         Parameters
         ----------
@@ -383,6 +398,7 @@ class ModelBuilder(ABC):
         >>> model = MyModel()
         >>> model.fit(X,y)
         >>> model.save('model_results.nc')  # This will call the overridden method in MyModel
+
         """
         if self.idata is not None and "posterior" in self.idata:
             file = Path(str(fname))
@@ -392,7 +408,8 @@ class ModelBuilder(ABC):
 
     @classmethod
     def _model_config_formatting(cls, model_config: dict) -> dict:
-        """
+        """Format the model configuration.
+
         Because of json serialization, model_config values that were originally tuples
         or numpy are being encoded as lists. This function converts them back to tuples
         and numpy arrays to ensure correct id encoding.
@@ -415,6 +432,7 @@ class ModelBuilder(ABC):
 
     @classmethod
     def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
+        """Convert the model configuration and sampler configuration from the attributes to keyword arguments."""
         return {
             "model_config": cls._model_config_formatting(
                 json.loads(attrs["model_config"])
@@ -424,8 +442,7 @@ class ModelBuilder(ABC):
 
     @classmethod
     def load(cls, fname: str):
-        """
-        Creates a ModelBuilder instance from a file,
+        """Create a ModelBuilder instance from a file.
 
         Loads inference data for the model.
 
@@ -489,8 +506,8 @@ class ModelBuilder(ABC):
         random_seed: RandomState | None = None,
         **kwargs: Any,
     ) -> az.InferenceData:
-        """
-        Fit a model using the data passed as a parameter.
+        """Fit a model using the data passed as a parameter.
+
         Sets attrs to inference data of the model.
 
         Parameters
@@ -521,6 +538,7 @@ class ModelBuilder(ABC):
         >>> idata = model.fit(X,y)
         Auto-assigning NUTS sampler...
         Initializing NUTS using jitter+adapt_diag...
+
         """
         if predictor_names is None:
             predictor_names = []
@@ -573,9 +591,9 @@ class ModelBuilder(ABC):
         extend_idata: bool = True,
         **kwargs,
     ) -> np.ndarray:
-        """
-        Uses model to predict on unseen data and return point prediction of all the samples. The point prediction
-        for each input row is the expected output value, computed as the mean of MCMC samples.
+        """Use a model to predict on unseen data and return point prediction of all the samples.
+
+        The point prediction for each input row is the expected output value, computed as the mean of MCMC samples.
 
         Parameters
         ----------
@@ -598,8 +616,8 @@ class ModelBuilder(ABC):
         >>> x_pred = []
         >>> prediction_data = pd.DataFrame({'input':x_pred})
         >>> pred_mean = model.predict(prediction_data)
-        """
 
+        """
         posterior_predictive_samples = self.sample_posterior_predictive(
             X_pred, extend_idata, combined=False, **kwargs
         )
@@ -623,8 +641,7 @@ class ModelBuilder(ABC):
         combined: bool = True,
         **kwargs,
     ):
-        """
-        Sample from the model's prior predictive distribution.
+        """Sample from the model's prior predictive distribution.
 
         Parameters
         ----------
@@ -645,6 +662,7 @@ class ModelBuilder(ABC):
         -------
         prior_predictive_samples : DataArray, shape (n_pred, samples)
             Prior predictive samples for each input X_pred
+
         """
         if y_pred is None:
             y_pred = np.zeros(len(X_pred))
@@ -677,8 +695,7 @@ class ModelBuilder(ABC):
         combined: bool = True,
         **sample_posterior_predictive_kwargs,
     ):
-        """
-        Sample from the model's posterior predictive distribution.
+        """Sample from the model's posterior predictive distribution.
 
         Parameters
         ----------
@@ -696,6 +713,7 @@ class ModelBuilder(ABC):
         -------
         posterior_predictive_samples : DataArray, shape (n_pred, samples)
             Posterior predictive samples for each input X_pred
+
         """
         self._data_setter(X_pred)
 
@@ -716,32 +734,29 @@ class ModelBuilder(ABC):
         return az.extract(post_pred, variable_name, combined=combined)
 
     def get_params(self, deep=True):
-        """
-        Get all the model parameters needed to instantiate a copy of the model, not including training data.
-        """
+        """Get all the model parameters needed to instantiate a copy of the model, not including training data."""
         return {
             "model_config": self.model_config,
             "sampler_config": self.sampler_config,
         }
 
     def set_params(self, **params):
-        """
-        Set all the model parameters needed to instantiate the model, not including training data.
-        """
+        """Set all the model parameters needed to instantiate the model, not including training data."""
         self.model_config = params["model_config"]
         self.sampler_config = params["sampler_config"]
 
     @property
     @abstractmethod
     def _serializable_model_config(self) -> dict[str, int | float | dict]:
-        """
-        Converts non-serializable values from model_config to their serializable reversable equivalent.
+        """Converts non-serializable values from model_config to their serializable reversable equivalent.
+
         Data types like pandas DataFrame, Series or datetime aren't JSON serializable,
         so in order to save the model they need to be formatted.
 
         Returns
         -------
         model_config: dict
+
         """
 
     def predict_proba(
@@ -761,8 +776,7 @@ class ModelBuilder(ABC):
         combined: bool = True,
         **kwargs,
     ) -> xr.DataArray:
-        """
-        Generate posterior predictive samples on unseen data.
+        """Generate posterior predictive samples on unseen data.
 
         Parameters
         ----------
@@ -781,8 +795,8 @@ class ModelBuilder(ABC):
         y_pred : DataArray
             Posterior predictive samples for each input X_pred.
             Shape is (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred).
-        """
 
+        """
         X_pred = self._validate_data(X_pred)
         posterior_predictive_samples = self.sample_posterior_predictive(
             X_pred, extend_idata, combined, **kwargs
@@ -797,8 +811,7 @@ class ModelBuilder(ABC):
 
     @property
     def id(self) -> str:
-        """
-        Generate a unique hash value for the model.
+        """Generate a unique hash value for the model.
 
         The hash value is created using the last 16 characters of the SHA256 hash encoding,
         based on the model configuration, version, and model type.
@@ -813,6 +826,7 @@ class ModelBuilder(ABC):
         >>> model = MyModel()
         >>> model.id
         '0123456789abcdef'
+
         """
         hasher = hashlib.sha256()
         hasher.update(str(self.model_config.values()).encode())

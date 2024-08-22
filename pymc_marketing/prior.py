@@ -172,7 +172,7 @@ DimHandler = Callable[[pt.TensorLike, Dims], pt.TensorLike]
 
 
 def create_dim_handler(desired_dims: Dims) -> DimHandler:
-    """Wrapper to act like the previous `create_dim_handler` function."""
+    """Wrap the `handle_dims` function to act like the previous `create_dim_handler` function."""
 
     def func(x: pt.TensorLike, dims: Dims) -> pt.TensorVariable:
         return handle_dims(x, dims, desired_dims)
@@ -312,6 +312,7 @@ class Prior:
         self._unique_dims()
 
     def __getitem__(self, key: str) -> Prior | Any:
+        """Return the parameter of the prior."""
         return self.parameters[key]
 
     def _checks(self) -> None:
@@ -395,6 +396,7 @@ class Prior:
             )
 
     def __str__(self) -> str:
+        """Return a string representation of the prior."""
         param_str = ", ".join(
             [f"{param}={value}" for param, value in self.parameters.items()]
         )
@@ -406,6 +408,7 @@ class Prior:
         return f'Prior("{self.distribution}"{param_str}{dim_str}{centered_str}{transform_str})'
 
     def __repr__(self) -> str:
+        """Return a string representation of the prior."""
         return f"{self}"
 
     def _create_parameter(self, param, value, name):
@@ -706,7 +709,6 @@ class Prior:
             ).constrain(lower=0.5, upper=0.8)
 
         """
-
         if self.transform:
             raise ValueError("Can't constrain a transformed variable")
 
@@ -727,6 +729,7 @@ class Prior:
         )
 
     def __eq__(self, other) -> bool:
+        """Check if two priors are equal."""
         if not isinstance(other, Prior):
             return False
 
@@ -790,6 +793,7 @@ class Prior:
             return pm.sample_prior_predictive(**sample_prior_predictive_kwargs).prior
 
     def __deepcopy__(self, memo) -> Prior:
+        """Return a deep copy of the prior."""
         if id(self) in memo:
             return memo[id(self)]
 

@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""CLV Model base class."""
+
 import json
 import warnings
 from collections.abc import Sequence
@@ -32,6 +34,8 @@ from pymc_marketing.utils import from_netcdf
 
 
 class CLVModel(ModelBuilder):
+    """CLV Model base class."""
+
     _model_type = "CLVModel"
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
@@ -69,6 +73,7 @@ class CLVModel(ModelBuilder):
                     raise ValueError(f"Column {required_col} has duplicate entries")
 
     def __repr__(self) -> str:
+        """Representation of the model."""
         if not hasattr(self, "model"):
             return self._model_type
         else:
@@ -89,7 +94,7 @@ class CLVModel(ModelBuilder):
         fit_method: str = "mcmc",
         **kwargs,
     ) -> az.InferenceData:
-        """Infer model posterior
+        """Infer model posterior.
 
         Parameters
         ----------
@@ -99,8 +104,8 @@ class CLVModel(ModelBuilder):
             - "map": Finds maximum a posteriori via `pymc.find_MAP`
         kwargs:
             Other keyword arguments passed to the underlying PyMC routines
-        """
 
+        """
         self.build_model()  # type: ignore
 
         if fit_method == "mcmc":
@@ -120,8 +125,8 @@ class CLVModel(ModelBuilder):
         return self.idata
 
     def _fit_mcmc(self, **kwargs) -> az.InferenceData:
-        """
-        Fit a model using the data passed as a parameter.
+        """Fit a model using the data passed as a parameter.
+
         Sets attrs to inference data of the model.
 
 
@@ -138,6 +143,7 @@ class CLVModel(ModelBuilder):
         -------
         self : az.InferenceData
             returns inference data of the fitted model.
+
         """
         sampler_config = {}
         if self.sampler_config is not None:
@@ -146,7 +152,7 @@ class CLVModel(ModelBuilder):
         return pm.sample(**sampler_config, model=self.model)
 
     def _fit_MAP(self, **kwargs) -> az.InferenceData:
-        """Find model maximum a posteriori using scipy optimizer"""
+        """Find model maximum a posteriori using scipy optimizer."""
         model = self.model
         map_res = pm.find_MAP(model=model, **kwargs)
         # Filter non-value variables
@@ -162,8 +168,8 @@ class CLVModel(ModelBuilder):
 
     @classmethod
     def load(cls, fname: str):
-        """
-        Creates a ModelBuilder instance from a file,
+        """Create a ModelBuilder instance from a file.
+
         Loads inference data for the model.
 
         Parameters
@@ -179,12 +185,14 @@ class CLVModel(ModelBuilder):
         ------
         ValueError
             If the inference data that is loaded doesn't match with the model.
+
         Examples
         --------
         >>> class MyModel(ModelBuilder):
         >>>     ...
         >>> name = './mymodel.nc'
         >>> imported_model = MyModel.load(name)
+
         """
         filepath = Path(str(fname))
         idata = from_netcdf(filepath)
@@ -242,6 +250,7 @@ class CLVModel(ModelBuilder):
 
     @property
     def default_sampler_config(self) -> dict:
+        """Default sampler configuration."""
         return {}
 
     @property
@@ -250,6 +259,7 @@ class CLVModel(ModelBuilder):
 
     @property
     def fit_result(self) -> Dataset:
+        """Get the fit result."""
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         return self.idata["posterior"]
@@ -265,6 +275,7 @@ class CLVModel(ModelBuilder):
             self.idata.posterior = res
 
     def fit_summary(self, **kwargs):
+        """Compute the summary of the fit result."""
         res = self.fit_result
         # Map fitting only gives one value, so we return it. We use arviz
         # just to get it nicely into a DataFrame
@@ -278,10 +289,13 @@ class CLVModel(ModelBuilder):
 
     @property
     def output_var(self):
+        """Output variable of the model."""
         pass
 
     def _generate_and_preprocess_model_data(self, *args, **kwargs):
+        """Generate and preprocess model data."""
         pass
 
     def _data_setter(self):
+        """Set the data for the model."""
         pass
