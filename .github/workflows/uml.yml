@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref || 'main' }}
-          # repository: ${{ github.event.pull_request.head.repo.full_name }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v2
