@@ -49,7 +49,7 @@ except ImportError:
 
 def create_sample_kwargs(
     sampler_config: dict[str, Any],
-    progressbar: bool,
+    progressbar: bool | None,
     random_seed,
     **kwargs,
 ) -> dict[str, Any]:
@@ -59,8 +59,8 @@ def create_sample_kwargs(
     ----------
     sampler_config : dict
         The configuration dictionary for the sampler.
-    progressbar : bool
-        Whether to show the progress bar during sampling.
+    progressbar : bool, optional
+        Whether to show the progress bar during sampling. Defaults to True.
     random_seed : RandomState
         The random seed for the sampler.
     **kwargs : Any
@@ -74,7 +74,11 @@ def create_sample_kwargs(
     """
     sampler_config = sampler_config.copy()
 
-    sampler_config["progressbar"] = progressbar
+    if progressbar is not None:
+        sampler_config["progressbar"] = progressbar
+    else:
+        sampler_config["progressbar"] = sampler_config.get("progressbar", True)
+
     if random_seed is not None:
         sampler_config["random_seed"] = random_seed
 
@@ -537,7 +541,7 @@ class ModelBuilder(ABC):
         self,
         X: pd.DataFrame,
         y: pd.Series | np.ndarray | None = None,
-        progressbar: bool = True,
+        progressbar: bool | None = None,
         predictor_names: list[str] | None = None,
         random_seed: RandomState | None = None,
         **kwargs: Any,
@@ -552,8 +556,8 @@ class ModelBuilder(ABC):
             The training input samples. If scikit-learn is available, array-like, otherwise array.
         y : array-like | array, shape (n_obs,)
             The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
-        progressbar : bool
-            Specifies whether the fit progress bar should be displayed.
+        progressbar : bool, optional
+            Specifies whether the fit progress bar should be displayed. Defaults to True.
         predictor_names : Optional[List[str]] = None,
             Allows for custom naming of predictors when given in a form of a 2D array.
             Allows for naming of predictors when given in a form of np.ndarray, if not provided

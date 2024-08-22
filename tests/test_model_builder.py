@@ -442,28 +442,31 @@ def test_incorrect_set_idata_attrs_override() -> None:
 
 
 @pytest.mark.parametrize(
-    "sampler_config, fit_kwargs, expected_random_seed",
+    "sampler_config, fit_kwargs, expected",
     [
         (
-            {"chains": 1, "draws": 10, "tune": 5, "random_seed": 42},
-            {"progressbar": False, "random_seed": None},
-            42,
-        ),
-        (
-            {"chains": 1, "draws": 10, "tune": 5},
-            {"progressbar": False, "random_seed": 42},
-            42,
-        ),
-        (
-            {"random_seed": 52},
+            {},
             {
-                "chains": 1,
-                "draws": 10,
-                "tune": 5,
-                "progressbar": False,
-                "random_seed": 42,
+                "progressbar": None,
+                "random_seed": None,
             },
-            42,
+            {
+                "progressbar": True,
+            },
+        ),
+        (
+            {
+                "random_seed": 52,
+                "progressbar": False,
+            },
+            {
+                "progressbar": None,
+                "random_seed": None,
+            },
+            {
+                "progressbar": False,
+                "random_seed": 52,
+            },
         ),
         (
             {
@@ -471,32 +474,26 @@ def test_incorrect_set_idata_attrs_override() -> None:
                 "progressbar": True,
             },
             {
-                "chains": 1,
-                "draws": 10,
-                "tune": 5,
                 "progressbar": False,
                 "random_seed": 42,
             },
-            42,
+            {
+                "progressbar": False,
+                "random_seed": 42,
+            },
         ),
     ],
     ids=[
-        "seed_from_sampler_config",
-        "seed_from_fit_kwargs",
-        "override_seed_from_sampler_config",
-        "override_progressbar_from_sampler_config",
+        "no_sampler_config/defaults",
+        "use_sampler_config",
+        "override_sampler_config",
     ],
 )
-def test_create_sample_kwargs(sampler_config, fit_kwargs, expected_random_seed) -> None:
+def test_create_sample_kwargs(sampler_config, fit_kwargs, expected) -> None:
     sampler_config_before = sampler_config.copy()
-    assert create_sample_kwargs(sampler_config, **fit_kwargs) == {
-        "chains": 1,
-        "draws": 10,
-        "tune": 5,
-        "progressbar": False,
-        "random_seed": expected_random_seed,
-    }
+    assert create_sample_kwargs(sampler_config, **fit_kwargs) == expected
 
+    # Doesn't override
     assert sampler_config_before == sampler_config
 
 
@@ -528,6 +525,10 @@ def test_fit_random_seed_reproducibility(toy_X, toy_y, create_random_seed) -> No
     idata2 = model.fit(toy_X, toy_y, random_seed=create_random_seed())
 
     assert idata.posterior.equals(idata2.posterior)
+
+    sizes = idata.posterior.sizes
+    assert sizes["chain"] == 1
+    assert sizes["draw"] == 10
 
 
 def test_fit_sampler_config_seed_reproducibility(toy_X, toy_y) -> None:
