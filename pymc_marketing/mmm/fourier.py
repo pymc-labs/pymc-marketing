@@ -287,6 +287,7 @@ class FourierBase(BaseModel):
     variable_name: str | None = Field(None)
 
     def model_post_init(self, __context: Any) -> None:
+        """Model post initialization for a Pydantic model."""
         if self.variable_name is None:
             self.variable_name = f"{self.prefix}_beta"
 
@@ -308,6 +309,19 @@ class FourierBase(BaseModel):
 
     @field_serializer("prior", when_used="json")
     def serialize_prior(prior: Prior) -> dict[str, Any]:
+        """Serialize the prior distribution.
+
+        Parameters
+        ----------
+        prior : Prior
+            The prior distribution to serialize.
+
+        Returns
+        -------
+        dict[str, Any]
+            The serialized prior distribution.
+
+        """
         return prior.to_json()
 
     @property

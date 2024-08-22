@@ -31,6 +31,21 @@ __all__ = [
 
 
 def preprocessing_method_X(method: Callable) -> Callable:
+    """Tag a method as a preprocessing method for the X data.
+
+    Decorator to mark a method as a preprocessing method for the X data.
+
+    Parameters
+    ----------
+    method : Callable
+        The method to tag as a preprocessing method for the X data.
+
+    Returns
+    -------
+    Callable
+        The tagged method.
+
+    """
     if not hasattr(method, "_tags"):
         method._tags = {}  # type: ignore
     method._tags["preprocessing_X"] = True  # type: ignore
@@ -38,6 +53,21 @@ def preprocessing_method_X(method: Callable) -> Callable:
 
 
 def preprocessing_method_y(method: Callable) -> Callable:
+    """Tag a method as a preprocessing method for the y data.
+
+    Decorator to mark a method as a preprocessing method for the y data.
+
+    Parameters
+    ----------
+    method : Callable
+        The method to tag as a preprocessing method for the y data.
+
+    Returns
+    -------
+    Callable
+        The tagged method.
+
+    """
     if not hasattr(method, "_tags"):
         method._tags = {}  # type: ignore
     method._tags["preprocessing_y"] = True  # type: ignore
@@ -45,12 +75,27 @@ def preprocessing_method_y(method: Callable) -> Callable:
 
 
 class MaxAbsScaleTarget:
+    """MaxAbsScaler for the target data."""
+
     target_transformer: Pipeline
 
     @preprocessing_method_y
     def max_abs_scale_target_data(
         self, data: pd.Series | np.ndarray
     ) -> np.ndarray | pd.Series:
+        """MaxAbsScaler for the target data.
+
+        Parameters
+        ----------
+        data : pd.Series | np.ndarray
+            The target data to scale.
+
+        Returns
+        -------
+        np.ndarray | pd.Series
+            The scaled target data.
+
+        """
         if isinstance(data, pd.Series):
             data = data.to_numpy()
 
@@ -63,10 +108,25 @@ class MaxAbsScaleTarget:
 
 
 class MaxAbsScaleChannels:
+    """MaxAbsScaler for the channel data."""
+
     channel_columns: list[str] | tuple[str]
 
     @preprocessing_method_X
     def max_abs_scale_channel_data(self, data: pd.DataFrame) -> pd.DataFrame:
+        """MaxAbsScaler for the channel data.
+
+        Parameters
+        ----------
+        data : pd.DataFrame
+            The channel data to scale.
+
+        Returns
+        -------
+        pd.DataFrame
+            The scaled channel data.
+
+        """
         data_cp = data.copy()
         channel_data: pd.DataFrame | pd.Series[Any] = data_cp[self.channel_columns]
         transformers = [("scaler", MaxAbsScaler())]
@@ -79,10 +139,25 @@ class MaxAbsScaleChannels:
 
 
 class StandardizeControls:
+    """StandardScaler for the control data."""
+
     control_columns: list[str]  # TODO: Handle Optional[List[str]]
 
     @preprocessing_method_X
     def standardize_control_data(self, data: pd.DataFrame) -> pd.DataFrame:
+        """StandardScaler for the control data.
+
+        Parameters
+        ----------
+        data : pd.DataFrame
+            The control data to scale.
+
+        Returns
+        -------
+        pd.DataFrame
+            The scaled control data.
+
+        """
         control_data: pd.DataFrame = data[self.control_columns]
         transformers = [("scaler", StandardScaler())]
         pipeline: Pipeline = Pipeline(steps=transformers)

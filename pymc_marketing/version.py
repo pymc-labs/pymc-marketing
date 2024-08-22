@@ -11,12 +11,15 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""Version of the package."""
+
 import os
 
 here = os.path.dirname(os.path.realpath(__file__))
 
 
-def read_version():
+def read_version() -> str:
+    """Read the version from the version file."""
     version_file = os.path.join(here, "version.txt")
     with open(version_file, encoding="utf-8") as buff:
         return buff.read().splitlines()[0]

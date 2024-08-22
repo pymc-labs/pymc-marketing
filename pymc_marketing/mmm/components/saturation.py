@@ -100,7 +100,7 @@ class SaturationTransformation(Transformation):
     By subclassing from this method, lift test integration will come for free!
 
     Examples
-    ----------
+    --------
     Make a non-saturating saturation transformation
 
     .. code-block:: python
@@ -199,6 +199,7 @@ class LogisticSaturation(SaturationTransformation):
     lookup_name = "logistic"
 
     def function(self, x, lam, beta):
+        """Logistic saturation function."""
         return beta * logistic_saturation(x, lam)
 
     default_priors = {
@@ -232,6 +233,7 @@ class InverseScaledLogisticSaturation(SaturationTransformation):
     lookup_name = "inverse_scaled_logistic"
 
     def function(self, x, lam, beta):
+        """Inverse scaled logistic saturation function."""
         return beta * inverse_scaled_logistic_saturation(x, lam)
 
     default_priors = {
@@ -265,6 +267,7 @@ class TanhSaturation(SaturationTransformation):
     lookup_name = "tanh"
 
     def function(self, x, b, c, beta):
+        """Tanh saturation function."""
         return beta * tanh_saturation(x, b, c)
 
     default_priors = {
@@ -299,6 +302,7 @@ class TanhSaturationBaselined(SaturationTransformation):
     lookup_name = "tanh_baselined"
 
     def function(self, x, x0, gain, r, beta):
+        """Tanh saturation function."""
         return beta * tanh_saturation_baselined(x, x0, gain, r)
 
     default_priors = {
@@ -366,6 +370,7 @@ class HillSaturation(SaturationTransformation):
     lookup_name = "hill"
 
     def function(self, x, slope, kappa, beta):
+        """Hill saturation function."""
         return beta * hill_function(x, slope, kappa)
 
     default_priors = {
@@ -433,6 +438,7 @@ class RootSaturation(SaturationTransformation):
     lookup_name = "root"
 
     def function(self, x, alpha, beta):
+        """Root saturation function."""
         return beta * root_saturation(x, alpha)
 
     default_priors = {
@@ -457,11 +463,15 @@ SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
 
 
 def register_saturation_transformation(cls: type[SaturationTransformation]) -> None:
-    """Register a new saturation transformation."""
+    """Register a new saturation transformation.
+
+    Helper for use in the MMM to register a new saturation function.
+    """
     SATURATION_TRANSFORMATIONS[cls.lookup_name] = cls
 
 
 def saturation_from_dict(data: dict) -> SaturationTransformation:
+    """Get a saturation function from a dictionary."""
     data = data.copy()
     cls = SATURATION_TRANSFORMATIONS[data.pop("lookup_name")]
 
@@ -475,7 +485,11 @@ def saturation_from_dict(data: dict) -> SaturationTransformation:
 def _get_saturation_function(
     function: str | SaturationTransformation,
 ) -> SaturationTransformation:
-    """Helper for use in the MMM to get a saturation function."""
+    """
+    Get a saturation function.
+
+    Helper for use in the MMM to get a saturation function.
+    """
     if isinstance(function, SaturationTransformation):
         return function
 
