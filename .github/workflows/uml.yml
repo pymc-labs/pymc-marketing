@@ -2,14 +2,24 @@ name: Update the UML Diagrams
 
 on:
   pull_request:
+    branches: [main]
+    paths:
+      - "pymc_marketing/**"
+  push:
     types: [closed]
     branches: [main]
     paths:
       - "pymc_marketing/**"
 
+  # pull_request:
+  #   types: [closed]
+  #   branches: [main]
+  #   paths:
+  #     - "pymc_marketing/**"
+
 jobs:
   build:
-    if: github.event.pull_request.merged == true
+    # if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
