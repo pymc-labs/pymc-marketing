@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""Beta-Geometric Negative Binomial Distribution (BG/NBD) model for a non-contractual customer population across continuous time."""  # noqa: E501
+
 import warnings
 from collections.abc import Sequence
 
@@ -31,8 +33,9 @@ from pymc_marketing.prior import Prior
 
 
 class BetaGeoModel(CLVModel):
-    r"""Beta-Geometric Negative Binomial Distribution (BG/NBD) model for a non-contractual customer population
-    across continuous time. First introduced by Fader, Hardie & Lee [1]_, with additional predictive methods
+    r"""Beta-Geometric Negative Binomial Distribution (BG/NBD) model for a non-contractual customer population across continuous time.
+
+    First introduced by Fader, Hardie & Lee [1]_, with additional predictive methods
     and enhancements in [2]_ and [3]_.
 
     The BG/NBD model assumes dropout probabilities for the customer population are Beta distributed,
@@ -133,7 +136,8 @@ class BetaGeoModel(CLVModel):
            P (alive) using the BG/NBD model." http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
     .. [3] Fader, P. S. & Hardie, B. G. (2013) "Overcoming the BG/NBD Model's #NUM!
            Error Problem." http://brucehardie.com/notes/027/bgnbd_num_error.pdf.
-    """
+
+    """  # noqa: E501
 
     _model_type = "BG/NBD"  # Beta-Geometric Negative Binomial Distribution
 
@@ -156,6 +160,7 @@ class BetaGeoModel(CLVModel):
 
     @property
     def default_model_config(self) -> ModelConfig:
+        """Default model configuration."""
         return {
             "a_prior": Prior("HalfFlat"),
             "b_prior": Prior("HalfFlat"),
@@ -164,6 +169,7 @@ class BetaGeoModel(CLVModel):
         }
 
     def build_model(self) -> None:  # type: ignore[override]
+        """Build the model."""
         coords = {"customer_id": self.data["customer_id"]}
         with pm.Model(coords=coords) as self.model:
             a = self.model_config["a_prior"].create_variable("a")
@@ -173,6 +179,8 @@ class BetaGeoModel(CLVModel):
 
             def logp(t_x, x, a, b, r, alpha, T):
                 """
+                Compute the log-likelihood of the BG/NBD model.
+
                 The log-likelihood expression here aligns with expression (4) from [3]
                 due to the possible numerical instability of expression (3).
                 """
@@ -231,8 +239,10 @@ class BetaGeoModel(CLVModel):
         data: pd.DataFrame,
         customer_varnames: Sequence[str] = (),
     ) -> xarray.Dataset:
-        """Utility function assigning default customer arguments
-        for predictive methods and converting to xarrays.
+        """
+        Extract predictive variables from the data.
+
+        Utility function assigning default customer arguments for predictive methods and converting to xarrays.
         """
         self._validate_cols(
             data,
@@ -273,7 +283,8 @@ class BetaGeoModel(CLVModel):
         recency: np.ndarray | pd.Series | TensorVariable,
         T: np.ndarray | pd.Series | TensorVariable,
     ) -> xarray.DataArray:
-        r"""
+        r"""Compute the expected number of purchases for a customer.
+
         This is a deprecated method and will be removed in a future release.
         Please use `BetaGeoModel.expected_purchases` instead.
         """
@@ -317,9 +328,9 @@ class BetaGeoModel(CLVModel):
         *,
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        r"""
-        Predict the expected number of future purchases across *future_t* time periods given *recency*, *frequency*,
-        and *T* for each customer. *data* parameter is only required for out-of-sample customers.
+        r"""Compute the expected number of future purchases across *future_t* time periods given *recency*, *frequency*, and *T* for each customer.
+
+        The *data* parameter is only required for out-of-sample customers.
 
         Adapted from equation (10) in [1]_, and *lifetimes* package:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L201
@@ -342,7 +353,8 @@ class BetaGeoModel(CLVModel):
             "Counting Your Customers the Easy Way: An Alternative to the
             Pareto/NBD Model," Marketing Science, 24 (2), 275-84.
             https://www.brucehardie.com/papers/bgnbd_2004-04-20.pdf
-        """
+
+        """  # noqa: E501
         if data is None:
             data = self.data
 
@@ -380,9 +392,9 @@ class BetaGeoModel(CLVModel):
         self,
         data: pd.DataFrame | None = None,
     ) -> xarray.DataArray:
-        r"""
-        Estimate probability a customer with history *frequency*, *recency*, and *T*
-        is currently active. *data* parameter is only required for out-of-sample customers.
+        r"""Compute the probability a customer with history *frequency*, *recency*, and *T* is currently active.
+
+        The *data* parameter is only required for out-of-sample customers.
 
         Adapted from page (2) in Bruce Hardie's notes [1]_, and *lifetimes* package:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L260
@@ -401,6 +413,7 @@ class BetaGeoModel(CLVModel):
         ----------
         .. [1] Fader, P. S., Hardie, B. G., & Lee, K. L. (2008). Computing
                P (alive) using the BG/NBD model. http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
+
         """
         if data is None:
             data = self.data
@@ -425,7 +438,8 @@ class BetaGeoModel(CLVModel):
         )
 
     def expected_num_purchases_new_customer(self, *args, **kwargs) -> xarray.DataArray:
-        """
+        """Compute the expected number of purchases for a new customer.
+
         This is a deprecated method and will be removed in a future release.
         Please use `BetaGeoModel.expected_purchases_new_customer` instead.
         """
@@ -442,8 +456,7 @@ class BetaGeoModel(CLVModel):
         *,
         t: np.ndarray | pd.Series,
     ) -> xarray.DataArray:
-        r"""
-        Expected number of purchases for a new customer across *t* time periods.
+        r"""Compute the expected number of purchases for a new customer across *t* time periods.
 
         Adapted from equation (9) in [1]_, and `lifetimes` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L328
@@ -452,12 +465,14 @@ class BetaGeoModel(CLVModel):
         ----------
         t : array_like
             Number of time periods over which to estimate purchases.
+
         References
         ----------
         .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005a),
             "Counting Your Customers the Easy Way: An Alternative to the
             Pareto/NBD Model," Marketing Science, 24 (2), 275-84.
             http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf
+
         """
         # TODO: This is extraneous now, but needed for future covariate support.
         if data is None:
@@ -526,6 +541,7 @@ class BetaGeoModel(CLVModel):
         -------
         xarray.Dataset
             Dataset containing the posterior samples for the population-level dropout rate.
+
         """
         return self._distribution_new_customers(
             random_seed=random_seed,
@@ -550,6 +566,7 @@ class BetaGeoModel(CLVModel):
         -------
         xarray.Dataset
             Dataset containing the posterior samples for the population-level purchase rate.
+
         """
         return self._distribution_new_customers(
             random_seed=random_seed,

@@ -24,6 +24,8 @@ from pytensor.tensor.random.utils import params_broadcast_shapes
 
 
 class ConvMode(str, Enum):
+    """Convolution mode for the convolution."""
+
     # TODO: use StrEnum when we upgrade to python 3.11
     After = "After"
     Before = "Before"
@@ -31,6 +33,8 @@ class ConvMode(str, Enum):
 
 
 class WeibullType(str, Enum):
+    """Weibull type for the Weibull adstock."""
+
     # TODO: use StrEnum when we upgrade to python 3.11
     PDF = "PDF"
     CDF = "CDF"
@@ -94,6 +98,7 @@ def batched_convolution(
         result will match the shape of ``x`` up to broadcasting with ``w``. The convolved
         axis will show the results of left padding zeros to ``x`` while applying the
         convolutions.
+
     """
     # We move the axis to the last dimension of the array so that it's easier to
     # reason about parameter broadcasting. We will move the axis back at the end
@@ -228,8 +233,8 @@ def geometric_adstock(
     ----------
     .. [1] Jin, Yuxue, et al. "Bayesian methods for media mix modeling
        with carryover and shape effects." (2017).
-    """
 
+    """
     w = pt.power(pt.as_tensor(alpha)[..., None], pt.arange(l_max, dtype=x.dtype))
     w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
     return batched_convolution(x, w, axis=axis, mode=mode)
@@ -310,6 +315,7 @@ def delayed_adstock(
     ----------
     .. [1] Jin, Yuxue, et al. "Bayesian methods for media mix modeling
        with carryover and shape effects." (2017).
+
     """
     w = pt.power(
         pt.as_tensor(alpha)[..., None],
@@ -413,6 +419,7 @@ def weibull_adstock(
     -------
     tensor
         Transformed tensor based on Weibull adstock transformation.
+
     """
     lam = pt.as_tensor(lam)[..., None]
     k = pt.as_tensor(k)[..., None]
@@ -474,6 +481,7 @@ def logistic_saturation(x, lam: npt.NDArray[np.float64] | float = 0.5):
     -------
     tensor
         Transformed tensor.
+
     """
     return (1 - pt.exp(-lam * x)) / (1 + pt.exp(-lam * x))
 
@@ -481,10 +489,11 @@ def logistic_saturation(x, lam: npt.NDArray[np.float64] | float = 0.5):
 def inverse_scaled_logistic_saturation(
     x, lam: npt.NDArray[np.float64] | float = 0.5, eps: float = np.log(3)
 ):
-    """Inverse scaled logistic saturation transformation.
-        It offers a more intuitive alternative to logistic_saturation,
-        allowing for lambda to be interpreted as the half saturation point
-        when using default value for eps.
+    r"""Inverse scaled logistic saturation transformation.
+
+    It offers a more intuitive alternative to logistic_saturation,
+    allowing for lambda to be interpreted as the half saturation point
+    when using default value for eps.
 
     .. math::
         f(x) = \\frac{1 - e^{-x*\epsilon/\lambda}}{1 + e^{-x*\epsilon/\lambda}}
@@ -523,7 +532,8 @@ def inverse_scaled_logistic_saturation(
     -------
     tensor
         Transformed tensor.
-    """  # noqa: W605
+
+    """
     return logistic_saturation(x, eps / lam)
 
 
@@ -654,6 +664,7 @@ def tanh_saturation(
     References
     ----------
     See https://www.pymc-labs.io/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/ # noqa: E501
+
     """  # noqa: E501
     return b * pt.tanh(x / (b * c))
 
@@ -664,8 +675,7 @@ def tanh_saturation_baselined(
     gain: pt.TensorLike = 0.5,
     r: pt.TensorLike = 0.5,
 ) -> pt.TensorVariable:
-    r"""
-    Baselined Tanh Saturation.
+    r"""Baselined Tanh Saturation.
 
     This parameterization that is easier than :func:`tanh_saturation`
     to use for industry applications where domain knowledge is an essence.
@@ -806,6 +816,7 @@ def tanh_saturation_baselined(
     References
     ----------
     Developed by Max Kochurov and Aziz Al-Maeeni doing innovative work in `PyMC Labs <pymc-labs.com>`_.
+
     """
     return gain * x0 * pt.tanh(x * pt.arctanh(r) / x0) / r
 
@@ -815,8 +826,7 @@ def michaelis_menten(
     alpha: float | np.ndarray | npt.NDArray[np.float64],
     lam: float | np.ndarray | npt.NDArray[np.float64],
 ) -> float | Any:
-    r"""
-    Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
+    r"""Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
 
     The Michaelis-Menten function models enzyme kinetics and describes how the rate of
     a chemical reaction increases with substrate concentration until it reaches its
@@ -894,15 +904,15 @@ def michaelis_menten(
     -------
     float
         The value of the Michaelis-Menten function given the parameters.
-    """
 
+    """
     return alpha * x / (lam + x)
 
 
 def hill_function(
     x: pt.TensorLike, slope: pt.TensorLike, kappa: pt.TensorLike
 ) -> pt.TensorVariable:
-    r"""Hill Function
+    r"""Hill Function.
 
     .. math::
         f(x) = 1 - \frac{\kappa^s}{\kappa^s + x^s}
@@ -966,6 +976,7 @@ def hill_function(
     References
     ----------
     .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
+
     """  # noqa: E501
     return pt.as_tensor_variable(
         1 - pt.power(kappa, slope) / (pt.power(kappa, slope) + pt.power(x, slope))
@@ -978,7 +989,7 @@ def hill_saturation_sigmoid(
     beta: pt.TensorLike,
     lam: pt.TensorLike,
 ) -> pt.TensorVariable:
-    r"""Hill Saturation Sigmoid Function
+    r"""Hill Saturation Sigmoid Function.
 
     .. math::
         f(x) = \frac{\sigma}{1 + e^{-\beta(x - \lambda)}} - \frac{\sigma}{1 + e^{\beta\lambda}}
@@ -1062,6 +1073,7 @@ def hill_saturation_sigmoid(
     -------
     float or array-like
         The value of the Hill saturation sigmoid function for each input value of x.
+
     """
     return sigma / (1 + pt.exp(-beta * (x - lam))) - sigma / (1 + pt.exp(beta * lam))
 

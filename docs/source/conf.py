@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Sphinx configuration for PyMC Marketing Docs."""
 
 import os
 

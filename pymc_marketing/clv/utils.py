@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""Utilities for the CLV module."""
+
 import warnings
 from datetime import date, datetime
 
@@ -48,7 +50,9 @@ def customer_lifetime_value(
     time_unit: str = "D",
 ) -> xarray.DataArray:
     """
-    Compute the average lifetime value for a group of one or more customers,
+    Compute customer lifetime value.
+
+    Compute the average lifetime value for a group of one or more customers
     and apply a discount rate for net present value estimations.
     Note `future_t` is measured in months regardless of `time_unit` specified.
 
@@ -81,13 +85,27 @@ def customer_lifetime_value(
     -------
     xarray
         DataArray containing estimated customer lifetime values
-    """
 
+    """
     if "future_spend" not in data.columns:
         raise ValueError("Required column future_spend missing")
 
     def _squeeze_dims(x: xarray.DataArray):
-        """this utility is required for MAP-fitted model predictions to broadcast properly"""
+        """
+        Squeeze dimensions for MAP-fitted model predictions.
+
+        This utility is required for MAP-fitted model predictions to broadcast properly.
+
+        Parameters
+        ----------
+        x : xarray.DataArray
+            DataArray to squeeze dimensions for.
+
+        Returns
+        -------
+        xarray.DataArray
+            DataArray with squeezed dimensions.
+        """
         dims_to_squeeze: tuple[str, ...] = ()
         if "chain" in x.dims and len(x.chain) == 1:
             dims_to_squeeze += ("chain",)
@@ -148,8 +166,7 @@ def _find_first_transactions(
     time_unit: str = "D",
     sort_transactions: bool | None = True,
 ) -> pandas.DataFrame:
-    """
-    Return dataframe with first transactions.
+    """Return dataframe with first transactions.
 
     This takes a DataFrame of transaction data of the form:
         *customer_id, datetime [, monetary_value]*
@@ -183,8 +200,8 @@ def _find_first_transactions(
     sort_transactions : bool, optional
         Default: True
         If raw data is already sorted in chronological order, set to `False` to improve computational efficiency.
-    """
 
+    """
     select_columns = [customer_id_col, datetime_col]
 
     if observation_period_end is None:
@@ -264,8 +281,7 @@ def rfm_summary(
     include_first_transaction: bool | None = False,
     sort_transactions: bool | None = True,
 ) -> pandas.DataFrame:
-    """
-    Summarize transaction data for use in CLV modeling or RFM segmentation.
+    """Summarize transaction data for use in CLV modeling or RFM segmentation.
 
     This transforms a DataFrame of transaction data of the form:
         *customer_id, datetime [, monetary_value]*
@@ -321,8 +337,8 @@ def rfm_summary(
     DataFrame
         Dataframe containing summarized RFM data, and test columns for *frequency*, *T*,
         and *monetary_value* if specified
-    """
 
+    """
     if observation_period_end is None:
         observation_period_end_ts = (
             pandas.to_datetime(transactions[datetime_col].max(), format=datetime_format)
@@ -423,8 +439,8 @@ def rfm_train_test_split(
     include_first_transaction: bool | None = False,
     sort_transactions: bool | None = True,
 ) -> pandas.DataFrame:
-    """
-    Summarize transaction data and split into training and tests datasets for CLV modeling.
+    """Summarize transaction data and split into training and tests datasets for CLV modeling.
+
     This can also be used to evaluate the impact of a time-based intervention like a marketing campaign.
 
     This transforms a DataFrame of transaction data of the form:
@@ -476,8 +492,8 @@ def rfm_train_test_split(
     DataFrame
         Dataframe containing summarized RFM data, and test columns for *frequency*, *T*,
         and *monetary_value* if specified
-    """
 
+    """
     if test_period_end is None:
         test_period_end = transactions[datetime_col].max()
 
@@ -588,8 +604,7 @@ def rfm_segments(
     time_scaler: float | None = 1,
     sort_transactions: bool | None = True,
 ) -> pandas.DataFrame:
-    """
-    Assign customers to segments based on spending behavior derived from RFM scores.
+    """Assign customers to segments based on spending behavior derived from RFM scores.
 
     This transforms a DataFrame of transaction data of the form:
         *customer_id, datetime, monetary_value*
@@ -650,8 +665,8 @@ def rfm_segments(
     -------
     DataFrame
         Dataframe containing summarized RFM data, RFM scores, and segment assignments
-    """
 
+    """
     rfm_data = rfm_summary(
         transactions,
         customer_id_col=customer_id_col,
@@ -718,7 +733,23 @@ def rfm_segments(
 
 
 def _rfm_quartile_labels(column_name, max_label_range):
-    """called internally by rfm_segments to label quartiles for each variable"""
+    """
+    Label quartiles for each variable.
+
+    Called internally by rfm_segments to label quartiles for each variable.
+
+    Parameters
+    ----------
+    column_name : str
+        The name of the column to label.
+    max_label_range : int
+        The maximum range of labels to create.
+
+    Returns
+    -------
+    list[int]
+        A list of labels for the column.
+    """
     # recency labels must be reversed because lower values are more desirable
     if column_name == "r_quartile":
         return list(range(max_label_range - 1, 0, -1))

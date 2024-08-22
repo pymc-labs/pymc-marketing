@@ -11,8 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""
-Time Varying Gaussian Process Multiplier for Marketing Mix Modeling (MMM).
+"""Time Varying Gaussian Process Multiplier for Marketing Mix Modeling (MMM).
+
 Designed to model time-varying effects in marketing mix models (MMM).
 
 This module provides a time-varying Gaussian Process (GP) multiplier,
@@ -20,7 +20,6 @@ using the Hilbert Space Gaussian Process (HSGP) approximation.
 
 Examples
 --------
-
 Create a basic PyMC model using the time-varying GP multiplier:
 
 .. code-block:: python
@@ -136,8 +135,8 @@ def time_varying_prior(
 
     -   Solin, A., Sarkka, S. (2019) Hilbert Space Methods for Reduced-Rank Gaussian Process
         Regression.
-    """
 
+    """
     if hsgp_kwargs is None:
         hsgp_kwargs = HSGPKwargs()
 
@@ -193,13 +192,14 @@ def create_time_varying_gp_multiplier(
         Midpoint of the time points.
     time_resolution : int
         Resolution of time points.
-    hsgp_kwargsg : HSGPKwargs
+    hsgp_kwargs : HSGPKwargs
         Keyword arguments for the Hilbert Space Gaussian Process (HSGP) component.
 
     Returns
     -------
     pt.TensorVariable
         Time-varying Gaussian Process multiplier for a given variable.
+
     """
     if hsgp_kwargs.L is None:
         hsgp_kwargs.L = time_index_mid + DAYS_IN_YEAR / time_resolution
