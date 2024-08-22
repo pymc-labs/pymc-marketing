@@ -959,9 +959,9 @@ class MMM(
     def channel_contributions_forward_pass(
         self, channel_data: npt.NDArray[np.float64]
     ) -> npt.NDArray[np.float64]:
-        """Evaluate the channel contribution for a given channel data and a fitted model.
+        """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
 
-        Hence, the forward pass.We return the contribution in the original scale of the target variable.
+        We return the contribution in the original scale of the target variable.
 
         Parameters
         ----------
