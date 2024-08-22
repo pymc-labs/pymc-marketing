@@ -47,6 +47,40 @@ except ImportError:
         return X
 
 
+def create_sample_kwargs(
+    sampler_config: dict[str, Any],
+    progressbar: bool,
+    random_seed,
+    **kwargs,
+) -> dict[str, Any]:
+    """Create the dictionary of keyword arguments for `pm.sample`.
+
+    Parameters
+    ----------
+    sampler_config : dict
+        The configuration dictionary for the sampler.
+    progressbar : bool
+        Whether to show the progress bar during sampling.
+    random_seed : RandomState
+        The random seed for the sampler.
+    **kwargs : Any
+        Additional keyword arguments to pass to the sampler.
+
+    Returns
+    -------
+    dict
+        The dictionary of keyword arguments for `pm.sample`.
+
+    """
+    sampler_config = sampler_config.copy()
+    # Set the progress bar but allow it to be overridden by kwargs
+    sampler_config["progressbar"] = sampler_config.get("progressbar", progressbar)
+    sampler_config["random_seed"] = sampler_config.get("random_seed", random_seed)
+    sampler_config.update(**kwargs)
+
+    return sampler_config
+
+
 class ModelBuilder(ABC):
     """Base class for building models with PyMC Marketing.
 
@@ -552,14 +586,14 @@ class ModelBuilder(ABC):
         if not hasattr(self, "model"):
             self.build_model(self.X, self.y)
 
-        sampler_config = self.sampler_config.copy()
-        sampler_config["progressbar"] = progressbar
-        sampler_config["random_seed"] = random_seed
-        sampler_config.update(**kwargs)
-
-        sampler_args = {**self.sampler_config, **kwargs}
+        sampler_kwargs = create_sample_kwargs(
+            self.sampler_config,
+            progressbar,
+            random_seed,
+            **kwargs,
+        )
         with self.model:
-            idata = pm.sample(**sampler_args)
+            idata = pm.sample(**sampler_kwargs)
 
         if self.idata:
             self.idata = self.idata.copy()
