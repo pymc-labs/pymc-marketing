@@ -98,9 +98,7 @@ class MVITS:
             "all_sources": [
                 *list(existing_sales.columns),
                 "new",
-            ],  # for non-saturated market only
-            # "all_sources": list(existing_sales.columns)
-            # + ["new"],  # for non-saturated market only
+            ],
         }
 
         with pm.Model(coords=coords) as model:
@@ -119,7 +117,6 @@ class MVITS:
                 "intercept",
                 mu=pm.math.mean(existing_sales[:treatment_time], axis=0),
                 sigma=np.std(existing_sales[:treatment_time], axis=0),
-                # sigma=20,
                 dims="background_product",
             )
 
