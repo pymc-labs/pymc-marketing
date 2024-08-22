@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""Plotting functions for the MMM."""
+
 import warnings
 from collections.abc import Generator, MutableMapping, Sequence
 from itertools import product
@@ -29,11 +31,39 @@ Coords = dict[str, Values]
 
 
 def get_plot_coords(coords: Coords, non_grid_names: set[str]) -> Coords:
+    """Get the plot coordinates.
+
+    Parameters
+    ----------
+    coords : Coords
+        The coordinates to get the plot coordinates from.
+    non_grid_names : set[str]
+        The names to exclude from the grid.
+
+    Returns
+    -------
+    Coords
+        The plot coordinates.
+
+    """
     plot_coord_names = list(key for key in coords.keys() if key not in non_grid_names)
     return {name: np.array(coords[name]) for name in plot_coord_names}
 
 
 def get_total_coord_size(coords: Coords) -> int:
+    """Get the total size of the coordinates.
+
+    Parameters
+    ----------
+    coords : Coords
+        The coordinates to get the total size of.
+
+    Returns
+    -------
+    int
+        The total size of the coordinates.
+
+    """
     total_size: int = (
         1 if coords == {} else np.prod([len(values) for values in coords.values()])  # type: ignore
     )
@@ -47,6 +77,21 @@ def set_subplot_kwargs_defaults(
     subplot_kwargs: MutableMapping[str, Any],
     total_size: int,
 ) -> None:
+    """Set the defaults for the subplot kwargs.
+
+    Parameters
+    ----------
+    subplot_kwargs : MutableMapping[str, Any]
+        The subplot kwargs to set the defaults for.
+    total_size : int
+        The total size of the coordinates.
+
+    Raises
+    ------
+    ValueError
+        If both `ncols` and `nrows` are specified.
+
+    """
     if "ncols" in subplot_kwargs and "nrows" in subplot_kwargs:
         raise ValueError("Only specify one")
 
@@ -62,7 +107,19 @@ def set_subplot_kwargs_defaults(
 def selections(
     coords: Coords,
 ) -> Generator[dict[str, Any], None, None]:
-    """Helper to create generator of selections."""
+    """Create generator of selections.
+
+    Parameters
+    ----------
+    coords : Coords
+        The coordinates to create the selections from.
+
+    Yields
+    ------
+    dict[str, Any]
+        The selections.
+
+    """
     coord_names = coords.keys()
     for values in product(*coords.values()):
         yield {name: value for name, value in zip(coord_names, values, strict=True)}
@@ -152,6 +209,25 @@ def random_samples(
     n_chains: int,
     n_draws: int,
 ) -> list[tuple[int, int]]:
+    """Generate random samples from the chains and draws.
+
+    Parameters
+    ----------
+    rng : np.random.Generator
+        Random number generator
+    n : int
+        Number of samples to generate
+    n_chains : int
+        Number of chains
+    n_draws : int
+        Number of draws
+
+    Returns
+    -------
+    list[tuple[int, int]]
+        The random samples
+
+    """
     combinations = list(product(range(n_chains), range(n_draws)))
 
     return [

@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""Utility functions for PyMC Marketing."""
+
 import warnings
 from pathlib import Path
 
@@ -18,6 +20,18 @@ import arviz as az
 
 
 def from_netcdf(filepath: str | Path) -> az.InferenceData:
+    """Load inference data from a netcdf file.
+
+    Parameters
+    ----------
+    filepath : str or Path
+        The path to the netcdf file.
+
+    Returns
+    -------
+    az.InferenceData
+        The inference data.
+    """
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",

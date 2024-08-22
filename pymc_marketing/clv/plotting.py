@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""Plotting functions for the CLV module."""
+
 from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
@@ -181,9 +183,7 @@ def plot_frequency_recency_matrix(
     ax: plt.Axes | None = None,
     **kwargs,
 ) -> plt.Axes:
-    """
-    Plot expected transactions in *future_t* time periods as a heatmap
-    based on customer population *frequency* and *recency*.
+    """Plot expected transactions in *future_t* time periods as a heatmap based on customer population *frequency* and *recency*.
 
     Parameters
     ----------
@@ -209,7 +209,8 @@ def plot_frequency_recency_matrix(
     Returns
     -------
     axes: matplotlib.AxesSubplot
-    """
+
+    """  # noqa: E501
     if max_frequency is None:
         max_frequency = int(model.data["frequency"].max())
 
@@ -277,8 +278,7 @@ def plot_probability_alive_matrix(
     ax: plt.Axes | None = None,
     **kwargs,
 ) -> plt.Axes:
-    """
-    Plot probability alive matrix as a heatmap based on customer population *frequency* and *recency*.
+    """Plot probability alive matrix as a heatmap based on customer population *frequency* and *recency*.
 
     Parameters
     ----------
@@ -302,8 +302,8 @@ def plot_probability_alive_matrix(
     Returns
     -------
     axes: matplotlib.AxesSubplot
-    """
 
+    """
     if max_frequency is None:
         max_frequency = int(model.data["frequency"].max())
 
