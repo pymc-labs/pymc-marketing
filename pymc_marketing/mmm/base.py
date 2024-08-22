@@ -896,6 +896,11 @@ class MMMModelBuilder(ModelBuilder):
 
     def graphviz(self, **kwargs):
         """Get the graphviz representation of the model.
+        
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments for the `pm.model_to_graphviz` function
 
         Returns
         -------
