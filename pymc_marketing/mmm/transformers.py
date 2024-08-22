@@ -239,7 +239,6 @@ def geometric_adstock(
     alpha = check_parameters(
         alpha, [pt.gt(alpha, 0), pt.lt(alpha, 1)], msg="0 <= alpha <= 1"
     ).eval()
-    l_max = check_parameters(l_max, [pt.gt(l_max, 0)], msg="l_max >= 0").eval()
 
     w = pt.power(pt.as_tensor(alpha)[..., None], pt.arange(l_max, dtype=x.dtype))
     w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w

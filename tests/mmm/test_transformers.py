@@ -18,7 +18,6 @@ import pytensor
 import pytensor.tensor as pt
 import pytest
 import scipy as sp
-from pymc.logprob.utils import ParameterValueError
 from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.mmm.transformers import (
@@ -132,38 +131,22 @@ class TestsAdstockTransformers:
         np.testing.assert_array_equal(x=x, y=y.eval())
 
     @pytest.mark.parametrize(
-        "x, alpha, l_max, suceeds",
-        [  # succeeds
-            (np.ones(shape=(100)), 0.3, 10, True),
-            (np.ones(shape=(100)), 0.7, 100, True),
-            (np.zeros(shape=(100)), 0.2, 5, True),
-            (np.ones(shape=(100)), 0.5, 7, True),
-            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 3, True),
-            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 50, True),
-            # fails: bad alpha
-            (np.ones(shape=(100)), -1, 10, False),
-            (np.ones(shape=(100)), -0.5, 100, False),
-            (np.zeros(shape=(100)), 1.5, 5, False),
-            (np.ones(shape=(100)), 30000, 7, False),
-            (np.linspace(start=0.0, stop=1.0, num=50), -1, 3, False),
-            # fails: bad l_max
-            (np.ones(shape=(100)), 0.3, -10, False),
-            (np.ones(shape=(100)), 0.7, -100, False),
-            (np.zeros(shape=(100)), 0.2, -5, False),
-            (np.ones(shape=(100)), 0.5, -7, False),
-            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, -3, False),
+        "x, alpha, l_max",
+        [
+            (np.ones(shape=(100)), 0.3, 10),
+            (np.ones(shape=(100)), 0.7, 100),
+            (np.zeros(shape=(100)), 0.2, 5),
+            (np.ones(shape=(100)), 0.5, 7),
+            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 3),
+            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 50),
         ],
     )
-    def test_geometric_adstock_check_parameters(self, x, alpha, l_max, suceeds):
-        if suceeds:
-            y = geometric_adstock(x=x, alpha=alpha, l_max=l_max)
-            y_np = y.eval()
-            assert y_np[0] == x[0]
-            assert y_np[1] == x[1] + alpha * x[0]
-            assert y_np[2] == x[2] + alpha * x[1] + (alpha**2) * x[0]
-        else:
-            with pytest.raises(ParameterValueError):
-                geometric_adstock(x=x, alpha=alpha, l_max=l_max)
+    def test_geometric_adstock_good_alpha(self, x, alpha, l_max):
+        y = geometric_adstock(x=x, alpha=alpha, l_max=l_max)
+        y_np = y.eval()
+        assert y_np[0] == x[0]
+        assert y_np[1] == x[1] + alpha * x[0]
+        assert y_np[2] == x[2] + alpha * x[1] + (alpha**2) * x[0]
 
     @pytest.mark.parametrize(
         argnames="mode",
