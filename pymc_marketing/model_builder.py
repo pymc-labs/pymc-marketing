@@ -548,6 +548,10 @@ class ModelBuilder(ABC):
         self._generate_and_preprocess_model_data(X, y_df.values.flatten())
         if self.X is None or self.y is None:
             raise ValueError("X and y must be set before calling build_model!")
+        if self.output_var in X.columns:
+            raise ValueError(
+                f"X includes a column named '{self.output_var}', which conflicts with the target variable."
+            )
 
         if not hasattr(self, "model"):
             self.build_model(self.X, self.y)
