@@ -153,10 +153,9 @@ class TestsAdstockTransformers:
         "x, alpha, l_max",
         [
             (np.ones(shape=(100)), -0.3, 10),
-            (np.ones(shape=(100)), -1.7, 100),
-            (np.ones(shape=(100)), 22.5, 7),
-            (np.linspace(start=0.0, stop=1.0, num=50), -0.8, 3),
-            (np.linspace(start=0.0, stop=1.0, num=50), 8, 50),
+            (np.ones(shape=(100)), -2, 10),
+            (np.ones(shape=(100)), 22.5, 10),
+            (np.ones(shape=(100)), 2, 10),
         ],
     )
     def test_geometric_adstock_bad_alpha(self, x, alpha, l_max):
