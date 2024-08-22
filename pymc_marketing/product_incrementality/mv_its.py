@@ -69,8 +69,13 @@ class MVITS:
         zero_sales = np.zeros(self.data[self.treatment_sales].shape, dtype=np.int32)
         self.counterfactual_model = pm.do(self.model, {"treatment_sales": zero_sales})
         with self.counterfactual_model:
-            self.idata_counterfactual = pm.sample_posterior_predictive(
-                self.idata, var_names=["mu", "y"], random_seed=self.rng
+            self.idata.extend(
+                pm.sample_posterior_predictive(
+                    self.idata,
+                    var_names=["mu", "y"],
+                    random_seed=self.rng,
+                    predictions=True,
+                )
             )
 
         return
@@ -173,10 +178,7 @@ class MVITS:
                 f"variable must be either 'mu' or 'y', not {variable}"
             )  # pragma: no cover
 
-        return (
-            self.idata.posterior_predictive["mu"]
-            - self.idata_counterfactual.posterior_predictive["mu"]
-        )
+        return self.idata.posterior_predictive["mu"] - self.idata.predictions["mu"]
 
     def plot_fit(self, variable="mu"):
         """Plots the model fit (posterior predictive) of the background products."""
@@ -232,7 +234,7 @@ class MVITS:
         for i, background_product in enumerate(background_products):
             az.plot_hdi(
                 x,
-                self.idata_counterfactual.posterior_predictive[variable]
+                self.idata.predictions[variable]
                 .transpose(..., "time")
                 .sel(background_product=background_product),
                 fill_kwargs={
@@ -294,7 +296,7 @@ class MVITS:
                 background_product=background_product
             )
             total_sales = (
-                self.idata_counterfactual.posterior_predictive[variable]
+                self.idata.predictions[variable]
                 .transpose(..., "time")
                 .sum(dim="background_product")
             )
