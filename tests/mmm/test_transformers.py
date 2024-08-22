@@ -160,8 +160,8 @@ class TestsAdstockTransformers:
         ],
     )
     def test_geometric_adstock_bad_alpha(self, x, alpha, l_max):
+        y = geometric_adstock(x=x, alpha=alpha, l_max=l_max)
         with pytest.raises(ParameterValueError):
-            y = geometric_adstock(x=x, alpha=alpha, l_max=l_max)
             y.eval()
 
     @pytest.mark.parametrize(
