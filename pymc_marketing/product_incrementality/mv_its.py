@@ -153,13 +153,15 @@ class MVITS:
             )
 
             # likelihood
-            pm.Normal(
+            normal_dist = pm.Normal.dist(mu=mu, sigma=sigma)
+            pm.Truncated(
                 "y",
-                mu=mu,
-                sigma=sigma,
+                normal_dist,
+                lower=0,
                 observed=_existing_sales,
                 dims=("time", "background_product"),
             )
+
         return model
 
     @property
