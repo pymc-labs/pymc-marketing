@@ -405,7 +405,8 @@ def adstock_from_dict(data: dict) -> AdstockTransformation:
     lookup_name = data.pop("lookup_name")
     cls = ADSTOCK_TRANSFORMATIONS[lookup_name]
 
-    data["priors"] = {k: Prior.from_json(v) for k, v in data["priors"].items()}
+    if "priors" in data:
+        data["priors"] = {k: Prior.from_json(v) for k, v in data["priors"].items()}
     return cls(**data)
 
 
