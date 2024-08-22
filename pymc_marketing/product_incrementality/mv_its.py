@@ -24,8 +24,11 @@ HDI_ALPHA = 0.5
 
 
 class MVITS:
-    """Class to perform a multivariate interrupted time series analysis with the
-    specific intent of determining where the sales of a new product came from."""
+    """Multivariate Interrupted Time Series class.
+
+    Class to perform a multivariate interrupted time series analysis with the
+    specific intent of determining where the sales of a new product came from.
+    """
 
     def __init__(
         self,
@@ -90,7 +93,6 @@ class MVITS:
         alpha_background=0.5,
     ):
         """Return a PyMC model for a multivariate interrupted time series analysis."""
-
         if not existing_sales.index.equals(treatment_sales.index):
             raise ValueError(  # pragma: no cover
                 "Index of existing_sales and treatment_sales must match."
@@ -181,8 +183,7 @@ class MVITS:
         return self.idata.posterior_predictive["mu"] - self.idata.predictions["mu"]
 
     def plot_fit(self, variable="mu"):
-        """Plots the model fit (posterior predictive) of the background products."""
-
+        """Plot the model fit (posterior predictive) of the background products."""
         if variable not in ["mu", "y"]:
             raise ValueError(
                 f"variable must be either 'mu' or 'y', not {variable}"
@@ -216,8 +217,11 @@ class MVITS:
         return ax
 
     def plot_counterfactual(self, variable="mu"):
-        """Plots the predicted sales of the background products under the counterfactual
-        scenario of never releasing the new product."""
+        """Plot counterfactual scenario.
+
+        Plot the predicted sales of the background products under the counterfactual
+        scenario of never releasing the new product.
+        """
         fig, ax = plt.subplots()
 
         if variable not in ["mu", "y"]:
@@ -253,8 +257,11 @@ class MVITS:
         return ax
 
     def plot_causal_impact_sales(self):
-        """Plot the inferred causal impact of the new product on the sales of the
-        background products."""
+        """Plot causal impact of sales.
+
+        Plot the inferred causal impact of the new product on the sales of the
+        background products.
+        """
         fig, ax = plt.subplots()
 
         # plot posterior predictive distribution of sales for each of the background products
@@ -343,6 +350,7 @@ def generate_saturated_data(
     market_share_labels,
     rng: np.random.Generator,
 ):
+    """Generate synthetic data for the MVITS model, assuming market is saturated."""
     rates = np.array(
         treatment_time * market_shares_before
         + (n_observations - treatment_time) * market_shares_after
@@ -379,10 +387,11 @@ def generate_unsaturated_data(
     market_share_labels: list[str],
     rng: np.random.Generator,
 ):
-    """This function generates synthetic data for the MVITS model. Notably, we can
-    define different total sales levels before and after the introduction of the new
-    model"""
+    """Generate synthetic data for the MVITS model.
 
+    Notably, we can define different total sales levels before and after the
+    introduction of the new model.
+    """
     rates = np.array(
         treatment_time * market_shares_before
         + (n_observations - treatment_time) * market_shares_after

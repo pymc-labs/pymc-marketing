@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""Product Incrementality module."""
+
 from pymc_marketing.product_incrementality.mv_its import (
     MVITS,
     generate_saturated_data,
