@@ -172,9 +172,12 @@ def plot_hdi_forest(mmm: MMM, var_names: list) -> plt.Figure:
 
 
 def calc_metrics(
-    y_true: np.ndarray, y_pred: np.ndarray, prefix: str | None = None
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    metrics_to_calculate: list[str] | None = None,
+    prefix: str | None = None,
 ) -> dict[str, float]:
-    """Calculate metrics including R-squared, RMSE, NRMSE, MAE, NMAE, and MAPE for a given true and predicted dataset.
+    """Calculate evaluation metrics for a given true and predicted dataset.
 
     Parameters
     ----------
@@ -182,6 +185,15 @@ def calc_metrics(
         True values for the dataset.
     y_pred : np.ndarray
         Predictions for the dataset.
+    metrics_to_calculate : list of str or None, optional
+        List of metrics to calculate. Options include:
+            * `r_squared`: Bayesian R-squared.
+            * `rmse`: Root Mean Squared Error.
+            * `nrmse`: Normalized Root Mean Squared Error.
+            * `mae`: Mean Absolute Error.
+            * `nmae`: Normalized Mean Absolute Error.
+            * `mape`: Mean Absolute Percentage Error.
+        Defaults to all metrics if None.
     prefix : str or None, optional
         Prefix to label the metrics (e.g., 'train', 'test'). Defaults to None.
 
@@ -195,45 +207,27 @@ def calc_metrics(
     else:
         prefix += "_"
 
-    metrics = {
-        f"{prefix}r_squared": np.nan,
-        f"{prefix}rmse": np.nan,
-        f"{prefix}nrmse": np.nan,
-        f"{prefix}mae": np.nan,
-        f"{prefix}nmae": np.nan,
-        f"{prefix}mape": np.nan,
+    if metrics_to_calculate is None:
+        metrics_to_calculate = ["r_squared", "rmse", "nrmse", "mae", "nmae", "mape"]
+
+    metric_functions = {
+        "r_squared": lambda y_true, y_pred: az.r2_score(y_true, y_pred)["r2"],
+        "rmse": root_mean_squared_error,
+        "nrmse": nrmse,
+        "mae": mean_absolute_error,
+        "nmae": nmae,
+        "mape": mean_absolute_percentage_error,
     }
 
-    # Calculate Bayesian R-squared
-    metrics[f"{prefix}r_squared"] = az.r2_score(y_true, y_pred)["r2"]
-    print(
-        f"{prefix.replace('_', ' ').title()} R-Squared = {metrics[f'{prefix}r_squared'] * 100:.2f}%"
-    )
+    metrics = {}
 
-    # Calculate RMSE
-    metrics[f"{prefix}rmse"] = root_mean_squared_error(y_true, y_pred)
-    print(f"{prefix.replace('_', ' ').title()} RMSE = {metrics[f'{prefix}rmse']:.4f}")
-
-    # Calculate NRMSE
-    metrics[f"{prefix}nrmse"] = nrmse(y_true, y_pred)
-    print(
-        f"{prefix.replace('_', ' ').title()} NRMSE = {metrics[f'{prefix}nrmse'] * 100:.2f}%"
-    )
-
-    # Calculate MAE
-    metrics[f"{prefix}mae"] = mean_absolute_error(y_true, y_pred)
-    print(f"{prefix.replace('_', ' ').title()} MAE = {metrics[f'{prefix}mae']:.4f}")
-
-    # Calculate NMAE
-    metrics[f"{prefix}nmae"] = nmae(y_true, y_pred)
-    print(
-        f"{prefix.replace('_', ' ').title()} NMAE = {metrics[f'{prefix}nmae'] * 100:.2f}%"
-    )
-
-    # Calculate MAPE
-    metrics[f"{prefix}mape"] = mean_absolute_percentage_error(y_true, y_pred)
-    print(
-        f"{prefix.replace('_', ' ').title()} MAPE = {metrics[f'{prefix}mape'] * 100:.2f}%"
-    )
+    for metric in metrics_to_calculate:
+        if metric in metric_functions:
+            metrics[f"{prefix}{metric}"] = metric_functions[metric](y_true, y_pred)
+            print(
+                f"{prefix.replace('_', ' ').title()} {metric.upper()} = {metrics[f'{prefix}{metric}'] * 100:.2f}%"
+                if metric in ["r_squared", "nrmse", "nmae", "mape"]
+                else f"{metrics[f'{prefix}{metric}']:.4f}"
+            )
 
     return metrics
