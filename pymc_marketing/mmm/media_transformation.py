@@ -20,9 +20,10 @@ Create a media transformation for online and offline media channels:
 .. code-block:: python
 
     from pymc_marketing.mmm import (
-        MichaelisMentenSaturation,
         GeometricAdstock,
         HillSaturation,
+        MediaTransformation,
+        MichaelisMentenSaturation,
     )
 
     offline_media_transform = MediaTransformation(
@@ -41,7 +42,10 @@ Create a media configurations for offline and online media channels:
 
 .. code-block:: python
 
-    from pymc_marketing.mmm import MediaConfigs, MediaConfig
+    from pymc_marketing.mmm import (
+        MediaConfig,
+        MediaConfigs,
+    )
 
     media_configs: MediaConfigs = [
         MediaConfig(
@@ -68,7 +72,6 @@ Apply the media transformation to media data in PyMC model:
 
     df: pd.DataFrame = ...
 
-
     media_columns = get_media_values(media_configs)
 
     coords = {
@@ -93,10 +96,10 @@ from dataclasses import dataclass
 import pymc as pm
 import pytensor.tensor as pt
 
-from pymc_marketing.mmm import (
+from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
-    SaturationTransformation,
 )
+from pymc_marketing.mmm.components.saturation import SaturationTransformation
 
 
 @dataclass
