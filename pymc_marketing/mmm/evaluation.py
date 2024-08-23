@@ -16,7 +16,6 @@ import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
-from loguru import logger
 from sklearn.metrics import (
     mean_absolute_error,
     mean_absolute_percentage_error,
@@ -29,8 +28,10 @@ from pymc_marketing.mmm.delayed_saturated_mmm import MMM
 # Same error metric as Robyn
 def nrmse(y_true, y_pred):
     """
-    Normalized Root Mean Square Error. Normalization allows for comparison across
-    different data sets and methodologies. e.g. NRMSE is one of the key metrics used
+
+    Normalized Root Mean Square Error. 
+    Normalization allows for comparison across different data sets and methodologies.
+    e.g. NRMSE is one of the key metrics used
     in Robyn MMMs.
     Args:
         y_true ([np.array]): test samples
@@ -38,11 +39,13 @@ def nrmse(y_true, y_pred):
     Returns:
         [float]: normalized root mean square error
     """
+
     return root_mean_squared_error(y_true, y_pred) / (y_true.max() - y_true.min())
 
 
 def nmae(y_true, y_pred):
     """
+
     Normalized Mean Absolute Error. Normalization allows for comparison across
     different data sets and methodologies.
     Args:
@@ -56,12 +59,15 @@ def nmae(y_true, y_pred):
 
 def calc_model_diagnostics(mmm: MMM) -> tuple[dict[str, float], az.ELPDData]:
     """
+
     Calculate model diagnostics including divergences and Bayesian LOOCV metrics.
 
-    Parameters:
+    Parameters
+    ----------
     - mmm: Model object with inference data
 
-    Returns:
+    Returns
+    -------
     - Tuple[Dict[str, float], az.ELPDData]: A tuple containing a dictionary of
       model diagnostics and the model_loo object
 
@@ -88,9 +94,9 @@ def calc_model_diagnostics(mmm: MMM) -> tuple[dict[str, float], az.ELPDData]:
         "model_diagnostic_step_size": step_size,
     }
     if divergences != 0:
-        logger.error(f"Model has {divergences} divergences")
+        print(f"Model has {divergences} divergences")
     else:
-        logger.success("No divergences!")
+        print("No divergences!")
 
     # Calculate elemwise log_likelihood of model given posteriors
     pm.compute_log_likelihood(
@@ -106,7 +112,7 @@ def calc_model_diagnostics(mmm: MMM) -> tuple[dict[str, float], az.ELPDData]:
     }
 
     # Display LOOCV metrics (including the Pareto k values which aren't logged in MLFlow)
-    logger.info(f"LOOCV metrics: {model_loo}")
+    print(f"LOOCV metrics: {model_loo}")
     # Combine diagnostics and LOOCV metrics
     model_diagnostics.update(loocv_metrics)
 
@@ -115,14 +121,17 @@ def calc_model_diagnostics(mmm: MMM) -> tuple[dict[str, float], az.ELPDData]:
 
 def plot_hdi_forest(mmm: MMM, var_names: list) -> plt.Figure:
     """
+
     Plot a forest plot to compare high-density intervals (HDIs) from a given set of
     posterior distributions, as well as their r-hat statistic.
 
-    Parameters:
+    Parameters
+    ----------
     - mmm: Model object with inference data
     - var_names: list: List of variable names to include in the forest plot
 
-    Returns:
+    Returns
+    -------
     - plt.Figure: The matplotlib figure object
     """
     # Ensure that mmm has the required 'idata' attribute and is not None
@@ -154,14 +163,17 @@ def calc_metrics(
     y_true: np.ndarray, y_pred: np.ndarray, prefix: str | None = None
 ) -> dict[str, float]:
     """
+
     Calculate metrics including R-squared, RMSE, NRMSE, MAE, NMAE, and MAPE for a given true and predicted dataset.
 
-    Parameters:
+    Parameters
+    ----------
     - y_true: np.ndarray: True values for the dataset.
     - y_pred: np.ndarray: Predictions for the dataset.
     - prefix: Optional[str]: Prefix to label the metrics (e.g., 'train', 'test'). Defaults to None.
 
-    Returns:
+    Returns
+    -------
     - Dict[str, float]: A dictionary containing calculated metrics.
     """
     if prefix is None:
@@ -181,41 +193,39 @@ def calc_metrics(
     try:
         # Calculate Bayesian R-squared
         metrics[f"{prefix}r_squared"] = az.r2_score(y_true, y_pred)["r2"]
-        logger.info(
+        print(
             f"{prefix.replace('_', ' ').title()} R-Squared = {metrics[f'{prefix}r_squared'] * 100:.2f}%"
         )
 
         # Calculate RMSE
         metrics[f"{prefix}rmse"] = root_mean_squared_error(y_true, y_pred)
-        logger.info(
+        print(
             f"{prefix.replace('_', ' ').title()} RMSE = {metrics[f'{prefix}rmse']:.4f}"
         )
 
         # Calculate NRMSE
         metrics[f"{prefix}nrmse"] = nrmse(y_true, y_pred)
-        logger.info(
+        print(
             f"{prefix.replace('_', ' ').title()} NRMSE = {metrics[f'{prefix}nrmse'] * 100:.2f}%"
         )
 
         # Calculate MAE
         metrics[f"{prefix}mae"] = mean_absolute_error(y_true, y_pred)
-        logger.info(
-            f"{prefix.replace('_', ' ').title()} MAE = {metrics[f'{prefix}mae']:.4f}"
-        )
+        print(f"{prefix.replace('_', ' ').title()} MAE = {metrics[f'{prefix}mae']:.4f}")
 
         # Calculate NMAE
         metrics[f"{prefix}nmae"] = nmae(y_true, y_pred)
-        logger.info(
+        print(
             f"{prefix.replace('_', ' ').title()} NMAE = {metrics[f'{prefix}nmae'] * 100:.2f}%"
         )
 
         # Calculate MAPE
         metrics[f"{prefix}mape"] = mean_absolute_percentage_error(y_true, y_pred)
-        logger.info(
+        print(
             f"{prefix.replace('_', ' ').title()} MAPE = {metrics[f'{prefix}mape'] * 100:.2f}%"
         )
 
     except ValueError:
-        logger.error("Some NaNs were present")
+        print("Some NaNs were present")
 
     return metrics
