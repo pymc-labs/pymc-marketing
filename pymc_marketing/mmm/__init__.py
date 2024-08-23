@@ -39,6 +39,13 @@ from pymc_marketing.mmm.components.saturation import (
 )
 from pymc_marketing.mmm.delayed_saturated_mmm import MMM, DelayedSaturatedMMM
 from pymc_marketing.mmm.fourier import MonthlyFourier, YearlyFourier
+from pymc_marketing.mmm.media_transformation import (
+    MediaConfig,
+    MediaConfigs,
+    MediaTransformation,
+    apply_media_transformation,
+    get_media_values,
+)
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
@@ -46,6 +53,11 @@ from pymc_marketing.mmm.preprocessing import (
 from pymc_marketing.mmm.validating import validation_method_X, validation_method_y
 
 __all__ = [
+    "MediaTransformation",
+    "MediaConfigs",
+    "MediaConfig",
+    "apply_media_transformation",
+    "get_media_values",
     "AdstockTransformation",
     "BaseValidateMMM",
     "DelayedAdstock",
