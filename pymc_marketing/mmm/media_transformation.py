@@ -104,7 +104,25 @@ from pymc_marketing.mmm.components.saturation import SaturationTransformation
 
 @dataclass
 class MediaTransformation:
-    """Wrapper for applying adstock and saturation transformation to media data."""
+    """Wrapper for applying adstock and saturation transformation to media data.
+
+    Parameters
+    ----------
+    adstock : AdstockTransformation
+        The adstock transformation to apply.
+    saturation : SaturationTransformation
+        The saturation transformation to apply.
+    adstock_first : bool
+        Flag to apply the adstock transformation first.
+
+    Attributes
+    ----------
+    first : AdstockTransformation | SaturationTransformation
+        The first transformation to apply.
+    second : AdstockTransformation | SaturationTransformation
+        The second transformation to apply.
+
+    """
 
     adstock: AdstockTransformation
     saturation: SaturationTransformation
@@ -126,12 +144,42 @@ class MediaTransformation:
         x : pt.TensorLike
             The media data to transform.
         dim : str
-            The dimension to apply the transformations to.
+            The dimension of the parameters.
 
         Returns
         -------
         pt.TensorVariable
             The transformed media data.
+
+        Examples
+        --------
+        Apply the media transformation to media data:
+
+        .. code-block:: python
+
+            from pymc_marketing.mmm import (
+                GeometricAdstock,
+                HillSaturation,
+                MediaTransformation,
+            )
+
+            media_data = ...
+
+            media_transformation = MediaTransformation(
+                adstock=GeometricAdstock(l_max=15),
+                saturation=HillSaturation(),
+                adstock_first=True,
+            )
+
+            coords = {
+                "date": ...,
+                "media": ...,
+            }
+            with pm.Model(coords=coords) as model:
+                transformed_media_data = media_transformation(
+                    media_data,
+                    dim="media",
+                )
 
         """
         return self.second.apply(self.first.apply(x, dim), dim)
@@ -139,7 +187,18 @@ class MediaTransformation:
 
 @dataclass
 class MediaConfig:
-    """Configuration for a media transformation to certain media channels."""
+    """Configuration for a media transformation to certain media channels.
+
+    Parameters
+    ----------
+    name : str
+        The name of the media transformation and prefix of all media variables.
+    columns : list[str]
+        The media channels to apply the transformation to.
+    media_transformation : MediaTransformation
+        The media transformation to apply to the media channels.
+
+    """
 
     name: str
     columns: list[str]
