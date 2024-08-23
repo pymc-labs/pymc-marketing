@@ -224,6 +224,7 @@ def calc_metrics(
     for metric in metrics_to_calculate:
         if metric in metric_functions:
             metrics[f"{prefix}{metric}"] = metric_functions[metric](y_true, y_pred)
+            # Print the metrics in more human-readable format
             print(
                 f"{prefix.replace('_', ' ').title()} {metric.upper()} = {metrics[f'{prefix}{metric}'] * 100:.2f}%"
                 if metric in ["r_squared", "nrmse", "nmae", "mape"]
