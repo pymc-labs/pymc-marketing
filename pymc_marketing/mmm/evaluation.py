@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""Evaluation and diagnostics for MMM models."""
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -27,50 +28,58 @@ from pymc_marketing.mmm.delayed_saturated_mmm import MMM
 
 # Same error metric as Robyn
 def nrmse(y_true, y_pred):
-    """
+    """Calculate the Normalized Root Mean Square Error (NRMSE).
 
-    Normalized Root Mean Square Error. 
     Normalization allows for comparison across different data sets and methodologies.
-    e.g. NRMSE is one of the key metrics used
-    in Robyn MMMs.
-    Args:
-        y_true ([np.array]): test samples
-        y_pred ([np.array]): predicted samples
-    Returns:
-        [float]: normalized root mean square error
-    """
+    NRMSE is one of the key metrics used in Robyn MMMs.
 
+    Parameters
+    ----------
+    y_true : np.array
+        Test samples.
+    y_pred : np.array
+        Predicted samples.
+
+    Returns
+    -------
+    float
+        Normalized root mean square error.
+    """
     return root_mean_squared_error(y_true, y_pred) / (y_true.max() - y_true.min())
 
 
 def nmae(y_true, y_pred):
-    """
+    """Calculate the Normalized Mean Absolute Error (NMAE).
 
-    Normalized Mean Absolute Error. Normalization allows for comparison across
-    different data sets and methodologies.
-    Args:
-        y_true ([np.array]): test samples
-        y_pred ([np.array]): predicted samples
-    Returns:
-        [float]: normalized mean absolute error
+    Normalization allows for comparison across different data sets and methodologies.
+
+    Parameters
+    ----------
+    y_true : np.array
+        Test samples.
+    y_pred : np.array
+        Predicted samples.
+
+    Returns
+    -------
+    float
+        Normalized mean absolute error.
     """
     return mean_absolute_error(y_true, y_pred) / (y_true.max() - y_true.min())
 
 
 def calc_model_diagnostics(mmm: MMM) -> tuple[dict[str, float], az.ELPDData]:
-    """
-
-    Calculate model diagnostics including divergences and Bayesian LOOCV metrics.
+    """Calculate model diagnostics including divergences and Bayesian LOOCV metrics.
 
     Parameters
     ----------
-    - mmm: Model object with inference data
+    mmm : MMM
+        Model object with inference data.
 
     Returns
     -------
-    - Tuple[Dict[str, float], az.ELPDData]: A tuple containing a dictionary of
-      model diagnostics and the model_loo object
-
+    tuple of (dict of str to float, az.ELPDData)
+        A tuple containing a dictionary of model diagnostics and the model_loo object.
     """
     # Ensure that mmm has both idata and model attributes and that they are not None
     if not hasattr(mmm, "idata") or mmm.idata is None:
@@ -120,19 +129,22 @@ def calc_model_diagnostics(mmm: MMM) -> tuple[dict[str, float], az.ELPDData]:
 
 
 def plot_hdi_forest(mmm: MMM, var_names: list) -> plt.Figure:
-    """
+    """Plot a forest plot to compare high-density intervals (HDIs).
 
     Plot a forest plot to compare high-density intervals (HDIs) from a given set of
-    posterior distributions, as well as their r-hat statistic.
+    posterior distributions, as well as their r-hat statistics.
 
     Parameters
     ----------
-    - mmm: Model object with inference data
-    - var_names: list: List of variable names to include in the forest plot
+    mmm : MMM
+        Model object with inference data.
+    var_names : list
+        List of variable names to include in the forest plot.
 
     Returns
     -------
-    - plt.Figure: The matplotlib figure object
+    plt.Figure
+        The matplotlib figure object.
     """
     # Ensure that mmm has the required 'idata' attribute and is not None
     if not hasattr(mmm, "idata") or mmm.idata is None:
@@ -147,13 +159,13 @@ def plot_hdi_forest(mmm: MMM, var_names: list) -> plt.Figure:
         var_names=var_names,
         combined=True,
         ax=ax,
-        hdi_prob=0.95,
+        hdi_prob=0.94,
         # Also plot the split R-hat statistic
         r_hat=True,
     )
 
     # Set the title for the figure
-    fig.suptitle("Posterior Distributions: 95.0% HDI")
+    fig.suptitle("Posterior Distributions: 94.0% HDI")
 
     # Return the figure
     return fig
@@ -162,19 +174,21 @@ def plot_hdi_forest(mmm: MMM, var_names: list) -> plt.Figure:
 def calc_metrics(
     y_true: np.ndarray, y_pred: np.ndarray, prefix: str | None = None
 ) -> dict[str, float]:
-    """
-
-    Calculate metrics including R-squared, RMSE, NRMSE, MAE, NMAE, and MAPE for a given true and predicted dataset.
+    """Calculate metrics including R-squared, RMSE, NRMSE, MAE, NMAE, and MAPE for a given true and predicted dataset.
 
     Parameters
     ----------
-    - y_true: np.ndarray: True values for the dataset.
-    - y_pred: np.ndarray: Predictions for the dataset.
-    - prefix: Optional[str]: Prefix to label the metrics (e.g., 'train', 'test'). Defaults to None.
+    y_true : np.ndarray
+        True values for the dataset.
+    y_pred : np.ndarray
+        Predictions for the dataset.
+    prefix : str or None, optional
+        Prefix to label the metrics (e.g., 'train', 'test'). Defaults to None.
 
     Returns
     -------
-    - Dict[str, float]: A dictionary containing calculated metrics.
+    dict of str to float
+        A dictionary containing calculated metrics.
     """
     if prefix is None:
         prefix = ""
@@ -190,42 +204,36 @@ def calc_metrics(
         f"{prefix}mape": np.nan,
     }
 
-    try:
-        # Calculate Bayesian R-squared
-        metrics[f"{prefix}r_squared"] = az.r2_score(y_true, y_pred)["r2"]
-        print(
-            f"{prefix.replace('_', ' ').title()} R-Squared = {metrics[f'{prefix}r_squared'] * 100:.2f}%"
-        )
+    # Calculate Bayesian R-squared
+    metrics[f"{prefix}r_squared"] = az.r2_score(y_true, y_pred)["r2"]
+    print(
+        f"{prefix.replace('_', ' ').title()} R-Squared = {metrics[f'{prefix}r_squared'] * 100:.2f}%"
+    )
 
-        # Calculate RMSE
-        metrics[f"{prefix}rmse"] = root_mean_squared_error(y_true, y_pred)
-        print(
-            f"{prefix.replace('_', ' ').title()} RMSE = {metrics[f'{prefix}rmse']:.4f}"
-        )
+    # Calculate RMSE
+    metrics[f"{prefix}rmse"] = root_mean_squared_error(y_true, y_pred)
+    print(f"{prefix.replace('_', ' ').title()} RMSE = {metrics[f'{prefix}rmse']:.4f}")
 
-        # Calculate NRMSE
-        metrics[f"{prefix}nrmse"] = nrmse(y_true, y_pred)
-        print(
-            f"{prefix.replace('_', ' ').title()} NRMSE = {metrics[f'{prefix}nrmse'] * 100:.2f}%"
-        )
+    # Calculate NRMSE
+    metrics[f"{prefix}nrmse"] = nrmse(y_true, y_pred)
+    print(
+        f"{prefix.replace('_', ' ').title()} NRMSE = {metrics[f'{prefix}nrmse'] * 100:.2f}%"
+    )
 
-        # Calculate MAE
-        metrics[f"{prefix}mae"] = mean_absolute_error(y_true, y_pred)
-        print(f"{prefix.replace('_', ' ').title()} MAE = {metrics[f'{prefix}mae']:.4f}")
+    # Calculate MAE
+    metrics[f"{prefix}mae"] = mean_absolute_error(y_true, y_pred)
+    print(f"{prefix.replace('_', ' ').title()} MAE = {metrics[f'{prefix}mae']:.4f}")
 
-        # Calculate NMAE
-        metrics[f"{prefix}nmae"] = nmae(y_true, y_pred)
-        print(
-            f"{prefix.replace('_', ' ').title()} NMAE = {metrics[f'{prefix}nmae'] * 100:.2f}%"
-        )
+    # Calculate NMAE
+    metrics[f"{prefix}nmae"] = nmae(y_true, y_pred)
+    print(
+        f"{prefix.replace('_', ' ').title()} NMAE = {metrics[f'{prefix}nmae'] * 100:.2f}%"
+    )
 
-        # Calculate MAPE
-        metrics[f"{prefix}mape"] = mean_absolute_percentage_error(y_true, y_pred)
-        print(
-            f"{prefix.replace('_', ' ').title()} MAPE = {metrics[f'{prefix}mape'] * 100:.2f}%"
-        )
-
-    except ValueError:
-        print("Some NaNs were present")
+    # Calculate MAPE
+    metrics[f"{prefix}mape"] = mean_absolute_percentage_error(y_true, y_pred)
+    print(
+        f"{prefix.replace('_', ' ').title()} MAPE = {metrics[f'{prefix}mape'] * 100:.2f}%"
+    )
 
     return metrics
