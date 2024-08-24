@@ -31,7 +31,6 @@ from pymc_marketing.mmm import (
 )
 from pymc_marketing.mmm.components.adstock import (
     ADSTOCK_TRANSFORMATIONS,
-    _get_adstock_function,
 )
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.prior import Prior
@@ -87,50 +86,12 @@ def test_default_prefix(adstock) -> None:
         assert value.startswith("adstock_")
 
 
-@pytest.mark.parametrize(
-    "name, adstock_cls, kwargs",
-    [
-        ("delayed", DelayedAdstock, {"l_max": 10}),
-        ("geometric", GeometricAdstock, {"l_max": 10}),
-    ],
-)
-def test_get_adstock_function(name, adstock_cls, kwargs):
-    # Test for a warning
-    with pytest.warns(DeprecationWarning, match="The preferred method of initializing"):
-        adstock = _get_adstock_function(name, **kwargs)
-
-    assert isinstance(adstock, adstock_cls)
-
-
 def test_adstock_no_negative_lmax():
     with pytest.raises(
         ValidationError,
         match="1 validation error for __init__\\nl_max\\n  Input should be greater than 0",
     ):
         DelayedAdstock(l_max=-1)
-
-
-@pytest.mark.parametrize(
-    "adstock",
-    adstocks(),
-)
-def test_get_adstock_function_passthrough(adstock) -> None:
-    id_before = id(adstock)
-    id_after = id(_get_adstock_function(adstock))
-
-    assert id_after == id_before
-
-
-def test_get_adstock_function_unknown():
-    with pytest.raises(
-        ValueError, match="Unknown adstock function: Unknown. Choose from"
-    ):
-        _get_adstock_function(function="Unknown")
-
-
-def test_get_adstock_function_unknown_wrong_type():
-    with pytest.raises(ValueError, match="Unknown adstock function: 1."):
-        _get_adstock_function(function=1)
 
 
 @pytest.mark.parametrize(
