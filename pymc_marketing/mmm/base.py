@@ -404,15 +404,17 @@ class MMMModelBuilder(ModelBuilder):
         else:
             fig = ax.figure
 
+        if original_scale:
+            posterior_predictive_data = apply_sklearn_transformer_across_dim(
+                data=posterior_predictive_data,
+                func=self.get_target_transformer().inverse_transform,
+                dim_name="date",
+            )
+
         for hdi_prob, alpha in zip((0.94, 0.50), (0.2, 0.4), strict=True):
             likelihood_hdi: DataArray = az.hdi(
                 ary=posterior_predictive_data, hdi_prob=hdi_prob
             )[self.output_var]
-
-            if original_scale:
-                likelihood_hdi = self.get_target_transformer().inverse_transform(
-                    likelihood_hdi
-                )
 
             ax.fill_between(
                 x=posterior_predictive_data.date,
