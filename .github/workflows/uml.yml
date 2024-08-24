@@ -1,10 +1,6 @@
 name: Update the UML Diagrams
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "pymc_marketing/**"
   push:
     types: [closed]
     branches: [main]
