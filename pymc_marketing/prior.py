@@ -231,6 +231,20 @@ def register_tensor_transform(name: str, transform: Transform) -> None:
     --------
     Register a custom transform function.
 
+    .. code-block:: python
+
+        from pymc_marketing.prior import (
+            Prior,
+            register_tensor_transform,
+        )
+
+        def custom_transform(x):
+            return x ** 2
+
+        register_tensor_transform("square", custom_transform)
+
+        custom_distribution = Prior("Normal", transform="square")
+
     """
     CUSTOM_TRANSFORMS[name] = transform
 
