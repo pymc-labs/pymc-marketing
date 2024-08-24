@@ -66,7 +66,7 @@ the parameters, and specifying the dims.
     )
 
 Create a transformed hierarchical normal prior by using the `transform`
-parameter.
+parameter. Here the "sigmoid" transformation comes from `pm.math`.
 
 .. code-block:: python
 
@@ -242,7 +242,8 @@ class Prior:
         Only allowed for Normal distribution.
     transform : str, optional
         The name of the transform to apply to the variable after it is
-        created, by default None or no transform.
+        created, by default None or no transform. The transformation must
+        be available in either `pytensor.tensor` or `pymc.math`.
 
     """
 
