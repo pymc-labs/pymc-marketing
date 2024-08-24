@@ -30,7 +30,7 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     register_saturation_transformation,
 )
-from pymc_marketing.mmm.delayed_saturated_mmm import MMM, BaseMMM, DelayedSaturatedMMM
+from pymc_marketing.mmm.mmm import MMM, BaseMMM
 from pymc_marketing.prior import Prior
 
 seed: int = sum(map(ord, "pymc_marketing"))
@@ -193,7 +193,7 @@ def test_plotting_media_transform_workflow(mmm_fitted, media_transform) -> None:
     plt.close()
 
 
-class TestDelayedSaturatedMMM:
+class TestMMM:
     def test_save_load_with_not_serializable_model_config(
         self, model_config_requiring_serialization, toy_X, toy_y
     ):
@@ -976,7 +976,7 @@ def test_plot_new_spend_contributions_original_scale(mmm_fitted) -> None:
 
 
 @pytest.fixture(scope="module")
-def mmm_with_prior(mmm) -> DelayedSaturatedMMM:
+def mmm_with_prior(mmm) -> MMM:
     n_chains = 1
     n_samples = 100
 
@@ -1062,36 +1062,6 @@ def test_add_lift_test_measurements_no_model() -> None:
         mmm.add_lift_test_measurements(
             pd.DataFrame(),
         )
-
-
-def test_delayed_saturated_mmm_raises_deprecation_warning() -> None:
-    match = "The DelayedSaturatedMMM class is deprecated and will be removed in 0.9.0"
-    with pytest.warns(
-        DeprecationWarning,
-        match=match,
-    ):
-        DelayedSaturatedMMM(
-            date_column="date",
-            channel_columns=["channel_1", "channel_2"],
-            adstock_max_lag=4,
-            control_columns=["control_1", "control_2"],
-        )
-
-
-def test_initialize_alternative_with_strings() -> None:
-    with pytest.warns(DeprecationWarning):
-        mmm = MMM(
-            date_column="date",
-            channel_columns=["channel_1", "channel_2"],
-            adstock_max_lag=4,
-            control_columns=["control_1", "control_2"],
-            adstock="delayed",
-            saturation="michaelis_menten",
-        )
-
-    assert isinstance(mmm.adstock, DelayedAdstock)
-    assert mmm.adstock.l_max == 4
-    assert isinstance(mmm.saturation, MichaelisMentenSaturation)
 
 
 def test_initialize_alternative_with_classes() -> None:
