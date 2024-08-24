@@ -17,7 +17,7 @@ import numpy as np
 import numpy.typing as npt
 
 
-def per_observation_crps(y_true: npt.ArrayLike, y_pred: npt.ArrayLike) -> npt.ArrayLike:
+def per_observation_crps(y_true: npt.NDArray, y_pred: npt.NDArray) -> npt.NDArray:
     """Compute the continuous ranked probability score (CRPS) for each observation.
 
     The CRPS — Continuous Ranked Probability Score — is a score function that compares a
@@ -66,9 +66,9 @@ def per_observation_crps(y_true: npt.ArrayLike, y_pred: npt.ArrayLike) -> npt.Ar
 
 
 def crps(
-    y_true: npt.ArrayLike,
-    y_pred: npt.ArrayLike,
-    sample_weight: npt.ArrayLike | None = None,
+    y_true: npt.NDArray,
+    y_pred: npt.NDArray,
+    sample_weight: npt.NDArray | None = None,
 ) -> float:
     """Compute the (possibly weighted) average of the continuous ranked probability score.
 
