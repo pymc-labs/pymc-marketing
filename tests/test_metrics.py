@@ -75,17 +75,21 @@ def test_per_observation_crps_is_one(y_true, y_pred, expected) -> None:
     argvalues=[
         (
             np.array([1, 2, 3]),
-            np.array([1, 2, 3])[None, ...],
+            np.vstack([np.array([1, 2, 3])[None, ...], np.array([1, 2, 3])[None, ...]]),
             0.0,
         ),
         (
             np.ones(shape=(3, 1)),
-            np.ones(shape=(3, 1))[None, ...],
+            np.vstack(
+                [np.ones(shape=(3, 1))[None, ...], np.ones(shape=(3, 1))[None, ...]]
+            ),
             0.0,
         ),
         (
             np.ones(shape=(3, 3)),
-            np.ones(shape=(3, 3))[None, ...],
+            np.vstack(
+                [np.ones(shape=(3, 3))[None, ...], np.ones(shape=(3, 3))[None, ...]]
+            ),
             0.0,
         ),
     ],
@@ -100,17 +104,29 @@ def test_crps_is_zero(y_true, y_pred, expected) -> None:
     argvalues=[
         (
             np.array([0, 1, 1]),
-            np.array([1, 0, 0])[None, ...],
+            np.vstack([np.array([1, 0, 0])[None, ...], np.array([1, 0, 0])[None, ...]]),
             1.0,
         ),
         (
             3 * np.ones(shape=(3, 1)),
-            4 * np.ones(shape=(3, 1))[None, ...],
+            4
+            * np.vstack(
+                [
+                    np.ones(shape=(3, 1))[None, ...],
+                    np.ones(shape=(3, 1))[None, ...],
+                ]
+            ),
             1.0,
         ),
         (
             18 * np.ones(shape=(3, 3)),
-            17 * np.ones(shape=(3, 3))[None, ...],
+            17
+            * np.vstack(
+                [
+                    np.ones(shape=(3, 3))[None, ...],
+                    np.ones(shape=(3, 3))[None, ...],
+                ]
+            ),
             1.0,
         ),
     ],
