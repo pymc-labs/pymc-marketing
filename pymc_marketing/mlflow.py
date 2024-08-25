@@ -441,6 +441,75 @@ class MMMRegistrar(mlflow.pyfunc.PythonModel):
     sample_kwargs : dict, optional
         Additional keyword arguments to pass to the selected sampling methods.
 
+    Examples
+    --------
+    MLFlow Registering for a PyMC-Marketing model:
+
+    .. code-block:: python
+
+        import pandas as pd
+
+        import mlflow
+
+        from pymc_marketing.mmm import (
+            GeometricAdstock,
+            LogisticSaturation,
+            MMM,
+        )
+        import pymc_marketing.mlflow
+        from pymc_marketing.mlflow import MMMRegistrar
+
+        pymc_marketing.mlflow.autolog(log_mmm=True)
+
+        # Usual PyMC-Marketing model code
+
+        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
+        data = pd.read_csv(data_url, parse_dates=["date_week"])
+
+        X = data.drop("y",axis=1)
+        y = data["y"]
+
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
+            date_column="date_week",
+            channel_columns=["x1", "x2"],
+            control_columns=[
+                "event_1",
+                "event_2",
+                "t",
+            ],
+            yearly_seasonality=2,
+        )
+
+        # Incorporate into MLflow workflow
+        mlflow_mmm = MMMRegistrar(
+            mmm,
+            extend_idata=False,
+            combined=True,
+            include_last_observations=False,
+            original_scale=True,
+        )
+        model_name = "my_mmm_model"
+
+        mlflow.set_experiment("MMM Experiment")
+
+        with mlflow.start_run():
+            idata = mmm.fit(X, y)
+
+            # Additional specific logging
+            fig = mmm.plot_components_contributions()
+            mlflow.log_figure(fig, "components.png")
+
+            # Register the model
+            mlflow.pyfunc.log_model(
+                artifact_path=model_name,
+                python_model=mlflow_mmm,
+            )
+            run_id = mlflow.active_run().info.run_id
+            model_uri = f"runs:/{run_id}/{model_name}"
+            mlflow.register_model(model_uri, model_name)
+
     """
 
     def __init__(
@@ -488,6 +557,7 @@ class MMMRegistrar(mlflow.pyfunc.PythonModel):
         ------
         ValueError
             If an unsupported prediction method is specified.
+
         """
         # Use the class-level predict_method if params is not provided or doesn't contain 'predict_method'
         params = params or {"predict_method": "predict"}
