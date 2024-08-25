@@ -31,6 +31,7 @@ from pymc_marketing.prior import (
     UnsupportedParameterizationError,
     UnsupportedShapeError,
     handle_dims,
+    register_tensor_transform,
 )
 
 
@@ -72,7 +73,8 @@ def test_handle_dims(x, dims, desired_dims, expected_fn) -> None:
 
 
 def test_missing_transform() -> None:
-    with pytest.raises(UnknownTransformError):
+    match = "Neither pytensor.tensor nor pymc.math have the function 'foo_bar'"
+    with pytest.raises(UnknownTransformError, match=match):
         Prior("Normal", transform="foo_bar")
 
 
@@ -608,3 +610,39 @@ def test_checks_param_value_types() -> None:
 def test_check_equality_with_numpy() -> None:
     dist = Prior("Normal", mu=np.array([1, 2, 3]), sigma=1)
     assert dist == dist.deepcopy()
+
+
+def clear_custom_transforms() -> None:
+    global CUSTOM_TRANSFORMS
+    CUSTOM_TRANSFORMS = {}
+
+
+def test_custom_transform() -> None:
+    new_transform_name = "foo_bar"
+    with pytest.raises(UnknownTransformError):
+        Prior("Normal", transform=new_transform_name)
+
+    register_tensor_transform(new_transform_name, lambda x: x**2)
+
+    dist = Prior("Normal", transform=new_transform_name)
+    prior = dist.sample_prior(samples=10)
+    df_prior = prior.to_dataframe()
+
+    np.testing.assert_array_equal(
+        df_prior["var"].to_numpy(), df_prior["var_raw"].to_numpy() ** 2
+    )
+
+
+def test_custom_transform_comes_first() -> None:
+    # function in pytensor.tensor
+    register_tensor_transform("square", lambda x: 2 * x)
+
+    dist = Prior("Normal", transform="square")
+    prior = dist.sample_prior(samples=10)
+    df_prior = prior.to_dataframe()
+
+    np.testing.assert_array_equal(
+        df_prior["var"].to_numpy(), 2 * df_prior["var_raw"].to_numpy()
+    )
+
+    clear_custom_transforms()
