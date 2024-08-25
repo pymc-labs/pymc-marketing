@@ -14,6 +14,7 @@
 """Media Mix Model class."""
 
 import json
+import warnings
 from typing import Annotated, Any, Literal
 
 import arviz as az
@@ -1701,6 +1702,7 @@ class MMM(
         channels: list[str] | None = None,
         quantile_lower: float = 0.05,
         quantile_upper: float = 0.95,
+        method: str | None = None,
     ) -> plt.Figure:
         """Plot the direct contribution curves for each marketing channel.
 
@@ -1717,6 +1719,8 @@ class MMM(
             A list of channels to plot. If not provided, all channels will be plotted.
         same_axes : bool, optional
             If True, all channels will be plotted on the same axes. Defaults to False.
+        method : str | None, optional
+            Deprecated.
 
         Returns
         -------
@@ -1725,6 +1729,13 @@ class MMM(
 
         """
         channels_to_plot = self.channel_columns if channels is None else channels
+
+        if method is not None:
+            warnings.warn(
+                "The 'method' keyword is deprecated and will be removed in a future version.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
 
         if not all(channel in self.channel_columns for channel in channels_to_plot):
             unknown_channels = set(channels_to_plot) - set(self.channel_columns)
