@@ -84,5 +84,10 @@ def crps(
     -------
     float
         The CRPS value as a (possibly weighted) average of the per-observation CRPS values.
+
+    References
+    ----------
+    - This implementation is a minimal adaptation from the one in the Pyro project: https://docs.pyro.ai/en/dev/_modules/pyro/ops/stats.html#crps_empirical
+    - For an introduction to CRPS, see https://towardsdatascience.com/crps-a-scoring-function-for-bayesian-machine-learning-models-dd55a7a337a8
     """
     return np.average(per_observation_crps(y_true, y_pred), weights=sample_weight)
