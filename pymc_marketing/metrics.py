@@ -38,9 +38,7 @@ def per_observation_crps(y_true: npt.NDArray, y_pred: npt.NDArray) -> npt.NDArra
 
     References
     ----------
-    - This implementation is adapted from the Pyro project: https://docs.pyro.ai/en/dev/_modules/pyro/ops/stats.html#crps_empirical
-        Copyright (c) 2017-2019 Uber Technologies, Inc.
-        SPDX-License-Identifier: Apache-2.0
+    - This implementation is a minimal adaptation from the one in the Pyro project: https://docs.pyro.ai/en/dev/_modules/pyro/ops/stats.html#crps_empirical
     - For an introduction to CRPS, see https://towardsdatascience.com/crps-a-scoring-function-for-bayesian-machine-learning-models-dd55a7a337a8
     """
     y_true = np.array(y_true)
