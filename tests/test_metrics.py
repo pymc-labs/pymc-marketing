@@ -138,7 +138,7 @@ def test_crps_is_one(y_true, y_pred, expected) -> None:
 
 def test_weighted_crps_is_zero() -> None:
     y_true = np.array([1, 2, 3])
-    y_pred = np.array([1, 0, 0])[None, ...]
+    y_pred = np.vstack([np.array([1, 0, 0])[None, ...], np.array([1, 0, 0])[None, ...]])
     sample_weight = np.array([1, 0, 0])
     result = crps(y_true=y_true, y_pred=y_pred, sample_weight=sample_weight)
     assert result == pytest.approx(0.0)
@@ -146,7 +146,7 @@ def test_weighted_crps_is_zero() -> None:
 
 def test_weighted_crps_is_one() -> None:
     y_true = np.array([1, 2, 3])
-    y_pred = np.array([1, 1, 2])[None, ...]
+    y_pred = np.vstack([np.array([1, 1, 2])[None, ...], np.array([1, 1, 2])[None, ...]])
     sample_weight = np.array([0, 0.5, 0.5])
     result = crps(y_true=y_true, y_pred=y_pred, sample_weight=sample_weight)
     assert result == pytest.approx(1.0)
@@ -154,7 +154,7 @@ def test_weighted_crps_is_one() -> None:
 
 def test_weighted_crps() -> None:
     y_true = np.array([1, 2, 3])
-    y_pred = np.array([0, 0, 0])[None, ...]
+    y_pred = np.vstack([np.array([0, 0, 0])[None, ...], np.array([0, 0, 0])[None, ...]])
     sample_weight = np.array([1, 2, 3])
     result = crps(y_true=y_true, y_pred=y_pred, sample_weight=sample_weight)
     expected = (1 / 6) * (1 + 2 * 2 + 3 * 3)
