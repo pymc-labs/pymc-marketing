@@ -427,7 +427,7 @@ class MMMRegistrar(mlflow.pyfunc.PythonModel):
         The default prediction method to use, such as "predict",
         "sample_posterior_predictive", or "sample_prior_predictive".
     extend_idata : bool, default=False
-        Boolean determining whether the predictions should be added to inference data object. Defaults to True.
+        Boolean determining whether the predictions should be added to inference data object. Defaults to False.
     combined : bool, default=True
         Combine chain and draw dims into sample. Won't work if a dim named sample already exists. Defaults to True.
     include_last_observations : bool, default=False
