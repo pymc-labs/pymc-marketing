@@ -60,17 +60,19 @@ We provide a `Dockerfile` to build a Docker image for PyMC-Marketing so that is 
 
 Leverage our Bayesian MMM API to tailor your marketing strategies effectively. Leveraging on top of the research article [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017)](https://research.google/pubs/pub46001/),  and extending it by integrating the expertise from core PyMC developers, our API provides:
 
-- **Custom Priors and Likelihoods**: Tailor your model to your specific business needs by including domain knowledge via prior distributions.
-- **Adstock Transformation**: Optimize the carry-over effects in your marketing channels.
-- **Saturation Effects**: Understand the diminishing returns in media investments.
-- **Customize adstock and saturation functions:** You can select from a variety of adstock and saturation functions. You can even implement your own custom functions.
-- **Time-varying Intercept:** Capture time-varying baseline contributions in your model (using modern and efficient Gaussian processes approximation methods).
-- **Time-varying Media Contribution:** Capture time-varying media efficiency in your model (using modern and efficient Gaussian processes approximation methods).
-- **Visualization and Model Diagnostics**: Get a comprehensive view of your model's performance and insights.
-- **Choose among many inference algorithms**: We provide the option to choose between various NUTS samplers (e.g. BlackJax, NumPyro and Nutpie). See the [example notebook](https://www.pymc-marketing.io/en/stable/notebooks/general/other_nuts_samplers.html) for more details.
-- **Out-of-sample Predictions**: Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.
-- **Budget Optimization**: Allocate your marketing spend efficiently across various channels for maximum ROI.
-- **Experiment Calibration**: Fine-tune your model based on empirical experiments for a more unified view of marketing.
+| Feature                                    | Description                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Custom Priors and Likelihoods              | Tailor your model to your specific business needs by including domain knowledge via prior distributions.                                                                                                                                                                                                                                                                               |
+| Adstock Transformation                     | Optimize the carry-over effects in your marketing channels.                                                                                                                                                                                                                                                                                                                            |
+| Saturation Effects                         | Understand the diminishing returns in media investments.                                                                                                                                                                                                                                                                                                                               |
+| Customize adstock and saturation functions | You can select from a variety of adstock and saturation functions. You can even implement your own custom functions. See [documentation guide](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_components.html).                                                                                                                                                             |
+| Time-varying Intercept                     | Capture time-varying baseline contributions in your model (using modern and efficient Gaussian processes approximation methods). See [guide notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_time_varying_media_example.html).                                                                                                                                      |
+| Time-varying Media Contribution            | Capture time-varying media efficiency in your model (using modern and efficient Gaussian processes approximation methods). See the [guide notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_tvp_example.html).                                                                                                                                                       |
+| Visualization and Model Diagnostics        | Get a comprehensive view of your model's performance and insights.                                                                                                                                                                                                                                                                                                                     |
+| Choose among many inference algorithms     | We provide the option to choose between various NUTS samplers (e.g. BlackJax, NumPyro and Nutpie). See the [example notebook](https://www.pymc-marketing.io/en/stable/notebooks/general/other_nuts_samplers.html) for more details.                                                                                                                                                    |
+| Out-of-sample Predictions                  | Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.                                                                                                                                                                                                                                                                         |
+| Budget Optimization                        | Allocate your marketing spend efficiently across various channels for maximum ROI. See the [budget optimization example notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_budget_allocation_example.html)                                                                                                                                                            |
+| Experiment Calibration                     | Fine-tune your model based on empirical experiments for a more unified view of marketing. See the [lift test integration explanation](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_lift_test.html) for more details. [Here](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_roas.html) you can find a *Case Study: Unobserved Confounders, ROAS and Lift Tests*. |
 
 ### MMM Quickstart
 
@@ -140,10 +142,10 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 
 ### Examples
 
-|                | **Non-contractual** | **Contractual**                |
-|----------------|---------------------|--------------------------------|
-| **Continuous** | online purchases    | ad conversion time             |
-| **Discrete**   | concerts & sports events   | recurring subscriptions |
+|                | **Non-contractual**      | **Contractual**         |
+| -------------- | ------------------------ | ----------------------- |
+| **Continuous** | online purchases         | ad conversion time      |
+| **Discrete**   | concerts & sports events | recurring subscriptions |
 
 ### CLV Quickstart
 
