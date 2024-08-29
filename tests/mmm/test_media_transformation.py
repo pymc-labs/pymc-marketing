@@ -19,10 +19,8 @@ import pytest
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.media_transformation import (
     MediaConfig,
-    MediaConfigs,
+    MediaConfigList,
     MediaTransformation,
-    apply_media_transformation,
-    get_media_values,
 )
 
 
@@ -46,43 +44,71 @@ def media_data(rng) -> pd.DataFrame:
 
 
 @pytest.fixture
-def media_configs() -> MediaConfigs:
-    return [
-        MediaConfig(
-            name="online",
-            columns=["Facebook", "Instagram", "YouTube", "TikTok"],
-            media_transformation=MediaTransformation(
-                adstock=GeometricAdstock(
-                    l_max=10,
+def create_media_config_list():
+    def create(online_dims, offline_dims) -> MediaConfigList:
+        return MediaConfigList(
+            [
+                MediaConfig(
+                    name="online",
+                    columns=["Facebook", "Instagram", "YouTube", "TikTok"],
+                    media_transformation=MediaTransformation(
+                        adstock=GeometricAdstock(
+                            l_max=10,
+                        ).set_dims_for_all_priors(online_dims),
+                        saturation=LogisticSaturation().set_dims_for_all_priors(
+                            online_dims
+                        ),
+                        adstock_first=True,
+                    ),
                 ),
-                saturation=LogisticSaturation(),
-                adstock_first=True,
-            ),
-        ),
-        MediaConfig(
-            name="offline",
-            columns=["TV", "Radio"],
-            media_transformation=MediaTransformation(
-                adstock=GeometricAdstock(
-                    l_max=10,
+                MediaConfig(
+                    name="offline",
+                    columns=["TV", "Radio"],
+                    media_transformation=MediaTransformation(
+                        adstock=GeometricAdstock(
+                            l_max=10,
+                        ).set_dims_for_all_priors(offline_dims),
+                        saturation=LogisticSaturation().set_dims_for_all_priors(
+                            offline_dims
+                        ),
+                        adstock_first=False,
+                    ),
                 ),
-                saturation=LogisticSaturation(),
-                adstock_first=False,
-            ),
-        ),
+            ]
+        )
+
+    return create
+
+
+@pytest.fixture
+def media_configs(create_media_config_list) -> MediaConfigList:
+    return create_media_config_list(online_dims=(), offline_dims=())
+
+
+def test_get_media_values(media_configs: MediaConfigList) -> None:
+    assert media_configs.media_values == [
+        "Facebook",
+        "Instagram",
+        "YouTube",
+        "TikTok",
+        "TV",
+        "Radio",
     ]
 
 
-def test_get_media_values(media_configs: MediaConfigs) -> None:
-    media_values = get_media_values(media_configs)
-    assert media_values == ["Facebook", "Instagram", "YouTube", "TikTok", "TV", "Radio"]
-
-
+@pytest.mark.parametrize("online_dims", [(), ("online",)], ids=["scalar", "vector"])
+@pytest.mark.parametrize("offline_dims", [(), ("offline",)], ids=["scalar", "vector"])
 def test_apply_media_transformation(
+    online_dims,
+    offline_dims,
     media_data: pd.DataFrame,
-    media_configs: MediaConfigs,
+    create_media_config_list,
+    media_configs: MediaConfigList,
 ) -> None:
-    media_columns = get_media_values(media_configs)
+    media_configs = create_media_config_list(
+        online_dims=online_dims, offline_dims=offline_dims
+    )
+    media_columns = media_configs.media_values
     coords = {
         "date": media_data.index,
         "media": media_columns,
@@ -94,9 +120,8 @@ def test_apply_media_transformation(
             media_data.loc[:, media_columns].to_numpy(),
             dims=("date", "media"),
         )
-        transformed_media_data = apply_media_transformation(
+        transformed_media_data = media_configs(
             data,
-            media_configs,
         ).eval()
 
     assert transformed_media_data.shape == (media_data.shape[0], len(media_columns))
@@ -112,3 +137,8 @@ def test_apply_media_transformation(
     free_RVs = {rv.name for rv in model.free_RVs}
 
     assert free_RVs == expected_free_RVs
+
+    actual_dims = model.named_vars_to_dims
+    for rv in expected_free_RVs:
+        expected_dims = offline_dims if rv.startswith("offline") else online_dims
+        assert actual_dims[rv] == expected_dims
