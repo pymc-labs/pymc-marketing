@@ -52,8 +52,6 @@ Plot the default priors for an adstock transformation:
 
 """
 
-import warnings
-
 import numpy as np
 import xarray as xr
 from pydantic import Field, InstanceOf, validate_call
@@ -345,40 +343,3 @@ def adstock_from_dict(data: dict) -> AdstockTransformation:
     if "priors" in data:
         data["priors"] = {k: Prior.from_json(v) for k, v in data["priors"].items()}
     return cls(**data)
-
-
-def _get_adstock_function(
-    function: str | AdstockTransformation,
-    **kwargs,
-) -> AdstockTransformation:
-    """Get an adstock function.
-
-    Helper for use in the MMM to get an adstock function from the if registered.
-    """
-    if isinstance(function, AdstockTransformation):
-        return function
-
-    elif isinstance(function, str):
-        if function not in ADSTOCK_TRANSFORMATIONS:
-            raise ValueError(
-                f"Unknown adstock function: {function}. Choose from {list(ADSTOCK_TRANSFORMATIONS.keys())}"
-            )
-
-        if kwargs:
-            msg = (
-                "The preferred method of initializing a "
-                "lagging function is to use the class directly. "
-                "String support will deprecate in 0.9.0."
-            )
-            warnings.warn(
-                msg,
-                DeprecationWarning,
-                stacklevel=1,
-            )
-
-        return ADSTOCK_TRANSFORMATIONS[function](**kwargs)
-
-    else:
-        raise ValueError(
-            f"Unknown adstock function: {function}. Choose from {list(ADSTOCK_TRANSFORMATIONS.keys())}"
-        )

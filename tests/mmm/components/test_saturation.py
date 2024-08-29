@@ -31,7 +31,6 @@ from pymc_marketing.mmm import (
     TanhSaturationBaselined,
     saturation_from_dict,
 )
-from pymc_marketing.mmm.components.saturation import _get_saturation_function
 from pymc_marketing.prior import Prior
 
 
@@ -95,40 +94,6 @@ def test_support_for_lift_test_integrations(saturation) -> None:
         assert key in function_parameters
 
     assert len(saturation.variable_mapping) == len(function_parameters) - 1
-
-
-@pytest.mark.parametrize(
-    "name, saturation_cls",
-    [
-        ("inverse_scaled_logistic", InverseScaledLogisticSaturation),
-        ("logistic", LogisticSaturation),
-        ("tanh", TanhSaturation),
-        ("tanh_baselined", TanhSaturationBaselined),
-        ("michaelis_menten", MichaelisMentenSaturation),
-        ("hill", HillSaturation),
-        ("hill_sigmoid", HillSaturationSigmoid),
-        ("root", RootSaturation),
-    ],
-)
-def test_get_saturation_function(name, saturation_cls) -> None:
-    saturation = _get_saturation_function(name)
-
-    assert isinstance(saturation, saturation_cls)
-
-
-@pytest.mark.parametrize("saturation", saturation_functions())
-def test_get_saturation_function_passthrough(saturation) -> None:
-    id_before = id(saturation)
-    id_after = id(_get_saturation_function(saturation))
-
-    assert id_after == id_before
-
-
-def test_get_saturation_function_unknown() -> None:
-    with pytest.raises(
-        ValueError, match="Unknown saturation function: unknown. Choose from"
-    ):
-        _get_saturation_function("unknown")
 
 
 @pytest.mark.parametrize("saturation", saturation_functions())
