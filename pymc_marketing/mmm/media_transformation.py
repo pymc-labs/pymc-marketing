@@ -89,6 +89,8 @@ Apply the media transformation to media data in PyMC model:
 
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import pymc as pm
@@ -97,8 +99,12 @@ from pymc.distributions.shape_utils import Dims
 
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
+    adstock_from_dict,
 )
-from pymc_marketing.mmm.components.saturation import SaturationTransformation
+from pymc_marketing.mmm.components.saturation import (
+    SaturationTransformation,
+    saturation_from_dict,
+)
 
 
 @dataclass
@@ -187,6 +193,42 @@ class MediaTransformation:
         """
         return self.second.apply(self.first.apply(x, self.dims), self.dims)
 
+    def to_dict(self) -> dict:
+        """Convert the media transformation to a dictionary.
+
+        Returns
+        -------
+        dict
+            The media transformation as a dictionary.
+
+        """
+        return {
+            "adstock": self.adstock.to_dict(),
+            "saturation": self.saturation.to_dict(),
+            "adstock_first": self.adstock_first,
+        }
+
+    @classmethod
+    def from_dict(cls, data) -> MediaTransformation:
+        """Create a media transformation from a dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            The data to create the media transformation from.
+
+        Returns
+        -------
+        MediaTransformation
+            The media transformation created from the dictionary.
+
+        """
+        return cls(
+            adstock=adstock_from_dict(data["adstock"]),
+            saturation=saturation_from_dict(data["saturation"]),
+            adstock_first=data["adstock_first"],
+        )
+
 
 @dataclass
 class MediaConfig:
@@ -206,6 +248,44 @@ class MediaConfig:
     name: str
     columns: list[str]
     media_transformation: MediaTransformation
+
+    def to_dict(self) -> dict:
+        """Convert the media configuration to a dictionary.
+
+        Returns
+        -------
+        dict
+            The media configuration as a dictionary.
+
+        """
+        return {
+            "name": self.name,
+            "columns": self.columns,
+            "media_transformation": self.media_transformation.to_dict(),
+        }
+
+    @classmethod
+    def from_dict(cls, data) -> MediaConfig:
+        """Create a media configuration from a dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            The data to create the media configuration from.
+
+        Returns
+        -------
+        MediaConfig
+            The media configuration created from the dictionary.
+
+        """
+        return cls(
+            name=data["name"],
+            columns=data["columns"],
+            media_transformation=MediaTransformation.from_dict(
+                data["media_transformation"]
+            ),
+        )
 
 
 class MediaConfigList:
@@ -260,6 +340,22 @@ class MediaConfigList:
     def __init__(self, media_configs: list[MediaConfig]) -> None:
         self.media_configs = media_configs
 
+    def __getitem__(self, key: int) -> MediaConfig:
+        """Get the media configuration at the specified index.
+
+        Parameters
+        ----------
+        key : int
+            The index of the media configuration to get.
+
+        Returns
+        -------
+        MediaConfig
+            The media configuration at the specified index.
+
+        """
+        return self.media_configs[key]
+
     @property
     def media_values(self) -> list[str]:
         """Get the media values from the media configurations.
@@ -274,6 +370,34 @@ class MediaConfigList:
         for config in self.media_configs:
             result.extend(config.columns)
         return result
+
+    def to_dict(self) -> list[dict]:
+        """Convert the media configuration list to a dictionary.
+
+        Returns
+        -------
+        dict
+            The media configuration list as a dictionary.
+
+        """
+        return [config.to_dict() for config in self.media_configs]
+
+    @classmethod
+    def from_dict(cls, data: list[dict]) -> MediaConfigList:
+        """Create a media configuration list from a dictionary.
+
+        Parameters
+        ----------
+        data : list[dict]
+            The data to create the media configuration list from.
+
+        Returns
+        -------
+        MediaConfigList
+            The media configuration list created from the dictionary.
+
+        """
+        return cls([MediaConfig.from_dict(config) for config in data])
 
     def __call__(self, x) -> pt.TensorVariable:
         """Apply media transformation to media data.
