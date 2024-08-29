@@ -128,6 +128,23 @@ class Transformation:
             ")"
         )
 
+    def set_dims_for_all_priors(self, dims: Dims):
+        """Convinience method to set the dims for all priors.
+
+        Parameters
+        ----------
+        dims : Dims
+            The dims for the priors.
+
+        Returns
+        -------
+        Transformation
+        """
+        for prior in self.function_priors.values():
+            prior.dims = dims
+
+        return self
+
     def to_dict(self) -> dict[str, Any]:
         """Convert the transformation to a dictionary.
 
