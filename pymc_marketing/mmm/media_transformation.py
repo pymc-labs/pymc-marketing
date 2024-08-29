@@ -26,11 +26,13 @@ Create a media transformation for online and offline media channels:
         MichaelisMentenSaturation,
     )
 
+    # Shared media transformation for all offline media channels
     offline_media_transform = MediaTransformation(
         adstock=GeometricAdstock(l_max=15),
         saturation=HillSaturation(),
         adstock_first=True,
     )
+    # Shared media transformation for all online media channels
     online_media_transform = MediaTransformation(
             adstock=GeometricAdstock(l_max=10),
             saturation=MichaelisMentenSaturation(),
@@ -38,16 +40,16 @@ Create a media transformation for online and offline media channels:
         ),
     )
 
-Create a media configurations for offline and online media channels:
+Create a combined media configuration for offline and online media channels:
 
 .. code-block:: python
 
     from pymc_marketing.mmm import (
         MediaConfig,
-        MediaConfigs,
+        MediaConfigList,
     )
 
-    media_configs: MediaConfigs = [
+    media_configs: MediaConfigList([
         MediaConfig(
             name="offline",
             columns=["TV", "Radio"],
@@ -58,7 +60,7 @@ Create a media configurations for offline and online media channels:
             columns=["Facebook", "Instagram", "YouTube", "TikTok"],
             media_transformation=online_media_transform,
         ),
-    ]
+    ])
 
 
 Apply the media transformation to media data in PyMC model:
@@ -68,11 +70,10 @@ Apply the media transformation to media data in PyMC model:
     import pymc as pm
     import pandas as pd
 
-    from pymc_marketing.mmm import get_media_values
-
     df: pd.DataFrame = ...
 
-    media_columns = get_media_values(media_configs)
+
+    media_columns = media_configs.media_values
 
     coords = {
         "date": df["week"],
@@ -84,10 +85,7 @@ Apply the media transformation to media data in PyMC model:
             df.loc[:, media_columns].to_numpy(),
             dims=("date", "media")
         )
-        transformed_media_data = apply_media_transformation(
-            media_data,
-            media_configs,
-        )
+        transformed_media_data = media_configs(media_data)
 
 """
 
@@ -95,6 +93,7 @@ from dataclasses import dataclass
 
 import pymc as pm
 import pytensor.tensor as pt
+from pymc.distributions.shape_utils import Dims
 
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
@@ -114,6 +113,8 @@ class MediaTransformation:
         The saturation transformation to apply.
     adstock_first : bool
         Flag to apply the adstock transformation first.
+    dims : Dims
+        The dimensions of the parameters.
 
     Attributes
     ----------
@@ -127,6 +128,7 @@ class MediaTransformation:
     adstock: AdstockTransformation
     saturation: SaturationTransformation
     adstock_first: bool
+    dims: Dims | None = None
 
     def __post_init__(self):
         """Set the first and second transformations based on the adstock_first flag."""
@@ -135,8 +137,9 @@ class MediaTransformation:
             if self.adstock_first
             else (self.saturation, self.adstock)
         )
+        self.dims = self.dims or ()
 
-    def __call__(self, x, dim):
+    def __call__(self, x):
         """Apply adstock and saturation transformation to media data.
 
         Parameters
@@ -182,7 +185,7 @@ class MediaTransformation:
                 )
 
         """
-        return self.second.apply(self.first.apply(x, dim), dim)
+        return self.second.apply(self.first.apply(x, self.dims), self.dims)
 
 
 @dataclass
@@ -205,74 +208,112 @@ class MediaConfig:
     media_transformation: MediaTransformation
 
 
-MediaConfigs = list[MediaConfig]
-
-
-def apply_media_transformation(
-    data: pt.TensorLike,
-    media_configs: MediaConfigs,
-    model: pm.Model | None = None,
-) -> pt.TensorVariable:
-    """Apply media transformation to media data.
-
-    Assumes that the columns in the data correspond to the media channels in the media_configs.
+class MediaConfigList:
+    """Wrapper for a list of media configurations to apply to media data.
 
     Parameters
     ----------
-    data : pt.TensorLike
-        The media data to transform.
-    media_configs : MediaConfigs
-        The media configurations to apply.
-    model : pm.Model, optional
-        The PyMC model to add the media coordinates to. Defaults to model in context.
+    media_configs : list[MediaConfig]
+        The media configurations to apply to the media data.
 
-    Returns
-    -------
-    pt.TensorVariable
-        The transformed media data.
 
-    """
-    current_model: pm.Model = pm.modelcontext(model)
+    Examples
+    --------
+    Different order of media transformations for online and offline media channels:
 
-    transformed_data = []
-    start_idx = 0
-    for config in media_configs:
-        current_model.add_coord(config.name, config.columns)
-        end_idx = start_idx + len(config.columns)
+    .. code-block:: python
 
-        media_data = data[:, start_idx:end_idx]
-
-        adstock = config.media_transformation.adstock
-        saturation = config.media_transformation.saturation
-
-        adstock.prefix = f"{config.name}_{adstock.prefix}"
-        saturation.prefix = f"{config.name}_{saturation.prefix}"
-
-        media_transformation_data = config.media_transformation(
-            media_data, dim=config.name
+        from pymc_marketing.mmm import (
+            GeometricAdstock,
+            LogisticSaturation,
+            MediaTransformation,
+            MediaConfig,
+            MediaConfigList,
         )
-        transformed_data.append(media_transformation_data)
 
-        start_idx = end_idx
+        online = MediaConfig(
+            name="online",
+            columns=["Facebook", "Instagram", "YouTube", "TikTok"],
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(l_max=10).set_dims_for_all_priors("online"),
+                saturation=LogisticSaturation().set_dims_for_all_priors("online"),
+                adstock_first=True,
+            ),
+        )
 
-    return pt.concatenate(transformed_data, axis=1)
+        offline = MediaConfig(
+            name="offline",
+            columns=["TV", "Radio"],
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(
+                    l_max=10,
+                ).set_dims_for_all_priors("offline"),
+                saturation=LogisticSaturation().set_dims_for_all_priors("offline"),
+                adstock_first=False,
+            ),
+        )
 
-
-def get_media_values(media_configs: MediaConfigs) -> list[str]:
-    """Get the media values from the media configurations.
-
-    Parameters
-    ----------
-    media_configs : MediaConfigs
-        The media configurations to extract the media values from.
-
-    Returns
-    -------
-    list[str]
-        The media values from the media configurations in the order they appear.
+        media_configs = MediaConfigList([online, offline])
 
     """
-    media_values = []
-    for config in media_configs:
-        media_values.extend(config.columns)
-    return media_values
+
+    def __init__(self, media_configs: list[MediaConfig]) -> None:
+        self.media_configs = media_configs
+
+    @property
+    def media_values(self) -> list[str]:
+        """Get the media values from the media configurations.
+
+        Returns
+        -------
+        list[str]
+            The media values from the media configurations in the order they appear.
+
+        """
+        result = []
+        for config in self.media_configs:
+            result.extend(config.columns)
+        return result
+
+    def __call__(self, x) -> pt.TensorVariable:
+        """Apply media transformation to media data.
+
+        Assumes that the columns in the data correspond to the media channels
+        in the media_configs.
+
+        Parameters
+        ----------
+        x : pt.TensorLike
+            The media data to transform.
+
+        Returns
+        -------
+        pt.TensorVariable
+            The transformed media data.
+
+        """
+        model = pm.modelcontext(None)
+
+        transformed_data = []
+        start_idx = 0
+        for config in self.media_configs:
+            config.media_transformation.dims = config.name
+
+            model.add_coord(config.name, config.columns)
+            end_idx = start_idx + len(config.columns)
+
+            media_data = x[:, start_idx:end_idx]
+
+            adstock = config.media_transformation.adstock
+            saturation = config.media_transformation.saturation
+            adstock.prefix = f"{config.name}_{adstock.prefix}"
+            saturation.prefix = f"{config.name}_{saturation.prefix}"
+
+            media_transformation_data = config.media_transformation(
+                media_data,
+            )
+            transformed_data.append(media_transformation_data)
+
+            start_idx = end_idx
+
+        return pt.concatenate(transformed_data, axis=1)
