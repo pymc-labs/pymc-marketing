@@ -13,5 +13,6 @@
   model_config
   model_builder
   prior
+  metrics
   mlflow
 ```
