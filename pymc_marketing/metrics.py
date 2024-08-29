@@ -36,6 +36,24 @@ def per_observation_crps(y_true: npt.NDArray, y_pred: npt.NDArray) -> npt.NDArra
     array-like
         The CRPS for each observation.
 
+    Examples
+    --------
+    .. code-block:: python
+
+        import numpy as np
+
+        from pymc_marketing.metrics import per_observation_crps
+
+        # y_true shape is (3,)
+        y_true = np.array([1, 1, 1])
+        # y_pred shape is (10, 3). The extra dimension on the left is the number of samples.
+        y_pred = np.repeat(np.array([[0, 1, 0]]), 10, axis=0)
+
+        # The result has shape (3,), one value per observation.
+        per_observation_crps(y_true, y_pred)
+
+        >> array([1., 0., 1.])
+
     References
     ----------
     - This implementation is a minimal adaptation from the one in the Pyro project: https://docs.pyro.ai/en/dev/_modules/pyro/ops/stats.html#crps_empirical
@@ -84,6 +102,24 @@ def crps(
     -------
     float
         The CRPS value as a (possibly weighted) average of the per-observation CRPS values.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import numpy as np
+
+        from pymc_marketing.metrics import crps
+
+        # y_true shape is (3,)
+        y_true = np.array([1, 1, 1])
+        # y_pred shape is (10, 3). The extra dimension on the left is the number of samples.
+        y_pred = np.repeat(np.array([[0, 1, 0]]), 10, axis=0)
+
+        # The result is a scalar.
+        crps(y_true, y_pred)
+
+        >> 0.666
 
     References
     ----------
