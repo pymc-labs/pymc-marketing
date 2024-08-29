@@ -340,6 +340,22 @@ class MediaConfigList:
     def __init__(self, media_configs: list[MediaConfig]) -> None:
         self.media_configs = media_configs
 
+    def __eq__(self, other) -> bool:
+        """Check if the media configuration lists are equal.
+
+        Parameters
+        ----------
+        other : MediaConfigList
+            The other media configuration list to compare.
+
+        Returns
+        -------
+        bool
+            True if the media configuration lists are equal, False otherwise.
+
+        """
+        return self.media_configs == other.media_configs
+
     def __getitem__(self, key: int) -> MediaConfig:
         """Get the media configuration at the specified index.
 
