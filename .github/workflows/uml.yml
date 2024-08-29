@@ -1,7 +1,7 @@
 name: Update the UML Diagrams
 
 on:
-  push:
+  pull_request:
     types: [closed]
     branches: [main]
     paths:
