@@ -161,9 +161,9 @@ class LinearTrend:
         include_intercept: bool = False,
     ) -> None:
         self.n_changepoints = n_changepoints
+        self.include_intercept = include_intercept
         self.priors: dict[str, Prior] = priors or self.default_priors.copy()
         self.dims: Dims = dims or ()
-        self.include_intercept = include_intercept
 
         self._check_parameters()
 
@@ -217,7 +217,7 @@ class LinearTrend:
         dim_handler = create_dim_handler(desired_dims=out_dims)
 
         # (changepoints, )
-        s = pt.linspace(0, pt.max(t), self.n_changepoints + 2)[1:-1]
+        s = pt.linspace(0, pt.max(t), self.n_changepoints)
         s.type.shape = (self.n_changepoints,)
         s = dim_handler(
             s,
@@ -267,8 +267,8 @@ class LinearTrend:
         coords = coords or {}
         coords["changepoint"] = range(self.n_changepoints)
         with pm.Model(coords=coords):
-            self.priors["k"].create_variable("k")
-            self.priors["delta"].create_variable("delta")
+            for key, param in self.priors.items():
+                param.create_variable(key)
 
             return pm.sample_prior_predictive().prior
 
@@ -355,11 +355,13 @@ class LinearTrend:
         if not include_change_points:
             return fig, axes
 
+        max_value = curve.coords["t"].max().item()
+
         for ax in np.ravel(axes):
             for i in range(1, self.n_changepoints + 1):
                 # Need to add 1 to the number of changepoints
                 ax.axvline(
-                    i / (self.n_changepoints + 1),
+                    max_value * i / (self.n_changepoints + 1),
                     color="gray",
                     linestyle="--",
                 )
