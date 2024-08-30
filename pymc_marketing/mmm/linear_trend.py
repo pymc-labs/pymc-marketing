@@ -165,12 +165,23 @@ class LinearTrend:
         self.priors: dict[str, Prior] = priors or self.default_priors.copy()
         self.dims: Dims = dims or ()
 
+        self._checks()
+
+    def _checks(self) -> None:
         self._check_parameters()
+        self._check_dims_are_subsets()
 
     def _check_parameters(self) -> None:
         required_parameters = set(self.default_priors.keys())
-        if set(self.priors.keys()) < required_parameters:
+        if set(self.priors.keys()) > required_parameters:
             msg = f"Invalid priors. The required parameters are {required_parameters}."
+            raise ValueError(msg)
+
+    def _check_dims_are_subsets(self) -> None:
+        allowed_dims = {"changepoint"}.union(self.dims)
+
+        if not all(set(prior.dims) <= allowed_dims for prior in self.priors.values()):
+            msg = "Invalid dimensions in the priors."
             raise ValueError(msg)
 
     @property
@@ -321,7 +332,7 @@ class LinearTrend:
         subplot_kwargs: dict | None = None,
         sample_kwargs: dict | None = None,
         hdi_kwargs: dict | None = None,
-        include_change_points: bool = True,
+        include_changepoints: bool = True,
     ) -> tuple[plt.Figure, npt.NDArray[plt.Axes]]:
         """Plot the curve samples from the trend.
 
@@ -335,7 +346,7 @@ class LinearTrend:
             Keyword arguments for the samples, by default None.
         hdi_kwargs : dict, optional
             Keyword arguments for the HDI, by default None.
-        include_change_points : bool, optional
+        include_changepoints : bool, optional
             Include the change points in the plot, by default True.
 
         Returns
@@ -352,7 +363,7 @@ class LinearTrend:
             hdi_kwargs=hdi_kwargs,
         )
 
-        if not include_change_points:
+        if not include_changepoints:
             return fig, axes
 
         max_value = curve.coords["t"].max().item()
