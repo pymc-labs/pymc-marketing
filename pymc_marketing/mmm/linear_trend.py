@@ -27,17 +27,17 @@ Sample the prior for the trend parameters and curve:
 
 .. code-block:: python
 
-    prior = trend.sample_prior()
+    import numpy as np
+
+    seed = sum(map(ord, "Linear Trend"))
+    rng = np.random.default_rng(seed)
+
+    prior = trend.sample_prior(random_seed=rng)
     curve = trend.sample_curve(prior)
 
 Plot the curve samples:
 
 .. code-block:: python
-
-    import numpy as np
-
-    seed = sum(map(ord, "Linear Trend"))
-    rng = np.random.default_rng(seed)
 
     _, axes = trend.plot_curve(curve, sample_kwargs={"rng": rng})
     ax = axes[0]
@@ -52,7 +52,7 @@ Plot the curve samples:
 
 """
 
-from typing import Any
+from typing import Any, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -60,13 +60,15 @@ import numpy.typing as npt
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
+from pydantic import BaseModel, Field, InstanceOf, model_validator
 from pymc.distributions.shape_utils import Dims
+from typing_extensions import Self
 
 from pymc_marketing.mmm.plot import plot_curve
 from pymc_marketing.prior import Prior, create_dim_handler
 
 
-class LinearTrend:
+class LinearTrend(BaseModel):
     r"""LinearTrend class.
 
     Linear trend component using change points. The trend is defined as:
@@ -165,16 +167,21 @@ class LinearTrend:
             dims="geo",
         )
 
-    Sample and plot hierarchical trend:
+    Sample the hierarchical trend:
 
     .. code-block:: python
 
-        coords = {"geo": ["A", "B"]}
-        prior = hierarchical_trend.sample_prior(coords=coords)
-        curve = hierarchical_trend.sample_curve(prior)
-
         seed = sum(map(ord, "Hierarchical LinearTrend"))
         rng = np.random.default_rng(seed)
+
+        coords = {"geo": ["A", "B"]}
+        prior = hierarchical_trend.sample_prior(
+            coords=coords,
+            random_seed=rng,
+        )
+        curve = hierarchical_trend.sample_curve(prior)
+
+    Plot the curve HDI and samples:
 
         sample_kwargs = {"n": 3, "rng": rng}
         fig, axes = hierarchical_trend.plot_curve(
@@ -195,38 +202,58 @@ class LinearTrend:
 
     """
 
-    def __init__(
-        self,
-        priors: dict[str, Prior] | None = None,
-        dims: Dims | None = None,
-        n_changepoints: int = 10,
-        include_intercept: bool = False,
-    ) -> None:
-        self.n_changepoints = n_changepoints
-        self.include_intercept = include_intercept
-        self.priors: dict[str, Prior] = priors or self.default_priors.copy()
+    priors: InstanceOf[dict[str, Prior]] = Field(
+        None,
+        description="Priors for the trend parameters.",
+    )
+    dims: InstanceOf[Dims] | str | None = Field(
+        None,
+        description="The additional dimensions for the trend.",
+    )
+    n_changepoints: int = Field(
+        10,
+        description="Number of changepoints.",
+        ge=1,
+    )
+    include_intercept: bool = Field(
+        False,
+        description="Include an intercept in the trend.",
+    )
+
+    @model_validator(mode="after")
+    def _dims_is_tuple(self) -> Self:
+        dims = self.dims
         if isinstance(dims, str):
-            dims = (dims,)
-        self.dims: Dims = dims or ()
+            self.dims = (dims,)
 
-        self._checks()
+        self.dims: Dims = self.dims or ()
 
-    def _checks(self) -> None:
-        self._check_parameters()
-        self._check_dims_are_subsets()
+        return self
 
-    def _check_parameters(self) -> None:
+    @model_validator(mode="after")
+    def _priors_are_set(self) -> Self:
+        self.priors = self.priors or self.default_priors.copy()
+
+        return self
+
+    @model_validator(mode="after")
+    def _check_parameters(self) -> Self:
         required_parameters = set(self.default_priors.keys())
         if set(self.priors.keys()) > required_parameters:
             msg = f"Invalid priors. The required parameters are {required_parameters}."
             raise ValueError(msg)
 
-    def _check_dims_are_subsets(self) -> None:
-        allowed_dims = {"changepoint"}.union(self.dims)
+        return self
+
+    @model_validator(mode="after")
+    def _check_dims_are_subsets(self) -> Self:
+        allowed_dims = {"changepoint"}.union(cast(Dims, self.dims))
 
         if not all(set(prior.dims) <= allowed_dims for prior in self.priors.values()):
             msg = "Invalid dimensions in the priors."
             raise ValueError(msg)
+
+        return self
 
     @property
     def default_priors(self) -> dict[str, Prior]:
@@ -265,10 +292,11 @@ class LinearTrend:
             TensorVariable with the trend values.
 
         """
+        dims = cast(Dims, self.dims)
         model = pm.modelcontext(None)
         model.add_coord("changepoint", range(self.n_changepoints))
         DUMMY_DIM = "DATE"
-        out_dims = (DUMMY_DIM, "changepoint", *self.dims)
+        out_dims = (DUMMY_DIM, "changepoint", *dims)
         dim_handler = create_dim_handler(desired_dims=out_dims)
 
         # (changepoints, )
@@ -287,7 +315,7 @@ class LinearTrend:
             delta_dist.dims,
         )
 
-        k_dim_handler = create_dim_handler((DUMMY_DIM, *self.dims))
+        k_dim_handler = create_dim_handler((DUMMY_DIM, *dims))
 
         first = (A * delta).sum(axis=1) * k_dim_handler(t, (DUMMY_DIM,))
 
@@ -305,13 +333,19 @@ class LinearTrend:
 
         return first + second
 
-    def sample_prior(self, coords=None) -> xr.Dataset:
+    def sample_prior(
+        self,
+        coords=None,
+        **sample_prior_predictive_kwargs,
+    ) -> xr.Dataset:
         """Sample the prior for the parameters used in the trend.
 
         Parameters
         ----------
         coords : dict, optional
             Coordinates in the priors, by default includes the changepoints.
+        sample_prior_predictive_kwargs : dict, optional
+            Keyword arguments for the `pm.sample_prior_predictive` function.
 
         Returns
         -------
@@ -325,7 +359,7 @@ class LinearTrend:
             for key, param in self.priors.items():
                 param.create_variable(key)
 
-            return pm.sample_prior_predictive().prior
+            return pm.sample_prior_predictive(**sample_prior_predictive_kwargs).prior
 
     def sample_curve(
         self,
@@ -347,9 +381,7 @@ class LinearTrend:
 
         """
         t = np.linspace(0, max_value, 100)
-        coords: dict[str, Any] = {
-            "t": t,
-        }
+        coords: dict[str, Any] = {"t": t}
         for name in self.priors.keys():
             for key, values in parameters[name].coords.items():
                 if key in {"chain", "draw"}:
@@ -362,7 +394,7 @@ class LinearTrend:
             pm.Deterministic(
                 name,
                 self.apply(t),
-                dims=("t", *self.dims),
+                dims=("t", *cast(Dims, self.dims)),
             )
 
             return pm.sample_posterior_predictive(
