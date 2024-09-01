@@ -117,7 +117,7 @@ def calculate_lift_measurements_from_curve(
     if pt_lib is None:
         pt_lib = pt
 
-    return pt.diff(
+    return pt_lib.diff(
         saturation_curve(pt_lib.stack([x_before, x_after])),
         axis=0,
     ).flatten()
