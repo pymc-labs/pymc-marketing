@@ -90,7 +90,7 @@ class LinearTrend(BaseModel):
 
             s_m = \frac{m}{M+1} \max(t)
 
-        where :math:`M` is the number of change points.
+    where :math:`M` is the number of change points.
 
     The priors for the trend parameters are:
 
