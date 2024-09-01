@@ -123,7 +123,6 @@ class LinearTrend:
 
     .. code-block:: python
 
-
         import pymc as pm
         import numpy as np
 
@@ -146,6 +145,49 @@ class LinearTrend:
 
             pm.Normal("obs", mu=mu, sigma=sigma, dims="date")
 
+    Hierarchical LinearTrend via hierarchical prior:
+
+    .. code-block:: python
+
+        from pymc_marketing.prior import Prior
+
+        hierarchical_delta = Prior(
+            "Laplace",
+            mu=Prior("Normal", dims="changepoint"),
+            b=Prior("HalfNormal", dims="changepoint"),
+            dims=("changepoint", "geo"),
+        )
+        priors = dict(delta=hierarchical_delta)
+
+        hierarchical_trend = LinearTrend(
+            priors=priors,
+            n_changepoints=10,
+            dims="geo",
+        )
+
+    Sample and plot hierarchical trend:
+
+    .. code-block:: python
+
+        coords = {"geo": ["A", "B"]}
+        prior = hierarchical_trend.sample_prior(coords=coords)
+        curve = hierarchical_trend.sample_curve(prior)
+
+        seed = sum(map(ord, "Hierarchical LinearTrend"))
+        rng = np.random.default_rng(seed)
+
+        sample_kwargs = {"n": 3, "rng": rng}
+        fig, axes = hierarchical_trend.plot_curve(
+            curve,
+            sample_kwargs=sample_kwargs,
+        )
+        fig.suptitle("Hierarchical Linear Trend")
+        axes[0].set(ylabel="Trend", xlabel="Time")
+        axes[1].set(xlabel="Time")
+
+    .. image:: /_static/hierarchical-linear-trend-prior.png
+        :alt: Hierarchical LinearTrend prior
+
     References
     ----------
     Adapted from MBrouns/timeseers package:
@@ -163,6 +205,8 @@ class LinearTrend:
         self.n_changepoints = n_changepoints
         self.include_intercept = include_intercept
         self.priors: dict[str, Prior] = priors or self.default_priors.copy()
+        if isinstance(dims, str):
+            dims = (dims,)
         self.dims: Dims = dims or ()
 
         self._checks()
