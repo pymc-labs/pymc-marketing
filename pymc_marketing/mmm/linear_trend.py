@@ -137,9 +137,7 @@ class LinearTrend:
         t = (dates - dates[0]).days.to_numpy()
         t = t / 365.25
 
-        coords = {
-            "date": dates,
-        }
+        coords = {"date": dates}
         with pm.Model(coords=coords) as model:
             intercept = pm.Normal("intercept", mu=0, sigma=1)
             mu = intercept + trend.apply(t)
