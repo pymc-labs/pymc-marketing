@@ -206,7 +206,7 @@ class LinearTrend(BaseModel):
         None,
         description="Priors for the trend parameters.",
     )
-    dims: InstanceOf[Dims] | str | None = Field(
+    dims: tuple[str] | InstanceOf[Dims] | str | None = Field(
         None,
         description="The additional dimensions for the trend.",
     )
@@ -226,7 +226,7 @@ class LinearTrend(BaseModel):
         if isinstance(dims, str):
             self.dims = (dims,)
 
-        self.dims: Dims = self.dims or ()
+        self.dims: tuple[str] = self.dims or ()
 
         return self
 
