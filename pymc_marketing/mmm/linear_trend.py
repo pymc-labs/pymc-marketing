@@ -95,9 +95,6 @@ class LinearTrend:
     - :math:`k \sim \text{Normal}(0, 0.05)`
     - :math:`\delta_m \sim \text{Laplace}(0, 0.25)`
 
-    Adapted from MBrouns/timeseers package:
-    https://github.com/MBrouns/timeseers/blob/master/src/timeseers/linear_trend.py
-
     Parameters
     ----------
     priors : dict[str, Prior], optional
@@ -150,6 +147,11 @@ class LinearTrend:
             sigma = pm.Gamma("sigma", mu=0.1, sigma=0.025)
 
             pm.Normal("obs", mu=mu, sigma=sigma, dims="date")
+
+    References
+    ----------
+    Adapted from MBrouns/timeseers package:
+        https://github.com/MBrouns/timeseers/blob/master/src/timeseers/linear_trend.py
 
     """
 
