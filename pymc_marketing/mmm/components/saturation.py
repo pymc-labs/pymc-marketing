@@ -480,22 +480,3 @@ def saturation_from_dict(data: dict) -> SaturationTransformation:
             key: Prior.from_json(value) for key, value in data["priors"].items()
         }
     return cls(**data)
-
-
-def _get_saturation_function(
-    function: str | SaturationTransformation,
-) -> SaturationTransformation:
-    """
-    Get a saturation function.
-
-    Helper for use in the MMM to get a saturation function.
-    """
-    if isinstance(function, SaturationTransformation):
-        return function
-
-    if function not in SATURATION_TRANSFORMATIONS:
-        raise ValueError(
-            f"Unknown saturation function: {function}. Choose from {list(SATURATION_TRANSFORMATIONS.keys())}"
-        )
-
-    return SATURATION_TRANSFORMATIONS[function]()

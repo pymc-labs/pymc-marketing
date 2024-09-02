@@ -78,6 +78,20 @@ parameter. Here the "sigmoid" transformation comes from `pm.math`.
         dims="channel",
     )
 
+Create a prior with a custom transform function by registering it with
+`register_tensor_transform`.
+
+.. code-block:: python
+
+    from pymc_marketing.prior import register_tensor_transform
+
+    def custom_transform(x):
+        return x ** 2
+
+    register_tensor_transform("square", custom_transform)
+
+    custom_distribution = Prior("Normal", transform="square")
+
 """
 
 from __future__ import annotations
@@ -198,7 +212,47 @@ def _get_pymc_distribution(name: str) -> type[pm.Distribution]:
     return getattr(pm, name)
 
 
+Transform = Callable[[pt.TensorLike], pt.TensorLike]
+
+CUSTOM_TRANSFORMS: dict[str, Transform] = {}
+
+
+def register_tensor_transform(name: str, transform: Transform) -> None:
+    """Register a tensor transform function to be used in the `Prior` class.
+
+    Parameters
+    ----------
+    name : str
+        The name of the transform.
+    func : Callable[[pt.TensorLike], pt.TensorLike]
+        The function to apply to the tensor.
+
+    Examples
+    --------
+    Register a custom transform function.
+
+    .. code-block:: python
+
+        from pymc_marketing.prior import (
+            Prior,
+            register_tensor_transform,
+        )
+
+        def custom_transform(x):
+            return x ** 2
+
+        register_tensor_transform("square", custom_transform)
+
+        custom_distribution = Prior("Normal", transform="square")
+
+    """
+    CUSTOM_TRANSFORMS[name] = transform
+
+
 def _get_transform(name: str):
+    if name in CUSTOM_TRANSFORMS:
+        return CUSTOM_TRANSFORMS[name]
+
     for module in (pt, pm.math):
         if hasattr(module, name):
             break
@@ -206,9 +260,14 @@ def _get_transform(name: str):
         module = None
 
     if not module:
-        raise UnknownTransformError(
-            f"Neither PyTensor or pm.math have the function {name!r}"
+        msg = (
+            f"Neither pytensor.tensor nor pymc.math have the function {name!r}. "
+            "If this is a custom function, register it with the "
+            "`pymc_marketing.prior.register_tensor_transform` function before "
+            "previous function call."
         )
+
+        raise UnknownTransformError(msg)
 
     return getattr(module, name)
 
@@ -243,6 +302,7 @@ class Prior:
     transform : str, optional
         The name of the transform to apply to the variable after it is
         created, by default None or no transform. The transformation must
+        be registered with `register_tensor_transform` function or
         be available in either `pytensor.tensor` or `pymc.math`.
 
     """

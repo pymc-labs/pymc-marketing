@@ -45,6 +45,8 @@ jobs:
           name: artifact
           path: dist/*
   test:
+    permissions:
+      id-token: write
     name: upload to test PyPI
     needs: [build]
     runs-on: ubuntu-latest
@@ -57,8 +59,6 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           skip-existing: true
-          user: __token__
-          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
           repository-url: https://test.pypi.org/legacy/
       - uses: actions/setup-python@v4
         with:
@@ -71,6 +71,9 @@ jobs:
           venv-test-pypi/bin/python -c "import pymc_marketing; assert pymc_marketing.__version__ == '${{  github.ref_name }}'"
 
   publish:
+    environment: release
+    permissions:
+      id-token: write
     name: upload release to PyPI
     needs: [build, test]
     runs-on: ubuntu-latest
@@ -81,6 +84,3 @@ jobs:
           name: artifact
           path: dist
       - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}

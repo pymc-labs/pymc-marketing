@@ -422,7 +422,7 @@ class MMMModelBuilder(ModelBuilder):
                 y2=likelihood_hdi[:, 1],
                 color="C0",
                 alpha=alpha,
-                label=f"${100 * hdi_prob}\\%$ HDI",
+                label=f"{hdi_prob:.0%} HDI",
             )
 
         ax.plot(

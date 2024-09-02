@@ -93,7 +93,7 @@ def calculate_lift_measurements_from_curve(
     x_before: npt.NDArray[np.float64],
     x_after: npt.NDArray[np.float64],
     saturation_curve: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]],
-    pt=pt,
+    pt_lib=None,
 ) -> npt.NDArray[np.float64]:
     """Calculate the lift measurements at two spends.
 
@@ -105,7 +105,7 @@ def calculate_lift_measurements_from_curve(
         Array of x after the change.
     saturation_curve : Callable[[npt.NDArray[float]], npt.NDArray[float]]
         Function that takes spend and returns saturation.
-    pt : tensor module, optional. Default is pytensor.tensor.
+    pt_lib : tensor module, optional. Default is pytensor.tensor.
 
     Returns
     -------
@@ -113,8 +113,12 @@ def calculate_lift_measurements_from_curve(
         Array of lift measurements based on a given saturation curve
 
     """
-    return pt.diff(
-        saturation_curve(pt.stack([x_before, x_after])),
+    # setting default pl_lib to pytensor.tensor
+    if pt_lib is None:
+        pt_lib = pt
+
+    return pt_lib.diff(
+        saturation_curve(pt_lib.stack([x_before, x_after])),
         axis=0,
     ).flatten()
 

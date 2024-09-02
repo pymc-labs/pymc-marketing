@@ -13,7 +13,7 @@
 #   limitations under the License.
 """Marketing Mix Models (MMM)."""
 
-from pymc_marketing.mmm import base, delayed_saturated_mmm, preprocessing, validating
+from pymc_marketing.mmm import base, mmm, preprocessing, validating
 from pymc_marketing.mmm.base import BaseValidateMMM, MMMModelBuilder
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
@@ -37,8 +37,14 @@ from pymc_marketing.mmm.components.saturation import (
     register_saturation_transformation,
     saturation_from_dict,
 )
-from pymc_marketing.mmm.delayed_saturated_mmm import MMM, DelayedSaturatedMMM
 from pymc_marketing.mmm.fourier import MonthlyFourier, YearlyFourier
+from pymc_marketing.mmm.linear_trend import LinearTrend
+from pymc_marketing.mmm.media_transformation import (
+    MediaConfig,
+    MediaConfigList,
+    MediaTransformation,
+)
+from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
@@ -46,10 +52,12 @@ from pymc_marketing.mmm.preprocessing import (
 from pymc_marketing.mmm.validating import validation_method_X, validation_method_y
 
 __all__ = [
+    "MediaTransformation",
+    "MediaConfigList",
+    "MediaConfig",
     "AdstockTransformation",
     "BaseValidateMMM",
     "DelayedAdstock",
-    "DelayedSaturatedMMM",
     "GeometricAdstock",
     "HillSaturation",
     "HillSaturationSigmoid",
@@ -71,11 +79,12 @@ __all__ = [
     "register_adstock_transformation",
     "YearlyFourier",
     "base",
-    "delayed_saturated_mmm",
+    "mmm",
     "preprocessing",
     "preprocessing_method_X",
     "preprocessing_method_y",
     "validating",
     "validation_method_X",
     "validation_method_y",
+    "LinearTrend",
 ]
