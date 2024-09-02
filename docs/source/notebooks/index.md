@@ -13,6 +13,7 @@ mmm/mmm_tvp_example
 mmm/mmm_time_varying_media_example
 mmm/mmm_components
 mmm/mmm_roas
+mmm/mmm_time_slice_cross_validation
 :::
 
 :::{toctree}

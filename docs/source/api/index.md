@@ -14,5 +14,6 @@
   model_builder
   prior
   product_incrementality
+  metrics
   mlflow
 ```
