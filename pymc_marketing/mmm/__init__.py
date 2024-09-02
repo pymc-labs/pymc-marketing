@@ -38,6 +38,7 @@ from pymc_marketing.mmm.components.saturation import (
     saturation_from_dict,
 )
 from pymc_marketing.mmm.fourier import MonthlyFourier, YearlyFourier
+from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import (
     MediaConfig,
     MediaConfigList,
@@ -85,4 +86,5 @@ __all__ = [
     "validating",
     "validation_method_X",
     "validation_method_y",
+    "LinearTrend",
 ]
