@@ -948,6 +948,7 @@ def test_expected_cumulative_transactions_date_index(fitted_bg, cdnow_trans):
     observation_period_end = "19970930"
     time_scaler = 1
 
+    # Still tracking this function down
     transactions_summary = summary_data_from_transaction_data(  # noqa
         cdnow_trans,
         customer_id_col,
