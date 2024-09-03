@@ -7,6 +7,8 @@
 ----
 
 ![Build](https://github.com/pymc-labs/pymc-marketing/actions/workflows/ci.yml/badge.svg)
+![Test](https://github.com/pymc-labs/pymc-marketing/actions/workflows/test.yml/badge.svg)
+![Notebook](https://github.com/pymc-labs/pymc-marketing/actions/workflows/test_notebook.yml/badge.svg)
 [![codecov](https://codecov.io/gh/pymc-labs/pymc-marketing/branch/main/graph/badge.svg?token=OBV3BS5TYE)](https://codecov.io/gh/pymc-labs/pymc-marketing)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![docs](https://readthedocs.org/projects/pymc-marketing/badge/?version=latest)](https://docs.readthedocs.io/en/latest/)
@@ -34,12 +36,14 @@ Explore these topics further by watching our video on [Bayesian Marketing Mix Mo
 
 ### Community Resources
 
-- [Bayesian discord server](https://discord.gg/swztKRaVKe)
+- [PyMC-Marketing Discussions](https://github.com/pymc-labs/pymc-marketing/discussions)
 - [PyMC discourse](https://discourse.pymc.io/)
+- [Bayesian discord server](https://discord.gg/swztKRaVKe)
+- [MMM Hub Slack](https://www.mmmhub.org/slack)
 
 ## Quick Installation Guide for Marketing Mix Modeling (MMM) & CLV
 
-To dive into MMM and CLV analytics, set up a specialized environment, `marketing_env`, via conda-forge:
+To dive into MMM and CLV analytics, set up a specialized Python environment, `marketing_env`, via conda-forge:
 
 ```bash
 conda create -c conda-forge -n marketing_env pymc-marketing
@@ -56,30 +60,37 @@ We provide a `Dockerfile` to build a Docker image for PyMC-Marketing so that is 
 
 Leverage our Bayesian MMM API to tailor your marketing strategies effectively. Leveraging on top of the research article [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017)](https://research.google/pubs/pub46001/),  and extending it by integrating the expertise from core PyMC developers, our API provides:
 
-- **Custom Priors and Likelihoods**: Tailor your model to your specific business needs by including domain knowledge via prior distributions.
-- **Adstock Transformation**: Optimize the carry-over effects in your marketing channels.
-- **Saturation Effects**: Understand the diminishing returns in media investments.
-- **Customize adstock and saturation functions:** You can select from a variety of adstock and saturation functions. You can even implement your own custom functions.
-- **Time-varying Intercept:** Capture time-varying baseline contributions in your model (using modern and efficient Gaussian processes approximation methods).
-- **Time-varying Media Contribution:** Capture time-varying media efficiency in your model (using modern and efficient Gaussian processes approximation methods).
-- **Visualization and Model Diagnostics**: Get a comprehensive view of your model's performance and insights.
-- **Choose among many inference algorithms**: We provide the option to choose between various NUTS samplers (e.g. BlackJax, NumPyro and Nutpie). See the [example notebook](https://www.pymc-marketing.io/en/stable/notebooks/general/other_nuts_samplers.html) for more details.
-- **Out-of-sample Predictions**: Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.
-- **Budget Optimization**: Allocate your marketing spend efficiently across various channels for maximum ROI.
-- **Experiment Calibration**: Fine-tune your model based on empirical experiments for a more unified view of marketing.
+| Feature                                    | Description                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Custom Priors and Likelihoods              | Tailor your model to your specific business needs by including domain knowledge via prior distributions.                                                                                                                                                                                                                                                                               |
+| Adstock Transformation                     | Optimize the carry-over effects in your marketing channels.                                                                                                                                                                                                                                                                                                                            |
+| Saturation Effects                         | Understand the diminishing returns in media investments.                                                                                                                                                                                                                                                                                                                               |
+| Customize adstock and saturation functions | You can select from a variety of adstock and saturation functions. You can even implement your own custom functions. See [documentation guide](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_components.html).                                                                                                                                                             |
+| Time-varying Intercept                     | Capture time-varying baseline contributions in your model (using modern and efficient Gaussian processes approximation methods). See [guide notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_time_varying_media_example.html).                                                                                                                                      |
+| Time-varying Media Contribution            | Capture time-varying media efficiency in your model (using modern and efficient Gaussian processes approximation methods). See the [guide notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_tvp_example.html).                                                                                                                                                       |
+| Visualization and Model Diagnostics        | Get a comprehensive view of your model's performance and insights.                                                                                                                                                                                                                                                                                                                     |
+| Choose among many inference algorithms     | We provide the option to choose between various NUTS samplers (e.g. BlackJax, NumPyro and Nutpie). See the [example notebook](https://www.pymc-marketing.io/en/stable/notebooks/general/other_nuts_samplers.html) for more details.                                                                                                                                                    |
+| Out-of-sample Predictions                  | Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.                                                                                                                                                                                                                                                                         |
+| Budget Optimization                        | Allocate your marketing spend efficiently across various channels for maximum ROI. See the [budget optimization example notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_budget_allocation_example.html)                                                                                                                                                            |
+| Experiment Calibration                     | Fine-tune your model based on empirical experiments for a more unified view of marketing. See the [lift test integration explanation](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_lift_test.html) for more details. [Here](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_roas.html) you can find a *Case Study: Unobserved Confounders, ROAS and Lift Tests*. |
 
 ### MMM Quickstart
 
 ```python
 import pandas as pd
-from pymc_marketing.mmm import MMM
+
+from pymc_marketing.mmm import (
+    GeometricAdstock,
+    LogisticSaturation,
+    MMM,
+)
 
 data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
 data = pd.read_csv(data_url, parse_dates=["date_week"])
 
 mmm = MMM(
-    adstock="geometric",
-    saturation="logistic",
+    adstock=GeometricAdstock(l_max=8),
+    saturation=LogisticSaturation(),
     date_column="date_week",
     channel_columns=["x1", "x2"],
     control_columns=[
@@ -87,7 +98,6 @@ mmm = MMM(
         "event_2",
         "t",
     ],
-    adstock_max_lag=8,
     yearly_seasonality=2,
 )
 ```
@@ -111,9 +121,6 @@ Once the model is fitted, we can further optimize our budget allocation as we ar
 
 Explore a hands-on [simulated example](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
 
-${\color{red}\textbf{Warning!}}$ We will deprecate the `DelayedSaturatedMMM` class in the next releases.
-Please use the `MMM` class instead.
-
 ### Essential Reading for Marketing Mix Modeling (MMM)
 
 - [Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization/)
@@ -135,10 +142,10 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 
 ### Examples
 
-|                | **Non-contractual** | **Contractual**                |
-|----------------|---------------------|--------------------------------|
-| **Continuous** | online purchases    | ad conversion time             |
-| **Discrete**   | concerts & sports events   | recurring subscriptions |
+|                | **Non-contractual**      | **Contractual**         |
+| -------------- | ------------------------ | ----------------------- |
+| **Continuous** | online purchases         | ad conversion time      |
+| **Discrete**   | concerts & sports events | recurring subscriptions |
 
 ### CLV Quickstart
 

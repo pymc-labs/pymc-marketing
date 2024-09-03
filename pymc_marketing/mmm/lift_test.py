@@ -27,6 +27,8 @@ from pymc_marketing.mmm.components.saturation import SaturationTransformation
 
 
 class MissingLiftTestError(Exception):
+    """Error when some of the lift tests are not in the model."""
+
     def __init__(self, missing_values: npt.NDArray[np.int_]) -> None:
         self.missing_values = missing_values
         super().__init__(
@@ -72,7 +74,6 @@ def lift_test_indices(df_lift_test: pd.DataFrame, model: pm.Model) -> Indices:
         If some lift test values are not in the model.
 
     """
-
     columns = df_lift_test.columns.tolist()
 
     return {
@@ -92,7 +93,7 @@ def calculate_lift_measurements_from_curve(
     x_before: npt.NDArray[np.float64],
     x_after: npt.NDArray[np.float64],
     saturation_curve: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]],
-    pt=pt,
+    pt_lib=None,
 ) -> npt.NDArray[np.float64]:
     """Calculate the lift measurements at two spends.
 
@@ -104,7 +105,7 @@ def calculate_lift_measurements_from_curve(
         Array of x after the change.
     saturation_curve : Callable[[npt.NDArray[float]], npt.NDArray[float]]
         Function that takes spend and returns saturation.
-    pt : tensor module, optional. Default is pytensor.tensor.
+    pt_lib : tensor module, optional. Default is pytensor.tensor.
 
     Returns
     -------
@@ -112,8 +113,12 @@ def calculate_lift_measurements_from_curve(
         Array of lift measurements based on a given saturation curve
 
     """
-    return pt.diff(
-        saturation_curve(pt.stack([x_before, x_after])),
+    # setting default pl_lib to pytensor.tensor
+    if pt_lib is None:
+        pt_lib = pt
+
+    return pt_lib.diff(
+        saturation_curve(pt_lib.stack([x_before, x_after])),
         axis=0,
     ).flatten()
 
@@ -170,8 +175,8 @@ def indices_from_lift_tests(
     -------
     dict[str, np.ndarray]
         Dictionary of indices for the lift test results in the model.
-    """
 
+    """
     named_vars_to_dims = {
         name: dims
         for name, dims in model.named_vars_to_dims.items()
@@ -202,7 +207,7 @@ class NonMonotonicLiftError(Exception):
 
 
 def check_increasing_assumption(df_lift_tests: pd.DataFrame) -> None:
-    """Checks if the lift test results satisfy the increasing assumption.
+    """Check if the lift test results satisfy the increasing assumption.
 
     If delta_x is positive, delta_y must be positive, and vice versa.
     """
@@ -452,7 +457,6 @@ def scale_channel_lift_measurements(
         DataFrame with the scaled lift measurements.
 
     """
-
     # DataFrame with MultiIndex (RangeIndex, channel_col)
     # columns: x, delta_x
     df_original = df_lift_test.loc[:, [channel_col, "x", "delta_x"]].set_index(
@@ -601,7 +605,10 @@ def add_lift_measurements_to_likelihood_from_saturation(
     dist: type[pm.Distribution] = pm.Gamma,
     name: str = "lift_measurements",
 ) -> None:
-    """Wrapper around :func:`add_lift_measurements_to_likelihood` to work with
+    """
+    Add lift measurements to the likelihood from a saturation transformation.
+
+    Wrapper around :func:`add_lift_measurements_to_likelihood` to work with
     SaturationTransformation instances and time-varying variables.
 
     Used internally of the :class:`MMM` class.
@@ -626,7 +633,6 @@ def add_lift_measurements_to_likelihood_from_saturation(
         Name of the likelihood, by default "lift_measurements"
 
     """
-
     if time_varying_var_name:
         saturation_function, variable_mapping = create_time_varying_saturation(
             saturation=saturation,

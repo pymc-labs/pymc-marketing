@@ -30,13 +30,14 @@ import json
 import sys
 import tempfile
 
+import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
 
-from pymc_marketing.model_builder import ModelBuilder
+from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
 
 
 @pytest.fixture(scope="module")
@@ -70,7 +71,7 @@ def fitted_model_instance(toy_X):
     model = ModelBuilderTest(
         model_config=model_config,
         sampler_config=sampler_config,
-        test_parameter="test_paramter",
+        test_parameter="test_parameter",
     )
     model.fit(
         toy_X,
@@ -110,8 +111,8 @@ class ModelBuilderTest(ModelBuilder):
         with pm.Model(coords=coords) as self.model:
             if model_config is None:
                 model_config = self.default_model_config
-            x = pm.MutableData("x", self.X["input"].values)
-            y_data = pm.MutableData("y_data", self.y)
+            x = pm.Data("x", self.X["input"].values)
+            y_data = pm.Data("y_data", self.y)
 
             # prior parameters
             a_loc = model_config["a"]["loc"]
@@ -128,8 +129,11 @@ class ModelBuilderTest(ModelBuilder):
             # observed data
             pm.Normal("output", a + b * x, obs_error, shape=x.shape, observed=y_data)
 
-    def _save_input_params(self, idata):
-        idata.attrs["test_paramter"] = json.dumps(self.test_parameter)
+    def create_idata_attrs(self):
+        attrs = super().create_idata_attrs()
+        attrs["test_parameter"] = json.dumps(self.test_parameter)
+
+        return attrs
 
     @property
     def output_var(self):
@@ -183,7 +187,7 @@ def test_model_and_sampler_config():
 
 
 def test_save_input_params(fitted_model_instance):
-    assert fitted_model_instance.idata.attrs["test_paramter"] == '"test_paramter"'
+    assert fitted_model_instance.idata.attrs["test_parameter"] == '"test_parameter"'
 
 
 def test_save_load(fitted_model_instance):
@@ -191,8 +195,12 @@ def test_save_load(fitted_model_instance):
     temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
     fitted_model_instance.save(temp.name)
     test_builder2 = ModelBuilderTest.load(temp.name)
+
     assert fitted_model_instance.idata.groups() == test_builder2.idata.groups()
     assert fitted_model_instance.id == test_builder2.id
+    assert fitted_model_instance.model_config == test_builder2.model_config
+    assert fitted_model_instance.sampler_config == test_builder2.sampler_config
+
     x_pred = rng.uniform(low=0, high=1, size=100)
     prediction_data = pd.DataFrame({"input": x_pred})
     pred1 = fitted_model_instance.predict(prediction_data)
@@ -209,7 +217,8 @@ def test_initial_build_and_fit(fitted_model_instance, check_idata=True) -> Model
 
 def test_save_without_fit_raises_runtime_error():
     model_builder = ModelBuilderTest()
-    with pytest.raises(RuntimeError):
+    match = "The model hasn't been fit yet"
+    with pytest.raises(RuntimeError, match=match):
         model_builder.save("saved_model")
 
 
@@ -227,7 +236,7 @@ def test_fit(fitted_model_instance):
     rng = np.random.default_rng(42)
     assert fitted_model_instance.idata is not None
     assert "posterior" in fitted_model_instance.idata.groups()
-    assert fitted_model_instance.idata.posterior.dims["draw"] == 100
+    assert fitted_model_instance.idata.posterior.sizes["draw"] == 100
 
     prediction_data = pd.DataFrame({"input": rng.uniform(low=0, high=1, size=100)})
     fitted_model_instance.predict(prediction_data)
@@ -248,6 +257,14 @@ def test_fit_no_t(toy_X):
     assert "posterior" in model_builder.idata.groups()
 
 
+@pytest.mark.xfail
+def test_fit_dup_Y(toy_X):
+    # create redundant target column in X
+    toy_X = pd.concat((toy_X, toy_y), axis=1)
+    model_builder = ModelBuilderTest()
+    model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
+
+
 @pytest.mark.skipif(
     sys.platform == "win32",
     reason="Permissions for temp files not granted on windows CI.",
@@ -258,7 +275,7 @@ def test_predict(fitted_model_instance):
     prediction_data = pd.DataFrame({"input": x_pred})
     pred = fitted_model_instance.predict(prediction_data)
     # Perform elementwise comparison using numpy
-    assert type(pred) == np.ndarray
+    assert isinstance(pred, np.ndarray)
     assert len(pred) > 0
 
 
@@ -271,8 +288,8 @@ def test_sample_posterior_predictive(fitted_model_instance, combined):
     pred = fitted_model_instance.sample_posterior_predictive(
         prediction_data, combined=combined, extend_idata=True
     )
-    chains = fitted_model_instance.idata.sample_stats.dims["chain"]
-    draws = fitted_model_instance.idata.sample_stats.dims["draw"]
+    chains = fitted_model_instance.idata.sample_stats.sizes["chain"]
+    draws = fitted_model_instance.idata.sample_stats.sizes["draw"]
     expected_shape = (n_pred, chains * draws) if combined else (chains, draws, n_pred)
     assert pred[fitted_model_instance.output_var].shape == expected_shape
     assert np.issubdtype(pred[fitted_model_instance.output_var].dtype, np.floating)
@@ -366,3 +383,191 @@ def test_second_fit(toy_X, toy_y):
     id_after = id(model.idata)
 
     assert id_before != id_after
+
+
+class InsufficientModel(ModelBuilder):
+    def __init__(
+        self, model_config=None, sampler_config=None, new_parameter=None
+    ) -> None:
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
+        self.new_parameter = new_parameter
+
+    def _data_setter(self, X: pd.DataFrame, y: pd.Series = None) -> None:
+        pass
+
+    def build_model(self, X: pd.DataFrame, y: pd.Series, model_config=None) -> None:
+        with pm.Model() as self.model:
+            intercept = pm.Normal("intercept")
+            sigma = pm.HalfNormal("sigma")
+
+            pm.Normal("output", mu=intercept, sigma=sigma, observed=y)
+
+    @property
+    def output_var(self) -> str:
+        return "output"
+
+    @property
+    def default_model_config(self) -> dict:
+        return {}
+
+    @property
+    def default_sampler_config(self) -> dict:
+        return {}
+
+    def _generate_and_preprocess_model_data(
+        self,
+        X,
+        y,
+    ) -> None:
+        pass
+
+    def _serializable_model_config(self) -> dict[str, int | float | dict]:
+        return {}
+
+
+def test_insufficient_attrs() -> None:
+    model = InsufficientModel()
+
+    X_pred = [1, 2, 3]
+
+    match = "__init__ has parameters that are not in the attrs"
+    with pytest.raises(ValueError, match=match):
+        model.sample_prior_predictive(X_pred=X_pred)
+
+
+def test_incorrect_set_idata_attrs_override() -> None:
+    class IncorrectSetAttrs(InsufficientModel):
+        def create_idata_attrs(self) -> dict:
+            return {"new_parameter": self.new_parameter}
+
+    model = IncorrectSetAttrs()
+
+    X_pred = [1, 2, 3]
+
+    match = "Missing required keys in attrs"
+    with pytest.raises(ValueError, match=match):
+        model.sample_prior_predictive(X_pred=X_pred)
+
+
+@pytest.mark.parametrize(
+    "sampler_config, fit_kwargs, expected",
+    [
+        (
+            {},
+            {
+                "progressbar": None,
+                "random_seed": None,
+            },
+            {
+                "progressbar": True,
+            },
+        ),
+        (
+            {
+                "random_seed": 52,
+                "progressbar": False,
+            },
+            {
+                "progressbar": None,
+                "random_seed": None,
+            },
+            {
+                "progressbar": False,
+                "random_seed": 52,
+            },
+        ),
+        (
+            {
+                "random_seed": 52,
+                "progressbar": True,
+            },
+            {
+                "progressbar": False,
+                "random_seed": 42,
+            },
+            {
+                "progressbar": False,
+                "random_seed": 42,
+            },
+        ),
+    ],
+    ids=[
+        "no_sampler_config/defaults",
+        "use_sampler_config",
+        "override_sampler_config",
+    ],
+)
+def test_create_sample_kwargs(sampler_config, fit_kwargs, expected) -> None:
+    sampler_config_before = sampler_config.copy()
+    assert create_sample_kwargs(sampler_config, **fit_kwargs) == expected
+
+    # Doesn't override
+    assert sampler_config_before == sampler_config
+
+
+def create_int_seed():
+    return 42
+
+
+def create_rng_seed():
+    return np.random.default_rng(42)
+
+
+@pytest.mark.parametrize(
+    "create_random_seed",
+    [
+        create_int_seed,
+        create_rng_seed,
+    ],
+    ids=["int", "rng"],
+)
+def test_fit_random_seed_reproducibility(toy_X, toy_y, create_random_seed) -> None:
+    sampler_config = {
+        "chains": 1,
+        "draws": 10,
+        "tune": 5,
+    }
+    model = ModelBuilderTest(sampler_config=sampler_config)
+
+    idata = model.fit(toy_X, toy_y, random_seed=create_random_seed())
+    idata2 = model.fit(toy_X, toy_y, random_seed=create_random_seed())
+
+    assert idata.posterior.equals(idata2.posterior)
+
+    sizes = idata.posterior.sizes
+    assert sizes["chain"] == 1
+    assert sizes["draw"] == 10
+
+
+def test_fit_sampler_config_seed_reproducibility(toy_X, toy_y) -> None:
+    sampler_config = {
+        "chains": 1,
+        "draws": 10,
+        "tune": 5,
+        "random_seed": 42,
+    }
+    model = ModelBuilderTest(sampler_config=sampler_config)
+
+    idata = model.fit(toy_X, toy_y)
+    idata2 = model.fit(toy_X, toy_y)
+
+    assert idata.posterior.equals(idata2.posterior)
+
+
+def test_fit_sampler_config_with_rng_fails(mocker, toy_X, toy_y) -> None:
+    def mock_sample(*args, **kwargs):
+        idata = pm.sample_prior_predictive(10)
+        return az.InferenceData(posterior=idata.prior)
+
+    mocker.patch("pymc.sample", mock_sample)
+    sampler_config = {
+        "chains": 1,
+        "draws": 10,
+        "tune": 5,
+        "random_seed": np.random.default_rng(42),
+    }
+    model = ModelBuilderTest(sampler_config=sampler_config)
+
+    match = "Object of type Generator is not JSON serializable"
+    with pytest.raises(TypeError, match=match):
+        model.fit(toy_X, toy_y)

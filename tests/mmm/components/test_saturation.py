@@ -18,14 +18,18 @@ import pymc as pm
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
+from pydantic import ValidationError
 
-from pymc_marketing.mmm.components.saturation import (
+from pymc_marketing.mmm import (
     HillSaturation,
+    HillSaturationSigmoid,
+    InverseScaledLogisticSaturation,
     LogisticSaturation,
     MichaelisMentenSaturation,
+    RootSaturation,
     TanhSaturation,
     TanhSaturationBaselined,
-    _get_saturation_function,
+    saturation_from_dict,
 )
 from pymc_marketing.prior import Prior
 
@@ -39,10 +43,13 @@ def model() -> pm.Model:
 def saturation_functions():
     return [
         LogisticSaturation(),
+        InverseScaledLogisticSaturation(),
         TanhSaturation(),
         TanhSaturationBaselined(),
         MichaelisMentenSaturation(),
         HillSaturation(),
+        HillSaturationSigmoid(),
+        RootSaturation(),
     ]
 
 
@@ -87,37 +94,6 @@ def test_support_for_lift_test_integrations(saturation) -> None:
         assert key in function_parameters
 
     assert len(saturation.variable_mapping) == len(function_parameters) - 1
-
-
-@pytest.mark.parametrize(
-    "name, saturation_cls",
-    [
-        ("logistic", LogisticSaturation),
-        ("tanh", TanhSaturation),
-        ("tanh_baselined", TanhSaturationBaselined),
-        ("michaelis_menten", MichaelisMentenSaturation),
-        ("hill", HillSaturation),
-    ],
-)
-def test_get_saturation_function(name, saturation_cls) -> None:
-    saturation = _get_saturation_function(name)
-
-    assert isinstance(saturation, saturation_cls)
-
-
-@pytest.mark.parametrize("saturation", saturation_functions())
-def test_get_saturation_function_passthrough(saturation) -> None:
-    id_before = id(saturation)
-    id_after = id(_get_saturation_function(saturation))
-
-    assert id_after == id_before
-
-
-def test_get_saturation_function_unknown() -> None:
-    with pytest.raises(
-        ValueError, match="Unknown saturation function: unknown. Choose from"
-    ):
-        _get_saturation_function("unknown")
 
 
 @pytest.mark.parametrize("saturation", saturation_functions())
@@ -209,3 +185,53 @@ def test_sample_curve_with_additional_dims(
 
     assert curve.coords["channel"].to_numpy().tolist() == ["C1", "C2", "C3"]
     assert "random_dim" not in curve.coords
+
+
+@pytest.mark.parametrize(
+    argnames="max_value", argvalues=[0, -1], ids=["zero", "negative"]
+)
+def test_sample_curve_with_bad_max_value(max_value) -> None:
+    dummy_distribution = Prior("HalfNormal", dims="channel")
+    priors = {
+        "alpha": dummy_distribution,
+        "lam": dummy_distribution,
+    }
+    saturation = MichaelisMentenSaturation(priors=priors)
+
+    with pytest.raises(ValidationError):
+        saturation.sample_curve(
+            parameters=mock_menten_parameters_with_additional_dim, max_value=max_value
+        )
+
+
+def test_saturation_from_dict() -> None:
+    data = {
+        "lookup_name": "michaelis_menten",
+        "priors": {
+            "alpha": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+            "lam": {
+                "dist": "HalfNormal",
+                "kwargs": {"sigma": 1},
+            },
+        },
+    }
+
+    saturation = saturation_from_dict(data)
+    assert saturation == MichaelisMentenSaturation(
+        priors={
+            "alpha": Prior("HalfNormal", sigma=1),
+            "lam": Prior("HalfNormal", sigma=1),
+        }
+    )
+
+
+@pytest.mark.parametrize("saturation", saturation_functions())
+def test_saturation_from_dict_without_priors(saturation) -> None:
+    data = {
+        "lookup_name": saturation.lookup_name,
+    }
+
+    saturation = saturation_from_dict(data)
+    assert saturation.default_priors == {
+        k: Prior.from_json(v) for k, v in saturation.to_dict()["priors"].items()
+    }

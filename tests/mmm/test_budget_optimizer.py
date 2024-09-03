@@ -17,8 +17,8 @@ import numpy as np
 import pytest
 
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, MinimizeException
-from pymc_marketing.mmm.components.adstock import _get_adstock_function
-from pymc_marketing.mmm.components.saturation import _get_saturation_function
+from pymc_marketing.mmm.components.adstock import GeometricAdstock
+from pymc_marketing.mmm.components.saturation import LogisticSaturation
 
 
 @pytest.mark.parametrize(
@@ -74,18 +74,27 @@ def test_allocate_budget(
     expected_response,
 ):
     # Initialize Adstock and Saturation Transformations
-    adstock = _get_adstock_function(function="geometric", l_max=4)
-    saturation = _get_saturation_function(function="logistic")
+    adstock = GeometricAdstock(l_max=4)
+    saturation = LogisticSaturation()
 
     # Create BudgetOptimizer Instance
-    optimizer = BudgetOptimizer(adstock, saturation, 30, parameters, adstock_first=True)
+    optimizer = BudgetOptimizer(
+        adstock=adstock,
+        saturation=saturation,
+        num_periods=30,
+        parameters=parameters,
+        adstock_first=True,
+        scales=np.array([1, 1]),
+    )
 
     # Allocate Budget
-    optimal_budgets, total_response = optimizer.allocate_budget(
-        total_budget=total_budget,
-        budget_bounds=budget_bounds,
-        minimize_kwargs=minimize_kwargs,
-    )
+    match = "Using default equality constraint"
+    with pytest.warns(UserWarning, match=match):
+        optimal_budgets, total_response = optimizer.allocate_budget(
+            total_budget=total_budget,
+            budget_bounds=budget_bounds,
+            minimize_kwargs=minimize_kwargs,
+        )
 
     # Assert Results
     assert optimal_budgets == expected_optimal
@@ -116,12 +125,22 @@ def test_allocate_budget(
 def test_allocate_budget_zero_total(
     total_budget, budget_bounds, parameters, expected_optimal, expected_response
 ):
-    adstock = _get_adstock_function(function="geometric", l_max=4)
-    saturation = _get_saturation_function(function="logistic")
-    optimizer = BudgetOptimizer(adstock, saturation, 30, parameters, adstock_first=True)
-    optimal_budgets, total_response = optimizer.allocate_budget(
-        total_budget, budget_bounds
+    adstock = GeometricAdstock(l_max=4)
+    saturation = LogisticSaturation()
+
+    optimizer = BudgetOptimizer(
+        adstock=adstock,
+        saturation=saturation,
+        num_periods=30,
+        parameters=parameters,
+        adstock_first=True,
+        scales=np.array([1, 1]),
     )
+    match = "Using default equality constraint"
+    with pytest.warns(UserWarning, match=match):
+        optimal_budgets, total_response = optimizer.allocate_budget(
+            total_budget, budget_bounds
+        )
     assert optimal_budgets == pytest.approx(expected_optimal, rel=1e-2)
     assert total_response == pytest.approx(expected_response, abs=1e-1)
 
@@ -145,12 +164,22 @@ def test_allocate_budget_custom_minimize_args(minimize_mock) -> None:
         "options": {"ftol": 1e-8, "maxiter": 1_002},
     }
 
-    adstock = _get_adstock_function(function="geometric", l_max=4)
-    saturation = _get_saturation_function(function="logistic")
-    optimizer = BudgetOptimizer(adstock, saturation, 30, parameters, adstock_first=True)
-    optimizer.allocate_budget(
-        total_budget, budget_bounds, minimize_kwargs=minimize_kwargs
+    adstock = GeometricAdstock(l_max=4)
+    saturation = LogisticSaturation()
+
+    optimizer = optimizer = BudgetOptimizer(
+        adstock=adstock,
+        saturation=saturation,
+        num_periods=30,
+        parameters=parameters,
+        adstock_first=True,
+        scales=np.array([1, 1]),
     )
+    match = "Using default equality constraint"
+    with pytest.warns(UserWarning, match=match):
+        optimizer.allocate_budget(
+            total_budget, budget_bounds, minimize_kwargs=minimize_kwargs
+        )
 
     kwargs = minimize_mock.call_args_list[0].kwargs
 
@@ -194,9 +223,17 @@ def test_allocate_budget_custom_minimize_args(minimize_mock) -> None:
 def test_allocate_budget_infeasible_constraints(
     total_budget, budget_bounds, parameters, custom_constraints
 ):
-    adstock = _get_adstock_function(function="geometric", l_max=4)
-    saturation = _get_saturation_function(function="logistic")
-    optimizer = BudgetOptimizer(adstock, saturation, 30, parameters, adstock_first=True)
+    adstock = GeometricAdstock(l_max=4)
+    saturation = LogisticSaturation()
+
+    optimizer = optimizer = BudgetOptimizer(
+        adstock=adstock,
+        saturation=saturation,
+        num_periods=30,
+        parameters=parameters,
+        adstock_first=True,
+        scales=np.array([1, 1]),
+    )
 
     with pytest.raises(MinimizeException, match="Optimization failed"):
         optimizer.allocate_budget(total_budget, budget_bounds, custom_constraints)

@@ -215,13 +215,11 @@ import numpy.typing as npt
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
+from pydantic import BaseModel, Field, InstanceOf, field_serializer, model_validator
+from typing_extensions import Self
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_YEAR
-from pymc_marketing.mmm.plot import (
-    plot_curve,
-    plot_hdi,
-    plot_samples,
-)
+from pymc_marketing.mmm.plot import plot_curve, plot_hdi, plot_samples
 from pymc_marketing.prior import Prior, create_dim_handler
 
 X_NAME: str = "day"
@@ -261,63 +259,70 @@ def generate_fourier_modes(
     )
 
 
-class FourierBase:
+class FourierBase(BaseModel):
     """Base class for Fourier seasonality transformations.
 
     Parameters
     ----------
     n_order : int
         Number of fourier modes to use.
+    days_in_period : float
+        Number of days in a period.
     prefix : str, optional
         Alternative prefix for the fourier seasonality, by default None or
         "fourier"
     prior : Prior, optional
         Prior distribution for the fourier seasonality beta parameters, by
-        default None
-    name : str, optional
-        Name of the variable that multiplies the fourier modes, by default None
-
-    Attributes
-    ----------
-    days_in_period : float
-        Number of days in a period.
-    prefix : str
-        Name of model coordinates
-    default_prior : Prior
-        Default prior distribution for the fourier seasonality
-        beta parameters.
+        default `Prior("Laplace", mu=0, b=1)`
+    variable_name : str, optional
+        Name of the variable that multiplies the fourier modes. By default None,
+        in which case it is set to the `{prefix}_beta`.
 
     """
 
-    days_in_period: float
-    prefix: str = "fourier"
+    n_order: int = Field(..., gt=0)
+    days_in_period: float = Field(..., gt=0)
+    prefix: str = Field("fourier")
+    prior: InstanceOf[Prior] = Field(Prior("Laplace", mu=0, b=1))
+    variable_name: str | None = Field(None)
 
-    default_prior = Prior("Laplace", mu=0, b=1)
-
-    def __init__(
-        self,
-        n_order: int,
-        prefix: str | None = None,
-        prior: Prior | None = None,
-        name: str | None = None,
-    ) -> None:
-        if not isinstance(n_order, int) or n_order < 1:
-            raise ValueError(f"n_order must be a positive integer. Not {n_order}")
-
-        self.n_order = n_order
-        self.prefix = prefix or self.prefix
-        self.prior = prior or self.default_prior
-        self.variable_name = name or f"{self.prefix}_beta"
-
-        if self.variable_name == self.prefix:
-            raise ValueError("Variable name cannot be the same as the prefix")
+    def model_post_init(self, __context: Any) -> None:
+        """Model post initialization for a Pydantic model."""
+        if self.variable_name is None:
+            self.variable_name = f"{self.prefix}_beta"
 
         if not self.prior.dims:
             self.prior = self.prior.deepcopy()
             self.prior.dims = self.prefix
 
+    @model_validator(mode="after")
+    def _check_variable_name(self) -> Self:
+        if self.variable_name == self.prefix:
+            raise ValueError("Variable name cannot be the same as the prefix")
+        return self
+
+    @model_validator(mode="after")
+    def _check_prior_has_right_dimensions(self) -> Self:
         if self.prefix not in self.prior.dims:
             raise ValueError(f"Prior distribution must have dimension {self.prefix}")
+        return self
+
+    @field_serializer("prior", when_used="json")
+    def serialize_prior(prior: Prior) -> dict[str, Any]:
+        """Serialize the prior distribution.
+
+        Parameters
+        ----------
+        prior : Prior
+            The prior distribution to serialize.
+
+        Returns
+        -------
+        dict[str, Any]
+            The serialized prior distribution.
+
+        """
+        return prior.to_json()
 
     @property
     def nodes(self) -> list[str]:
@@ -597,8 +602,6 @@ class YearlyFourier(FourierBase):
         axes[0].set(title="Yearly Fourier Seasonality")
         plt.show()
 
-    Parameters
-    ----------
     n_order : int
         Number of fourier modes to use.
     prefix : str, optional
@@ -606,21 +609,15 @@ class YearlyFourier(FourierBase):
         "fourier"
     prior : Prior, optional
         Prior distribution for the fourier seasonality beta parameters, by
-        default None
-
-    Attributes
-    ----------
-    days_in_period : float
-        Number of days in a period.
-    prefix : str
-        Name of model coordinates
-    default_prior : Prior
-        Default prior distribution for the fourier seasonality
-        beta parameters.
+        default `Prior("Laplace", mu=0, b=1)`
+    name : str, optional
+        Name of the variable that multiplies the fourier modes, by default None
+    variable_name : str, optional
+        Name of the variable that multiplies the fourier modes, by default None
 
     """
 
-    days_in_period = DAYS_IN_YEAR
+    days_in_period: float = DAYS_IN_YEAR
 
 
 class MonthlyFourier(FourierBase):
@@ -652,8 +649,6 @@ class MonthlyFourier(FourierBase):
         axes[0].set(title="Monthly Fourier Seasonality")
         plt.show()
 
-    Parameters
-    ----------
     n_order : int
         Number of fourier modes to use.
     prefix : str, optional
@@ -661,18 +656,12 @@ class MonthlyFourier(FourierBase):
         "fourier"
     prior : Prior, optional
         Prior distribution for the fourier seasonality beta parameters, by
-        default None
-
-    Attributes
-    ----------
-    days_in_period : float
-        Number of days in a period.
-    prefix : str
-        Name of model coordinates
-    default_prior : Prior
-        Default prior distribution for the fourier seasonality
-        beta parameters.
+        default `Prior("Laplace", mu=0, b=1)`
+    name : str, optional
+        Name of the variable that multiplies the fourier modes, by default None
+    variable_name : str, optional
+        Name of the variable that multiplies the fourier modes, by default None
 
     """
 
-    days_in_period = DAYS_IN_MONTH
+    days_in_period: float = DAYS_IN_MONTH

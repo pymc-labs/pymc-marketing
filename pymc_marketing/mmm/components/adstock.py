@@ -29,6 +29,8 @@ Create a new adstock transformation:
     from pymc_marketing.prior import Prior
 
     class MyAdstock(AdstockTransformation):
+        lookup_name: str = "my_adstock"
+
         def function(self, x, alpha):
             return x * alpha
 
@@ -50,10 +52,9 @@ Plot the default priors for an adstock transformation:
 
 """
 
-import warnings
-
 import numpy as np
 import xarray as xr
+from pydantic import Field, InstanceOf, validate_call
 
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.transformers import (
@@ -81,19 +82,48 @@ class AdstockTransformation(Transformation):
     prefix: str = "adstock"
     lookup_name: str
 
+    @validate_call
     def __init__(
         self,
-        l_max: int,
-        normalize: bool = True,
-        mode: ConvMode = ConvMode.After,
-        priors: dict | None = None,
-        prefix: str | None = None,
+        l_max: int = Field(
+            ..., gt=0, description="Maximum lag for the adstock transformation."
+        ),
+        normalize: bool = Field(
+            True, description="Whether to normalize the adstock values."
+        ),
+        mode: ConvMode = Field(ConvMode.After, description="Convolution mode."),
+        priors: dict[str, InstanceOf[Prior]] | None = Field(
+            default=None, description="Priors for the parameters."
+        ),
+        prefix: str | None = Field(None, description="Prefix for the parameters."),
     ) -> None:
         self.l_max = l_max
         self.normalize = normalize
         self.mode = mode
 
         super().__init__(priors=priors, prefix=prefix)
+
+    def __repr__(self) -> str:
+        """Representation of the adstock transformation."""
+        return (
+            f"{self.__class__.__name__}("
+            f"prefix={self.prefix!r}, "
+            f"l_max={self.l_max}, "
+            f"normalize={self.normalize}, "
+            f"mode={self.mode.name!r}, "
+            f"priors={self.function_priors}"
+            ")"
+        )
+
+    def to_dict(self) -> dict:
+        """Convert the adstock transformation to a dictionary."""
+        data = super().to_dict()
+
+        data["l_max"] = self.l_max
+        data["normalize"] = self.normalize
+        data["mode"] = self.mode.name
+
+        return data
 
     def sample_curve(
         self,
@@ -115,7 +145,6 @@ class AdstockTransformation(Transformation):
             Adstocked version of the amount.
 
         """
-
         time_since = np.arange(0, self.l_max)
         coords = {
             "time since exposure": time_since,
@@ -156,6 +185,7 @@ class GeometricAdstock(AdstockTransformation):
     lookup_name = "geometric"
 
     def function(self, x, alpha):
+        """Geometric adstock function."""
         return geometric_adstock(
             x, alpha=alpha, l_max=self.l_max, normalize=self.normalize, mode=self.mode
         )
@@ -188,6 +218,7 @@ class DelayedAdstock(AdstockTransformation):
     lookup_name = "delayed"
 
     def function(self, x, alpha, theta):
+        """Delayed adstock function."""
         return delayed_adstock(
             x,
             alpha=alpha,
@@ -228,6 +259,7 @@ class WeibullPDFAdstock(AdstockTransformation):
     lookup_name = "weibull_pdf"
 
     def function(self, x, lam, k):
+        """Weibull adstock function."""
         return weibull_adstock(
             x=x,
             lam=lam,
@@ -269,6 +301,7 @@ class WeibullCDFAdstock(AdstockTransformation):
     lookup_name = "weibull_cdf"
 
     def function(self, x, lam, k):
+        """Weibull adstock function."""
         return weibull_adstock(
             x=x,
             lam=lam,
@@ -285,99 +318,28 @@ class WeibullCDFAdstock(AdstockTransformation):
     }
 
 
-class WeibullAdstock(AdstockTransformation):
-    """Wrapper around weibull adstock function.
-
-    For more information, see :func:`pymc_marketing.mmm.transformers.weibull_adstock`.
-
-    .. plot::
-        :context: close-figs
-
-        import matplotlib.pyplot as plt
-        import numpy as np
-        from pymc_marketing.mmm import WeibullAdstock
-
-        rng = np.random.default_rng(0)
-
-        adstock = WeibullAdstock(l_max=10, kind="CDF")
-        prior = adstock.sample_prior(random_seed=rng)
-        curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
-        plt.show()
-
-    """
-
-    lookup_name = "weibull"
-
-    def __init__(
-        self,
-        l_max: int,
-        normalize: bool = True,
-        kind=WeibullType.PDF,
-        mode: ConvMode = ConvMode.After,
-        priors: dict | None = None,
-        prefix: str | None = None,
-    ) -> None:
-        self.kind = kind
-
-        super().__init__(
-            l_max=l_max, normalize=normalize, mode=mode, priors=priors, prefix=prefix
-        )
-
-        msg = f"Use the Weibull{kind}Adstock class instead for better default priors."
-        warnings.warn(
-            msg,
-            UserWarning,
-            stacklevel=1,
-        )
-
-    def function(self, x, lam, k):
-        return weibull_adstock(
-            x=x,
-            lam=lam,
-            k=k,
-            l_max=self.l_max,
-            mode=self.mode,
-            type=self.kind,
-            normalize=self.normalize,
-        )
-
-    default_priors = {
-        "lam": Prior("HalfNormal", sigma=1),
-        "k": Prior("HalfNormal", sigma=1),
-    }
-
-
 ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {
     cls.lookup_name: cls  # type: ignore
     for cls in [
         GeometricAdstock,
         DelayedAdstock,
-        WeibullAdstock,
         WeibullPDFAdstock,
         WeibullCDFAdstock,
     ]
 }
 
 
-def _get_adstock_function(
-    function: str | AdstockTransformation,
-    **kwargs,
-) -> AdstockTransformation:
-    """Helper for use in the MMM to get an adstock function."""
-    if isinstance(function, AdstockTransformation):
-        return function
+def register_adstock_transformation(cls: type[AdstockTransformation]) -> None:
+    """Register a new adstock transformation."""
+    ADSTOCK_TRANSFORMATIONS[cls.lookup_name] = cls
 
-    if function not in ADSTOCK_TRANSFORMATIONS:
-        raise ValueError(
-            f"Unknown adstock function: {function}. Choose from {list(ADSTOCK_TRANSFORMATIONS.keys())}"
-        )
 
-    if kwargs:
-        warnings.warn(
-            "The preferred method of initializing a lagging function is to use the class directly.",
-            DeprecationWarning,
-            stacklevel=1,
-        )
+def adstock_from_dict(data: dict) -> AdstockTransformation:
+    """Create an adstock transformation from a dictionary."""
+    data = data.copy()
+    lookup_name = data.pop("lookup_name")
+    cls = ADSTOCK_TRANSFORMATIONS[lookup_name]
 
-    return ADSTOCK_TRANSFORMATIONS[function](**kwargs)
+    if "priors" in data:
+        data["priors"] = {k: Prior.from_json(v) for k, v in data["priors"].items()}
+    return cls(**data)

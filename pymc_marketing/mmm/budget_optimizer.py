@@ -17,6 +17,7 @@ import warnings
 from typing import Any
 
 import numpy as np
+from pydantic import BaseModel, ConfigDict, Field
 from scipy.optimize import minimize
 
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
@@ -30,9 +31,8 @@ class MinimizeException(Exception):
         super().__init__(message)
 
 
-class BudgetOptimizer:
-    """
-    A class for optimizing budget allocation in a marketing mix model.
+class BudgetOptimizer(BaseModel):
+    """A class for optimizing budget allocation in a marketing mix model.
 
     The goal of this optimization is to maximize the total expected response
     by allocating the given budget across different marketing channels. The
@@ -49,33 +49,43 @@ class BudgetOptimizer:
         The adstock class.
     saturation : SaturationTransformation
         The saturation class.
-    num_days : int
-        The number of days.
+    num_periods : int
+        The number of time units.
     parameters : dict
         A dictionary of parameters for each channel.
     adstock_first : bool, optional
         Whether to apply adstock transformation first or saturation transformation first.
         Default is True.
+
     """
 
-    def __init__(
-        self,
-        adstock: AdstockTransformation,
-        saturation: SaturationTransformation,
-        num_days: int,
-        parameters: dict[str, dict[str, dict[str, float]]],
-        adstock_first: bool = True,
-    ):
-        self.adstock = adstock
-        self.saturation = saturation
-        self.num_days = num_days
-        self.parameters = parameters
-        self.adstock_first = adstock_first
+    adstock: AdstockTransformation = Field(
+        ..., description="The adstock transformation class."
+    )
+    saturation: SaturationTransformation = Field(
+        ..., description="The saturation transformation class."
+    )
+    num_periods: int = Field(
+        ...,
+        gt=0,
+        description="The number of time units at time granularity which the budget is to be allocated.",
+    )
+    parameters: dict[str, dict[str, dict[str, float]]] = Field(
+        ..., description="A dictionary of parameters for each channel."
+    )
+    scales: np.ndarray = Field(
+        ..., description="The scale parameter for each channel variable"
+    )
+    adstock_first: bool = Field(
+        True,
+        description="Whether to apply adstock transformation first or saturation transformation first.",
+    )
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def objective(self, budgets: list[float]) -> float:
-        """
-        Calculate the total response during a period of time given the budgets,
-        considering the saturation and adstock transformations.
+        """Calculate the total response during a period of time given the budgets.
+
+        It considers the saturation and adstock transformations.
 
         Parameters
         ----------
@@ -86,6 +96,7 @@ class BudgetOptimizer:
         -------
         float
             The negative total response value.
+
         """
         total_response = 0
         first_transform, second_transform = (
@@ -94,7 +105,7 @@ class BudgetOptimizer:
             else (self.saturation, self.adstock)
         )
         for idx, (_channel, params) in enumerate(self.parameters.items()):
-            budget = budgets[idx]
+            budget = budgets[idx] / self.scales[idx]
             first_params = (
                 params["adstock_params"]
                 if self.adstock_first
@@ -105,7 +116,7 @@ class BudgetOptimizer:
                 if self.adstock_first
                 else params["adstock_params"]
             )
-            spend = np.full(self.num_days, budget)
+            spend = np.full(self.num_periods, budget)
             spend_extended = np.concatenate([spend, np.zeros(self.adstock.l_max)])
             transformed_spend = second_transform.function(
                 x=first_transform.function(x=spend_extended, **first_params),
@@ -121,8 +132,7 @@ class BudgetOptimizer:
         custom_constraints: dict[Any, Any] | None = None,
         minimize_kwargs: dict[str, Any] | None = None,
     ) -> tuple[dict[str, float], float]:
-        """
-        Allocate the budget based on the total budget, budget bounds, and custom constraints.
+        """Allocate the budget based on the total budget, budget bounds, and custom constraints.
 
         The default budget bounds are (0, total_budget) for each channel.
 
@@ -157,6 +167,7 @@ class BudgetOptimizer:
         ------
         Exception
             If the optimization fails, an exception is raised with the reason for the failure.
+
         """
         if budget_bounds is None:
             budget_bounds = {channel: (0, total_budget) for channel in self.parameters}
@@ -164,9 +175,8 @@ class BudgetOptimizer:
                 "No budget bounds provided. Using default bounds (0, total_budget) for each channel.",
                 stacklevel=2,
             )
-        else:
-            if not isinstance(budget_bounds, dict):
-                raise TypeError("`budget_bounds` should be a dictionary.")
+        elif not isinstance(budget_bounds, dict):
+            raise TypeError("`budget_bounds` should be a dictionary.")
 
         if custom_constraints is None:
             constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
@@ -174,11 +184,10 @@ class BudgetOptimizer:
                 "Using default equality constraint: The sum of all budgets should be equal to the total budget.",
                 stacklevel=2,
             )
+        elif not isinstance(custom_constraints, dict):
+            raise TypeError("`custom_constraints` should be a dictionary.")
         else:
-            if not isinstance(custom_constraints, dict):
-                raise TypeError("`custom_constraints` should be a dictionary.")
-            else:
-                constraints = custom_constraints
+            constraints = custom_constraints
 
         num_channels = len(self.parameters.keys())
         initial_guess = np.ones(num_channels) * total_budget / num_channels

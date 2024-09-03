@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""CLV Model base class."""
+
 import json
 import warnings
 from collections.abc import Sequence
@@ -20,6 +22,7 @@ from typing import cast
 import arviz as az
 import pandas as pd
 import pymc as pm
+from pydantic import ConfigDict, InstanceOf, validate_call
 from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
 from pymc.model.core import Model
@@ -27,16 +30,20 @@ from xarray import Dataset
 
 from pymc_marketing.model_builder import ModelBuilder
 from pymc_marketing.model_config import ModelConfig, parse_model_config
+from pymc_marketing.utils import from_netcdf
 
 
 class CLVModel(ModelBuilder):
+    """CLV Model base class."""
+
     _model_type = "CLVModel"
 
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def __init__(
         self,
         data: pd.DataFrame,
         *,
-        model_config: ModelConfig | None = None,
+        model_config: InstanceOf[ModelConfig] | None = None,
         sampler_config: dict | None = None,
         non_distributions: list[str] | None = None,
     ):
@@ -65,7 +72,8 @@ class CLVModel(ModelBuilder):
                 if data[required_col].nunique() != n:
                     raise ValueError(f"Column {required_col} has duplicate entries")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
+        """Representation of the model."""
         if not hasattr(self, "model"):
             return self._model_type
         else:
@@ -86,7 +94,7 @@ class CLVModel(ModelBuilder):
         fit_method: str = "mcmc",
         **kwargs,
     ) -> az.InferenceData:
-        """Infer model posterior
+        """Infer model posterior.
 
         Parameters
         ----------
@@ -96,8 +104,8 @@ class CLVModel(ModelBuilder):
             - "map": Finds maximum a posteriori via `pymc.find_MAP`
         kwargs:
             Other keyword arguments passed to the underlying PyMC routines
-        """
 
+        """
         self.build_model()  # type: ignore
 
         if fit_method == "mcmc":
@@ -117,8 +125,8 @@ class CLVModel(ModelBuilder):
         return self.idata
 
     def _fit_mcmc(self, **kwargs) -> az.InferenceData:
-        """
-        Fit a model using the data passed as a parameter.
+        """Fit a model using the data passed as a parameter.
+
         Sets attrs to inference data of the model.
 
 
@@ -135,6 +143,7 @@ class CLVModel(ModelBuilder):
         -------
         self : az.InferenceData
             returns inference data of the fitted model.
+
         """
         sampler_config = {}
         if self.sampler_config is not None:
@@ -143,7 +152,7 @@ class CLVModel(ModelBuilder):
         return pm.sample(**sampler_config, model=self.model)
 
     def _fit_MAP(self, **kwargs) -> az.InferenceData:
-        """Find model maximum a posteriori using scipy optimizer"""
+        """Find model maximum a posteriori using scipy optimizer."""
         model = self.model
         map_res = pm.find_MAP(model=model, **kwargs)
         # Filter non-value variables
@@ -159,8 +168,8 @@ class CLVModel(ModelBuilder):
 
     @classmethod
     def load(cls, fname: str):
-        """
-        Creates a ModelBuilder instance from a file,
+        """Create a ModelBuilder instance from a file.
+
         Loads inference data for the model.
 
         Parameters
@@ -176,25 +185,32 @@ class CLVModel(ModelBuilder):
         ------
         ValueError
             If the inference data that is loaded doesn't match with the model.
+
         Examples
         --------
         >>> class MyModel(ModelBuilder):
         >>>     ...
         >>> name = './mymodel.nc'
         >>> imported_model = MyModel.load(name)
+
         """
         filepath = Path(str(fname))
-        idata = az.from_netcdf(filepath)
+        idata = from_netcdf(filepath)
         return cls._build_with_idata(idata)
 
     @classmethod
     def _build_with_idata(cls, idata: az.InferenceData):
         dataset = idata.fit_data.to_dataframe()
-        model = cls(
-            dataset,
-            model_config=json.loads(idata.attrs["model_config"]),  # type: ignore
-            sampler_config=json.loads(idata.attrs["sampler_config"]),
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=DeprecationWarning,
+            )
+            model = cls(
+                dataset,
+                model_config=json.loads(idata.attrs["model_config"]),  # type: ignore
+                sampler_config=json.loads(idata.attrs["sampler_config"]),
+            )
         model.idata = idata
         model.build_model()  # type: ignore
         if model.id != idata.attrs["id"]:
@@ -234,6 +250,7 @@ class CLVModel(ModelBuilder):
 
     @property
     def default_sampler_config(self) -> dict:
+        """Default sampler configuration."""
         return {}
 
     @property
@@ -242,6 +259,7 @@ class CLVModel(ModelBuilder):
 
     @property
     def fit_result(self) -> Dataset:
+        """Get the fit result."""
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         return self.idata["posterior"]
@@ -257,6 +275,7 @@ class CLVModel(ModelBuilder):
             self.idata.posterior = res
 
     def fit_summary(self, **kwargs):
+        """Compute the summary of the fit result."""
         res = self.fit_result
         # Map fitting only gives one value, so we return it. We use arviz
         # just to get it nicely into a DataFrame
@@ -270,10 +289,13 @@ class CLVModel(ModelBuilder):
 
     @property
     def output_var(self):
+        """Output variable of the model."""
         pass
 
     def _generate_and_preprocess_model_data(self, *args, **kwargs):
+        """Generate and preprocess model data."""
         pass
 
     def _data_setter(self):
+        """Set the data for the model."""
         pass

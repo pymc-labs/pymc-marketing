@@ -146,9 +146,25 @@ def test_plot_curve() -> None:
     assert axes.shape == (2, 2)
 
 
-@pytest.mark.parametrize("n_order", [0, -1, -100, 2.5])
-def test_bad_order(n_order) -> None:
-    with pytest.raises(ValueError, match="n_order must be a positive integer"):
+@pytest.mark.parametrize("n_order", [0, -1, -100])
+def test_bad_negative_order(n_order) -> None:
+    with pytest.raises(
+        ValueError,
+        match="1 validation error for YearlyFourier\\nn_order\\n  Input should be greater than 0",
+    ):
+        YearlyFourier(n_order=n_order)
+
+
+@pytest.mark.parametrize(
+    argnames="n_order",
+    argvalues=[2.5, 100.001, "m", None],
+    ids=["neg_float", "neg_float_2", "str", "None"],
+)
+def test_bad_non_integer_order(n_order) -> None:
+    with pytest.raises(
+        ValueError,
+        match="1 validation error for YearlyFourier\nn_order\n  Input should be a valid integer",
+    ):
         YearlyFourier(n_order=n_order)
 
 
@@ -240,15 +256,19 @@ def test_apply_result_callback() -> None:
     assert model["components"].eval().shape == (365, n_order * 2)
 
 
-def test_error_with_prefix_and_name() -> None:
+def test_error_with_prefix_and_variable_name() -> None:
     name = "variable_name"
     with pytest.raises(ValueError, match="Variable name cannot"):
-        YearlyFourier(n_order=2, name=name, prefix=name)
+        YearlyFourier(n_order=2, prefix=name, variable_name=name)
 
 
 def test_change_name() -> None:
     variable_name = "variable_name"
-    fourier = YearlyFourier(n_order=2, name=variable_name)
-    assert fourier.variable_name == variable_name
+    fourier = YearlyFourier(n_order=2, variable_name=variable_name)
     prior = fourier.sample_prior(samples=10)
     assert variable_name in prior
+
+
+def test_serialization_to_json() -> None:
+    fourier = YearlyFourier(n_order=2)
+    fourier.model_dump_json()

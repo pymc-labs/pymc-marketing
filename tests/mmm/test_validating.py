@@ -54,7 +54,7 @@ def test_validation_method():
     assert vf.__name__ == f.__name__
 
     def f2(x):
-        """bla"""
+        """Bla"""
         return x
 
     vf = validation_method_X(f2)
@@ -65,14 +65,14 @@ def test_validation_method():
     class F:
         @validation_method_X
         def f3(self, x):
-            """bla"""
+            """Bla"""
             return x
 
     vf = F().f3
     assert getattr(vf, "_tags", {}).get("validation_X", False)
     assert F.f3.__doc__ == vf.__doc__
     assert F.f3.__name__ == vf.__name__
-    assert vf.__doc__ == "bla"
+    assert vf.__doc__ == "Bla"
     assert vf.__name__ == "f3"
 
 
@@ -104,19 +104,19 @@ def test_channel_columns():
         obj.validate_channel_columns(toy_X)
     with pytest.raises(
         ValueError,
-        match="channel_columns \['out_of_columns'\] not in data",  # noqa: W605
+        match=r"channel_columns \['out_of_columns'\] not in data",
     ):
         obj.channel_columns = ["out_of_columns"]
         obj.validate_channel_columns(toy_X)
     with pytest.raises(
         ValueError,
-        match="channel_columns \['channel_1', 'channel_1'\] contains duplicates",  # noqa: W605
+        match=r"channel_columns \['channel_1', 'channel_1'\] contains duplicates",
     ):
         obj.channel_columns = ["channel_1", "channel_1"]
         obj.validate_channel_columns(toy_X)
     with pytest.raises(
         ValueError,
-        match="channel_columns \['channel_1'\] contains negative values",  # noqa: W605
+        match=r"channel_columns \['channel_1'\] contains negative values",
     ):
         new_toy_X = toy_X.copy()
         new_toy_X["channel_1"] -= 1e4
@@ -143,13 +143,13 @@ def test_control_columns():
         obj.validate_control_columns(toy_X)
     with pytest.raises(
         ValueError,
-        match="control_columns \['out_of_columns'\] not in data",  # noqa: W605
+        match=r"control_columns \['out_of_columns'\] not in data",
     ):
         obj.control_columns = ["out_of_columns"]
         obj.validate_control_columns(toy_X)
     with pytest.raises(
         ValueError,
-        match="control_columns \['control_1', 'control_1'\] contains duplicates",  # noqa: W605
+        match=r"control_columns \['control_1', 'control_1'\] contains duplicates",
     ):
         obj.control_columns = ["control_1", "control_1"]
         obj.validate_control_columns(toy_X)
