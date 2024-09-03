@@ -17,7 +17,7 @@ import warnings
 from datetime import date, datetime
 
 import numpy as np
-import pandas
+import pandas as pd
 import xarray
 from numpy import datetime64
 
@@ -44,7 +44,7 @@ def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
 
 def customer_lifetime_value(
     transaction_model,
-    data: pandas.DataFrame,
+    data: pd.DataFrame,
     future_t: int = 12,
     discount_rate: float = 0.00,
     time_unit: str = "D",
@@ -157,15 +157,15 @@ def customer_lifetime_value(
 
 
 def _find_first_transactions(
-    transactions: pandas.DataFrame,
+    transactions: pd.DataFrame,
     customer_id_col: str,
     datetime_col: str,
     monetary_value_col: str | None = None,
     datetime_format: str | None = None,
-    observation_period_end: str | pandas.Period | datetime | None = None,
+    observation_period_end: str | pd.Period | datetime | None = None,
     time_unit: str = "D",
     sort_transactions: bool | None = True,
-) -> pandas.DataFrame:
+) -> pd.DataFrame:
     """Return dataframe with first transactions.
 
     This takes a DataFrame of transaction data of the form:
@@ -207,10 +207,10 @@ def _find_first_transactions(
     if observation_period_end is None:
         observation_period_end = transactions[datetime_col].max()
 
-    if isinstance(observation_period_end, pandas.Period):
+    if isinstance(observation_period_end, pd.Period):
         observation_period_end = observation_period_end.to_timestamp()
     if isinstance(observation_period_end, str):
-        observation_period_end = pandas.to_datetime(observation_period_end)
+        observation_period_end = pd.to_datetime(observation_period_end)
 
     if monetary_value_col:
         select_columns.append(monetary_value_col)
@@ -219,16 +219,14 @@ def _find_first_transactions(
         transactions = transactions[select_columns].sort_values(select_columns).copy()
 
     # convert date column into a DateTimeIndex for time-wise grouping and truncating
-    transactions[datetime_col] = pandas.to_datetime(
+    transactions[datetime_col] = pd.to_datetime(
         transactions[datetime_col], format=datetime_format
     )
     transactions = (
         transactions.set_index(datetime_col).to_period(time_unit).to_timestamp()
     )
 
-    mask = pandas.to_datetime(transactions.index) <= pandas.to_datetime(
-        observation_period_end
-    )
+    mask = pd.to_datetime(transactions.index) <= pd.to_datetime(observation_period_end)
 
     transactions = transactions.loc[mask].reset_index()
 
@@ -270,17 +268,17 @@ def clv_summary(*args, **kwargs):
 
 
 def rfm_summary(
-    transactions: pandas.DataFrame,
+    transactions: pd.DataFrame,
     customer_id_col: str,
     datetime_col: str,
     monetary_value_col: str | None = None,
     datetime_format: str | None = None,
-    observation_period_end: str | pandas.Period | datetime | None = None,
+    observation_period_end: str | pd.Period | datetime | None = None,
     time_unit: str = "D",
     time_scaler: float | None = 1,
     include_first_transaction: bool | None = False,
     sort_transactions: bool | None = True,
-) -> pandas.DataFrame:
+) -> pd.DataFrame:
     """Summarize transaction data for use in CLV modeling or RFM segmentation.
 
     This transforms a DataFrame of transaction data of the form:
@@ -341,15 +339,15 @@ def rfm_summary(
     """
     if observation_period_end is None:
         observation_period_end_ts = (
-            pandas.to_datetime(transactions[datetime_col].max(), format=datetime_format)
+            pd.to_datetime(transactions[datetime_col].max(), format=datetime_format)
             .to_period(time_unit)
             .to_timestamp()
         )
-    elif isinstance(observation_period_end, pandas.Period):
+    elif isinstance(observation_period_end, pd.Period):
         observation_period_end_ts = observation_period_end.to_timestamp()
     else:
         observation_period_end_ts = (
-            pandas.to_datetime(observation_period_end, format=datetime_format)
+            pd.to_datetime(observation_period_end, format=datetime_format)
             .to_period(time_unit)
             .to_timestamp()
         )
@@ -379,7 +377,7 @@ def rfm_summary(
     customers["frequency"] = customers["count"] - 1
 
     customers["recency"] = (
-        (pandas.to_datetime(customers["max"]) - pandas.to_datetime(customers["min"]))  # type: ignore
+        (pd.to_datetime(customers["max"]) - pd.to_datetime(customers["min"]))  # type: ignore
         / np.timedelta64(1, time_unit)
         / time_scaler
     )
@@ -427,7 +425,7 @@ def rfm_summary(
 
 
 def rfm_train_test_split(
-    transactions: pandas.DataFrame,
+    transactions: pd.DataFrame,
     customer_id_col: str,
     datetime_col: str,
     train_period_end: float | str | datetime | datetime64 | date,
@@ -438,7 +436,7 @@ def rfm_train_test_split(
     monetary_value_col: str | None = None,
     include_first_transaction: bool | None = False,
     sort_transactions: bool | None = True,
-) -> pandas.DataFrame:
+) -> pd.DataFrame:
     """Summarize transaction data and split into training and tests datasets for CLV modeling.
 
     This can also be used to evaluate the impact of a time-based intervention like a marketing campaign.
@@ -502,11 +500,11 @@ def rfm_train_test_split(
         transaction_cols.append(monetary_value_col)
     transactions = transactions[transaction_cols].copy()
 
-    transactions[datetime_col] = pandas.to_datetime(
+    transactions[datetime_col] = pd.to_datetime(
         transactions[datetime_col], format=datetime_format
     )
-    test_period_end = pandas.to_datetime(test_period_end, format=datetime_format)
-    train_period_end = pandas.to_datetime(train_period_end, format=datetime_format)
+    test_period_end = pd.to_datetime(test_period_end, format=datetime_format)
+    train_period_end = pd.to_datetime(train_period_end, format=datetime_format)
 
     # create training dataset
     training_transactions = transactions.loc[
@@ -600,7 +598,7 @@ def expected_cumulative_transactions(
     t: int,
     datetime_format: str | None = None,
     time_unit: str = "D",
-    freq_multiplier: int = 1,
+    time_scaler: int = 1,
     set_index_date: bool = False,
 ) -> pd.DataFrame:
     """Get expected and actual repeated cumulative transactions.
@@ -633,10 +631,10 @@ def expected_cumulative_transactions(
         Time granularity for study.
         Default: 'D' for days. Possible values listed here:
         https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
-    freq_multiplier : int, optional
+    time_scaler : int, optional
         Default: 1. Useful for scaling recency & T to a different time granularity. Example:
-        With freq='D' and freq_multiplier=1, we get recency=591 and T=632
-        With freq='h' and freq_multiplier=24, we get recency=590.125 and T=631.375
+        With freq='D' and time_scaler=1, we get recency=591 and T=632
+        With freq='h' and time_scaler=24, we get recency=590.125 and T=631.375
         This is useful if predictions in months or years are desired,
         and can also help with model convergence for study periods of many years.
     set_index_date : bool, optional
@@ -690,14 +688,15 @@ def expected_cumulative_transactions(
     # evaluated.
     # Then we sum them to get the cumulative sum up to the specific period.
     for i, period in enumerate(date_periods):  # index of period and its date
-        if i % freq_multiplier == 0 and i > 0:
+        if i % time_scaler == 0 and i > 0:
             # Periods before the one being evaluated
             times = np.array([d.n for d in period - first_trans_size.index])
-            times = times[times > 0].astype(float) / freq_multiplier
+            times = times[times > 0].astype(float) / time_scaler
 
             # Array of different expected number of purchases for different times
-            expected_trans_agg = (
-                transaction_model.expected_number_of_purchases_up_to_time(times)
+            expected_trans_agg = transaction_model.expected_purchases(
+                data=transactions,
+                future_t=times,
             )
 
             # Mask for the number of customers with 1st transactions up to the period
@@ -712,15 +711,15 @@ def expected_cumulative_transactions(
     act_tracking_transactions = act_trans.reindex(date_periods, fill_value=0)
 
     act_cum_transactions = []
-    for j in range(1, t // freq_multiplier + 1):
-        sum_trans = act_tracking_transactions.iloc[: j * freq_multiplier].sum()
+    for j in range(1, t // time_scaler + 1):
+        sum_trans = act_tracking_transactions.iloc[: j * time_scaler].sum()
         act_cum_transactions.append(sum_trans)
 
     index: pd.Index
     if set_index_date:
-        index = date_periods[freq_multiplier - 1 : -1 : freq_multiplier]
+        index = date_periods[time_scaler - 1 : -1 : time_scaler]
     else:
-        index = pd.Index(range(0, t // freq_multiplier))
+        index = pd.Index(range(0, t // time_scaler))
 
     df_cum_transactions = pd.DataFrame(
         {"actual": act_cum_transactions, "predicted": pred_cum_transactions},
@@ -731,17 +730,17 @@ def expected_cumulative_transactions(
 
 
 def rfm_segments(
-    transactions: pandas.DataFrame,
+    transactions: pd.DataFrame,
     customer_id_col: str,
     datetime_col: str,
     monetary_value_col: str,
     segment_config: dict | None = None,
-    observation_period_end: str | pandas.Period | datetime | None = None,
+    observation_period_end: str | pd.Period | datetime | None = None,
     datetime_format: str | None = None,
     time_unit: str = "D",
     time_scaler: float | None = 1,
     sort_transactions: bool | None = True,
-) -> pandas.DataFrame:
+) -> pd.DataFrame:
     """Assign customers to segments based on spending behavior derived from RFM scores.
 
     This transforms a DataFrame of transaction data of the form:
@@ -828,18 +827,18 @@ def rfm_segments(
         # These try blocks will modify labelling for fewer bins.
         try:
             labels = _rfm_quartile_labels(column_name[0], 5)
-            rfm_data[column_name[0]] = pandas.qcut(
+            rfm_data[column_name[0]] = pd.qcut(
                 rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
             ).astype(str)
         except ValueError:
             try:
                 labels = _rfm_quartile_labels(column_name[0], 4)
-                rfm_data[column_name[0]] = pandas.qcut(
+                rfm_data[column_name[0]] = pd.qcut(
                     rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
                 ).astype(str)
             except ValueError:
                 labels = _rfm_quartile_labels(column_name[0], 3)
-                rfm_data[column_name[0]] = pandas.qcut(
+                rfm_data[column_name[0]] = pd.qcut(
                     rfm_data[column_name[1]], q=4, labels=labels, duplicates="drop"
                 ).astype(str)
                 warnings.warn(
@@ -848,7 +847,7 @@ def rfm_segments(
                     stacklevel=1,
                 )
 
-    rfm_data = pandas.eval(  # type: ignore
+    rfm_data: pd.DataFrame = pd.eval(  # type: ignore
         "rfm_score = rfm_data.r_quartile + rfm_data.f_quartile + rfm_data.m_quartile",
         target=rfm_data,
     )
