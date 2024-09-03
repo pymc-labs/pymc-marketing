@@ -17,9 +17,11 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pytensor.tensor as pt
 import xarray
 from numpy import exp
 from pymc.util import RandomState
+from pytensor.graph import vectorize_graph
 from scipy.special import betaln, gammaln
 
 from pymc_marketing.clv.distributions import BetaGeoBetaBinom
@@ -239,15 +241,29 @@ class BetaGeoBetaBinomModel(CLVModel):
         """
         Utility function for using BG/BB log-likelihood in predictive methods.
         """
+
+        # The BetaGeoBetaBinom distribution only works with vector parameters
+        # We stack the chain/draw dimensions in a long vector and use vectorize
+        # to broadcast along each customer `T`
+        dummy_T = pt.tensor(shape=(1,), dtype=int)
+        dummy_values = pt.tensor(shape=(1, 2), dtype=int)
         bgbb_dist = BetaGeoBetaBinom.dist(
-            alpha=alpha.values,
-            beta=beta.values,
-            gamma=gamma.values,
-            delta=delta.values,
-            T=T.values,
+            alpha=alpha.stack(sample=("chain", "draw")).values,
+            beta=beta.stack(sample=("chain", "draw")).values,
+            gamma=gamma.stack(sample=("chain", "draw")).values,
+            delta=delta.stack(sample=("chain", "draw")).values,
+            T=dummy_T,
         )
-        values = np.vstack((t_x.values, x.values)).T
-        loglike = pm.logp(bgbb_dist, values).eval()
+        dummy_logp = pm.logp(bgbb_dist, dummy_values)
+        values = pt.constant(np.stack((t_x.values, x.values), axis=-1))
+        loglike = vectorize_graph(
+            dummy_logp,
+            replace={dummy_T: T.values[:, None], dummy_values: values[:, None, :]},
+        ).eval()
+        # Unstack chain/draw and put customer in last axis
+        loglike = np.moveaxis(
+            loglike.reshape((-1, alpha.sizes["chain"], alpha.sizes["draw"])), 0, -1
+        )
         return xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
 
     # TODO: move this into BaseModel

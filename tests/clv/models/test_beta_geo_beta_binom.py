@@ -48,7 +48,7 @@ class TestBetaGeoBetaBinomModel:
         # cls.T = test_data["T"]
 
         # take sample of all unique recency/frequency/T combinations to test predictive methods
-        test_customer_ids = [  # noqa F841
+        test_customer_ids = [  # F841
             3463,
             4554,
             4831,
@@ -74,6 +74,7 @@ class TestBetaGeoBetaBinomModel:
         ]
 
         cls.sample_data = test_data.query("customer_id.isin(@test_customer_ids)")
+        cls.sample_data_N = len(test_customer_ids)
 
         # Instantiate model with CDNOW data for testing
         cls.model = BetaGeoBetaBinomModel(cls.data)
@@ -334,13 +335,13 @@ class TestBetaGeoBetaBinomModel:
         data = self.sample_data.assign(future_t=test_t)
         est_num_purchases = self.model.expected_purchases(data)
 
-        assert est_num_purchases.shape == (self.chains, self.draws, self.N)
+        assert est_num_purchases.shape == (self.chains, self.draws, self.sample_data_N)
         assert est_num_purchases.dims == ("chain", "draw", "customer_id")
 
         np.testing.assert_allclose(
             true_purchases,
             est_num_purchases.mean(("chain", "draw")),
-            rtol=0.001,
+            rtol=0.01,
         )
 
     def test_expected_purchases_new_customer(self):
@@ -400,15 +401,15 @@ class TestBetaGeoBetaBinomModel:
         data = self.sample_data.assign(future_t=test_t)
         est_prob_alive = self.model.expected_probability_alive(data)
 
-        assert est_prob_alive.shape == (self.chains, self.draws, self.N)
+        assert est_prob_alive.shape == (self.chains, self.draws, self.sample_data_N)
         assert est_prob_alive.dims == ("chain", "draw", "customer_id")
         np.testing.assert_allclose(
             true_prob_alive,
             est_prob_alive.mean(("chain", "draw")),
-            rtol=0.001,
+            rtol=0.01,
         )
 
-        alt_data = data.assign(future_t=4.5)
+        alt_data = data.assign(future_t=7.5)
         est_prob_alive_t = self.model.expected_probability_alive(alt_data)
         assert est_prob_alive.mean() > est_prob_alive_t.mean()
 

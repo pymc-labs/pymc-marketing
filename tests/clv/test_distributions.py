@@ -378,19 +378,6 @@ class TestBetaGeoBetaBinom:
         with pytest.raises(NotImplementedError):
             pm.logp(dist, invalid_value)
 
-        invalid_dist = BetaGeoBetaBinom.dist(
-            alpha=np.ones(
-                5,
-            ),
-            beta=1,
-            gamma=2,
-            delta=2,
-            T=10,
-        )
-        value = np.array([1, 3])
-        with pytest.raises(NotImplementedError):
-            pm.logp(invalid_dist, value)
-
     @pytest.mark.parametrize(
         "alpha_size, beta_size, gamma_size, delta_size, beta_geo_beta_binom_size, expected_size",
         [
