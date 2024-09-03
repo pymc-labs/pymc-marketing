@@ -26,6 +26,7 @@ from pymc_marketing.clv.utils import (
     _rfm_quartile_labels,
     clv_summary,
     customer_lifetime_value,
+    expected_cumulative_transactions,
     rfm_segments,
     rfm_summary,
     rfm_train_test_split,
@@ -871,3 +872,114 @@ class TestRFM:
         # assert max_quartile_range = 4 returns a range function for three labels
         frequency = _rfm_quartile_labels("f_quartile", 4)
         assert frequency == range(1, 4)
+
+
+@pytest.mark.xfail(reason="Still migrating")
+def test_expected_cumulative_transactions_dedups_inside_a_time_period(
+    fitted_bg,
+    test_summary_data,
+):
+    """Adapted from previous test.
+
+    Reference: https://github.com/CamDavidsonPilon/lifetimes/blob/4f2833f4518621343bb6983eb3e540c11f66ec6a/tests/test_utils.py#L595C1-L598C57
+    """
+
+    by_week = expected_cumulative_transactions(
+        transaction_model=fitted_bg,
+        transactions=test_summary_data,
+        datetime_col="date",
+        customer_id_col="id",
+        t=10,
+        time_unit="W",
+    )
+    assert 0
+    by_day = expected_cumulative_transactions(
+        transaction_model=fitted_bg,
+        transactions=test_summary_data,
+        datetime_col="date",
+        customer_id_col="id",
+        t=10,
+        time_unit="D",
+    )
+    assert (by_week["actual"] >= by_day["actual"]).all()
+
+
+@pytest.mark.xfail(reason="Still migrating")
+def test_expected_cumulative_transactions_equals_r_btyd_walktrough(df_cum_transactions):
+    """
+    Validate expected cumulative transactions with BTYD walktrough
+
+    https://cran.r-project.org/web/packages/BTYD/vignettes/BTYD-walkthrough.pdf
+
+    cum.tracking[,20:25]
+    # [,1] [,2] [,3] [,4] [,5] [,6]
+    # actual 1359 1414 1484 1517 1573 1672
+    # expected 1309 1385 1460 1533 1604 1674
+
+    """
+    actual_btyd = [1359, 1414, 1484, 1517, 1573, 1672]
+    expected_btyd = [1309, 1385, 1460, 1533, 1604, 1674]
+
+    actual = df_cum_transactions["actual"].iloc[19:25].values
+    predicted = df_cum_transactions["predicted"].iloc[19:25].values.round()
+
+    np.testing.assert_allclose(actual, actual_btyd)
+    np.testing.assert_allclose(predicted, expected_btyd)
+
+
+@pytest.mark.xfail(reason="Still migrating")
+def test_expected_cumulative_transactions_date_index(fitted_bg, cdnow_trans):
+    """
+    Test set_index as date for cumulative transactions and bgf fitter.
+
+    Get first 14 cdnow transactions dates and validate that date index,
+    freq_multiplier = 1 working and compare with tested data for last 4 records.
+
+    dates = ['1997-01-11', '1997-01-12', '1997-01-13', '1997-01-14']
+    actual_trans = [11, 12, 15, 19]
+    expected_trans = [10.67, 12.67, 14.87, 17.24]
+
+    """
+    datetime_col = "date"
+    customer_id_col = "id_sample"
+    t = 14
+    datetime_format = "%Y%m%d"
+    time_unit = "D"
+    observation_period_end = "19970930"
+    time_scaler = 1
+
+    transactions_summary = summary_data_from_transaction_data(  # noqa
+        cdnow_trans,
+        customer_id_col,
+        datetime_col,
+        datetime_format=datetime_format,
+        time_unit=time_unit,
+        time_scaler=time_scaler,
+        observation_period_end=observation_period_end,
+    )
+
+    transactions_summary = transactions_summary.reset_index()
+
+    df_cum = expected_cumulative_transactions(
+        transaction_model=fitted_bg,
+        transactions=cdnow_trans,
+        datetime_col=datetime_col,
+        customer_id_col=customer_id_col,
+        t=t,
+        datetime_format=datetime_format,
+        time_unit=time_unit,
+        time_scaler=time_scaler,
+        set_index_date=True,
+    )
+
+    dates = ["1997-01-11", "1997-01-12", "1997-01-13", "1997-01-14"]
+    actual_trans = [11, 12, 15, 19]
+    expected_trans = [10.67, 12.67, 14.87, 17.24]
+
+    date_index = df_cum.iloc[-4:].index.to_timestamp().astype(str)
+    actual = df_cum["actual"].iloc[-4:].values
+    predicted = df_cum["predicted"].iloc[-4:].values.round(2)
+
+    assert all(dates == date_index)
+    np.testing.assert_allclose(actual, actual_trans)
+    np.testing.assert_allclose(predicted, expected_trans, atol=1e-2)
