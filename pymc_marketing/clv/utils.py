@@ -688,24 +688,26 @@ def expected_cumulative_transactions(
     # evaluated.
     # Then we sum them to get the cumulative sum up to the specific period.
     for i, period in enumerate(date_periods):  # index of period and its date
-        if i % time_scaler == 0 and i > 0:
-            # Periods before the one being evaluated
-            times = np.array([d.n for d in period - first_trans_size.index])
-            times = times[times > 0].astype(float) / time_scaler
+        if i % time_scaler != 0 or i <= 0:
+            continue
 
-            # Array of different expected number of purchases for different times
-            expected_trans_agg = transaction_model.expected_purchases(
-                data=transactions,
-                future_t=times,
-            )
+        # Periods before the one being evaluated
+        times = np.array([d.n for d in period - first_trans_size.index])
+        times = times[times > 0].astype(float) / time_scaler
 
-            # Mask for the number of customers with 1st transactions up to the period
-            mask = first_trans_size.index < period
+        # Array of different expected number of purchases for different times
+        expected_trans_agg = transaction_model.expected_purchases(
+            data=transactions,
+            future_t=times,
+        )
 
-            # ``expected_trans`` is a float with the cumulative sum of expected transactions
-            expected_trans = sum(expected_trans_agg * first_trans_size[mask])
+        # Mask for the number of customers with 1st transactions up to the period
+        mask = first_trans_size.index < period
 
-            pred_cum_transactions.append(expected_trans)
+        # ``expected_trans`` is a float with the cumulative sum of expected transactions
+        expected_trans = sum(expected_trans_agg * first_trans_size[mask])
+
+        pred_cum_transactions.append(expected_trans)
 
     act_trans = repeated_transactions.groupby(datetime_col).size()
     act_tracking_transactions = act_trans.reindex(date_periods, fill_value=0)
