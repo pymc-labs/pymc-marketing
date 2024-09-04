@@ -45,6 +45,7 @@ docs = [
     "fastprogress",
     "graphviz",
     "ipython!=8.7.0",
+    "ipywidgets",
     "labs-sphinx-theme",
     "lifetimes",
     "myst-nb<=1.0.0",
@@ -62,16 +63,21 @@ docs = [
     "sphinx",
     "sphinxext-opengraph",
     "watermark",
+    "mlflow>=2.0.0",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
-    "graphviz==0.20.1",
+    "blackjax",
+    "nutpie",
+    "numpyro",
+    "graphviz>=0.20.1",
     "lifetimes==0.11.3",
     "papermill",
     "preliz==0.8.0",
     "pytest-cov==3.0.0",
     "pytest-mock==3.14.0",
     "pytest==7.0.1",
+    "mlflow>=2.0.0",
 ]
 
 [tool.setuptools]
@@ -94,7 +100,8 @@ repository = "https://github.com/pymc-labs/pymc-marketing"
 #changelog = ""
 
 [tool.ruff.lint]
-select = ["B", "E", "F", "I", "RUF", "S", "UP", "W"]
+select = ["B", "D", "DOC", "E", "F", "I", "RUF", "S", "UP", "W"]
+pydocstyle.convention = "numpy"
 ignore = [
     "B008",   # Do not perform calls in argument defaults (this is ok with Field from pydantic)
     "B904",   # raise-without-from-inside-except
@@ -105,11 +112,14 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "docs/source/notebooks/*" = [
     "B018", # Checks for "useless" expressions. Not useful for notebooks.
+    "D103", # Missing docstring in public function.
 ]
 "tests/*" = [
     "B018", # Checks for "useless" expressions. This is useful for tests.
+    "D",
     "S101", # Use of assert
 ]
+"scripts/*" = ["D"]
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 120

@@ -2,23 +2,21 @@ name: Update the UML Diagrams
 
 on:
   pull_request:
-    branches: [main]
-    paths:
-      - "pymc_marketing/**"
-  push:
+    types: [closed]
     branches: [main]
     paths:
       - "pymc_marketing/**"
 
 jobs:
   build:
+    if: github.event.pull_request.head.repo.owner.login == 'pymc-labs'
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref || 'main' }}
+          ref: main
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -43,7 +41,7 @@ jobs:
           else
             echo "Committing the changes"
             git commit -m "Update UML Diagrams"
-            git push origin HEAD:${GITHUB_HEAD_REF:-main}
+            git push origin HEAD:main
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

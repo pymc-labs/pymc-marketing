@@ -18,6 +18,7 @@ import pytensor
 import pytensor.tensor as pt
 import pytest
 import scipy as sp
+from pymc.logprob.utils import ParameterValueError
 from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.mmm.transformers import (
@@ -147,6 +148,23 @@ class TestsAdstockTransformers:
         assert y_np[0] == x[0]
         assert y_np[1] == x[1] + alpha * x[0]
         assert y_np[2] == x[2] + alpha * x[1] + (alpha**2) * x[0]
+
+    @pytest.mark.parametrize(
+        "alpha",
+        [-0.3, -2, 22.5, 2],
+        ids=[
+            "less_than_zero_0",
+            "less_than_zero_1",
+            "greater_than_one_0",
+            "greater_than_one_1",
+        ],
+    )
+    def test_geometric_adstock_bad_alpha(self, alpha):
+        l_max = 10
+        x = np.ones(shape=100)
+        y = geometric_adstock(x=x, alpha=alpha, l_max=l_max)
+        with pytest.raises(ParameterValueError):
+            y.eval()
 
     @pytest.mark.parametrize(
         argnames="mode",

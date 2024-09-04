@@ -21,7 +21,7 @@ from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
-from pymc_marketing.mmm.delayed_saturated_mmm import MMM, BaseMMM
+from pymc_marketing.mmm.mmm import MMM, BaseMMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleTarget
 
 seed: int = sum(map(ord, "pymc_marketing"))
@@ -223,9 +223,7 @@ def mock_fitted_mmm(mock_mmm, toy_X, toy_y):
         ("plot_components_contributions", {"original_scale": True}),
     ],
 )
-def test_delayed_saturated_mmm_plots(
-    mock_fitted_mmm, func_plot_name, kwargs_plot
-) -> None:
+def test_mmm_plots(mock_fitted_mmm, func_plot_name, kwargs_plot) -> None:
     func = mock_fitted_mmm.__getattribute__(func_plot_name)
     assert isinstance(func(**kwargs_plot), plt.Figure)
     plt.close("all")

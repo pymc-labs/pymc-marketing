@@ -11,5 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""Constants for the pymc_marketing package."""
+
 DAYS_IN_YEAR: float = 365.25
 DAYS_IN_MONTH: float = DAYS_IN_YEAR / 12
