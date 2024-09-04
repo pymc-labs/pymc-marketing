@@ -445,16 +445,8 @@ class TestMMM:
         channel_data = mmm_fitted.preprocessed_data["X"][
             mmm_fitted.channel_columns
         ].to_numpy()
-        time_index = (
-            np.arange(0, mmm_fitted.preprocessed_data["X"].shape[0])
-            if mmm_fitted.time_varying_media
-            else None
-        )
-
         channel_contributions_forward_pass = (
-            mmm_fitted.time_varying_channel_contributions_forward_pass(
-                channel_data=channel_data, time_index=time_index
-            )
+            mmm_fitted.channel_contributions_forward_pass(channel_data=channel_data)
         )
         channel_contributions_forward_pass_mean = (
             channel_contributions_forward_pass.mean(axis=(0, 1))
