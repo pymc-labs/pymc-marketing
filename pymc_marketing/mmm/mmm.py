@@ -615,6 +615,68 @@ class BaseMMM(BaseValidateMMM):
 
         return idata.posterior_predictive.channel_contributions.to_numpy()
 
+    def time_varying_channel_contributions_forward_pass(
+        self,
+        channel_data: npt.NDArray[np.float64],
+        time_index: npt.NDArray[np.float64] | None = None,
+    ) -> npt.NDArray[np.float64]:
+        """Evaluate the time varying channel contribution a given channel data and a fitted model, ie. the forward pass.
+
+        Parameters
+        ----------
+        channel_data : array-like
+            Input channel data. Result of all the preprocessing steps.
+        time_index : array-like, optional
+            Input time data. Result of all the preprocessing steps.
+
+        Returns
+        -------
+        array-like
+            Transformed channel data.
+
+        """
+        coords = {
+            **self.model_coords,
+        }
+
+        with pm.Model(coords=coords):
+            if self.time_varying_media and time_index is not None:
+                baseline_channel_contributions = pm.Deterministic(
+                    name="baseline_channel_contributions",
+                    var=self.forward_pass(x=channel_data),
+                    dims=("date", "channel"),
+                )
+
+                media_latent_process = create_time_varying_gp_multiplier(
+                    name="media",
+                    dims="date",
+                    time_index=time_index,
+                    time_index_mid=self._time_index_mid,
+                    time_resolution=self._time_resolution,
+                    hsgp_kwargs=self.model_config["media_tvp_config"],
+                )
+
+                pm.Deterministic(
+                    name="channel_contributions",
+                    var=baseline_channel_contributions * media_latent_process[:, None],
+                    dims=("date", "channel"),
+                )
+
+            else:
+                pm.Deterministic(
+                    "channel_contributions",
+                    self.forward_pass(x=channel_data),
+                    dims=("date", "channel"),
+                )
+
+            idata = pm.sample_posterior_predictive(
+                self.fit_result,
+                var_names=["channel_contributions"],
+                progressbar=False,
+            )
+
+        return idata.posterior_predictive.channel_contributions.to_numpy()
+
     @property
     def _serializable_model_config(self) -> dict[str, Any]:
         def ndarray_to_list(d: dict) -> dict:
@@ -925,7 +987,9 @@ class MMM(
     version: str = "0.0.2"
 
     def channel_contributions_forward_pass(
-        self, channel_data: npt.NDArray[np.float64]
+        self,
+        channel_data: npt.NDArray[np.float64],
+        time_index: npt.NDArray[np.float64] | None = None,
     ) -> npt.NDArray[np.float64]:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
 
@@ -935,6 +999,8 @@ class MMM(
         ----------
         channel_data : array-like
             Input channel data. Result of all the preprocessing steps.
+        time_index : array-like, optional
+            Input time data. Result of all the preprocessing steps.
 
         Returns
         -------
@@ -942,8 +1008,10 @@ class MMM(
             Transformed channel data.
 
         """
-        channel_contribution_forward_pass = super().channel_contributions_forward_pass(
-            channel_data=channel_data
+        channel_contribution_forward_pass = (
+            super().time_varying_channel_contributions_forward_pass(
+                channel_data=channel_data, time_index=time_index
+            )
         )
         target_transformed_vectorized = np.vectorize(
             self.target_transformer.inverse_transform,
@@ -982,8 +1050,13 @@ class MMM(
             channel_data = (
                 delta * self.preprocessed_data["X"][self.channel_columns].to_numpy()
             )
+            time_index = (
+                np.arange(0, self.preprocessed_data["X"].shape[0])
+                if self.time_varying_media
+                else None
+            )
             channel_contribution_forward_pass = self.channel_contributions_forward_pass(
-                channel_data=channel_data
+                channel_data=channel_data, time_index=time_index
             )
             channel_contributions.append(channel_contribution_forward_pass)
         return DataArray(
