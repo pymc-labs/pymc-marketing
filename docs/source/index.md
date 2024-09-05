@@ -108,6 +108,8 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 
 ## Installation
 
+PyMC-Marketing requires **Python 3.10 or greater**.
+
 Install and activate an environment (e.g. `marketing_env`) with the `pymc-marketing` package from [conda-forge](https://conda-forge.org). It may look something like the following:
 
 ```bash
