@@ -441,7 +441,7 @@ class TestBetaGeoBetaBinomModel:
         N = 1000
         # TODO: do these match the greek letters in the research?
         p = pm.Beta.dist(self.alpha_true, self.beta_true, size=N)
-        theta = pm.Beta.dist(self.delta_true, self.gamma_true, size=N)
+        theta = pm.Beta.dist(self.gamma_true, self.delta_true, size=N)
 
         rtol = 0.15
         np.testing.assert_allclose(
