@@ -16,7 +16,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref || 'main' }}
+          ref: main
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -41,7 +41,7 @@ jobs:
           else
             echo "Committing the changes"
             git commit -m "Update UML Diagrams"
-            git push origin HEAD:${GITHUB_HEAD_REF:-main}
+            git push origin HEAD:main
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
