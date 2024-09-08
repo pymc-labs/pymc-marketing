@@ -105,7 +105,7 @@ import os
 import warnings
 from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import arviz as az
 import pymc as pm
@@ -569,7 +569,9 @@ class MMMRegistrar(mlflow.pyfunc.PythonModel):
     def __init__(
         self,
         model: MMM,
-        predict_method: str | None = "predict",
+        predict_method: Literal[
+            "predict", "sample_posterior_predictive", "sample_prior_predictive"
+        ] = "predict",
         extend_idata: bool = False,
         combined: bool = True,
         include_last_observations: bool = False,
@@ -584,7 +586,7 @@ class MMMRegistrar(mlflow.pyfunc.PythonModel):
         self.include_last_observations = include_last_observations
         self.original_scale = original_scale
         self.var_names = (
-            var_names if var_names is not None else ["y"]
+            var_names if var_names is not None else [model.output_var]
         )  # Initialize if not provided
         self.sample_kwargs = sample_kwargs
 
