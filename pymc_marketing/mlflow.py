@@ -394,6 +394,60 @@ def log_sample_diagnostics(
     mlflow.log_param("arviz_version", posterior.attrs["arviz_version"])
 
 
+def log_loocv_metrics(
+    idata: az.InferenceData,
+) -> tuple[dict[str, float], az.ELPDData]:
+    """Log Bayesian LOOCV metrics to MLflow.
+
+    Compute Pareto-smoothed importance sampling leave-one-out cross-validation (PSIS-LOO-CV).
+    Estimates the expected log pointwise predictive density (elpd) using Pareto-smoothed
+    importance sampling leave-one-out cross-validation (PSIS-LOO-CV).
+    In order to compute the PSIS-LOO-CV, we need to compute the log_likelihood of the model too,
+    which will extend the inference data with a log_likelihood group.
+
+    Parameters
+    ----------
+    idata : az.InferenceData
+        The InferenceData object returned by the sampling method.
+
+    Raises
+    ------
+    KeyError
+        If the inference data object does not contain the group posterior or sample_stats.
+
+    Sets
+    ----
+    idata.log_likelihood : az.InferenceData
+        The InferenceData object with the log_likelihood group.
+
+    Returns
+    -------
+    tuple[dict[str, float], az.ELPDData]
+        A tuple containing a dictionary of model diagnostics and the model_loo object.
+    """
+    if "posterior" not in idata:
+        raise KeyError("InferenceData object does not contain the group posterior.")
+
+    if "sample_stats" not in idata:
+        raise KeyError("InferenceData object does not contain the group sample_stats.")
+
+    pm.compute_log_likelihood(idata, progressbar=False)
+    model_loo = az.loo(idata)
+
+    # Log LOOCV metrics
+    loocv_metrics = {
+        "loocv_elpd_loo": model_loo.elpd_loo,  # expected log pointwise predictive density
+        "loocv_se": model_loo.se,  # standard error of elpd
+        "loocv_p_loo": model_loo.p_loo,  # effective number of parameters
+    }
+
+    # Log metrics to MLflow
+    for metric_name, metric_value in loocv_metrics.items():
+        mlflow.log_metric(metric_name, metric_value)
+
+    return loocv_metrics, model_loo
+
+
 def log_inference_data(
     idata: az.InferenceData,
     save_file: str | Path = "idata.nc",
@@ -604,6 +658,7 @@ def autolog(
     summary_var_names: list[str] | None = None,
     arviz_summary_kwargs: dict | None = None,
     log_mmm: bool = True,
+    log_loocv: bool = True,
     disable: bool = False,
     silent: bool = False,
 ) -> None:
@@ -630,6 +685,8 @@ def autolog(
         Additional keyword arguments to pass to `az.summary`.
     log_mmm : bool, optional
         Whether to log PyMC-Marketing MMM models. Default is True.
+    log_loocv : bool, optional
+        Whether to log LOOCV metrics. Default is True.
     disable : bool, optional
         Whether to disable autologging. Default is False.
     silent : bool, optional
@@ -738,6 +795,9 @@ def autolog(
 
             if log_datasets:
                 log_data(model=model, idata=idata)
+
+            if log_loocv:
+                log_loocv_metrics(idata)
 
             return idata
 
