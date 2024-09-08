@@ -777,6 +777,43 @@ class ModelBuilder(ABC):
 
         return az.extract(post_pred, variable_name, combined=combined)
 
+    def compute_log_likelihood(
+        self,
+        var_names: list[str] | None = None,
+        extend_idata: bool = False,
+        compute_kwargs: dict | None = None,
+    ) -> None:
+        """Compute element-wise log likelihood for the model's posterior samples.
+
+        This function calculates the log likelihood of the model given its posterior
+        samples. It is typically used for Leave-One-Out Cross-Validation (LOOCV) and
+        other Bayesian evaluation metrics.
+
+        Parameters
+        ----------
+        var_names : list of str
+            List of variable names to compute log likelihoods for. In particular, is relevant
+            in case of models with multiple posterior_predictive variables, such as when
+            calibrating with XP data or ROAS priors via `mmm.add_lift_test_measurements()`.
+            Defaults to None.
+        extend_idata : bool, optional
+            If True, extend the model's inference data with the computed log likelihoods.
+            Defaults to False.
+        compute_kwargs : dict or None, optional
+            Additional keyword arguments to pass to `pm.log_likelihood()`.
+            Defaults to None.
+        """
+        if compute_kwargs is None:
+            compute_kwargs = {}
+
+        pm.compute_log_likelihood(
+            idata=self.idata,
+            var_names=var_names,
+            extend_inferencedata=extend_idata,
+            model=self.model,
+            **compute_kwargs,
+        )
+
     def get_params(self, deep=True):
         """Get all the model parameters needed to instantiate a copy of the model, not including training data."""
         return {
