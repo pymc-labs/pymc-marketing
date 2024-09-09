@@ -735,11 +735,12 @@ class Prior:
 
         return cls(dist, dims=dims, centered=centered, transform=transform, **kwargs)
 
-    def constrain(self, lower: float, upper: float, **kwargs) -> Prior:
-        """Create a new prior that is constrained to the given bounds.
+    def constrain(
+        self, lower: float, upper: float, mass: float = 0.95, kwargs=None
+    ) -> Prior:
+        """Create a new prior with a given mass constrained within the given bounds.
 
-        Wrapper around `pm.find_constrained_prior` where the initial guess is
-        the current parameters. Will error out if no parameters are given.
+        Wrapper around `preliz.maxent`.
 
         Parameters
         ----------
@@ -747,39 +748,55 @@ class Prior:
             The lower bound.
         upper : float
             The upper bound.
+        mass: float = 0.95
+            The mass of the distribution to keep within the bounds.
         kwargs : dict
-            Additional arguments to pass to `pm.find_constrained_prior`.
+            Additional arguments to pass to `pz.maxent`.
 
         Returns
         -------
         Prior
-            The new prior that is constrained to domain.
+            The maximum entropy prior with a mass constrained to the given bounds.
 
         Examples
         --------
-        Create a Beta distribution that is constrained between 0.5 and 0.8
-        using initial parameter values of alpha=2 and beta=1 for the
-        optimization.
+        Create a Beta distribution that is constrained to have 95% of the mass
+        between 0.5 and 0.8.
 
         .. code-block:: python
 
             dist = Prior(
                 "Beta",
-                alpha=2,
-                beta=1,
+            ).constrain(lower=0.5, upper=0.8)
+
+        Create a Beta distribution with mean 0.6, that is constrained to
+        have 95% of the mass between 0.5 and 0.8.
+
+        .. code-block:: python
+
+            dist = Prior(
+                "Beta",
+                mu=0.6,
             ).constrain(lower=0.5, upper=0.8)
 
         """
+        from preliz import maxent
+
         if self.transform:
             raise ValueError("Can't constrain a transformed variable")
 
-        new_parameters = pm.find_constrained_prior(
-            self.pymc_distribution,
-            lower=lower,
-            upper=upper,
-            init_guess=self.parameters,
-            **kwargs,
-        )
+        if kwargs is None:
+            kwargs = {}
+            kwargs.setdefault("plot", False)
+
+        if kwargs["plot"]:
+            new_parameters = maxent(self.preliz, lower, upper, mass, **kwargs)[
+                0
+            ].params_dict
+        else:
+            new_parameters = maxent(
+                self.preliz, lower, upper, mass, **kwargs
+            ).params_dict
 
         return Prior(
             self.distribution,
