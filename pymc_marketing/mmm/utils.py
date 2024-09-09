@@ -218,6 +218,7 @@ def apply_sklearn_transformer_across_dim(
     """
     # These are lost during the ufunc
     attrs = data.attrs
+    # Cache dims to restore them after the ufunc
     dims = data.dims
 
     data = (
