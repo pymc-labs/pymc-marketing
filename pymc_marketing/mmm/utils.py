@@ -227,6 +227,7 @@ def apply_sklearn_transformer_across_dim(
             input_core_dims=[[dim_name, "_"]],
             output_core_dims=[[dim_name, "_"]],
             vectorize=True,
+            on_missing_core_dim="copy",
         )
         .squeeze(dim="_")
         .transpose(*dims)
