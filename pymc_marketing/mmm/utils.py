@@ -197,7 +197,6 @@ def apply_sklearn_transformer_across_dim(
     data: xr.DataArray,
     func: Callable[[np.ndarray], np.ndarray],
     dim_name: str,
-    combined: bool = False,
 ) -> xr.DataArray:
     """Apply a scikit-learn transformer across a dimension of an xarray DataArray.
 
@@ -211,8 +210,6 @@ def apply_sklearn_transformer_across_dim(
         scikit-learn method to apply to the data
     dim_name : str
         Name of the dimension to apply the function to
-    combined : bool, default False
-        Flag to indicate if the data coords have been combined or not
 
     Returns
     -------
@@ -221,20 +218,19 @@ def apply_sklearn_transformer_across_dim(
     """
     # These are lost during the ufunc
     attrs = data.attrs
+    dims = data.dims
 
-    if combined:
-        data = xr.apply_ufunc(
+    data = (
+        xr.apply_ufunc(
             func,
-            data,
-        )
-    else:
-        data = xr.apply_ufunc(
-            func,
-            data.expand_dims(dim={"_": 1}, axis=1),
+            data.expand_dims("_"),
             input_core_dims=[[dim_name, "_"]],
             output_core_dims=[[dim_name, "_"]],
             vectorize=True,
-        ).squeeze(dim="_")
+        )
+        .squeeze(dim="_")
+        .transpose(*dims)
+    )
 
     data.attrs = attrs
 

@@ -123,11 +123,12 @@ def create_mock_mmm_return_data():
     def _create_mock_mm_return_data(combined: bool) -> xr.DataArray:
         dates = pd.date_range(start="2020-01-01", end="2020-01-31", freq="W-MON")
         data = xr.DataArray(
-            np.ones(shape=(1, 3, len(dates))),
+            np.ones(shape=(1, 3, len(dates), 2)),
             coords={
                 "chain": [1],
                 "draw": [1, 2, 3],
                 "date": dates,
+                "channel": ["channel1", "channel2"],
             },
         )
 
@@ -149,25 +150,9 @@ def test_apply_sklearn_function_across_dim(
         data,
         mock_method,
         dim_name="date",
-        combined=combined,
     )
 
     xr.testing.assert_allclose(result, data * 2)
-
-
-def test_apply_sklearn_function_across_dim_error(
-    mock_method,
-    create_mock_mmm_return_data,
-) -> None:
-    data = create_mock_mmm_return_data(combined=False)
-
-    with pytest.raises(ValueError, match="x must be 2-dimensional"):
-        apply_sklearn_transformer_across_dim(
-            data,
-            mock_method,
-            dim_name="date",
-            combined=True,
-        )
 
 
 @pytest.mark.parametrize("constructor", [pd.Series, np.array])
