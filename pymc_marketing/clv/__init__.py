@@ -15,6 +15,7 @@
 
 from pymc_marketing.clv.models import (
     BetaGeoModel,
+    BetaGeoBetaBinomModel,
     GammaGammaModel,
     GammaGammaModelIndividual,
     ParetoNBDModel,
@@ -34,6 +35,7 @@ from pymc_marketing.clv.utils import (
 
 __all__ = (
     "BetaGeoModel",
+    "BetaGeoBetaBinomModel",
     "ParetoNBDModel",
     "GammaGammaModel",
     "GammaGammaModelIndividual",
