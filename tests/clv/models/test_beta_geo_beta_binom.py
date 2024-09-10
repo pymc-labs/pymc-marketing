@@ -48,7 +48,7 @@ class TestBetaGeoBetaBinomModel:
         # cls.T = test_data["T"]
 
         # take sample of all unique recency/frequency/T combinations to test predictive methods
-        test_customer_ids = [  # F841
+        test_customer_ids = [
             3463,
             4554,
             4831,
