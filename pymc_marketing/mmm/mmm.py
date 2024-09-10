@@ -1403,7 +1403,6 @@ class MMM(
                 data=channel_contributions,
                 func=self.get_target_transformer().inverse_transform,
                 dim_name="time_since_spend",
-                combined=False,
             )
 
         return channel_contributions
@@ -1882,7 +1881,6 @@ class MMM(
                 data=posterior_predictive_samples,
                 func=self.get_target_transformer().inverse_transform,
                 dim_name="date",
-                combined=combined,
             )
 
         return posterior_predictive_samples
