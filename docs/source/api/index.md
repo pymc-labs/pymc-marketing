@@ -13,6 +13,7 @@
   model_config
   model_builder
   prior
+  product_incrementality
   metrics
   mlflow
 ```
