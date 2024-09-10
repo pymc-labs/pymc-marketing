@@ -8,14 +8,31 @@ Fortunately, with Bayesian modeling, we can do better than this! So-called Media
 
 ## What can you do with Media Mix Modeling?
 
-Media Mix Modeling gives rich insights and is used in many ways, but here are some of the highlights:
+Media Mix Modeling (MMM) is a powerful tool that provides actionable insights for businesses. Here are some key ways you can leverage MMM to drive strategic decisions and improve your marketing ROI:
 
 1. Understand the effectiveness of different media channels in driving customer acquisition. Not only can you learn from data about the most influential media channels for your business, but you can update this understanding over time. By incorporating new marketing and customer acquisition data on an ongoing basis, you can learn about the changing effectiveness of each channel over time.
-2. Avoid being misled by other factors. If the rate of customer acquisitions dramatically changes, was this caused by changes in marketing spend across media channels? Or was it caused by other factors such as changes in seasonality, consumer sentiment, economic factors, pricing changes, etc.?
-3. Inform media spending decisions. Having gained an understanding of the effectiveness of different media channels, such as knowing the customer acquisition cost per channel or the degree of channel saturation, this could be used to inform future marketing spend across channels.
-4. Optimize future marketing decisions. Rather than just inform future budget spending decisions, it is actually possible to optimize these spending decisions. For example, it is possible to calculate budgets across media channels that maximize our KPI for a given total budget. See this blog post on Bayesian decision-making for more information.
-5. Inspire marketing experiments. If there is uncertainty about the effectiveness or saturation of channels, we can intelligently respond to this by running lift or incrementality tests to resolve some of this uncertainty.
-6. Validate your understanding through predictions. We gain confidence in our knowledge of the world by making predictions and comparing them to what happens. MMM also generates forecasts that we can check against reality. As a result, we can improve our understanding and modeling iteratively to become more accurate over time.
+
+2. Optimize Budget Allocation: Use MMM to determine the most effective distribution of your marketing budget across different channels. By understanding the impact of each channel on your KPIs, you can allocate resources where they'll generate the highest return.
+
+3. Enhance ROI Forecasting: Develop more accurate forecasts of expected returns for different marketing scenarios. This allows you to set realistic goals and make data-driven decisions about future campaigns.
+
+4. Identify Synergies Between Channels: Uncover how different marketing channels interact and complement each other. This insight can help you create more cohesive, integrated marketing strategies that leverage cross-channel effects.
+
+5. Adapt to Market Changes: Continuously update your model with new data to track changes in channel effectiveness over time. This allows you to quickly adapt your strategy to evolving market conditions, consumer behaviors, or competitive landscapes.
+
+6. Justify Marketing Investments: Use concrete data to demonstrate the value of marketing activities to stakeholders. MMM provides a quantitative basis for marketing budget discussions and helps align marketing goals with overall business objectives.
+
+7. Optimize Timing and Frequency: Determine the optimal timing and frequency of your marketing efforts across different channels. This can help you avoid oversaturation and maximize the impact of your campaigns.
+
+8. Scenario Planning: Run "what-if" analyses to evaluate potential outcomes of different marketing strategies before implementing them. This can help mitigate risks and identify the most promising opportunities.
+
+9. Personalize Marketing Strategies: Use insights from MMM to tailor your marketing approach for different customer segments or geographic regions, maximizing relevance and effectiveness.
+
+10. Benchmark Performance: Compare your marketing performance against industry standards or historical data to identify areas for improvement and set competitive targets.
+
+11. Guide Long-term Strategy: Use MMM insights to inform long-term marketing and business strategies, ensuring that your marketing efforts align with and support your company's broader goals and vision.
+
+By leveraging these actionable insights from Media Mix Modeling, businesses can make more informed, data-driven decisions that lead to improved marketing effectiveness, increased ROI, and sustainable growth.
 
 ![](bayesian_mmm_workflow2.png)
 
@@ -45,6 +62,7 @@ In simple terms, we can understand MMMs as regression modeling applied to busine
 To do this, we use two main types of predictor variables:
 
 1. The level of spend for each media channel over time.
+
 2. A set of control measurements that could capture seasonality or economic indicators.
 The basic approach to MMMs uses linear regression to estimate a set of coefficients for the relative importance of each of these predictors, but real-world MMMs commonly incorporate also non-linear factors to more accurately capture the effect of marketing activities on consumer behaviour:
 
@@ -63,6 +81,38 @@ The marketing spend for a given channel may have a short-term effect or long-ter
 Thus we can summarize the full MMM with this image:
 
 ![](bayesian_mmm.png)
+
+## Data Requirements
+
+To effectively implement a Media Mix Model (MMM), you need to gather specific types of data. Here are the key data requirements:
+
+1. Sales or KPI Data:
+   - Time series data of your target variable (e.g., sales, conversions, new customers)
+   - Typically at a weekly or daily granularity
+   - Should cover a sufficient time period (ideally 2-3 years) to capture seasonality and trends
+
+2. Marketing Spend Data:
+   - Time series data of marketing expenditures (or impressions) for each channel (e.g., TV, radio, digital, print)
+   - Should match the granularity of your sales data
+   - Include all significant marketing channels used during the period
+
+3. Control Variables:
+   - Economic indicators (e.g., GDP, unemployment rate)
+   - Competitor activities (if available)
+   - Seasonal factors (e.g., holidays, special events)
+   - Price changes or promotions
+
+4. External Factors:
+   - Weather data (if relevant to your business)
+   - Industry-specific factors
+
+5. Geographic Data:
+   - If running regional campaigns, include location information
+
+6. Ideally, you have some lift tests or other experiments that you can use to calibrate your model.
+
+Remember, the quality and completeness of your data directly impact the accuracy and usefulness of your Media Mix Model. It's crucial to ensure data consistency, handle missing values appropriately, and validate data quality before building your model.
+
 
 ## PyMC-Marketing Media Mix Modeling features
 
@@ -92,6 +142,6 @@ PyMC-Marketing offers a comprehensive suite of features for Media Mix Modeling:
 
 Each of these features is supported by extensive documentation and example notebooks, allowing you to dive deeper into their implementation and use cases.
 
-## Putting it all together
+## How to get started?
 
 To see how all these different components come together, you can review the {ref}`MMM Example notebook <mmm_example>`.
