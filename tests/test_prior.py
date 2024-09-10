@@ -351,21 +351,18 @@ def test_json_round_trip(large_var) -> None:
 
 
 def test_constrain_with_transform_error() -> None:
-    var = Prior("Normal", mu=0, sigma=1, transform="sigmoid")
+    var = Prior("Normal", transform="sigmoid")
 
     with pytest.raises(ValueError):
         var.constrain(lower=0, upper=1)
 
 
 def test_constrain(mocker) -> None:
-    var = Prior("Normal", mu=0, sigma=1)
+    var = Prior("Normal")
 
     mocker.patch(
-        "pymc.find_constrained_prior",
-        return_value={
-            "mu": 5,
-            "sigma": 2,
-        },
+        "preliz.maxent",
+        return_value=mocker.Mock(params_dict={"mu": 5, "sigma": 2}),
     )
 
     new_var = var.constrain(lower=0, upper=1)
