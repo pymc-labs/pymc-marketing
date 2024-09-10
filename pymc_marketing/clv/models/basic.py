@@ -61,6 +61,7 @@ class CLVModel(ModelBuilder):
         data: pd.DataFrame,
         required_cols: Sequence[str],
         must_be_unique: Sequence[str] = (),
+        must_be_homogenous: Sequence[str] = (),
     ):
         existing_columns = set(data.columns)
         n = data.shape[0]
@@ -71,6 +72,11 @@ class CLVModel(ModelBuilder):
             if required_col in must_be_unique:
                 if data[required_col].nunique() != n:
                     raise ValueError(f"Column {required_col} has duplicate entries")
+            if required_col in must_be_homogenous:
+                if data[required_col].nunique() != 1:
+                    raise ValueError(
+                        f"Column {required_col} has  non-homogeneous entries"
+                    )
 
     def __repr__(self) -> str:
         """Representation of the model."""
