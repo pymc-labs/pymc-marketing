@@ -142,6 +142,36 @@ PyMC-Marketing offers a comprehensive suite of features for Media Mix Modeling:
 
 Each of these features is supported by extensive documentation and example notebooks, allowing you to dive deeper into their implementation and use cases.
 
+
+## PyMC-Marketing in Production
+
+PyMC-Marketing can be seamlessly integrated into production environments using modern PyData stack MLOps tools. This allows for automated, scalable, and reproducible media mix modeling workflows. Here are some key aspects of running PyMC-Marketing in production:
+
+1. Containerization with Docker:
+   - Encapsulate your PyMC-Marketing environment and dependencies in a Docker container.
+   - Ensure consistency across different environments (development, testing, production).
+   - Simplify deployment and scaling of your MMM pipelines.
+
+2. Experiment Tracking with MLflow:
+   - Log model parameters, metrics, and artifacts using MLflow.
+   - Compare different model versions and track experiments over time.
+   - Easily reproduce results and share insights with team members.
+
+3. Workflow Orchestration:
+   - Use tools like Apache Airflow or Prefect, for example, to schedule and orchestrate your MMM pipelines.
+   - Automate data ingestion, model training, and result generation on a regular basis.
+
+4. Monitoring and Alerting:
+   - Implement monitoring for model performance and data drift.
+   - Set up alerts for unexpected changes in model outputs or data quality issues.
+
+By leveraging these tools, you can create a robust, automated MMM pipeline that continuously provides insights for your marketing strategies.
+
+For more information on these tools, visit:
+- Docker: [https://www.docker.com/](https://www.docker.com/)
+- MLflow: [https://mlflow.org/](https://mlflow.org/)
+
+
 ## How to get started?
 
 To see how all these different components come together, you can review the {ref}`MMM Example notebook <mmm_example>`.
