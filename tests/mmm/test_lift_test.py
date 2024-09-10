@@ -14,10 +14,10 @@
 import numpy as np
 import pandas as pd
 import pymc as pm
-from pytensor.tensor.variable import TensorVariable
 import pytensor.tensor as pt
 import pytest
 from pymc.model_graph import fast_eval
+from pytensor.tensor.variable import TensorVariable
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler
 
@@ -35,8 +35,8 @@ from pymc_marketing.mmm.lift_test import (
     create_time_varying_saturation,
     create_variable_indexer,
     exact_row_indices,
-    scale_lift_measurements,
     scale_channel_lift_measurements,
+    scale_lift_measurements,
     scale_target_for_lift_measurements,
 )
 
