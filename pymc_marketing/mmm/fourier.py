@@ -205,7 +205,7 @@ conflicts.
 
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 import arviz as az
@@ -219,7 +219,7 @@ from pydantic import BaseModel, Field, InstanceOf, field_serializer, model_valid
 from typing_extensions import Self
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_YEAR
-from pymc_marketing.mmm.plot import plot_curve, plot_hdi, plot_samples
+from pymc_marketing.mmm.plot import SelToString, plot_curve, plot_hdi, plot_samples
 from pymc_marketing.prior import Prior, create_dim_handler
 
 X_NAME: str = "day"
@@ -465,6 +465,11 @@ class FourierBase(BaseModel):
         subplot_kwargs: dict | None = None,
         sample_kwargs: dict | None = None,
         hdi_kwargs: dict | None = None,
+        axes: npt.NDArray[plt.Axes] | None = None,
+        same_axes: bool = False,
+        colors: Iterable[str] | None = None,
+        legend: bool | None = None,
+        sel_to_string: SelToString | None = None,
     ) -> tuple[plt.Figure, npt.NDArray[plt.Axes]]:
         """Plot the seasonality for one full period.
 
@@ -478,6 +483,16 @@ class FourierBase(BaseModel):
             Keyword arguments for the plot_full_period_samples method, by default None
         hdi_kwargs : dict, optional
             Keyword arguments for the plot_full_period_hdi method, by default None
+        axes : npt.NDArray[plt.Axes], optional
+            Matplotlib axes, by default None
+        same_axes : bool, optional
+            Use the same axes for all plots, by default False
+        colors : Iterable[str], optional
+            Colors for the different plots, by default None
+        legend : bool, optional
+            Show the legend, by default None
+        sel_to_string : SelToString, optional
+            Function to convert the selection to a string, by default None
 
         Returns
         -------
@@ -491,6 +506,11 @@ class FourierBase(BaseModel):
             subplot_kwargs=subplot_kwargs,
             sample_kwargs=sample_kwargs,
             hdi_kwargs=hdi_kwargs,
+            axes=axes,
+            same_axes=same_axes,
+            colors=colors,
+            legend=legend,
+            sel_to_string=sel_to_string,
         )
 
     def plot_curve_hdi(
@@ -596,9 +616,9 @@ class YearlyFourier(FourierBase):
         dist = Prior("Laplace", mu=mu, b=b, dims="fourier")
         yearly = YearlyFourier(n_order=2, prior=dist)
         prior = yearly.sample_prior(random_seed=rng)
-        curve = yearly.sample_full_period(prior)
+        curve = yearly.sample_curve(prior)
 
-        _, axes = yearly.plot_full_period(curve)
+        _, axes = yearly.plot_curve(curve)
         axes[0].set(title="Yearly Fourier Seasonality")
         plt.show()
 
@@ -643,9 +663,9 @@ class MonthlyFourier(FourierBase):
         dist = Prior("Laplace", mu=mu, b=b, dims="fourier")
         yearly = MonthlyFourier(n_order=2, prior=dist)
         prior = yearly.sample_prior(samples=100)
-        curve = yearly.sample_full_period(prior)
+        curve = yearly.sample_curve(prior)
 
-        _, axes = yearly.plot_full_period(curve)
+        _, axes = yearly.plot_curve(curve)
         axes[0].set(title="Monthly Fourier Seasonality")
         plt.show()
 
