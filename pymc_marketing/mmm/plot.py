@@ -365,7 +365,7 @@ def _general_plot_function(
     plot_kwargs: dict[str, Any] | None = None,
     patch: bool = True,
     line: bool = True,
-    sel_to_string: Callable[[Selection], str] | None = None,
+    sel_to_string: SelToString | None = None,
 ) -> tuple[plt.Figure, npt.NDArray[Axes]]:
     if sel_to_string is None:
 
@@ -452,7 +452,7 @@ def plot_samples(
     same_axes: bool = False,
     colors: Sequence[str] | None = None,
     legend: bool = False,
-    sel_to_string=None,
+    sel_to_string: SelToString | None = None,
 ) -> tuple[plt.Figure, npt.NDArray[Axes]]:
     """Plot n samples of the curve across coords.
 
@@ -527,7 +527,7 @@ def plot_curve(
     same_axes: bool = False,
     colors: Iterable[str] | None = None,
     legend: bool | None = None,
-    sel_to_string=None,
+    sel_to_string: SelToString | None = None,
 ) -> tuple[plt.Figure, npt.NDArray[Axes]]:
     """Plot HDI with samples of the curve across coords.
 
