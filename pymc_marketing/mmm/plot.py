@@ -248,6 +248,9 @@ def _plot_hdi_selection(
     return ax
 
 
+SelToString = Callable[[Selection], str]
+
+
 def plot_hdi(
     curve: xr.DataArray,
     non_grid_names: set[str],
@@ -258,7 +261,7 @@ def plot_hdi(
     same_axes: bool = False,
     colors: Iterable[str] | None = None,
     legend: bool = False,
-    sel_to_string: Callable[[Selection], str] | None = None,
+    sel_to_string: SelToString | None = None,
 ) -> tuple[plt.Figure, npt.NDArray[Axes]]:
     """Plot hdi of the curve across coords.
 
@@ -522,7 +525,7 @@ def plot_curve(
     hdi_kwargs: dict | None = None,
     axes: npt.NDArray[Axes] | None = None,
     same_axes: bool = False,
-    colors: Sequence[str] | None = None,
+    colors: Iterable[str] | None = None,
     legend: bool | None = None,
     sel_to_string=None,
 ) -> tuple[plt.Figure, npt.NDArray[Axes]]:
