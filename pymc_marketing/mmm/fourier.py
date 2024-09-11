@@ -616,9 +616,9 @@ class YearlyFourier(FourierBase):
         dist = Prior("Laplace", mu=mu, b=b, dims="fourier")
         yearly = YearlyFourier(n_order=2, prior=dist)
         prior = yearly.sample_prior(random_seed=rng)
-        curve = yearly.sample_full_period(prior)
+        curve = yearly.sample_curve(prior)
 
-        _, axes = yearly.plot_full_period(curve)
+        _, axes = yearly.plot_curve(curve)
         axes[0].set(title="Yearly Fourier Seasonality")
         plt.show()
 
@@ -663,9 +663,9 @@ class MonthlyFourier(FourierBase):
         dist = Prior("Laplace", mu=mu, b=b, dims="fourier")
         yearly = MonthlyFourier(n_order=2, prior=dist)
         prior = yearly.sample_prior(samples=100)
-        curve = yearly.sample_full_period(prior)
+        curve = yearly.sample_curve(prior)
 
-        _, axes = yearly.plot_full_period(curve)
+        _, axes = yearly.plot_curve(curve)
         axes[0].set(title="Monthly Fourier Seasonality")
         plt.show()
 
