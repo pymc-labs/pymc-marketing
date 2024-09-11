@@ -288,7 +288,7 @@ def plot_hdi(
     plot_kwargs = plot_kwargs or {}
     plot_kwargs = {**{"alpha": 0.25}, **plot_kwargs}
 
-    return _general_plot_function(
+    return _plot_across_coord(
         curve=curve,
         non_grid_names=non_grid_names,
         get_plot_data=get_plot_data,
@@ -339,11 +339,35 @@ def random_samples(
 
 
 def generate_colors(n: int, start: int = 0) -> list[str]:
-    """Generate list of colors."""
+    """Generate list of colors.
+
+    Parameters
+    ----------
+    n : int
+        Number of colors to generate
+    start : int, optional
+        Starting index, by default 0
+
+    Returns
+    -------
+    list[str]
+        List of colors
+
+    Examples
+    --------
+    Generate 5 colors starting from index 1
+
+    .. code-block:: python
+
+        colors = generate_colors(5, start=1)
+        print(colors)
+        # ['C1', 'C2', 'C3', 'C4', 'C5']
+
+    """
     return [f"C{i}" for i in range(start, start + n)]
 
 
-def _general_plot_function(
+def _plot_across_coord(
     curve: xr.DataArray,
     non_grid_names: set[str],
     get_plot_data: GetPlotData,
@@ -359,6 +383,16 @@ def _general_plot_function(
     line: bool = True,
     sel_to_string: SelToString | None = None,
 ) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+    """Plot data array across coords.
+
+    Commonality used for the `plot_samples` and `plot_hdi` functions.
+    Differences depending on the `get_plot_data`, `make_selection` and
+    `plot_selection` functions passed.
+
+    Allows for plotting each coordinate combination on a separate axis
+    or on the same axis.
+
+    """
     if sel_to_string is None:
 
         def sel_to_string(sel):
@@ -492,7 +526,7 @@ def plot_samples(
         **plot_kwargs,
     }
 
-    return _general_plot_function(
+    return _plot_across_coord(
         curve=curve,
         non_grid_names=non_grid_names,
         get_plot_data=get_plot_data,
