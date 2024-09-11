@@ -91,7 +91,7 @@ def create_legend_handles(
 
     Parameters
     ----------
-    colors : Sequence[str]
+    colors : Iterable[str]
         The colors to create the legend handles.
     alpha : float, optional
         The alpha value for the patches, by default 0.5.
@@ -450,7 +450,7 @@ def plot_samples(
     subplot_kwargs: dict[str, Any] | None = None,
     plot_kwargs: dict[str, Any] | None = None,
     same_axes: bool = False,
-    colors: Sequence[str] | None = None,
+    colors: Iterable[str] | None = None,
     legend: bool = False,
     sel_to_string: SelToString | None = None,
 ) -> tuple[plt.Figure, npt.NDArray[Axes]]:
@@ -546,7 +546,7 @@ def plot_curve(
         Kwargs for the :func:`plot_hdi` function
     same_axes : bool
         If all of the plots are on the same axis
-    colors : Sequence[str], optional
+    colors : Iterable[str], optional
         Colors for the plots
     legend : bool, optional
         If to include a legend. Defaults to True if same_axes
@@ -565,24 +565,27 @@ def plot_curve(
 
     .. plot::
         :include-source: True
+        :context:
 
         import numpy as np
         import pandas as pd
 
         import pymc as pm
 
+        import matplotlib.pyplot as plt
+
         from pymc_marketing.mmm.plot import plot_curve
 
         seed = sum(map(ord, "Arbitrary curve"))
         rng = np.random.default_rng(seed)
 
-        dates = pd.date_range("2022-01-01", periods=52, freq="W-MON")
+        dates = pd.date_range("2024-01-01", periods=52, freq="W")
 
-        coords = {"date": dates, "product": ["A", "B", "C"]}
+        coords = {"date": dates, "product": ["A", "B"]}
         with pm.Model(coords=coords) as model:
             data = pm.Normal(
                 "data",
-                mu=[-0.5, 0, 0.5],
+                mu=[-0.5, 0.5],
                 sigma=1,
                 dims=("date", "product"),
             )
@@ -598,6 +601,7 @@ def plot_curve(
         fig, axes = plot_curve(
             curve,
             non_grid_names={"date"},
+            subplot_kwargs={"figsize": (15, 5)},
         )
         plt.show()
 
@@ -607,13 +611,14 @@ def plot_curve(
         :include-source: True
         :context: close-figs
 
-        colors = ["red", "green", "blue"]
+        colors = ["red", "blue"]
         fig, axes = plot_curve(
             curve,
             non_grid_names={"date"},
             same_axes=True,
             colors=colors,
         )
+        axes[0].set(title="Same data but on same axes and custom colors")
         plt.show()
 
     """
