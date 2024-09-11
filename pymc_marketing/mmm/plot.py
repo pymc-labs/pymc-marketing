@@ -181,15 +181,7 @@ def selections(
 P = ParamSpec("P")
 GetPlotData = Callable[[xr.DataArray], xr.DataArray]
 MakeSelection = Callable[[xr.DataArray, Selection], pd.DataFrame]
-PlotSelection = Callable[
-    Concatenate[
-        pd.DataFrame,
-        Axes,
-        str,
-        P,
-    ],
-    Axes,
-]
+PlotSelection = Callable[Concatenate[pd.DataFrame, Axes, str, P], Axes]
 
 
 def _get_sample_plot_data(data):
