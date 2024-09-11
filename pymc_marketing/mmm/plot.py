@@ -11,9 +11,11 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Plotting functions for posteriors.
+"""Plot distributions stored in xarray.DataArray across coordinates.
 
-Used to plot the various components of the posterior.
+Used to plot the prior and posterior of the various MMM components.
+
+See the :func:`plot_curve` function for more information.
 
 """
 
@@ -592,7 +594,7 @@ def plot_curve(
 
     .. plot::
         :include-source: True
-        :context:
+        :context: reset
 
         import numpy as np
         import pandas as pd
