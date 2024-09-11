@@ -540,6 +540,7 @@ def plot_samples(
         legend=legend,
         patch=False,
         line=True,
+        sel_to_string=sel_to_string,
     )
 
 
