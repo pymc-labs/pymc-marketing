@@ -414,11 +414,11 @@ class TestBetaGeoBetaBinomModel:
         est_prob_alive_t = self.model.expected_probability_alive(alt_data)
         assert est_prob_alive.mean() > est_prob_alive_t.mean()
 
-    # TODO: Add a test for recency_frequency
     def test_distribution_new_customer(self) -> None:
         mock_model = BetaGeoBetaBinomModel(
             data=self.data,
         )
+        mock_model.build_model()
         mock_model.idata = az.from_dict(
             {
                 "alpha": [self.alpha_true],
@@ -451,11 +451,11 @@ class TestBetaGeoBetaBinomModel:
         theta = pm.Beta.dist(self.gamma_true, self.delta_true, size=N)
         ref_rec, ref_freq = pm.draw(
             BetaGeoBetaBinom.dist(
-                r=self.r_true,
                 alpha=self.alpha_true,
-                s=self.s_true,
                 beta=self.beta_true,
-                T=self.T,
+                delta=self.delta_true,
+                gamma=self.gamma_true,
+                T=self.data["T"],
             ),
             random_seed=rng,
         ).T
@@ -481,22 +481,22 @@ class TestBetaGeoBetaBinomModel:
         )
         np.testing.assert_allclose(
             customer_rec.mean(),
-            pm.draw(ref_rec.mean(), random_seed=rng),
+            ref_rec.mean(),
             rtol=rtol,
         )
         np.testing.assert_allclose(
             customer_rec.var(),
-            pm.draw(ref_rec.var(), random_seed=rng),
+            ref_rec.var(),
             rtol=rtol,
         )
         np.testing.assert_allclose(
             customer_freq.mean(),
-            pm.draw(ref_freq.mean(), random_seed=rng),
+            ref_freq.mean(),
             rtol=rtol,
         )
         np.testing.assert_allclose(
             customer_freq.var(),
-            pm.draw(ref_freq.var(), random_seed=rng),
+            ref_freq.var(),
             rtol=rtol,
         )
 
