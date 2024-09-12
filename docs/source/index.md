@@ -10,6 +10,10 @@
 
 # Open Source Marketing Analytics Solution
 
+[![Downloads](https://static.pepy.tech/badge/pymc-marketing)](https://pepy.tech/project/pymc-marketing)
+[![Downloads](https://static.pepy.tech/badge/pymc-marketing/month)](https://pepy.tech/project/pymc-marketing)
+[![Downloads](https://static.pepy.tech/badge/pymc-marketing/week)](https://pepy.tech/project/pymc-marketing)
+
 ## Powered by
 
 :::{image} _static/labs-logo-dark.png
