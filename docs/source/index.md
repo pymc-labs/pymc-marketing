@@ -190,6 +190,7 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 :::{toctree}
 :hidden:
 getting_started/index
+contributing/index
 guide/index
 api/index
 notebooks/index
