@@ -10,7 +10,7 @@
 
 # Open Source Marketing Analytics Solution
 
-## Powered by [PyMC Labs](https://www.pymc-labs.io)
+## Powered by
 
 :::{image} _static/labs-logo-dark.png
 :align: center
@@ -47,9 +47,6 @@ For companies that want to use PyMC-Marketing in production, [PyMC Labs](https:/
 
 **Unlock the power of marketing analytics with PyMC-Marketing – the python based open source solution for smarter decision-making.** Marketing mix modeling and customer lifetime value modules allow businesses to make data-driven decisions about their marketing campaigns. Optimize your marketing strategy and unlock the full potential of your customer data.
 
-**Checkout the video below to see how Bolt leverages PyMC Marketing to assess the impact of their marketing efforts.**
-<iframe width="560" height="315" src="https://www.youtube.com/embed/djXoPq60bRM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
-
 ## Quick links
 
 :::::{grid} 1 1 2 2
@@ -69,12 +66,6 @@ and synthetic data. They explain how to use
 the library and showcase its features.
 
 +++
-
-:::{button-ref} getting_started/index
-:expand:
-:color: secondary
-:click-parent:
-:ref-type: doc
 
 :::{button-ref} notebooks/index
 :expand:
@@ -146,6 +137,24 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 | -------------- | ------------------------ | ----------------------- |
 | **Continuous** | online purchases         | ad conversion time      |
 | **Discrete**   | concerts & sports events | recurring subscriptions |
+
+
+
+## Resources
+
+### PyMC-Marketing: Bayesian Approach to Marketing Data Science
+<iframe width="800" height="450" src="https://www.youtube.com/embed/7a_HL5BRB-s" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
+### Bolt's success story with PyMC-Marketing
+**Checkout the video below to see how Bolt leverages PyMC Marketing to assess the impact of their marketing efforts.**
+<iframe width="800" height="450" src="https://www.youtube.com/embed/djXoPq60bRM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
+### Introduction to time-varying parameters in MMMs in PyMC-Marketing
+<iframe width="800" height="450" src="https://www.youtube.com/embed/2biNgpUpLik" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
+### Bayesian methods in marketing analytics
+**Curious about Bayesian methods in marketing analytics? Check out this overview by [Juan Orduz](https://juanitorduz.github.io/about/)**
+<iframe width="800" height="450" src="https://www.youtube.com/embed/5QgiixYjmTM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 
 
 :::{toctree}
