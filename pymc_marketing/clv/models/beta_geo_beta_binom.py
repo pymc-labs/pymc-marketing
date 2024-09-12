@@ -241,7 +241,6 @@ class BetaGeoBetaBinomModel(CLVModel):
         """
         Utility function for using BG/BB log-likelihood in predictive methods.
         """
-
         # The BetaGeoBetaBinom distribution only works with vector parameters
         # We stack the chain/draw dimensions in a long vector and use vectorize
         # to broadcast along each customer `T`
@@ -465,6 +464,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         ----------
         t : array_like
             Number of time periods over which to estimate purchases.
+
         References
         ----------
         .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005a),
@@ -547,7 +547,9 @@ class BetaGeoBetaBinomModel(CLVModel):
             # For map fit add a dummy draw dimension
             dataset = dataset.squeeze("draw").expand_dims(draw=range(1000))
 
-        with pm.Model():
+        coords = self.model.coords.copy()  # type: ignore
+        coords["customer_id"] = data["customer_id"]
+        with pm.Model(coords=coords):
             alpha = pm.Flat("alpha")
             beta = pm.Flat("beta")
             gamma = pm.Flat("gamma")
@@ -571,6 +573,7 @@ class BetaGeoBetaBinomModel(CLVModel):
                 gamma=gamma,
                 delta=delta,
                 T=T,
+                dims=["customer_id", "obs_var"],
             )
 
             return pm.sample_posterior_predictive(

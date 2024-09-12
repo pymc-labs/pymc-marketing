@@ -22,6 +22,7 @@ import pytest
 import xarray as xr
 from lifetimes.fitters.beta_geo_beta_binom_fitter import BetaGeoBetaBinomFitter
 
+from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models import BetaGeoBetaBinomModel
 from pymc_marketing.prior import Prior
 
@@ -434,14 +435,30 @@ class TestBetaGeoBetaBinomModel:
         new_customer_purchase_rate = mock_model.distribution_new_customer_purchase_rate(
             random_seed=rng
         )
+        customer_rec_freq = mock_model.distribution_new_customer_recency_frequency(
+            self.data, random_seed=rng
+        )
+        customer_rec = customer_rec_freq.sel(obs_var="recency")
+        customer_freq = customer_rec_freq.sel(obs_var="frequency")
 
         assert isinstance(new_customer_dropout, xr.DataArray)
         assert isinstance(new_customer_purchase_rate, xr.DataArray)
+        assert isinstance(customer_rec, xr.DataArray)
+        assert isinstance(customer_freq, xr.DataArray)
 
         N = 1000
-        # TODO: do these match the greek letters in the research?
         p = pm.Beta.dist(self.alpha_true, self.beta_true, size=N)
         theta = pm.Beta.dist(self.gamma_true, self.delta_true, size=N)
+        ref_rec, ref_freq = pm.draw(
+            BetaGeoBetaBinom.dist(
+                r=self.r_true,
+                alpha=self.alpha_true,
+                s=self.s_true,
+                beta=self.beta_true,
+                T=self.T,
+            ),
+            random_seed=rng,
+        ).T
 
         rtol = 0.15
         np.testing.assert_allclose(
@@ -460,6 +477,26 @@ class TestBetaGeoBetaBinomModel:
         np.testing.assert_allclose(
             new_customer_purchase_rate.var(),
             pm.draw(p.var(), random_seed=rng),
+            rtol=rtol,
+        )
+        np.testing.assert_allclose(
+            customer_rec.mean(),
+            pm.draw(ref_rec.mean(), random_seed=rng),
+            rtol=rtol,
+        )
+        np.testing.assert_allclose(
+            customer_rec.var(),
+            pm.draw(ref_rec.var(), random_seed=rng),
+            rtol=rtol,
+        )
+        np.testing.assert_allclose(
+            customer_freq.mean(),
+            pm.draw(ref_freq.mean(), random_seed=rng),
+            rtol=rtol,
+        )
+        np.testing.assert_allclose(
+            customer_freq.var(),
+            pm.draw(ref_freq.var(), random_seed=rng),
             rtol=rtol,
         )
 
