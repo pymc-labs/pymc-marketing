@@ -333,6 +333,10 @@ class TestBetaGeoBetaBinomModel:
             )
         )
 
+        # test parametrization with default data has different dims
+        est_num_purchases = self.model.expected_purchases(future_t=test_t)
+        assert est_num_purchases.shape == (self.chains, self.draws, self.N)
+
         data = self.sample_data.assign(future_t=test_t)
         est_num_purchases = self.model.expected_purchases(data)
 
@@ -399,8 +403,12 @@ class TestBetaGeoBetaBinomModel:
             n_periods=self.sample_data["T"],
         )
 
-        data = self.sample_data.assign(future_t=test_t)
-        est_prob_alive = self.model.expected_probability_alive(data)
+        # test parametrization with default data has different dims
+        est_prob_alive = self.model.expected_probability_alive(future_t=test_t)
+        assert est_prob_alive.shape == (self.chains, self.draws, self.N)
+
+        sample_data = self.sample_data.assign(future_t=test_t)
+        est_prob_alive = self.model.expected_probability_alive(sample_data)
 
         assert est_prob_alive.shape == (self.chains, self.draws, self.sample_data_N)
         assert est_prob_alive.dims == ("chain", "draw", "customer_id")
@@ -410,7 +418,7 @@ class TestBetaGeoBetaBinomModel:
             rtol=0.01,
         )
 
-        alt_data = data.assign(future_t=7.5)
+        alt_data = self.sample_data.assign(future_t=7.5)
         est_prob_alive_t = self.model.expected_probability_alive(alt_data)
         assert est_prob_alive.mean() > est_prob_alive_t.mean()
 
@@ -436,7 +444,7 @@ class TestBetaGeoBetaBinomModel:
             random_seed=rng
         )
         customer_rec_freq = mock_model.distribution_new_customer_recency_frequency(
-            self.data, random_seed=rng
+            self.data, T=self.data["T"], random_seed=rng
         )
         customer_rec = customer_rec_freq.sel(obs_var="recency")
         customer_freq = customer_rec_freq.sel(obs_var="frequency")
@@ -500,7 +508,6 @@ class TestBetaGeoBetaBinomModel:
             rtol=rtol,
         )
 
-    # TODO: Deterministic Priors are needed for this test to pass (or just do away with the current model setup for now)
     def test_save_load(self):
         self.model.build_model()
         self.model.fit("map", maxeval=1)

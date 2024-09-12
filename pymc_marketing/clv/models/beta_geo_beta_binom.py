@@ -31,7 +31,7 @@ from pymc_marketing.model_config import ModelConfig
 from pymc_marketing.prior import Prior
 
 
-# TODO: Docstring Examples
+# TODO: docstrings
 class BetaGeoBetaBinomModel(CLVModel):
     """Beta-Geometric/Beta-Binomial Model (BG/BB) for non-contractual, discrete purchase opportunities,
     introduced by Fadel et al. [1]_.
@@ -650,6 +650,7 @@ class BetaGeoBetaBinomModel(CLVModel):
             var_names=["purchase_rate"],
         )["purchase_rate"]
 
+    # TODO: This is quite slow due to sampling far more than necessary. Same for other CLV models.
     def distribution_new_customer_recency_frequency(
         self,
         data: pd.DataFrame | None = None,
