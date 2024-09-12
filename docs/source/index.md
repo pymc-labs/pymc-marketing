@@ -51,7 +51,8 @@ For companies that want to use PyMC-Marketing in production, [PyMC Labs](https:/
 
 **Unlock the power of marketing analytics with PyMC-Marketing – the python based open source solution for smarter decision-making.** Marketing mix modeling and customer lifetime value modules allow businesses to make data-driven decisions about their marketing campaigns. Optimize your marketing strategy and unlock the full potential of your customer data.
 
-**PyMC Labs Client Testimonials**
+### PyMC Labs Client Testimonials
+
 <iframe width="800" height="450" src="https://www.youtube.com/embed/_CVEygFxFRA" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 
 
@@ -162,6 +163,10 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 
 ### Customer Lifetime Value Modeling in Marine Industry
 <iframe width="800" height="450" src="https://www.youtube.com/embed/u3oMWgStIZY" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
+### Causality in MArketing
+
+- [Causal analysis with PyMC: Answering "What If?" with the new do operator](https://www.pymc-labs.com/blog-posts/causal-analysis-with-pymc-answering-what-if-with-the-new-do-operator/)
 
 ### Bayesian methods in marketing analytics
 **Curious about Bayesian methods in marketing analytics? Check out this overview by [Juan Orduz](https://juanitorduz.github.io/about/)**
