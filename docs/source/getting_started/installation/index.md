@@ -9,6 +9,14 @@ conda create -c conda-forge -n marketing_env pymc-marketing
 conda activate marketing_env
 ```
 
+You can also install the development version of PyMC-Marketing with:
+
+```bash
+pip install git+https://github.com/pymc-labs/pymc-marketing.git
+```
+
+## Notebooks
+
 Create a new Jupyter notebook with either JupyterLab or VS Code.
 
 ### JupyterLab Notebook
