@@ -35,7 +35,7 @@ dependencies = [
     "pymc>=5.13.0,<5.16.0",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
-    "xarray",
+    "xarray>=2024.1.0",
     "xarray-einstats>=0.5.1",
 ]
 
