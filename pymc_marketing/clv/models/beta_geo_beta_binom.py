@@ -11,6 +11,9 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+
+"""Beta-Geometric/Beta-Binomial Model."""
+
 from collections.abc import Sequence
 from typing import Literal
 
@@ -31,16 +34,16 @@ from pymc_marketing.model_config import ModelConfig
 from pymc_marketing.prior import Prior
 
 
-# TODO: docstrings
 class BetaGeoBetaBinomModel(CLVModel):
-    """Beta-Geometric/Beta-Binomial Model (BG/BB) for non-contractual, discrete purchase opportunities,
-    introduced by Fadel et al. [1]_.
+    """Beta-Geometric/Beta-Binomial Model (BG/BB).
 
-    The BG/BB model assumes the dropout process across the customer population follows a Beta distribution,
-    and time between purchases is also Beta-distributed while customers are still active.
+    Model for non-contractual, discrete purchase opportunities, introduced by Fadel et al. [1]_.
+
+    The BG/BB model assumes the probability a customer will become inactive follows a Beta distribution,
+    and the probability of making a purchase is also Beta-distributed while customers are still active.
 
     This model requires data to be summarized by *recency*, *frequency*, and *T* for each customer.
-    *T* should be the same for all customers.
+    *T* should be the same value across all customers.
 
     Parameters
     ----------
@@ -49,17 +52,21 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         * `customer_id`: Unique customer identifier
         * `frequency`: Number of repeat purchases
-        * `recency`: Time between the first and the last purchase
+        * `recency`: Purchase opportunities between the first and the last purchase
         * `T`: Total purchase opportunities.
-        Model assumptions require *T >= recency* and all customers sharing the same value for *T.
+          Model assumptions require *T >= recency* and all customers share the same value for *T.
 
     model_config : dict, optional
-        Dictionary containing model parameters and covariate column names:
+        Dictionary containing model parameters:
 
-        * `alpha_prior`: Shape parameter of time between purchases; defaults to `Weibull(alpha=2, beta=1)`
-        * `beta_prior`: Scale parameter of time between purchases; defaults to `Weibull(alpha=2, beta=10)`
-        * `gamma_prior`: Shape parameter of time until dropout; defaults to `Weibull(alpha=2, beta=1)`
-        * `delta_prior`: Scale parameter of time until dropout; defaults to `Weibull(alpha=2, beta=10)`
+        * `alpha_prior`: Shape parameter of purchase process; defaults to `phi_purchase_prior` * `kappa_purchase_prior`
+        * `beta_prior`: Shape parameter of purchase process; defaults to `1-phi_purchase_prior` * `kappa_purchase_prior`
+        * `gamma_prior`: Shape parameter of dropout process; defaults to `phi_purchase_prior` * `kappa_purchase_prior`
+        * `delta_prior`: Shape parameter of dropout process; defaults to `1-phi_dropout_prior` * `kappa_dropout_prior`
+        * `phi_purchase_prior`: Nested prior for alpha and beta priors; defaults to `Prior("Uniform", lower=0, upper=1)`
+        * `kappa_purchase_prior`: Nested prior for alpha and beta priors; defaults to `Prior("Pareto", alpha=1, m=1)`
+        * `phi_dropout_prior`: Nested prior for gamma and delta priors; defaults to `Prior("Uniform", lower=0, upper=1)`
+        * `kappa_dropout_prior`: Nested prior for gamma and delta priors; defaults to `Prior("Pareto", alpha=1, m=1)`
 
         If not provided, the model will use default priors specified in the `default_model_config` class attribute.
     sampler_config : dict, optional
@@ -88,11 +95,11 @@ class BetaGeoBetaBinomModel(CLVModel):
             },
         )
 
-        # Fit model quickly to large datasets via the default Maximum a Posteriori method
+        # Fit model quickly to large datasets via Maximum a Posteriori
         model.fit(fit_method='map')
         print(model.fit_summary())
 
-        # Use 'mcmc' for more informative predictions and reliable performance on smaller datasets
+        # Fit with the default 'mcmc' for more informative predictions and reliable performance on smaller datasets
         model.fit(fit_method='mcmc')
         print(model.fit_summary())
 
@@ -166,6 +173,7 @@ class BetaGeoBetaBinomModel(CLVModel):
 
     @property
     def default_model_config(self) -> ModelConfig:
+        """Default model configuration."""
         return {
             "phi_purchase_prior": Prior("Uniform", lower=0, upper=1),
             "kappa_purchase_prior": Prior("Pareto", alpha=1, m=1),
@@ -174,6 +182,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         }
 
     def build_model(self) -> None:  # type: ignore[override]
+        """Build the model."""
         coords = {
             "obs_var": ["recency", "frequency"],
             "customer_id": self.data["customer_id"],
@@ -238,7 +247,8 @@ class BetaGeoBetaBinomModel(CLVModel):
         t_x: xarray.DataArray,
         T: xarray.DataArray,
     ) -> xarray.DataArray:
-        """
+        """Log-likelihood of the BG/NBD model.
+
         Utility function for using BG/BB log-likelihood in predictive methods.
         """
         # The BetaGeoBetaBinom distribution only works with vector parameters
@@ -271,7 +281,10 @@ class BetaGeoBetaBinomModel(CLVModel):
         data: pd.DataFrame,
         customer_varnames: Sequence[str] = (),
     ) -> xarray.Dataset:
-        """Utility function assigning default customer arguments
+        """
+        Extract predictive variables from the data.
+
+        Utility function assigning default customer arguments
         for predictive methods and converting to xarrays.
         """
         self._validate_cols(
@@ -306,7 +319,6 @@ class BetaGeoBetaBinomModel(CLVModel):
             )
         )
 
-    # TODO: docstrings
     def expected_purchases(
         self,
         data: pd.DataFrame | None = None,
@@ -314,11 +326,13 @@ class BetaGeoBetaBinomModel(CLVModel):
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
         """
-        Given *recency*, *frequency*, and *T* for an individual customer, this method predicts the
+        Predict expected number of future purchases.
+
+        Given *recency*, *frequency*, and *T* for an individual customer, this method estimates the
         expected number of future purchases across *future_t* time periods.
 
-        Adapted from equation (41) In Bruce Hardie's notes [1]_, and `lifetimes` package:
-        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/pareto_nbd_fitter.py#L242
+        Adapted from equation (13) in Bruce Hardie's notes [1]_, and `lifetimes` library:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/fitters/beta_geo_beta_binom_fitter.py#L179
 
         Parameters
         ----------
@@ -327,11 +341,10 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         * `customer_id`: Unique customer identifier
         * `frequency`: Number of repeat purchases
-        * `recency`: Time between the first and the last purchase
-        * `T`: Time between the first purchase and the end of the observation period.
-          Model assumptions require *T >= recency*
+        * `recency`: Purchase opportunities between the first and the last purchase
+        * `T`: Total purchase opportunities.
+          Model assumptions require *T >= recency* and all customers share the same value for *T.
         * `future_t`: Optional column for *future_t* parametrization.
-        * All covariate columns specified when model was initialized.
 
         If not provided, predictions will be ran with data used to fit model.
         future_t : array_like
@@ -340,9 +353,10 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         References
         ----------
-        .. [1] Fader, Peter & G. S. Hardie, Bruce (2005).
-               "A Note on Deriving the Pareto/NBD Model and Related Expressions."
-               http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf
+        .. [1] Peter Fader, Bruce Hardie, and Jen Shang.
+               "Customer-Base Analysis in a Discrete-Time Noncontractual Setting".
+               Marketing Science, Vol. 29, No. 6 (Nov-Dec, 2010), pp. 1086-1108.
+               https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf
         """
         if data is None:
             data = self.data
@@ -382,7 +396,6 @@ class BetaGeoBetaBinomModel(CLVModel):
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
-    # TODO: docstrings
     def expected_probability_alive(
         self,
         data: pd.DataFrame | None = None,
@@ -390,10 +403,13 @@ class BetaGeoBetaBinomModel(CLVModel):
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
         """
-        Compute the probability that a customer with history *frequency*, *recency*, and *T*
+        Predict expected probability of being alive.
+
+        Estimate the probability that a customer with history *frequency*, *recency*, and *T*
         is currently active. Can also estimate alive probability for *future_t* periods into the future.
 
-        Adapted from equation (18) in Bruce Hardie's notes [1]_ and lifetimes library:
+        Adapted from equation (11) in Bruce Hardie's notes [1]_ and lifetimes library:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/fitters/beta_geo_beta_binom_fitter.py#L217
 
         Parameters
         ----------
@@ -402,9 +418,9 @@ class BetaGeoBetaBinomModel(CLVModel):
 
             * `customer_id`: Unique customer identifier
             * `frequency`: Number of repeat purchases
-            * `recency`: Time between the first and the last purchase
-            * `T`: Time between the first purchase and the end of the observation period.
-              Model assumptions require *T >= recency*
+            * `recency`: Purchase opportunities between the first and the last purchase
+            * `T`: Total purchase opportunities.
+              Model assumptions require *T >= recency* and all customers share the same value for *T.
             * `future_t`: Optional column for *future_t* parametrization.
 
             If not provided, predictions will be ran with data used to fit model.
@@ -414,9 +430,10 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         References
         ----------
-        .. [1] Fader, Peter & G. S. Hardie, Bruce (2014).
-               "Additional Results for the Pareto/NBD Model."
-               https://www.brucehardie.com/notes/015/additional_pareto_nbd_results.pdf
+        .. [1] Peter Fader, Bruce Hardie, and Jen Shang.
+               "Customer-Base Analysis in a Discrete-Time Noncontractual Setting".
+               Marketing Science, Vol. 29, No. 6 (Nov-Dec, 2010), pp. 1086-1108.
+               https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf
         """
         if data is None:
             data = self.data
@@ -447,18 +464,15 @@ class BetaGeoBetaBinomModel(CLVModel):
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
-    # TODO: docstrings
     def expected_purchases_new_customer(
         self,
         data: pd.DataFrame | None = None,
         *,
         t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        r"""
-        Expected number of purchases for a new customer across *t* time periods.
+        """Predict the expected number of purchases for a new customer across *t* time periods.
 
-        Adapted from equation (9) in [1]_, and `lifetimes` library:
-        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L328
+        Adapted from equation (8) in Bruce Hardie's notes [1]:
 
         Parameters
         ----------
@@ -467,10 +481,10 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         References
         ----------
-        .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005a),
-            "Counting Your Customers the Easy Way: An Alternative to the
-            Pareto/NBD Model," Marketing Science, 24 (2), 275-84.
-            http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf
+        .. [1] Peter Fader, Bruce Hardie, and Jen Shang.
+               "Customer-Base Analysis in a Discrete-Time Noncontractual Setting".
+               Marketing Science, Vol. 29, No. 6 (Nov-Dec, 2010), pp. 1086-1108.
+               https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf
         """
         if data is None:
             data = self.data
@@ -511,8 +525,7 @@ class BetaGeoBetaBinomModel(CLVModel):
             "recency_frequency",
         ),
     ) -> xarray.Dataset:
-        """Utility function for posterior predictive sampling of dropout, purchase rate
-        and frequency/recency of new customers.
+        """Compute posterior predictive samples of dropout, purchase rate and frequency/recency of new customers.
 
         Parameters
         ----------
@@ -520,12 +533,11 @@ class BetaGeoBetaBinomModel(CLVModel):
             DataFrame containing the following columns:
 
             * `customer_id`: Unique customer identifier
-            * `T`: Time between the first purchase and the end of the observation period
+            * `T`: Total number of purchase opportunities
 
             If not provided, predictions will be ran with data used to fit model.
         T : array_like, optional
-            time between the first purchase and the end of the observation period.
-            Not needed if `data` parameter is provided with a `T` column.
+            Total number of purchase opportunities. Not needed if `data` parameter is provided with a `T` column.
         random_seed : ~numpy.random.RandomState, optional
             Random state to use for sampling.
         var_names : sequence of str, optional
@@ -590,9 +602,9 @@ class BetaGeoBetaBinomModel(CLVModel):
         *,
         random_seed: RandomState | None = None,
     ) -> xarray.Dataset:
-        """Sample from the Beta distribution representing dropout times for new customers.
+        """Sample from the Beta distribution representing dropout probabilities for new customers.
 
-        This is the duration of time a new customer is active before churning, or dropping out.
+        This is the probability a new customer will drop out after making a purchase.
 
         Parameters
         ----------
@@ -623,10 +635,9 @@ class BetaGeoBetaBinomModel(CLVModel):
         *,
         random_seed: RandomState | None = None,
     ) -> xarray.Dataset:
-        """Sample from the Beta distribution representing purchase rates for new customers.
+        """Sample from the Beta distribution representing purchase probabilities for new customers.
 
-        This is the purchase rate for a new customer and determines the time between
-        purchases for any new customer.
+        This is the probability a new customer will make a purchase given they are still active.
 
         Parameters
         ----------
@@ -668,11 +679,11 @@ class BetaGeoBetaBinomModel(CLVModel):
             DataFrame containing the following columns:
 
             * `customer_id`: Unique customer identifier
-            * `T`: Time between the first purchase and the end of the observation period.
+            * `T`: Total purchase opportunities.
 
             If not provided, the method will use the fit dataset.
         T : array_like, optional
-            Number of observation periods for each customer. If not provided, T values from fit dataset will be used.
+            Total purchase opportunities. If not provided, T values from fit dataset will be used.
             Not required if `data` Dataframe contains a `T` column.
         random_seed : ~numpy.random.RandomState, optional
             Random state to use for sampling.
