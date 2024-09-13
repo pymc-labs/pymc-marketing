@@ -13,10 +13,12 @@
 #   limitations under the License.
 """Media Mix Model class."""
 
+import itertools
 import warnings
 from typing import Any, Literal
 
 import arviz as az
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -36,20 +38,24 @@ from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import Prior
 
-import itertools
-import matplotlib.pyplot as plt
 
 class PlotMMMMixin:
+    """Example docstring."""
+
     def plot_saturation_curves_scatter(self):
+        """Docstring."""
         # Identify additional dimensions beyond 'date' and 'channel'
         additional_dims = [
-            dim for dim in self.idata.constant_data.channel_data.dims 
+            dim
+            for dim in self.idata.constant_data.channel_data.dims
             if dim not in ("date", "channel")
         ]
 
         # Get all possible combinations of the additional dimensions
         if additional_dims:
-            additional_coords = [self.idata.constant_data.coords[dim].values for dim in additional_dims]
+            additional_coords = [
+                self.idata.constant_data.coords[dim].values for dim in additional_dims
+            ]
             additional_combinations = list(itertools.product(*additional_coords))
         else:
             additional_combinations = [()]
@@ -59,15 +65,22 @@ class PlotMMMMixin:
         n_rows = len(self.idata.constant_data.coords["channel"])
 
         # Create subplots
-        fig, axes = plt.subplots(nrows=n_rows, ncols=n_columns, figsize=(5 * n_columns, 4 * n_rows), squeeze=False)
+        fig, axes = plt.subplots(
+            nrows=n_rows,
+            ncols=n_columns,
+            figsize=(5 * n_columns, 4 * n_rows),
+            squeeze=False,
+        )
 
         # Loop over each channel (row)
-        for row_idx, channel in enumerate(self.idata.constant_data.coords["channel"].values):
+        for row_idx, channel in enumerate(
+            self.idata.constant_data.coords["channel"].values
+        ):
             # Loop over each combination of additional dimensions (column)
             for col_idx, combo in enumerate(additional_combinations):
                 # Build indexers for selecting data
-                indexers = dict(zip(additional_dims, combo))
-                indexers['channel'] = channel
+                indexers = dict(zip(additional_dims, combo, strict=False))
+                indexers["channel"] = channel
 
                 # Select X data (constant_data)
                 x_data = self.idata.constant_data.channel_data.sel(**indexers)
@@ -76,7 +89,7 @@ class PlotMMMMixin:
                 y_data = self.idata.posterior.channel_contributions.sel(**indexers)
 
                 # Flatten 'chain' and 'draw' dimensions into a single 'sample' dimension
-                y_data = y_data.mean(dim=['chain', 'draw'])
+                y_data = y_data.mean(dim=["chain", "draw"])
 
                 # Ensure X and Y have matching 'date' coordinates
                 x_data = x_data.broadcast_like(y_data)
@@ -87,14 +100,21 @@ class PlotMMMMixin:
 
                 # Plot the scatter plot
                 ax.scatter(
-                    x_data.values.flatten(), 
-                    y_data.values.flatten(), 
-                    alpha=0.8, 
-                    color=f'C{row_idx}'
+                    x_data.values.flatten(),
+                    y_data.values.flatten(),
+                    alpha=0.8,
+                    color=f"C{row_idx}",
                 )
 
                 # Set plot title and labels
-                title_parts = [f"{dim}={val}" for dim, val in zip(['channel'] + additional_dims, [channel] + list(combo))]
+                title_parts = [
+                    f"{dim}={val}"
+                    for dim, val in zip(
+                        ["channel", *additional_dims],
+                        [channel, *list(combo)],
+                        strict=False,
+                    )
+                ]
                 ax.set_title(", ".join(title_parts))
                 ax.set_xlabel("Channel Data (X)")
                 ax.set_ylabel("Channel Contributions (Y)")
@@ -102,6 +122,7 @@ class PlotMMMMixin:
         # Adjust layout and display the plot
         # plt.tight_layout()
         return fig, axes
+
 
 class VanillaMultiDimensionalMMM(PlotMMMMixin):
     """Docstring example."""
