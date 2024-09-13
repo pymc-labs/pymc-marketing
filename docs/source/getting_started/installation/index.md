@@ -15,6 +15,12 @@ You can also install the development version of PyMC-Marketing with:
 pip install git+https://github.com/pymc-labs/pymc-marketing.git
 ```
 
+Alternatively, if you use the [GitHub CLI](https://cli.github.com/), then the required command is just 
+
+```bash
+gh repo fork pymc-labs/pymc-marketing
+```
+
 ## Notebooks
 
 Create a new Jupyter notebook with either JupyterLab or VS Code.
