@@ -14,8 +14,8 @@
 """CLV models and utilities."""
 
 from pymc_marketing.clv.models import (
-    BetaGeoModel,
     BetaGeoBetaBinomModel,
+    BetaGeoModel,
     GammaGammaModel,
     GammaGammaModelIndividual,
     ParetoNBDModel,

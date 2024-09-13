@@ -24,7 +24,6 @@ from pymc_marketing.clv.models.gamma_gamma import (
 from pymc_marketing.clv.models.pareto_nbd import ParetoNBDModel
 from pymc_marketing.clv.models.shifted_beta_geo import ShiftedBetaGeoModelIndividual
 
-
 __all__ = (
     "CLVModel",
     "BetaGeoBetaBinomModel",
