@@ -37,7 +37,7 @@ from pymc_marketing.prior import Prior
 class BetaGeoBetaBinomModel(CLVModel):
     """Beta-Geometric/Beta-Binomial Model (BG/BB).
 
-    Model for non-contractual, discrete purchase opportunities, introduced by Fadel et al. [1]_.
+    CLV model for non-contractual, discrete purchase opportunities, introduced by Fadel et al. [1]_.
 
     The BG/BB model assumes the probability a customer will become inactive follows a Beta distribution,
     and the probability of making a purchase is also Beta-distributed while customers are still active.
