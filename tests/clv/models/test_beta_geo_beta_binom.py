@@ -43,10 +43,28 @@ class TestBetaGeoBetaBinomModel:
         test_data = pd.read_csv("data/bgbb_donations.csv")
 
         cls.data = test_data
-        # cls.customer_id = test_data["customer_id"]
-        # cls.frequency = test_data["frequency"]
-        # cls.recency = test_data["recency"]
-        # cls.T = test_data["T"]
+
+        # simulate smaller dataset for tests requiring sampling
+        sim_id = np.arange(1, 4001)
+        sim_t = np.ones(4000) * 6
+        sim_rec, sim_freq = pm.draw(
+            BetaGeoBetaBinom.dist(
+                alpha=cls.alpha_true,
+                beta=cls.beta_true,
+                delta=cls.delta_true,
+                gamma=cls.gamma_true,
+                T=sim_t,
+            ),
+            random_seed=cls.rng,
+        ).T
+        cls.sim_data = pd.DataFrame(
+            {
+                "customer_id": sim_id,
+                "frequency": sim_freq,
+                "recency": sim_rec,
+                "T": sim_t,
+            }
+        )
 
         # take sample of all unique recency/frequency/T combinations to test predictive methods
         test_customer_ids = [
@@ -284,7 +302,7 @@ class TestBetaGeoBetaBinomModel:
     )
     def test_model_convergence(self, fit_method, rtol, model_config):
         model = BetaGeoBetaBinomModel(
-            data=self.data,
+            data=self.sim_data,
             model_config=model_config,
         )
         model.build_model()
@@ -307,7 +325,7 @@ class TestBetaGeoBetaBinomModel:
         )
 
     def test_fit_result_without_fit(self, model_config):
-        model = BetaGeoBetaBinomModel(data=self.data, model_config=model_config)
+        model = BetaGeoBetaBinomModel(data=self.sim_data, model_config=model_config)
         with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
             model.fit_result
 
@@ -424,7 +442,7 @@ class TestBetaGeoBetaBinomModel:
 
     def test_distribution_new_customer(self) -> None:
         mock_model = BetaGeoBetaBinomModel(
-            data=self.data,
+            data=self.sim_data,
         )
         mock_model.build_model()
         mock_model.idata = az.from_dict(
@@ -444,7 +462,7 @@ class TestBetaGeoBetaBinomModel:
             random_seed=rng
         )
         customer_rec_freq = mock_model.distribution_new_customer_recency_frequency(
-            self.data, T=self.data["T"], random_seed=rng
+            self.data, T=self.sim_data["T"], random_seed=rng
         )
         customer_rec = customer_rec_freq.sel(obs_var="recency")
         customer_freq = customer_rec_freq.sel(obs_var="frequency")
@@ -463,7 +481,7 @@ class TestBetaGeoBetaBinomModel:
                 beta=self.beta_true,
                 delta=self.delta_true,
                 gamma=self.gamma_true,
-                T=self.data["T"],
+                T=self.sim_data["T"],
             ),
             random_seed=rng,
         ).T
