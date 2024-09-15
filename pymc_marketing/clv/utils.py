@@ -812,7 +812,7 @@ def _expected_cumulative_transactions(
     time_unit: str = "D",
     time_scaler: float | None = 1,
     sort_transactions: bool | None = True,
-    set_index_date: bool | None =False,
+    set_index_date: bool | None = False,
 ):
     """
     Get expected and actual repeated cumulative transactions.
@@ -839,7 +839,7 @@ def _expected_cumulative_transactions(
     customer_id_col: string
         the column in transactions that denotes the customer_id
     t: int
-        the number of time units since the begining of
+        the number of time units since the beginning of
         data for which we want to calculate cumulative transactions
     datetime_format: string, optional
         a string that represents the timestamp format. Useful if Pandas can't
@@ -865,8 +865,9 @@ def _expected_cumulative_transactions(
     A Note on Implementing the Pareto/NBD Model in MATLAB.
     http://brucehardie.com/notes/008/
     """
-
-    start_date = pd.to_datetime(transactions[datetime_col], format=datetime_format).min()
+    start_date = pandas.to_datetime(
+        transactions[datetime_col], format=datetime_format
+    ).min()
     start_period = start_date.to_period(time_unit)
     observation_period_end = start_period + t
 
@@ -879,7 +880,7 @@ def _expected_cumulative_transactions(
         datetime_format=datetime_format,
         observation_period_end=observation_period_end,
         time_unit=time_unit,
-        sort_transactions: bool | None = True,
+        sort_transactions=sort_transactions,
     )
 
     # Mask, first transactions and repeated transactions
@@ -887,7 +888,7 @@ def _expected_cumulative_transactions(
     repeated_transactions = repeated_and_first_transactions[~first_trans_mask]
     first_transactions = repeated_and_first_transactions[first_trans_mask]
 
-    date_range = pd.date_range(start_date, periods=t + 1, freq=time_unit)
+    date_range = pandas.date_range(start_date, periods=t + 1, freq=time_unit)
     date_periods = date_range.to_period(time_unit)
 
     pred_cum_transactions = []
@@ -895,14 +896,11 @@ def _expected_cumulative_transactions(
     # First Transactions on Each Day/Freq
     first_trans_size = first_transactions.groupby(datetime_col).size()
 
-    # In the loop below, we calculate the expected number of purchases for the
-    # customers who have made their first purchases on a date before the one being
-    # evaluated.
+    # In the loop below, we calculate the expected number of purchases for customers
+    # who have made their first purchases on a date before the one being evaluated.
     # Then we sum them to get the cumulative sum up to the specific period.
-    for i, period in enumerate(date_periods): # index of period and its date
-
+    for i, period in enumerate(date_periods):  # index of period and its date
         if i % time_scaler == 0 and i > 0:
-
             # Periods before the one being evaluated
             times = np.array([d.n for d in period - first_trans_size.index])
             times = times[times > 0].astype(float) / time_scaler
@@ -932,7 +930,8 @@ def _expected_cumulative_transactions(
         index = range(0, t // time_scaler)
 
     df_cum_transactions = pd.DataFrame(
-        {"actual": act_cum_transactions, "predicted": pred_cum_transactions}, index=index
+        {"actual": act_cum_transactions, "predicted": pred_cum_transactions},
+        index=index,
     )
 
     return df_cum_transactions
