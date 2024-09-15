@@ -905,16 +905,25 @@ def _expected_cumulative_transactions(
             times = np.array([d.n for d in period - first_trans_size.index])
             times = times[times > 0].astype(float) / time_scaler
 
+            # create arbitrary dataframe from array of n time periods for predictions
+            pred_data = pd.DataFrame(
+                {
+                    "customer_id": times,
+                    "t": times,
+                }
+            )
+
             # Array of different expected number of purchases for different times
-            expected_trans_agg = model.expected_purchases(future_t=times)
+            # TODO: This does not currently support a covariate model
+            expected_trans_array = model.expected_purchases_new_customer(pred_data)
 
             # Mask for the number of customers with 1st transactions up to the period
             mask = first_trans_size.index < period
-
+            masked_first_trans = first_trans_size[mask].values.reshape(1, 1, -1)
             # ``expected_trans`` is a float with the cumulative sum of expected transactions
-            expected_trans = sum(expected_trans_agg * first_trans_size[mask])
+            expected_trans = (expected_trans_array * masked_first_trans).sum()
 
-            pred_cum_transactions.append(expected_trans)
+            pred_cum_transactions.append(expected_trans.values)
 
     act_trans = repeated_transactions.groupby(datetime_col).size()
     act_tracking_transactions = act_trans.reindex(date_periods, fill_value=0)
