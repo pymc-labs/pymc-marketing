@@ -38,6 +38,13 @@ For more instructions see the [Pull request checklist](#pull-request-checklist)
     git remote add upstream git@github.com:pymc-labs/pymc-marketing.git
     ```
 
+    Alternatively, if you use the [GitHub CLI](https://cli.github.com/), then the required command is just
+
+    ```bash
+    gh repo fork pymc-labs/pymc-marketing
+    ```
+
+
 1. Create a feature branch (e.g. `my-feature`) to hold your development changes:
 
    ```bash
