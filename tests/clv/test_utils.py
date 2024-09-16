@@ -134,19 +134,44 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
     return model
 
 
-# TODO: This fixture is rather redundant because it calls the function it is testing. Replace with hardcoded values.
+# TODO: Consolidate this fixture into the tests requiring it?
 @pytest.fixture()
-def df_cum_transactions(test_summary_data, fitted_bg):
-    df_cum = _expected_cumulative_transactions(
-        model,
+def df_cum_transactions():
+    url_cdnow = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/cdnow_transactions.csv"
+    cdnow_transactions = pd.read_csv(url_cdnow)
+
+    rfm_data = rfm_summary(
         cdnow_transactions,
-        datetime_col,
-        customer_id_col,
-        t,
-        datetime_format,
-        freq,
-        set_index_date=False,
-        time_scaler=freq_multiplier,
+        customer_id_col="id",
+        datetime_col="date",
+        datetime_format="%Y%m%d",
+        time_unit="D",
+        observation_period_end="19970930",
+        time_scaler=7,
+    )
+
+    # TODO: Prefer to use confttest.set_model_fit function here.
+    #       but ParetoNBDModel is not accepting Prior class args for model_config!
+    #       Fix that issue, then revise this fixture.
+    model_config = {
+        "r_prior": {"dist": "HalfFlat", "kwargs": {}},
+        "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
+        "s_prior": {"dist": "HalfFlat", "kwargs": {}},
+        "beta_prior": {"dist": "HalfFlat", "kwargs": {}},
+    }
+
+    pnbd = ParetoNBDModel(data=rfm_data, model_config=model_config)
+    pnbd.fit()
+
+    df_cum = _expected_cumulative_transactions(
+        model=pnbd,
+        transactions=cdnow_transactions,
+        customer_id_col="id",
+        datetime_col="date",
+        t=25 * 7,
+        datetime_format="%Y%m%d",
+        time_unit="D",
+        time_scaler=7,
     )
     return df_cum
 

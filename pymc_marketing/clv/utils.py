@@ -27,7 +27,6 @@ __all__ = [
     "rfm_segments",
     "rfm_summary",
     "rfm_train_test_split",
-    "expected_cumulative_transactions",
 ]
 
 
@@ -873,7 +872,7 @@ def _expected_cumulative_transactions(
 
     # Has an extra column (besides the id and the date)
     # with a boolean for when it is a first transaction
-    repeated_and_first_transactions = _find_first_transactions(
+    repeated_and_first_transactions = _find_first_transactions(  # type: ignore
         transactions,
         customer_id_col,
         datetime_col,
@@ -900,13 +899,13 @@ def _expected_cumulative_transactions(
     # who have made their first purchases on a date before the one being evaluated.
     # Then we sum them to get the cumulative sum up to the specific period.
     for i, period in enumerate(date_periods):  # index of period and its date
-        if i % time_scaler == 0 and i > 0:
+        if i % time_scaler == 0 and i > 0:  # type: ignore
             # Periods before the one being evaluated
             times = np.array([d.n for d in period - first_trans_size.index])
             times = times[times > 0].astype(float) / time_scaler
 
             # create arbitrary dataframe from array of n time periods for predictions
-            pred_data = pd.DataFrame(
+            pred_data = pandas.DataFrame(
                 {
                     "customer_id": times,
                     "t": times,
@@ -919,7 +918,7 @@ def _expected_cumulative_transactions(
 
             # Mask for the number of customers with 1st transactions up to the period
             mask = first_trans_size.index < period
-            masked_first_trans = first_trans_size[mask].values.reshape(1, 1, -1)
+            masked_first_trans = first_trans_size[mask].values.reshape(1, 1, -1)  # type: ignore
             # ``expected_trans`` is a float with the cumulative sum of expected transactions
             expected_trans = (expected_trans_array * masked_first_trans).sum()
 
@@ -930,15 +929,15 @@ def _expected_cumulative_transactions(
 
     act_cum_transactions = []
     for j in range(1, t // time_scaler + 1):
-        sum_trans = sum(act_tracking_transactions.iloc[: j * time_scaler])
+        sum_trans = sum(act_tracking_transactions.iloc[: j * time_scaler])  # type: ignore
         act_cum_transactions.append(sum_trans)
 
     if set_index_date:
-        index = date_periods[time_scaler - 1 : -1 : time_scaler]
+        index = date_periods[time_scaler - 1 : -1 : time_scaler]  # type: ignore
     else:
-        index = range(0, t // time_scaler)
+        index = range(0, t // time_scaler)  # type: ignore
 
-    df_cum_transactions = pd.DataFrame(
+    df_cum_transactions = pandas.DataFrame(
         {"actual": act_cum_transactions, "predicted": pred_cum_transactions},
         index=index,
     )
