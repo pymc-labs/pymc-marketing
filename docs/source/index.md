@@ -8,7 +8,7 @@
 :class: only-light
 :::
 
-# Open Source Marketing Analytics Solution
+<h1 style="text-align: center;">Open Source Marketing Analytics Solution</h1>
 
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing)](https://pepy.tech/project/pymc-marketing)
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing/month)](https://pepy.tech/project/pymc-marketing)
@@ -147,9 +147,9 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 | **Continuous** | online purchases         | ad conversion time      |
 | **Discrete**   | concerts & sports events | recurring subscriptions |
 
+---
 
-
-## Resources
+<h1 style="text-align: center;">Resources</h1>
 
 ### PyMC-Marketing: Bayesian Approach to Marketing Data Science
 <iframe width="800" height="450" src="https://www.youtube.com/embed/7a_HL5BRB-s" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
@@ -164,13 +164,7 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 ### Customer Lifetime Value Modeling in Marine Industry
 <iframe width="800" height="450" src="https://www.youtube.com/embed/u3oMWgStIZY" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 
-### Causality in MArketing
-
-- [Causal analysis with PyMC: Answering "What If?" with the new do operator](https://www.pymc-labs.com/blog-posts/causal-analysis-with-pymc-answering-what-if-with-the-new-do-operator/)
-
-### Bayesian methods in marketing analytics
-**Curious about Bayesian methods in marketing analytics? Check out this overview by [Juan Orduz](https://juanitorduz.github.io/about/)**
-<iframe width="800" height="450" src="https://www.youtube.com/embed/5QgiixYjmTM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+---
 
 ### More [PyMC Labs](https://www.pymc-labs.com/) Blog Posts and Resources
 

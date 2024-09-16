@@ -15,9 +15,7 @@ You can also install the development version of PyMC-Marketing with:
 pip install git+https://github.com/pymc-labs/pymc-marketing.git
 ```
 
-## Notebooks
-
-Create a new Jupyter notebook with either JupyterLab or VS Code.
+Next, we you can create a new Jupyter notebook with either JupyterLab or VS Code.
 
 ### JupyterLab Notebook
 
