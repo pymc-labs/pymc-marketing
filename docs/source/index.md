@@ -10,9 +10,11 @@
 
 <h1 style="text-align: center;">Open Source Marketing Analytics Solution</h1>
 
+:::{div} sd-text-center
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing)](https://pepy.tech/project/pymc-marketing)
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing/month)](https://pepy.tech/project/pymc-marketing)
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing/week)](https://pepy.tech/project/pymc-marketing)
+:::
 
 <h1 style="text-align: center;">Powered by</h1>
 
@@ -44,12 +46,6 @@ We provide the following professional services:
 - **Build Within PyMC-Marketing**: Our team are experts leveraging the capabilities of PyMC-Marketing to create robust marketing models for precise insights.
 - **SLA & Coaching**: Get guaranteed support levels and personalized coaching to ensure your team is well-equipped and confident in using our tools and approaches.
 - **SaaS Solutions**: Harness the power of our state-of-the-art software solutions to streamline your data-driven marketing initiatives.
-
-## Support
-
-For companies that want to use PyMC-Marketing in production, [PyMC Labs](https://www.pymc-labs.io) is available for consulting and training. We can help you build and deploy your models in production. We have experience with cutting edge Bayesian modelling techniques which we have applied to a range of business domains including marketing analytics.
-
-**Unlock the power of marketing analytics with PyMC-Marketing – the python based open source solution for smarter decision-making.** Marketing mix modeling and customer lifetime value modules allow businesses to make data-driven decisions about their marketing campaigns. Optimize your marketing strategy and unlock the full potential of your customer data.
 
 ### PyMC Labs Client Testimonials
 
@@ -111,7 +107,7 @@ To the reference guide
 ::::
 :::::
 
-## In-depth Bayesian Marketing Mix Modeling (MMM) in PyMC
+## Bayesian Marketing Mix Modeling (MMM) in PyMC
 
 Leverage our Bayesian MMM API to tailor your marketing strategies effectively. Leveraging on top of the research article [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017)](https://research.google/pubs/pub46001/),  and extending it by integrating the expertise from core PyMC developers, our API provides:
 
