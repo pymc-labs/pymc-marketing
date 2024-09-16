@@ -34,6 +34,8 @@
 :class: only-light
 :::
 
+---
+
 ## 📞 Schedule a Free Consultation for MMM & CLV Strategy
 
 Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts. Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions.
@@ -136,7 +138,7 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 - [Pareto/NBD model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/pareto_nbd.html)
 - [Gamma-Gamma model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/gamma_gamma.html)
 
-### Examples
+Each of these models is tailored to different types of data and business scenarios:
 
 |                | **Non-contractual**      | **Contractual**         |
 | -------------- | ------------------------ | ----------------------- |
@@ -147,18 +149,17 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 
 <h1 style="text-align: center;">Resources</h1>
 
-### PyMC-Marketing: Bayesian Approach to Marketing Data Science
-<iframe width="800" height="450" src="https://www.youtube.com/embed/7a_HL5BRB-s" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
-
 ### Bolt's success story with PyMC-Marketing
 **Checkout the video below to see how Bolt leverages PyMC Marketing to assess the impact of their marketing efforts.**
 <iframe width="800" height="450" src="https://www.youtube.com/embed/djXoPq60bRM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 
-### Introduction to time-varying parameters in MMMs in PyMC-Marketing
+### Time-varying parameters in MMMs in PyMC-Marketing
 <iframe width="800" height="450" src="https://www.youtube.com/embed/2biNgpUpLik" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 
 ### Customer Lifetime Value Modeling in Marine Industry
 <iframe width="800" height="450" src="https://www.youtube.com/embed/u3oMWgStIZY" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
+For more videos, webinars and resources, check out the [PyMC Labs YouTube channel](https://www.youtube.com/@PyMC-Labs).
 
 ---
 
