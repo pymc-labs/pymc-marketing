@@ -172,7 +172,7 @@ Explore our detailed CLV examples using data from the [`lifetimes`](https://gith
 **Curious about Bayesian methods in marketing analytics? Check out this overview by [Juan Orduz](https://juanitorduz.github.io/about/)**
 <iframe width="800" height="450" src="https://www.youtube.com/embed/5QgiixYjmTM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 
-### More [PyMC-Labs](https://www.pymc-labs.com/) Blogposts and Resources
+### More [PyMC Labs](https://www.pymc-labs.com/) Blog Posts and Resources
 
 #### Marketing Mix Models
 
