@@ -14,6 +14,7 @@
 """Media Mix Model class."""
 
 import json
+import logging
 import warnings
 from typing import Annotated, Any, Literal
 
@@ -582,7 +583,9 @@ class BaseMMM(BaseValidateMMM):
         }
 
     def channel_contributions_forward_pass(
-        self, channel_data: npt.NDArray[np.float64]
+        self,
+        channel_data: npt.NDArray[np.float64],
+        disable_logger_stdout: bool | None = False,
     ) -> npt.NDArray[np.float64]:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
 
@@ -590,6 +593,8 @@ class BaseMMM(BaseValidateMMM):
         ----------
         channel_data : array-like
             Input channel data. Result of all the preprocessing steps.
+        disable_logger_stdout : bool, optional
+            If True, suppress logger output to stdout
 
         Returns
         -------
@@ -597,6 +602,10 @@ class BaseMMM(BaseValidateMMM):
             Transformed channel data.
 
         """
+        if disable_logger_stdout:
+            logger = logging.getLogger("pymc.sampling.forward")
+            logger.propagate = False
+
         coords = {
             **self.model_coords,
         }
@@ -925,7 +934,9 @@ class MMM(
     version: str = "0.0.2"
 
     def channel_contributions_forward_pass(
-        self, channel_data: npt.NDArray[np.float64]
+        self,
+        channel_data: npt.NDArray[np.float64],
+        disable_logger_stdout: bool | None = False,
     ) -> npt.NDArray[np.float64]:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
 
@@ -935,6 +946,8 @@ class MMM(
         ----------
         channel_data : array-like
             Input channel data. Result of all the preprocessing steps.
+        disable_logger_stdout : bool, optional
+            If True, suppress logger output to stdout
 
         Returns
         -------
@@ -943,7 +956,7 @@ class MMM(
 
         """
         channel_contribution_forward_pass = super().channel_contributions_forward_pass(
-            channel_data=channel_data
+            channel_data=channel_data, disable_logger_stdout=disable_logger_stdout
         )
         target_transformed_vectorized = np.vectorize(
             self.target_transformer.inverse_transform,
@@ -983,7 +996,7 @@ class MMM(
                 delta * self.preprocessed_data["X"][self.channel_columns].to_numpy()
             )
             channel_contribution_forward_pass = self.channel_contributions_forward_pass(
-                channel_data=channel_data
+                channel_data=channel_data, disable_logger_stdout=True
             )
             channel_contributions.append(channel_contribution_forward_pass)
         return DataArray(
