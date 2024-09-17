@@ -46,7 +46,7 @@ We provide the following professional services:
 
 - **Custom Models**: We develop models that fit your organization's unique needs.
 - **Build Within PyMC-Marketing**: Our team are experts leveraging the capabilities of PyMC-Marketing to create robust marketing models for precise insights.
-- **SLA & Coaching**: Get guaranteed support levels and personalized coaching to ensure your team is well-equipped and confident in using our tools and approaches.
+- **Coaching**: Regular, personalized coaching to ensure your team is well-equipped to confidently use PyMC-Marketing and related approaches.
 - **SaaS Solutions**: Harness the power of our state-of-the-art software solutions to streamline your data-driven marketing initiatives.
 
 ### PyMC Labs Client Testimonials
