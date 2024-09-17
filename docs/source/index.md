@@ -36,7 +36,7 @@
 
 ---
 
-## 📞 Schedule a Free Consultation for MMM & CLV Strategy
+## 📞 Schedule a Free Strategy Consultation 
 
 Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts. Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions.
 
