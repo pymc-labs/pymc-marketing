@@ -36,7 +36,7 @@
 
 ---
 
-## 📞 Schedule a Free Strategy Consultation 
+## 📞 Schedule a Free Strategy Consultation
 
 Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts. Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions.
 
@@ -45,7 +45,6 @@ For businesses looking to integrate PyMC-Marketing into their operational framew
 We provide the following professional services:
 
 - **Custom Models**: We develop models that fit your organization's unique needs.
-- **Build Within PyMC-Marketing**: Our team are experts leveraging the capabilities of PyMC-Marketing to create robust marketing models for precise insights.
 - **Coaching**: Regular, personalized coaching to ensure your team is well-equipped to confidently use PyMC-Marketing and related approaches.
 - **SaaS Solutions**: Harness the power of our state-of-the-art software solutions to streamline your data-driven marketing initiatives.
 
