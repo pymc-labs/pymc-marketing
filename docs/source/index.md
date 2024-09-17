@@ -44,7 +44,7 @@ For businesses looking to integrate PyMC-Marketing into their operational framew
 
 We provide the following professional services:
 
-- **Custom Models**: We tailor niche marketing anayltics models to fit your organization's unique needs.
+- **Custom Models**: We develop models that fit your organization's unique needs.
 - **Build Within PyMC-Marketing**: Our team are experts leveraging the capabilities of PyMC-Marketing to create robust marketing models for precise insights.
 - **SLA & Coaching**: Get guaranteed support levels and personalized coaching to ensure your team is well-equipped and confident in using our tools and approaches.
 - **SaaS Solutions**: Harness the power of our state-of-the-art software solutions to streamline your data-driven marketing initiatives.
