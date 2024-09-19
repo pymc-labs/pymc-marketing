@@ -360,7 +360,11 @@ class MMMModelBuilder(ModelBuilder):
         return fig
 
     def plot_posterior_predictive(
-        self, original_scale: bool = False, ax: plt.Axes = None, **plt_kwargs: Any
+        self,
+        original_scale: bool = False,
+        add_mean: bool = True,
+        ax: plt.Axes = None,
+        **plt_kwargs: Any,
     ) -> plt.Figure:
         """Plot posterior distribution from the model fit.
 
@@ -423,6 +427,23 @@ class MMMModelBuilder(ModelBuilder):
                 color="C0",
                 alpha=alpha,
                 label=f"{hdi_prob:.0%} HDI",
+            )
+
+        if add_mean:
+            mean_prediction = posterior_predictive_data[self.output_var].mean(
+                dim=["chain", "draw"]
+            )
+
+            if original_scale:
+                mean_prediction = transform_1d_array(
+                    self.get_target_transformer().inverse_transform, mean_prediction
+                )
+
+            ax.plot(
+                np.asarray(posterior_predictive_data.date),
+                mean_prediction,
+                color="C0",
+                label="Mean Prediction",
             )
 
         ax.plot(
