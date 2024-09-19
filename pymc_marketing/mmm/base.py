@@ -434,11 +434,6 @@ class MMMModelBuilder(ModelBuilder):
                 dim=["chain", "draw"]
             )
 
-            if original_scale:
-                mean_prediction = transform_1d_array(
-                    self.get_target_transformer().inverse_transform, mean_prediction
-                )
-
             ax.plot(
                 np.asarray(posterior_predictive_data.date),
                 mean_prediction,
