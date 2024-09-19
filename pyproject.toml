@@ -1,6 +1,6 @@
 [build-system]
-build-backend = "setuptools.build_meta"
-requires = ["setuptools>=61.0"]
+build-backend = "hatchling.build"
+requires = ["hatchling<2"]
 
 [project]
 name = "pymc-marketing"
@@ -80,7 +80,12 @@ test = [
     "mlflow>=2.0.0",
 ]
 
-[tool.setuptools]
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "docs",
+]
+
+[tool.hatch.build.targets.wheel]
 packages = [
     "pymc_marketing",
     "pymc_marketing.mmm",
@@ -88,6 +93,9 @@ packages = [
     "pymc_marketing.clv",
     "pymc_marketing.clv.models",
 ]
+
+[tool.hatch.version]
+path = "pymc_marketing/version.py"
 
 [tool.setuptools.dynamic]
 version = { file = "pymc_marketing/version.txt" }
