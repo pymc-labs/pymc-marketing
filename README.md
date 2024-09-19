@@ -54,7 +54,7 @@ For a comprehensive installation guide, refer to the [official PyMC installation
 
 ### Docker
 
-We provide a `Dockerfile` to build a Docker image for PyMC-Marketing so that is accessible from a Jupyter Notebook. See [here](/scripts/docker/README.md) for more details.
+We provide a `Dockerfile` to build a Docker image for PyMC-Marketing so that is accessible from a Jupyter Notebook. See [here](scripts/docker/README.md) for more details.
 
 ## In-depth Bayesian Marketing Mix Modeling (MMM) in PyMC
 
@@ -116,7 +116,7 @@ mmm.plot_components_contributions();
 Once the model is fitted, we can further optimize our budget allocation as we are including diminishing returns and carry-over effects in our model.
 
 <center>
-    <img src="/docs/source/_static/mmm_plot_plot_channel_contributions_grid.png" width="80%" />
+    <img src="docs/source/_static/mmm_plot_plot_channel_contributions_grid.png" width="80%" />
 </center>
 
 Explore a hands-on [simulated example](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
