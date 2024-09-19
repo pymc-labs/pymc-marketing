@@ -84,15 +84,6 @@ exclude = [
     "docs",
 ]
 
-[tool.hatch.build.targets.wheel]
-packages = [
-    "pymc_marketing",
-    "pymc_marketing.mmm",
-    "pymc_marketing.mmm.components",
-    "pymc_marketing.clv",
-    "pymc_marketing.clv.models",
-]
-
 [tool.hatch.version]
 path = "pymc_marketing/version.py"
 
