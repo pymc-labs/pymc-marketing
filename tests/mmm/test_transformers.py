@@ -475,7 +475,7 @@ class TestSaturationTransformers:
         ],
     )
     def test_michaelis_menten(self, x, alpha, lam, expected):
-        assert np.isclose(michaelis_menten(x, alpha, lam), expected, atol=0.01)
+        assert np.isclose(michaelis_menten(x, alpha, lam).eval(), expected, atol=0.01)
 
     @pytest.mark.parametrize(
         "sigma, beta, lam",

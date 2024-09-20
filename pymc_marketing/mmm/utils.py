@@ -22,7 +22,7 @@ import pandas as pd
 import xarray as xr
 from scipy.optimize import curve_fit, minimize_scalar
 
-from pymc_marketing.mmm.transformers import michaelis_menten
+from pymc_marketing.mmm.transformers import michaelis_menten_function
 
 
 def estimate_menten_parameters(
@@ -67,7 +67,9 @@ def estimate_menten_parameters(
     # Initial guess for L and k
     initial_guess = [alpha_initial_estimate, lam_initial_estimate]
     # Curve fitting
-    popt, _ = curve_fit(michaelis_menten, x, y, p0=initial_guess, maxfev=maxfev)
+    popt, _ = curve_fit(
+        michaelis_menten_function, x, y, p0=initial_guess, maxfev=maxfev
+    )
 
     # Save the parameters
     return popt
