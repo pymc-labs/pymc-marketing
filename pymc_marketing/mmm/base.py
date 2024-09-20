@@ -405,17 +405,8 @@ class MMMModelBuilder(ModelBuilder):
             fig = ax.figure
 
         for hdi_prob, alpha in zip((0.94, 0.50), (0.2, 0.4), strict=True):
-            likelihood_hdi: DataArray = az.hdi(
-                ary=posterior_predictive_data, hdi_prob=hdi_prob
-            )[self.output_var]
-
-            ax.fill_between(
-                x=posterior_predictive_data.date,
-                y1=likelihood_hdi[:, 0],
-                y2=likelihood_hdi[:, 1],
-                color="C0",
-                alpha=alpha,
-                label=f"{hdi_prob:.0%} HDI",
+            ax = self._add_hdi_to_plot(
+                ax=ax, original_scale=original_scale, hdi_prob=hdi_prob, alpha=alpha
             )
 
         if add_mean:
@@ -474,6 +465,35 @@ class MMMModelBuilder(ModelBuilder):
             color=color,
             linestyle=linestyle,
             label="Mean Prediction",
+        )
+        return ax
+
+    def _add_hdi_to_plot(
+        self,
+        ax: plt.Axes,
+        original_scale: bool = False,
+        hdi_prob: float = 0.94,
+        color: str = "C0",
+        alpha: float = 0.2,
+        **kwargs,
+    ) -> plt.Axes:
+        """Add HDI to existing plot."""
+        posterior_predictive_data: Dataset = self._get_posterior_predictive_data(
+            original_scale=original_scale
+        )
+
+        likelihood_hdi: DataArray = az.hdi(
+            ary=posterior_predictive_data, hdi_prob=hdi_prob
+        )[self.output_var]
+
+        ax.fill_between(
+            x=posterior_predictive_data.date,
+            y1=likelihood_hdi[:, 0],
+            y2=likelihood_hdi[:, 1],
+            color=color,
+            alpha=alpha,
+            label=f"{hdi_prob:.0%} HDI",
+            **kwargs,
         )
         return ax
 
