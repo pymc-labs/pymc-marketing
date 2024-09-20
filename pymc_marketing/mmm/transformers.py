@@ -828,8 +828,8 @@ def tanh_saturation_baselined(
 
 def michaelis_menten_function(
     x: float | np.ndarray | npt.NDArray[np.float64],
-    alpha: float | np.ndarray | npt.NDArray[np.float64],
-    lam: float | np.ndarray | npt.NDArray[np.float64],
+    alpha: float,
+    lam: float,
 ) -> float | Any:
     r"""Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
 
@@ -916,8 +916,8 @@ def michaelis_menten_function(
 
 def michaelis_menten(
     x: float | np.ndarray | npt.NDArray[np.float64],
-    alpha: float | np.ndarray | npt.NDArray[np.float64],
-    lam: float | np.ndarray | npt.NDArray[np.float64],
+    alpha: float,
+    lam: float,
 ) -> pt.TensorVariable:
     r"""TensorVariable wrap over the Michaelis-Menten transformation.
 
