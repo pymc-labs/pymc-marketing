@@ -142,3 +142,6 @@ dmypy.json
 
 # PyCharm .idea files
 .idea/
+
+# shell scripts
+*.sh

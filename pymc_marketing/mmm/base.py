@@ -382,13 +382,9 @@ class MMMModelBuilder(ModelBuilder):
         plt.Figure
 
         """
-        try:
-            posterior_predictive_data: Dataset = self.posterior_predictive
-
-        except Exception as e:
-            raise RuntimeError(
-                "Make sure the model has bin fitted and the posterior predictive has been sampled!"
-            ) from e
+        posterior_predictive_data: Dataset = self._get_posterior_predictive_data(
+            original_scale=original_scale
+        )
 
         target_to_plot = np.asarray(
             self.y
@@ -408,13 +404,6 @@ class MMMModelBuilder(ModelBuilder):
         else:
             fig = ax.figure
 
-        if original_scale:
-            posterior_predictive_data = apply_sklearn_transformer_across_dim(
-                data=posterior_predictive_data,
-                func=self.get_target_transformer().inverse_transform,
-                dim_name="date",
-            )
-
         for hdi_prob, alpha in zip((0.94, 0.50), (0.2, 0.4), strict=True):
             likelihood_hdi: DataArray = az.hdi(
                 ary=posterior_predictive_data, hdi_prob=hdi_prob
@@ -430,15 +419,8 @@ class MMMModelBuilder(ModelBuilder):
             )
 
         if add_mean:
-            mean_prediction = posterior_predictive_data[self.output_var].mean(
-                dim=["chain", "draw"]
-            )
-
-            ax.plot(
-                np.asarray(posterior_predictive_data.date),
-                mean_prediction,
-                color="C0",
-                label="Mean Prediction",
+            ax = self._add_mean_to_plot(
+                ax=ax, original_scale=original_scale, color="red"
             )
 
         ax.plot(
@@ -455,6 +437,45 @@ class MMMModelBuilder(ModelBuilder):
         )
 
         return fig
+
+    def _get_posterior_predictive_data(self, original_scale: bool = False) -> Dataset:
+        """Get the posterior predictive data."""
+        try:
+            posterior_predictive_data: Dataset = self.posterior_predictive
+
+        except Exception as e:
+            raise RuntimeError(
+                "Make sure the model has bin fitted and the posterior predictive has been sampled!"
+            ) from e
+
+        if original_scale:
+            posterior_predictive_data = apply_sklearn_transformer_across_dim(
+                data=posterior_predictive_data,
+                func=self.get_target_transformer().inverse_transform,
+                dim_name="date",
+            )
+        return posterior_predictive_data
+
+    def _add_mean_to_plot(
+        self, ax, original_scale: bool = False, color="blue", linestyle="-", **kwargs
+    ) -> plt.Axes:
+        """Add mean prediction to existing plot."""
+        posterior_predictive_data: Dataset = self._get_posterior_predictive_data(
+            original_scale=original_scale
+        )
+
+        mean_prediction = posterior_predictive_data[self.output_var].mean(
+            dim=["chain", "draw"]
+        )
+
+        ax.plot(
+            np.asarray(posterior_predictive_data.date),
+            mean_prediction,
+            color=color,
+            linestyle=linestyle,
+            label="Mean Prediction",
+        )
+        return ax
 
     def get_errors(self, original_scale: bool = False) -> DataArray:
         """Get model errors posterior distribution.
