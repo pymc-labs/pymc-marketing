@@ -362,7 +362,9 @@ class MMMModelBuilder(ModelBuilder):
     def plot_posterior_predictive(
         self,
         original_scale: bool = False,
+        add_hdi: bool = True,
         add_mean: bool = True,
+        add_gradient: bool = False,
         ax: plt.Axes = None,
         **plt_kwargs: Any,
     ) -> plt.Figure:
@@ -404,14 +406,20 @@ class MMMModelBuilder(ModelBuilder):
         else:
             fig = ax.figure
 
-        for hdi_prob, alpha in zip((0.94, 0.50), (0.2, 0.4), strict=True):
-            ax = self._add_hdi_to_plot(
-                ax=ax, original_scale=original_scale, hdi_prob=hdi_prob, alpha=alpha
-            )
+        if add_hdi:
+            for hdi_prob, alpha in zip((0.94, 0.50), (0.2, 0.4), strict=True):
+                ax = self._add_hdi_to_plot(
+                    ax=ax, original_scale=original_scale, hdi_prob=hdi_prob, alpha=alpha
+                )
 
         if add_mean:
             ax = self._add_mean_to_plot(
                 ax=ax, original_scale=original_scale, color="red"
+            )
+
+        if add_gradient:
+            ax = self._add_gradient_to_plot(
+                ax=ax, original_scale=original_scale, n_percentiles=30, palette="Blues"
             )
 
         ax.plot(
@@ -495,6 +503,78 @@ class MMMModelBuilder(ModelBuilder):
             label=f"{hdi_prob:.0%} HDI",
             **kwargs,
         )
+        return ax
+
+    def _add_gradient_to_plot(
+        self,
+        ax: plt.Axes,
+        original_scale: bool = False,
+        n_percentiles: int = 30,
+        palette: str = "Blues",
+        **kwargs,
+    ) -> plt.Axes:
+        """
+        Add a gradient representation of the posterior predictive distribution to an existing plot.
+
+        This method creates a shaded area plot where the color intensity represents
+        the density of the posterior predictive distribution.
+
+        Parameters
+        ----------
+        ax : plt.Axes
+            The matplotlib axes object to add the gradient to.
+        original_scale : bool, optional
+            If True, use the original scale of the data. Default is False.
+        n_percentiles : int, optional
+            Number of percentile ranges to use for the gradient. Default is 30.
+        palette : str, optional
+            Color palette to use for the gradient. Default is "Blues".
+        **kwargs
+            Additional keyword arguments passed to ax.fill_between().
+
+        Returns
+        -------
+        plt.Axes
+            The matplotlib axes object with the gradient added.
+        """
+        # Get posterior predictive data and flatten it
+        posterior_predictive = self._get_posterior_predictive_data(
+            original_scale=original_scale
+        )
+        posterior_predictive_flattened = posterior_predictive.stack(
+            sample=("chain", "draw")
+        ).to_dataarray()
+        dates = posterior_predictive.date.values
+
+        # Set up color map and ranges
+        cmap = plt.get_cmap(palette)
+        color_range = np.linspace(0.3, 1.0, n_percentiles // 2)
+        percentile_ranges = np.linspace(3, 97, n_percentiles)
+
+        # Create gradient by filling between percentile ranges
+        for i in range(len(percentile_ranges) - 1):
+            lower_percentile = np.percentile(
+                posterior_predictive_flattened, percentile_ranges[i], axis=2
+            ).squeeze()
+            upper_percentile = np.percentile(
+                posterior_predictive_flattened, percentile_ranges[i + 1], axis=2
+            ).squeeze()
+            if i < n_percentiles // 2:
+                color_val = color_range[i]
+            else:
+                color_val = color_range[n_percentiles - i - 2]
+            alpha_val = 0.2 + 0.8 * (
+                1 - abs(2 * i / n_percentiles - 1)
+            )  # Higher alpha in the middle
+            ax.fill_between(
+                x=dates,
+                y1=lower_percentile,
+                y2=upper_percentile,
+                color=cmap(color_val),
+                alpha=alpha_val,
+                **kwargs,
+            )
+
         return ax
 
     def get_errors(self, original_scale: bool = False) -> DataArray:
