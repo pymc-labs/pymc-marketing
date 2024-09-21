@@ -921,7 +921,7 @@ def _expected_cumulative_transactions(
             masked_first_trans = first_trans_size[mask].values.reshape(1, 1, -1)  # type: ignore
             # ``expected_trans`` is a float with the cumulative sum of expected transactions
             expected_trans = (expected_trans_array * masked_first_trans).sum()
-
+            # TODO: Datatypes need to be converted, as this is currently a list of arrays
             pred_cum_transactions.append(expected_trans.values)
 
     act_trans = repeated_transactions.groupby(datetime_col).size()

@@ -150,14 +150,11 @@ def df_cum_transactions():
         time_scaler=7,
     )
 
-    # TODO: Prefer to use confttest.set_model_fit function here.
-    #       but ParetoNBDModel is not accepting Prior class args for model_config!
-    #       Fix that issue, then revise this fixture.
     model_config = {
-        "r_prior": {"dist": "HalfFlat", "kwargs": {}},
-        "alpha_prior": {"dist": "HalfFlat", "kwargs": {}},
-        "s_prior": {"dist": "HalfFlat", "kwargs": {}},
-        "beta_prior": {"dist": "HalfFlat", "kwargs": {}},
+        "r_prior": Prior("HalfFlat"),
+        "alpha_prior": Prior("HalfFlat"),
+        "s_prior": Prior("HalfFlat"),
+        "beta_prior": Prior("HalfFlat"),
     }
 
     pnbd = ParetoNBDModel(data=rfm_data, model_config=model_config)
@@ -977,7 +974,7 @@ def test_incremental_transactions_equals_r_btyd_walktrough(df_cum_transactions):
     np.testing.assert_allclose(predicted, expected_btyd, atol=1e-2)
 
 
-def test_expected_cumulative_transactions_date_index(fitted_bg, cdnow_transactions):
+def test_expected_cumulative_transactions_date_index(fitted_bg):
     """
     Test set_index as date for cumulative transactions and bgf fitter.
 
@@ -1006,8 +1003,6 @@ def test_expected_cumulative_transactions_date_index(fitted_bg, cdnow_transactio
         time_scaler=freq_multiplier,
         observation_period_end=observation_period_end,
     )
-
-    transactions_summary = transactions_summary.reset_index()
 
     df_cum = _expected_cumulative_transactions(
         fitted_bg,
