@@ -524,6 +524,7 @@ class BetaGeoBetaBinomModel(CLVModel):
             "purchase_rate",
             "recency_frequency",
         ),
+        n_samples: int = 1000,
     ) -> xarray.Dataset:
         """Compute posterior predictive samples of dropout, purchase rate and frequency/recency of new customers.
 
@@ -542,6 +543,8 @@ class BetaGeoBetaBinomModel(CLVModel):
             Random state to use for sampling.
         var_names : sequence of str, optional
             Names of the variables to sample from. Defaults to ["dropout", "purchase_rate", "recency_frequency"].
+        n_samples : int, optional
+            Number of posterior predictive samples to generate. Defaults to 1000
 
         """
         if data is None:
@@ -557,7 +560,7 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         if dataset.sizes["chain"] == 1 and dataset.sizes["draw"] == 1:
             # For map fit add a dummy draw dimension
-            dataset = dataset.squeeze("draw").expand_dims(draw=range(1000))
+            dataset = dataset.squeeze("draw").expand_dims(draw=range(n_samples))
 
         coords = self.model.coords.copy()  # type: ignore
         coords["customer_id"] = data["customer_id"]
@@ -668,6 +671,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         *,
         T: int | np.ndarray | pd.Series | None = None,
         random_seed: RandomState | None = None,
+        n_samples: int = 1,
     ) -> xarray.Dataset:
         """BG/BB process representing purchases across the customer population.
 
@@ -687,6 +691,8 @@ class BetaGeoBetaBinomModel(CLVModel):
             Not required if `data` Dataframe contains a `T` column.
         random_seed : ~numpy.random.RandomState, optional
             Random state to use for sampling.
+        n_samples : int, optional
+            Number of samples to generate. Defaults to 1.
 
         Returns
         -------
@@ -698,4 +704,5 @@ class BetaGeoBetaBinomModel(CLVModel):
             T=T,
             random_seed=random_seed,
             var_names=["recency_frequency"],
+            n_samples=n_samples,
         )["recency_frequency"]
