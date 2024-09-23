@@ -570,7 +570,7 @@ def plot_curve(
     subplot_kwargs : dict, optional
         Addtional kwargs to while creating the fig and axes
     sample_kwargs : dict, optional
-        Kwargs for the :func:`plot_curve` function
+        Kwargs for the :func:`plot_samples` function
     hdi_kwargs : dict, optional
         Kwargs for the :func:`plot_hdi` function
     same_axes : bool
