@@ -826,7 +826,7 @@ def tanh_saturation_baselined(
     return gain * x0 * pt.tanh(x * pt.arctanh(r) / x0) / r
 
 
-def michaelis_menten_function(
+def michaelis_menten(
     x: float | np.ndarray | npt.NDArray[np.float64],
     alpha: float,
     lam: float,
@@ -912,31 +912,6 @@ def michaelis_menten_function(
 
     """
     return alpha * x / (lam + x)
-
-
-def michaelis_menten(
-    x: float | np.ndarray | npt.NDArray[np.float64],
-    alpha: float,
-    lam: float,
-) -> pt.TensorVariable:
-    r"""TensorVariable wrap over the Michaelis-Menten transformation.
-
-    Parameters
-    ----------
-    x : float
-        The spent on a channel.
-    alpha : float
-        The maximum contribution a channel can make.
-    lam : float
-        The Michaelis constant for the given enzyme-substrate system.
-
-    Returns
-    -------
-    pt.TensorVariable
-        The value of the Michaelis-Menten function given the parameters as a TensorVariable.
-
-    """
-    return pt.as_tensor_variable(michaelis_menten_function(x, alpha, lam))
 
 
 def hill_function(
