@@ -450,7 +450,7 @@ class FourierBase(BaseModel):
 
         """
         # Determine the full period
-        full_period = np.arange(int(self.days_in_period) + 1)
+        full_period = np.arange(int(self.days_in_period + 1.5))
 
         coords = {}
         if use_dates:
