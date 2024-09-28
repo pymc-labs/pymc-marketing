@@ -333,6 +333,72 @@ class FourierBase(BaseModel):
             f"{func}_{i}" for func in ["sin", "cos"] for i in range(1, self.n_order + 1)
         ]
 
+    def get_default_start_date(
+        self,
+        today: datetime.datetime,
+        start_date: str | datetime.datetime | None = None,
+    ) -> datetime.datetime:
+        """Get the start date for the Fourier curve.
+
+        If `start_date` is provided, validate and parse it.
+        Otherwise, provide the default start date based on the subclass implementation.
+
+        Parameters
+        ----------
+        today : datetime.datetime
+            The current date.
+        start_date : str or datetime.datetime, optional
+            Provided start date. Can be a string or a datetime object.
+
+        Returns
+        -------
+        datetime.datetime
+            The validated start date.
+
+        Raises
+        ------
+        ValueError
+            If the provided string date cannot be parsed.
+        TypeError
+            If `start_date` is neither a string nor a datetime object.
+        NotImplementedError
+            If the subclass does not implement default start date.
+        """
+        if start_date is None:
+            return self._get_default_start_date(today)
+        else:
+            if isinstance(start_date, str):
+                try:
+                    return pd.to_datetime(start_date)
+                except ValueError as e:
+                    raise ValueError(f"Unable to parse start_date: {e}") from e
+            elif isinstance(start_date, datetime.datetime):
+                return start_date
+            else:
+                raise TypeError(
+                    "start_date must be a datetime.datetime object, a string, or None"
+                )
+
+    def _get_default_start_date(self, today: datetime.datetime) -> datetime.datetime:
+        """Provide the default start date. Must be implemented by subclasses.
+
+        Parameters
+        ----------
+        today : datetime.datetime
+            The current date.
+
+        Returns
+        -------
+        datetime.datetime
+            The default start date.
+
+        Raises
+        ------
+        NotImplementedError
+            If the method is not overridden in a subclass.
+        """
+        raise NotImplementedError("Subclasses must implement _get_default_start_date")
+
     def apply(
         self,
         dayofyear: pt.TensorLike,
@@ -699,6 +765,13 @@ class YearlyFourier(FourierBase):
 
     days_in_period: float = DAYS_IN_YEAR
 
+    def _get_default_start_date(self, today: datetime.datetime) -> datetime.datetime:
+        """Get the default start date for yearly seasonality.
+
+        Returns January 1st of the current year.
+        """
+        return datetime.datetime(year=today.year, month=1, day=1)
+
 
 class MonthlyFourier(FourierBase):
     """Monthly fourier seasonality.
@@ -745,3 +818,10 @@ class MonthlyFourier(FourierBase):
     """
 
     days_in_period: float = DAYS_IN_MONTH
+
+    def _get_default_start_date(self, today: datetime.datetime) -> datetime.datetime:
+        """Get the default start date for monthly seasonality.
+
+        Returns the first day of the current month.
+        """
+        return datetime.datetime(year=today.year, month=today.month, day=1)
