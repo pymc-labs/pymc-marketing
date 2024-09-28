@@ -515,13 +515,11 @@ class FourierBase(BaseModel):
             Full period of the Fourier seasonality.
 
         """
-        # Determine the full period
-        full_period = np.arange(int(self.days_in_period + 1.5))
+        full_period = np.arange(self.days_in_period + 1)
 
         coords = {}
         if use_dates:
             if start_date is None:
-                # Derive start_date based on the type of Fourier seasonality
                 today = datetime.datetime.now()
                 if isinstance(self, YearlyFourier):
                     start_date = datetime.datetime(year=today.year, month=1, day=1)
@@ -532,7 +530,6 @@ class FourierBase(BaseModel):
                 else:
                     raise ValueError("Unknown Fourier type for deriving start_date")
 
-            # Create a date range
             date_range = pd.date_range(
                 start=start_date,
                 periods=int(self.days_in_period) + 1,
@@ -545,7 +542,6 @@ class FourierBase(BaseModel):
             coords["day"] = full_period
             dayofyear = full_period
 
-        # Include other coordinates from the parameters
         for key, values in parameters[self.variable_name].coords.items():
             if key in {"chain", "draw", self.prefix}:
                 continue
