@@ -1035,7 +1035,7 @@ class ParetoNBDModel(CLVModel):
         *,
         T: int | np.ndarray | pd.Series | None = None,
         random_seed: RandomState | None = None,
-        n_samples: int = 1,
+        n_samples: int = 1000,
     ) -> xarray.Dataset:
         """Pareto/NBD process representing purchases across the customer population.
 
