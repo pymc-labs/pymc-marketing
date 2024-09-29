@@ -337,10 +337,10 @@ class FourierBase(BaseModel):
         self,
         today: datetime.datetime,
         start_date: str | datetime.datetime | None = None,
-    ) -> datetime.datetime:
+    ) -> str | datetime.datetime:
         """Get the start date for the Fourier curve.
 
-        If `start_date` is provided, validate and parse it.
+        If `start_date` is provided, validate its type.
         Otherwise, provide the default start date based on the subclass implementation.
 
         Parameters
@@ -352,27 +352,18 @@ class FourierBase(BaseModel):
 
         Returns
         -------
-        datetime.datetime
+        str or datetime.datetime
             The validated start date.
 
         Raises
         ------
-        ValueError
-            If the provided string date cannot be parsed.
         TypeError
             If `start_date` is neither a string nor a datetime object.
-        NotImplementedError
-            If the subclass does not implement default start date.
         """
         if start_date is None:
             return self._get_default_start_date(today)
         else:
-            if isinstance(start_date, str):
-                try:
-                    return pd.to_datetime(start_date)
-                except ValueError as e:
-                    raise ValueError(f"Unable to parse start_date: {e}") from e
-            elif isinstance(start_date, datetime.datetime):
+            if isinstance(start_date, str) or isinstance(start_date, datetime.datetime):
                 return start_date
             else:
                 raise TypeError(
@@ -494,7 +485,7 @@ class FourierBase(BaseModel):
         self,
         parameters: az.InferenceData | xr.Dataset,
         use_dates: bool = False,
-        start_date: datetime.datetime | None = None,
+        start_date: str | datetime.datetime | None = None,
     ) -> xr.DataArray:
         """Create full period of the Fourier seasonality.
 
@@ -519,17 +510,9 @@ class FourierBase(BaseModel):
 
         coords = {}
         if use_dates:
-            if start_date is None:
-                today = datetime.datetime.now()
-                if isinstance(self, YearlyFourier):
-                    start_date = datetime.datetime(year=today.year, month=1, day=1)
-                elif isinstance(self, MonthlyFourier):
-                    start_date = datetime.datetime(
-                        year=today.year, month=today.month, day=1
-                    )
-                else:
-                    raise ValueError("Unknown Fourier type for deriving start_date")
-
+            start_date = self.get_default_start_date(
+                today=datetime.datetime.now(), start_date=start_date
+            )
             date_range = pd.date_range(
                 start=start_date,
                 periods=int(self.days_in_period) + 1,
