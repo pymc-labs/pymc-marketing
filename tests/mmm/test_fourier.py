@@ -11,13 +11,19 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import datetime
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
 import pytest
 import xarray as xr
 
-from pymc_marketing.mmm.fourier import YearlyFourier, generate_fourier_modes
+from pymc_marketing.mmm.fourier import (
+    MonthlyFourier,
+    YearlyFourier,
+    generate_fourier_modes,
+)
 from pymc_marketing.prior import Prior
 
 
@@ -272,3 +278,75 @@ def test_change_name() -> None:
 def test_serialization_to_json() -> None:
     fourier = YearlyFourier(n_order=2)
     fourier.model_dump_json()
+
+
+@pytest.fixture
+def yearly_fourier() -> YearlyFourier:
+    prior = Prior("Normal", dims=("fourier",))
+    return YearlyFourier(n_order=2, prior=prior)
+
+
+@pytest.fixture
+def monthly_fourier() -> MonthlyFourier:
+    prior = Prior("Normal", dims=("fourier",))
+    return MonthlyFourier(n_order=2, prior=prior)
+
+
+def test_get_default_start_date_none(yearly_fourier) -> None:
+    today = datetime.datetime(2023, 5, 15)
+    expected_start_date = datetime.datetime(2023, 1, 1)
+    assert yearly_fourier.get_default_start_date(today, None) == expected_start_date
+
+
+def test_get_default_start_date_str(yearly_fourier) -> None:
+    today = datetime.datetime.now()
+    start_date_str = "2023-02-01"
+    assert (
+        yearly_fourier.get_default_start_date(today, start_date_str) == start_date_str
+    )
+
+
+def test_get_default_start_date_datetime(yearly_fourier) -> None:
+    today = datetime.datetime.now()
+    start_date_dt = datetime.datetime(2023, 3, 1)
+    assert yearly_fourier.get_default_start_date(today, start_date_dt) == start_date_dt
+
+
+def test_get_default_start_date_invalid_type(yearly_fourier) -> None:
+    today = datetime.datetime.now()
+    invalid_start_date = 12345  # Invalid type
+    with pytest.raises(TypeError) as exc_info:
+        yearly_fourier.get_default_start_date(today, invalid_start_date)
+    assert "start_date must be a datetime.datetime object, a string, or None" in str(
+        exc_info.value
+    )
+
+
+def test_get_default_start_date_none_monthly(monthly_fourier) -> None:
+    today = datetime.datetime(2023, 5, 15)
+    expected_start_date = datetime.datetime(2023, 5, 1)
+    assert monthly_fourier.get_default_start_date(today, None) == expected_start_date
+
+
+def test_get_default_start_date_str_monthly(monthly_fourier):
+    today = datetime.datetime.now()
+    start_date_str = "2023-06-15"
+    assert (
+        monthly_fourier.get_default_start_date(today, start_date_str) == start_date_str
+    )
+
+
+def test_get_default_start_date_datetime_monthly(monthly_fourier) -> None:
+    today = datetime.datetime.now()
+    start_date_dt = datetime.datetime(2023, 7, 1)
+    assert monthly_fourier.get_default_start_date(today, start_date_dt) == start_date_dt
+
+
+def test_get_default_start_date_invalid_type_monthly(monthly_fourier) -> None:
+    today = datetime.datetime.now()
+    invalid_start_date = [2023, 1, 1]
+    with pytest.raises(TypeError) as exc_info:
+        monthly_fourier.get_default_start_date(today, invalid_start_date)
+    assert "start_date must be a datetime.datetime object, a string, or None" in str(
+        exc_info.value
+    )
