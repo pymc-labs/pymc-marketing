@@ -206,6 +206,7 @@ conflicts.
 """
 
 import datetime
+from abc import abstractmethod
 from collections.abc import Callable, Iterable
 from typing import Any
 
@@ -335,7 +336,6 @@ class FourierBase(BaseModel):
 
     def get_default_start_date(
         self,
-        today: datetime.datetime,
         start_date: str | datetime.datetime | None = None,
     ) -> str | datetime.datetime:
         """Get the start date for the Fourier curve.
@@ -345,8 +345,6 @@ class FourierBase(BaseModel):
 
         Parameters
         ----------
-        today : datetime.datetime
-            The current date.
         start_date : str or datetime.datetime, optional
             Provided start date. Can be a string or a datetime object.
 
@@ -361,34 +359,25 @@ class FourierBase(BaseModel):
             If `start_date` is neither a string nor a datetime object.
         """
         if start_date is None:
-            return self._get_default_start_date(today)
+            return self._get_default_start_date()
         else:
-            if isinstance(start_date, str) or isinstance(start_date, datetime.datetime):
+            if isinstance(start_date, (str, datetime.datetime)):  # type: ignore  # noqa: UP038  # Ignored to maintain compatibility with Python <3.10
                 return start_date
             else:
                 raise TypeError(
                     "start_date must be a datetime.datetime object, a string, or None"
                 )
 
-    def _get_default_start_date(self, today: datetime.datetime) -> datetime.datetime:
+    @abstractmethod
+    def _get_default_start_date(self) -> datetime.datetime:
         """Provide the default start date. Must be implemented by subclasses.
-
-        Parameters
-        ----------
-        today : datetime.datetime
-            The current date.
 
         Returns
         -------
         datetime.datetime
             The default start date.
-
-        Raises
-        ------
-        NotImplementedError
-            If the method is not overridden in a subclass.
         """
-        raise NotImplementedError("Subclasses must implement _get_default_start_date")
+        pass  # pragma: no cover
 
     def apply(
         self,
@@ -510,9 +499,7 @@ class FourierBase(BaseModel):
 
         coords = {}
         if use_dates:
-            start_date = self.get_default_start_date(
-                today=datetime.datetime.now(), start_date=start_date
-            )
+            start_date = self.get_default_start_date(start_date=start_date)
             date_range = pd.date_range(
                 start=start_date,
                 periods=int(self.days_in_period) + 1,
@@ -744,12 +731,14 @@ class YearlyFourier(FourierBase):
 
     days_in_period: float = DAYS_IN_YEAR
 
-    def _get_default_start_date(self, today: datetime.datetime) -> datetime.datetime:
+    def _get_default_start_date(self) -> datetime.datetime:
         """Get the default start date for yearly seasonality.
 
         Returns January 1st of the current year.
+
         """
-        return datetime.datetime(year=today.year, month=1, day=1)
+        current_year = datetime.datetime.now().year
+        return datetime.datetime(year=current_year, month=1, day=1)
 
 
 class MonthlyFourier(FourierBase):
@@ -798,9 +787,10 @@ class MonthlyFourier(FourierBase):
 
     days_in_period: float = DAYS_IN_MONTH
 
-    def _get_default_start_date(self, today: datetime.datetime) -> datetime.datetime:
+    def _get_default_start_date(self) -> datetime.datetime:
         """Get the default start date for monthly seasonality.
 
         Returns the first day of the current month.
         """
-        return datetime.datetime(year=today.year, month=today.month, day=1)
+        now = datetime.datetime.now()
+        return datetime.datetime(year=now.year, month=now.month, day=1)
