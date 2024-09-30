@@ -2131,6 +2131,7 @@ class MMM(
         custom_constraints: dict[str, float] | None = None,
         quantile: float = 0.5,
         noise_level: float = 0.01,
+        **minimize_kwargs,
     ) -> az.InferenceData:
         """Allocate the given budget to maximize the response over a specified time period.
 
@@ -2159,6 +2160,10 @@ class MMM(
             Custom constraints for the optimization. If None, no custom constraints are applied.
         quantile : float, optional
             The quantile to use for recovering transformation parameters. Default is 0.5.
+        noise_level : int
+            The level of noise added to the allocation strategy (by default 1%).
+        **minimize_kwargs
+            Additional arguments to pass to the `BudgetOptimizer`.
 
         Returns
         -------
@@ -2188,6 +2193,7 @@ class MMM(
             total_budget=budget,
             budget_bounds=budget_bounds,
             custom_constraints=custom_constraints,
+            **minimize_kwargs,
         )
 
         synth_dataset = self._create_synth_dataset(
