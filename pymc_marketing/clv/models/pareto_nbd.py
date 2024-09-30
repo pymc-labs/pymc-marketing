@@ -1057,7 +1057,7 @@ class ParetoNBDModel(CLVModel):
         random_seed : ~numpy.random.RandomState, optional
             Random state to use for sampling.
         n_samples : int, optional
-            Number of samples to generate. Defaults to 1.
+            Number of samples to generate. Defaults to 1000.
 
         Returns
         -------
