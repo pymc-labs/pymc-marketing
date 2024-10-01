@@ -16,6 +16,7 @@ mmm/mmm_time_varying_media_example
 mmm/mmm_components
 mmm/mmm_roas
 mmm/mmm_time_slice_cross_validation
+mmm/mmm_case_study
 :::
 
 :::{toctree}
