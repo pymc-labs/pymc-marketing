@@ -14,6 +14,7 @@
 """Media Mix Model class."""
 
 import json
+import logging
 import warnings
 from typing import Annotated, Any, Literal
 
@@ -582,7 +583,9 @@ class BaseMMM(BaseValidateMMM):
         }
 
     def channel_contributions_forward_pass(
-        self, channel_data: npt.NDArray[np.float64]
+        self,
+        channel_data: npt.NDArray[np.float64],
+        disable_logger_stdout: bool | None = False,
     ) -> npt.NDArray[np.float64]:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
 
@@ -590,6 +593,8 @@ class BaseMMM(BaseValidateMMM):
         ----------
         channel_data : array-like
             Input channel data. Result of all the preprocessing steps.
+        disable_logger_stdout : bool, optional
+            If True, suppress logger output to stdout
 
         Returns
         -------
@@ -597,6 +602,10 @@ class BaseMMM(BaseValidateMMM):
             Transformed channel data.
 
         """
+        if disable_logger_stdout:
+            logger = logging.getLogger("pymc.sampling.forward")
+            logger.propagate = False
+
         coords = {
             **self.model_coords,
         }
@@ -925,7 +934,9 @@ class MMM(
     version: str = "0.0.2"
 
     def channel_contributions_forward_pass(
-        self, channel_data: npt.NDArray[np.float64]
+        self,
+        channel_data: npt.NDArray[np.float64],
+        disable_logger_stdout: bool | None = False,
     ) -> npt.NDArray[np.float64]:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
 
@@ -935,6 +946,8 @@ class MMM(
         ----------
         channel_data : array-like
             Input channel data. Result of all the preprocessing steps.
+        disable_logger_stdout : bool, optional
+            If True, suppress logger output to stdout
 
         Returns
         -------
@@ -943,7 +956,7 @@ class MMM(
 
         """
         channel_contribution_forward_pass = super().channel_contributions_forward_pass(
-            channel_data=channel_data
+            channel_data=channel_data, disable_logger_stdout=disable_logger_stdout
         )
         target_transformed_vectorized = np.vectorize(
             self.target_transformer.inverse_transform,
@@ -983,7 +996,7 @@ class MMM(
                 delta * self.preprocessed_data["X"][self.channel_columns].to_numpy()
             )
             channel_contribution_forward_pass = self.channel_contributions_forward_pass(
-                channel_data=channel_data
+                channel_data=channel_data, disable_logger_stdout=True
             )
             channel_contributions.append(channel_contribution_forward_pass)
         return DataArray(
@@ -2226,28 +2239,14 @@ class MMM(
             The matplotlib figure object and axis containing the plot.
 
         """
+        channel_contributions = (
+            samples["channel_contributions"].mean(dim=["date", "sample"]).to_numpy()
+        )
+
         if original_scale:
-            channel_contributions = (
-                samples["channel_contributions"]
-                .mean(dim=["sample"])
-                .mean(dim=["date"])
-                .values
-                * self.get_target_transformer()["scaler"].scale_
-            )
+            channel_contributions *= self.get_target_transformer()["scaler"].scale_
 
-            allocate_spend = (
-                np.array(list(self.optimal_allocation_dict.values()))
-                * self.channel_transformer["scaler"].scale_
-            )
-
-        else:
-            channel_contributions = (
-                samples["channel_contributions"]
-                .mean(dim=["sample"])
-                .mean(dim=["date"])
-                .values
-            )
-            allocate_spend = np.array(list(self.optimal_allocation_dict.values()))
+        allocated_spend = np.array(list(self.optimal_allocation_dict.values()))
 
         if ax is None:
             fig, ax = plt.subplots(figsize=figsize)
@@ -2261,11 +2260,11 @@ class MMM(
 
         bars1 = ax.bar(
             index,
-            allocate_spend,
+            allocated_spend,
             bar_width,
-            color="b",
+            color="C0",
             alpha=opacity,
-            label="Allocate Spend",
+            label="Allocated Spend",
         )
 
         ax2 = ax.twinx()
@@ -2274,19 +2273,19 @@ class MMM(
             index + bar_width,
             channel_contributions,
             bar_width,
-            color="r",
+            color="C1",
             alpha=opacity,
             label="Channel Contributions",
         )
 
         ax.set_xlabel("Channels")
-        ax.set_ylabel("Allocate Spend", color="b")
+        ax.set_ylabel("Allocate Spend", color="C0")
         ax.tick_params(axis="x", rotation=90)
         ax.set_xticks(index + bar_width / 2)
         ax.set_xticklabels(self.channel_columns)
 
-        ax.set_ylabel("Allocate Spend", color="b", labelpad=10)
-        ax2.set_ylabel("Channel Contributions", color="r", labelpad=10)
+        ax.set_ylabel("Allocate Spend", color="C0", labelpad=10)
+        ax2.set_ylabel("Channel Contributions", color="C1", labelpad=10)
 
         ax.grid(False)
         ax2.grid(False)

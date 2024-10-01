@@ -1,6 +1,6 @@
 <div align="center">
 
-![PyMC-Marketing Logo](https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/marketing-logo-light.jpg)
+![PyMC-Marketing Logo](docs/source/_static/marketing-logo-light.jpg)
 
 </div>
 
@@ -27,10 +27,10 @@ Unlock the power of **Marketing Mix Modeling (MMM)** and **Customer Lifetime Val
 This repository is supported by [PyMC Labs](https://www.pymc-labs.com).
 
 <center>
-    <img src="https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/labs-logo-light.png" width="50%" />
+    <img src="docs/source/_static/labs-logo-light.png" width="50%" />
 </center>
 
-For businesses looking to integrate PyMC-Marketing into their operational framework, [PyMC Labs](https://www.pymc-labs.com) offers expert consulting and training. Our team is proficient in state-of-the-art Bayesian modeling techniques, with a focus on Marketing Mix Models (MMMs) and Customer Lifetime Value (CLV). For more information see [here](#-schedule-a-free-consultation-for-mmm--clv-strategy).
+For businesses looking to integrate PyMC-Marketing into their operational framework, [PyMC Labs](https://www.pymc-labs.com) offers expert consulting and training. Our team is proficient in state-of-the-art Bayesian modeling techniques, with a focus on Marketing Mix Models (MMMs) and Customer Lifetime Value (CLV). For more information see [here](README.md#-schedule-a-free-consultation-for-mmm--clv-strategy).
 
 Explore these topics further by watching our video on [Bayesian Marketing Mix Models: State of the Art](https://www.youtube.com/watch?v=xVx91prC81g).
 
@@ -54,7 +54,7 @@ For a comprehensive installation guide, refer to the [official PyMC installation
 
 ### Docker
 
-We provide a `Dockerfile` to build a Docker image for PyMC-Marketing so that is accessible from a Jupyter Notebook. See [here](/scripts/docker/README.md) for more details.
+We provide a `Dockerfile` to build a Docker image for PyMC-Marketing so that is accessible from a Jupyter Notebook. See [here](scripts/docker/README.md) for more details.
 
 ## In-depth Bayesian Marketing Mix Modeling (MMM) in PyMC
 
@@ -111,12 +111,12 @@ mmm.fit(X,y)
 mmm.plot_components_contributions();
 ```
 
-![](https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/mmm_plot_components_contributions.png)
+![](docs/source/_static/mmm_plot_components_contributions.png)
 
 Once the model is fitted, we can further optimize our budget allocation as we are including diminishing returns and carry-over effects in our model.
 
 <center>
-    <img src="/docs/source/_static/mmm_plot_plot_channel_contributions_grid.png" width="80%" />
+    <img src="docs/source/_static/mmm_plot_plot_channel_contributions_grid.png" width="80%" />
 </center>
 
 Explore a hands-on [simulated example](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
@@ -166,7 +166,7 @@ beta_geo_model.fit()
 
 Once fitted, we can use the model to predict the number of future purchases for known customers, the probability that they are still alive, and get various visualizations plotted.
 
-![](https://github.com/pymc-labs/pymc-marketing/blob/main/docs/source/_static/expected_purchases.png)
+![](docs/source/_static/expected_purchases.png)
 
 See the Examples section for more on this.
 
@@ -174,11 +174,11 @@ See the Examples section for more on this.
 
 PyMC-Marketing is and will always be free for commercial use, licensed under [Apache 2.0](LICENSE). Developed by core developers behind the popular PyMC package and marketing experts, it provides state-of-the-art measurements and analytics for marketing teams.
 
-Due to its open-source nature and active contributor base, new features are constantly added. Are you missing a feature or want to contribute? Fork our repository and submit a pull request. If you have any questions, feel free to [open an issue](https://github.com/your-repo/issues).
+Due to its open-source nature and active contributor base, new features are constantly added. Are you missing a feature or want to contribute? Fork our repository and submit a pull request. If you have any questions, feel free to [open an issue](https://github.com/pymc-labs/pymc-marketing/issues).
 
 ### Thanks to our contributors!
 
-[![https://github.com/pymc-devs/pymc/graphs/contributors](https://contrib.rocks/image?repo=pymc-labs/pymc-marketing)](https://github.com/pymc-labs/pymc-marketing/graphs/contributors)
+[![https://github.com/pymc-labs/pymc-marketing/graphs/contributors](https://contrib.rocks/image?repo=pymc-labs/pymc-marketing)](https://github.com/pymc-labs/pymc-marketing/graphs/contributors)
 
 
 ## Marketing AI Assistant: MMM-GPT with PyMC-Marketing

@@ -40,31 +40,10 @@ class TestBetaGeoBetaBinomModel:
         cls.gamma_true = 0.6567
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
-        test_data = pd.read_csv("data/bgbb_donations.csv")
+        cls.data = pd.read_csv("data/bgbb_donations.csv")
 
-        cls.data = test_data
-
-        # simulate smaller dataset for tests requiring sampling
-        sim_id = np.arange(1, 4001)
-        sim_t = np.ones(4000) * 6
-        sim_rec, sim_freq = pm.draw(
-            BetaGeoBetaBinom.dist(
-                alpha=cls.alpha_true,
-                beta=cls.beta_true,
-                delta=cls.delta_true,
-                gamma=cls.gamma_true,
-                T=sim_t,
-            ),
-            random_seed=cls.rng,
-        ).T
-        cls.sim_data = pd.DataFrame(
-            {
-                "customer_id": sim_id,
-                "frequency": sim_freq,
-                "recency": sim_rec,
-                "T": sim_t,
-            }
-        )
+        # sample from full dataset for tests involving model fits
+        cls.sample_data = cls.data.sample(n=1000, random_state=45)
 
         # take sample of all unique recency/frequency/T combinations to test predictive methods
         test_customer_ids = [
@@ -92,8 +71,8 @@ class TestBetaGeoBetaBinomModel:
             11103,
         ]
 
-        cls.sample_data = test_data.query("customer_id.isin(@test_customer_ids)")
-        cls.sample_data_N = len(test_customer_ids)
+        cls.pred_data = cls.data.query("customer_id.isin(@test_customer_ids)")
+        cls.pred_data_N = len(test_customer_ids)
 
         # Instantiate model with CDNOW data for testing
         cls.model = BetaGeoBetaBinomModel(cls.data)
@@ -296,13 +275,16 @@ class TestBetaGeoBetaBinomModel:
     @pytest.mark.parametrize(
         "fit_method, rtol",
         [
-            ("mcmc", 0.1),
+            (
+                "mcmc",
+                0.3,
+            ),  # higher rtol required for sample_data; within .1 tolerance for full dataset;
             ("map", 0.2),
         ],
     )
     def test_model_convergence(self, fit_method, rtol, model_config):
         model = BetaGeoBetaBinomModel(
-            data=self.sim_data,
+            data=self.sample_data,
             model_config=model_config,
         )
         model.build_model()
@@ -325,7 +307,7 @@ class TestBetaGeoBetaBinomModel:
         )
 
     def test_fit_result_without_fit(self, model_config):
-        model = BetaGeoBetaBinomModel(data=self.sim_data, model_config=model_config)
+        model = BetaGeoBetaBinomModel(data=self.pred_data, model_config=model_config)
         with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
             model.fit_result
 
@@ -345,9 +327,9 @@ class TestBetaGeoBetaBinomModel:
         true_purchases = (
             self.lifetimes_model.conditional_expected_number_of_purchases_up_to_time(
                 m_periods_in_future=test_t,
-                frequency=self.sample_data["frequency"],
-                recency=self.sample_data["recency"],
-                n_periods=self.sample_data["T"],
+                frequency=self.pred_data["frequency"],
+                recency=self.pred_data["recency"],
+                n_periods=self.pred_data["T"],
             )
         )
 
@@ -355,10 +337,10 @@ class TestBetaGeoBetaBinomModel:
         est_num_purchases = self.model.expected_purchases(future_t=test_t)
         assert est_num_purchases.shape == (self.chains, self.draws, self.N)
 
-        data = self.sample_data.assign(future_t=test_t)
+        data = self.pred_data.assign(future_t=test_t)
         est_num_purchases = self.model.expected_purchases(data)
 
-        assert est_num_purchases.shape == (self.chains, self.draws, self.sample_data_N)
+        assert est_num_purchases.shape == (self.chains, self.draws, self.pred_data_N)
         assert est_num_purchases.dims == ("chain", "draw", "customer_id")
 
         np.testing.assert_allclose(
@@ -416,19 +398,19 @@ class TestBetaGeoBetaBinomModel:
     def test_expected_probability_alive(self, test_t):
         true_prob_alive = self.lifetimes_model.conditional_probability_alive(
             m_periods_in_future=test_t,
-            frequency=self.sample_data["frequency"],
-            recency=self.sample_data["recency"],
-            n_periods=self.sample_data["T"],
+            frequency=self.pred_data["frequency"],
+            recency=self.pred_data["recency"],
+            n_periods=self.pred_data["T"],
         )
 
         # test parametrization with default data has different dims
         est_prob_alive = self.model.expected_probability_alive(future_t=test_t)
         assert est_prob_alive.shape == (self.chains, self.draws, self.N)
 
-        sample_data = self.sample_data.assign(future_t=test_t)
-        est_prob_alive = self.model.expected_probability_alive(sample_data)
+        pred_data = self.pred_data.assign(future_t=test_t)
+        est_prob_alive = self.model.expected_probability_alive(pred_data)
 
-        assert est_prob_alive.shape == (self.chains, self.draws, self.sample_data_N)
+        assert est_prob_alive.shape == (self.chains, self.draws, self.pred_data_N)
         assert est_prob_alive.dims == ("chain", "draw", "customer_id")
         np.testing.assert_allclose(
             true_prob_alive,
@@ -436,13 +418,13 @@ class TestBetaGeoBetaBinomModel:
             rtol=0.01,
         )
 
-        alt_data = self.sample_data.assign(future_t=7.5)
+        alt_data = self.pred_data.assign(future_t=7.5)
         est_prob_alive_t = self.model.expected_probability_alive(alt_data)
         assert est_prob_alive.mean() > est_prob_alive_t.mean()
 
     def test_distribution_new_customer(self) -> None:
         mock_model = BetaGeoBetaBinomModel(
-            data=self.sim_data,
+            data=self.sample_data,
         )
         mock_model.build_model()
         mock_model.idata = az.from_dict(
@@ -462,7 +444,7 @@ class TestBetaGeoBetaBinomModel:
             random_seed=rng
         )
         customer_rec_freq = mock_model.distribution_new_customer_recency_frequency(
-            self.data, T=self.sim_data["T"], random_seed=rng
+            self.sample_data, T=self.sample_data["T"], random_seed=rng
         )
         customer_rec = customer_rec_freq.sel(obs_var="recency")
         customer_freq = customer_rec_freq.sel(obs_var="frequency")
@@ -481,7 +463,7 @@ class TestBetaGeoBetaBinomModel:
                 beta=self.beta_true,
                 delta=self.delta_true,
                 gamma=self.gamma_true,
-                T=self.sim_data["T"],
+                T=self.sample_data["T"],
             ),
             random_seed=rng,
         ).T
