@@ -890,7 +890,7 @@ def _expected_cumulative_transactions(
     date_range = pandas.date_range(start_date, periods=t + 1, freq=time_unit)
     date_periods = date_range.to_period(time_unit)
 
-    pred_cum_transactions = []
+    pred_cum_transactions = np.array([])
 
     # First Transactions on Each Day/Freq
     first_trans_size = first_transactions.groupby(datetime_col).size()
@@ -919,10 +919,11 @@ def _expected_cumulative_transactions(
             # Mask for the number of customers with 1st transactions up to the period
             mask = first_trans_size.index < period
             masked_first_trans = first_trans_size[mask].values.reshape(1, 1, -1)  # type: ignore
-            # ``expected_trans`` is a float with the cumulative sum of expected transactions
+            # ``expected_trans`` is an xarray with the cumulative sum of expected transactions
             expected_trans = (expected_trans_array * masked_first_trans).sum()
-            # TODO: Datatypes need to be converted, as this is currently a list of arrays
-            pred_cum_transactions.append(expected_trans.values)
+            pred_cum_transactions = np.append(
+                pred_cum_transactions, expected_trans.values
+            )
 
     act_trans = repeated_transactions.groupby(datetime_col).size()
     act_tracking_transactions = act_trans.reindex(date_periods, fill_value=0)

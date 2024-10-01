@@ -89,10 +89,10 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
 
     model_config = {
         # Narrow Gaussian centered at MLE params from lifetimes ParetoNBDFitter
-        "r_prior": Prior("DiracDelta", c=0.5534),
-        "alpha_prior": Prior("DiracDelta", c=10.5802),
-        "s_prior": Prior("DiracDelta", c=0.6061),
-        "beta_prior": Prior("DiracDelta", c=11.6562),
+        "r_prior": Prior("DiracDelta", c=0.560),
+        "alpha_prior": Prior("DiracDelta", c=10.591),
+        "s_prior": Prior("DiracDelta", c=0.550),
+        "beta_prior": Prior("DiracDelta", c=9.756),
     }
     pnbd_model = ParetoNBDModel(
         data=test_summary_data,
