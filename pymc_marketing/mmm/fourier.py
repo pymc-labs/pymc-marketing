@@ -360,13 +360,12 @@ class FourierBase(BaseModel):
         """
         if start_date is None:
             return self._get_default_start_date()
+        elif isinstance(start_date, str) | isinstance(start_date, datetime.datetime):
+            return start_date
         else:
-            if isinstance(start_date, (str, datetime.datetime)):  # noqa: UP038
-                return start_date
-            else:
-                raise TypeError(
-                    "start_date must be a datetime.datetime object, a string, or None"
-                )
+            raise TypeError(
+                "start_date must be a datetime.datetime object, a string, or None"
+            )
 
     @abstractmethod
     def _get_default_start_date(self) -> datetime.datetime:
