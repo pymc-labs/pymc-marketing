@@ -284,13 +284,13 @@ def test_serialization_to_json() -> None:
 @pytest.fixture
 def yearly_fourier() -> YearlyFourier:
     prior = Prior("Laplace", mu=0, b=1, dims="fourier")
-    return YearlyFourier(n_order=2, days_in_period=365, prior=prior)
+    return YearlyFourier(n_order=2, prior=prior)
 
 
 @pytest.fixture
 def monthly_fourier() -> MonthlyFourier:
     prior = Prior("Laplace", mu=0, b=1, dims="fourier")
-    return MonthlyFourier(n_order=2, days_in_period=30, prior=prior)
+    return MonthlyFourier(n_order=2, prior=prior)
 
 
 def test_get_default_start_date_none_yearly(yearly_fourier: YearlyFourier):
@@ -355,7 +355,6 @@ def test_fourier_base_instantiation():
     with pytest.raises(TypeError) as exc_info:
         FourierBase(
             n_order=2,
-            days_in_period=365,
             prior=Prior("Laplace", mu=0, b=1, dims="fourier"),
         )
     assert "Can't instantiate abstract class FourierBase" in str(exc_info.value)
