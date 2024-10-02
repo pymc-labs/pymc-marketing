@@ -141,6 +141,62 @@ class TestBasePlotting:
             ("plot_posterior_predictive", {}),
             ("plot_posterior_predictive", {"original_scale": True}),
             ("plot_posterior_predictive", {"ax": plt.subplots()[1]}),
+            (
+                "plot_posterior_predictive",
+                {
+                    "add_mean": True,
+                    "original_scale": False,
+                },
+            ),
+            (
+                "plot_posterior_predictive",
+                {
+                    "add_gradient": True,
+                    "original_scale": True,
+                },
+            ),
+            (
+                "plot_posterior_predictive",
+                {
+                    "add_hdi": True,
+                    "original_scale": False,
+                },
+            ),
+            (
+                "plot_posterior_predictive",
+                {
+                    "add_mean": True,
+                    "add_hdi": True,
+                    "original_scale": True,
+                },
+            ),
+            (
+                "plot_posterior_predictive",
+                {
+                    "add_mean": True,
+                    "add_gradient": True,
+                    "add_hdi": True,
+                    "original_scale": False,
+                },
+            ),
+            (
+                "plot_posterior_predictive",
+                {
+                    "add_mean": True,
+                    "add_gradient": True,
+                    "add_hdi": True,
+                    "original_scale": True,
+                },
+            ),
+            (
+                "plot_posterior_predictive",
+                {
+                    "add_mean": False,
+                    "add_gradient": True,
+                    "add_hdi": False,
+                    "original_scale": False,
+                },
+            ),
             ("plot_errors", {}),
             ("plot_errors", {"original_scale": True}),
             ("plot_errors", {"ax": plt.subplots()[1]}),
