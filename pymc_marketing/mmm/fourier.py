@@ -361,7 +361,7 @@ class FourierBase(BaseModel):
         if start_date is None:
             return self._get_default_start_date()
         else:
-            if isinstance(start_date, (str, datetime.datetime)):  # type: ignore  # noqa: UP038  # Ignored to maintain compatibility with Python <3.10
+            if isinstance(start_date, (str, datetime.datetime)):  # noqa: UP038
                 return start_date
             else:
                 raise TypeError(
