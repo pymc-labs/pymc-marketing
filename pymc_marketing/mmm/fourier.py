@@ -205,6 +205,8 @@ conflicts.
 
 """
 
+import datetime
+from abc import abstractmethod
 from collections.abc import Callable, Iterable
 from typing import Any
 
@@ -212,6 +214,7 @@ import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
@@ -331,6 +334,50 @@ class FourierBase(BaseModel):
             f"{func}_{i}" for func in ["sin", "cos"] for i in range(1, self.n_order + 1)
         ]
 
+    def get_default_start_date(
+        self,
+        start_date: str | datetime.datetime | None = None,
+    ) -> str | datetime.datetime:
+        """Get the start date for the Fourier curve.
+
+        If `start_date` is provided, validate its type.
+        Otherwise, provide the default start date based on the subclass implementation.
+
+        Parameters
+        ----------
+        start_date : str or datetime.datetime, optional
+            Provided start date. Can be a string or a datetime object.
+
+        Returns
+        -------
+        str or datetime.datetime
+            The validated start date.
+
+        Raises
+        ------
+        TypeError
+            If `start_date` is neither a string nor a datetime object.
+        """
+        if start_date is None:
+            return self._get_default_start_date()
+        elif isinstance(start_date, str) | isinstance(start_date, datetime.datetime):
+            return start_date
+        else:
+            raise TypeError(
+                "start_date must be a datetime.datetime object, a string, or None"
+            )
+
+    @abstractmethod
+    def _get_default_start_date(self) -> datetime.datetime:
+        """Provide the default start date. Must be implemented by subclasses.
+
+        Returns
+        -------
+        datetime.datetime
+            The default start date.
+        """
+        pass  # pragma: no cover
+
     def apply(
         self,
         dayofyear: pt.TensorLike,
@@ -422,25 +469,48 @@ class FourierBase(BaseModel):
         coords[self.prefix] = self.nodes
         return self.prior.sample_prior(coords=coords, name=self.variable_name, **kwargs)
 
-    def sample_curve(self, parameters: az.InferenceData | xr.Dataset) -> xr.DataArray:
-        """Create full period of the fourier seasonality.
+    def sample_curve(
+        self,
+        parameters: az.InferenceData | xr.Dataset,
+        use_dates: bool = False,
+        start_date: str | datetime.datetime | None = None,
+    ) -> xr.DataArray:
+        """Create full period of the Fourier seasonality.
 
         Parameters
         ----------
         parameters : az.InferenceData | xr.Dataset
-            Inference data or dataset containing the fourier parameters.
+            Inference data or dataset containing the Fourier parameters.
             Can be posterior or prior.
+        use_dates : bool, optional
+            If True, use datetime coordinates for the x-axis. Defaults to False.
+        start_date : datetime.datetime, optional
+            Starting date for the Fourier curve. If not provided and use_dates is True,
+            it will be derived from the current year or month. Defaults to None.
 
         Returns
         -------
         xr.DataArray
-            Full period of the fourier seasonality.
+            Full period of the Fourier seasonality.
 
         """
         full_period = np.arange(self.days_in_period + 1)
-        coords = {
-            "day": full_period,
-        }
+
+        coords = {}
+        if use_dates:
+            start_date = self.get_default_start_date(start_date=start_date)
+            date_range = pd.date_range(
+                start=start_date,
+                periods=int(self.days_in_period) + 1,
+                freq="D",
+            )
+            coords["date"] = date_range.to_numpy()
+            dayofyear = date_range.dayofyear.to_numpy()
+
+        else:
+            coords["day"] = full_period
+            dayofyear = full_period
+
         for key, values in parameters[self.variable_name].coords.items():
             if key in {"chain", "draw", self.prefix}:
                 continue
@@ -450,7 +520,7 @@ class FourierBase(BaseModel):
             name = f"{self.prefix}_trend"
             pm.Deterministic(
                 name,
-                self.apply(dayofyear=full_period),
+                self.apply(dayofyear=dayofyear),
                 dims=tuple(coords.keys()),
             )
 
@@ -500,9 +570,16 @@ class FourierBase(BaseModel):
             Matplotlib figure and axes.
 
         """
+        if "date" in curve.coords:
+            x_coord_name = "date"
+        elif "day" in curve.coords:
+            x_coord_name = "day"
+        else:
+            raise ValueError("Curve must have either 'day' or 'date' as a coordinate")
+
         return plot_curve(
             curve,
-            non_grid_names=set(NON_GRID_NAMES),
+            non_grid_names={x_coord_name},
             subplot_kwargs=subplot_kwargs,
             sample_kwargs=sample_kwargs,
             hdi_kwargs=hdi_kwargs,
@@ -541,9 +618,16 @@ class FourierBase(BaseModel):
         tuple[plt.Figure, npt.NDArray[plt.Axes]]
 
         """
+        if "date" in curve.coords:
+            x_coord_name = "date"
+        elif "day" in curve.coords:
+            x_coord_name = "day"
+        else:
+            raise ValueError("Curve must have either 'day' or 'date' as a coordinate")
+
         return plot_hdi(
             curve,
-            non_grid_names=set(NON_GRID_NAMES),
+            non_grid_names={x_coord_name},
             hdi_kwargs=hdi_kwargs,
             subplot_kwargs=subplot_kwargs,
             plot_kwargs=plot_kwargs,
@@ -582,9 +666,16 @@ class FourierBase(BaseModel):
             Matplotlib figure and axes.
 
         """
+        if "date" in curve.coords:
+            x_coord_name = "date"
+        elif "day" in curve.coords:
+            x_coord_name = "day"
+        else:
+            raise ValueError("Curve must have either 'day' or 'date' as a coordinate")
+
         return plot_samples(
             curve,
-            non_grid_names=set(NON_GRID_NAMES),
+            non_grid_names={x_coord_name},
             n=n,
             rng=rng,
             axes=axes,
@@ -639,6 +730,15 @@ class YearlyFourier(FourierBase):
 
     days_in_period: float = DAYS_IN_YEAR
 
+    def _get_default_start_date(self) -> datetime.datetime:
+        """Get the default start date for yearly seasonality.
+
+        Returns January 1st of the current year.
+
+        """
+        current_year = datetime.datetime.now().year
+        return datetime.datetime(year=current_year, month=1, day=1)
+
 
 class MonthlyFourier(FourierBase):
     """Monthly fourier seasonality.
@@ -685,3 +785,11 @@ class MonthlyFourier(FourierBase):
     """
 
     days_in_period: float = DAYS_IN_MONTH
+
+    def _get_default_start_date(self) -> datetime.datetime:
+        """Get the default start date for monthly seasonality.
+
+        Returns the first day of the current month.
+        """
+        now = datetime.datetime.now()
+        return datetime.datetime(year=now.year, month=now.month, day=1)
