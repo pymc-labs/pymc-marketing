@@ -678,6 +678,56 @@ def log_model(
         mlflow.register_model(model_uri, mmm_registry_name)
 
 
+def load_model(
+    run_id: str | None = None,
+    full_model: bool = False,
+    keep_idata: bool = False,
+    artifact_path: str = "model",
+) -> mlflow.pyfunc.PyFuncModel | MMM:
+    """
+    Load a PyMC-Marketing MMM model from MLflow.
+
+    Can either load the full model including the InferenceData, or just the lighter PyFuncModel version.
+
+    Parameters
+    ----------
+    run_id : str, optional
+        The MLflow run ID from which to load the model.
+    full_model : bool, default=True
+        If True, load the full MMM model including the InferenceData.
+    keep_idata : bool, default=False
+        If True, keep the downloaded InferenceData saved locally.
+    artifact_path : str, default="model"
+        The artifact path within the run where the model is stored.
+
+    Returns
+    -------
+    model : mlflow.pyfunc.PyFuncModel | MMM
+        The loaded MLflow PyFuncModel or MMM model.
+
+
+    Examples
+    --------
+    # Load model using run_id
+    model = load_model(run_id="your_run_id", full_model=True, keep_idata=True)
+    """
+    model_uri = f"runs:/{run_id}/{artifact_path}"
+
+    if not full_model:
+        model = mlflow.pyfunc.load_model(model_uri)
+
+    else:
+        idata_path = mlflow.artifacts.download_artifacts(
+            run_id=run_id, artifact_path="idata.nc", dst_path="idata"
+        )
+        model = MMM.load(idata_path)
+        if not keep_idata:
+            os.remove(idata_path)
+            os.rmdir("idata")
+
+    return model
+
+
 @autologging_integration(FLAVOR_NAME)
 def autolog(
     log_sampler_info: bool = True,
