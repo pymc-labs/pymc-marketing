@@ -806,7 +806,7 @@ def _expected_cumulative_transactions(
     transactions: pandas.DataFrame,
     customer_id_col: str,
     datetime_col: str,
-    t,
+    t: int,
     datetime_format: str | None = None,
     time_unit: str = "D",
     time_scaler: float | None = 1,
@@ -814,49 +814,46 @@ def _expected_cumulative_transactions(
     set_index_date: bool | None = False,
 ):
     """
-    Get expected and actual repeated cumulative transactions.
+    Aggregate actual and expected cumulative transactions over time for a fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
 
-    Uses the ``expected_number_of_purchases_up_to_time()`` method from the fitted model
-    to predict the cumulative number of purchases.
+    This function follows the formulation on page 8 of [1]_. Specifically, we take only customers who have made their
+    first transaction before the specified number of ``t`` time periods, run ``expected_purchases_new_customer()``
+    for all remaining time periods, then sum across the customer population.
 
-    This function follows the formulation on page 8 of [1]_.
-
-    In more detail, we take only the customers who have made their first
-    transaction before the specific date and then multiply them by the distribution of the
-    ``expected_number_of_purchases_up_to_time()`` for their whole future. Doing that for
-    all dates and then summing the distributions will give us the *complete cumulative
-    purchases*.
+    Adapted from legacy ``lifetimes`` library:
+    https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/utils.py#L506
 
     Parameters
     ----------
     model:
-        A fitted lifetimes model
-    transactions: :obj: DataFrame
-        a Pandas DataFrame containing the transactions history of the customer_id
-    datetime_col: string
-        the column in transactions that denotes the datetime the purchase was made.
-    customer_id_col: string
-        the column in transactions that denotes the customer_id
+        A fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
+    transactions : ~pandas.DataFrame
+        A Pandas DataFrame containing *customer_id_col* and *datetime_col*.
+    customer_id_col : string
+        Column in the *transactions* DataFrame denoting the *customer_id*.
+    datetime_col :  string
+        Column in the *transactions* DataFrame denoting datetimes purchase were made.
     t: int
-        the number of time units since the beginning of
-        data for which we want to calculate cumulative transactions
-    datetime_format: string, optional
-        a string that represents the timestamp format. Useful if Pandas can't
-        understand the provided format.
-    time_unit: string, optional
+        Number of time units since earliest transaction for which we want to aggregate cumulative transactions.
+    datetime_format : string, optional
+        A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
+    time_unit : string, optional
+        Time granularity for study.
         Default: 'D' for days. Possible values listed here:
         https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
-    time_scaler: int, optional
-        Default: 1. Useful for getting exact recency & T. Example:
-        With freq='D' and freq_multiplier=1, we get recency=591 and T=632
-        With freq='h' and freq_multiplier=24, we get recency=590.125 and T=631.375
+    time_scaler : int, optional
+        Default: 1. Scales *recency* & *T* to a different time granularity.
+        This is useful for datasets spanning many years, and running predictions in different time scales.
+    sort_transactions : bool, optional
+        Default: *True*
+        If raw data is already sorted in chronological order, set to *False* to improve computational efficiency.
     set_index_date: bool, optional
-        when True set date as Pandas DataFrame index, default False - number of time units
+        Set to True to return a dataframe with a datetime index.
 
     Returns
     -------
-    :obj: DataFrame
-        A dataframe with columns actual, predicted
+    DataFrame
+        Dataframe containing colunms for actual and predicted values
 
     References
     ----------
@@ -931,7 +928,7 @@ def _expected_cumulative_transactions(
     act_tracking_transactions = act_trans.reindex(date_periods, fill_value=0)
 
     act_cum_transactions = []
-    for j in range(1, t // time_scaler + 1):
+    for j in range(1, t // time_scaler + 1):  # type: ignore
         sum_trans = sum(act_tracking_transactions.iloc[: j * time_scaler])  # type: ignore
         act_cum_transactions.append(sum_trans)
 

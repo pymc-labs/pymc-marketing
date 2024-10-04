@@ -916,6 +916,10 @@ class TestRFM:
 def test_expected_cumulative_transactions_dedups_inside_a_time_period(
     fitted_bg, cdnow_trans
 ):
+    """
+    Test adapted from lifetimes:
+    https://github.com/CamDavidsonPilon/lifetimes/blob/master/tests/test_utils.py#L623
+    """
     by_week = _expected_cumulative_transactions(
         fitted_bg, cdnow_trans, "date", "id", 10, time_unit="W"
     )
@@ -942,6 +946,9 @@ def test_expected_cumulative_incremental_transactions_equals_r_btyd_walkthrough(
     # [,1] [,2] [,3] [,4] [,5] [,6]
     # actual 73.00 55.00 70.00 33.00 56.00 99.00
     # expected 78.31 76.42 74.65 72.98 71.41 69.93
+
+    Test adapted from lifetimes:
+    https://github.com/CamDavidsonPilon/lifetimes/blob/master/tests/test_utils.py#L601
     """
     df_cum_trans = _expected_cumulative_transactions(
         model=fitted_pnbd,
