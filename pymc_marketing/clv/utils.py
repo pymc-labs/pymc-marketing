@@ -914,11 +914,13 @@ def _expected_cumulative_transactions(
 
             # Array of different expected number of purchases for different times
             # TODO: This does not currently support a covariate model
-            expected_trans_array = model.expected_purchases_new_customer(pred_data)
+            expected_trans_array = model.expected_purchases_new_customer(
+                pred_data
+            ).mean(dim=("chain", "draw"))
 
             # Mask for the number of customers with 1st transactions up to the period
             mask = first_trans_size.index < period
-            masked_first_trans = first_trans_size[mask].values.reshape(1, 1, -1)  # type: ignore
+            masked_first_trans = first_trans_size[mask].values  # type: ignore
             # ``expected_trans`` is an xarray with the cumulative sum of expected transactions
             expected_trans = (expected_trans_array * masked_first_trans).sum()
             pred_cum_transactions = np.append(
