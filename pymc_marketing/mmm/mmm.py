@@ -2160,7 +2160,7 @@ class MMM(
             Custom constraints for the optimization. If None, no custom constraints are applied.
         quantile : float, optional
             The quantile to use for recovering transformation parameters. Default is 0.5.
-        noise_level : int
+        noise_level : float
             The level of noise added to the allocation strategy (by default 1%).
         **minimize_kwargs
             Additional arguments to pass to the `BudgetOptimizer`.
