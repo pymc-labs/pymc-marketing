@@ -177,7 +177,7 @@ def _backwards_compatiable_data_vars(model: Model) -> list[TensorVariable]:
 
 
 def log_data(model: Model, idata: az.InferenceData) -> None:
-    """Log the data used in the model to MLflow.
+    """Log the metadata of the data used in the model to MLflow.
 
     Saved in the form of numpy arrays based on all the constant and observed data
     in the model.
@@ -396,7 +396,7 @@ def log_sample_diagnostics(
 
 def log_loocv_metrics(
     idata: az.InferenceData,
-) -> tuple[dict[str, float], az.ELPDData]:
+) -> None:
     """Log Bayesian LOOCV metrics to MLflow.
 
     Compute Pareto-smoothed importance sampling leave-one-out cross-validation (PSIS-LOO-CV).
@@ -418,12 +418,7 @@ def log_loocv_metrics(
     Sets
     ----
     idata.log_likelihood : az.InferenceData
-        The InferenceData object with the log_likelihood group.
-
-    Returns
-    -------
-    tuple[dict[str, float], az.ELPDData]
-        A tuple containing a dictionary of model diagnostics and the model_loo object.
+        The InferenceData object with the log_likelihood group, unless it already exists.
     """
     if "posterior" not in idata:
         raise KeyError("InferenceData object does not contain the group posterior.")
@@ -431,7 +426,9 @@ def log_loocv_metrics(
     if "sample_stats" not in idata:
         raise KeyError("InferenceData object does not contain the group sample_stats.")
 
-    pm.compute_log_likelihood(idata, progressbar=False)
+    if "log_likelihood" not in idata:
+        pm.compute_log_likelihood(idata, progressbar=False)
+
     model_loo = az.loo(idata)
 
     # Log LOOCV metrics
@@ -444,8 +441,6 @@ def log_loocv_metrics(
     # Log metrics to MLflow
     for metric_name, metric_value in loocv_metrics.items():
         mlflow.log_metric(metric_name, metric_value)
-
-    return loocv_metrics, model_loo
 
 
 def log_inference_data(
@@ -467,8 +462,8 @@ def log_inference_data(
     os.remove(save_file)
 
 
-class MMMRegistrar(mlflow.pyfunc.PythonModel):
-    """A class to prepare a PyMC Marketing Mix Model (MMM) for registering in MLflow.
+class MMMWrapper(mlflow.pyfunc.PythonModel):
+    """A class to prepare a PyMC Marketing Mix Model (MMM) for logging and registering in MLflow.
 
     This class extends MLflow's PythonModel to handle prediction tasks using a PyMC-based MMM.
     It supports several prediction methods, including point-prediction, posterior and prior predictive sampling.
@@ -494,75 +489,6 @@ class MMMRegistrar(mlflow.pyfunc.PythonModel):
         The variable names to include in the predictions.
     sample_kwargs : dict, optional
         Additional keyword arguments to pass to the selected sampling methods.
-
-    Examples
-    --------
-    MLFlow Registering for a PyMC-Marketing model:
-
-    .. code-block:: python
-
-        import pandas as pd
-
-        import mlflow
-
-        from pymc_marketing.mmm import (
-            GeometricAdstock,
-            LogisticSaturation,
-            MMM,
-        )
-        import pymc_marketing.mlflow
-        from pymc_marketing.mlflow import MMMRegistrar
-
-        pymc_marketing.mlflow.autolog(log_mmm=True)
-
-        # Usual PyMC-Marketing model code
-
-        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
-        data = pd.read_csv(data_url, parse_dates=["date_week"])
-
-        X = data.drop("y",axis=1)
-        y = data["y"]
-
-        mmm = MMM(
-            adstock=GeometricAdstock(l_max=8),
-            saturation=LogisticSaturation(),
-            date_column="date_week",
-            channel_columns=["x1", "x2"],
-            control_columns=[
-                "event_1",
-                "event_2",
-                "t",
-            ],
-            yearly_seasonality=2,
-        )
-
-        # Incorporate into MLflow workflow
-        mlflow_mmm = MMMRegistrar(
-            mmm,
-            extend_idata=False,
-            combined=True,
-            include_last_observations=False,
-            original_scale=True,
-        )
-        model_name = "my_mmm_model"
-
-        mlflow.set_experiment("MMM Experiment")
-
-        with mlflow.start_run():
-            idata = mmm.fit(X, y)
-
-            # Additional specific logging
-            fig = mmm.plot_components_contributions()
-            mlflow.log_figure(fig, "components.png")
-
-            # Register the model
-            mlflow.pyfunc.log_model(
-                artifact_path=model_name,
-                python_model=mlflow_mmm,
-            )
-            run_id = mlflow.active_run().info.run_id
-            model_uri = f"runs:/{run_id}/{model_name}"
-            mlflow.register_model(model_uri, model_name)
 
     """
 
@@ -652,6 +578,106 @@ class MMMRegistrar(mlflow.pyfunc.PythonModel):
             )
 
 
+def log_model(
+    mmm: MMM,
+    artifact_path: str = "model",
+    mmm_registry_name: str | None = None,
+    **wrapper_kwargs,
+) -> None:
+    """Log a PyMC-Marketing MMM as an MLflow artifact for the current run.
+
+    Parameters
+    ----------
+    model : MMMWrapper
+        The MMM to be logged.
+    artifact_path : str, optional
+        The path to the artifact to be logged. Defaults to "mmm_model".
+    conda_env : dict, optional
+        A dictionary representation of a Conda environment. Defaults to the default conda environment.
+    registered_model_name : str, optional
+        The name of the registered model to be logged. Defaults to None.
+        If specified, the model will be registered under this name, otherwise it will not be registered.
+    wrapper_kwargs : dict, optional
+        Additional keyword arguments to pass to the MMMWrapper, controlling inference behaviour of logged model.
+
+    Examples
+    --------
+    MLFlow Registering for a PyMC-Marketing model:
+
+    .. code-block:: python
+
+        import pandas as pd
+
+        import mlflow
+
+        from pymc_marketing.mmm import (
+            GeometricAdstock,
+            LogisticSaturation,
+            MMM,
+        )
+        import pymc_marketing.mlflow
+        from pymc_marketing.mlflow import MMMWrapper
+
+        pymc_marketing.mlflow.autolog(log_mmm=True)
+
+        # Usual PyMC-Marketing model code
+
+        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
+        data = pd.read_csv(data_url, parse_dates=["date_week"])
+
+        X = data.drop("y",axis=1)
+        y = data["y"]
+
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
+            date_column="date_week",
+            channel_columns=["x1", "x2"],
+            control_columns=[
+                "event_1",
+                "event_2",
+                "t",
+            ],
+            yearly_seasonality=2,
+        )
+
+        mlflow.set_experiment("MMM Experiment")
+
+        with mlflow.start_run():
+            idata = mmm.fit(X, y)
+
+            # Additional specific logging
+            fig = mmm.plot_components_contributions()
+            mlflow.log_figure(fig, "components.png")
+
+            model_info = log_model(mmm,
+                    mmm_registry_name="my_amazing_mmm",
+                    include_last_observations=True,
+                    original_scale=False,
+                    )
+    """
+    # Incorporate MMM into MLflow workflow
+    mlflow_mmm = MMMWrapper(
+        mmm,
+        extend_idata=wrapper_kwargs.get("extend_idata", False),
+        combined=wrapper_kwargs.get("combined", True),
+        include_last_observations=wrapper_kwargs.get(
+            "include_last_observations", False
+        ),
+        original_scale=wrapper_kwargs.get("original_scale", True),
+    )
+
+    mlflow.pyfunc.log_model(
+        artifact_path=artifact_path,
+        python_model=mlflow_mmm,
+    )
+    run_id = mlflow.active_run().info.run_id
+    model_uri = f"runs:/{run_id}/{artifact_path}"
+
+    if mmm_registry_name:
+        mlflow.register_model(model_uri, mmm_registry_name)
+
+
 @autologging_integration(FLAVOR_NAME)
 def autolog(
     log_sampler_info: bool = True,
@@ -661,6 +687,7 @@ def autolog(
     arviz_summary_kwargs: dict | None = None,
     log_mmm: bool = True,
     log_loocv: bool = True,
+    mmm_registry_name: str | None = None,
     disable: bool = False,
     silent: bool = False,
 ) -> None:
@@ -799,7 +826,7 @@ def autolog(
                 log_data(model=model, idata=idata)
 
             if log_loocv:
-                log_loocv_metrics(idata)
+                log_loocv_metrics(idata=idata)
 
             return idata
 
@@ -809,8 +836,8 @@ def autolog(
 
     def patch_mmm_fit(fit):
         @wraps(fit)
-        def new_fit(*args, **kwargs):
-            idata = fit(*args, **kwargs)
+        def new_fit(self, *args, **kwargs):
+            idata = fit(self, *args, **kwargs)
 
             mlflow.log_params(
                 idata.attrs,
@@ -824,6 +851,14 @@ def autolog(
                 json.loads(idata.attrs["saturation"])["lookup_name"],
             )
             log_inference_data(idata, save_file="idata.nc")
+
+            if log_loocv:
+                log_loocv_metrics(idata=idata)
+
+            log_model(
+                self,
+                mmm_registry_name=mmm_registry_name,
+            )
 
             return idata
 
