@@ -410,37 +410,41 @@ def log_loocv_metrics(
     idata : az.InferenceData
         The InferenceData object returned by the sampling method.
 
-    Raises
-    ------
-    KeyError
-        If the inference data object does not contain the group posterior or sample_stats.
-
     Sets
     ----
     idata.log_likelihood : az.InferenceData
         The InferenceData object with the log_likelihood group, unless it already exists.
     """
-    if "posterior" not in idata:
-        raise KeyError("InferenceData object does not contain the group posterior.")
+    if "posterior" not in idata or "sample_stats" not in idata:
+        logging.warning(
+            "Skipping LOOCV metrics: InferenceData object does not contain\
+                         the group posterior and sample stats."
+        )
+        return
 
-    if "sample_stats" not in idata:
-        raise KeyError("InferenceData object does not contain the group sample_stats.")
-
+    # try-excepts necessary in case of empty models, like `test_log_data_no_data`
     if "log_likelihood" not in idata:
-        pm.compute_log_likelihood(idata, progressbar=False)
+        try:
+            pm.compute_log_likelihood(idata, progressbar=False)
+        except Exception as e:
+            logging.warning(
+                f"Skipping LOOCV metrics: Unable to compute log likelihood. Error: {e!s}"
+            )
+            return
 
-    model_loo = az.loo(idata)
+    try:
+        model_loo = az.loo(idata)
 
-    # Log LOOCV metrics
-    loocv_metrics = {
-        "loocv_elpd_loo": model_loo.elpd_loo,  # expected log pointwise predictive density
-        "loocv_se": model_loo.se,  # standard error of elpd
-        "loocv_p_loo": model_loo.p_loo,  # effective number of parameters
-    }
+        loocv_metrics = {
+            "loocv_elpd_loo": model_loo.elpd_loo,
+            "loocv_se": model_loo.se,
+            "loocv_p_loo": model_loo.p_loo,
+        }
 
-    # Log metrics to MLflow
-    for metric_name, metric_value in loocv_metrics.items():
-        mlflow.log_metric(metric_name, metric_value)
+        for metric_name, metric_value in loocv_metrics.items():
+            mlflow.log_metric(metric_name, metric_value)
+    except Exception as e:
+        logging.warning(f"Failed to compute LOOCV metrics: {e!s}")
 
 
 def log_inference_data(
@@ -765,7 +769,7 @@ def autolog(
     log_mmm : bool, optional
         Whether to log PyMC-Marketing MMM models. Default is True.
     log_loocv : bool, optional
-        Whether to log LOOCV metrics. Default is True.
+        Whether to log LOOCV metrics for MMM models. Default is True.
     disable : bool, optional
         Whether to disable autologging. Default is False.
     silent : bool, optional
@@ -851,32 +855,33 @@ def autolog(
     def patch_sample(sample):
         @wraps(sample)
         def new_sample(*args, **kwargs):
-            idata = sample(*args, **kwargs)
-            mlflow.log_param("pymc_marketing_version", __version__)
-            mlflow.log_param("pymc_version", pm.__version__)
-            mlflow.log_param("nuts_sampler", kwargs.get("nuts_sampler", "pymc"))
-
-            # Align with the default values in pymc.sample
-            tune = kwargs.get("tune", 1000)
-
-            if log_sampler_info:
-                log_sample_diagnostics(idata, tune=tune)
-                log_arviz_summary(
-                    idata,
-                    "summary.html",
-                    var_names=summary_var_names,
-                    **arviz_summary_kwargs,
-                )
-
             model = pm.modelcontext(kwargs.get("model"))
-            if log_model_info:
-                log_model_derived_info(model)
+            with model:
+                idata = sample(*args, **kwargs)
+                mlflow.log_param("pymc_marketing_version", __version__)
+                mlflow.log_param("pymc_version", pm.__version__)
+                mlflow.log_param("nuts_sampler", kwargs.get("nuts_sampler", "pymc"))
 
-            if log_datasets:
-                log_data(model=model, idata=idata)
+                # Align with the default values in pymc.sample
+                tune = kwargs.get("tune", 1000)
 
-            if log_loocv:
-                log_loocv_metrics(idata=idata)
+                if log_sampler_info:
+                    log_sample_diagnostics(idata, tune=tune)
+                    log_arviz_summary(
+                        idata,
+                        "summary.html",
+                        var_names=summary_var_names,
+                        **arviz_summary_kwargs,
+                    )
+
+                if log_model_info:
+                    log_model_derived_info(model)
+
+                if log_datasets:
+                    log_data(model=model, idata=idata)
+
+                # if log_loocv:
+                #     log_loocv_metrics(idata=idata)
 
             return idata
 
