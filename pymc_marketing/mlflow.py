@@ -108,6 +108,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import arviz as az
+import numpy as np
 import pymc as pm
 from pymc.model.core import Model
 from pytensor.tensor import TensorVariable
@@ -121,6 +122,7 @@ except ImportError:  # pragma: no cover
 from mlflow.utils.autologging_utils import autologging_integration
 
 from pymc_marketing.mmm import MMM
+from pymc_marketing.mmm.evaluation import MMMEvaluator
 from pymc_marketing.version import __version__
 
 FLAVOR_NAME = "pymc"
@@ -395,6 +397,7 @@ def log_sample_diagnostics(
 
 
 def log_loocv_metrics(
+    model: Model | MMM | None,
     idata: az.InferenceData,
 ) -> None:
     """Log Bayesian LOOCV metrics to MLflow.
@@ -425,7 +428,16 @@ def log_loocv_metrics(
     # try-excepts necessary in case of empty models, like `test_log_data_no_data`
     if "log_likelihood" not in idata:
         try:
-            pm.compute_log_likelihood(idata, progressbar=False)
+            if isinstance(model, MMM):
+                log_likelihood = model.compute_log_likelihood(idata)
+                idata.add_groups({"log_likelihood": log_likelihood})
+            elif isinstance(model, Model):
+                with model:
+                    pm.compute_log_likelihood(idata, progressbar=False)
+            elif model is None:
+                pm.compute_log_likelihood(idata, progressbar=False)
+            else:
+                raise ValueError(f"Unsupported model type: {type(model)}")
         except Exception as e:
             logging.warning(
                 f"Skipping LOOCV metrics: Unable to compute log likelihood. Error: {e!s}"
@@ -466,6 +478,43 @@ def log_inference_data(
     os.remove(save_file)
 
 
+def log_evaluation_metrics(
+    mmm: MMM,
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    metrics_to_calculate: list[str] | None = None,
+    hdi_prob: float = 0.94,
+) -> None:
+    """Log evaluation metrics produced by MMMEvaluator.evaluate_model() to MLflow.
+
+    Parameters
+    ----------
+    mmm : MMM
+        The fitted MMM object.
+    y_true : np.ndarray
+        The true values of the target variable.
+    y_pred : np.ndarray
+        The predicted values of the target variable.
+    metrics_to_calculate : list of str or None, optional
+        List of metrics to calculate. If None, all available metrics will be calculated
+        see `evaluation.calculate_metric_distributions` for more info.
+    hdi_prob : float, optional
+        The probability mass of the highest density interval. Defaults to 0.94.
+
+    """
+    evaluator = MMMEvaluator(mmm)
+    metric_summaries = evaluator.evaluate_model(
+        y_true=y_true,
+        y_pred=y_pred,
+        metrics_to_calculate=metrics_to_calculate,
+        hdi_prob=hdi_prob,
+    )
+
+    for metric, stats in metric_summaries.items():
+        for stat, value in stats.items():
+            mlflow.log_metric(f"{metric}_{stat.replace('%', '')}", value)
+
+
 class MMMWrapper(mlflow.pyfunc.PythonModel):
     """A class to prepare a PyMC Marketing Mix Model (MMM) for logging and registering in MLflow.
 
@@ -489,7 +538,7 @@ class MMMWrapper(mlflow.pyfunc.PythonModel):
         training data. Defaults to False.
     original_scale : bool, default=True
         Boolean determining whether to return the predictions in the original scale of the target variable.
-    var_names : list of str, optional, default=["y"]
+    var_names : list of str, optional, default=None
         The variable names to include in the predictions.
     sample_kwargs : dict, optional
         Additional keyword arguments to pass to the selected sampling methods.
@@ -880,8 +929,8 @@ def autolog(
                 if log_datasets:
                     log_data(model=model, idata=idata)
 
-                # if log_loocv:
-                #     log_loocv_metrics(idata=idata)
+                if log_loocv:
+                    log_loocv_metrics(model=model, idata=idata)
 
             return idata
 
@@ -908,7 +957,16 @@ def autolog(
             log_inference_data(idata, save_file="idata.nc")
 
             if log_loocv:
-                log_loocv_metrics(idata=idata)
+                log_loocv_metrics(model=self, idata=idata)
+
+            posterior_preds = self.sample_posterior_predictive(self.X)
+            log_evaluation_metrics(
+                self,
+                y_true=self.y,
+                y_pred=posterior_preds[
+                    self.output_var[0]
+                ],  # only works with target variable which is defined first
+            )
 
             log_model(
                 self,
