@@ -13,174 +13,365 @@
 #   limitations under the License.
 """Evaluation and diagnostics for MMM models."""
 
-# import arviz as az
-# import matplotlib.pyplot as plt
-# import numpy as np
-# import numpy.typing as npt
-# from sklearn.metrics import (
-#     mean_absolute_error,
-#     mean_absolute_percentage_error,
-#     root_mean_squared_error,
-# )
+import arviz as az
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_absolute_percentage_error,
+    root_mean_squared_error,
+)
 
-# from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.mmm.mmm import MMM
 
 
-# class MMMEvaluator:
-#     """A class to evaluate and diagnose PyMC-Marketing MMMs.
+class MMMEvaluator:
+    """A class to evaluate and diagnose PyMC-Marketing MMMs.
 
-#     Parameters
-#     ----------
-#     model : MMM
-#         The PyMC-Marketing MMM object.
-#     idata : az.InferenceData
-#         The InferenceData object returned by the sampling method.
+    Parameters
+    ----------
+    model : MMM
+        The PyMC-Marketing MMM object.
+    idata : az.InferenceData
+        The InferenceData object returned by the sampling method.
 
-#     """
+    Raises
+    ------
+    ValueError
+        If the model object does not have a non-None 'idata' attribute.
+    ValueError
+        If the model object does not have a non-None 'model' attribute.
 
-#     def __init__(self, model: MMM):
-#         if not hasattr(model, "idata") or model.idata is None:
-#             raise ValueError("The model object must have a non-None 'idata' attribute.")
-#         if not hasattr(model, "model") or model.model is None:
-#             raise ValueError("The model object must have a non-None 'model' attribute.")
+    """
 
-#         self.model = model
-#         self.model_diagnostics = None
-#         self.model_loo = None
+    def __init__(self, model: MMM):
+        if not hasattr(model, "idata") or model.idata is None:
+            raise ValueError("The model object must have a non-None 'idata' attribute.")
+        if not hasattr(model, "model") or model.model is None:
+            raise ValueError("The model object must have a non-None 'model' attribute.")
 
-#     # Same error metric as Robyn
-#     def nrmse(self, y_true: npt.ArrayLike, y_pred: npt.ArrayLike) -> float:
-#         """Calculate the Normalized Root Mean Square Error (NRMSE).
+        self.model = model
+        self.metric_distributions: dict[str, np.ndarray] = {}
+        self.metric_summaries: dict[str, dict[str, float]] = {}
 
-#         Normalization allows for comparison across different data sets and methodologies.
-#         NRMSE is one of the key metrics used in Robyn MMMs.
+    # Same error metric as Robyn
+    @staticmethod
+    def nrmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+        """Calculate the Normalized Root Mean Square Error (NRMSE).
 
-#         Parameters
-#         ----------
-#         y_true : npt.ArrayLike
-#             True values for target metric
-#         y_pred : npt.ArrayLike
-#             Predicted values for target metric
+        Normalization allows for comparison across different data sets and methodologies.
+        NRMSE is one of the key metrics used in Robyn MMMs.
 
-#         Returns
-#         -------
-#         float
-#             Normalized root mean square error.
-#         """
-#         return root_mean_squared_error(y_true, y_pred) / (y_true.max() - y_true.min())
+        Parameters
+        ----------
+        y_true : np.ndarray
+            True values for target metric
+        y_pred : np.ndarray
+            Predicted values for target metric
 
-#     def nmae(self, y_true: npt.ArrayLike, y_pred: npt.ArrayLike) -> float:
-#         """Calculate the Normalized Mean Absolute Error (NMAE).
+        Returns
+        -------
+        float
+            Normalized root mean square error.
+        """
+        return root_mean_squared_error(y_true, y_pred) / (y_true.max() - y_true.min())
 
-#         Normalization allows for comparison across different data sets and methodologies.
+    @staticmethod
+    def nmae(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+        """Calculate the Normalized Mean Absolute Error (NMAE).
 
-#         Parameters
-#         ----------
-#         y_true : npt.ArrayLike
-#             True values for target metric
-#         y_pred : npt.ArrayLike
-#             Predicted values for target metric
+        Normalization allows for comparison across different data sets and methodologies.
 
-#         Returns
-#         -------
-#         float
-#             Normalized mean absolute error.
-#         """
-#         return mean_absolute_error(y_true, y_pred) / (y_true.max() - y_true.min())
+        Parameters
+        ----------
+        y_true : np.ndarray
+            True values for target metric
+        y_pred : np.ndarray
+            Predicted values for target metric
 
-#     def plot_hdi_forest(self, var_names: list, **plot_kwargs) -> plt.Figure:
-#         """Plot a forest plot to compare high-density intervals (HDIs).
+        Returns
+        -------
+        float
+            Normalized mean absolute error.
+        """
+        return mean_absolute_error(y_true, y_pred) / (y_true.max() - y_true.min())
 
-#         Plot a forest plot to compare high-density intervals (HDIs) from a given set of
-#         posterior distributions, as well as their r-hat statistics.
+    def plot_hdi_forest(
+        self,
+        var_names: list,
+        hdi_prob: float = 0.94,
+        figsize: tuple = (12, 8),
+        **plot_kwargs,
+    ) -> plt.Figure:
+        """Plot a forest plot to compare high-density intervals (HDIs).
 
-#         Parameters
-#         ----------
-#         var_names : list
-#             List of variable names to include in the forest plot.
-#         **plot_kwargs
-#             Additional keyword arguments to pass to the az.plot_forest method.
+        Plot a forest plot to compare high-density intervals (HDIs) from a given set of
+        posterior distributions, as well as their r-hat statistics.
 
-#         Returns
-#         -------
-#         plt.Figure
-#             The matplotlib figure object.
-#         """
-#         # Ensure that the model has the required 'idata' attribute and is not None
-#         if not hasattr(self.model, "idata") or self.model.idata is None:
-#             raise ValueError(
-#                 "The model object must have a non-None 'idata' attribute. "
-#                 "Ensure you've called model.fit() before running diagnostics."
-#             )
-#         # Create the forest plot
-#         fig, ax = plt.subplots(figsize=(12, 8), ncols=2)
-#         az.plot_forest(
-#             data=self.model.idata,
-#             var_names=var_names,
-#             combined=True,
-#             ax=ax,
-#             hdi_prob=0.94,
-#             # Also plot the split R-hat statistic
-#             r_hat=True,
-#             **plot_kwargs,
-#         )
+        Parameters
+        ----------
+        var_names : list
+            List of variable names to include in the forest plot.
+        hdi_prob : float, optional
+            The probability mass of the highest density interval. Defaults to 0.94.
+        figsize : tuple, optional
+            Figure size in inches. Defaults to (12, 8).
+        **plot_kwargs
+            Additional keyword arguments to pass to the az.plot_forest method.
 
-#         # Set the title for the figure
-#         fig.suptitle("Posterior Distributions: 94.0% HDI")
+        Returns
+        -------
+        plt.Figure
+            The matplotlib figure object.
+        """
+        if not hasattr(self.model, "idata") or self.model.idata is None:
+            raise ValueError(
+                "The model object must have a non-None 'idata' attribute. "
+                "Ensure you've called model.fit() before running diagnostics."
+            )
 
-#         # Return the figure
-#         return fig
+        fig, ax = plt.subplots(figsize=figsize, ncols=2)
+        az.plot_forest(
+            data=self.model.idata,
+            var_names=var_names,
+            combined=True,
+            ax=ax,
+            hdi_prob=hdi_prob,
+            r_hat=True,
+            **plot_kwargs,
+        )
 
-#     def calc_metrics(
-#         self,
-#         y_true: np.ndarray,
-#         y_pred: np.ndarray,
-#         metrics_to_calculate: list[str] | None = None,
-#         prefix: str | None = None,
-#     ) -> dict[str, float]:
-#         """Calculate evaluation metrics for a given true and predicted dataset.
+        fig.suptitle(f"Posterior Distributions: {hdi_prob:.1%} HDI")
 
-#         Parameters
-#         ----------
-#         y_true : np.ndarray
-#             True values for the dataset.
-#         y_pred : np.ndarray
-#             Predictions for the dataset.
-#         metrics_to_calculate : list of str or None, optional
-#             List of metrics to calculate. Options include:
-#                 * `r_squared`: Bayesian R-squared.
-#                 * `rmse`: Root Mean Squared Error.
-#                 * `nrmse`: Normalized Root Mean Squared Error.
-#                 * `mae`: Mean Absolute Error.
-#                 * `nmae`: Normalized Mean Absolute Error.
-#                 * `mape`: Mean Absolute Percentage Error.
-#             Defaults to all metrics if None.
-#         prefix : str or None, optional
-#             Prefix to label the metrics (e.g., 'train', 'test'). Defaults to None.
+        return fig
 
-#         Returns
-#         -------
-#         dict of str to float
-#             A dictionary containing calculated metrics.
-#         """
-#         if prefix is None:
-#             prefix = ""
-#         else:
-#             prefix += "_"
+    def calculate_metric_distributions(
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        metrics_to_calculate: list[str] | None = None,
+    ) -> dict[str, np.ndarray]:
+        """Calculate distributions of evaluation metrics for posterior samples.
 
-#         if metrics_to_calculate is None:
-#             metrics_to_calculate = ["r_squared", "rmse", "nrmse", "mae", "nmae", "mape"]
+        Parameters
+        ----------
+        y_true : np.ndarray
+            True values for the dataset. Shape: (date,)
+        y_pred : np.ndarray
+            Posterior predictive samples. Shape: (date, sample)
+        metrics_to_calculate : list of str or None, optional
+            List of metrics to calculate. Options include:
+                * `r_squared`: Bayesian R-squared.
+                * `rmse`: Root Mean Squared Error.
+                * `nrmse`: Normalized Root Mean Squared Error.
+                * `mae`: Mean Absolute Error.
+                * `nmae`: Normalized Mean Absolute Error.
+                * `mape`: Mean Absolute Percentage Error.
+            Defaults to all metrics if None.
 
-#         metric_functions = {
-#             "r_squared": lambda y_true, y_pred: az.r2_score(y_true, y_pred)["r2"],
-#             "rmse": self.root_mean_squared_error,
-#             "nrmse": self.nrmse,
-#             "mae": mean_absolute_error,
-#             "nmae": self.nmae,
-#             "mape": mean_absolute_percentage_error,
-#         }
+        Returns
+        -------
+        dict of str to np.ndarray
+            A dictionary containing calculated metric distributions.
 
-#         return {
-#             f"{prefix}{metric}": metric_functions[metric](y_true, y_pred)
-#             for metric in metrics_to_calculate
-#         }
+        Sets
+        ----
+        self.metric_distributions : dict of str to np.ndarray
+            Stores the calculated metric distributions as an instance attribute.
+        """
+        metric_functions = {
+            "r_squared": lambda y_true, y_pred: az.r2_score(y_true, y_pred)["r2"],
+            "rmse": root_mean_squared_error,
+            "nrmse": self.nrmse,
+            "mae": mean_absolute_error,
+            "nmae": self.nmae,
+            "mape": mean_absolute_percentage_error,
+        }
+
+        if metrics_to_calculate is None:
+            metrics_to_calculate = list(metric_functions.keys())
+        else:
+            invalid_metrics = set(metrics_to_calculate) - set(metric_functions.keys())
+            if invalid_metrics:
+                raise ValueError(
+                    f"Invalid metrics: {invalid_metrics}. "
+                    f"Valid options are: {list(metric_functions.keys())}"
+                )
+
+        results = {}
+        for metric in metrics_to_calculate:
+            metric_values = np.array(
+                [
+                    metric_functions[metric](
+                        y_true, y_pred[:, i]
+                    )  # Calculate along date dimension
+                    for i in range(y_pred.shape[1])
+                ]
+            )
+            results[metric] = metric_values
+
+        self.metric_distributions = results
+        return results
+
+    def summarize_metric_distributions(
+        self,
+        metric_distributions: dict[str, np.ndarray] | None = None,
+        hdi_prob: float = 0.94,
+    ) -> dict[str, dict[str, float]]:
+        """Summarize metric distributions with point estimates and HDIs.
+
+        Parameters
+        ----------
+        metric_distributions : dict of str to np.ndarray
+            Dictionary of metric distributions as returned by calculate_metric_distributions.
+        hdi_prob : float, optional
+            The probability mass of the highest density interval. Defaults to 0.94.
+
+        Returns
+        -------
+        dict of str to dict
+            A dictionary containing summary statistics for each metric.
+            List of summary statistics calculated for each metric:
+                * `mean`: Mean of the metric distribution.
+                * `median`: Median of the metric distribution.
+                * `std`: Standard deviation of the metric distribution.
+                * `min`: Minimum value of the metric distribution.
+                * `max`: Maximum value of the metric distribution.
+                * `hdi_lower`: Lower bound of the Highest Density Interval.
+                * `hdi_upper`: Upper bound of the Highest Density Interval.
+        Sets
+        ----
+        self.metric_summaries : dict of str to dict
+            Stores the calculated metric summaries as an instance attribute.
+        """
+        if metric_distributions is None:
+            if self.metric_distributions is None:
+                raise ValueError(
+                    "Metric distributions have not been calculated.\
+                                  Call `calculate_metric_distributions` first."
+                )
+            metric_distributions = self.metric_distributions
+
+        metric_summaries = {}
+        for metric, distribution in metric_distributions.items():
+            hdi = az.hdi(distribution, hdi_prob=hdi_prob)
+            metric_summaries[metric] = {
+                "mean": np.mean(distribution),
+                "median": np.median(distribution),
+                "std": np.std(distribution),
+                "min": np.min(distribution),
+                "max": np.max(distribution),
+                f"{hdi_prob:.0%}_hdi_lower": hdi[0],
+                f"{hdi_prob:.0%}_hdi_upper": hdi[1],
+            }
+
+        self.metric_summaries = metric_summaries
+        return metric_summaries
+
+    def evaluate_model(
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        metrics_to_calculate: list[str] | None = None,
+        hdi_prob: float = 0.94,
+    ) -> dict[str, dict[str, float]]:
+        """Evaluate the model by calculating metric distributions and summarizing them.
+
+        This method combines the functionality of `calculate_metric_distributions` and
+        `summarize_metric_distributions`.
+
+        Parameters
+        ----------
+        y_true : np.ndarray
+            The true values of the target variable.
+        y_pred : np.ndarray
+            The predicted values of the target variable.
+        metrics_to_calculate : list of str or None, optional
+            List of metrics to calculate. Options include:
+                * `r_squared`: Bayesian R-squared.
+                * `rmse`: Root Mean Squared Error.
+                * `nrmse`: Normalized Root Mean Squared Error.
+                * `mae`: Mean Absolute Error.
+                * `nmae`: Normalized Mean Absolute Error.
+                * `mape`: Mean Absolute Percentage Error.
+            Defaults to all metrics if None.
+        hdi_prob : float, optional
+            The probability mass of the highest density interval. Defaults to 0.94.
+
+        Returns
+        -------
+        dict of str to dict
+            A dictionary containing summary statistics for each metric.
+            List of summary statistics calculated for each metric:
+                * `mean`: Mean of the metric distribution.
+                * `median`: Median of the metric distribution.
+                * `std`: Standard deviation of the metric distribution.
+                * `min`: Minimum value of the metric distribution.
+                * `max`: Maximum value of the metric distribution.
+                * `hdi_lower`: Lower bound of the Highest Density Interval.
+                * `hdi_upper`: Upper bound of the Highest Density Interval.
+
+        Sets
+        ----
+        self.metric_distributions : dict
+            A dictionary containing the distributions of calculated metrics.
+        self.metric_summaries : dict
+            A dictionary containing summary statistics for each calculated metric.
+
+        Examples
+        --------
+        Evaluation (error and model metrics) for a PyMC-Marketing MMM.
+
+        .. code-block:: python
+            import pandas as pd
+            from pymc_marketing.mmm import (
+                GeometricAdstock,
+                LogisticSaturation,
+                MMM,
+            )
+            from pymc_marketing.mmm.evaluation import MMMEvaluator
+
+            # Usual PyMC-Marketing demo model code
+            data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
+            data = pd.read_csv(data_url, parse_dates=["date_week"])
+
+            X = data.drop("y",axis=1)
+            y = data["y"]
+            mmm = MMM(
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
+                date_column="date_week",
+                channel_columns=["x1", "x2"],
+                control_columns=[
+                    "event_1",
+                    "event_2",
+                    "t",
+                ],
+                yearly_seasonality=2,
+            )
+            mmm.fit(X, y)
+
+            # Create an evaluator
+            evaluator = MMMEvaluator(mmm)
+
+            # Generate posterior predictive samples
+            posterior_preds = mmm.sample_posterior_predictive(X)
+
+            # Evaluate the model
+            results = evaluator.evaluate_model(
+                y_true=mmm.y,
+                y_pred=posterior_preds.y,
+                metrics_to_calculate=['r_squared', 'rmse', 'mae'],
+                hdi_prob=0.89
+            )
+
+            # Print the results neatly
+            for metric, stats in results.items():
+                print(f"{metric}:")
+                for stat, value in stats.items():
+                    print(f"  {stat}: {value:.4f}")
+                print()
+        """
+        self.calculate_metric_distributions(y_true, y_pred, metrics_to_calculate)
+        self.summarize_metric_distributions(hdi_prob=hdi_prob)
+        return self.metric_summaries
