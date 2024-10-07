@@ -799,3 +799,147 @@ _default_rfm_segment_config = {
     ],
     "Inactive Customer": ["411", "111", "113", "114", "112", "211", "311"],
 }
+
+
+def _expected_cumulative_transactions(
+    model,
+    transactions: pandas.DataFrame,
+    customer_id_col: str,
+    datetime_col: str,
+    t: int,
+    datetime_format: str | None = None,
+    time_unit: str = "D",
+    time_scaler: float | None = 1,
+    sort_transactions: bool | None = True,
+    set_index_date: bool | None = False,
+):
+    """
+    Aggregate actual and expected cumulative transactions over time for a fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
+
+    This function follows the formulation on page 8 of [1]_. Specifically, we take only customers who have made their
+    first transaction before the specified number of ``t`` time periods, run ``expected_purchases_new_customer()``
+    for all remaining time periods, then sum across the customer population.
+
+    Adapted from legacy ``lifetimes`` library:
+    https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/utils.py#L506
+
+    Parameters
+    ----------
+    model:
+        A fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
+    transactions : ~pandas.DataFrame
+        A Pandas DataFrame containing *customer_id_col* and *datetime_col*.
+    customer_id_col : string
+        Column in the *transactions* DataFrame denoting the *customer_id*.
+    datetime_col :  string
+        Column in the *transactions* DataFrame denoting datetimes purchase were made.
+    t: int
+        Number of time units since earliest transaction for which we want to aggregate cumulative transactions.
+    datetime_format : string, optional
+        A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
+    time_unit : string, optional
+        Time granularity for study.
+        Default: 'D' for days. Possible values listed here:
+        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+    time_scaler : int, optional
+        Default: 1. Scales *recency* & *T* to a different time granularity.
+        This is useful for datasets spanning many years, and running predictions in different time scales.
+    sort_transactions : bool, optional
+        Default: *True*
+        If raw data is already sorted in chronological order, set to *False* to improve computational efficiency.
+    set_index_date: bool, optional
+        Set to True to return a dataframe with a datetime index.
+
+    Returns
+    -------
+    DataFrame
+        Dataframe containing colunms for actual and predicted values
+
+    References
+    ----------
+    .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005),
+    A Note on Implementing the Pareto/NBD Model in MATLAB.
+    http://brucehardie.com/notes/008/
+    """
+    start_date = pandas.to_datetime(
+        transactions[datetime_col], format=datetime_format
+    ).min()
+    start_period = start_date.to_period(time_unit)
+    observation_period_end = start_period + t
+
+    # Has an extra column (besides the id and the date)
+    # with a boolean for when it is a first transaction
+    repeated_and_first_transactions = _find_first_transactions(  # type: ignore
+        transactions,
+        customer_id_col,
+        datetime_col,
+        datetime_format=datetime_format,
+        observation_period_end=observation_period_end,
+        time_unit=time_unit,
+        sort_transactions=sort_transactions,
+    )
+
+    # Mask, first transactions and repeated transactions
+    first_trans_mask = repeated_and_first_transactions["first"]
+    repeated_transactions = repeated_and_first_transactions[~first_trans_mask]
+    first_transactions = repeated_and_first_transactions[first_trans_mask]
+
+    date_range = pandas.date_range(start_date, periods=t + 1, freq=time_unit)
+    date_periods = date_range.to_period(time_unit)
+
+    pred_cum_transactions = np.array([])
+
+    # First Transactions on Each Day/Freq
+    first_trans_size = first_transactions.groupby(datetime_col).size()
+
+    # In the loop below, we calculate the expected number of purchases for customers
+    # who have made their first purchases on a date before the one being evaluated.
+    # Then we sum them to get the cumulative sum up to the specific period.
+    for i, period in enumerate(date_periods):  # index of period and its date
+        if i % time_scaler == 0 and i > 0:  # type: ignore
+            # Periods before the one being evaluated
+            times = np.array([d.n for d in period - first_trans_size.index])
+            times = times[times > 0].astype(float) / time_scaler
+
+            # create arbitrary dataframe from array of n time periods for predictions
+            pred_data = pandas.DataFrame(
+                {
+                    "customer_id": times,
+                    "t": times,
+                }
+            )
+
+            # Array of different expected number of purchases for different times
+            # TODO: This does not currently support a covariate model
+            expected_trans_array = model.expected_purchases_new_customer(
+                pred_data
+            ).mean(dim=("chain", "draw"))
+
+            # Mask for the number of customers with 1st transactions up to the period
+            mask = first_trans_size.index < period
+            masked_first_trans = first_trans_size[mask].values  # type: ignore
+            # ``expected_trans`` is an xarray with the cumulative sum of expected transactions
+            expected_trans = (expected_trans_array * masked_first_trans).sum()
+            pred_cum_transactions = np.append(
+                pred_cum_transactions, expected_trans.values
+            )
+
+    act_trans = repeated_transactions.groupby(datetime_col).size()
+    act_tracking_transactions = act_trans.reindex(date_periods, fill_value=0)
+
+    act_cum_transactions = []
+    for j in range(1, t // time_scaler + 1):  # type: ignore
+        sum_trans = sum(act_tracking_transactions.iloc[: j * time_scaler])  # type: ignore
+        act_cum_transactions.append(sum_trans)
+
+    if set_index_date:
+        index = date_periods[time_scaler - 1 : -1 : time_scaler]  # type: ignore
+    else:
+        index = range(0, t // time_scaler)  # type: ignore
+
+    df_cum_transactions = pandas.DataFrame(
+        {"actual": act_cum_transactions, "predicted": pred_cum_transactions},
+        index=index,
+    )
+
+    return df_cum_transactions

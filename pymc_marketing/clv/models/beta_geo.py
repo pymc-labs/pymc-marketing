@@ -454,7 +454,7 @@ class BetaGeoModel(CLVModel):
         self,
         data: pd.DataFrame | None = None,
         *,
-        t: np.ndarray | pd.Series,
+        t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
         r"""Compute the expected number of purchases for a new customer across *t* time periods.
 
