@@ -72,6 +72,7 @@ for saturation parameter of logistic saturation.
 """
 
 import numpy as np
+import pytensor.tensor as pt
 import xarray as xr
 from pydantic import Field, InstanceOf, validate_call
 
@@ -337,7 +338,9 @@ class MichaelisMentenSaturation(SaturationTransformation):
 
     lookup_name = "michaelis_menten"
 
-    function = michaelis_menten
+    def function(self, x, alpha, lam):
+        """Michaelis-Menten saturation function."""
+        return pt.as_tensor_variable(michaelis_menten(x, alpha, lam))
 
     default_priors = {
         "alpha": Prior("Gamma", mu=2, sigma=1),

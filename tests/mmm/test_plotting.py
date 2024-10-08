@@ -20,7 +20,10 @@ import pytest
 from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
-from pymc_marketing.mmm.components.saturation import LogisticSaturation
+from pymc_marketing.mmm.components.saturation import (
+    LogisticSaturation,
+    MichaelisMentenSaturation,
+)
 from pymc_marketing.mmm.mmm import MMM, BaseMMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleTarget
 
@@ -220,10 +223,18 @@ class TestBasePlotting:
         plt.close("all")
 
 
+@pytest.fixture(
+    scope="module",
+    params=[LogisticSaturation(), MichaelisMentenSaturation()],
+    ids=["LogisticSaturation", "MichaelisMentenSaturation"],
+)
+def saturation(request):
+    return request.param
+
+
 @pytest.fixture(scope="module")
-def mock_mmm() -> MMM:
+def mock_mmm(saturation) -> MMM:
     adstock = GeometricAdstock(l_max=4)
-    saturation = LogisticSaturation()
     return MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
