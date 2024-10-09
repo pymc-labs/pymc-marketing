@@ -105,8 +105,10 @@ import os
 import warnings
 from functools import wraps
 from pathlib import Path
+from typing import Any, Literal
 
 import arviz as az
+import numpy as np
 import pymc as pm
 from pymc.model.core import Model
 from pytensor.tensor import TensorVariable
@@ -120,6 +122,7 @@ except ImportError:  # pragma: no cover
 from mlflow.utils.autologging_utils import autologging_integration
 
 from pymc_marketing.mmm import MMM
+from pymc_marketing.mmm.evaluation import MMMEvaluator
 from pymc_marketing.version import __version__
 
 FLAVOR_NAME = "pymc"
@@ -176,7 +179,7 @@ def _backwards_compatiable_data_vars(model: Model) -> list[TensorVariable]:
 
 
 def log_data(model: Model, idata: az.InferenceData) -> None:
-    """Log the data used in the model to MLflow.
+    """Log the metadata of the data used in the model to MLflow.
 
     Saved in the form of numpy arrays based on all the constant and observed data
     in the model.
@@ -393,6 +396,69 @@ def log_sample_diagnostics(
     mlflow.log_param("arviz_version", posterior.attrs["arviz_version"])
 
 
+def log_loocv_metrics(
+    model: Model | MMM | None,
+    idata: az.InferenceData,
+) -> None:
+    """Log Bayesian LOOCV metrics to MLflow.
+
+    Compute Pareto-smoothed importance sampling leave-one-out cross-validation (PSIS-LOO-CV).
+    Estimates the expected log pointwise predictive density (elpd) using Pareto-smoothed
+    importance sampling leave-one-out cross-validation (PSIS-LOO-CV).
+    In order to compute the PSIS-LOO-CV, we need to compute the log_likelihood of the model too,
+    which will extend the inference data with a log_likelihood group.
+
+    Parameters
+    ----------
+    idata : az.InferenceData
+        The InferenceData object returned by the sampling method.
+
+    Sets
+    ----
+    idata.log_likelihood : az.InferenceData
+        The InferenceData object with the log_likelihood group, unless it already exists.
+    """
+    if "posterior" not in idata or "sample_stats" not in idata:
+        logging.warning(
+            "Skipping LOOCV metrics: InferenceData object does not contain\
+                         the group posterior and sample stats."
+        )
+        return
+
+    # try-excepts necessary in case of empty models, like `test_log_data_no_data`
+    if "log_likelihood" not in idata:
+        try:
+            if isinstance(model, MMM):
+                log_likelihood = model.compute_log_likelihood(idata)
+                idata.add_groups({"log_likelihood": log_likelihood})
+            elif isinstance(model, Model):
+                with model:
+                    pm.compute_log_likelihood(idata, progressbar=False)
+            elif model is None:
+                pm.compute_log_likelihood(idata, progressbar=False)
+            else:
+                raise ValueError(f"Unsupported model type: {type(model)}")
+        except Exception as e:
+            logging.warning(
+                f"Skipping LOOCV metrics: Unable to compute log likelihood. Error: {e!s}"
+            )
+            return
+
+    try:
+        model_loo = az.loo(idata)
+
+        loocv_metrics = {
+            "loocv_elpd_loo": model_loo.elpd_loo,
+            "loocv_se": model_loo.se,
+            "loocv_p_loo": model_loo.p_loo,
+        }
+
+        for metric_name, metric_value in loocv_metrics.items():
+            mlflow.log_metric(metric_name, metric_value)
+    except Exception as e:
+        logging.warning(f"Failed to compute LOOCV metrics: {e!s}")
+
+
 def log_inference_data(
     idata: az.InferenceData,
     save_file: str | Path = "idata.nc",
@@ -412,6 +478,314 @@ def log_inference_data(
     os.remove(save_file)
 
 
+def log_evaluation_metrics(
+    mmm: MMM,
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    metrics_to_calculate: list[str] | None = None,
+    hdi_prob: float = 0.94,
+) -> None:
+    """Log evaluation metrics produced by MMMEvaluator.evaluate_model() to MLflow.
+
+    Parameters
+    ----------
+    mmm : MMM
+        The fitted MMM object.
+    y_true : np.ndarray
+        The true values of the target variable.
+    y_pred : np.ndarray
+        The predicted values of the target variable.
+    metrics_to_calculate : list of str or None, optional
+        List of metrics to calculate. If None, all available metrics will be calculated
+        see `evaluation.calculate_metric_distributions` for more info.
+    hdi_prob : float, optional
+        The probability mass of the highest density interval. Defaults to 0.94.
+
+    """
+    evaluator = MMMEvaluator(mmm)
+
+    # Convert y_true and y_pred to numpy arrays if they're not already
+    y_true_np = y_true.to_numpy() if hasattr(y_true, "to_numpy") else np.array(y_true)
+    y_pred_np = y_pred.to_numpy() if hasattr(y_pred, "to_numpy") else np.array(y_pred)
+
+    metric_summaries = evaluator.evaluate_model(
+        y_true=y_true_np,
+        y_pred=y_pred_np,
+        metrics_to_calculate=metrics_to_calculate,
+        hdi_prob=hdi_prob,
+    )
+
+    for metric, stats in metric_summaries.items():
+        for stat, value in stats.items():
+            mlflow.log_metric(f"{metric}_{stat.replace('%', '')}", value)
+
+
+class MMMWrapper(mlflow.pyfunc.PythonModel):
+    """A class to prepare a PyMC Marketing Mix Model (MMM) for logging and registering in MLflow.
+
+    This class extends MLflow's PythonModel to handle prediction tasks using a PyMC-based MMM.
+    It supports several prediction methods, including point-prediction, posterior and prior predictive sampling.
+
+    Parameters
+    ----------
+    model : pymc_marketing.mmm.MMM
+        The marketing mix model to be registered and used for predictions.
+    predict_method : str, optional, default="predict"
+        The default prediction method to use, such as "predict",
+        "sample_posterior_predictive", or "sample_prior_predictive".
+    extend_idata : bool, default=False
+        Boolean determining whether the predictions should be added to inference data object. Defaults to False.
+    combined : bool, default=True
+        Combine chain and draw dims into sample. Won't work if a dim named sample already exists. Defaults to True.
+    include_last_observations : bool, default=False
+        Boolean determining whether to include the last observations of the training data in order to carry over
+        costs with the adstock transformation. Assumes that X_pred are the next predictions following the
+        training data. Defaults to False.
+    original_scale : bool, default=True
+        Boolean determining whether to return the predictions in the original scale of the target variable.
+    var_names : list of str, optional, default=None
+        The variable names to include in the predictions.
+    sample_kwargs : dict, optional
+        Additional keyword arguments to pass to the selected sampling methods.
+
+    """
+
+    def __init__(
+        self,
+        model: MMM,
+        predict_method: Literal[
+            "predict", "sample_posterior_predictive", "sample_prior_predictive"
+        ] = "predict",
+        extend_idata: bool = False,
+        combined: bool = True,
+        include_last_observations: bool = False,
+        original_scale: bool = True,
+        var_names: list[str] | None = None,
+        **sample_kwargs: dict,
+    ):
+        self.model = model
+        self.predict_method = predict_method
+        self.extend_idata = extend_idata
+        self.combined = combined
+        self.include_last_observations = include_last_observations
+        self.original_scale = original_scale
+        self.var_names = (
+            var_names if var_names is not None else [model.output_var]
+        )  # Initialize if not provided
+        self.sample_kwargs = sample_kwargs
+
+    def predict(
+        self, context: Any, model_input, params: dict[str, Any] | None = None
+    ) -> Any:
+        """Perform predictions or sampling using the specified prediction method.
+
+        Parameters
+        ----------
+        context : Any
+            The context in which the model is running. Isn't specified by users but is passed by MLflow.
+        model_input : array, shape (n_pred, n_features)
+            The input data used for prediction.
+        params : dict, optional
+            A dictionary of parameters to specify the prediction method.
+
+        Returns
+        -------
+        ndarray or InferenceData
+            The predictions or samples generated by the model.
+
+        Raises
+        ------
+        ValueError
+            If an unsupported prediction method is specified.
+
+        """
+        # Use the class-level predict_method if params is not provided or doesn't contain 'predict_method'
+        params = params or {"predict_method": "predict"}
+        predict_method = params.get("predict_method", self.predict_method)
+
+        if predict_method == "predict":
+            return self.model.predict(
+                model_input,
+                extend_idata=self.extend_idata,
+                include_last_observations=self.include_last_observations,
+                original_scale=self.original_scale,
+                var_names=self.var_names,
+                **self.sample_kwargs,
+            )
+        elif predict_method == "sample_posterior_predictive":
+            return self.model.sample_posterior_predictive(
+                model_input,
+                extend_idata=self.extend_idata,
+                combined=self.combined,
+                include_last_observations=self.include_last_observations,
+                original_scale=self.original_scale,
+                var_names=self.var_names,
+                **self.sample_kwargs,
+            )
+        elif predict_method == "sample_prior_predictive":
+            return self.model.sample_prior_predictive(
+                model_input,
+                extend_idata=self.extend_idata,
+                combined=self.combined,
+                var_names=self.var_names,
+                **self.sample_kwargs,  # type: ignore[arg-type]
+            )
+        else:
+            raise ValueError(
+                f"The prediction method '{predict_method}' is not supported."
+            )
+
+
+def log_model(
+    mmm: MMM,
+    artifact_path: str = "model",
+    mmm_registry_name: str | None = None,
+    **wrapper_kwargs,
+) -> None:
+    """Log a PyMC-Marketing MMM as an MLflow artifact for the current run.
+
+    Parameters
+    ----------
+    model : MMMWrapper
+        The MMM to be logged.
+    artifact_path : str, optional
+        The path to the artifact to be logged. Defaults to "mmm_model".
+    conda_env : dict, optional
+        A dictionary representation of a Conda environment. Defaults to the default conda environment.
+    registered_model_name : str, optional
+        The name of the registered model to be logged. Defaults to None.
+        If specified, the model will be registered under this name, otherwise it will not be registered.
+    wrapper_kwargs : dict, optional
+        Additional keyword arguments to pass to the MMMWrapper, controlling inference behaviour of logged model.
+
+    Examples
+    --------
+    MLFlow Registering for a PyMC-Marketing model:
+
+    .. code-block:: python
+
+        import pandas as pd
+
+        import mlflow
+
+        from pymc_marketing.mmm import (
+            GeometricAdstock,
+            LogisticSaturation,
+            MMM,
+        )
+        import pymc_marketing.mlflow
+        from pymc_marketing.mlflow import MMMWrapper
+
+        pymc_marketing.mlflow.autolog(log_mmm=True)
+
+        # Usual PyMC-Marketing model code
+
+        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
+        data = pd.read_csv(data_url, parse_dates=["date_week"])
+
+        X = data.drop("y",axis=1)
+        y = data["y"]
+
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
+            date_column="date_week",
+            channel_columns=["x1", "x2"],
+            control_columns=[
+                "event_1",
+                "event_2",
+                "t",
+            ],
+            yearly_seasonality=2,
+        )
+
+        mlflow.set_experiment("MMM Experiment")
+
+        with mlflow.start_run():
+            idata = mmm.fit(X, y)
+
+            # Additional specific logging
+            fig = mmm.plot_components_contributions()
+            mlflow.log_figure(fig, "components.png")
+
+            model_info = log_model(mmm,
+                    mmm_registry_name="my_amazing_mmm",
+                    include_last_observations=True,
+                    original_scale=False,
+                    )
+    """
+    # Incorporate MMM into MLflow workflow
+    mlflow_mmm = MMMWrapper(
+        mmm,
+        extend_idata=wrapper_kwargs.get("extend_idata", False),
+        combined=wrapper_kwargs.get("combined", True),
+        include_last_observations=wrapper_kwargs.get(
+            "include_last_observations", False
+        ),
+        original_scale=wrapper_kwargs.get("original_scale", True),
+    )
+
+    mlflow.pyfunc.log_model(
+        artifact_path=artifact_path,
+        python_model=mlflow_mmm,
+    )
+    run_id = mlflow.active_run().info.run_id
+    model_uri = f"runs:/{run_id}/{artifact_path}"
+
+    if mmm_registry_name:
+        mlflow.register_model(model_uri, mmm_registry_name)
+
+
+def load_model(
+    run_id: str | None = None,
+    full_model: bool = False,
+    keep_idata: bool = False,
+    artifact_path: str = "model",
+) -> mlflow.pyfunc.PyFuncModel | MMM:
+    """
+    Load a PyMC-Marketing MMM model from MLflow.
+
+    Can either load the full model including the InferenceData, or just the lighter PyFuncModel version.
+
+    Parameters
+    ----------
+    run_id : str, optional
+        The MLflow run ID from which to load the model.
+    full_model : bool, default=True
+        If True, load the full MMM model including the InferenceData.
+    keep_idata : bool, default=False
+        If True, keep the downloaded InferenceData saved locally.
+    artifact_path : str, default="model"
+        The artifact path within the run where the model is stored.
+
+    Returns
+    -------
+    model : mlflow.pyfunc.PyFuncModel | MMM
+        The loaded MLflow PyFuncModel or MMM model.
+
+
+    Examples
+    --------
+    # Load model using run_id
+    model = load_model(run_id="your_run_id", full_model=True, keep_idata=True)
+    """
+    model_uri = f"runs:/{run_id}/{artifact_path}"
+
+    if not full_model:
+        model = mlflow.pyfunc.load_model(model_uri)
+
+    else:
+        idata_path = mlflow.artifacts.download_artifacts(
+            run_id=run_id, artifact_path="idata.nc", dst_path="idata"
+        )
+        model = MMM.load(idata_path)
+        if not keep_idata:
+            os.remove(idata_path)
+            os.rmdir("idata")
+
+    return model
+
+
 @autologging_integration(FLAVOR_NAME)
 def autolog(
     log_sampler_info: bool = True,
@@ -420,6 +794,8 @@ def autolog(
     summary_var_names: list[str] | None = None,
     arviz_summary_kwargs: dict | None = None,
     log_mmm: bool = True,
+    log_loocv: bool = True,
+    mmm_registry_name: str | None = None,
     disable: bool = False,
     silent: bool = False,
 ) -> None:
@@ -446,6 +822,8 @@ def autolog(
         Additional keyword arguments to pass to `az.summary`.
     log_mmm : bool, optional
         Whether to log PyMC-Marketing MMM models. Default is True.
+    log_loocv : bool, optional
+        Whether to log LOOCV metrics for MMM models. Default is True.
     disable : bool, optional
         Whether to disable autologging. Default is False.
     silent : bool, optional
@@ -531,29 +909,33 @@ def autolog(
     def patch_sample(sample):
         @wraps(sample)
         def new_sample(*args, **kwargs):
-            idata = sample(*args, **kwargs)
-            mlflow.log_param("pymc_marketing_version", __version__)
-            mlflow.log_param("pymc_version", pm.__version__)
-            mlflow.log_param("nuts_sampler", kwargs.get("nuts_sampler", "pymc"))
-
-            # Align with the default values in pymc.sample
-            tune = kwargs.get("tune", 1000)
-
-            if log_sampler_info:
-                log_sample_diagnostics(idata, tune=tune)
-                log_arviz_summary(
-                    idata,
-                    "summary.html",
-                    var_names=summary_var_names,
-                    **arviz_summary_kwargs,
-                )
-
             model = pm.modelcontext(kwargs.get("model"))
-            if log_model_info:
-                log_model_derived_info(model)
+            with model:
+                idata = sample(*args, **kwargs)
+                mlflow.log_param("pymc_marketing_version", __version__)
+                mlflow.log_param("pymc_version", pm.__version__)
+                mlflow.log_param("nuts_sampler", kwargs.get("nuts_sampler", "pymc"))
 
-            if log_datasets:
-                log_data(model=model, idata=idata)
+                # Align with the default values in pymc.sample
+                tune = kwargs.get("tune", 1000)
+
+                if log_sampler_info:
+                    log_sample_diagnostics(idata, tune=tune)
+                    log_arviz_summary(
+                        idata,
+                        "summary.html",
+                        var_names=summary_var_names,
+                        **arviz_summary_kwargs,
+                    )
+
+                if log_model_info:
+                    log_model_derived_info(model)
+
+                if log_datasets:
+                    log_data(model=model, idata=idata)
+
+                if log_loocv:
+                    log_loocv_metrics(model=model, idata=idata)
 
             return idata
 
@@ -563,8 +945,8 @@ def autolog(
 
     def patch_mmm_fit(fit):
         @wraps(fit)
-        def new_fit(*args, **kwargs):
-            idata = fit(*args, **kwargs)
+        def new_fit(self, *args, **kwargs):
+            idata = fit(self, *args, **kwargs)
 
             mlflow.log_params(
                 idata.attrs,
@@ -578,6 +960,23 @@ def autolog(
                 json.loads(idata.attrs["saturation"])["lookup_name"],
             )
             log_inference_data(idata, save_file="idata.nc")
+
+            if log_loocv:
+                log_loocv_metrics(model=self, idata=idata)
+
+            posterior_preds = self.sample_posterior_predictive(self.X)
+            log_evaluation_metrics(
+                self,
+                y_true=self.y,
+                y_pred=posterior_preds[
+                    self.output_var[0]
+                ],  # only works with target variable which is defined first
+            )
+
+            log_model(
+                self,
+                mmm_registry_name=mmm_registry_name,
+            )
 
             return idata
 
