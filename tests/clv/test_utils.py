@@ -22,6 +22,7 @@ from pandas.testing import assert_frame_equal
 
 from pymc_marketing.clv import BetaGeoModel, GammaGammaModel, ParetoNBDModel
 from pymc_marketing.clv.utils import (
+    _expected_cumulative_transactions,
     _find_first_transactions,
     _rfm_quartile_labels,
     clv_summary,
@@ -88,10 +89,10 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
 
     model_config = {
         # Narrow Gaussian centered at MLE params from lifetimes ParetoNBDFitter
-        "r_prior": Prior("DiracDelta", c=0.5534),
-        "alpha_prior": Prior("DiracDelta", c=10.5802),
-        "s_prior": Prior("DiracDelta", c=0.6061),
-        "beta_prior": Prior("DiracDelta", c=11.6562),
+        "r_prior": Prior("DiracDelta", c=0.560),
+        "alpha_prior": Prior("DiracDelta", c=10.591),
+        "s_prior": Prior("DiracDelta", c=0.550),
+        "beta_prior": Prior("DiracDelta", c=9.756),
     }
     pnbd_model = ParetoNBDModel(
         data=test_summary_data,
@@ -131,6 +132,45 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
     set_model_fit(model, fake_fit)
 
     return model
+
+
+# TODO: Consolidate this fixture into the tests requiring it?
+@pytest.fixture()
+def df_cum_transactions():
+    url_cdnow = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/cdnow_transactions.csv"
+    cdnow_transactions = pd.read_csv(url_cdnow)
+
+    rfm_data = rfm_summary(
+        cdnow_transactions,
+        customer_id_col="id",
+        datetime_col="date",
+        datetime_format="%Y%m%d",
+        time_unit="D",
+        observation_period_end="19970930",
+        time_scaler=7,
+    )
+
+    model_config = {
+        "r_prior": Prior("HalfFlat"),
+        "alpha_prior": Prior("HalfFlat"),
+        "s_prior": Prior("HalfFlat"),
+        "beta_prior": Prior("HalfFlat"),
+    }
+
+    pnbd = ParetoNBDModel(data=rfm_data, model_config=model_config)
+    pnbd.fit()
+
+    df_cum = _expected_cumulative_transactions(
+        model=pnbd,
+        transactions=cdnow_transactions,
+        customer_id_col="id",
+        datetime_col="date",
+        t=25 * 7,
+        datetime_format="%Y%m%d",
+        time_unit="D",
+        time_scaler=7,
+    )
+    return df_cum
 
 
 class TestCustomerLifetimeValue:
@@ -871,3 +911,110 @@ class TestRFM:
         # assert max_quartile_range = 4 returns a range function for three labels
         frequency = _rfm_quartile_labels("f_quartile", 4)
         assert frequency == range(1, 4)
+
+
+def test_expected_cumulative_transactions_dedups_inside_a_time_period(
+    fitted_bg, cdnow_trans
+):
+    """
+    Test adapted from lifetimes:
+    https://github.com/CamDavidsonPilon/lifetimes/blob/master/tests/test_utils.py#L623
+    """
+    by_week = _expected_cumulative_transactions(
+        fitted_bg, cdnow_trans, "date", "id", 10, time_unit="W"
+    )
+    by_day = _expected_cumulative_transactions(
+        fitted_bg, cdnow_trans, "date", "id", 10, time_unit="D"
+    )
+    assert (by_week["actual"] >= by_day["actual"]).all()
+
+
+def test_expected_cumulative_incremental_transactions_equals_r_btyd_walkthrough(
+    cdnow_trans, fitted_pnbd
+):
+    """
+    Validate expected cumulative & incremental transactions with BTYD walktrough
+
+    https://cran.r-project.org/web/packages/BTYD/vignettes/BTYD-walkthrough.pdf
+
+    cum.tracking[,20:25]
+    # [,1] [,2] [,3] [,4] [,5] [,6]
+    # actual 1359 1414 1484 1517 1573 1672
+    # expected 1309 1385 1460 1533 1604 1674
+
+    inc.tracking[,20:25]
+    # [,1] [,2] [,3] [,4] [,5] [,6]
+    # actual 73.00 55.00 70.00 33.00 56.00 99.00
+    # expected 78.31 76.42 74.65 72.98 71.41 69.93
+
+    Test adapted from lifetimes:
+    https://github.com/CamDavidsonPilon/lifetimes/blob/master/tests/test_utils.py#L601
+    """
+    df_cum_trans = _expected_cumulative_transactions(
+        model=fitted_pnbd,
+        transactions=cdnow_trans,
+        customer_id_col="id",
+        datetime_col="date",
+        t=25 * 7,
+        datetime_format="%Y%m%d",
+        time_unit="D",
+        time_scaler=7,
+    )
+
+    actual_btyd = [1359, 1414, 1484, 1517, 1573, 1672]
+    expected_btyd = [1309, 1385, 1460, 1533, 1604, 1674]
+
+    actual = df_cum_trans["actual"].iloc[19:25].values
+    predicted = df_cum_trans["predicted"].iloc[19:25].values.round()
+
+    np.testing.assert_allclose(actual, actual_btyd)
+    np.testing.assert_allclose(predicted, expected_btyd, rtol=1e-1)
+
+    # get incremental from cumulative transactions
+    df_inc_trans = df_cum_trans.apply(lambda x: x - x.shift(1))
+
+    actual_btyd = [73.00, 55.00, 70.00, 33.00, 56.00, 99.00]
+    expected_btyd = [78.31, 76.42, 74.65, 72.98, 71.41, 69.93]
+
+    actual = df_inc_trans["actual"].iloc[19:25].values
+    predicted = df_inc_trans["predicted"].iloc[19:25].values.round(2)
+
+    np.testing.assert_allclose(actual, actual_btyd)
+    np.testing.assert_allclose(predicted, expected_btyd, rtol=1e-2)
+
+
+def test_expected_cumulative_transactions_date_index(fitted_bg, cdnow_trans):
+    """
+    Test set_index as date for cumulative transactions and bgf fitter.
+
+    Get first 14 cdnow transactions dates and validate that date index,
+    freq_multiplier = 1 working and compare with tested data for last 4 records.
+
+    Test adapted from lifetimes:
+    https://github.com/CamDavidsonPilon/lifetimes/blob/master/tests/test_utils.py#L648
+    """
+    df_cum = _expected_cumulative_transactions(
+        fitted_bg,
+        cdnow_trans,
+        customer_id_col="id",
+        datetime_col="date",
+        t=14,
+        datetime_format="%Y%m%d",
+        time_unit="D",
+        time_scaler=1,
+        set_index_date=True,
+    )
+
+    dates = ["1997-01-11", "1997-01-12", "1997-01-13", "1997-01-14"]
+    actual_trans = [11, 12, 15, 19]
+    # these values differ from the lifetimes test because we are reusing the existing BG/NBD model fixture
+    # rather than fitting a new model to a different subset of the data
+    expected_trans = [76.27, 88.42, 101.53, 115.28]
+
+    date_index = df_cum.iloc[-4:].index.to_timestamp().astype(str)
+    actual = df_cum["actual"].iloc[-4:].values
+    predicted = df_cum["predicted"].iloc[-4:].values.round(2)
+
+    assert all(dates == date_index)
+    np.testing.assert_allclose(actual, actual_trans)
+    np.testing.assert_allclose(predicted, expected_trans, rtol=1e-2)
