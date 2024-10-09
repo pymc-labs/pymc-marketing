@@ -16,6 +16,7 @@
 import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 from sklearn.metrics import (
     mean_absolute_error,
     mean_absolute_percentage_error,
@@ -123,6 +124,11 @@ class MMMEvaluator:
         -------
         plt.Figure
             The matplotlib figure object.
+
+        Raises
+        ------
+        ValueError
+            If the required attributes (idata) are not found.
         """
         if not hasattr(self.model, "idata") or self.model.idata is None:
             raise ValueError(
@@ -142,6 +148,158 @@ class MMMEvaluator:
         )
 
         fig.suptitle(f"Posterior Distributions: {hdi_prob:.1%} HDI")
+
+        return fig
+
+    def plot_prior_vs_posterior(
+        self,
+        var_name: str,
+        alphabetical_sort: bool = True,
+        figsize: tuple[int, int] | None = None,
+    ) -> plt.Figure:
+        """
+        Plot the prior vs posterior distribution for a specified variable in a 3 columngrid layout.
+
+        This function generates KDE plots for each MMM channel, showing the prior predictive
+        and posterior distributions with their respective means highlighted.
+        It sorts the plots either alphabetically or based on the difference between the
+        posterior and prior means, with the largest difference (posterior - prior) at the top.
+
+        Parameters
+        ----------
+        var_name: str
+            The variable to analyze (e.g., 'adstock_alpha').
+        alphabetical_sort: bool, optional
+            Whether to sort the channels alphabetically (True) or by the difference
+            between the posterior and prior means (False). Default is True.
+        figsize : tuple of int, optional
+            Figure size in inches. If None, it will be calculated based on the number of channels.
+
+        Returns
+        -------
+        fig : plt.Figure
+            The matplotlib figure object
+
+        Raises
+        ------
+        ValueError
+            If the required attributes (prior, posterior) were not found.
+        ValueError
+            If var_name is not a string.
+        """
+        if (
+            self.model.idata is None
+            or not hasattr(self.model.idata, "prior")
+            or not hasattr(self.model.idata, "posterior")
+        ):
+            raise ValueError(
+                "Required attributes (prior, posterior) not found.\
+                            Ensure you've called model.fit() and mmm.sample_prior_predictive()"
+            )
+
+        if not isinstance(var_name, str):
+            raise ValueError(
+                "var_name must be a string. Please provide a single variable name."
+            )
+
+        # Determine the number of channels and set up the grid
+        num_channels = len(self.model.channel_columns)
+        num_cols = 3
+        num_rows = (num_channels + num_cols - 1) // num_cols  # Calculate rows needed
+
+        if figsize is None:
+            figsize = (25, 5 * num_rows)
+
+        # Calculate prior and posterior means for sorting
+        channel_means = []
+        for channel in self.model.channel_columns:
+            prior_mean = (
+                self.model.idata.prior[var_name].sel(channel=channel).mean().values
+            )
+            posterior_mean = (
+                self.model.idata.posterior[var_name].sel(channel=channel).mean().values
+            )
+            difference = posterior_mean - prior_mean
+            channel_means.append((channel, prior_mean, posterior_mean, difference))
+
+        # Choose how to sort the channels
+        if alphabetical_sort:
+            sorted_channels = sorted(channel_means, key=lambda x: x[0])
+        else:
+            # Otherwise, sort on difference between posterior and prior means
+            sorted_channels = sorted(channel_means, key=lambda x: x[3], reverse=True)
+
+        fig, axs = plt.subplots(num_rows, num_cols, figsize=figsize)
+        axs = axs.flatten()  # Flatten the array for easy iteration
+
+        # Plot for each channel
+        for i, (channel, prior_mean, posterior_mean, difference) in enumerate(
+            sorted_channels
+        ):
+            # Extract prior samples for the current channel
+            prior_samples = (
+                self.model.idata.prior[var_name].sel(channel=channel).values.flatten()
+            )
+
+            # Plot the prior predictive distribution
+            sns.kdeplot(
+                prior_samples,
+                ax=axs[i],
+                label="Prior Predictive",
+                color="blue",
+                fill=True,
+            )
+
+            # Add a vertical line for the mean of the prior distribution
+            axs[i].axvline(
+                prior_mean,
+                color="blue",
+                linestyle="--",
+                linewidth=2,
+                label=f"Prior Mean: {prior_mean:.2f}",
+            )
+
+            # Extract posterior samples for the current channel
+            posterior_samples = (
+                self.model.idata.posterior[var_name]
+                .sel(channel=channel)
+                .values.flatten()
+            )
+
+            # Plot the prior predictive distribution
+            sns.kdeplot(
+                posterior_samples,
+                ax=axs[i],
+                label="Posterior Predictive",
+                color="red",
+                fill=True,
+                alpha=0.15,
+            )
+
+            # Add a vertical line for the mean of the posterior distribution
+            axs[i].axvline(
+                posterior_mean,
+                color="red",
+                linestyle="--",
+                linewidth=2,
+                label=f"Posterior Mean: {posterior_mean:.2f} (Diff: {difference:.2f})",
+            )
+
+            # Set titles and labels
+            axs[i].set_title(channel)  # Subplot title is just the channel name
+            axs[i].set_xlabel(var_name.capitalize())
+            axs[i].set_ylabel("Density")
+            axs[i].legend(loc="upper right")
+
+        # Set the overall figure title
+        fig.suptitle(f"Prior Predictive Distributions for {var_name}", fontsize=16)
+
+        # Hide any unused subplots
+        for j in range(i + 1, len(axs)):
+            fig.delaxes(axs[j])
+
+        # Adjust layout
+        plt.tight_layout(rect=[0, 0.03, 1, 0.97])  # Adjust layout to fit the title
 
         return fig
 
