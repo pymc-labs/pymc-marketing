@@ -503,9 +503,14 @@ def log_evaluation_metrics(
 
     """
     evaluator = MMMEvaluator(mmm)
+
+    # Convert y_true and y_pred to numpy arrays if they're not already
+    y_true_np = y_true.to_numpy() if hasattr(y_true, "to_numpy") else np.array(y_true)
+    y_pred_np = y_pred.to_numpy() if hasattr(y_pred, "to_numpy") else np.array(y_pred)
+
     metric_summaries = evaluator.evaluate_model(
-        y_true=y_true,
-        y_pred=y_pred,
+        y_true=y_true_np,
+        y_pred=y_pred_np,
         metrics_to_calculate=metrics_to_calculate,
         hdi_prob=hdi_prob,
     )
