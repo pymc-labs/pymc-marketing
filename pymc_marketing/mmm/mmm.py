@@ -2037,6 +2037,10 @@ class MMM(
     ) -> pd.DataFrame:
         """Create a synthetic dataset based on the given allocation strategy (Budget) and time granularity.
 
+        **Important**: When generating the posterior predicive distribution for the target with the optimized budget,
+        we are setting the control variables to zero! This is done because in many situations we do not have all the
+        control variables in the future (e.g. outlier control, special events).
+
         Parameters
         ----------
         df : pd.DataFrame
@@ -2144,6 +2148,10 @@ class MMM(
         of the channel transformer. It then uses the `BudgetOptimizer` to allocate the
         budget, and creates a synthetic dataset based on the optimal allocation. Finally,
         it performs posterior predictive sampling on the synthetic dataset.
+
+        **Important**: When generating the posterior predicive distribution for the target with the optimized budget,
+        we are setting the control variables to zero! This is done because in many situations we do not have all the
+        control variables in the future (e.g. outlier control, special events).
 
         Parameters
         ----------
