@@ -1,6 +1,6 @@
 # Taken from scikit-learn repo
 # https://github.com/scikit-learn/scikit-learn/blob/main/.github/workflows/label-blank-issue.yml
-name: Labels Blank Issues
+name: Label Blank Issue
 
 on:
   issues:
