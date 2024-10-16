@@ -2168,7 +2168,7 @@ class MMM(
             Custom constraints for the optimization. If None, no custom constraints are applied.
         quantile : float, optional
             The quantile to use for recovering transformation parameters. Default is 0.5.
-        noise_level : int
+        noise_level : float, optional
             The level of noise added to the allocation strategy (by default 1%).
         **minimize_kwargs
             Additional arguments to pass to the `BudgetOptimizer`.
@@ -2183,7 +2183,12 @@ class MMM(
         ValueError
             If the time granularity is not supported.
 
+        ValueError
+            If the noise level is not a float.
         """
+        if not isinstance(noise_level, float):
+            raise ValueError("noise_level must be a float")
+
         parameters_mid = self.format_recovered_transformation_parameters(
             quantile=quantile
         )
