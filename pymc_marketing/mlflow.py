@@ -178,7 +178,7 @@ def _backwards_compatiable_data_vars(model: Model) -> list[TensorVariable]:
     return list(vars.values())
 
 
-def log_data(model: Model, idata: az.InferenceData) -> None:
+def log_metadata(model: Model, idata: az.InferenceData) -> None:
     """Log the metadata of the data used in the model to MLflow.
 
     Saved in the form of numpy arrays based on all the constant and observed data
@@ -789,7 +789,7 @@ def load_model(
 @autologging_integration(FLAVOR_NAME)
 def autolog(
     log_sampler_info: bool = True,
-    log_datasets: bool = True,
+    log_metadata: bool = True,
     log_model_info: bool = True,
     summary_var_names: list[str] | None = None,
     arviz_summary_kwargs: dict | None = None,
@@ -811,8 +811,8 @@ def autolog(
     ----------
     log_sampler_info : bool, optional
         Whether to log sampler diagnostics. Default is True.
-    log_datasets : bool, optional
-        Whether to log the data used in the model. Default is True.
+    log_metadata : bool, optional
+        Whether to log the metadata of inputs used in the model. Default is True.
     log_model_info : bool, optional
         Whether to log model information. Default is True.
     summary_var_names : list[str], optional
@@ -931,8 +931,8 @@ def autolog(
                 if log_model_info:
                     log_model_derived_info(model)
 
-                if log_datasets:
-                    log_data(model=model, idata=idata)
+                if log_metadata:
+                    log_metadata(model=model, idata=idata)
 
                 if log_loocv:
                     log_loocv_metrics(model=model, idata=idata)
