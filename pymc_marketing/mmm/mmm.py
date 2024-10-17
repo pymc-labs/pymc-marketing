@@ -808,9 +808,9 @@ class MMM(
     we consider a Bayesian linear model of the form:
 
     .. math::
-        y_{t} = \\alpha + \\sum_{m=1}^{M}\\beta_{m}f(x_{m, t}) +  \\sum_{c=1}^{C}\\gamma_{c}z_{c, t} + \\varepsilon_{t},
+        y_{t} = \alpha + \sum_{m=1}^{M}\beta_{m}f(x_{m, t}) +  \sum_{c=1}^{C}\gamma_{c}z_{c, t} + \varepsilon_{t},
 
-    where :math:`\\alpha` is the intercept, :math:`f` is a media transformation function and :math:`\\varepsilon_{t}` is the error therm
+    where :math:`\alpha` is the intercept, :math:`f` is a media transformation function and :math:`\varepsilon_{t}` is the error therm
     which we assume is normally distributed. The function :math:`f` encodes the contribution of media on the target variable.
     Typically we consider two types of transformation: adstock (carry-over) and saturation effects.
 

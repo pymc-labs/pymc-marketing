@@ -10,6 +10,7 @@ Here you will find a collection of examples and how-to guides for using PyMC-Mar
 mmm/mmm_example
 mmm/mmm_budget_allocation_example
 mmm/mmm_lift_test
+mmm/mmm_counterfactuals
 mmm/mmm_tvp_example
 mmm/mmm_time_varying_media_example
 mmm/mmm_components
