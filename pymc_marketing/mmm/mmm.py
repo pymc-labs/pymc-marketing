@@ -2037,6 +2037,10 @@ class MMM(
     ) -> pd.DataFrame:
         """Create a synthetic dataset based on the given allocation strategy (Budget) and time granularity.
 
+        **Important**: When generating the posterior predicive distribution for the target with the optimized budget,
+        we are setting the control variables to zero! This is done because in many situations we do not have all the
+        control variables in the future (e.g. outlier control, special events).
+
         Parameters
         ----------
         df : pd.DataFrame
@@ -2131,6 +2135,7 @@ class MMM(
         custom_constraints: dict[str, float] | None = None,
         quantile: float = 0.5,
         noise_level: float = 0.01,
+        **minimize_kwargs,
     ) -> az.InferenceData:
         """Allocate the given budget to maximize the response over a specified time period.
 
@@ -2143,6 +2148,10 @@ class MMM(
         of the channel transformer. It then uses the `BudgetOptimizer` to allocate the
         budget, and creates a synthetic dataset based on the optimal allocation. Finally,
         it performs posterior predictive sampling on the synthetic dataset.
+
+        **Important**: When generating the posterior predicive distribution for the target with the optimized budget,
+        we are setting the control variables to zero! This is done because in many situations we do not have all the
+        control variables in the future (e.g. outlier control, special events).
 
         Parameters
         ----------
@@ -2159,6 +2168,10 @@ class MMM(
             Custom constraints for the optimization. If None, no custom constraints are applied.
         quantile : float, optional
             The quantile to use for recovering transformation parameters. Default is 0.5.
+        noise_level : float, optional
+            The level of noise added to the allocation strategy (by default 1%).
+        **minimize_kwargs
+            Additional arguments to pass to the `BudgetOptimizer`.
 
         Returns
         -------
@@ -2170,7 +2183,12 @@ class MMM(
         ValueError
             If the time granularity is not supported.
 
+        ValueError
+            If the noise level is not a float.
         """
+        if not isinstance(noise_level, float):
+            raise ValueError("noise_level must be a float")
+
         parameters_mid = self.format_recovered_transformation_parameters(
             quantile=quantile
         )
@@ -2188,6 +2206,7 @@ class MMM(
             total_budget=budget,
             budget_bounds=budget_bounds,
             custom_constraints=custom_constraints,
+            **minimize_kwargs,
         )
 
         synth_dataset = self._create_synth_dataset(
