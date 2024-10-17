@@ -1,0 +1,16 @@
+# Taken from scikit-learn repo
+# https://github.com/scikit-learn/scikit-learn/blob/main/.github/workflows/label-blank-issue.yml
+name: Label Blank Issue
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  label-blank-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: andymckay/labeler@1.0.4
+        with:
+          add-labels: "Needs Triage"
+          ignore-if-labeled: true
