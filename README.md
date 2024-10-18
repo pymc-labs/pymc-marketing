@@ -187,6 +187,12 @@ Not sure how to start or have questions? MMM-GPT is an AI that answers questions
 
 **[Try MMM-GPT here.](https://mmm-gpt.com/)**
 
+## Explainer App: Streamlit App of MMM Concepts
+
+Dynamic and interactive visualization of key Marketing Mix Modeling (MMM) concepts, including adstock, saturation, and the use of Bayesian priors. This app aims to help marketers, data scientists, and anyone interested in understanding MMM more deeply.
+
+**[Check out the app here](https://pymc-marketing-app.streamlit.app/)**
+
 ## 📞 Schedule a Free Consultation for MMM & CLV Strategy
 
 Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts. Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions.

@@ -174,4 +174,4 @@ For more information on these tools, visit:
 
 ## How to get started?
 
-To see how all these different components come together, you can review the {ref}`MMM Example notebook <mmm_example>`.
+To see how all these different components come together, you can review the {ref}`MMM Example notebook <mmm_example>` and [MMM Explainer App](https://pymc-marketing-app.streamlit.app/).

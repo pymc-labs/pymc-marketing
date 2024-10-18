@@ -55,6 +55,10 @@ To add more substance to our session and ensure it's not just informative but al
 * Dr. Robert Kübler: [Convenient Bayesian Marketing Mix Modeling with PyMC Marketing](https://towardsdatascience.com/convenient-bayesian-marketing-mix-modeling-with-pymc-marketing-8b02a9a9c4aa)
 * Ryan O'Sullivan, [Is Multi-Collinearity Destroying Your Causal Inferences In Marketing Mix Modelling?](https://towardsdatascience.com/is-multi-collinearity-destroying-your-causal-inferences-in-marketing-mix-modelling-78cb56017c73)
 
-### Tutorials
+## Tutorials
 
 - [Example Problem: JellyPop](https://github.com/PhilClarkPhD/mmm)
+
+## MMM Explainer App
+
+- [MMM Explainer App](https://pymc-marketing-app.streamlit.app/). Dynamic and interactive visualization of key Marketing Mix Modeling (MMM) concepts, including adstock, saturation, and the use of Bayesian priors.
