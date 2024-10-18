@@ -21,7 +21,7 @@ from sklearn.metrics import (
     root_mean_squared_error,
 )
 
-from pymc_marketing.mmm.metrics import nmae, nrmse
+from pymc_marketing.metrics import nmae, nrmse
 
 
 def calculate_metric_distributions(
