@@ -385,13 +385,14 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
 
     metric_checks(metrics, "pymc")
 
-    assert artifacts == [
+    assert set(artifacts) == {
         "coords.json",
         "idata.nc",
+        "model",
         "model_graph.pdf",
         "model_repr.txt",
         "summary.html",
-    ]
+    }
     assert tags == {}
 
     assert len(inputs) == 1
