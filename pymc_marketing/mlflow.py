@@ -766,7 +766,7 @@ def load_model(
 @autologging_integration(FLAVOR_NAME)
 def autolog(
     log_sampler_info: bool = True,
-    log_metadata: bool = True,
+    log_metadata_info: bool = True,
     log_model_info: bool = True,
     summary_var_names: list[str] | None = None,
     arviz_summary_kwargs: dict | None = None,
@@ -788,7 +788,7 @@ def autolog(
     ----------
     log_sampler_info : bool, optional
         Whether to log sampler diagnostics. Default is True.
-    log_metadata : bool, optional
+    log_metadata_info : bool, optional
         Whether to log the metadata of inputs used in the model. Default is True.
     log_model_info : bool, optional
         Whether to log model information. Default is True.
@@ -909,7 +909,7 @@ def autolog(
                 if log_model_info:
                     log_model_derived_info(model)
 
-                if log_metadata:
+                if log_metadata_info:
                     log_metadata(model=model, idata=idata)
 
                 if log_loocv:
