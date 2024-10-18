@@ -176,11 +176,111 @@ For more videos, webinars and resources, check out the [PyMC Labs YouTube channe
 
 ### Case Studies
 
+<<<<<<< HEAD
 - [Building an in-house marketing analytics solution](https://www.pymc-labs.com/blog-posts/2023-07-18-niall-In-house-marketing/)
 - [Bayesian Media Mix Models: Modelling changes in marketing effectiveness over time](https://www.pymc-labs.com/blog-posts/modelling-changes-marketing-effectiveness-over-time/)
 - [Improving the Speed and Accuracy of Bayesian Media Mix Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)
 - [Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization/)
 - [Bayesian inference at scale: Running A/B tests with millions of observations](https://www.pymc-labs.com/blog-posts/bayesian-inference-at-scale-running-ab-tests-with-millions-of-observations/)
+=======
+```bash
+conda install -c conda-forge ipykernel
+```
+
+Start VS Code and ensure that the "Jupyter" extension is installed. Press Ctrl + Shift + P and type "Python: Select Interpreter". Ensure that `marketing_env` is selected. Press Ctrl + Shift + P and type "Create: New Jupyter Notebook".
+
+### MMM Quickstart
+
+```python
+import pandas as pd
+
+from pymc_marketing.mmm import (
+    GeometricAdstock,
+    LogisticSaturation,
+    MMM,
+)
+
+data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
+data = pd.read_csv(data_url, parse_dates=["date_week"])
+
+mmm = MMM(
+    adstock=GeometricAdstock(l_max=8),
+    saturation=LogisticSaturation(),
+    date_column="date_week",
+    channel_columns=["x1", "x2"],
+    control_columns=[
+        "event_1",
+        "event_2",
+        "t",
+    ],
+    yearly_seasonality=2,
+)
+```
+
+Once the model is fitted, we can further optimize our budget allocation as we are including diminishing returns and carry-over effects in our model.
+
+Explore a hands-on [simulated example](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
+
+Alternatively, dive into the concepts of adstock, saturation and Bayesian priors with our [MMM Explainer App](https://pymc-marketing-app.streamlit.app/).
+
+### CLV Quickstart
+
+We can choose from a variety of models, depending on the type of data and business nature. Let us look into a simple example with the Beta-Geo/NBD model for non-contractual continuous data.
+
+```python
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+from pymc_marketing import clv
+
+data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
+data = pd.read_csv(data_url)
+data["customer_id"] = data.index
+
+beta_geo_model = clv.BetaGeoModel(data=data)
+
+beta_geo_model.fit()
+```
+
+Once fitted, we can use the model to predict the number of future purchases for known customers, the probability that they are still alive, and get various visualizations plotted.
+
+See the {ref}`howto` section for more on this.
+
+## 📞 Schedule a Free Consultation for MMM & CLV Strategy
+
+Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts. Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions.
+
+For businesses looking to integrate PyMC-Marketing into their operational framework, [PyMC Labs](https://www.pymc-labs.com) offers expert consulting and training. Our team is proficient in state-of-the-art Bayesian modeling techniques, with a focus on Marketing Mix Models (MMMs) and Customer Lifetime Value (CLV). Explore these topics further by watching our video on [Bayesian Marketing Mix Models: State of the Art](https://www.youtube.com/watch?v=xVx91prC81g).
+
+We provide the following professional services:
+
+- **Custom Models**: We tailor niche marketing anayltics models to fit your organization's unique needs.
+- **Build Within PyMC-Marketing**: Our team are experts leveraging the capabilities of PyMC-Marketing to create robust marketing models for precise insights.
+- **SLA & Coaching**: Get guaranteed support levels and personalized coaching to ensure your team is well-equipped and confident in using our tools and approaches.
+- **SaaS Solutions**: Harness the power of our state-of-the-art software solutions to streamline your data-driven marketing initiatives.
+
+## Support
+
+This repository is supported by [PyMC Labs](https://www.pymc-labs.io).
+
+For companies that want to use PyMC-Marketing in production, [PyMC Labs](https://www.pymc-labs.io) is available for consulting and training. We can help you build and deploy your models in production. We have experience with cutting edge Bayesian modelling techniques which we have applied to a range of business domains including marketing analytics.
+
+:::{image} _static/labs-logo-dark.png
+:align: center
+:target: https://www.pymc-labs.io
+:scale: 20 %
+:alt: PyMC Labs logo
+:class: only-dark
+:::
+
+:::{image} _static/labs-logo-light.png
+:align: center
+:target: https://www.pymc-labs.io
+:scale: 20 %
+:alt: PyMC Labs logo
+:class: only-light
+:::
+>>>>>>> 2aea64d (chore: Update documentation to include mention of Streamlit explainer app)
 
 For more blogposts and resources, check out the [PyMC Labs Blog](https://www.pymc-labs.com/blog-posts/).
 
