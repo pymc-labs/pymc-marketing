@@ -461,7 +461,6 @@ def log_inference_data(
 
 
 def log_evaluation_metrics(
-    mmm: MMM,
     y_true: np.ndarray,
     y_pred: np.ndarray,
     metrics_to_calculate: list[str] | None = None,
@@ -471,8 +470,6 @@ def log_evaluation_metrics(
 
     Parameters
     ----------
-    mmm : MMM
-        The fitted MMM object.
     y_true : np.ndarray
         The true values of the target variable.
     y_pred : np.ndarray
@@ -590,7 +587,7 @@ class MMMWrapper(mlflow.pyfunc.PythonModel):
                 include_last_observations=self.include_last_observations,
                 original_scale=self.original_scale,
                 var_names=self.var_names,
-                **self.sample_kwargs,
+                **self.sample_kwargs,  # type: ignore[arg-type]
             )
         elif predict_method == "sample_posterior_predictive":
             return self.model.sample_posterior_predictive(
@@ -600,7 +597,7 @@ class MMMWrapper(mlflow.pyfunc.PythonModel):
                 include_last_observations=self.include_last_observations,
                 original_scale=self.original_scale,
                 var_names=self.var_names,
-                **self.sample_kwargs,
+                **self.sample_kwargs,  # type: ignore[arg-type]
             )
         elif predict_method == "sample_prior_predictive":
             return self.model.sample_prior_predictive(
@@ -947,7 +944,6 @@ def autolog(
 
             posterior_preds = self.sample_posterior_predictive(self.X)
             log_evaluation_metrics(
-                self,
                 y_true=self.y,
                 y_pred=posterior_preds[
                     self.output_var[0]
