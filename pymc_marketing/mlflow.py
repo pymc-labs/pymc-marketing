@@ -122,7 +122,7 @@ except ImportError:  # pragma: no cover
 from mlflow.utils.autologging_utils import autologging_integration
 
 from pymc_marketing.mmm import MMM
-from pymc_marketing.mmm.evaluation import MMMEvaluator
+from pymc_marketing.mmm.evaluation import evaluate_model
 from pymc_marketing.version import __version__
 
 FLAVOR_NAME = "pymc"
@@ -467,7 +467,7 @@ def log_evaluation_metrics(
     metrics_to_calculate: list[str] | None = None,
     hdi_prob: float = 0.94,
 ) -> None:
-    """Log evaluation metrics produced by MMMEvaluator.evaluate_model() to MLflow.
+    """Log evaluation metrics produced by `pymc_marketing.mmm.evaluation.evaluate_model()` to MLflow.
 
     Parameters
     ----------
@@ -484,13 +484,11 @@ def log_evaluation_metrics(
         The probability mass of the highest density interval. Defaults to 0.94.
 
     """
-    evaluator = MMMEvaluator(mmm)
-
     # Convert y_true and y_pred to numpy arrays if they're not already
     y_true_np = y_true.to_numpy() if hasattr(y_true, "to_numpy") else np.array(y_true)
     y_pred_np = y_pred.to_numpy() if hasattr(y_pred, "to_numpy") else np.array(y_pred)
 
-    metric_summaries = evaluator.evaluate_model(
+    metric_summaries = evaluate_model(
         y_true=y_true_np,
         y_pred=y_pred_np,
         metrics_to_calculate=metrics_to_calculate,
