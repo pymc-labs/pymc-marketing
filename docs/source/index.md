@@ -176,13 +176,6 @@ For more videos, webinars and resources, check out the [PyMC Labs YouTube channe
 
 ### Case Studies
 
-<<<<<<< HEAD
-- [Building an in-house marketing analytics solution](https://www.pymc-labs.com/blog-posts/2023-07-18-niall-In-house-marketing/)
-- [Bayesian Media Mix Models: Modelling changes in marketing effectiveness over time](https://www.pymc-labs.com/blog-posts/modelling-changes-marketing-effectiveness-over-time/)
-- [Improving the Speed and Accuracy of Bayesian Media Mix Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)
-- [Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization/)
-- [Bayesian inference at scale: Running A/B tests with millions of observations](https://www.pymc-labs.com/blog-posts/bayesian-inference-at-scale-running-ab-tests-with-millions-of-observations/)
-=======
 ```bash
 conda install -c conda-forge ipykernel
 ```
@@ -280,7 +273,6 @@ For companies that want to use PyMC-Marketing in production, [PyMC Labs](https:/
 :alt: PyMC Labs logo
 :class: only-light
 :::
->>>>>>> 2aea64d (chore: Update documentation to include mention of Streamlit explainer app)
 
 For more blogposts and resources, check out the [PyMC Labs Blog](https://www.pymc-labs.com/blog-posts/).
 
