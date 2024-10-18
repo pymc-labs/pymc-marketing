@@ -397,7 +397,6 @@ def log_sample_diagnostics(
 
 
 def log_loocv_metrics(
-    model: Model | MMM | None,
     idata: az.InferenceData,
 ) -> None:
     """Log Bayesian LOOCV metrics to MLflow.
@@ -407,6 +406,7 @@ def log_loocv_metrics(
     importance sampling leave-one-out cross-validation (PSIS-LOO-CV).
     In order to compute the PSIS-LOO-CV, we need to compute the log_likelihood of the model too,
     which will extend the inference data with a log_likelihood group.
+    Requires the user to have already called `pm.compute_log_likelihood()` on the model.
 
     Parameters
     ----------
@@ -418,45 +418,27 @@ def log_loocv_metrics(
     idata.log_likelihood : az.InferenceData
         The InferenceData object with the log_likelihood group, unless it already exists.
     """
-    if "posterior" not in idata or "sample_stats" not in idata:
+    if (
+        "posterior" not in idata
+        or "sample_stats" not in idata
+        or "log_likelihood" not in idata
+    ):
         logging.warning(
             "Skipping LOOCV metrics: InferenceData object does not contain\
-                         the group posterior and sample stats."
+                         the group posterior, sample stats and log_likelihood."
         )
         return
 
-    # try-excepts necessary in case of empty models, like `test_log_data_no_data`
-    if "log_likelihood" not in idata:
-        try:
-            if isinstance(model, MMM):
-                log_likelihood = model.compute_log_likelihood(idata)
-                idata.add_groups({"log_likelihood": log_likelihood})
-            elif isinstance(model, Model):
-                with model:
-                    pm.compute_log_likelihood(idata, progressbar=False)
-            elif model is None:
-                pm.compute_log_likelihood(idata, progressbar=False)
-            else:
-                raise ValueError(f"Unsupported model type: {type(model)}")
-        except Exception as e:
-            logging.warning(
-                f"Skipping LOOCV metrics: Unable to compute log likelihood. Error: {e!s}"
-            )
-            return
+    model_loo = az.loo(idata)
 
-    try:
-        model_loo = az.loo(idata)
+    loocv_metrics = {
+        "loocv_elpd_loo": model_loo.elpd_loo,
+        "loocv_se": model_loo.se,
+        "loocv_p_loo": model_loo.p_loo,
+    }
 
-        loocv_metrics = {
-            "loocv_elpd_loo": model_loo.elpd_loo,
-            "loocv_se": model_loo.se,
-            "loocv_p_loo": model_loo.p_loo,
-        }
-
-        for metric_name, metric_value in loocv_metrics.items():
-            mlflow.log_metric(metric_name, metric_value)
-    except Exception as e:
-        logging.warning(f"Failed to compute LOOCV metrics: {e!s}")
+    for metric_name, metric_value in loocv_metrics.items():
+        mlflow.log_metric(metric_name, metric_value)
 
 
 def log_inference_data(
@@ -794,7 +776,7 @@ def autolog(
     summary_var_names: list[str] | None = None,
     arviz_summary_kwargs: dict | None = None,
     log_mmm: bool = True,
-    log_loocv: bool = True,
+    log_loocv: bool = False,
     mmm_registry_name: str | None = None,
     disable: bool = False,
     silent: bool = False,
@@ -823,7 +805,8 @@ def autolog(
     log_mmm : bool, optional
         Whether to log PyMC-Marketing MMM models. Default is True.
     log_loocv : bool, optional
-        Whether to log LOOCV metrics for MMM models. Default is True.
+        Whether to log LOOCV metrics for model. Default is False.
+        Requires the user to have already called `pm.compute_log_likelihood()` on the model.
     disable : bool, optional
         Whether to disable autologging. Default is False.
     silent : bool, optional
