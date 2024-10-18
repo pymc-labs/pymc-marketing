@@ -490,15 +490,15 @@ class BetaGeoModel(CLVModel):
         K_F = beta_rep - (r + x) * np.log(F)
         K_M = beta_rep - (r + x) * np.log(M)
 
-        K1 = max(K_E, K_F)
-        K2 = max(K_E, K_M)
+        K1 = np.maximum(K_E, K_F)
+        K2 = np.maximum(K_E, K_M)
 
         numer = np.exp(K_E - K1) + np.exp(K_F - K1)
         denom = np.exp(K_E - K2) + np.exp(K_M - K2)
 
-        prob_churn_raw = np.exp(K1 - K2) * numer / denom
+        prob_no_deposits = np.exp(K1 - K2) * numer / denom
 
-        return xarray.where(x == 0, 1.0, 1.0 - prob_churn_raw).transpose(
+        return prob_no_deposits.transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
