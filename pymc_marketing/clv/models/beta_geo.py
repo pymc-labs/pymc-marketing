@@ -447,7 +447,7 @@ class BetaGeoModel(CLVModel):
 
         The data parameter is only required for out-of-sample customers.
 
-        Adapted from Section 5.3 in Bruce Hardie's notes [1]_ for the special case when y = 0
+        Adapted from Section 5.3, Equation 34 in Bruce Hardie's notes [1]_ for the special case when y = 0
 
         Parameters
         ----------
