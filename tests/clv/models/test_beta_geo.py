@@ -257,6 +257,37 @@ class TestBetaGeoModel:
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
 
+    def test_expected_probability_no_purchases_now(self):
+        customer_id = np.arange(10)
+        test_frequency = np.tile([1, 3, 5, 7, 9], 2)
+        test_recency = np.tile([20, 30], 5)
+        test_T = np.tile([25, 35], 5)
+        test_t = 0
+        data = pd.DataFrame(
+            {
+                "customer_id": customer_id,
+                "frequency": test_frequency,
+                "recency": test_recency,
+                "T": test_T,
+            }
+        )
+
+        bg_model = BetaGeoModel(data=data)
+        bg_model.build_model()
+        bg_model.idata = az.from_dict(
+            {
+                "a": np.full((2, 5), self.a_true),
+                "b": np.full((2, 5), self.b_true),
+                "alpha": np.full((2, 5), self.alpha_true),
+                "r": np.full((2, 5), self.r_true),
+            }
+        )
+
+        res_prob_no_purchases = bg_model.expected_probability_no_purchase(
+            t=test_t, data=data
+        )
+        assert np.all(np.isclose(res_prob_no_purchases.to_numpy(), 1))
+
     @pytest.mark.parametrize("test_t", [0, 30, 90])
     def test_expected_probability_no_purchases(self, test_t):
         customer_id = np.arange(10)
