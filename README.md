@@ -129,6 +129,12 @@ Explore a hands-on [simulated example](https://pymc-marketing.readthedocs.io/en/
 - [Orduz, Juan. "Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns"](https://juanitorduz.github.io/pymc_mmm/)
 - [A Comprehensive Guide to Bayesian Marketing Mix Modeling](https://1749.io/learn/f/a-comprehensive-guide-to-bayesian-marketing-mix-modeling)
 
+### Explainer App: Streamlit App of MMM Concepts
+
+Dynamic and interactive visualization of key Marketing Mix Modeling (MMM) concepts, including adstock, saturation, and the use of Bayesian priors. This app aims to help marketers, data scientists, and anyone interested in understanding MMM more deeply.
+
+**[Check out the app here](https://pymc-marketing-app.streamlit.app/)**
+
 ## Unlock Customer Lifetime Value (CLV) with PyMC
 
 Understand and optimize your customer's value with our **CLV models**. Our API supports various types of CLV models, catering to both contractual and non-contractual settings, as well as continuous and discrete transaction modes.
@@ -186,12 +192,6 @@ Due to its open-source nature and active contributor base, new features are cons
 Not sure how to start or have questions? MMM-GPT is an AI that answers questions and provides expert advice on marketing analytics using PyMC-Marketing.
 
 **[Try MMM-GPT here.](https://mmm-gpt.com/)**
-
-## Explainer App: Streamlit App of MMM Concepts
-
-Dynamic and interactive visualization of key Marketing Mix Modeling (MMM) concepts, including adstock, saturation, and the use of Bayesian priors. This app aims to help marketers, data scientists, and anyone interested in understanding MMM more deeply.
-
-**[Check out the app here](https://pymc-marketing-app.streamlit.app/)**
 
 ## 📞 Schedule a Free Consultation for MMM & CLV Strategy
 
