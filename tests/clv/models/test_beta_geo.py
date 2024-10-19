@@ -257,8 +257,7 @@ class TestBetaGeoModel:
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
 
-    @pytest.mark.parametrize("test_t", [3, 9])
-    def test_expected_probability_no_purchases_infrequent_customers(self, test_t):
+    def test_expected_probability_no_purchases_infrequent_customers(self):
         atol = 10e-3
         customer_id = np.arange(5)
         test_frequency = [3, 30, 5, 70, 9]
