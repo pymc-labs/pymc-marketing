@@ -133,7 +133,6 @@ def crps(
     return np.average(per_observation_crps(y_true, y_pred), weights=sample_weight)
 
 
-# Same error metric as Robyn
 def nrmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """Calculate the Normalized Root Mean Square Error (NRMSE).
 

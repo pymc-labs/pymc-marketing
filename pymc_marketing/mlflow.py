@@ -122,7 +122,7 @@ except ImportError:  # pragma: no cover
 from mlflow.utils.autologging_utils import autologging_integration
 
 from pymc_marketing.mmm import MMM
-from pymc_marketing.mmm.evaluation import evaluate_model
+from pymc_marketing.mmm.evaluation import compute_summary_metrics
 from pymc_marketing.version import __version__
 
 FLAVOR_NAME = "pymc"
@@ -460,13 +460,13 @@ def log_inference_data(
     os.remove(save_file)
 
 
-def log_evaluation_metrics(
+def log_summary_metrics(
     y_true: np.ndarray,
     y_pred: np.ndarray,
     metrics_to_calculate: list[str] | None = None,
     hdi_prob: float = 0.94,
 ) -> None:
-    """Log evaluation metrics produced by `pymc_marketing.mmm.evaluation.evaluate_model()` to MLflow.
+    """Log evaluation metrics produced by `pymc_marketing.mmm.evaluation.compute_summary_metrics()` to MLflow.
 
     Parameters
     ----------
@@ -485,7 +485,7 @@ def log_evaluation_metrics(
     y_true_np = y_true.to_numpy() if hasattr(y_true, "to_numpy") else np.array(y_true)
     y_pred_np = y_pred.to_numpy() if hasattr(y_pred, "to_numpy") else np.array(y_pred)
 
-    metric_summaries = evaluate_model(
+    metric_summaries = compute_summary_metrics(
         y_true=y_true_np,
         y_pred=y_pred_np,
         metrics_to_calculate=metrics_to_calculate,
@@ -943,7 +943,7 @@ def autolog(
                 log_loocv_metrics(model=self, idata=idata)
 
             posterior_preds = self.sample_posterior_predictive(self.X)
-            log_evaluation_metrics(
+            log_summary_metrics(
                 y_true=self.y,
                 y_pred=posterior_preds[
                     self.output_var[0]

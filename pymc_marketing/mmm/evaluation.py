@@ -138,7 +138,7 @@ def summarize_metric_distributions(
     return metric_summaries
 
 
-def evaluate_model(
+def compute_summary_metrics(
     y_true: np.ndarray,
     y_pred: np.ndarray,
     metrics_to_calculate: list[str] | None = None,
