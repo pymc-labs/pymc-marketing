@@ -46,6 +46,8 @@ from pymc_marketing.mmm.validating import (
 from pymc_marketing.model_builder import ModelBuilder
 
 __all__ = ["MMMModelBuilder", "BaseValidateMMM"]
+import warnings
+
 from pydantic import Field, validate_call
 
 
@@ -417,6 +419,12 @@ class MMMModelBuilder(ModelBuilder):
         If predicting out-of-sample, ensure that `self.y` is overwritten with the
         corresponding non-transformed target variable.
         """
+        if hdi_list is not None and not add_hdi:
+            warnings.warn(
+                "hdi_list is provided but add_hdi is set to False. HDI will not be plotted.",
+                stacklevel=2,
+            )
+
         posterior_predictive_data: Dataset = self._get_posterior_predictive_data(
             original_scale=original_scale
         )
