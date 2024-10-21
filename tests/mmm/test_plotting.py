@@ -200,6 +200,8 @@ class TestBasePlotting:
                     "original_scale": False,
                 },
             ),
+            ("plot_posterior_predictive", {"hdi_list": [0.94]}),
+            ("plot_posterior_predictive", {"hdi_list": [0.94, 0.5]}),
             ("plot_errors", {}),
             ("plot_errors", {"original_scale": True}),
             ("plot_errors", {"ax": plt.subplots()[1]}),
