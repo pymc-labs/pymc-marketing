@@ -46,7 +46,6 @@ from pymc_marketing.mmm.validating import (
 from pymc_marketing.model_builder import ModelBuilder
 
 __all__ = ["MMMModelBuilder", "BaseValidateMMM"]
-import warnings
 
 from pydantic import Field, validate_call
 
@@ -364,7 +363,6 @@ class MMMModelBuilder(ModelBuilder):
     def plot_posterior_predictive(
         self,
         original_scale: bool = False,
-        add_hdi: bool = True,
         hdi_list: list[float] | None = None,
         add_mean: bool = True,
         add_gradient: bool = False,
@@ -383,10 +381,8 @@ class MMMModelBuilder(ModelBuilder):
         original_scale : bool, optional
             If True, plot in the original scale of the target variable.
             If False, plot in the transformed scale used for modeling. Default is False.
-        add_hdi : bool, optional
-            If True, add highest density intervals to the plot. Default is True.
         hdi_list : list of float, optional
-            List of HDI levels to plot. Default is [0.94, 0.5].
+            List of HDI levels to plot. Default is [0.94] Provide an empty list to omit plotting the HDI.
         add_mean : bool, optional
             If True, add the mean prediction to the plot. Default is True.
         add_gradient : bool, optional
@@ -419,12 +415,6 @@ class MMMModelBuilder(ModelBuilder):
         If predicting out-of-sample, ensure that `self.y` is overwritten with the
         corresponding non-transformed target variable.
         """
-        if hdi_list is not None and not add_hdi:
-            warnings.warn(
-                "hdi_list is provided but add_hdi is set to False. HDI will not be plotted.",
-                stacklevel=2,
-            )
-
         posterior_predictive_data: Dataset = self._get_posterior_predictive_data(
             original_scale=original_scale
         )
@@ -447,10 +437,11 @@ class MMMModelBuilder(ModelBuilder):
         else:
             fig = ax.figure
 
-        if add_hdi:
-            if hdi_list is None:
-                hdi_list = [0.94, 0.5]
+        if hdi_list is None:
+            hdi_list = [0.94]
 
+        if hdi_list:
+            # skipped if hdi_list is empty
             alpha_list = np.linspace(0.2, 0.4, len(hdi_list))
             for hdi_prob, alpha in zip(hdi_list, alpha_list, strict=True):
                 ax = self._add_hdi_to_plot(
