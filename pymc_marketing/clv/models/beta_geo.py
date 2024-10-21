@@ -36,7 +36,7 @@ class BetaGeoModel(CLVModel):
     r"""Beta-Geometric Negative Binomial Distribution (BG/NBD) model for a non-contractual customer population across continuous time.
 
     First introduced by Fader, Hardie & Lee [1]_, with additional predictive methods
-    and enhancements in [2]_ and [3]_.
+    and enhancements in [2]_,[3]_ and [4]_.
 
     The BG/NBD model assumes dropout probabilities for the customer population are Beta distributed,
     and time between transactions follows a Gamma distribution while the customer is still active.
@@ -136,6 +136,8 @@ class BetaGeoModel(CLVModel):
            P (alive) using the BG/NBD model." http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
     .. [3] Fader, P. S. & Hardie, B. G. (2013) "Overcoming the BG/NBD Model's #NUM!
            Error Problem." http://brucehardie.com/notes/027/bgnbd_num_error.pdf.
+    .. [4] Fader, P. S. & Hardie, B. G. (2019) "A Step-by-Step Derivation of the BG/NBD
+           Model." https://www.brucehardie.com/notes/039/bgnbd_derivation__2019-11-06.pdf
 
     """  # noqa: E501
 
@@ -464,8 +466,8 @@ class BetaGeoModel(CLVModel):
 
         References
         ----------
-        .. [1] Hardie, B. G. (2019). https://www.brucehardie.com/notes/039/bgnbd_derivation__2019-11-06.pdf
-
+        .. [1] Fader, P. S. & Hardie, B. G. (2019) "A Step-by-Step Derivation of the
+                BG/NBD Model." https://www.brucehardie.com/notes/039/bgnbd_derivation__2019-11-06.pdf
         """  # noqa: D205
         if data is None:
             data = self.data
