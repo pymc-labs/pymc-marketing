@@ -20,7 +20,10 @@ import pytest
 from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
-from pymc_marketing.mmm.components.saturation import LogisticSaturation
+from pymc_marketing.mmm.components.saturation import (
+    LogisticSaturation,
+    MichaelisMentenSaturation,
+)
 from pymc_marketing.mmm.mmm import MMM, BaseMMM
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleTarget
 
@@ -141,6 +144,62 @@ class TestBasePlotting:
             ("plot_posterior_predictive", {}),
             ("plot_posterior_predictive", {"original_scale": True}),
             ("plot_posterior_predictive", {"ax": plt.subplots()[1]}),
+            (
+                "plot_posterior_predictive",
+                {
+                    "add_mean": True,
+                    "original_scale": False,
+                },
+            ),
+            (
+                "plot_posterior_predictive",
+                {
+                    "add_gradient": True,
+                    "original_scale": True,
+                },
+            ),
+            (
+                "plot_posterior_predictive",
+                {
+                    "add_hdi": True,
+                    "original_scale": False,
+                },
+            ),
+            (
+                "plot_posterior_predictive",
+                {
+                    "add_mean": True,
+                    "add_hdi": True,
+                    "original_scale": True,
+                },
+            ),
+            (
+                "plot_posterior_predictive",
+                {
+                    "add_mean": True,
+                    "add_gradient": True,
+                    "add_hdi": True,
+                    "original_scale": False,
+                },
+            ),
+            (
+                "plot_posterior_predictive",
+                {
+                    "add_mean": True,
+                    "add_gradient": True,
+                    "add_hdi": True,
+                    "original_scale": True,
+                },
+            ),
+            (
+                "plot_posterior_predictive",
+                {
+                    "add_mean": False,
+                    "add_gradient": True,
+                    "add_hdi": False,
+                    "original_scale": False,
+                },
+            ),
             ("plot_errors", {}),
             ("plot_errors", {"original_scale": True}),
             ("plot_errors", {"ax": plt.subplots()[1]}),
@@ -164,10 +223,18 @@ class TestBasePlotting:
         plt.close("all")
 
 
+@pytest.fixture(
+    scope="module",
+    params=[LogisticSaturation(), MichaelisMentenSaturation()],
+    ids=["LogisticSaturation", "MichaelisMentenSaturation"],
+)
+def saturation(request):
+    return request.param
+
+
 @pytest.fixture(scope="module")
-def mock_mmm() -> MMM:
+def mock_mmm(saturation) -> MMM:
     adstock = GeometricAdstock(l_max=4)
-    saturation = LogisticSaturation()
     return MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],

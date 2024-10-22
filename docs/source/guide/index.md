@@ -1,5 +1,8 @@
 # Guide
 
+Are you looking for introductory material on Marketing Mix Models or Customer Lifetime Value?
+This section provides a guide to the concepts and techniques used in PyMC-Marketing.
+
 :::{toctree}
 :caption: Benefits of PyMC-Marketing
 :maxdepth: 1

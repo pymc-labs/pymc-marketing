@@ -14,6 +14,7 @@
 """Media Mix Model class."""
 
 import json
+import logging
 import warnings
 from typing import Annotated, Any, Literal
 
@@ -582,7 +583,9 @@ class BaseMMM(BaseValidateMMM):
         }
 
     def channel_contributions_forward_pass(
-        self, channel_data: npt.NDArray[np.float64]
+        self,
+        channel_data: npt.NDArray[np.float64],
+        disable_logger_stdout: bool | None = False,
     ) -> npt.NDArray[np.float64]:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
 
@@ -590,6 +593,8 @@ class BaseMMM(BaseValidateMMM):
         ----------
         channel_data : array-like
             Input channel data. Result of all the preprocessing steps.
+        disable_logger_stdout : bool, optional
+            If True, suppress logger output to stdout
 
         Returns
         -------
@@ -597,6 +602,10 @@ class BaseMMM(BaseValidateMMM):
             Transformed channel data.
 
         """
+        if disable_logger_stdout:
+            logger = logging.getLogger("pymc.sampling.forward")
+            logger.propagate = False
+
         coords = {
             **self.model_coords,
         }
@@ -799,9 +808,9 @@ class MMM(
     we consider a Bayesian linear model of the form:
 
     .. math::
-        y_{t} = \\alpha + \\sum_{m=1}^{M}\\beta_{m}f(x_{m, t}) +  \\sum_{c=1}^{C}\\gamma_{c}z_{c, t} + \\varepsilon_{t},
+        y_{t} = \alpha + \sum_{m=1}^{M}\beta_{m}f(x_{m, t}) +  \sum_{c=1}^{C}\gamma_{c}z_{c, t} + \varepsilon_{t},
 
-    where :math:`\\alpha` is the intercept, :math:`f` is a media transformation function and :math:`\\varepsilon_{t}` is the error therm
+    where :math:`\alpha` is the intercept, :math:`f` is a media transformation function and :math:`\varepsilon_{t}` is the error therm
     which we assume is normally distributed. The function :math:`f` encodes the contribution of media on the target variable.
     Typically we consider two types of transformation: adstock (carry-over) and saturation effects.
 
@@ -925,7 +934,9 @@ class MMM(
     version: str = "0.0.2"
 
     def channel_contributions_forward_pass(
-        self, channel_data: npt.NDArray[np.float64]
+        self,
+        channel_data: npt.NDArray[np.float64],
+        disable_logger_stdout: bool | None = False,
     ) -> npt.NDArray[np.float64]:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
 
@@ -935,6 +946,8 @@ class MMM(
         ----------
         channel_data : array-like
             Input channel data. Result of all the preprocessing steps.
+        disable_logger_stdout : bool, optional
+            If True, suppress logger output to stdout
 
         Returns
         -------
@@ -943,7 +956,7 @@ class MMM(
 
         """
         channel_contribution_forward_pass = super().channel_contributions_forward_pass(
-            channel_data=channel_data
+            channel_data=channel_data, disable_logger_stdout=disable_logger_stdout
         )
         target_transformed_vectorized = np.vectorize(
             self.target_transformer.inverse_transform,
@@ -983,7 +996,7 @@ class MMM(
                 delta * self.preprocessed_data["X"][self.channel_columns].to_numpy()
             )
             channel_contribution_forward_pass = self.channel_contributions_forward_pass(
-                channel_data=channel_data
+                channel_data=channel_data, disable_logger_stdout=True
             )
             channel_contributions.append(channel_contribution_forward_pass)
         return DataArray(
@@ -1403,7 +1416,6 @@ class MMM(
                 data=channel_contributions,
                 func=self.get_target_transformer().inverse_transform,
                 dim_name="time_since_spend",
-                combined=False,
             )
 
         return channel_contributions
@@ -1882,7 +1894,6 @@ class MMM(
                 data=posterior_predictive_samples,
                 func=self.get_target_transformer().inverse_transform,
                 dim_name="date",
-                combined=combined,
             )
 
         return posterior_predictive_samples
@@ -2026,6 +2037,10 @@ class MMM(
     ) -> pd.DataFrame:
         """Create a synthetic dataset based on the given allocation strategy (Budget) and time granularity.
 
+        **Important**: When generating the posterior predicive distribution for the target with the optimized budget,
+        we are setting the control variables to zero! This is done because in many situations we do not have all the
+        control variables in the future (e.g. outlier control, special events).
+
         Parameters
         ----------
         df : pd.DataFrame
@@ -2120,6 +2135,7 @@ class MMM(
         custom_constraints: dict[str, float] | None = None,
         quantile: float = 0.5,
         noise_level: float = 0.01,
+        **minimize_kwargs,
     ) -> az.InferenceData:
         """Allocate the given budget to maximize the response over a specified time period.
 
@@ -2132,6 +2148,10 @@ class MMM(
         of the channel transformer. It then uses the `BudgetOptimizer` to allocate the
         budget, and creates a synthetic dataset based on the optimal allocation. Finally,
         it performs posterior predictive sampling on the synthetic dataset.
+
+        **Important**: When generating the posterior predicive distribution for the target with the optimized budget,
+        we are setting the control variables to zero! This is done because in many situations we do not have all the
+        control variables in the future (e.g. outlier control, special events).
 
         Parameters
         ----------
@@ -2148,6 +2168,10 @@ class MMM(
             Custom constraints for the optimization. If None, no custom constraints are applied.
         quantile : float, optional
             The quantile to use for recovering transformation parameters. Default is 0.5.
+        noise_level : float, optional
+            The level of noise added to the allocation strategy (by default 1%).
+        **minimize_kwargs
+            Additional arguments to pass to the `BudgetOptimizer`.
 
         Returns
         -------
@@ -2159,7 +2183,12 @@ class MMM(
         ValueError
             If the time granularity is not supported.
 
+        ValueError
+            If the noise level is not a float.
         """
+        if not isinstance(noise_level, float):
+            raise ValueError("noise_level must be a float")
+
         parameters_mid = self.format_recovered_transformation_parameters(
             quantile=quantile
         )
@@ -2177,6 +2206,7 @@ class MMM(
             total_budget=budget,
             budget_bounds=budget_bounds,
             custom_constraints=custom_constraints,
+            **minimize_kwargs,
         )
 
         synth_dataset = self._create_synth_dataset(
@@ -2228,28 +2258,14 @@ class MMM(
             The matplotlib figure object and axis containing the plot.
 
         """
+        channel_contributions = (
+            samples["channel_contributions"].mean(dim=["date", "sample"]).to_numpy()
+        )
+
         if original_scale:
-            channel_contributions = (
-                samples["channel_contributions"]
-                .mean(dim=["sample"])
-                .mean(dim=["date"])
-                .values
-                * self.get_target_transformer()["scaler"].scale_
-            )
+            channel_contributions *= self.get_target_transformer()["scaler"].scale_
 
-            allocate_spend = (
-                np.array(list(self.optimal_allocation_dict.values()))
-                * self.channel_transformer["scaler"].scale_
-            )
-
-        else:
-            channel_contributions = (
-                samples["channel_contributions"]
-                .mean(dim=["sample"])
-                .mean(dim=["date"])
-                .values
-            )
-            allocate_spend = np.array(list(self.optimal_allocation_dict.values()))
+        allocated_spend = np.array(list(self.optimal_allocation_dict.values()))
 
         if ax is None:
             fig, ax = plt.subplots(figsize=figsize)
@@ -2263,11 +2279,11 @@ class MMM(
 
         bars1 = ax.bar(
             index,
-            allocate_spend,
+            allocated_spend,
             bar_width,
-            color="b",
+            color="C0",
             alpha=opacity,
-            label="Allocate Spend",
+            label="Allocated Spend",
         )
 
         ax2 = ax.twinx()
@@ -2276,19 +2292,19 @@ class MMM(
             index + bar_width,
             channel_contributions,
             bar_width,
-            color="r",
+            color="C1",
             alpha=opacity,
             label="Channel Contributions",
         )
 
         ax.set_xlabel("Channels")
-        ax.set_ylabel("Allocate Spend", color="b")
+        ax.set_ylabel("Allocate Spend", color="C0")
         ax.tick_params(axis="x", rotation=90)
         ax.set_xticks(index + bar_width / 2)
         ax.set_xticklabels(self.channel_columns)
 
-        ax.set_ylabel("Allocate Spend", color="b", labelpad=10)
-        ax2.set_ylabel("Channel Contributions", color="r", labelpad=10)
+        ax.set_ylabel("Allocate Spend", color="C0", labelpad=10)
+        ax2.set_ylabel("Channel Contributions", color="C1", labelpad=10)
 
         ax.grid(False)
         ax2.grid(False)

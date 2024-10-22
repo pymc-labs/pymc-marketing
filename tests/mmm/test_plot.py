@@ -18,6 +18,7 @@ import pytest
 import xarray as xr
 
 from pymc_marketing.mmm.plot import (
+    plot_curve,
     plot_hdi,
     plot_samples,
     random_samples,
@@ -77,7 +78,7 @@ def test_random_samples(sample_frame) -> None:
     assert len(df_sub) == n
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def mock_curve() -> xr.DataArray:
     coords = {
         "chain": np.arange(1),
@@ -91,15 +92,77 @@ def mock_curve() -> xr.DataArray:
     )
 
 
-def test_plot_samples(mock_curve) -> None:
-    fig, axes = plot_samples(mock_curve, non_grid_names={"chain", "draw", "day"})
+@pytest.mark.parametrize("plot_func", [plot_samples, plot_hdi])
+@pytest.mark.parametrize(
+    "same_axes", [True, False], ids=["same_axes", "different_axes"]
+)
+@pytest.mark.parametrize("legend", [True, False], ids=["legend", "no_legend"])
+def test_plot_functions(mock_curve, plot_func, same_axes: bool, legend: bool) -> None:
+    fig, axes = plot_func(
+        mock_curve,
+        non_grid_names={"day"},
+        same_axes=same_axes,
+        legend=legend,
+    )
 
-    assert axes.size == 5
+    assert axes.size == (1 if same_axes else mock_curve.sizes["geo"])
     assert isinstance(fig, plt.Figure)
+    plt.close(fig)
 
 
-def test_plot_hdi(mock_curve) -> None:
-    fig, axes = plot_hdi(mock_curve, non_grid_names={"day"})
+def test_plot_curve(mock_curve) -> None:
+    fig, axes = plot_curve(mock_curve, non_grid_names={"day"})
 
-    assert axes.size == 5
+    assert axes.size == mock_curve.sizes["geo"]
     assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+
+def test_plot_curve_supply_axes_same_axes(mock_curve) -> None:
+    _, ax = plt.subplots()
+    axes = np.array([ax])
+
+    fig, modified_axes = plot_curve(
+        mock_curve,
+        non_grid_names={"day"},
+        axes=axes,
+        same_axes=True,
+    )
+
+    np.testing.assert_equal(axes, modified_axes)
+    plt.close(fig)
+
+
+def test_plot_curve_custom_colors(mock_curve) -> None:
+    colors = ["red", "blue", "green", "yellow", "purple"]
+
+    fig, axes = plot_curve(mock_curve, non_grid_names={"day"}, colors=colors)
+
+    for ax, color in zip(axes, colors, strict=True):
+        for line in ax.get_lines():
+            assert line.get_color() == color
+
+    plt.close(fig)
+
+
+def test_plot_curve_custom_sel_to_string(mock_curve) -> None:
+    def custom_sel_to_string(sel):
+        return ", ".join(f"{key}: {value}" for key, value in sel.items())
+
+    fig, axes = plot_curve(
+        mock_curve,
+        non_grid_names={"day"},
+        sel_to_string=custom_sel_to_string,
+    )
+
+    titles = [ax.get_title() for ax in axes]
+
+    assert titles == [
+        "geo: 0",
+        "geo: 1",
+        "geo: 2",
+        "geo: 3",
+        "geo: 4",
+    ]
+
+    plt.close(fig)

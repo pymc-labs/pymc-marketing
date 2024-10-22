@@ -1,6 +1,7 @@
 (howto)=
 # How-to
 
+Here you will find a collection of examples and how-to guides for using PyMC-Marketing MMM and CLV models.
 
 :::{toctree}
 :caption: MMMs
@@ -9,11 +10,13 @@
 mmm/mmm_example
 mmm/mmm_budget_allocation_example
 mmm/mmm_lift_test
+mmm/mmm_counterfactuals
 mmm/mmm_tvp_example
 mmm/mmm_time_varying_media_example
 mmm/mmm_components
 mmm/mmm_roas
 mmm/mmm_time_slice_cross_validation
+mmm/mmm_case_study
 :::
 
 :::{toctree}

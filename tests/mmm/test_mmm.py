@@ -503,6 +503,24 @@ class TestMMM:
             inference_periods == num_periods
         ), f"Number of periods in the data {inference_periods} does not match the expected {num_periods}"
 
+    def test_allocate_budget_to_maximize_response_bad_noise_level(
+        self, mmm_fitted: MMM
+    ) -> None:
+        budget = 2.0
+        num_periods = 8
+        time_granularity = "weekly"
+        budget_bounds = {"channel_1": [0.5, 1.2], "channel_2": [0.5, 1.5]}
+        noise_level = "bad_noise_level"
+
+        with pytest.raises(ValueError, match="noise_level must be a float"):
+            mmm_fitted.allocate_budget_to_maximize_response(
+                budget=budget,
+                time_granularity=time_granularity,
+                num_periods=num_periods,
+                budget_bounds=budget_bounds,
+                noise_level=noise_level,
+            )
+
     @pytest.mark.parametrize(
         argnames="original_scale",
         argvalues=[False, True],

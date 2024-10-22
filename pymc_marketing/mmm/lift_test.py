@@ -11,55 +11,65 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Lift test functions for the MMM."""
+"""Adding lift tests as observations of saturation function.
 
-from collections.abc import Callable
-from functools import partial
-from typing import Union
+This provides the inner workings of `MMM.add_lift_test_measurements` method. Use that
+method directly while working with the `MMM` class.
+
+"""
+
+from collections.abc import Callable, Sequence
+from typing import Concatenate, ParamSpec
 
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 from numpy import typing as npt
+from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 
-
-class MissingLiftTestError(Exception):
-    """Error when some of the lift tests are not in the model."""
-
-    def __init__(self, missing_values: npt.NDArray[np.int_]) -> None:
-        self.missing_values = missing_values
-        super().__init__(
-            f"Some lift test values are not in the model: {missing_values}"
-        )
-
-
-Index = npt.NDArray[np.int_]
+Index = Sequence[int]
 Indices = dict[str, Index]
-Values = Union[npt.NDArray[np.int_], npt.NDArray[np.float64], npt.NDArray[np.str_]]  # noqa: UP007
+Values = npt.NDArray[np.int_] | npt.NDArray[np.float64] | npt.NDArray[np.str_]
 
 
-def _lift_test_index(lift_values: Values, model_values: Values) -> Index:
-    same_value = lift_values[:, None] == model_values
-    if not (same_value.sum(axis=1) == 1).all():
-        missing_values = np.argwhere(same_value.sum(axis=1) == 0).flatten()
-        raise MissingLiftTestError(missing_values)
-
-    return np.argmax(same_value, axis=1)
+def _find_unaligned_values(same_value: npt.NDArray[np.int_]) -> list[int]:
+    return np.argwhere(same_value.sum(axis=1) == 0).flatten().tolist()
 
 
-def lift_test_indices(df_lift_test: pd.DataFrame, model: pm.Model) -> Indices:
-    """Get the indices of the lift test results in the model.
+class UnalignedValuesError(Exception):
+    """Raised when some values are not aligned."""
+
+    def __init__(self, unaligned_values: dict[str, list[int]]) -> None:
+        self.unaligned_values = unaligned_values
+
+        combined: set[int] = set()
+        for values in unaligned_values.values():
+            combined = combined.union(values)
+        self.unaligned_rows = list(combined)
+
+        msg = (
+            "The following rows of the DataFrame "
+            f"are not aligned: {self.unaligned_rows}"
+        )
+        super().__init__(msg)
+
+
+def exact_row_indices(df: pd.DataFrame, model: pm.Model) -> Indices:
+    """Get indices in the model for each row in the DataFrame.
 
     Assumes any column in the DataFrame is a coordinate in the model with the
     same name.
 
+    If the DataFrame has columns that are not in the model, it will raise an
+    error.
+
     Parameters
     ----------
-    df_lift_test : pd.DataFrame
-        DataFrame with lift test results.
+    df : pd.DataFrame
+        DataFrame with coordinates combinations.
     model : pm.Model
         PyMC model with all the coordinates in the DataFrame.
 
@@ -70,170 +80,226 @@ def lift_test_indices(df_lift_test: pd.DataFrame, model: pm.Model) -> Indices:
 
     Raises
     ------
-    MissingLiftTestError
-        If some lift test values are not in the model.
+    UnalignedValuesError
+        If some values are not aligned. This means that some values in the
+        DataFrame are not in the model.
+    KeyError
+        If some coordinates in the DataFrame are not in the model.
+
+    Examples
+    --------
+    Get the indices from a DataFrame and model:
+
+    .. code-block:: python
+
+        import pymc as pm
+        import pandas as pd
+
+        from pymc_marketing.mmm.lift_test import exact_row_indices
+
+        df_lift_test = pd.DataFrame({
+            "channel": [0, 1, 0],
+            "geo": ["A", "B", "B"],
+        })
+
+        coords = {"channel": [0, 1, 2], "geo": ["A", "B", "C"]}
+        model = pm.Model(coords=coords)
+
+        indices = exact_row_indices(df_lift_test, model)
+        # {'channel': array([0, 1, 0]), 'geo': array([0, 1, 1])}
 
     """
-    columns = df_lift_test.columns.tolist()
+    columns = df.columns.tolist()
 
-    return {
-        col: _lift_test_index(
-            df_lift_test[col].to_numpy(),
-            # Coords in the model become tuples
-            # Reference: https://github.com/pymc-devs/pymc/blob/04b6881efa9f69711d604d2234c5645304f63d28/pymc/model/core.py#L998
-            # which become pd.Timestamp if from pandas objects
-            # Convert to Series stores them as np.datetime64
-            pd.Series(model.coords[col]).to_numpy(),
-        )
-        for col in columns
-    }
+    unaligned_values: dict[str, list[int]] = {}
+    missing_coords: list[str] = []
+    indices: Indices = {}
+    for col in columns:
+        lift_values = df[col].to_numpy()
 
+        if col not in model.coords:
+            missing_coords.append(col)
+            continue
 
-def calculate_lift_measurements_from_curve(
-    x_before: npt.NDArray[np.float64],
-    x_after: npt.NDArray[np.float64],
-    saturation_curve: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]],
-    pt_lib=None,
-) -> npt.NDArray[np.float64]:
-    """Calculate the lift measurements at two spends.
+        # Coords in the model become tuples
+        # Reference: https://github.com/pymc-devs/pymc/blob/04b6881efa9f69711d604d2234c5645304f63d28/pymc/model/core.py#L998
+        # which become pd.Timestamp if from pandas objects
+        # Convert to Series stores them as np.datetime64
+        model_values = pd.Series(model.coords[col]).to_numpy()
+        same_value = lift_values[:, None] == model_values
+        if not (same_value.sum(axis=1) == 1).all():
+            missing_values = _find_unaligned_values(same_value)
+            unaligned_values[col] = missing_values
 
-    Parameters
-    ----------
-    x_before : npt.NDArray[float]
-        Array of x before the change.
-    x_after : npt.NDArray[float]
-        Array of x after the change.
-    saturation_curve : Callable[[npt.NDArray[float]], npt.NDArray[float]]
-        Function that takes spend and returns saturation.
-    pt_lib : tensor module, optional. Default is pytensor.tensor.
+        indices[col] = np.argmax(same_value, axis=1)
 
-    Returns
-    -------
-    npt.NDArray[float]
-        Array of lift measurements based on a given saturation curve
+    if unaligned_values:
+        raise UnalignedValuesError(unaligned_values)
 
-    """
-    # setting default pl_lib to pytensor.tensor
-    if pt_lib is None:
-        pt_lib = pt
+    if missing_coords:
+        coord, be = ("coords", "are") if len(missing_coords) > 1 else ("coord", "is")
+        raise KeyError(f"The {coord} {missing_coords} {be} not in the model")
 
-    return pt_lib.diff(
-        saturation_curve(pt_lib.stack([x_before, x_after])),
-        axis=0,
-    ).flatten()
+    return indices
 
 
-def required_dims_from_named_vars_to_dims(
-    named_vars_to_dims: dict[str, tuple[str, ...]],
-) -> list[str]:
-    """Get the required dimensions from a named_vars_to_dims dictionary.
-
-    Parameters
-    ----------
-    named_vars_to_dims : dict[str, tuple[str, ...]]
-        Dictionary of variable names to dimensions.
-
-    Returns
-    -------
-    list[str]
-        List of required dimensions.
-
-    """
-    required_dims = set()
-    for dims in named_vars_to_dims.values():
-        for dim in dims:
-            required_dims.add(dim)
-
-    return list(required_dims)
+VariableIndexer = Callable[[str], TensorVariable]
 
 
-def indices_from_lift_tests(
-    df_lift_test: pd.DataFrame,
+def create_variable_indexer(
     model: pm.Model,
-    var_names: list[str],
-) -> Indices:
-    """Get the indices of the lift test results in the model.
-
-    These are the mapping from the lift test result to the index of the
-    corresponding variable in the model.
+    indices: Indices,
+) -> VariableIndexer:
+    """Create a function to index variables in the model.
 
     Parameters
     ----------
-    df_lift_test : pd.DataFrame
-        DataFrame with lift test results with at least the following columns:
-            * `x`: x axis value of the lift test.
-            * `delta_x`: change in x axis value of the lift test.
-            * `delta_y`: change in y axis value of the lift test.
-            * `sigma`: standard deviation of the lift test.
-        Any additional columns are assumed to be coordinates in the model.
     model : pm.Model
-        PyMC model with arbitrary number of coordinates.
-    var_names : list[str]
-        List of variable names in the model.
+        PyMC model
+    indices : dict[str, np.ndarray]
+        Dictionary of indices for the indices in the model.
 
     Returns
     -------
-    dict[str, np.ndarray]
-        Dictionary of indices for the lift test results in the model.
+    Callable[[str], TensorVariable]
+        Function to index variables in the model.
+
+    Raises
+    ------
+    KeyError
+        If the variable is not in the model.
+
+    Examples
+    --------
+    Create a variable indexer:
+
+    .. code-block:: python
+
+        import numpy as np
+        import pymc as pm
+
+        from pymc_marketing.mmm.lift_test import create_variable_indexer
+
+        coords = {"channel": [0, 1, 2], "geo": ["A", "B", "C"]}
+        with pm.Model(coords=coords) as model:
+            pm.Normal("alpha", dims=("channel", "geo"))
+            pm.Normal("beta", dims="channel")
+
+        # Usually from exact_row_indices
+        indices = {"channel": [0, 1], "geo": [1, 0]}
+
+        variable_indexer = create_variable_indexer(model, indices)
+
+    Get alpha at indices:
+
+    .. code-block:: python
+
+        alpha_at_indices = variable_indexer("alpha")
+
+    Get beta at indices:
+
+    .. code-block:: python
+
+        beta_at_indices = variable_indexer("beta")
 
     """
-    named_vars_to_dims = {
-        name: dims
-        for name, dims in model.named_vars_to_dims.items()
-        if name in var_names
-    }
+    named_vars_to_dims = model.named_vars_to_dims
 
-    required_dims = required_dims_from_named_vars_to_dims(named_vars_to_dims)
+    def variable_indexer(name: str) -> TensorVariable:
+        if name not in named_vars_to_dims:
+            raise KeyError(f"The variable {name!r} is not in the model")
 
-    for col in required_dims:
-        if col not in df_lift_test.columns:
-            raise KeyError(f"The required coordinates are {required_dims}")
+        idx: tuple[Index] = tuple([indices[dim] for dim in named_vars_to_dims[name]])  # type: ignore
+        return model[name][idx]
 
-    return lift_test_indices(df_lift_test[required_dims], model)
+    return variable_indexer
 
 
-def index_variable(
-    var_dims: tuple[str, ...],
-    var: pt.TensorVariable,
-    indices: Indices,
-) -> pt.TensorVariable:
-    """Index the TensorVariable based on the required lift test indices."""
-    idx = tuple([indices[dim] for dim in var_dims])
-    return var.__getitem__(idx)
+class MissingValueError(KeyError):
+    """Error when values are missing from a required set."""
 
+    def __init__(self, missing_values: list[str], required_values: list[str]) -> None:
+        self.missing_values = missing_values
+        self.required_values = required_values
 
-class NonMonotonicLiftError(Exception):
-    """Raised when the lift test results do not satisfy the increasing assumption."""
+        value, be = ("values", "are") if len(missing_values) > 1 else ("value", "is")
 
-
-def check_increasing_assumption(df_lift_tests: pd.DataFrame) -> None:
-    """Check if the lift test results satisfy the increasing assumption.
-
-    If delta_x is positive, delta_y must be positive, and vice versa.
-    """
-    increasing = df_lift_tests["delta_x"] * df_lift_tests["delta_y"] >= 0
-
-    if not increasing.all():
-        raise NonMonotonicLiftError(
-            "The lift test results do not satisfy the increasing assumption."
+        super().__init__(
+            f"The {value} {missing_values} {be} missing of the required {required_values}"
         )
 
 
-SaturationFunc = Callable
+def assert_is_subset(required: set[str], available: set[str]) -> None:
+    """Check if the available set is a subset of the required set.
+
+    Parameters
+    ----------
+    required : set[str]
+        Required values.
+    available : set[str]
+        Available values.
+
+    Raises
+    ------
+    MissingValueError
+        If the available set is not a subset of the required set.
+
+    """
+    missing = required - available
+    if missing:
+        raise MissingValueError(list(missing), list(required))
+
+
+class NonMonotonicError(ValueError):
+    """Data is not monotonic."""
+
+
+def assert_monotonic(delta_x: pd.Series, delta_y: pd.Series) -> None:
+    """
+    Check if the lift test results satisfy the increasing assumption.
+
+    The increasing assumption states that if delta_x is positive, delta_y must be positive, and vice versa.
+
+    Parameters
+    ----------
+    delta_x : pd.Series
+        Series with the change in x axis value of the lift test.
+    delta_y : pd.Series
+        Series with the change in y axis value of the lift test.
+
+    Raises
+    ------
+    NonMonotonicError
+        If the lift test results do not satisfy the increasing assumption.
+
+    """
+    if not (delta_x * delta_y >= 0).all():
+        raise NonMonotonicError("The data is not monotonic.")
+
+
+P = ParamSpec("P")
+SaturationFunc = Callable[Concatenate[TensorVariable, P], TensorVariable]
 VariableMapping = dict[str, str]
 
 
-def add_lift_measurements_to_likelihood(
+def add_saturation_observations(
     df_lift_test: pd.DataFrame,
     variable_mapping: VariableMapping,
     saturation_function: SaturationFunc,
     model: pm.Model | None = None,
     dist: type[pm.Distribution] = pm.Gamma,
     name: str = "lift_measurements",
+    get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
+    variable_indexer_factory: Callable[
+        [pm.Model, Indices], VariableIndexer
+    ] = create_variable_indexer,
 ) -> None:
-    """Add lift measurements to the likelihood of the model.
+    """Add saturation observations to the likelihood of the model.
 
     General function to add lift measurements to the likelihood of the model.
+
+    Not to be used directly for general use. Use :func:`MMM.add_lift_test_measurements`
+    or :func:`add_lift_measurements_to_likelihood_from_saturation` instead.
 
     Parameters
     ----------
@@ -254,6 +320,13 @@ def add_lift_measurements_to_likelihood(
         PyMC distribution to use for the likelihood, by default pm.Gamma
     name : str, optional
         Name of the likelihood, by default "lift_measurements"
+    get_indices : Callable[[pd.DataFrame, pm.Model], Indices], optional
+        Function to get the indices of the DataFrame in the model, by default exact_row_indices
+        which assumes that the columns map exactly to the model coordinates.
+    variable_indexer_factory : Callable[[pm.Model, Indices], Callable[[str], TensorVariable]], optional
+        Function to create a variable indexer, by default create_variable_indexer
+        which creates a function to index variables in the model. This is used determine
+        the values of the parameters to evaluate the saturation function.
 
     Examples
     --------
@@ -263,7 +336,7 @@ def add_lift_measurements_to_likelihood(
 
         import pymc as pm
         import pandas as pd
-        from pymc_marketing.mmm.lift_test import add_lift_measurements_to_likelihood
+        from pymc_marketing.mmm.lift_test import add_saturation_observations
 
         df_base_lift_test = pd.DataFrame({
             "x": [1, 2, 3],
@@ -292,7 +365,7 @@ def add_lift_measurements_to_likelihood(
             alpha = pm.HalfNormal("alpha_in_model", dims=("channel", "date"))
             lam = pm.HalfNormal("lam_in_model", dims="channel")
 
-            add_lift_measurements_to_likelihood(
+            add_saturation_observations(
                 df_lift_test,
                 variable_mapping={
                     "alpha": "alpha_in_model",
@@ -310,7 +383,7 @@ def add_lift_measurements_to_likelihood(
         import pandas as pd
 
         from pymc_marketing.mmm import LogisticSaturation
-        from pymc_marketing.mmm.lift_test import add_lift_measurements_to_likelihood
+        from pymc_marketing.mmm.lift_test import add_saturation_observations
 
         saturation = LogisticSaturation()
 
@@ -334,7 +407,7 @@ def add_lift_measurements_to_likelihood(
             lam = pm.HalfNormal("saturation_lam", dims="channel")
             beta = pm.HalfNormal("saturation_beta", dims="channel")
 
-            add_lift_measurements_to_likelihood(
+            add_saturation_observations(
                 df_lift_test,
                 variable_mapping=saturation.variable_mapping,
                 saturation_function=saturation.function,
@@ -348,7 +421,7 @@ def add_lift_measurements_to_likelihood(
         import pandas as pd
 
         from pymc_marketing.mmm import LogisticSaturation
-        from pymc_marketing.mmm.lift_test import add_lift_measurements_to_likelihood
+        from pymc_marketing.mmm.lift_test import add_saturation_observations
 
         saturation = LogisticSaturation()
 
@@ -374,7 +447,7 @@ def add_lift_measurements_to_likelihood(
             lam = pm.HalfNormal("saturation_lam", dims=("channel", "geo"))
             beta = pm.HalfNormal("saturation_beta", dims=("channel", "geo"))
 
-            add_lift_measurements_to_likelihood(
+            add_saturation_observations(
                 df_lift_test,
                 variable_mapping=saturation.variable_mapping,
                 saturation_function=saturation.function,
@@ -382,36 +455,45 @@ def add_lift_measurements_to_likelihood(
 
     """
     required_columns = ["x", "delta_x", "delta_y", "sigma"]
+    assert_is_subset(set(required_columns), set(df_lift_test.columns))
+    assert_monotonic(df_lift_test["delta_x"], df_lift_test["delta_y"])
 
-    missing_cols = set(required_columns).difference(df_lift_test.columns)
-    if missing_cols:
-        raise KeyError(f"Missing from DataFrame: {list(missing_cols)}")
-
-    check_increasing_assumption(df_lift_test)
-
-    model = pm.modelcontext(model)
+    current_model: pm.Model = pm.modelcontext(model)
 
     var_names = list(variable_mapping.values())
-    indices = indices_from_lift_tests(df_lift_test, model, var_names)
 
-    x_before = df_lift_test["x"].to_numpy()
-    x_after = x_before + df_lift_test["delta_x"].to_numpy()
-
-    kwargs = {
-        name: index_variable(
-            var_dims=model.named_vars_to_dims[var_name],
-            var=model[var_name],
-            indices=indices,
-        )
-        for name, var_name in variable_mapping.items()
-    }
-
-    partial_saturation_function = partial(saturation_function, **kwargs)
-    model_estimated_lift = calculate_lift_measurements_from_curve(
-        x_before, x_after, partial_saturation_function
+    required_dims: list[str] = list(
+        {
+            dim
+            for name, dims in current_model.named_vars_to_dims.items()
+            if name in var_names
+            for dim in dims
+        }
     )
 
-    with pm.modelcontext(model):
+    assert_is_subset(set(required_dims), set(df_lift_test.columns))
+    indices = get_indices(df_lift_test[required_dims], current_model)
+
+    x_before = pt.as_tensor_variable(df_lift_test["x"].to_numpy())
+    x_after = x_before + pt.as_tensor_variable(df_lift_test["delta_x"].to_numpy())
+
+    variable_indexer = variable_indexer_factory(
+        current_model,
+        indices,
+    )
+
+    def saturation_curve(x):
+        return saturation_function(
+            x,
+            **{
+                parameter_name: variable_indexer(variable_name)
+                for parameter_name, variable_name in variable_mapping.items()
+            },
+        )
+
+    model_estimated_lift = saturation_curve(x_after) - saturation_curve(x_before)
+
+    with current_model:
         dist(
             name=name,
             mu=pt.abs(model_estimated_lift),
@@ -506,14 +588,16 @@ def scale_target_for_lift_measurements(
     target_to_scale = target.to_numpy().reshape(-1, 1)
 
     return pd.Series(
-        transform(target_to_scale).flatten(), index=target.index, name=target.name
+        transform(target_to_scale).flatten(),
+        index=target.index,
+        name=target.name,
     )
 
 
 def scale_lift_measurements(
     df_lift_test: pd.DataFrame,
     channel_col: str,
-    channel_columns: list[str],
+    channel_columns: list[str | int],
     channel_transform: Callable[[np.ndarray], np.ndarray],
     target_transform: Callable[[np.ndarray], np.ndarray],
 ) -> pd.DataFrame:
@@ -582,11 +666,11 @@ def create_time_varying_saturation(
     -------
     tuple[SaturationFunc, VariableMapping]
         Tuple of function and variable mapping to be used in
-        add_lift_measurements_to_likelihood function.
+        add_saturation_observations function.
 
     """
 
-    def function(x, time_varying: pt.TensorVariable, **kwargs):
+    def function(x, time_varying: TensorVariable, **kwargs):
         return time_varying * saturation.function(x, **kwargs)
 
     variable_mapping = {
@@ -604,11 +688,15 @@ def add_lift_measurements_to_likelihood_from_saturation(
     model: pm.Model | None = None,
     dist: type[pm.Distribution] = pm.Gamma,
     name: str = "lift_measurements",
+    get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
+    variable_indexer_factory: Callable[
+        [pm.Model, Indices], Callable[[str], TensorVariable]
+    ] = create_variable_indexer,
 ) -> None:
     """
     Add lift measurements to the likelihood from a saturation transformation.
 
-    Wrapper around :func:`add_lift_measurements_to_likelihood` to work with
+    Wrapper around :func:`add_saturation_observations` to work with
     SaturationTransformation instances and time-varying variables.
 
     Used internally of the :class:`MMM` class.
@@ -631,6 +719,13 @@ def add_lift_measurements_to_likelihood_from_saturation(
         PyMC distribution to use for the likelihood, by default pm.Gamma
     name : str, optional
         Name of the likelihood, by default "lift_measurements"
+    get_indices : Callable[[pd.DataFrame, pm.Model], Indices], optional
+        Function to get the indices of the DataFrame in the model, by default exact_row_indices
+        which assumes that the columns map exactly to the model coordinates.
+    variable_indexer_factory : Callable[[pm.Model, Indices], Callable[[str], TensorVariable]], optional
+        Function to create a variable indexer, by default create_variable_indexer
+        which creates a function to index variables in the model. This is used determine
+        the values of the parameters to evaluate the saturation function.
 
     """
     if time_varying_var_name:
@@ -644,11 +739,13 @@ def add_lift_measurements_to_likelihood_from_saturation(
         saturation_function = saturation.function
         variable_mapping = saturation.variable_mapping
 
-    add_lift_measurements_to_likelihood(
+    add_saturation_observations(
         df_lift_test=df_lift_test,
         variable_mapping=variable_mapping,
         saturation_function=saturation_function,
         dist=dist,
         name=name,
         model=model,
+        get_indices=get_indices,
+        variable_indexer_factory=variable_indexer_factory,
     )
