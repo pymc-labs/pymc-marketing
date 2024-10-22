@@ -371,48 +371,64 @@ def plot_purchase_history(
     **kwargs,
 ):
     """
-    Plot a figure of the predicted and actual cumulative or incremental transactions of users.
+    Plot actual and expected purchases over time for a fitted ``BetaGeoModel`` or ``ParetoNBDModel``. Results can be
+    either cumulative or incremental.
+
+    This function is based on the formulation on page 8 of [1]_. Specifically, we take only customers who have made
+    their first transaction before the specified number of ``t`` time periods, and run
+    ``expected_purchases_new_customer()`` for all remaining time periods.
+
+    Adapted from legacy ``lifetimes`` library:
+    https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/plotting.py#L392
 
     Parameters
     ----------
-    model: lifetimes model
-        A fitted lifetimes model
-    transactions: pandas DataFrame
-        DataFrame containing the transactions history of the customer_id
-    datetime_col: str
-        The column in transactions that denotes the datetime the purchase was made.
-    customer_id_col: str
-        The column in transactions that denotes the customer_id
-    t: float
-        The number of time units since the begining of
-        data for which we want to calculate cumulative transactions
-    t_cal: float
-        A marker used to indicate where the vertical line for plotting should be.
-    datetime_format: str, optional
-        A string that represents the timestamp format. Useful if Pandas
-        can't understand the provided format.
-    freq: str, optional
-        Default 'D' for days, 'W' for weeks, 'M' for months... etc.
-        Full list here:
-        http://pandas.pydata.org/pandas-docs/stable/timeseries.html#dateoffset-objects
-    set_index_date: bool, optional
-        When True set date as Pandas DataFrame index, default False - number of time units
-    title: str, optional
+    model :
+        A fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
+    transactions : ~pandas.DataFrame
+        A Pandas DataFrame containing *customer_id_col* and *datetime_col*.
+    customer_id_col : string
+        Column in the *transactions* DataFrame denoting the *customer_id*.
+    datetime_col :  string
+        Column in the *transactions* DataFrame denoting datetimes purchase were made.
+    t: int
+        Number of time units since earliest transaction for which we want to aggregate cumulative transactions.
+    datetime_format : string, optional
+        A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
+    time_unit : string, optional
+        Time granularity for study.
+        Default: 'D' for days. Possible values listed here:
+        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+    time_scaler : int, optional
+        Default: 1. Scales *recency* & *T* to a different time granularity.
+        This is useful for datasets spanning many years, and running predictions in different time scales.
+    sort_transactions : bool, optional
+        Default: *True*
+        If raw data is already sorted in chronological order, set to *False* to improve computational efficiency.
+    set_index_date : bool, optional
+        Set to True to return a dataframe with a datetime index.
+    title : str, optional
         Figure title
-    xlabel: str, optional
+    xlabel : str, optional
         Figure xlabel
-    ylabel: str, optional
+    ylabel : str, optional
         Figure ylabel
     ax: matplotlib.AxesSubplot, optional
         Using user axes
     kwargs
-        Passed into the pandas.DataFrame.plot command.
+        Additional arguments to pass into the pandas.DataFrame.plot command.
 
     Returns
     -------
     axes: matplotlib.AxesSubplot
 
+    References
+    ----------
+    .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005),
+    A Note on Implementing the Pareto/NBD Model in MATLAB.
+    http://brucehardie.com/notes/008/
     """
+
     from matplotlib import pyplot as plt
 
     if ax is None:
