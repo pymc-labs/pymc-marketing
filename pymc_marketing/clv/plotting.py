@@ -434,6 +434,7 @@ def plot_purchase_history(
     if ax is None:
         ax = plt.subplot(111)
 
+    # TODO: Rename to _expected_cumulative_purchases for consistency?
     df_cum_transactions = expected_cumulative_transactions(
         model,
         transactions,
