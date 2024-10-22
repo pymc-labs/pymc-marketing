@@ -43,6 +43,7 @@ __all__ = (
     "customer_lifetime_value",
     "plot_customer_exposure",
     "plot_frequency_recency_matrix",
+    "plot_purchase_history",
     "plot_probability_alive_matrix",
     "rfm_segments",
     "rfm_summary",
