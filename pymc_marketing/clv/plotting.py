@@ -26,6 +26,8 @@ __all__ = [
     "plot_customer_exposure",
     "plot_frequency_recency_matrix",
     "plot_probability_alive_matrix",
+    "plot_cumulative_transactions",
+    "plot_incremental_transactions",
 ]
 
 
@@ -349,6 +351,184 @@ def plot_probability_alive_matrix(
     # plot colorbar beside matrix
     plt.colorbar(pcm, ax=ax)
 
+    return ax
+
+
+def plot_cumulative_transactions(
+    model,
+    transactions,
+    datetime_col,
+    customer_id_col,
+    t,
+    t_cal,
+    datetime_format=None,
+    freq="D",
+    set_index_date=False,
+    title="Tracking Cumulative Transactions",
+    xlabel="day",
+    ylabel="Cumulative Transactions",
+    ax=None,
+    **kwargs,
+):
+    """
+    Plot a figure of the predicted and actual cumulative transactions of users.
+
+    Parameters
+    ----------
+    model: lifetimes model
+        A fitted lifetimes model
+    transactions: pandas DataFrame
+        DataFrame containing the transactions history of the customer_id
+    datetime_col: str
+        The column in transactions that denotes the datetime the purchase was made.
+    customer_id_col: str
+        The column in transactions that denotes the customer_id
+    t: float
+        The number of time units since the begining of
+        data for which we want to calculate cumulative transactions
+    t_cal: float
+        A marker used to indicate where the vertical line for plotting should be.
+    datetime_format: str, optional
+        A string that represents the timestamp format. Useful if Pandas
+        can't understand the provided format.
+    freq: str, optional
+        Default 'D' for days, 'W' for weeks, 'M' for months... etc.
+        Full list here:
+        http://pandas.pydata.org/pandas-docs/stable/timeseries.html#dateoffset-objects
+    set_index_date: bool, optional
+        When True set date as Pandas DataFrame index, default False - number of time units
+    title: str, optional
+        Figure title
+    xlabel: str, optional
+        Figure xlabel
+    ylabel: str, optional
+        Figure ylabel
+    ax: matplotlib.AxesSubplot, optional
+        Using user axes
+    kwargs
+        Passed into the pandas.DataFrame.plot command.
+
+    Returns
+    -------
+    axes: matplotlib.AxesSubplot
+
+    """
+    from matplotlib import pyplot as plt
+
+    if ax is None:
+        ax = plt.subplot(111)
+
+    df_cum_transactions = expected_cumulative_transactions(
+        model,
+        transactions,
+        datetime_col,
+        customer_id_col,
+        t,
+        datetime_format=datetime_format,
+        freq=freq,
+        set_index_date=set_index_date,
+    )
+
+    ax = df_cum_transactions.plot(ax=ax, title=title, **kwargs)
+
+    if set_index_date:
+        x_vline = df_cum_transactions.index[int(t_cal)]
+        xlabel = "date"
+    else:
+        x_vline = t_cal
+    ax.axvline(x=x_vline, color="r", linestyle="--")
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    return ax
+
+
+def plot_incremental_transactions(
+    model,
+    transactions,
+    datetime_col,
+    customer_id_col,
+    t,
+    t_cal,
+    datetime_format=None,
+    freq="D",
+    set_index_date=False,
+    title="Tracking Daily Transactions",
+    xlabel="day",
+    ylabel="Transactions",
+    ax=None,
+    **kwargs,
+):
+    """
+    Plot a figure of the predicted and actual incremental transactions of users.
+
+    Parameters
+    ----------
+    model: lifetimes model
+        A fitted lifetimes model
+    transactions: pandas DataFrame
+        DataFrame containing the transactions history of the customer_id
+    datetime_col: str
+        The column in transactions that denotes the datetime the purchase was made.
+    customer_id_col: str
+        The column in transactions that denotes the customer_id
+    t: float
+        The number of time units since the begining of
+        data for which we want to calculate cumulative transactions
+    t_cal: float
+        A marker used to indicate where the vertical line for plotting should be.
+    datetime_format: str, optional
+        A string that represents the timestamp format. Useful if Pandas
+        can't understand the provided format.
+    freq: str, optional
+        Default 'D' for days, 'W' for weeks, 'M' for months... etc.
+        Full list here:
+        http://pandas.pydata.org/pandas-docs/stable/timeseries.html#dateoffset-objects
+    set_index_date: bool, optional
+        When True set date as Pandas DataFrame index, default False - number of time units
+    title: str, optional
+        Figure title
+    xlabel: str, optional
+        Figure xlabel
+    ylabel: str, optional
+        Figure ylabel
+    ax: matplotlib.AxesSubplot, optional
+        Using user axes
+    kwargs
+        Passed into the pandas.DataFrame.plot command.
+
+    Returns
+    -------
+    axes: matplotlib.AxesSubplot
+
+    """
+    from matplotlib import pyplot as plt
+
+    if ax is None:
+        ax = plt.subplot(111)
+
+    df_cum_transactions = expected_cumulative_transactions(
+        model,
+        transactions,
+        datetime_col,
+        customer_id_col,
+        t,
+        datetime_format=datetime_format,
+        freq=freq,
+        set_index_date=set_index_date,
+    )
+
+    # get incremental from cumulative transactions
+    df_cum_transactions = df_cum_transactions.apply(lambda x: x - x.shift(1))
+    ax = df_cum_transactions.plot(ax=ax, title=title, **kwargs)
+
+    if set_index_date:
+        x_vline = df_cum_transactions.index[int(t_cal)]
+        xlabel = "date"
+    else:
+        x_vline = t_cal
+    ax.axvline(x=x_vline, color="r", linestyle="--")
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
     return ax
 
 
