@@ -262,7 +262,7 @@ def plot_frequency_recency_matrix(
         title=title,
     )
 
-    force_aspect(ax)
+    _force_aspect(ax)
 
     # plot colorbar beside matrix
     plt.colorbar(pcm, ax=ax)
@@ -346,7 +346,7 @@ def plot_probability_alive_matrix(
         ylabel=ylabel,
         title=title,
     )
-    force_aspect(ax)
+    _force_aspect(ax)
 
     # plot colorbar beside matrix
     plt.colorbar(pcm, ax=ax)
@@ -532,7 +532,7 @@ def plot_incremental_transactions(
     return ax
 
 
-def force_aspect(ax: plt.Axes, aspect=1):
+def _force_aspect(ax: plt.Axes, aspect=1):
     im = ax.get_images()
     extent = im[0].get_extent()
     ax.set_aspect(abs((extent[1] - extent[0]) / (extent[3] - extent[2])) / aspect)
