@@ -45,10 +45,23 @@ class MVITS(ModelBuilder):
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
-        super().__init__(model_config=model_config, sampler_config=sampler_config)
-
         self.existing_sales = existing_sales
         self.market_saturated = market_saturated
+
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
+
+        self._distribution_checks()
+
+    def _distribution_checks(self):
+        if self.model_config["market_distribution"].distribution != "Dirichlet":
+            raise ValueError("market_distribution must be a Dirichlet distribution")  #
+
+        dims = "background_product" if self.market_saturated else "all_sources"
+
+        if dims not in self.model_config["market_distribution"].dims:
+            raise ValueError(
+                f"market_distribution must have dims='{dims}', not {self.model_config['market_distribution'].dims}"
+            )
 
     def create_idata_attrs(self) -> dict[str, str]:
         """Create the attributes for the InferenceData object."""
@@ -69,6 +82,15 @@ class MVITS(ModelBuilder):
     @property
     def default_model_config(self) -> dict:
         """Default model configuration."""
+        if self.market_saturated:
+            a = np.full(len(self.existing_sales), 0.5)
+            dims = "background_product"
+        else:
+            a = np.full(len(self.existing_sales) + 1, 0.5)
+            dims = "all_sources"
+
+        market_distribution = Prior("Dirichlet", a=a, dims=dims)
+
         return {
             "intercept": Prior("Normal", dims="background_product"),
             "likelihood": Prior(
@@ -77,7 +99,7 @@ class MVITS(ModelBuilder):
                 sigma=Prior("HalfNormal", dims="background_product"),
                 dims=("time", "background_product"),
             ),
-            "alpha_background": 0.5,
+            "market_distribution": market_distribution,
         }
 
     @property
@@ -94,7 +116,7 @@ class MVITS(ModelBuilder):
         result: dict[str, int | float | dict] = {
             "intercept": self.model_config["intercept"].to_json(),
             "likelihood": self.model_config["likelihood"].to_json(),
-            "alpha_background": self.model_config["alpha_background"],
+            "market_distribution": self.model_config["market_distribution"].to_json(),
         }
 
         return result
@@ -144,24 +166,20 @@ class MVITS(ModelBuilder):
 
             # priors
             intercept = self.model_config["intercept"].create_variable(name="intercept")
-            alpha_background = self.model_config["alpha_background"]
 
             if self.market_saturated:
                 """We assume the market is saturated. The sum of the beta's will be 1.
                 This means that the reduction in sales of existing products will equal
                 the increase in sales of the new product, such that the total sales
                 remain constant."""
-                alpha = np.full(
-                    len(self.coords["background_product"]),
-                    alpha_background,
-                )
-                beta = pm.Dirichlet("beta", a=alpha, dims="background_product")
+                beta = self.model_config["market_distribution"].create_variable("beta")
             else:
                 """We assume the market is not saturated. The sum of the beta's will be
                 less than 1. This means that the reduction in sales of existing products
                 will be less than the increase in sales of the new product."""
-                alpha_all = np.full(len(self.coords["all_sources"]), alpha_background)
-                beta_all = pm.Dirichlet("beta_all", a=alpha_all, dims="all_sources")
+                beta_all = self.model_config["market_distribution"].create_variable(
+                    "beta_all",
+                )
                 beta = pm.Deterministic(
                     "beta",
                     beta_all[:-1],
