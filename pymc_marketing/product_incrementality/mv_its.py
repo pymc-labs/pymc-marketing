@@ -13,6 +13,9 @@
 #   limitations under the License.
 """Multivariate Interrupted Time Series Analysis for Product Incrementality."""
 
+import json
+from typing import Any
+
 import arviz as az
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
@@ -20,169 +23,207 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 
+from pymc_marketing.model_builder import ModelBuilder
+from pymc_marketing.prior import Prior
+
 HDI_ALPHA = 0.5
 
 
-class MVITS:
+class MVITS(ModelBuilder):
     """Multivariate Interrupted Time Series class.
 
     Class to perform a multivariate interrupted time series analysis with the
     specific intent of determining where the sales of a new product came from.
     """
 
+    _model_type = "Multivariate Interrupted Time Series"
+
     def __init__(
         self,
-        data: pd.DataFrame,
-        treatment_time,
         existing_sales: list[str],
-        treatment_sales: str,
         market_saturated: bool = True,
-        rng=42,
-        sample_kwargs: dict | None = None,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
     ):
-        self.data = data
-        self.treatment_time = treatment_time
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
+
         self.existing_sales = existing_sales
-        self.treatment_sales = treatment_sales
-        self.rng = rng
-        self.sample_kwargs = sample_kwargs if sample_kwargs is not None else {}
         self.market_saturated = market_saturated
 
-        self.model = self.build_model(
-            self.data[self.existing_sales],
-            self.data[self.treatment_sales],
-            self.market_saturated,
-            treatment_time=self.treatment_time,
-        )
-        self.sample_prior_predictive()
-        self.fit()
-        self.sample_posterior_predictive()
-        self.calculate_counterfactual()
-        return
+    def create_idata_attrs(self) -> dict[str, str]:
+        """Create the attributes for the InferenceData object."""
+        attrs = super().create_idata_attrs()
+        attrs["existing_sales"] = json.dumps(self.existing_sales)
+        attrs["market_saturated"] = json.dumps(self.market_saturated)
 
-    @staticmethod
-    def build_model(
-        existing_sales: pd.DataFrame,
-        treatment_sales: pd.Series,
-        market_saturated: bool,
-        treatment_time,
-        *,
-        alpha_background=0.5,
-    ):
-        """Return a PyMC model for a multivariate interrupted time series analysis."""
-        if not existing_sales.index.equals(treatment_sales.index):
-            raise ValueError(  # pragma: no cover
-                "Index of existing_sales and treatment_sales must match."
-            )
+        return attrs
 
-        # note: type hints for coords required for mypi to not get confused
-        coords: dict[str, list[str]] = {
-            "background_product": list(existing_sales.columns),
-            "time": list(existing_sales.index.values),
+    @classmethod
+    def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
+        """Convert the attributes of the InferenceData object to the __init__ kwargs."""
+        return {
+            "existing_sales": json.loads(attrs["existing_sales"]),
+            "market_saturated": json.loads(attrs["market_saturated"]),
+        }
+
+    @property
+    def default_model_config(self) -> dict:
+        """Default model configuration."""
+        return {
+            "intercept": Prior("Normal", dims="background_product"),
+            "likelihood": Prior(
+                "TruncatedNormal",
+                lower=0,
+                sigma=Prior("HalfNormal", dims="background_product"),
+                dims=("time", "background_product"),
+            ),
+            "alpha_background": 0.5,
+        }
+
+    @property
+    def default_sampler_config(self) -> dict:
+        """Default sampler configuration."""
+        return {}
+
+    @property
+    def output_var(self) -> str:
+        """The output variable of the model."""
+        return "y"
+
+    def _serializable_model_config(self) -> dict[str, int | float | dict]:  # type: ignore
+        result: dict[str, int | float | dict] = {
+            "intercept": self.model_config["intercept"].to_json(),
+            "likelihood": self.model_config["likelihood"].to_json(),
+            "alpha_background": self.model_config["alpha_background"],
+        }
+
+        return result
+
+    def _generate_and_preprocess_model_data(
+        self,
+        X: pd.DataFrame | pd.Series,
+        y: np.ndarray,
+    ) -> None:
+        if isinstance(X, pd.Series):
+            raise ValueError("X must be a DataFrame, not a Series")  # pragma: no cover
+
+        self.X = X[self.existing_sales]
+        self.y = pd.Series(y, index=X.index)
+
+        # note: type hints for coords required for mypy to not get confused
+        self.coords: dict[str, list[str]] = {
+            "background_product": list(self.existing_sales),
+            "time": list(X.index.values),
             "all_sources": [
-                *list(existing_sales.columns),
+                *list(self.existing_sales),
                 "new",
             ],
         }
 
-        with pm.Model(coords=coords) as model:
+    def build_model(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series | np.ndarray,
+        **kwargs,
+    ) -> None:
+        """Build a PyMC model for a multivariate interrupted time series analysis."""
+        self._generate_and_preprocess_model_data(X, y)  # type: ignore
+
+        with pm.Model(coords=self.coords) as model:
             # data
             _existing_sales = pm.Data(
                 "existing_sales",
-                existing_sales.values,
+                X.values,
                 dims=("time", "background_product"),
             )
-            treatment_sales = pm.Data(
-                "treatment_sales", treatment_sales.values, dims=("time",)
+            y = pm.Data(
+                "treatment_sales",
+                y if not isinstance(y, pd.Series) else y.values,
+                dims="time",
             )
 
             # priors
-            intercept = pm.Normal(
-                "intercept",
-                mu=pm.math.mean(existing_sales[:treatment_time], axis=0),
-                sigma=np.std(existing_sales[:treatment_time], axis=0),
-                dims="background_product",
-            )
+            intercept = self.model_config["intercept"].create_variable(name="intercept")
+            alpha_background = self.model_config["alpha_background"]
 
-            sigma = pm.HalfNormal(
-                "background_product_sigma",
-                sigma=pm.math.mean(existing_sales.std().values),
-                dims="background_product",
-            )
-
-            if market_saturated:
+            if self.market_saturated:
                 """We assume the market is saturated. The sum of the beta's will be 1.
                 This means that the reduction in sales of existing products will equal
                 the increase in sales of the new product, such that the total sales
                 remain constant."""
-                alpha = np.full(len(coords["background_product"]), alpha_background)
+                alpha = np.full(
+                    len(self.coords["background_product"]),
+                    alpha_background,
+                )
                 beta = pm.Dirichlet("beta", a=alpha, dims="background_product")
             else:
                 """We assume the market is not saturated. The sum of the beta's will be
                 less than 1. This means that the reduction in sales of existing products
                 will be less than the increase in sales of the new product."""
-                alpha_all = np.full(len(coords["all_sources"]), alpha_background)
+                alpha_all = np.full(len(self.coords["all_sources"]), alpha_background)
                 beta_all = pm.Dirichlet("beta_all", a=alpha_all, dims="all_sources")
                 beta = pm.Deterministic(
-                    "beta", beta_all[:-1], dims="background_product"
+                    "beta",
+                    beta_all[:-1],
+                    dims="background_product",
                 )
                 pm.Deterministic("new sales", beta_all[-1])
 
             # expectation
             mu = pm.Deterministic(
                 "mu",
-                intercept[None, :] - treatment_sales[:, None] * beta[None, :],
+                intercept[None, :] - y[:, None] * beta[None, :],
                 dims=("time", "background_product"),
             )
 
             # likelihood
-            normal_dist = pm.Normal.dist(mu=mu, sigma=sigma)
-            pm.Truncated(
-                "y",
-                normal_dist,
-                lower=0,
+            self.model_config["likelihood"].create_likelihood_variable(
+                name=self.output_var,
+                mu=mu,
                 observed=_existing_sales,
-                dims=("time", "background_product"),
             )
 
-        return model
+        self.model = model
 
-    def sample_prior_predictive(self):
-        """Sample from the prior predictive distribution."""
-        with self.model:
-            self.idata = pm.sample_prior_predictive(random_seed=self.rng)
+    def _data_setter(
+        self,
+        X: np.ndarray | pd.DataFrame,
+        y: np.ndarray | pd.Series | None = None,
+    ) -> None:
+        """Set the data.
 
-    def fit(self):
-        """Fit the model to the data."""
-        with self.model:
-            self.idata.extend(pm.sample(**self.sample_kwargs, random_seed=self.rng))
+        Required from the parent class
 
-    def sample_posterior_predictive(self):
-        """Sample from the posterior predictive distribution."""
-        with self.model:
-            self.idata.extend(
-                pm.sample_posterior_predictive(
-                    self.idata,
-                    var_names=["mu", "y"],
-                    random_seed=self.rng,
-                )
-            )
+        """
 
-    def calculate_counterfactual(self):
+    def calculate_counterfactual(self, random_seed: int | None = None):
         """Calculate the counterfactual scenario of never releasing the new product."""
-        zero_sales = np.zeros(self.data[self.treatment_sales].shape, dtype=np.int32)
+        zero_sales = np.zeros_like(self.y, dtype=np.int32)
         self.counterfactual_model = pm.do(self.model, {"treatment_sales": zero_sales})
         with self.counterfactual_model:
-            self.idata.extend(
+            self.idata.extend(  # type: ignore
                 pm.sample_posterior_predictive(
                     self.idata,
-                    var_names=["mu", "y"],
-                    random_seed=self.rng,
+                    var_names=["mu", self.output_var],
+                    random_seed=random_seed,
                     predictions=True,
                 )
             )
 
-    def causal_impact(self, variable="mu"):
+    def sample(self, X, y, random_seed: int | None = None):
+        """Sample all the things."""
+        self.sample_prior_predictive(X, random_seed=random_seed)
+        self.fit(X, y, random_seed=random_seed)
+        self.sample_posterior_predictive(
+            X,
+            random_seed=random_seed,
+            var_names=[self.output_var, "mu"],
+        )
+        self.calculate_counterfactual(random_seed=random_seed)
+
+        return self
+
+    def causal_impact(self, variable: str = "mu"):
         """Calculate the causal impact of the new product on the background products.
 
         Note: if we compare "mu" then we are comparing the expected sales, if we compare
@@ -194,28 +235,28 @@ class MVITS:
             )  # pragma: no cover
 
         return (
-            self.idata.posterior_predictive[variable] - self.idata.predictions[variable]
+            self.idata.posterior_predictive[variable] - self.idata.predictions[variable]  # type: ignore
         )
 
-    def plot_fit(self, variable="mu"):
+    def plot_fit(self, variable: str = "mu"):
         """Plot the model fit (posterior predictive) of the background products."""
         if variable not in ["mu", "y"]:
             raise ValueError(
                 f"variable must be either 'mu' or 'y', not {variable}"
             )  # pragma: no cover
 
-        fig, ax = plt.subplots()
+        _, ax = plt.subplots()
 
         # plot data
-        self.plot_data(self.data, ax)
+        self.plot_data(ax=ax)
 
         # plot posterior predictive distribution of sales for each of the background products
-        x = self.data.index.values
-        background_products = list(self.idata.observed_data.background_product.data)
+        x = self.X.index.values  # type: ignore
+        background_products = list(self.idata.observed_data.background_product.data)  # type: ignore
         for i, background_product in enumerate(background_products):
             az.plot_hdi(
                 x,
-                self.idata.posterior_predictive[variable]
+                self.idata.posterior_predictive[variable]  # type: ignore
                 .transpose(..., "time")
                 .sel(background_product=background_product),
                 fill_kwargs={
@@ -237,7 +278,7 @@ class MVITS:
         Plot the predicted sales of the background products under the counterfactual
         scenario of never releasing the new product.
         """
-        fig, ax = plt.subplots()
+        _, ax = plt.subplots()
 
         if variable not in ["mu", "y"]:
             raise ValueError(
@@ -245,10 +286,10 @@ class MVITS:
             )  # pragma: no cover
 
         # plot data
-        self.plot_data(self.data, ax)
+        self.plot_data(ax=ax)
 
         # plot posterior predictive distribution of sales for each of the background products
-        x = self.data.index.values
+        x = self.X.index.values
         background_products = list(self.idata.observed_data.background_product.data)
         for i, background_product in enumerate(background_products):
             az.plot_hdi(
@@ -280,10 +321,10 @@ class MVITS:
         Note: if we compare "mu" then we are comparing the expected sales, if we compare
         "y" then we are comparing the actual sales
         """
-        fig, ax = plt.subplots()
+        _, ax = plt.subplots()
 
         # plot posterior predictive distribution of sales for each of the background products
-        x = self.data.index.values
+        x = self.X.index.values
         background_products = list(self.idata.observed_data.background_product.data)
 
         for i, background_product in enumerate(background_products):
@@ -312,10 +353,10 @@ class MVITS:
         Note: if we compare "mu" then we are comparing the expected sales, if we compare
         "y" then we are comparing the actual sales
         """
-        fig, ax = plt.subplots()
+        _, ax = plt.subplots()
 
         # plot posterior predictive distribution of sales for each of the background products
-        x = self.data.index.values
+        x = self.X.index.values
         background_products = list(self.idata.observed_data.background_product.data)
 
         # divide the causal impact change in sales by the counterfactual predicted sales
@@ -351,11 +392,13 @@ class MVITS:
         ax.set(title="Estimated causal impact of new product upon existing products")
         return ax
 
-    @staticmethod
-    def plot_data(data, ax=None):
+    def plot_data(self, ax=None):
         """Plot the observed data."""
+        data = pd.concat([self.X, self.y], axis=1)
+
         if ax is None:
-            fig, ax = plt.subplots()
+            _, ax = plt.subplots()
+
         data.plot(ax=ax)
         data.sum(axis=1).plot(label="total sales", color="black", ax=ax)
         ax.set_ylim(bottom=0)

@@ -580,11 +580,17 @@ class ModelBuilder(ABC):
         Initializing NUTS using jitter+adapt_diag...
 
         """
+        if isinstance(y, pd.Series) and not X.index.equals(y.index):
+            raise ValueError(  # pragma: no cover
+                "Index of X and y must match."
+            )
+
         if predictor_names is None:
             predictor_names = []
         if y is None:
             y = np.zeros(X.shape[0])
-        y_df = pd.DataFrame({self.output_var: y})
+
+        y_df = pd.DataFrame({self.output_var: y}, index=X.index)
         self._generate_and_preprocess_model_data(X, y_df.values.flatten())
         if self.X is None or self.y is None:
             raise ValueError("X and y must be set before calling build_model!")
