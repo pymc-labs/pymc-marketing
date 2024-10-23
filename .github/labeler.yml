@@ -24,7 +24,7 @@ CLV:
 streamlit:
   - changed-files:
     - any-glob-to-any-file:
-      - streamlit/*
+      - streamlit/**
 
 tests:
   - changed-files:
