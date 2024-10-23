@@ -945,9 +945,7 @@ def autolog(
             posterior_preds = self.sample_posterior_predictive(self.X)
             log_summary_metrics(
                 y_true=self.y,
-                y_pred=posterior_preds[
-                    self.output_var[0]
-                ],  # only works with target variable which is defined first
+                y_pred=posterior_preds[self.output_var],
             )
 
             log_model(

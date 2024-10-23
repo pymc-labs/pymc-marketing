@@ -185,7 +185,7 @@ def compute_summary_metrics(
             LogisticSaturation,
             MMM,
         )
-        from pymc_marketing.mmm.evaluation import evaluate_model
+        from pymc_marketing.mmm.evaluation import compute_summary_metrics
 
         # Usual PyMC-Marketing demo model code
         data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
@@ -211,7 +211,7 @@ def compute_summary_metrics(
         posterior_preds = mmm.sample_posterior_predictive(X)
 
         # Evaluate the model
-        results = evaluate_model(
+        results = compute_summary_metrics(
             y_true=mmm.y,
             y_pred=posterior_preds.y,
             metrics_to_calculate=['r_squared', 'rmse', 'mae'],
