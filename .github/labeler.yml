@@ -1,19 +1,19 @@
 docs:
   - changed-files:
-  - any-glob-to-any-file:
-    - docs/source/**
+    - any-glob-to-any-file:
+      - docs/source/**
 
 MMM:
   - changed-files:
-  - any-glob-to-any-file:
-    - docs/source/notebooks/mmm/*
-    - pymc_marketing/mmm/**
+    - any-glob-to-any-file:
+      - docs/source/notebooks/mmm/*
+      - pymc_marketing/mmm/**
 
 CLV:
   - changed-files:
-  - any-glob-to-any-file:
-    - docs/source/notebooks/clv/*
-    - pymc_marketing/clv/**
+    - any-glob-to-any-file:
+      - docs/source/notebooks/clv/*
+      - pymc_marketing/clv/**
 
 "Prior class":
   - changed-files:
