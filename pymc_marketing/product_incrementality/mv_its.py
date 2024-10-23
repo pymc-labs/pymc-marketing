@@ -22,6 +22,7 @@ import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
 import pymc as pm
+from typing_extensions import Self
 
 from pymc_marketing.model_builder import ModelBuilder
 from pymc_marketing.prior import Prior
@@ -37,6 +38,7 @@ class MVITS(ModelBuilder):
     """
 
     _model_type = "Multivariate Interrupted Time Series"
+    version = "0.1.0"
 
     def __init__(
         self,
@@ -214,7 +216,10 @@ class MVITS(ModelBuilder):
 
         """
 
-    def calculate_counterfactual(self, random_seed: int | None = None):
+    def calculate_counterfactual(
+        self,
+        random_seed: np.random.Generator | int | None = None,
+    ):
         """Calculate the counterfactual scenario of never releasing the new product."""
         zero_sales = np.zeros_like(self.y, dtype=np.int32)
         self.counterfactual_model = pm.do(self.model, {"treatment_sales": zero_sales})
@@ -228,14 +233,29 @@ class MVITS(ModelBuilder):
                 )
             )
 
-    def sample(self, X, y, random_seed: int | None = None):
+    def sample(
+        self,
+        X,
+        y,
+        random_seed: np.random.Generator | int | None = None,
+        sample_prior_predictive_kwargs: dict | None = None,
+        fit_kwargs: dict | None = None,
+        sample_posterior_predictive_kwargs: dict | None = None,
+    ) -> Self:
         """Sample all the things."""
-        self.sample_prior_predictive(X, random_seed=random_seed)
-        self.fit(X, y, random_seed=random_seed)
+        sample_prior_predictive_kwargs = sample_prior_predictive_kwargs or {}
+        fit_kwargs = fit_kwargs or {}
+        sample_posterior_predictive_kwargs = sample_posterior_predictive_kwargs or {}
+
+        self.sample_prior_predictive(
+            X, random_seed=random_seed, **sample_prior_predictive_kwargs
+        )
+        self.fit(X, y, random_seed=random_seed, **fit_kwargs)
         self.sample_posterior_predictive(
             X,
             random_seed=random_seed,
             var_names=[self.output_var, "mu"],
+            **sample_posterior_predictive_kwargs,
         )
         self.calculate_counterfactual(random_seed=random_seed)
 
@@ -270,7 +290,7 @@ class MVITS(ModelBuilder):
 
         # plot posterior predictive distribution of sales for each of the background products
         x = self.X.index.values  # type: ignore
-        background_products = list(self.idata.observed_data.background_product.data)  # type: ignore
+        background_products = self.coords["background_product"]
         for i, background_product in enumerate(background_products):
             az.plot_hdi(
                 x,
@@ -308,7 +328,7 @@ class MVITS(ModelBuilder):
 
         # plot posterior predictive distribution of sales for each of the background products
         x = self.X.index.values
-        background_products = list(self.idata.observed_data.background_product.data)
+        background_products = self.coords["background_product"]
         for i, background_product in enumerate(background_products):
             az.plot_hdi(
                 x,
@@ -343,7 +363,7 @@ class MVITS(ModelBuilder):
 
         # plot posterior predictive distribution of sales for each of the background products
         x = self.X.index.values
-        background_products = list(self.idata.observed_data.background_product.data)
+        background_products = self.coords["background_product"]
 
         for i, background_product in enumerate(background_products):
             az.plot_hdi(
