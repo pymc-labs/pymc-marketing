@@ -63,12 +63,13 @@ def calculate_metric_distributions(
 
     if metrics_to_calculate is None:
         metrics_to_calculate = list(metric_functions.keys())
-      invalid_metrics = set(metrics_to_calculate) - set(metric_functions.keys())
-      if invalid_metrics:
-          raise ValueError(
-              f"Invalid metrics: {invalid_metrics}. "
-              f"Valid options are: {list(metric_functions.keys())}"
-          )
+
+    invalid_metrics = set(metrics_to_calculate) - set(metric_functions.keys())
+    if invalid_metrics:
+        raise ValueError(
+            f"Invalid metrics: {invalid_metrics}. "
+            f"Valid options are: {list(metric_functions.keys())}"
+        )
 
     results = {}
     for metric in metrics_to_calculate:
@@ -115,7 +116,6 @@ def summarize_metric_distributions(
     self.metric_summaries : dict of str to dict
         Stores the calculated metric summaries as an instance attribute.
     """
-
     metric_summaries = {}
     for metric, distribution in metric_distributions.items():
         hdi = az.hdi(distribution, hdi_prob=hdi_prob)

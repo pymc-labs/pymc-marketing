@@ -437,8 +437,7 @@ def log_loocv_metrics(
         "loocv_p_loo": model_loo.p_loo,
     }
 
-    for metric_name, metric_value in loocv_metrics.items():
-        mlflow.log_metric(metric_name, metric_value)
+    mlflow.log_metrics(loocv_metrics)
 
 
 def log_inference_data(
@@ -494,6 +493,7 @@ def log_summary_metrics(
 
     for metric, stats in metric_summaries.items():
         for stat, value in stats.items():
+            # mlflow doesn't support % in metric names
             mlflow.log_metric(f"{metric}_{stat.replace('%', '')}", value)
 
 
@@ -616,7 +616,7 @@ class MMMWrapper(mlflow.pyfunc.PythonModel):
 def log_model(
     mmm: MMM,
     artifact_path: str = "model",
-    mmm_registry_name: str | None = None,
+    registered_model_name: str | None = None,
     **wrapper_kwargs,
 ) -> None:
     """Log a PyMC-Marketing MMM as an MLflow artifact for the current run.
@@ -686,7 +686,7 @@ def log_model(
             mlflow.log_figure(fig, "components.png")
 
             model_info = log_model(mmm,
-                    mmm_registry_name="my_amazing_mmm",
+                    registered_model_name="my_amazing_mmm",
                     include_last_observations=True,
                     original_scale=False,
                     )
@@ -709,8 +709,8 @@ def log_model(
     run_id = mlflow.active_run().info.run_id
     model_uri = f"runs:/{run_id}/{artifact_path}"
 
-    if mmm_registry_name:
-        mlflow.register_model(model_uri, mmm_registry_name)
+    if registered_model_name:
+        mlflow.register_model(model_uri, registered_model_name)
 
 
 def load_model(
@@ -772,7 +772,7 @@ def autolog(
     arviz_summary_kwargs: dict | None = None,
     log_mmm: bool = True,
     log_loocv: bool = False,
-    mmm_registry_name: str | None = None,
+    registered_model_name: str | None = None,
     disable: bool = False,
     silent: bool = False,
 ) -> None:
@@ -913,7 +913,7 @@ def autolog(
                     log_metadata(model=model, idata=idata)
 
                 if log_loocv:
-                    log_loocv_metrics(model=model, idata=idata)
+                    log_loocv_metrics(idata=idata)
 
             return idata
 
@@ -940,7 +940,7 @@ def autolog(
             log_inference_data(idata, save_file="idata.nc")
 
             if log_loocv:
-                log_loocv_metrics(model=self, idata=idata)
+                log_loocv_metrics(idata=idata)
 
             posterior_preds = self.sample_posterior_predictive(self.X)
             log_summary_metrics(
@@ -952,7 +952,7 @@ def autolog(
 
             log_model(
                 self,
-                mmm_registry_name=mmm_registry_name,
+                registered_model_name=registered_model_name,
             )
 
             return idata
