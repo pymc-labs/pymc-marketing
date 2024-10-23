@@ -104,6 +104,46 @@ class MVITS(ModelBuilder):
             "market_distribution": market_distribution,
         }
 
+    def inform_default_prior(self, data: pd.DataFrame) -> Self:
+        """Inform the default prior based on the data.
+
+        This only works with the default prior.
+
+        Examples
+        --------
+        Use the data before the treatment to inform the prior.
+
+        .. code-block:: python
+
+            data = df.loc[:treatment_time, existing_sales]
+            model.inform_default_prior(data=data)
+
+        Check the model configuration
+
+        .. code-block:: python
+
+            model.model_config
+
+        """
+        intercept = self.model_config["intercept"]
+        likelihood_sigma = self.model_config["likelihood"]["sigma"]
+
+        if intercept.distribution != "Normal":
+            raise ValueError("intercept must be a Normal distribution")
+
+        if likelihood_sigma.distribution != "HalfNormal":
+            raise ValueError("likelihood sigma must be a HalfNormal distribution")
+
+        mean = data.mean()
+        std = data.std()
+
+        intercept.parameters = {
+            "mu": mean.to_numpy(),
+            "sigma": std.to_numpy(),
+        }
+        likelihood_sigma.parameters["sigma"] = std.mean()
+        return self
+
     @property
     def default_sampler_config(self) -> dict:
         """Default sampler configuration."""
@@ -132,7 +172,7 @@ class MVITS(ModelBuilder):
             raise ValueError("X must be a DataFrame, not a Series")  # pragma: no cover
 
         self.X = X[self.existing_sales]
-        self.y = pd.Series(y, index=X.index)
+        self.y = pd.Series(y, index=X.index, name=self.output_var)
 
         # note: type hints for coords required for mypy to not get confused
         self.coords: dict[str, list[str]] = {
@@ -434,15 +474,19 @@ class MVITS(ModelBuilder):
         """Plot the observed data."""
         data = pd.concat([self.X, self.y], axis=1)
 
-        if ax is None:
-            _, ax = plt.subplots()
+        return plot_product(data=data, ax=ax)
 
-        data.plot(ax=ax)
-        data.sum(axis=1).plot(label="total sales", color="black", ax=ax)
-        ax.set_ylim(bottom=0)
-        ax.set(ylabel="Sales")
-        ax.legend()
-        return ax
+
+def plot_product(data: pd.DataFrame, ax: plt.Axes | None = None) -> plt.Axes:
+    """Plot the sales of a single product."""
+    if ax is None:
+        _, ax = plt.subplots()
+
+    data.plot(ax=ax)
+    data.sum(axis=1).plot(label="total sales", color="black", ax=ax)
+    ax.set_ylim(bottom=0)
+    ax.set(ylabel="Sales")
+    return ax
 
 
 def generate_saturated_data(
