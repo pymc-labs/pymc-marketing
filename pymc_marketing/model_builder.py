@@ -581,9 +581,7 @@ class ModelBuilder(ABC):
 
         """
         if isinstance(y, pd.Series) and not X.index.equals(y.index):
-            raise ValueError(  # pragma: no cover
-                "Index of X and y must match."
-            )
+            raise ValueError("Index of X and y must match.")
 
         if predictor_names is None:
             predictor_names = []
