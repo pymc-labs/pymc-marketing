@@ -356,7 +356,7 @@ def plot_probability_alive_matrix(
 
 def plot_expected_purchases(
     model,
-    transactions: pd.DataFrame,
+    purchase_history: pd.DataFrame,
     customer_id_col: str,
     datetime_col: str,
     t: int,
@@ -387,7 +387,7 @@ def plot_expected_purchases(
     ----------
     model :
         A fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
-    transactions : ~pandas.DataFrame
+    purchase_history : ~pandas.DataFrame
         A Pandas DataFrame containing *customer_id_col* and *datetime_col*.
     customer_id_col : string
         Column in the *transactions* DataFrame denoting the *customer_id*.
@@ -443,10 +443,9 @@ def plot_expected_purchases(
     if ax is None:
         ax = plt.subplot(111)
 
-    # TODO: Rename to _expected_cumulative_purchases for consistency?
     df_cum_transactions = _expected_cumulative_transactions(
         model,
-        transactions,
+        purchase_history,
         customer_id_col,
         datetime_col,
         t,
