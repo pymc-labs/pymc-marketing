@@ -53,6 +53,12 @@ class MockModel:
     ):
         return self._mock_posterior(data)
 
+    def expected_purchases_new_customer(
+        self,
+        data: pd.DataFrame,
+    ):
+        return self._mock_posterior(data)
+
 
 @pytest.fixture
 def mock_model(test_summary_data) -> MockModel:
@@ -145,3 +151,23 @@ def test_plot_probability_alive_matrix_with_ax(mock_model) -> None:
 
     assert ax.get_xlabel() == "Customer's Historical Frequency"
     assert ax.get_ylabel() == "Customer's Recency"
+
+@pytest.mark.parametrize(
+    "plot_cumulative, set_index_date, t_cal",
+    [(True, False), (True, False), (8, None)],
+)
+def test_plot_expected_purchases(mock_model, cdnow_trans, plot_cumulative, set_index_date, t_cal) -> None:
+    ax = plot_expected_purchases(
+        model = mock_model,
+        transactions= cdnow_trans,
+        customer_id_col="id",
+        datetime_col="date",
+        datetime_format="%Y%m%d",
+        time_unit="D",
+        plot_cumulative=plot_cumulative,
+        set_index_date=set_index_date,
+        t=10,
+        t_cal=t_cal,
+    )
+
+    assert isinstance(ax, plt.Axes)
