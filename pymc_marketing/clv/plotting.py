@@ -437,6 +437,9 @@ def plot_expected_purchases(
     A Note on Implementing the Pareto/NBD Model in MATLAB.
     http://brucehardie.com/notes/008/
     """
+    # clear any existing pyplot figures
+    plt.clf()
+
     if ax is None:
         ax = plt.subplot(111)
 
@@ -454,15 +457,14 @@ def plot_expected_purchases(
         set_index_date,
     )
 
-    if title is None:
-        title = "Tracking Cumulative Transactions"
     if not plot_cumulative:
         df_cum_transactions = df_cum_transactions.diff()
         if title is None:
             title = "Tracking Incremental Transactions"
+    else:
+        if title is None:
+            title = "Tracking Cumulative Transactions"
 
-    # TODO: This does not reset the pyplot object between function calls.
-    #       if no pd.plot() param, convert to matplotlib
     ax = df_cum_transactions.plot(ax=ax, title=title, **kwargs)
 
     if t_cal:
