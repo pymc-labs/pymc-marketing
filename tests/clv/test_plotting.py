@@ -22,6 +22,7 @@ from pymc_marketing.clv.plotting import (
     plot_customer_exposure,
     plot_frequency_recency_matrix,
     plot_probability_alive_matrix,
+    plot_expected_purchases,
 )
 
 

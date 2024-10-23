@@ -26,7 +26,7 @@ __all__ = [
     "plot_customer_exposure",
     "plot_frequency_recency_matrix",
     "plot_probability_alive_matrix",
-    "plot_purchase_history",
+    "plot_expected_purchases",
 ]
 
 
@@ -353,7 +353,7 @@ def plot_probability_alive_matrix(
     return ax
 
 
-def plot_purchase_history(
+def plot_expected_purchases(
     model,
     transactions,
     datetime_col,
