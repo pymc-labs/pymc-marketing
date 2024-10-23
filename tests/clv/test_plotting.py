@@ -20,9 +20,9 @@ from pytensor.tensor import TensorVariable
 
 from pymc_marketing.clv.plotting import (
     plot_customer_exposure,
+    plot_expected_purchases,
     plot_frequency_recency_matrix,
     plot_probability_alive_matrix,
-    plot_expected_purchases,
 )
 
 
@@ -152,14 +152,17 @@ def test_plot_probability_alive_matrix_with_ax(mock_model) -> None:
     assert ax.get_xlabel() == "Customer's Historical Frequency"
     assert ax.get_ylabel() == "Customer's Recency"
 
+
 @pytest.mark.parametrize(
-    "plot_cumulative, set_index_date, t_cal",
-    [(True, False), (True, False), (8, None)],
+    "plot_cumulative, set_index_date, ax",
+    [(True, False, None), (False, True, plt.subplot())],
 )
-def test_plot_expected_purchases(mock_model, cdnow_trans, plot_cumulative, set_index_date, t_cal) -> None:
+def test_plot_expected_purchases(
+    mock_model, cdnow_trans, plot_cumulative, set_index_date, ax
+) -> None:
     ax = plot_expected_purchases(
-        model = mock_model,
-        transactions= cdnow_trans,
+        model=mock_model,
+        transactions=cdnow_trans,
         customer_id_col="id",
         datetime_col="date",
         datetime_format="%Y%m%d",
@@ -167,7 +170,8 @@ def test_plot_expected_purchases(mock_model, cdnow_trans, plot_cumulative, set_i
         plot_cumulative=plot_cumulative,
         set_index_date=set_index_date,
         t=10,
-        t_cal=t_cal,
+        t_cal=8,
+        ax=ax,
     )
 
     assert isinstance(ax, plt.Axes)

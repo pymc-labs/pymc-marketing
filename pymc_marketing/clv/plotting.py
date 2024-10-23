@@ -460,6 +460,9 @@ def plot_expected_purchases(
         df_cum_transactions = df_cum_transactions.diff()
         if title is None:
             title = "Tracking Incremental Transactions"
+
+    # TODO: This does not reset the pyplot object between function calls.
+    #       if no pd.plot() param, convert to matplotlib
     ax = df_cum_transactions.plot(ax=ax, title=title, **kwargs)
 
     if t_cal:
