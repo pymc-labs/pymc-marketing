@@ -261,7 +261,10 @@ def test_fit_dup_Y(toy_X, toy_y):
     toy_X = pd.concat((toy_X, toy_y), axis=1)
     model_builder = ModelBuilderTest()
 
-    with pytest.raises(ValueError, match="X includes a column named 'output', which conflicts with the target variable."):
+    with pytest.raises(
+        ValueError,
+        match="X includes a column named 'output', which conflicts with the target variable.",
+    ):
         model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
 
 
