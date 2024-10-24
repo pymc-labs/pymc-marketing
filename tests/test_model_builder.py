@@ -257,12 +257,14 @@ def test_fit_no_t(toy_X):
     assert "posterior" in model_builder.idata.groups()
 
 
-@pytest.mark.xfail
-def test_fit_dup_Y(toy_X):
-    # create redundant target column in X
+def test_fit_dup_Y(toy_X, toy_y):
+    # Create redundant target column in X
     toy_X = pd.concat((toy_X, toy_y), axis=1)
     model_builder = ModelBuilderTest()
-    model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
+
+    # Expecting an exception due to redundant target columns
+    with pytest.raises(ValueError, match="Redundant target column found in input data."):
+        model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
 
 
 @pytest.mark.skipif(
