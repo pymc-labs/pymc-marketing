@@ -258,11 +258,10 @@ def test_fit_no_t(toy_X):
 
 
 def test_fit_dup_Y(toy_X, toy_y):
-    # Create redundant target column in X
+   
     toy_X = pd.concat((toy_X, toy_y), axis=1)
     model_builder = ModelBuilderTest()
-   
-    # Expecting an exception due to redundant target columns
+
     with pytest.raises(ValueError, match="X includes a column named 'output', which conflicts with the target variable."):
         model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
 
