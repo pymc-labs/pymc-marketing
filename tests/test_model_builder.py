@@ -574,3 +574,12 @@ def test_fit_sampler_config_with_rng_fails(mocker, toy_X, toy_y) -> None:
     match = "Object of type Generator is not JSON serializable"
     with pytest.raises(TypeError, match=match):
         model.fit(toy_X, toy_y)
+
+
+def test_unmatched_index(toy_X, toy_y) -> None:
+    model = ModelBuilderTest()
+    toy_X = toy_X.copy()
+    toy_X.index = toy_X.index + 1
+    match = "Index of X and y must match"
+    with pytest.raises(ValueError, match=match):
+        model.fit(toy_X, toy_y)
