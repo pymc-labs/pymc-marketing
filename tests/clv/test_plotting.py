@@ -160,6 +160,9 @@ def test_plot_probability_alive_matrix_with_ax(mock_model) -> None:
 def test_plot_expected_purchases(
     mock_model, cdnow_trans, plot_cumulative, set_index_date, ax
 ) -> None:
+    # clear any existing pyplot figures
+    plt.clf()
+
     ax = plot_expected_purchases(
         model=mock_model,
         purchase_history=cdnow_trans,

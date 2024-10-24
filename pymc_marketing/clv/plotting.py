@@ -437,9 +437,6 @@ def plot_expected_purchases(
     A Note on Implementing the Pareto/NBD Model in MATLAB.
     http://brucehardie.com/notes/008/
     """
-    # clear any existing pyplot figures
-    plt.clf()
-
     if ax is None:
         ax = plt.subplot(111)
 
