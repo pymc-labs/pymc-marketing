@@ -3,7 +3,7 @@ on:
 - pull_request_target
 
 jobs:
-  labeler:
+  file-change:
     permissions:
       contents: read
       pull-requests: write
@@ -11,6 +11,15 @@ jobs:
     steps:
     - name: Run Labeler Action
       uses: actions/labeler@v5
+
+  sync:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
     - name: Sync labels with closing issues
       run: |
         owner="pymc-labs"
