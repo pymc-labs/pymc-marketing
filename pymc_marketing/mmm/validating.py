@@ -14,6 +14,7 @@
 """Validating methods for MMM classes."""
 
 from collections.abc import Callable
+from warnings import warn
 
 import pandas as pd
 
@@ -116,8 +117,10 @@ class ValidateChannelColumns:
                 f"channel_columns {self.channel_columns} contains duplicates"
             )
         if (data.filter(list(self.channel_columns)) < 0).any().any():
-            raise ValueError(
-                f"channel_columns {self.channel_columns} contains negative values"
+            warn(
+                f"channel_columns {self.channel_columns} contains negative values",
+                UserWarning,
+                stacklevel=2,
             )
 
 
