@@ -36,3 +36,5 @@ jobs:
           ' --jq '.data.repository.pullRequest.closingIssuesReferences.nodes | map(.labels.nodes | map(.name)) | flatten | unique | join(",")')
 
         gh pr edit $pr_number --add-label "$labels"
+      env:
+        GH_TOKEN: ${{ github.token }}
