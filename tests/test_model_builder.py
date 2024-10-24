@@ -260,7 +260,7 @@ def test_fit_no_t(toy_X):
 def test_fit_dup_Y(toy_X, toy_y):
     toy_X = pd.concat((toy_X, toy_y), axis=1)
     model_builder = ModelBuilderTest()
-    
+
     with pytest.raises(ValueError) as excinfo:
         model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
 
