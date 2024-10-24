@@ -161,7 +161,6 @@ class TestBasePlotting:
             (
                 "plot_posterior_predictive",
                 {
-                    "add_hdi": True,
                     "original_scale": False,
                 },
             ),
@@ -169,7 +168,6 @@ class TestBasePlotting:
                 "plot_posterior_predictive",
                 {
                     "add_mean": True,
-                    "add_hdi": True,
                     "original_scale": True,
                 },
             ),
@@ -178,7 +176,6 @@ class TestBasePlotting:
                 {
                     "add_mean": True,
                     "add_gradient": True,
-                    "add_hdi": True,
                     "original_scale": False,
                 },
             ),
@@ -187,7 +184,6 @@ class TestBasePlotting:
                 {
                     "add_mean": True,
                     "add_gradient": True,
-                    "add_hdi": True,
                     "original_scale": True,
                 },
             ),
@@ -196,10 +192,13 @@ class TestBasePlotting:
                 {
                     "add_mean": False,
                     "add_gradient": True,
-                    "add_hdi": False,
                     "original_scale": False,
                 },
             ),
+            ("plot_posterior_predictive", {"hdi_list": None}),
+            ("plot_posterior_predictive", {"hdi_list": []}),
+            ("plot_posterior_predictive", {"hdi_list": [0.94]}),
+            ("plot_posterior_predictive", {"hdi_list": [0.94, 0.5]}),
             ("plot_errors", {}),
             ("plot_errors", {"original_scale": True}),
             ("plot_errors", {"ax": plt.subplots()[1]}),
