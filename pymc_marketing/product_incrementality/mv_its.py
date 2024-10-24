@@ -288,7 +288,10 @@ class MVITS(ModelBuilder):
         sample_posterior_predictive_kwargs = sample_posterior_predictive_kwargs or {}
 
         self.sample_prior_predictive(
-            X, random_seed=random_seed, **sample_prior_predictive_kwargs
+            X,
+            y,
+            random_seed=random_seed,
+            **sample_prior_predictive_kwargs,
         )
         self.fit(X, y, random_seed=random_seed, **fit_kwargs)
         self.sample_posterior_predictive(
