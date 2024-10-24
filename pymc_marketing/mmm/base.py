@@ -441,7 +441,6 @@ class MMMModelBuilder(ModelBuilder):
             hdi_list = [0.94]
 
         if hdi_list:
-            # skipped if hdi_list is empty
             alpha_list = np.linspace(0.2, 0.4, len(hdi_list))
             for hdi_prob, alpha in zip(hdi_list, alpha_list, strict=True):
                 ax = self._add_hdi_to_plot(
