@@ -154,15 +154,12 @@ def test_plot_probability_alive_matrix_with_ax(mock_model) -> None:
 
 
 @pytest.mark.parametrize(
-    "plot_cumulative, set_index_date, ax",
+    "plot_cumulative, set_index_date, subplot",
     [(True, False, None), (False, True, plt.subplot())],
 )
 def test_plot_expected_purchases(
-    mock_model, cdnow_trans, plot_cumulative, set_index_date, ax
+    mock_model, cdnow_trans, plot_cumulative, set_index_date, subplot
 ) -> None:
-    # clear any existing pyplot figures
-    plt.clf()
-
     ax = plot_expected_purchases(
         model=mock_model,
         purchase_history=cdnow_trans,
@@ -174,7 +171,10 @@ def test_plot_expected_purchases(
         set_index_date=set_index_date,
         t=10,
         t_unobserved=8,
-        ax=ax,
+        ax=subplot,
     )
 
     assert isinstance(ax, plt.Axes)
+
+    # clear any existing pyplot figures
+    plt.clf()
