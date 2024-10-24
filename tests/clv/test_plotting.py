@@ -162,7 +162,7 @@ def test_plot_expected_purchases(
 ) -> None:
     ax = plot_expected_purchases(
         model=mock_model,
-        transactions=cdnow_trans,
+        purchase_history=cdnow_trans,
         customer_id_col="id",
         datetime_col="date",
         datetime_format="%Y%m%d",
