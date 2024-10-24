@@ -438,7 +438,7 @@ class MMMModelBuilder(ModelBuilder):
             fig = ax.figure
 
         if hdi_list is None:
-            hdi_list = [0.94]
+            hdi_list = [0.94, 0.5]
 
         if hdi_list:
             alpha_list = np.linspace(0.2, 0.4, len(hdi_list))
