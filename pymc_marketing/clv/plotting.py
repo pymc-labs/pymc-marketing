@@ -361,7 +361,7 @@ def plot_expected_purchases(
     datetime_col: str,
     t: int,
     plot_cumulative: bool = True,
-    t_cal: int | None = None,
+    t_unobserved: int | None = None,
     datetime_format: str | None = None,
     time_unit: str = "D",
     time_scaler: float | None = 1,
@@ -372,7 +372,7 @@ def plot_expected_purchases(
     ylabel: str = "Purchases",
     ax: plt.Axes | None = None,
     **kwargs,
-):
+) -> plt.Axes:
     """Plot actual and expected purchases over time for a fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
 
     This function is based on the formulation on page 8 of [1]_. Specifically, we take only customers who have made
@@ -398,7 +398,7 @@ def plot_expected_purchases(
     plot_cumulative : bool
         Default: *True*
         Plot cumulative purchases over time. Set to *False* to plot incremental purchases.
-    t_cal : int, optional
+    t_unobserved : int, optional
         If testing model on unobserved data, specify number of time units in training data to add an indicator for
         the start of the testing period.
     datetime_format : string, optional
@@ -444,16 +444,16 @@ def plot_expected_purchases(
         ax = plt.subplot(111)
 
     df_cum_transactions = _expected_cumulative_transactions(
-        model,
-        purchase_history,
-        customer_id_col,
-        datetime_col,
-        t,
-        datetime_format,
-        time_unit,
-        time_scaler,
-        sort_transactions,
-        set_index_date,
+        model=model,
+        transactions=purchase_history,
+        customer_id_col=customer_id_col,
+        datetime_col=datetime_col,
+        t=t,
+        datetime_format=datetime_format,
+        time_unit=time_unit,
+        time_scaler=time_scaler,
+        sort_transactions=sort_transactions,
+        set_index_date=set_index_date,
     )
 
     if not plot_cumulative:
@@ -466,11 +466,11 @@ def plot_expected_purchases(
 
     ax = df_cum_transactions.plot(ax=ax, title=title, **kwargs)
 
-    if t_cal:
+    if t_unobserved:
         if set_index_date:
-            x_vline = df_cum_transactions.index[int(t_cal)]
+            x_vline = df_cum_transactions.index[int(t_unobserved)]
         else:
-            x_vline = t_cal
+            x_vline = t_unobserved
         ax.axvline(x=x_vline, color="r", linestyle="--")
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)

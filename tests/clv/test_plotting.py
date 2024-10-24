@@ -170,7 +170,7 @@ def test_plot_expected_purchases(
         plot_cumulative=plot_cumulative,
         set_index_date=set_index_date,
         t=10,
-        t_cal=8,
+        t_unobserved=8,
         ax=ax,
     )
 
