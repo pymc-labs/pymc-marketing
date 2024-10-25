@@ -43,12 +43,12 @@ class MVITS(ModelBuilder):
     def __init__(
         self,
         existing_sales: list[str],
-        market_saturated: bool = True,
+        saturated_market: bool = True,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
         self.existing_sales = existing_sales
-        self.market_saturated = market_saturated
+        self.saturated_market = saturated_market
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
@@ -58,7 +58,7 @@ class MVITS(ModelBuilder):
         if self.model_config["market_distribution"].distribution != "Dirichlet":
             raise ValueError("market_distribution must be a Dirichlet distribution")  #
 
-        dims = "background_product" if self.market_saturated else "all_sources"
+        dims = "background_product" if self.saturated_market else "all_sources"
 
         if dims not in self.model_config["market_distribution"].dims:
             raise ValueError(
@@ -69,7 +69,7 @@ class MVITS(ModelBuilder):
         """Create the attributes for the InferenceData object."""
         attrs = super().create_idata_attrs()
         attrs["existing_sales"] = json.dumps(self.existing_sales)
-        attrs["market_saturated"] = json.dumps(self.market_saturated)
+        attrs["saturated_market"] = json.dumps(self.saturated_market)
 
         return attrs
 
@@ -78,13 +78,13 @@ class MVITS(ModelBuilder):
         """Convert the attributes of the InferenceData object to the __init__ kwargs."""
         return {
             "existing_sales": json.loads(attrs["existing_sales"]),
-            "market_saturated": json.loads(attrs["market_saturated"]),
+            "saturated_market": json.loads(attrs["saturated_market"]),
         }
 
     @property
     def default_model_config(self) -> dict:
         """Default model configuration."""
-        if self.market_saturated:
+        if self.saturated_market:
             a = np.full(len(self.existing_sales), 0.5)
             dims = "background_product"
         else:
@@ -209,7 +209,7 @@ class MVITS(ModelBuilder):
             # priors
             intercept = self.model_config["intercept"].create_variable(name="intercept")
 
-            if self.market_saturated:
+            if self.saturated_market:
                 """We assume the market is saturated. The sum of the beta's will be 1.
                 This means that the reduction in sales of existing products will equal
                 the increase in sales of the new product, such that the total sales

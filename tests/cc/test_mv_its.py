@@ -105,7 +105,7 @@ def mock_fit(self, X, y, **kwargs):
 
 @pytest.fixture(scope="module")
 def fit_model(module_mocker, saturated_data):
-    model = MVITS(existing_sales=["competitor", "own"], market_saturated=True)
+    model = MVITS(existing_sales=["competitor", "own"], saturated_market=True)
 
     module_mocker.patch(
         "pymc_marketing.cc.mv_its.MVITS.fit",
@@ -148,7 +148,7 @@ def unsaturated_data_good():
 
 @pytest.fixture(scope="module")
 def unsaturated_model_bad(module_mocker, unsaturated_data_bad):
-    model = MVITS(existing_sales=["competitor", "own"], market_saturated=False)
+    model = MVITS(existing_sales=["competitor", "own"], saturated_market=False)
 
     module_mocker.patch(
         "pymc_marketing.cc.mv_its.MVITS.fit",
@@ -166,7 +166,7 @@ def unsaturated_model_bad(module_mocker, unsaturated_data_bad):
 
 @pytest.fixture(scope="module")
 def unsaturated_model_good(module_mocker, unsaturated_data_good):
-    model = MVITS(existing_sales=["competitor", "own"], market_saturated=False)
+    model = MVITS(existing_sales=["competitor", "own"], saturated_market=False)
 
     module_mocker.patch(
         "pymc_marketing.cc.mv_its.MVITS.fit",
@@ -213,7 +213,7 @@ def test_save_load(fit_model, saturated_data) -> None:
 
     assert loaded.model_config == fit_model.model_config
     assert loaded.existing_sales == fit_model.existing_sales
-    assert loaded.market_saturated == fit_model.market_saturated
+    assert loaded.saturated_market == fit_model.saturated_market
     assert loaded.X.columns.name is None
     pd.testing.assert_frame_equal(loaded.X, fit_model.X, check_names=False)
     assert loaded.y.name == fit_model.output_var
