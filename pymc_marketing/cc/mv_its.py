@@ -58,7 +58,7 @@ class MVITS(ModelBuilder):
         if self.model_config["market_distribution"].distribution != "Dirichlet":
             raise ValueError("market_distribution must be a Dirichlet distribution")  #
 
-        dims = "background_product" if self.saturated_market else "all_sources"
+        dims = "existing_product" if self.saturated_market else "all_sources"
 
         if dims not in self.model_config["market_distribution"].dims:
             raise ValueError(
@@ -86,7 +86,7 @@ class MVITS(ModelBuilder):
         """Default model configuration."""
         if self.saturated_market:
             a = np.full(len(self.existing_sales), 0.5)
-            dims = "background_product"
+            dims = "existing_product"
         else:
             a = np.full(len(self.existing_sales) + 1, 0.5)
             dims = "all_sources"
@@ -94,12 +94,12 @@ class MVITS(ModelBuilder):
         market_distribution = Prior("Dirichlet", a=a, dims=dims)
 
         return {
-            "intercept": Prior("Normal", dims="background_product"),
+            "intercept": Prior("Normal", dims="existing_product"),
             "likelihood": Prior(
                 "TruncatedNormal",
                 lower=0,
-                sigma=Prior("HalfNormal", dims="background_product"),
-                dims=("time", "background_product"),
+                sigma=Prior("HalfNormal", dims="existing_product"),
+                dims=("time", "existing_product"),
             ),
             "market_distribution": market_distribution,
         }
@@ -176,7 +176,7 @@ class MVITS(ModelBuilder):
 
         # note: type hints for coords required for mypy to not get confused
         self.coords: dict[str, list[str]] = {
-            "background_product": list(self.existing_sales),
+            "existing_product": list(self.existing_sales),
             "time": list(X.index.values),
             "all_sources": [
                 *list(self.existing_sales),
@@ -198,7 +198,7 @@ class MVITS(ModelBuilder):
             _existing_sales = pm.Data(
                 "existing_sales",
                 X.values,
-                dims=("time", "background_product"),
+                dims=("time", "existing_product"),
             )
             y = pm.Data(
                 "treatment_sales",
@@ -225,7 +225,7 @@ class MVITS(ModelBuilder):
                 beta = pm.Deterministic(
                     "beta",
                     beta_all[:-1],
-                    dims="background_product",
+                    dims="existing_product",
                 )
                 pm.Deterministic("new sales", beta_all[-1])
 
@@ -233,7 +233,7 @@ class MVITS(ModelBuilder):
             mu = pm.Deterministic(
                 "mu",
                 intercept[None, :] - y[:, None] * beta[None, :],
-                dims=("time", "background_product"),
+                dims=("time", "existing_product"),
             )
 
             # likelihood
@@ -305,7 +305,7 @@ class MVITS(ModelBuilder):
         return self
 
     def causal_impact(self, variable: str = "mu"):
-        """Calculate the causal impact of the new product on the background products.
+        """Calculate the causal impact of the new product on the existing products.
 
         Note: if we compare "mu" then we are comparing the expected sales, if we compare
         "y" then we are comparing the actual sales
@@ -320,7 +320,7 @@ class MVITS(ModelBuilder):
         )
 
     def plot_fit(self, variable: str = "mu"):
-        """Plot the model fit (posterior predictive) of the background products."""
+        """Plot the model fit (posterior predictive) of the existing products."""
         if variable not in ["mu", "y"]:
             raise ValueError(
                 f"variable must be either 'mu' or 'y', not {variable}"
@@ -331,15 +331,15 @@ class MVITS(ModelBuilder):
         # plot data
         self.plot_data(ax=ax)
 
-        # plot posterior predictive distribution of sales for each of the background products
+        # plot posterior predictive distribution of sales for each of the existing products
         x = self.X.index.values  # type: ignore
-        background_products = self.coords["background_product"]
-        for i, background_product in enumerate(background_products):
+        existing_products = self.coords["existing_product"]
+        for i, existing_product in enumerate(existing_products):
             az.plot_hdi(
                 x,
                 self.idata.posterior_predictive[variable]  # type: ignore
                 .transpose(..., "time")
-                .sel(background_product=background_product),
+                .sel(existing_product=existing_product),
                 fill_kwargs={
                     "alpha": HDI_ALPHA,
                     "color": f"C{i}",
@@ -350,13 +350,13 @@ class MVITS(ModelBuilder):
 
         # formatting
         ax.legend()
-        ax.set(title="Model fit of sales of background products", ylabel="Sales")
+        ax.set(title="Model fit of sales of existing products", ylabel="Sales")
         return ax
 
     def plot_counterfactual(self, variable="mu"):
         """Plot counterfactual scenario.
 
-        Plot the predicted sales of the background products under the counterfactual
+        Plot the predicted sales of the existing products under the counterfactual
         scenario of never releasing the new product.
         """
         _, ax = plt.subplots()
@@ -369,15 +369,15 @@ class MVITS(ModelBuilder):
         # plot data
         self.plot_data(ax=ax)
 
-        # plot posterior predictive distribution of sales for each of the background products
+        # plot posterior predictive distribution of sales for each of the existing products
         x = self.X.index.values
-        background_products = self.coords["background_product"]
-        for i, background_product in enumerate(background_products):
+        existing_products = self.coords["existing_product"]
+        for i, existing_product in enumerate(existing_products):
             az.plot_hdi(
                 x,
                 self.idata.predictions[variable]
                 .transpose(..., "time")
-                .sel(background_product=background_product),
+                .sel(existing_product=existing_product),
                 fill_kwargs={
                     "alpha": HDI_ALPHA,
                     "color": f"C{i}",
@@ -397,23 +397,23 @@ class MVITS(ModelBuilder):
         """Plot causal impact of sales.
 
         Plot the inferred causal impact of the new product on the sales of the
-        background products.
+        existing products.
 
         Note: if we compare "mu" then we are comparing the expected sales, if we compare
         "y" then we are comparing the actual sales
         """
         _, ax = plt.subplots()
 
-        # plot posterior predictive distribution of sales for each of the background products
+        # plot posterior predictive distribution of sales for each of the existing products
         x = self.X.index.values
-        background_products = self.coords["background_product"]
+        existing_products = self.coords["existing_product"]
 
-        for i, background_product in enumerate(background_products):
+        for i, existing_product in enumerate(existing_products):
             az.plot_hdi(
                 x,
                 self.causal_impact(variable=variable)
                 .transpose(..., "time")
-                .sel(background_product=background_product),
+                .sel(existing_product=existing_product),
                 fill_kwargs={
                     "alpha": HDI_ALPHA,
                     "color": f"C{i}",
@@ -429,29 +429,29 @@ class MVITS(ModelBuilder):
         return ax
 
     def plot_causal_impact_market_share(self, variable="mu"):
-        """Plot the inferred causal impact of the new product on the background products.
+        """Plot the inferred causal impact of the new product on the existing products.
 
         Note: if we compare "mu" then we are comparing the expected sales, if we compare
         "y" then we are comparing the actual sales
         """
         _, ax = plt.subplots()
 
-        # plot posterior predictive distribution of sales for each of the background products
+        # plot posterior predictive distribution of sales for each of the existing products
         x = self.X.index.values
-        background_products = list(self.idata.observed_data.background_product.data)
+        existing_products = list(self.idata.observed_data.existing_product.data)
 
         # divide the causal impact change in sales by the counterfactual predicted sales
         variable = "mu"
-        for i, background_product in enumerate(background_products):
+        for i, existing_product in enumerate(existing_products):
             causal_impact = (
                 self.causal_impact(variable=variable)
                 .transpose(..., "time")
-                .sel(background_product=background_product)
+                .sel(existing_product=existing_product)
             )
             total_sales = (
                 self.idata.predictions[variable]
                 .transpose(..., "time")
-                .sum(dim="background_product")
+                .sum(dim="existing_product")
             )
             causal_impact_market_share = (causal_impact / total_sales) * 100
 
@@ -461,7 +461,7 @@ class MVITS(ModelBuilder):
                 fill_kwargs={
                     "alpha": HDI_ALPHA,
                     "color": f"C{i}",
-                    "label": f"{background_product} - Posterior predictive (HDI)",
+                    "label": f"{existing_product} - Posterior predictive (HDI)",
                 },
                 smooth=False,
             )
