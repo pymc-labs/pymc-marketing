@@ -1,0 +1,37 @@
+docs:
+  - changed-files:
+    - any-glob-to-any-file:
+      - docs/source/**
+
+MMM:
+  - changed-files:
+    - any-glob-to-any-file:
+      - docs/source/notebooks/mmm/*
+      - pymc_marketing/mmm/**
+
+CLV:
+  - changed-files:
+    - any-glob-to-any-file:
+      - docs/source/notebooks/clv/*
+      - pymc_marketing/clv/**
+
+"Prior class":
+  - changed-files:
+    - any-glob-to-any-file:
+      - pymc_marketing/prior.py
+
+
+streamlit:
+  - changed-files:
+    - any-glob-to-any-file:
+      - streamlit/**
+
+tests:
+  - changed-files:
+    - any-glob-to-any-file:
+      - tests/**
+
+mlflow:
+  - changed-files:
+    - any-glob-to-any-file:
+      - pymc_marketing/mlflow.py

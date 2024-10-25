@@ -21,11 +21,13 @@ import pandas as pd
 from matplotlib.lines import Line2D
 
 from pymc_marketing.clv import BetaGeoModel, ParetoNBDModel
+from pymc_marketing.clv.utils import _expected_cumulative_transactions
 
 __all__ = [
     "plot_customer_exposure",
     "plot_frequency_recency_matrix",
     "plot_probability_alive_matrix",
+    "plot_expected_purchases",
 ]
 
 
@@ -260,7 +262,7 @@ def plot_frequency_recency_matrix(
         title=title,
     )
 
-    force_aspect(ax)
+    _force_aspect(ax)
 
     # plot colorbar beside matrix
     plt.colorbar(pcm, ax=ax)
@@ -344,7 +346,7 @@ def plot_probability_alive_matrix(
         ylabel=ylabel,
         title=title,
     )
-    force_aspect(ax)
+    _force_aspect(ax)
 
     # plot colorbar beside matrix
     plt.colorbar(pcm, ax=ax)
@@ -352,7 +354,127 @@ def plot_probability_alive_matrix(
     return ax
 
 
-def force_aspect(ax: plt.Axes, aspect=1):
+def plot_expected_purchases(
+    model,
+    purchase_history: pd.DataFrame,
+    customer_id_col: str,
+    datetime_col: str,
+    t: int,
+    plot_cumulative: bool = True,
+    t_unobserved: int | None = None,
+    datetime_format: str | None = None,
+    time_unit: str = "D",
+    time_scaler: float | None = 1,
+    sort_transactions: bool | None = True,
+    set_index_date: bool | None = False,
+    title: str | None = None,
+    xlabel: str = "Time Periods",
+    ylabel: str = "Purchases",
+    ax: plt.Axes | None = None,
+    **kwargs,
+) -> plt.Axes:
+    """Plot actual and expected purchases over time for a fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
+
+    This function is based on the formulation on page 8 of [1]_. Specifically, we take only customers who have made
+    their first transaction before the specified number of ``t`` time periods, and run
+    ``expected_purchases_new_customer()`` for all remaining time periods. Results can be either cumulative or
+    incremental.
+
+    Adapted from legacy ``lifetimes`` library:
+    https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/plotting.py#L392
+
+    Parameters
+    ----------
+    model :
+        A fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
+    purchase_history : ~pandas.DataFrame
+        A Pandas DataFrame containing *customer_id_col* and *datetime_col*.
+    customer_id_col : string
+        Column in the *transactions* DataFrame denoting the *customer_id*.
+    datetime_col :  string
+        Column in the *transactions* DataFrame denoting datetimes purchase were made.
+    t : int
+        Number of time units since earliest purchase to include in plot.
+    plot_cumulative : bool
+        Default: *True*
+        Plot cumulative purchases over time. Set to *False* to plot incremental purchases.
+    t_unobserved : int, optional
+        If testing model on unobserved data, specify number of time units in training data to add an indicator for
+        the start of the testing period.
+    datetime_format : string, optional
+        A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
+    time_unit : string, optional
+        Time granularity for study.
+        Default: 'D' for days. Possible values listed here:
+        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+    time_scaler : int, optional
+        Default: 1. Scales *recency* & *T* to a different time granularity.
+        This is useful for datasets spanning many years, and running predictions in different time scales.
+    sort_transactions : bool, optional
+        Default: *True*
+        If *transactions* DataFrame is already sorted in chronological order, set to *False* to improve computational
+        efficiency.
+    set_index_date : bool, optional
+        Set to True to return a dataframe with a datetime index.
+    title : str, optional
+        Figure title
+    xlabel : str, optional
+        Figure xlabel
+    ylabel : str, optional
+        Figure ylabel
+    ax : matplotlib.AxesSubplot, optional
+        Using user axes
+    kwargs
+        Additional arguments to pass into the pandas.DataFrame.plot command.
+
+    Returns
+    -------
+    axes: matplotlib.AxesSubplot
+
+    References
+    ----------
+    .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005),
+    A Note on Implementing the Pareto/NBD Model in MATLAB.
+    http://brucehardie.com/notes/008/
+    """
+    if ax is None:
+        ax = plt.subplot(111)
+
+    df_cum_transactions = _expected_cumulative_transactions(
+        model=model,
+        transactions=purchase_history,
+        customer_id_col=customer_id_col,
+        datetime_col=datetime_col,
+        t=t,
+        datetime_format=datetime_format,
+        time_unit=time_unit,
+        time_scaler=time_scaler,
+        sort_transactions=sort_transactions,
+        set_index_date=set_index_date,
+    )
+
+    if not plot_cumulative:
+        df_cum_transactions = df_cum_transactions.diff()
+        if title is None:
+            title = "Tracking Incremental Transactions"
+    else:
+        if title is None:
+            title = "Tracking Cumulative Transactions"
+
+    ax = df_cum_transactions.plot(ax=ax, title=title, **kwargs)
+
+    if t_unobserved:
+        if set_index_date:
+            x_vline = df_cum_transactions.index[int(t_unobserved)]
+        else:
+            x_vline = t_unobserved
+        ax.axvline(x=x_vline, color="r", linestyle="--")
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    return ax
+
+
+def _force_aspect(ax: plt.Axes, aspect=1):
     im = ax.get_images()
     extent = im[0].get_extent()
     ax.set_aspect(abs((extent[1] - extent[0]) / (extent[3] - extent[2])) / aspect)

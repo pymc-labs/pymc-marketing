@@ -114,8 +114,8 @@ def test_channel_columns():
     ):
         obj.channel_columns = ["channel_1", "channel_1"]
         obj.validate_channel_columns(toy_X)
-    with pytest.raises(
-        ValueError,
+    with pytest.warns(
+        UserWarning,
         match=r"channel_columns \['channel_1'\] contains negative values",
     ):
         new_toy_X = toy_X.copy()
