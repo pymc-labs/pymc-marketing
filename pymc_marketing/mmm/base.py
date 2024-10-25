@@ -46,6 +46,7 @@ from pymc_marketing.mmm.validating import (
 from pymc_marketing.model_builder import ModelBuilder
 
 __all__ = ["MMMModelBuilder", "BaseValidateMMM"]
+
 from pydantic import Field, validate_call
 
 
@@ -362,7 +363,7 @@ class MMMModelBuilder(ModelBuilder):
     def plot_posterior_predictive(
         self,
         original_scale: bool = False,
-        add_hdi: bool = True,
+        hdi_list: list[float] | None = None,
         add_mean: bool = True,
         add_gradient: bool = False,
         ax: plt.Axes = None,
@@ -380,8 +381,8 @@ class MMMModelBuilder(ModelBuilder):
         original_scale : bool, optional
             If True, plot in the original scale of the target variable.
             If False, plot in the transformed scale used for modeling. Default is False.
-        add_hdi : bool, optional
-            If True, add highest density intervals to the plot. Default is True.
+        hdi_list : list of float, optional
+            List of HDI levels to plot. Default is [0.94] Provide an empty list to omit plotting the HDI.
         add_mean : bool, optional
             If True, add the mean prediction to the plot. Default is True.
         add_gradient : bool, optional
@@ -436,8 +437,12 @@ class MMMModelBuilder(ModelBuilder):
         else:
             fig = ax.figure
 
-        if add_hdi:
-            for hdi_prob, alpha in zip((0.94, 0.50), (0.2, 0.4), strict=True):
+        if hdi_list is None:
+            hdi_list = [0.94, 0.5]
+
+        if hdi_list:
+            alpha_list = np.linspace(0.2, 0.4, len(hdi_list))
+            for hdi_prob, alpha in zip(hdi_list, alpha_list, strict=True):
                 ax = self._add_hdi_to_plot(
                     ax=ax, original_scale=original_scale, hdi_prob=hdi_prob, alpha=alpha
                 )

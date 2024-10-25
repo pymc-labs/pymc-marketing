@@ -853,7 +853,7 @@ def _expected_cumulative_transactions(
     Returns
     -------
     DataFrame
-        Dataframe containing colunms for actual and predicted values
+        Dataframe containing columns for actual and predicted values
 
     References
     ----------

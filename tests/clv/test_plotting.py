@@ -20,6 +20,7 @@ from pytensor.tensor import TensorVariable
 
 from pymc_marketing.clv.plotting import (
     plot_customer_exposure,
+    plot_expected_purchases,
     plot_frequency_recency_matrix,
     plot_probability_alive_matrix,
 )
@@ -49,6 +50,12 @@ class MockModel:
         data: pd.DataFrame,
         *,
         future_t: np.ndarray | pd.Series | TensorVariable,
+    ):
+        return self._mock_posterior(data)
+
+    def expected_purchases_new_customer(
+        self,
+        data: pd.DataFrame,
     ):
         return self._mock_posterior(data)
 
@@ -144,3 +151,30 @@ def test_plot_probability_alive_matrix_with_ax(mock_model) -> None:
 
     assert ax.get_xlabel() == "Customer's Historical Frequency"
     assert ax.get_ylabel() == "Customer's Recency"
+
+
+@pytest.mark.parametrize(
+    "plot_cumulative, set_index_date, subplot",
+    [(True, False, None), (False, True, plt.subplot())],
+)
+def test_plot_expected_purchases(
+    mock_model, cdnow_trans, plot_cumulative, set_index_date, subplot
+) -> None:
+    ax = plot_expected_purchases(
+        model=mock_model,
+        purchase_history=cdnow_trans,
+        customer_id_col="id",
+        datetime_col="date",
+        datetime_format="%Y%m%d",
+        time_unit="D",
+        plot_cumulative=plot_cumulative,
+        set_index_date=set_index_date,
+        t=10,
+        t_unobserved=8,
+        ax=subplot,
+    )
+
+    assert isinstance(ax, plt.Axes)
+
+    # clear any existing pyplot figures
+    plt.clf()
