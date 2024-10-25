@@ -319,7 +319,7 @@ class MVITS(ModelBuilder):
             self.idata.posterior_predictive[variable] - self.idata.predictions[variable]  # type: ignore
         )
 
-    def plot_fit(self, variable: str = "mu"):
+    def plot_fit(self, variable: str = "mu", plot_total_sales: bool = True):
         """Plot the model fit (posterior predictive) of the existing products."""
         if variable not in ["mu", "y"]:
             raise ValueError(
@@ -329,7 +329,7 @@ class MVITS(ModelBuilder):
         _, ax = plt.subplots()
 
         # plot data
-        self.plot_data(ax=ax)
+        self.plot_data(ax=ax, plot_total_sales=plot_total_sales)
 
         # plot posterior predictive distribution of sales for each of the existing products
         x = self.X.index.values  # type: ignore
@@ -353,7 +353,7 @@ class MVITS(ModelBuilder):
         ax.set(title="Model fit of sales of existing products", ylabel="Sales")
         return ax
 
-    def plot_counterfactual(self, variable="mu"):
+    def plot_counterfactual(self, variable="mu", plot_total_sales: bool = True):
         """Plot counterfactual scenario.
 
         Plot the predicted sales of the existing products under the counterfactual
@@ -367,7 +367,7 @@ class MVITS(ModelBuilder):
             )  # pragma: no cover
 
         # plot data
-        self.plot_data(ax=ax)
+        self.plot_data(ax=ax, plot_total_sales=plot_total_sales)
 
         # plot posterior predictive distribution of sales for each of the existing products
         x = self.X.index.values
@@ -473,20 +473,23 @@ class MVITS(ModelBuilder):
         ax.set(title="Estimated causal impact of new product upon existing products")
         return ax
 
-    def plot_data(self, ax=None):
+    def plot_data(self, plot_total_sales: bool = True, ax=None):
         """Plot the observed data."""
         data = pd.concat([self.X, self.y], axis=1)
 
-        return plot_product(data=data, ax=ax)
+        return plot_product(data=data, ax=ax, plot_total_sales=plot_total_sales)
 
 
-def plot_product(data: pd.DataFrame, ax: plt.Axes | None = None) -> plt.Axes:
+def plot_product(
+    data: pd.DataFrame, plot_total_sales: bool = True, ax: plt.Axes | None = None
+) -> plt.Axes:
     """Plot the sales of a single product."""
     if ax is None:
         _, ax = plt.subplots()
 
     data.plot(ax=ax)
-    data.sum(axis=1).plot(label="total sales", color="black", ax=ax)
+    if plot_total_sales:
+        data.sum(axis=1).plot(label="total sales", color="black", ax=ax)
     ax.set_ylim(bottom=0)
     ax.set(ylabel="Sales")
     return ax
