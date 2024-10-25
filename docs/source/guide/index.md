@@ -30,7 +30,7 @@ clv/clv_intro
 :::
 
 :::{toctree}
-:caption: Product incrementality
+:caption: Customer Choice
 :maxdepth: 1
 
 cc/incrementality_intro

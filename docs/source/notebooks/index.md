@@ -31,7 +31,7 @@ clv/sBG
 :::
 
 :::{toctree}
-:caption: Product incrementality
+:caption: Customer Choice
 :maxdepth: 1
 
 cc/mv_its_saturated

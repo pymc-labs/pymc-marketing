@@ -25,7 +25,7 @@ from pymc_marketing.cc.mv_its import (
     generate_unsaturated_data,
 )
 
-seed = sum(map(ord, "Product Incrementality"))
+seed = sum(map(ord, "CustomerChoice"))
 rng = np.random.default_rng(seed)
 
 
