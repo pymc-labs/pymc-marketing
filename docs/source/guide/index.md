@@ -33,6 +33,6 @@ clv/clv_intro
 :caption: Product incrementality
 :maxdepth: 1
 
-product_incrementality/incrementality_intro
-product_incrementality/mv_its_intro
+cc/incrementality_intro
+cc/mv_its_intro
 :::

@@ -172,6 +172,16 @@ Classes
 
 ![](docs/source/uml/classes_clv.png)
 
+## Overview of the CC codebase
+
+Packages
+
+![](docs/source/uml/packages_cc.png)
+
+Classes
+
+![](docs/source/uml/classes_cc.png)
+
 ---
 
 This guide takes some inspiration from the [Bambi guide to contributing](https://github.com/bambinos/bambi/blob/main/CONTRIBUTING.md)
