@@ -33,7 +33,7 @@ To be more precise, we aren't really able to make this causal inference based on
 
 In the trivially simple example above where sales are highly stable over time, we can do this with simple visual extrapolation. But in the real world, sales data will be noisy, exhibit seasonality, perhaps with some underlying trend, changes in prices, and marketing campaigns by you and your competitors and so on.
 
-In fact, in many markets it is likely even more complex. We might not be able to neatly isoluate time periods around new product introductions. We might have multiple new products being introduced at the same (or nearly the same) time.
+In fact, in many markets it is likely even more complex. We might not be able to neatly isolate time periods around new product introductions. We might have multiple new products being introduced at the same (or nearly the same) time.
 
 ![](inc_complex.png)
 
