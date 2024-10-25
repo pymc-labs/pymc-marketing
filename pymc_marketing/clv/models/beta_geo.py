@@ -24,7 +24,7 @@ import xarray
 from pymc.distributions.dist_math import check_parameters
 from pymc.util import RandomState
 from pytensor.tensor import TensorVariable
-from scipy.special import expit, hyp2f1
+from scipy.special import betaln, expit, hyp2f1
 
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
@@ -36,7 +36,7 @@ class BetaGeoModel(CLVModel):
     r"""Beta-Geometric Negative Binomial Distribution (BG/NBD) model for a non-contractual customer population across continuous time.
 
     First introduced by Fader, Hardie & Lee [1]_, with additional predictive methods
-    and enhancements in [2]_ and [3]_.
+    and enhancements in [2]_,[3]_ and [4]_.
 
     The BG/NBD model assumes dropout probabilities for the customer population are Beta distributed,
     and time between transactions follows a Gamma distribution while the customer is still active.
@@ -136,6 +136,8 @@ class BetaGeoModel(CLVModel):
            P (alive) using the BG/NBD model." http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
     .. [3] Fader, P. S. & Hardie, B. G. (2013) "Overcoming the BG/NBD Model's #NUM!
            Error Problem." http://brucehardie.com/notes/027/bgnbd_num_error.pdf.
+    .. [4] Fader, P. S. & Hardie, B. G. (2019) "A Step-by-Step Derivation of the BG/NBD
+           Model." https://www.brucehardie.com/notes/039/bgnbd_derivation__2019-11-06.pdf
 
     """  # noqa: E501
 
@@ -434,6 +436,71 @@ class BetaGeoModel(CLVModel):
         )
 
         return xarray.where(x == 0, 1.0, expit(-log_div)).transpose(
+            "chain", "draw", "customer_id", missing_dims="ignore"
+        )
+
+    def expected_probability_no_purchase(
+        self,
+        t: int,
+        data: pd.DataFrame | None = None,
+    ) -> xarray.DataArray:
+        r"""Compute the probability a customer with history frequency, recency, and T
+        will have 0 purchases in the period (T, T+t].
+
+        The data parameter is only required for out-of-sample customers.
+
+        Adapted from Section 5.3, Equation 34 in Bruce Hardie's notes [1]_.
+
+        Parameters
+        ----------
+        data : *pandas.DataFrame
+            Optional dataframe containing the following columns:
+
+            * `customer_id`: Unique customer identifier
+            * `frequency`: Number of repeat purchases
+            * `recency`: Time between the first and the last purchase
+            * `T`: Time between first purchase and end of observation period, model assumptions require T >= recency
+
+        t : int
+            Days after T which defines the range (T, T+t].
+
+        References
+        ----------
+        .. [1] Fader, P. S. & Hardie, B. G. (2019) "A Step-by-Step Derivation of the
+                BG/NBD Model." https://www.brucehardie.com/notes/039/bgnbd_derivation__2019-11-06.pdf
+        """  # noqa: D205
+        if data is None:
+            data = self.data
+
+        dataset = self._extract_predictive_variables(
+            data, customer_varnames=["frequency", "recency", "T"]
+        )
+        a = dataset["a"]
+        b = dataset["b"]
+        alpha = dataset["alpha"]
+        r = dataset["r"]
+        x = dataset["frequency"]
+        t_x = dataset["recency"]
+        T = dataset["T"]
+
+        E = alpha + t_x
+        F = alpha + T + t
+        M = alpha + T
+
+        beta_rep = betaln(a, b + x)
+        K_E = betaln(a + 1, b + x - 1) - (r + x) * np.log(E)
+        K_F = beta_rep - (r + x) * np.log(F)
+        K_M = beta_rep - (r + x) * np.log(M)
+
+        K1 = np.maximum(K_E, K_F)
+        K2 = np.maximum(K_E, K_M)
+
+        numer = np.exp(K_E - K1) + np.exp(K_F - K1)
+        denom = np.exp(K_E - K2) + np.exp(K_M - K2)
+
+        prob_no_deposits = np.exp(K1 - K2) * numer / denom
+
+        return prob_no_deposits.transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
