@@ -510,28 +510,29 @@ def plot_purchase_pmf(
     if ax is None:
         ax = plt.subplot(111)
 
-    if ppc == "prior":
-        with model.model:
-            prior_idata = pymc.sample_prior_predictive(
-                random_seed=random_seed, samples=samples
+    match ppc:
+        case "prior":
+            with model.model:
+                prior_idata = pymc.sample_prior_predictive(
+                    random_seed=random_seed, samples=samples
+                )
+            obs_freq = model.idata.observed_data["recency_frequency"].sel(
+                obs_var="frequency"
             )
-        obs_freq = model.idata.observed_data["recency_frequency"].sel(
-            obs_var="frequency"
-        )
-        # TODO: take mean of chain/draw to support both MAP and MCMC fits
-        ppc_freq = prior_idata.prior_predictive["recency_frequency"].sel(
-            obs_var="frequency"
-        )[0][0]
-        title = "Prior Predictive Check of Repeat Purchases per Customer"
-    elif ppc == "posterior":
-        obs_freq = model.observed_data["recency_frequency"].sel(obs_var="frequency")
-        # TODO: take mean of chain/draw to support both MAP and MCMC fits, add samples parameters
-        ppc_freq = model.distribution_new_customer_recency_frequency(
-            model.data,
-            random_seed=random_seed,
-        ).sel(chain=0, draw=0, obs_var="frequency")
-    else:
-        raise NameError("Specify 'prior' or 'posterior' for ppc parameter.")
+            # TODO: take mean of chain/draw to support both MAP and MCMC fits
+            ppc_freq = prior_idata.prior_predictive["recency_frequency"].sel(
+                obs_var="frequency"
+            )[0][0]
+            title = "Prior Predictive Check of Repeat Purchases per Customer"
+        case "posterior":
+            obs_freq = model.observed_data["recency_frequency"].sel(obs_var="frequency")
+            # TODO: take mean of chain/draw to support both MAP and MCMC fits, add samples parameters
+            ppc_freq = model.distribution_new_customer_recency_frequency(
+                model.data,
+                random_seed=random_seed,
+            ).sel(chain=0, draw=0, obs_var="frequency")
+        case _:
+            raise NameError("Specify 'prior' or 'posterior' for ppc parameter.")
 
     # PPC histogram plot
     ax = (
