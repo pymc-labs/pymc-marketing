@@ -26,6 +26,7 @@ from pymc_marketing.clv.plotting import (
     plot_expected_purchases,
     plot_frequency_recency_matrix,
     plot_probability_alive_matrix,
+    plot_purchase_pmf,
 )
 from pymc_marketing.clv.utils import (
     customer_lifetime_value,
@@ -46,6 +47,7 @@ __all__ = (
     "plot_frequency_recency_matrix",
     "plot_expected_purchases",
     "plot_probability_alive_matrix",
+    "plot_purchase_pmf",
     "rfm_segments",
     "rfm_summary",
     "rfm_train_test_split",

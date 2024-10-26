@@ -18,6 +18,7 @@ from collections.abc import Sequence
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pymc
 from matplotlib.lines import Line2D
 
 from pymc_marketing.clv import BetaGeoModel, ParetoNBDModel
@@ -28,6 +29,7 @@ __all__ = [
     "plot_frequency_recency_matrix",
     "plot_probability_alive_matrix",
     "plot_expected_purchases",
+    "plot_purchase_pmf",
 ]
 
 
@@ -471,6 +473,81 @@ def plot_expected_purchases(
         ax.axvline(x=x_vline, color="r", linestyle="--")
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
+    return ax
+
+
+def plot_purchase_pmf(
+    model,
+    ppc: str = "posterior",
+    max_purchases: int = 10,
+    ax: plt.Axes | None = None,
+    random_seed: int = 45,
+    samples: int = 1,
+    **kwargs,
+) -> plt.Axes:
+    """Plot a prior or posterior predictive check for the customer purchase frequency distribution.
+
+    At this time only ParetoNBDModel and BetaGeoBetaBinomModel are supported.
+
+    Parameters
+    ----------
+    model :
+    ppc :
+    max_purchases :
+    ax :
+    random_seed :
+    samples :
+    **kwargs
+        Additional arguments to pass into pandas.DataFrame.plot
+
+    Returns
+    -------
+    axes: matplotlib.AxesSubplot
+    """
+    if ax is None:
+        ax = plt.subplot(111)
+
+    if ppc == "prior":
+        with model.model:
+            prior_idata = pymc.sample_prior_predictive(
+                random_seed=random_seed, samples=samples
+            )
+        obs_freq = model.idata.observed_data["recency_frequency"].sel(
+            obs_var="frequency"
+        )
+        # TODO: take mean of chain/draw to support both MAP and MCMC fits
+        ppc_freq = prior_idata.prior_predictive["recency_frequency"].sel(
+            obs_var="frequency"
+        )[0][0]
+        title = "Prior Predictive Check of Repeat Purchases per Customer"
+    elif ppc == "posterior":
+        obs_freq = model.observed_data["recency_frequency"].sel(obs_var="frequency")
+        # TODO: take mean of chain/draw to support both MAP and MCMC fits, add samples parameters
+        ppc_freq = model.distribution_new_customer_recency_frequency(
+            model.data,
+            random_seed=random_seed,
+        ).sel(chain=0, draw=0, obs_var="frequency")
+    else:
+        # TODO: Add exception here specifying 'prior' or 'posterior'
+        raise NameError("ppc parameter requires 'prior' or 'posterior' arguments.")
+
+    # PPC histogram plot
+    ax = (
+        pd.DataFrame(
+            {
+                "Model Estimations": ppc_freq.to_pandas().value_counts().sort_index(),
+                "Observed": obs_freq.to_pandas().value_counts().sort_index(),
+            }
+        )
+        .head(max_purchases)
+        .plot(
+            kind="bar",
+            title=title,
+            xlabel="Repeat Purchases per Customer",
+            ylabel="Number of Customers",
+            **kwargs,
+        )
+    )
     return ax
 
 
