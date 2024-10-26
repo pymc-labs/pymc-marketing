@@ -504,6 +504,9 @@ def plot_purchase_pmf(
     -------
     axes: matplotlib.AxesSubplot
     """
+    if model._model_type == "BG/NBD":
+        raise AttributeError("BetaGeoModel is unsupported for this function.")
+
     if ax is None:
         ax = plt.subplot(111)
 
@@ -528,8 +531,7 @@ def plot_purchase_pmf(
             random_seed=random_seed,
         ).sel(chain=0, draw=0, obs_var="frequency")
     else:
-        # TODO: Add exception here specifying 'prior' or 'posterior'
-        raise NameError("ppc parameter requires 'prior' or 'posterior' arguments.")
+        raise NameError("Specify 'prior' or 'posterior' for ppc parameter.")
 
     # PPC histogram plot
     ax = (
