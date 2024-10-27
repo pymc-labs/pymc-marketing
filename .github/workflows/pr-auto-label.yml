@@ -23,7 +23,7 @@ jobs:
     - name: Sync labels with closing issues
       uses: wd60622/closing-labels@v0.0.3
       with:
-        exclude: "question,request discussion"
+        exclude: "question,request discussion,help wanted"
         respect_unlabeled: true
       env:
         GH_TOKEN: ${{ github.token }}
