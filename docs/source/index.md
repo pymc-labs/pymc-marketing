@@ -167,6 +167,7 @@ For more videos, webinars and resources, check out the [PyMC Labs YouTube channe
 #### Marketing Mix Models
 
 - [Unobserved Confounders, ROAS and Lift Tests in Media Mix Models](https://www.pymc-labs.com/blog-posts/mmm_roas_lift/)
+- [MMM Explainer App: Dynamic and Interactive Visualization of Key MMM Concepts](https://pymc-marketing-app.streamlit.app/)
 
 #### Customer Lifetime Value
 

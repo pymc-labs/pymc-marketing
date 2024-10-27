@@ -20,7 +20,7 @@ In this case, you would just need to install the requirements.txt within the str
 
 ### Deployment
 
--Paste link to deployment here once reviewed by PyMC devs, hosted deployment is easy to implement-
+The app can be found [here](https://pymc-marketing-app.streamlit.app/)
 
 
 ## Contributing & Adding New Functions
