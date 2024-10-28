@@ -111,10 +111,6 @@ def summarize_metric_distributions(
             * `max`: Maximum value of the metric distribution.
             * `hdi_lower`: Lower bound of the Highest Density Interval.
             * `hdi_upper`: Upper bound of the Highest Density Interval.
-    Sets
-    ----
-    self.metric_summaries : dict of str to dict
-        Stores the calculated metric summaries as an instance attribute.
     """
     metric_summaries = {}
     for metric, distribution in metric_distributions.items():
