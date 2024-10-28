@@ -395,6 +395,7 @@ def log_sample_diagnostics(
         )
     mlflow.log_param("arviz_version", posterior.attrs["arviz_version"])
     mlflow.log_param("pymc_marketing_version", __version__)
+    mlflow.log_param("pymc_version", pm.__version__)
 
 
 def log_loocv_metrics(
