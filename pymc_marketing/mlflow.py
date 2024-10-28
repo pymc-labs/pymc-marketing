@@ -425,9 +425,11 @@ def log_loocv_metrics(
         or "sample_stats" not in idata
         or "log_likelihood" not in idata
     ):
-        logging.warning(
-            "Skipping LOOCV metrics: InferenceData object does not contain\
-                         the group posterior, sample stats and log_likelihood."
+        warnings.warn(
+            "Skipping LOOCV metrics: InferenceData object does not contain "
+            "the group posterior, sample stats and log_likelihood.",
+            UserWarning,
+            stacklevel=2,
         )
         return
 
