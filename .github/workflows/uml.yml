@@ -1,7 +1,7 @@
 name: Update the UML Diagrams
 
 on:
-  pull_request:
+  pull_request_target:
     types: [closed]
     branches: [main]
     paths:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    if: github.event.pull_request.head.repo.owner.login == 'pymc-labs'
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
@@ -41,7 +41,7 @@ jobs:
           else
             echo "Committing the changes"
             git commit -m "Update UML Diagrams"
-            git push origin HEAD:main
+            git push origin HEAD:${{ github.event.pull_request.base.ref }}
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
