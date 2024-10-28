@@ -227,12 +227,12 @@ def test_per_observation_crps_bad_shape_missing_sample_dim(
         "negative_values",
     ],
 )
-def test_nrmse(y_true, y_pred, expected):
+def test_nrmse(y_true, y_pred, expected) -> None:
     result = nrmse(y_true, y_pred)
     assert result == pytest.approx(expected, rel=1e-10)
 
 
-def test_nrmse_normalization():
+def test_nrmse_normalization() -> None:
     y_true = np.array([10, 20, 30])
     y_pred = np.array([8, 16, 24])
     result1 = nrmse(y_true, y_pred)
@@ -265,7 +265,7 @@ def test_nrmse_normalization():
         "uniform_values",
     ],
 )
-def test_nrmse_division_warnings(y_true, y_pred, match):
+def test_nrmse_division_warnings(y_true, y_pred, match) -> None:
     with pytest.warns(RuntimeWarning, match=match):
         result = nrmse(y_true, y_pred)
     assert np.isinf(result)
@@ -302,12 +302,12 @@ def test_nrmse_division_warnings(y_true, y_pred, match):
         "negative_values",
     ],
 )
-def test_nmae(y_true, y_pred, expected):
+def test_nmae(y_true, y_pred, expected) -> None:
     result = nmae(y_true, y_pred)
     assert result == pytest.approx(expected, rel=1e-10)
 
 
-def test_nmae_normalization():
+def test_nmae_normalization() -> None:
     y_true = np.array([10, 20, 30])
     y_pred = np.array([8, 16, 24])
     result1 = nmae(y_true, y_pred)
@@ -340,7 +340,7 @@ def test_nmae_normalization():
         "uniform_values",
     ],
 )
-def test_nmae_division_warnings(y_true, y_pred, match):
+def test_nmae_division_warnings(y_true, y_pred, match) -> None:
     with pytest.warns(RuntimeWarning, match=match):
         result = nmae(y_true, y_pred)
     assert np.isinf(result)
