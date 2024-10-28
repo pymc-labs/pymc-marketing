@@ -28,8 +28,10 @@ from mlflow.client import MlflowClient
 from pymc_marketing.mlflow import (
     autolog,
     log_likelihood_type,
+    log_loocv_metrics,
     log_model_graph,
     log_sample_diagnostics,
+    log_summary_metrics,
 )
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
 from pymc_marketing.version import __version__
@@ -450,3 +452,119 @@ def test_log_sample_diagnostics_missing_group(mock_idata, selected_group: str) -
     match = f"InferenceData object does not contain the group {missing_group}."
     with pytest.raises(KeyError, match=match):
         log_sample_diagnostics(idata)
+
+
+@pytest.fixture(scope="function")
+def mock_idata_for_loo() -> az.InferenceData:
+    chains = 2
+    draws = 50
+    obs = 10
+    coords = {
+        "chain": np.arange(chains),
+        "draw": np.arange(draws),
+        "obs_id": np.arange(obs),
+    }
+
+    # Create log likelihood values for testing
+    log_likelihood = xr.Dataset(
+        data_vars={
+            "obs": (("chain", "draw", "obs_id"), rng.normal(size=(chains, draws, obs))),
+        },
+        coords=coords,
+    )
+
+    posterior = xr.Dataset(
+        data_vars={
+            "mu": (("chain", "draw"), rng.random(size=(chains, draws))),
+            "sigma": (("chain", "draw"), rng.random(size=(chains, draws))),
+        },
+        coords=coords,
+    )
+
+    sample_stats = xr.Dataset(
+        data_vars={
+            "diverging": (
+                ("chain", "draw"),
+                rng.integers(0, 2, size=(chains, draws)),
+            ),
+            "energy": (("chain", "draw"), rng.random(size=(chains, draws))),
+        },
+        coords=coords,
+    )
+
+    return az.InferenceData(
+        posterior=posterior,
+        sample_stats=sample_stats,
+        log_likelihood=log_likelihood,
+    )
+
+
+def test_log_loocv_metrics(mock_idata_for_loo) -> None:
+    """Test logging of LOO metrics."""
+    with mlflow.start_run() as run:
+        log_loocv_metrics(mock_idata_for_loo)
+
+    run_id = run.info.run_id
+    run_data = get_run_data(run_id)
+
+    # Check that expected metrics are logged
+    expected_metrics = {
+        "loocv_elpd_loo",
+        "loocv_se",
+        "loocv_p_loo",
+    }
+    assert set(run_data.metrics.keys()) >= expected_metrics
+
+    # Check that values are reasonable
+    assert isinstance(run_data.metrics["loocv_elpd_loo"], float)
+    assert isinstance(run_data.metrics["loocv_se"], float)
+    assert isinstance(run_data.metrics["loocv_p_loo"], float)
+
+
+def test_log_loocv_metrics_no_log_likelihood() -> None:
+    """Test that appropriate error is raised when log_likelihood group is missing."""
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            data_vars={"mu": (("chain", "draw"), rng.random(size=(2, 50)))},
+            coords={"chain": [0, 1], "draw": np.arange(50)},
+        )
+    )
+
+    with pytest.warns(
+        UserWarning,
+        match="Skipping LOOCV metrics: InferenceData object does not contain",
+    ):
+        log_loocv_metrics(idata)
+
+
+def test_log_summary_metrics() -> None:
+    """Test logging of summary metrics to MLflow."""
+    y_true = np.array([1.0, 2.0, 3.0])
+    y_pred = np.array([[1.1, 2.1, 3.1]]).T
+    custom_metrics = ["r_squared", "rmse", "mae", "mape", "nrmse", "nmae"]
+
+    with mlflow.start_run() as run:
+        log_summary_metrics(
+            y_true, y_pred, metrics_to_calculate=custom_metrics, hdi_prob=0.94
+        )
+
+    run_id = run.info.run_id
+    run_data = get_run_data(run_id)
+
+    # Check that metrics are logged with expected prefixes and suffixes
+    metric_prefixes = {"r_squared", "rmse", "mae", "mape", "nrmse", "nmae"}
+    metric_suffixes = {
+        "mean",
+        "median",
+        "std",
+        "min",
+        "max",
+        "94_hdi_lower",
+        "94_hdi_upper",
+    }
+    expected_metrics = {
+        f"{prefix}_{suffix}" for prefix in metric_prefixes for suffix in metric_suffixes
+    }
+    assert set(run_data.metrics.keys()) == expected_metrics
+
+    assert all(isinstance(value, float) for value in run_data.metrics.values())
