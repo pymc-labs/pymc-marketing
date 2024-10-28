@@ -257,6 +257,134 @@ class TestBetaGeoModel:
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
 
+    def test_expected_probability_no_purchases_infrequent_customers(self):
+        atol = 10e-3
+        customer_id = np.arange(5)
+        test_frequency = [3, 30, 5, 70, 9]
+        test_recency = [100, 30, 500, 70, 900]
+        test_T = [500, 300, 1000, 700, 1800]
+        test_t = 3
+        data = pd.DataFrame(
+            {
+                "customer_id": customer_id,
+                "frequency": test_frequency,
+                "recency": test_recency,
+                "T": test_T,
+            }
+        )
+
+        bg_model = BetaGeoModel(data=data)
+        bg_model.build_model()
+        bg_model.idata = az.from_dict(
+            {
+                "a": np.full((2, 5), self.a_true),
+                "b": np.full((2, 5), self.b_true),
+                "alpha": np.full((2, 5), self.alpha_true),
+                "r": np.full((2, 5), self.r_true),
+            }
+        )
+
+        res_prob_no_purchases = bg_model.expected_probability_no_purchase(
+            t=test_t, data=data
+        )
+        assert np.all(np.isclose(res_prob_no_purchases.to_numpy(), 1, atol=atol))
+
+    @pytest.mark.parametrize("test_t", [30, 90, 120])
+    def test_expected_probability_no_purchases_frequent_customers(self, test_t):
+        atol = 10e-3
+        customer_id = np.arange(5)
+        test_frequency = [100, 300, 500, 700, 900]
+        test_recency = [100, 300, 500, 700, 900]
+        test_T = [100, 300, 500, 700, 900]
+        data = pd.DataFrame(
+            {
+                "customer_id": customer_id,
+                "frequency": test_frequency,
+                "recency": test_recency,
+                "T": test_T,
+            }
+        )
+
+        bg_model = BetaGeoModel(data=data)
+        bg_model.build_model()
+        bg_model.idata = az.from_dict(
+            {
+                "a": np.full((2, 5), self.a_true),
+                "b": np.full((2, 5), self.b_true),
+                "alpha": np.full((2, 5), self.alpha_true),
+                "r": np.full((2, 5), self.r_true),
+            }
+        )
+
+        res_prob_no_purchases = bg_model.expected_probability_no_purchase(
+            t=test_t, data=data
+        )
+        assert np.all(np.isclose(res_prob_no_purchases.to_numpy(), 0, atol=atol))
+
+    def test_expected_probability_no_purchases_now(self):
+        customer_id = np.arange(10)
+        test_frequency = np.tile([1, 3, 5, 7, 9], 2)
+        test_recency = np.tile([20, 30], 5)
+        test_T = np.tile([25, 35], 5)
+        test_t = 0
+        data = pd.DataFrame(
+            {
+                "customer_id": customer_id,
+                "frequency": test_frequency,
+                "recency": test_recency,
+                "T": test_T,
+            }
+        )
+
+        bg_model = BetaGeoModel(data=data)
+        bg_model.build_model()
+        bg_model.idata = az.from_dict(
+            {
+                "a": np.full((2, 5), self.a_true),
+                "b": np.full((2, 5), self.b_true),
+                "alpha": np.full((2, 5), self.alpha_true),
+                "r": np.full((2, 5), self.r_true),
+            }
+        )
+
+        res_prob_no_purchases = bg_model.expected_probability_no_purchase(
+            t=test_t, data=data
+        )
+        assert np.all(np.isclose(res_prob_no_purchases.to_numpy(), 1))
+
+    @pytest.mark.parametrize("test_t", [0, 30, 90])
+    def test_expected_probability_no_purchases(self, test_t):
+        customer_id = np.arange(10)
+        test_frequency = np.tile([1, 3, 5, 7, 9], 2)
+        test_recency = np.tile([20, 30], 5)
+        test_T = np.tile([25, 35], 5)
+        data = pd.DataFrame(
+            {
+                "customer_id": customer_id,
+                "frequency": test_frequency,
+                "recency": test_recency,
+                "T": test_T,
+            }
+        )
+
+        bg_model = BetaGeoModel(data=data)
+        bg_model.build_model()
+        bg_model.idata = az.from_dict(
+            {
+                "a": np.full((2, 5), self.a_true),
+                "b": np.full((2, 5), self.b_true),
+                "alpha": np.full((2, 5), self.alpha_true),
+                "r": np.full((2, 5), self.r_true),
+            }
+        )
+
+        res_prob_no_purchases = bg_model.expected_probability_no_purchase(
+            t=test_t, data=data
+        )
+
+        assert res_prob_no_purchases.shape == (2, 5, 10)
+        assert res_prob_no_purchases.dims == ("chain", "draw", "customer_id")
+
     def test_expected_num_purchases(self):
         customer_id = np.arange(10)
         test_t = np.linspace(20, 38, 10)

@@ -21,29 +21,9 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v2
     - name: Sync labels with closing issues
-      run: |
-        owner="pymc-labs"
-        name="pymc-marketing"
-        pr_number=${{ github.event.pull_request.number }}
-
-        labels=$(gh api graphql --paginate -F number=$pr_number -F owner=$owner -F name=$name -f query='
-          query($endCursor: String, $owner: String!, $name: String!, $number: Int!) {
-            repository(owner: $owner, name: $name) {
-              pullRequest(number: $number) {
-                closingIssuesReferences(first: 10, after: $endCursor) {
-                  nodes {
-                    labels(first: 10) {
-                      nodes {
-                        name
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          ' --jq '.data.repository.pullRequest.closingIssuesReferences.nodes | map(.labels.nodes | map(.name)) | flatten | unique | join(",")')
-
-        gh pr edit $pr_number --add-label "$labels"
+      uses: wd60622/closing-labels@v0.0.3
+      with:
+        exclude: "question,request discussion,help wanted"
+        respect_unlabeled: true
       env:
         GH_TOKEN: ${{ github.token }}
