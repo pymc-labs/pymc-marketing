@@ -394,6 +394,7 @@ def log_sample_diagnostics(
             posterior.attrs["inference_library_version"],
         )
     mlflow.log_param("arviz_version", posterior.attrs["arviz_version"])
+    mlflow.log_param("pymc_marketing_version", __version__)
 
 
 def log_loocv_metrics(
@@ -890,8 +891,6 @@ def autolog(
             model = pm.modelcontext(kwargs.get("model"))
             with model:
                 idata = sample(*args, **kwargs)
-                mlflow.log_param("pymc_marketing_version", __version__)
-                mlflow.log_param("pymc_version", pm.__version__)
                 mlflow.log_param("nuts_sampler", kwargs.get("nuts_sampler", "pymc"))
 
                 # Align with the default values in pymc.sample
@@ -929,6 +928,8 @@ def autolog(
             mlflow.log_params(
                 idata.attrs,
             )
+            mlflow.log_param("nuts_sampler", kwargs.get("nuts_sampler", "pymc"))
+
             mlflow.log_param(
                 "adstock_name",
                 json.loads(idata.attrs["adstock"])["lookup_name"],
@@ -937,6 +938,19 @@ def autolog(
                 "saturation_name",
                 json.loads(idata.attrs["saturation"])["lookup_name"],
             )
+
+            # Align with the default values in pymc.sample
+            tune = kwargs.get("tune", 1000)
+
+            if log_sampler_info:
+                log_sample_diagnostics(idata, tune=tune)
+                log_arviz_summary(
+                    idata,
+                    "summary.html",
+                    var_names=summary_var_names,
+                    **arviz_summary_kwargs,
+                )
+
             log_inference_data(idata, save_file="idata.nc")
 
             if log_loocv:
