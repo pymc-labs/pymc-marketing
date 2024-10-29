@@ -33,6 +33,6 @@ clv/clv_intro
 :caption: Customer Choice
 :maxdepth: 1
 
-cc/incrementality_intro
-cc/mv_its_intro
+customer_choice/incrementality_intro
+customer_choice/mv_its_intro
 :::

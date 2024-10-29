@@ -13,7 +13,7 @@
 #   limitations under the License.
 """PyMC Marketing."""
 
-from pymc_marketing import cc, clv, mmm
+from pymc_marketing import clv, customer_choice, mmm
 from pymc_marketing.version import __version__
 
-__all__ = ["clv", "mmm", "cc", "__version__"]
+__all__ = ["clv", "mmm", "customer_choice", "__version__"]

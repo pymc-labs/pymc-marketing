@@ -13,7 +13,7 @@
   model_config
   model_builder
   prior
-  cc
+  customer_choice
   metrics
   mlflow
 ```

@@ -172,15 +172,15 @@ Classes
 
 ![](docs/source/uml/classes_clv.png)
 
-## Overview of the CC codebase
+## Overview of the customer choice codebase
 
 Packages
 
-![](docs/source/uml/packages_cc.png)
+![](docs/source/uml/packages_customer_choice.png)
 
 Classes
 
-![](docs/source/uml/classes_cc.png)
+![](docs/source/uml/classes_customer_choice.png)
 
 ---
 

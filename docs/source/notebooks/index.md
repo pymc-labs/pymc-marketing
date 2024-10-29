@@ -34,8 +34,8 @@ clv/sBG
 :caption: Customer Choice
 :maxdepth: 1
 
-cc/mv_its_saturated
-cc/mv_its_unsaturated
+customer_choice/mv_its_saturated
+customer_choice/mv_its_unsaturated
 :::
 
 :::{toctree}
