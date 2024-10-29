@@ -319,7 +319,7 @@ class MVITS(ModelBuilder):
             self.idata.posterior_predictive[variable] - self.idata.predictions[variable]  # type: ignore
         )
 
-    def plot_fit(self, variable: str = "mu", plot_total_sales: bool = True):
+    def plot_fit(self, variable: str = "mu", plot_total_sales=True):
         """Plot the model fit (posterior predictive) of the existing products."""
         if variable not in ["mu", "y"]:
             raise ValueError(
@@ -353,7 +353,7 @@ class MVITS(ModelBuilder):
         ax.set(title="Model fit of sales of existing products", ylabel="Sales")
         return ax
 
-    def plot_counterfactual(self, variable="mu", plot_total_sales: bool = True):
+    def plot_counterfactual(self, variable="mu", plot_total_sales=True):
         """Plot counterfactual scenario.
 
         Plot the predicted sales of the existing products under the counterfactual
@@ -473,7 +473,7 @@ class MVITS(ModelBuilder):
         ax.set(title="Estimated causal impact of new product upon existing products")
         return ax
 
-    def plot_data(self, plot_total_sales: bool = True, ax=None):
+    def plot_data(self, plot_total_sales=True, ax=None):
         """Plot the observed data."""
         data = pd.concat([self.X, self.y], axis=1)
 
@@ -481,7 +481,7 @@ class MVITS(ModelBuilder):
 
 
 def plot_product(
-    data: pd.DataFrame, plot_total_sales: bool = True, ax: plt.Axes | None = None
+    data: pd.DataFrame, plot_total_sales=True, ax: plt.Axes | None = None
 ) -> plt.Axes:
     """Plot the sales of a single product."""
     if ax is None:
