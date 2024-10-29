@@ -127,7 +127,7 @@ We could relax this assumption and consider an unsaturated market. More specific
 
 This requires only a minor change to the multivariate normal form of the model.
 
-Specifically, rather than having $P$ products which are the source of new product sales, we could simply add a psuedo-product which represents new sales. The first $P$ products are as normal, all the existing products. The final pseudo product would represent the market growth. We could simply add an additional $\beta$ parameter and specifcy the prior as:
+Specifically, rather than having $P$ products which are the source of new product sales, we could simply add a psuedo-product which represents new sales. The first $P$ products are as normal, all the existing products. The final pseudo product would represent the market growth. We could simply add an additional $\beta$ parameter and specify the prior as:
 
 $$
 \beta_1, \beta_2, \ldots, \beta_P, \beta_{P+1} \sim \mathrm{Dirichlet}(\alpha_1, \ldots, \alpha_P, \alpha_{P+1})
