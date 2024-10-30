@@ -15,8 +15,16 @@
 
 from pymc_marketing.customer_choice.mv_its import (
     MVITS,
+    plot_product,
+)
+from pymc_marketing.customer_choice.synthetic_data import (
     generate_saturated_data,
     generate_unsaturated_data,
 )
 
-__all__ = ["MVITS", "generate_saturated_data", "generate_unsaturated_data"]
+__all__ = [
+    "MVITS",
+    "generate_saturated_data",
+    "generate_unsaturated_data",
+    "plot_product",
+]
