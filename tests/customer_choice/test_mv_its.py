@@ -37,7 +37,7 @@ scenario_saturated = {
     "market_shares_before": [[0.7, 0.3, 0]],
     "market_shares_after": [[0.65, 0.25, 0.1]],
     "market_share_labels": ["competitor", "own", "new"],
-    "rng": rng,
+    "random_seed": rng,
 }
 
 scenario_unsaturated_bad = {
@@ -49,7 +49,7 @@ scenario_unsaturated_bad = {
     "market_shares_before": [[0.7, 0.3, 0]],
     "market_shares_after": [[0.65, 0.25, 0.1]],
     "market_share_labels": ["competitor", "own", "new"],
-    "rng": rng,
+    "random_seed": rng,
 }
 
 scenario_unsaturated_good = {
@@ -61,7 +61,7 @@ scenario_unsaturated_good = {
     "market_shares_before": [[500 / 800, 300 / 800, 0]],
     "market_shares_after": [[400 / 950, 200 / 950, 350 / 950]],
     "market_share_labels": ["competitor", "own", "new"],
-    "rng": rng,
+    "random_seed": rng,
 }
 
 
