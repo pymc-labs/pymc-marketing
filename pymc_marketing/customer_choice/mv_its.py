@@ -14,7 +14,7 @@
 """Multivariate Interrupted Time Series Analysis for Product Incrementality."""
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -22,7 +22,9 @@ import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
 import pymc as pm
+from matplotlib.axes import Axes
 from typing_extensions import Self
+from xarray import DataArray
 
 from pymc_marketing.model_builder import ModelBuilder
 from pymc_marketing.prior import Prior
@@ -35,6 +37,20 @@ class MVITS(ModelBuilder):
 
     Class to perform a multivariate interrupted time series analysis with the
     specific intent of determining where the sales of a new product came from.
+
+    Parameters
+    ----------
+    existing_sales : list of str
+        The names of the existing products.
+    saturated_market : bool, optional
+        Whether the market is saturated or not. If True, the sum of the beta's will be
+        1. Else, the sum of the beta's will be less than 1 with the remaining sales
+        attributed to the new product.
+    model_config : dict, optional
+        The model configuration. If None, the default model configuration will be used.
+    sampler_config : dict, optional
+        The sampler configuration. If None, the default sampler configuration will be used.
+
     """
 
     _model_type = "Multivariate Interrupted Time Series"
@@ -66,7 +82,14 @@ class MVITS(ModelBuilder):
             )
 
     def create_idata_attrs(self) -> dict[str, str]:
-        """Create the attributes for the InferenceData object."""
+        """Create the attributes for the InferenceData object.
+
+        Returns
+        -------
+        dict[str, str]
+            The attributes for the InferenceData object.
+
+        """
         attrs = super().create_idata_attrs()
         attrs["existing_sales"] = json.dumps(self.existing_sales)
         attrs["saturated_market"] = json.dumps(self.saturated_market)
@@ -75,7 +98,19 @@ class MVITS(ModelBuilder):
 
     @classmethod
     def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
-        """Convert the attributes of the InferenceData object to the __init__ kwargs."""
+        """Convert the attributes of the InferenceData object to the __init__ kwargs.
+
+        Parameters
+        ----------
+        attrs : dict
+            The attributes of the InferenceData object.
+
+        Returns
+        -------
+        dict
+            The __init__ kwargs for the class.
+
+        """
         return {
             "existing_sales": json.loads(attrs["existing_sales"]),
             "saturated_market": json.loads(attrs["saturated_market"]),
@@ -83,7 +118,17 @@ class MVITS(ModelBuilder):
 
     @property
     def default_model_config(self) -> dict:
-        """Default model configuration."""
+        """Default model configuration.
+
+        This is TruncatedNormal likelihood with a HalfNormal sigma, Normal intercept,
+        and a Dirichlet market distribution
+
+        Returns
+        -------
+        dict
+            The default model configuration.
+
+        """
         if self.saturated_market:
             a = np.full(len(self.existing_sales), 0.5)
             dims = "existing_product"
@@ -109,13 +154,24 @@ class MVITS(ModelBuilder):
 
         This only works with the default prior.
 
+        Parameters
+        ----------
+        data : pd.DataFrame
+            The DataFrame to inform the default prior. This should be the data before
+            the treatment.
+
+        Returns
+        -------
+        Self
+            The model instance.
+
         Examples
         --------
         Use the data before the treatment to inform the prior.
 
         .. code-block:: python
 
-            data = df.loc[:treatment_time, existing_sales]
+            data = df.loc[:treatment_time, model.existing_sales]
             model.inform_default_prior(data=data)
 
         Check the model configuration
@@ -190,7 +246,16 @@ class MVITS(ModelBuilder):
         y: pd.Series | np.ndarray,
         **kwargs,
     ) -> None:
-        """Build a PyMC model for a multivariate interrupted time series analysis."""
+        """Build a PyMC model for a multivariate interrupted time series analysis.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            The data for the existing products.
+        y : np.ndarray | pd.Series
+            The data for the new product.
+
+        """
         self._generate_and_preprocess_model_data(X, y)  # type: ignore
 
         with pm.Model(coords=self.coords) as model:
@@ -259,8 +324,20 @@ class MVITS(ModelBuilder):
     def calculate_counterfactual(
         self,
         random_seed: np.random.Generator | int | None = None,
-    ):
-        """Calculate the counterfactual scenario of never releasing the new product."""
+    ) -> None:
+        """Calculate the counterfactual scenario of never releasing the new product.
+
+        Extends the InferenceData object
+
+        Parameters
+        ----------
+        random_seed : np.random.Generator | int, optional
+            The random seed for the sampling.
+
+        """
+        if "posterior" not in cast(az.InferenceData, self.idata):
+            raise RuntimeError("You must sample the model first")
+
         zero_sales = np.zeros_like(self.y, dtype=np.int32)
         self.counterfactual_model = pm.do(self.model, {"treatment_sales": zero_sales})
         with self.counterfactual_model:
@@ -282,7 +359,36 @@ class MVITS(ModelBuilder):
         fit_kwargs: dict | None = None,
         sample_posterior_predictive_kwargs: dict | None = None,
     ) -> Self:
-        """Sample all the things."""
+        """Sample all the things.
+
+        Run all of the sample methods in the sequence:
+
+        - :meth:`sample_prior_predictive`
+        - :meth:`fit`
+        - :meth:`sample_posterior_predictive`
+        - :meth:`calculate_counterfactual`
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            The data for the existing products.
+        y : np.ndarray | pd.Series
+            The data for the new product.
+        random_seed : np.random.Generator | int, optional
+            The random seed for each stage of sampling.
+        sample_prior_predictive_kwargs : dict, optional
+            The keyword arguments for the sample_prior_predictive method.
+        fit_kwargs : dict, optional
+            The keyword arguments for the fit method.
+        sample_posterior_predictive_kwargs : dict, optional
+            The keyword arguments for the sample_posterior_predictive method.
+
+        Returns
+        -------
+        Self
+            The model instance.
+
+        """
         sample_prior_predictive_kwargs = sample_prior_predictive_kwargs or {}
         fit_kwargs = fit_kwargs or {}
         sample_posterior_predictive_kwargs = sample_posterior_predictive_kwargs or {}
@@ -304,11 +410,22 @@ class MVITS(ModelBuilder):
 
         return self
 
-    def causal_impact(self, variable: str = "mu"):
+    def causal_impact(self, variable: str = "mu") -> DataArray:
         """Calculate the causal impact of the new product on the existing products.
 
         Note: if we compare "mu" then we are comparing the expected sales, if we compare
         "y" then we are comparing the actual sales
+
+        Parameters
+        ----------
+        variable : str, optional
+            The variable to compare. Either "mu" or "y".
+
+        Returns
+        -------
+        xr.DataArray
+            The causal impact of the new product on the existing products.
+
         """
         if variable not in ["mu", "y"]:
             raise ValueError(
@@ -317,10 +434,24 @@ class MVITS(ModelBuilder):
 
         return (
             self.idata.posterior_predictive[variable] - self.idata.predictions[variable]  # type: ignore
-        )
+        ).rename("causal_impact")
 
     def plot_fit(self, variable: str = "mu", plot_total_sales=True):
-        """Plot the model fit (posterior predictive) of the existing products."""
+        """Plot the model fit (posterior predictive) of the existing products.
+
+        Parameters
+        ----------
+        variable : str, optional
+            The variable to compare. Either "mu" or "y".
+        plot_total_sales : bool, optional
+            Whether to plot the total sales or not.
+
+        Returns
+        -------
+        plt.Axes
+            The matplotlib axes.
+
+        """
         if variable not in ["mu", "y"]:
             raise ValueError(
                 f"variable must be either 'mu' or 'y', not {variable}"
@@ -353,11 +484,24 @@ class MVITS(ModelBuilder):
         ax.set(title="Model fit of sales of existing products", ylabel="Sales")
         return ax
 
-    def plot_counterfactual(self, variable="mu", plot_total_sales=True):
+    def plot_counterfactual(self, variable: str = "mu", plot_total_sales: bool = True):
         """Plot counterfactual scenario.
 
         Plot the predicted sales of the existing products under the counterfactual
         scenario of never releasing the new product.
+
+        Parameters
+        ----------
+        variable : str, optional
+            The variable to compare. Either "mu" or "y".
+        plot_total_sales : bool, optional
+            Whether to plot the total sales or not.
+
+        Returns
+        -------
+        plt.Axes
+            The matplotlib axes.
+
         """
         _, ax = plt.subplots()
 
@@ -370,12 +514,12 @@ class MVITS(ModelBuilder):
         self.plot_data(ax=ax, plot_total_sales=plot_total_sales)
 
         # plot posterior predictive distribution of sales for each of the existing products
-        x = self.X.index.values
+        x = cast(pd.DataFrame, self.X).index.values
         existing_products = self.coords["existing_product"]
         for i, existing_product in enumerate(existing_products):
             az.plot_hdi(
                 x,
-                self.idata.predictions[variable]
+                self.idata.predictions[variable]  # type: ignore
                 .transpose(..., "time")
                 .sel(existing_product=existing_product),
                 fill_kwargs={
@@ -393,7 +537,7 @@ class MVITS(ModelBuilder):
         )
         return ax
 
-    def plot_causal_impact_sales(self, variable="mu"):
+    def plot_causal_impact_sales(self, variable: str = "mu"):
         """Plot causal impact of sales.
 
         Plot the inferred causal impact of the new product on the sales of the
@@ -401,11 +545,22 @@ class MVITS(ModelBuilder):
 
         Note: if we compare "mu" then we are comparing the expected sales, if we compare
         "y" then we are comparing the actual sales
+
+        Parameters
+        ----------
+        variable : str, optional
+            The variable to compare. Either "mu" or "y".
+
+        Returns
+        -------
+        plt.Axes
+            The matplotlib axes.
+
         """
         _, ax = plt.subplots()
 
         # plot posterior predictive distribution of sales for each of the existing products
-        x = self.X.index.values
+        x = self.X.index.values  # type: ignore
         existing_products = self.coords["existing_product"]
 
         for i, existing_product in enumerate(existing_products):
@@ -428,17 +583,28 @@ class MVITS(ModelBuilder):
         ax.set(title="Estimated causal impact of new product upon existing products")
         return ax
 
-    def plot_causal_impact_market_share(self, variable="mu"):
+    def plot_causal_impact_market_share(self, variable: str = "mu"):
         """Plot the inferred causal impact of the new product on the existing products.
 
         Note: if we compare "mu" then we are comparing the expected sales, if we compare
         "y" then we are comparing the actual sales
+
+        Parameters
+        ----------
+        variable : str, optional
+            The variable to compare. Either "mu" or "y".
+
+        Returns
+        -------
+        plt.Axes
+            The matplotlib axes.
+
         """
         _, ax = plt.subplots()
 
         # plot posterior predictive distribution of sales for each of the existing products
-        x = self.X.index.values
-        existing_products = list(self.idata.observed_data.existing_product.data)
+        x = self.X.index.values  # type: ignore
+        existing_products = list(self.idata.observed_data.existing_product.data)  # type: ignore
 
         # divide the causal impact change in sales by the counterfactual predicted sales
         variable = "mu"
@@ -449,7 +615,7 @@ class MVITS(ModelBuilder):
                 .sel(existing_product=existing_product)
             )
             total_sales = (
-                self.idata.predictions[variable]
+                self.idata.predictions[variable]  # type: ignore
                 .transpose(..., "time")
                 .sum(dim="existing_product")
             )
@@ -473,19 +639,55 @@ class MVITS(ModelBuilder):
         ax.set(title="Estimated causal impact of new product upon existing products")
         return ax
 
-    def plot_data(self, plot_total_sales=True, ax=None):
-        """Plot the observed data."""
-        data = pd.concat([self.X, self.y], axis=1)
+    def plot_data(self, plot_total_sales: bool = True, ax: Axes | None = None):
+        """Plot the observed data.
+
+        Wrapper around the plot_product function.
+
+        Parameters
+        ----------
+        plot_total_sales : bool, optional
+            Whether to plot the total sales or not.
+        ax : plt.Axes, optional
+            The matplotlib axes.
+
+        Returns
+        -------
+        plt.Axes
+            The new or modified matplotlib axes.
+
+        """
+        data = pd.concat([self.X, self.y], axis=1)  # type: ignore
 
         return plot_product(data=data, ax=ax, plot_total_sales=plot_total_sales)
 
 
 def plot_product(
-    data: pd.DataFrame, plot_total_sales=True, ax: plt.Axes | None = None
-) -> plt.Axes:
-    """Plot the sales of a single product."""
+    data: pd.DataFrame,
+    plot_total_sales: bool = True,
+    ax: Axes | None = None,
+) -> Axes:
+    """Plot the sales of a single product.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        The sales data.
+    plot_total_sales : bool, optional
+        Whether to plot the total sales or not.
+    ax : plt.Axes, optional
+        The matplotlib axes.
+
+    Returns
+    -------
+    plt.Axes
+        The new or modified matplotlib axes.
+
+    """
     if ax is None:
         _, ax = plt.subplots()
+
+    ax = cast(Axes, ax)
 
     data.plot(ax=ax)
     if plot_total_sales:
