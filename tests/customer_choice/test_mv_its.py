@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from matplotlib import pyplot as plt
+from matplotlib.axes import Axes
 
 from pymc_marketing.customer_choice import (
     MVITS,
@@ -76,7 +77,7 @@ def test_plot_data(saturated_data):
     model.y = saturated_data["new"]
 
     ax = model.plot_data()
-    assert isinstance(ax, plt.Axes)
+    assert isinstance(ax, Axes)
     plt.close()
 
 
@@ -132,7 +133,7 @@ def fit_model(module_mocker, saturated_data):
 )
 def test_MVITS_saturated(fit_model, plot_method):
     ax = getattr(fit_model, plot_method)()
-    assert isinstance(ax, plt.Axes)
+    assert isinstance(ax, Axes)
     plt.close()
 
 
@@ -201,7 +202,7 @@ def test_MVITS_unsaturated(request, model_name, plot_method):
     model = request.getfixturevalue(model_name)
 
     ax = getattr(model, plot_method)()
-    assert isinstance(ax, plt.Axes)
+    assert isinstance(ax, Axes)
     plt.close()
 
 
