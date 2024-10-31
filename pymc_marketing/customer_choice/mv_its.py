@@ -436,7 +436,12 @@ class MVITS(ModelBuilder):
             self.idata.posterior_predictive[variable] - self.idata.predictions[variable]  # type: ignore
         ).rename("causal_impact")
 
-    def plot_fit(self, variable: str = "mu", plot_total_sales=True):
+    def plot_fit(
+        self,
+        variable: str = "mu",
+        plot_total_sales: bool = True,
+        ax: Axes | None = None,
+    ):
         """Plot the model fit (posterior predictive) of the existing products.
 
         Parameters
@@ -445,19 +450,24 @@ class MVITS(ModelBuilder):
             The variable to compare. Either "mu" or "y".
         plot_total_sales : bool, optional
             Whether to plot the total sales or not.
+        ax : plt.Axes, optional
+            The matplotlib axes.
 
         Returns
         -------
         plt.Axes
-            The matplotlib axes.
+            The new or modified matplotlib axes.
 
         """
+        if ax is None:
+            _, ax = plt.subplots()
+
+        ax = cast(Axes, ax)
+
         if variable not in ["mu", "y"]:
             raise ValueError(
                 f"variable must be either 'mu' or 'y', not {variable}"
             )  # pragma: no cover
-
-        _, ax = plt.subplots()
 
         # plot data
         self.plot_data(ax=ax, plot_total_sales=plot_total_sales)
@@ -484,7 +494,12 @@ class MVITS(ModelBuilder):
         ax.set(title="Model fit of sales of existing products", ylabel="Sales")
         return ax
 
-    def plot_counterfactual(self, variable: str = "mu", plot_total_sales: bool = True):
+    def plot_counterfactual(
+        self,
+        variable: str = "mu",
+        plot_total_sales: bool = True,
+        ax: Axes | None = None,
+    ):
         """Plot counterfactual scenario.
 
         Plot the predicted sales of the existing products under the counterfactual
@@ -496,14 +511,19 @@ class MVITS(ModelBuilder):
             The variable to compare. Either "mu" or "y".
         plot_total_sales : bool, optional
             Whether to plot the total sales or not.
+        axes : plt.Axes, optional
+            The matplotlib axes.
 
         Returns
         -------
         plt.Axes
-            The matplotlib axes.
+            The new or modified matplotlib axes.
 
         """
-        _, ax = plt.subplots()
+        if ax is None:
+            _, ax = plt.subplots()
+
+        ax = cast(Axes, ax)
 
         if variable not in ["mu", "y"]:
             raise ValueError(
@@ -537,7 +557,7 @@ class MVITS(ModelBuilder):
         )
         return ax
 
-    def plot_causal_impact_sales(self, variable: str = "mu"):
+    def plot_causal_impact_sales(self, variable: str = "mu", ax: Axes | None = None):
         """Plot causal impact of sales.
 
         Plot the inferred causal impact of the new product on the sales of the
@@ -550,14 +570,19 @@ class MVITS(ModelBuilder):
         ----------
         variable : str, optional
             The variable to compare. Either "mu" or "y".
+        ax : plt.Axes, optional
+            The matplotlib axes.
 
         Returns
         -------
         plt.Axes
-            The matplotlib axes.
+            The new or modified matplotlib axes.
 
         """
-        _, ax = plt.subplots()
+        if ax is None:
+            _, ax = plt.subplots()
+
+        ax = cast(Axes, ax)
 
         # plot posterior predictive distribution of sales for each of the existing products
         x = self.X.index.values  # type: ignore
@@ -583,7 +608,9 @@ class MVITS(ModelBuilder):
         ax.set(title="Estimated causal impact of new product upon existing products")
         return ax
 
-    def plot_causal_impact_market_share(self, variable: str = "mu"):
+    def plot_causal_impact_market_share(
+        self, variable: str = "mu", ax: Axes | None = None
+    ):
         """Plot the inferred causal impact of the new product on the existing products.
 
         Note: if we compare "mu" then we are comparing the expected sales, if we compare
@@ -593,14 +620,19 @@ class MVITS(ModelBuilder):
         ----------
         variable : str, optional
             The variable to compare. Either "mu" or "y".
+        ax : plt.Axes, optional
+            The matplotlib axes.
 
         Returns
         -------
         plt.Axes
-            The matplotlib axes.
+            The new or modified matplotlib axes.
 
         """
-        _, ax = plt.subplots()
+        if ax is None:
+            _, ax = plt.subplots()
+
+        ax = cast(Axes, ax)
 
         # plot posterior predictive distribution of sales for each of the existing products
         x = self.X.index.values  # type: ignore
