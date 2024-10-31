@@ -15,6 +15,12 @@ CLV:
       - docs/source/notebooks/clv/*
       - pymc_marketing/clv/**
 
+"customer choice":
+  - changed-files:
+    - any-glob-to-any-file:
+      - docs/source/notebooks/customer_choice/*
+      - pymc_marketing/customer_choice/**
+
 "Prior class":
   - changed-files:
     - any-glob-to-any-file:
