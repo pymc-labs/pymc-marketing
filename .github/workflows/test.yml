@@ -19,9 +19,9 @@ jobs:
       matrix:
         config: [ {python-version: "3.10", oldest-pymc: false}, {python-version: "3.12", oldest-pymc: true}]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.config.python-version }}
       - name: Install oldest version of PyMC
@@ -36,7 +36,7 @@ jobs:
         if: ${{ matrix.config.oldest-pymc }}
         run: python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}'"
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
           name: ${{ matrix.config.python-version }}
@@ -45,9 +45,9 @@ jobs:
   test_slow:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
       - name: Run tests
@@ -55,7 +55,7 @@ jobs:
           pip install -e .[test]
           pytest --only-slow --cov-report=xml --no-cov-on-fail --durations=50
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
           name: "test_slow"
