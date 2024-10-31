@@ -16,7 +16,7 @@ scenario = {
     "market_shares_before": [[0.7, 0.3, 0]],
     "market_shares_after": [[0.65, 0.25, 0.1]],
     "market_share_labels": ["competitor", "own", "new"],
-    "rng": rng,
+    "random_seed": rng,
 }
 
 data = generate_saturated_data(**scenario)
