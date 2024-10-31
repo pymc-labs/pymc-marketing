@@ -19,7 +19,7 @@ import pandas as pd
 import pytest
 from matplotlib import pyplot as plt
 
-from pymc_marketing.customer_choice.mv_its import (
+from pymc_marketing.customer_choice import (
     MVITS,
     generate_saturated_data,
     generate_unsaturated_data,
