@@ -1,7 +1,7 @@
 # Customer Choice Quickstart
 
 ```python
-from pymc_marketing.customer_choice.mv_its import (
+from pymc_marketing.customer_choice import (
     MVITS,
     generate_saturated_data,
     plot_product,
