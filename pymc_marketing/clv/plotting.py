@@ -510,6 +510,7 @@ def plot_purchase_pmf(
     if ax is None:
         ax = plt.subplot(111)
 
+    # TODO: See utilities_plotting.ipynb dev notebook on using arviz.stats
     match ppc:
         case "prior":
             with model.model:
@@ -519,18 +520,23 @@ def plot_purchase_pmf(
             obs_freq = model.idata.observed_data["recency_frequency"].sel(
                 obs_var="frequency"
             )
-            # TODO: take mean of chain/draw to support both MAP and MCMC fits
-            ppc_freq = prior_idata.prior_predictive["recency_frequency"].sel(
-                obs_var="frequency"
-            )[0][0]
+            ppc_freq = (
+                prior_idata.prior_predictive["recency_frequency"]
+                .sel(obs_var="frequency")
+                .mean(("chain", "draw"))
+            )
             title = "Prior Predictive Check of Repeat Purchases per Customer"
         case "posterior":
             obs_freq = model.observed_data["recency_frequency"].sel(obs_var="frequency")
-            # TODO: take mean of chain/draw to support both MAP and MCMC fits, add samples parameters
-            ppc_freq = model.distribution_new_customer_recency_frequency(
-                model.data,
-                random_seed=random_seed,
-            ).sel(chain=0, draw=0, obs_var="frequency")
+            # TODO: add samples parameters
+            ppc_freq = (
+                model.distribution_new_customer_recency_frequency(
+                    model.data,
+                    random_seed=random_seed,
+                )
+                .sel(chain=0, draw=0, obs_var="frequency")
+                .mean(("chain", "draw"))
+            )
         case _:
             raise NameError("Specify 'prior' or 'posterior' for ppc parameter.")
 
