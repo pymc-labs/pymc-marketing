@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+import re
 import warnings
 
 import numpy as np
@@ -19,12 +20,14 @@ import pandas as pd
 import pytest
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
+from xarray import DataArray
 
 from pymc_marketing.customer_choice import (
     MVITS,
     generate_saturated_data,
     generate_unsaturated_data,
 )
+from pymc_marketing.prior import Prior
 
 seed = sum(map(ord, "CustomerChoice"))
 rng = np.random.default_rng(seed)
@@ -219,3 +222,103 @@ def test_save_load(fit_model, saturated_data) -> None:
     pd.testing.assert_frame_equal(loaded.X, fit_model.X, check_names=False)
     assert loaded.y.name == fit_model.output_var
     pd.testing.assert_series_equal(loaded.y.rename("new"), saturated_data["new"])
+
+
+@pytest.mark.parametrize("variable", ["y", "mu"])
+def test_causal_impact(fit_model, variable) -> None:
+    causal_impact = fit_model.causal_impact(variable=variable)
+
+    assert isinstance(causal_impact, DataArray)
+    assert causal_impact.dims == ("chain", "draw", "time", "existing_product")
+    assert causal_impact.name == variable
+
+
+def test_distribution_checks_wrong_market_distribution() -> None:
+    priors = {
+        "market_distribution": Prior("HalfNormal"),
+    }
+
+    match = "market_distribution must be a Dirichlet distribution"
+    with pytest.raises(ValueError, match=match):
+        MVITS(existing_sales=["competitor", "own"], model_config=priors)
+
+
+def test_distribution_checks_wrong_dims() -> None:
+    priors = {
+        "market_distribution": Prior("Dirichlet", dims="wrong"),
+    }
+
+    match = re.escape(
+        "market_distribution must have dims='existing_product', not ('wrong',)"
+    )
+    with pytest.raises(ValueError, match=match):
+        MVITS(existing_sales=["competitor", "own"], model_config=priors)
+
+
+@pytest.fixture
+def data_to_inform_prior() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "competitor": [60, 80, 100],
+            "own": [30, 20, 10],
+        },
+    )
+
+
+def test_inform_default_prior(data_to_inform_prior) -> None:
+    model = MVITS(existing_sales=["competitor", "own"])
+    model.inform_default_prior(data_to_inform_prior)
+
+    expected = {
+        "market_distribution": Prior(
+            "Dirichlet",
+            a=[0.5, 0.5],
+            dims="existing_product",
+        ),
+        "intercept": Prior(
+            "Normal",
+            mu=[80, 20],
+            sigma=[20, 10],
+            dims="existing_product",
+        ),
+        "likelihood": Prior(
+            "TruncatedNormal",
+            lower=0,
+            sigma=Prior("HalfNormal", sigma=15, dims="existing_product"),
+            dims=("time", "existing_product"),
+        ),
+    }
+    assert model.model_config == expected
+
+
+@pytest.mark.parametrize(
+    "priors, match",
+    [
+        (
+            {"intercept": Prior("HalfNormal", sigma=15, dims="existing_product")},
+            "intercept must be a Normal distribution",
+        ),
+        (
+            {
+                "likelihood": Prior(
+                    "Normal",
+                    sigma=Prior("Gamma", alpha=1, beta=1, dims="existing_product"),
+                    dims=("time", "existing_product"),
+                )
+            },
+            "likelihood sigma must be a HalfNormal distribution",
+        ),
+    ],
+    ids=["intercept", "likelihood"],
+)
+def test_inform_default_prior_raises(priors, match, saturated_data) -> None:
+    model = MVITS(existing_sales=["competitor", "own"], model_config=priors)
+    with pytest.raises(ValueError, match=match):
+        model.inform_default_prior(saturated_data.loc[:, model.existing_sales])
+
+
+def test_calculate_counterfactual_raises() -> None:
+    model = MVITS(existing_sales=["competitor", "own"])
+    match = "Call the 'fit' method first."
+    with pytest.raises(RuntimeError, match=match):
+        model.calculate_counterfactual()

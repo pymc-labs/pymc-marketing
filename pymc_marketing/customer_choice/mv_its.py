@@ -26,7 +26,8 @@ from matplotlib.axes import Axes
 from typing_extensions import Self
 from xarray import DataArray
 
-from pymc_marketing.model_builder import ModelBuilder
+from pymc_marketing.model_builder import ModelBuilder, create_idata_accessor
+from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import Prior
 
 HDI_ALPHA = 0.5
@@ -65,6 +66,9 @@ class MVITS(ModelBuilder):
     ):
         self.existing_sales = existing_sales
         self.saturated_market = saturated_market
+
+        model_config = model_config or {}
+        model_config = parse_model_config(model_config)
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
@@ -112,6 +116,8 @@ class MVITS(ModelBuilder):
 
         """
         return {
+            "model_config": json.loads(attrs["model_config"]),
+            "sampler_config": json.loads(attrs["sampler_config"]),
             "existing_sales": json.loads(attrs["existing_sales"]),
             "saturated_market": json.loads(attrs["saturated_market"]),
         }
@@ -210,6 +216,7 @@ class MVITS(ModelBuilder):
         """The output variable of the model."""
         return "y"
 
+    @property
     def _serializable_model_config(self) -> dict[str, int | float | dict]:  # type: ignore
         result: dict[str, int | float | dict] = {
             "intercept": self.model_config["intercept"].to_json(),
@@ -335,15 +342,15 @@ class MVITS(ModelBuilder):
             The random seed for the sampling.
 
         """
-        if "posterior" not in cast(az.InferenceData, self.idata):
-            raise RuntimeError("You must sample the model first")
+        if not hasattr(self, "model"):
+            raise RuntimeError("Call the 'fit' method first.")
 
         zero_sales = np.zeros_like(self.y, dtype=np.int32)
         self.counterfactual_model = pm.do(self.model, {"treatment_sales": zero_sales})
         with self.counterfactual_model:
             self.idata.extend(  # type: ignore
                 pm.sample_posterior_predictive(
-                    self.idata,
+                    self.posterior,
                     var_names=["mu", self.output_var],
                     random_seed=random_seed,
                     predictions=True,
@@ -432,9 +439,7 @@ class MVITS(ModelBuilder):
                 f"variable must be either 'mu' or 'y', not {variable}"
             )  # pragma: no cover
 
-        return (
-            self.idata.posterior_predictive[variable] - self.idata.predictions[variable]  # type: ignore
-        ).rename("causal_impact")
+        return self.posterior_predictive[variable] - self.predictions[variable]
 
     def plot_fit(
         self,
@@ -478,7 +483,7 @@ class MVITS(ModelBuilder):
         for i, existing_product in enumerate(existing_products):
             az.plot_hdi(
                 x,
-                self.idata.posterior_predictive[variable]  # type: ignore
+                self.posterior_predictive[variable]  # type: ignore
                 .transpose(..., "time")
                 .sel(existing_product=existing_product),
                 fill_kwargs={
@@ -539,7 +544,7 @@ class MVITS(ModelBuilder):
         for i, existing_product in enumerate(existing_products):
             az.plot_hdi(
                 x,
-                self.idata.predictions[variable]  # type: ignore
+                self.predictions[variable]  # type: ignore
                 .transpose(..., "time")
                 .sel(existing_product=existing_product),
                 fill_kwargs={
@@ -647,7 +652,7 @@ class MVITS(ModelBuilder):
                 .sel(existing_product=existing_product)
             )
             total_sales = (
-                self.idata.predictions[variable]  # type: ignore
+                self.predictions[variable]  # type: ignore
                 .transpose(..., "time")
                 .sum(dim="existing_product")
             )
@@ -692,6 +697,11 @@ class MVITS(ModelBuilder):
         data = pd.concat([self.X, self.y], axis=1)  # type: ignore
 
         return plot_product(data=data, ax=ax, plot_total_sales=plot_total_sales)
+
+    predictions = create_idata_accessor(
+        "predictions",
+        "Call the 'calculate_counterfactual' method first.",
+    )
 
 
 def plot_product(

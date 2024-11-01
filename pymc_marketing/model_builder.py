@@ -47,6 +47,35 @@ except ImportError:
         return X
 
 
+def create_idata_accessor(value: str, message: str):
+    """Create a property accessor for an InferenceData object.
+
+    Underlying object must have an InferenceData object attribute named 'idata'.
+
+    Parameters
+    ----------
+    value : str
+        The value to access in the InferenceData object.
+    message : str
+        The error message to raise if the value is not found in the InferenceData object.
+
+    Returns
+    -------
+    property
+        The property accessor for the InferenceData object.
+
+    """
+
+    def accessor(self) -> xr.Dataset:
+        __doc__ = f"""Access the '{value}' attribute of the InferenceData object."""  # noqa: F841
+        if self.idata is None or value not in self.idata:
+            raise RuntimeError(message)
+
+        return self.idata[value]
+
+    return property(accessor)
+
+
 def create_sample_kwargs(
     sampler_config: dict[str, Any],
     progressbar: bool | None,
@@ -881,3 +910,21 @@ class ModelBuilder(ABC):
         hasher.update(self.version.encode())
         hasher.update(self._model_type.encode())
         return hasher.hexdigest()[:16]
+
+    prior = create_idata_accessor(
+        "prior",
+        "Call the 'sample_prior_predictive' method first.",
+    )
+    prior_predictive = create_idata_accessor(
+        "prior_predictive",
+        "Call the 'sample_prior_predictive' method first.",
+    )
+    posterior = create_idata_accessor("posterior", "Call the 'fit' method first.")
+    posterior_predictive = create_idata_accessor(
+        "posterior_predictive",
+        "Call the 'sample_posterior_predictive' method first.",
+    )
+    predictions = create_idata_accessor(
+        "predictions",
+        "Call the 'sample_posterior_predictive' method with predictions=True first.",
+    )
