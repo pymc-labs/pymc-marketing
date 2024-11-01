@@ -89,6 +89,7 @@ def mock_run(notebook_path: Path) -> None:
         papermill.execute_notebook(
             input_path=f.name,
             output_path=None,
+            progress_bar=dict(desc=notebook_path.name),
             kernel_name=KERNEL_NAME,
             cwd=notebook_path.parent,
         )
@@ -106,11 +107,15 @@ def actual_run(notebook_path: Path) -> None:
 def run_notebook(notebook_path: Path, mock: bool = True) -> None:
     logging.info(f"Running notebook: {notebook_path.name}")
     run = mock_run if mock else actual_run
-    run(notebook_path)
+    try:
+        run(notebook_path)
+    except Exception as e:
+        logging.error(f"Error running notebook: {notebook_path.name}")
+        raise e
 
 
 if __name__ == "__main__":
-    SLICE = slice(10, 13)
+    SLICE = slice(-2, None)
     MOCK = True
 
     NOTEBOOKS = NOTEBOOKS[SLICE]
