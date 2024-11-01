@@ -1,0 +1,18 @@
+---
+blank_issues_enabled: true
+contact_links:
+  - name: PyMC-Marketing Discussions
+    url: https://github.com/pymc-labs/pymc-marketing/discussions/new
+    about: Ask questions and discuss with other PyMC-Marketing community members
+  - name: MMM Hub Slack
+    url: https://www.mmmhub.org/slack
+    about: Join the MMM Hub Slack group to chat in the \#pymc-marketing channel
+  - name: PyMC Discourse server
+    url: https://discourse.pymc.io/tag/pymc-marketing
+    about: Developers and users can be found on the Discord server
+  - name: Bayesian Discord server
+    url: https://discord.gg/swztKRaVKe
+    about: Ask questions and discuss with other Bayesian community members
+  - name: Blank issue
+    url: https://github.com/pymc-labs/pymc-marketing/issues/new
+    about: Please note that GitHub Discussions should be used in most cases instead
