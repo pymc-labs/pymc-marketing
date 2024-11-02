@@ -275,6 +275,74 @@ class RiskAssessment:
     """A collection of static methods for assessing risk."""
 
     @staticmethod
+    def tail_distance(samples: np.ndarray, confidence_level: float = 0.75) -> float:
+        R"""Calculate the absolute distance between the mean and the quantiles.
+
+        It is a simple and interpretable metric that can be used to assess the risk.
+
+        The tail distance is calculated as:
+
+            .. math::
+                Tail\\ Distance = |Q_{(1 - \\alpha)} - \\mu| + |\\mu - Q_{\\alpha}|
+
+        where:
+            - :math:`\\mu` is the mean of the sample returns.
+            - :math:`Q_{(1 - \\alpha)}` is the quantile at the specified confidence level.
+            - :math:`Q_{\\alpha}` is the quantile at the specified confidence level.
+
+        Parameters
+        ----------
+        samples : np.ndarray
+            Array of sample returns or losses.
+        confidence_level : float, optional
+            Confidence level for the quantiles (default is 0.75).
+
+        Returns
+        -------
+        float
+            The tail distance metric.
+        """
+        mean = np.mean(samples)
+        q1 = np.quantile(samples, confidence_level)
+        q2 = np.quantile(samples, 1 - confidence_level)
+
+        return abs(q1 - mean) + abs(mean - q2)
+
+    @staticmethod
+    def mean_tightness_score(
+        samples: np.ndarray, alpha: float = 0.5, confidence_level: float = 0.75
+    ) -> float:
+        R"""
+        Calculate the mean tightness score.
+
+        The mean tightness score is a risk metric that balances the mean return and the tail variability.
+        It is calculated as:
+
+        .. math::
+            Mean\ Tightness\ Score = \mu - \alpha \cdot Tail\ Distance
+
+        where:
+            - :math:`\mu` is the mean of the sample returns.
+            - :math:`Tail\ Distance` is the tail distance metric.
+            - :math:`\alpha` is the risk tolerance parameter.
+
+        alpha (Risk Tolerance Parameter): This parameter controls the trade-off.
+            - Higher :math:`\alpha` increases sensitivity to variability, making the metric value higher for spread dist
+            - Lower :math:`\alpha` decreases sensitivity to variability, making the metric value lower for spread dist
+
+        """
+        mean = np.mean(samples)
+        tail_metric = RiskAssessment.tail_distance(samples, confidence_level)
+        return mean - alpha * tail_metric
+
+    @staticmethod
+    def calculate_roas_distribution_for_allocation(
+        samples: np.ndarray, budget: float
+    ) -> np.ndarray:
+        """Calculate the ROAS distribution for a given total budget."""
+        return samples / np.sum(budget)
+
+    @staticmethod
     def value_at_risk(samples: np.ndarray, confidence_level: float = 0.95) -> float:
         R"""
         Calculate the Value at Risk (VaR) at a specified confidence level.
