@@ -17,16 +17,17 @@ DOC_SOURCE = Path("docs/source")
 NOTEBOOKS_PATH = DOC_SOURCE / "notebooks"
 FULL_RUNS = [
     # Samples from HalfFlat distribution
-    "clv_quickstart.ipynb",
+    # "clv_quickstart.ipynb",
     # "other_nuts_samplers.ipynb",
-    "bg_nbd.ipynb",
-    "sBG.ipynb",
-    "gamma_gamma.ipynb",
+    # "sBG.ipynb",
+    # Uses the MAP estimate
+    # "bg_nbd.ipynb",
+    # "gamma_gamma.ipynb",
     # "pareto_nbd.ipynb",
 ]
 NOTEBOOKS_SKIP: list[str] = [
     # This notebook takes too long to run
-    "other_nuts_samplers.ipynb",
+    # "other_nuts_samplers.ipynb",
     # "mmm_tvp_example.ipynb",
 ]
 NOTEBOOKS: list[Path] = list(NOTEBOOKS_PATH.glob("*/*.ipynb"))
