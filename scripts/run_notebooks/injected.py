@@ -37,5 +37,5 @@ def mock_sample(*args, **kwargs):
 
 
 pm.sample = mock_sample
-pm.HalfFlat = pm.Uniform
+pm.HalfFlat = pm.HalfNormal
 pm.Flat = pm.Normal
