@@ -1,7 +1,6 @@
 """Script to run all notebooks in the docs/source/notebooks directory."""
 
 import logging
-from functools import partial
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from uuid import uuid4
@@ -10,17 +9,32 @@ import papermill
 from joblib import Parallel, delayed
 from nbformat.notebooknode import NotebookNode
 from papermill.iorw import load_notebook_node, write_ipynb
-from tqdm import tqdm
+
+HERE = Path(__file__).parent
 
 KERNEL_NAME: str = "python3"
 DOC_SOURCE = Path("docs/source")
 NOTEBOOKS_PATH = DOC_SOURCE / "notebooks"
+FULL_RUNS = [
+    # Samples from HalfFlat distribution
+    "clv_quickstart.ipynb",
+    # "other_nuts_samplers.ipynb",
+    "bg_nbd.ipynb",
+    "sBG.ipynb",
+    "gamma_gamma.ipynb",
+    # "pareto_nbd.ipynb",
+]
 NOTEBOOKS_SKIP: list[str] = [
-    "mmm_tvp_example.ipynb",  # This notebook takes too long to run
+    # This notebook takes too long to run
+    "other_nuts_samplers.ipynb",
+    # "mmm_tvp_example.ipynb",
 ]
 NOTEBOOKS: list[Path] = list(NOTEBOOKS_PATH.glob("*/*.ipynb"))
 NOTEBOOKS = [nb for nb in NOTEBOOKS if nb.name not in NOTEBOOKS_SKIP]
 NOTEBOOKS.append(DOC_SOURCE / "guide" / "benefits" / "model_deployment.ipynb")
+
+INJECTED_CODE_FILE = HERE / "injected.py"
+INJECTED_CODE = INJECTED_CODE_FILE.read_text()
 
 
 def setup_logging() -> None:
@@ -28,39 +42,6 @@ def setup_logging() -> None:
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-
-
-INJECTED_CODE = """
-import pymc as pm
-import arviz as az
-import xarray as xr
-import numpy as np
-
-def mock_sample(*args, **kwargs):
-    model = kwargs.get("model", None)
-    samples = 10
-    idata = pm.sample_prior_predictive(model=model, samples=samples)
-    idata.add_groups(posterior=idata.prior)
-
-    # Create mock sample stats with diverging data
-    if "sample_stats" not in idata:
-        n_chains = 1
-        n_draws = samples
-        sample_stats = xr.Dataset({
-            "diverging": xr.DataArray(
-                np.zeros((n_chains, n_draws), dtype=int),
-                dims=("chain", "draw"),
-            )
-        })
-        idata.add_groups(sample_stats=sample_stats)
-
-    del idata.prior
-    if "prior_predictive" in idata:
-        del idata.prior_predictive
-    return idata
-
-pm.sample = mock_sample
-"""
 
 
 def generate_random_id() -> str:
@@ -86,10 +67,11 @@ def mock_run(notebook_path: Path) -> None:
     inject_pymc_sample_mock_code(nb.cells)
     with NamedTemporaryFile(suffix=".ipynb") as f:
         write_ipynb(nb, f.name)
+        desc = f"Mocked {notebook_path.name}"
         papermill.execute_notebook(
             input_path=f.name,
             output_path=None,
-            progress_bar=dict(desc=notebook_path.name),
+            progress_bar=dict(desc=desc),
             kernel_name=KERNEL_NAME,
             cwd=notebook_path.parent,
         )
@@ -100,6 +82,7 @@ def actual_run(notebook_path: Path) -> None:
         input_path=notebook_path,
         output_path=None,
         kernel_name=KERNEL_NAME,
+        progress_bar={"desc": f"Running {notebook_path.name}"},
         cwd=notebook_path.parent,
     )
 
@@ -107,6 +90,7 @@ def actual_run(notebook_path: Path) -> None:
 def run_notebook(notebook_path: Path, mock: bool = True) -> None:
     logging.info(f"Running notebook: {notebook_path.name}")
     run = mock_run if mock else actual_run
+
     try:
         run(notebook_path)
     except Exception as e:
@@ -114,18 +98,22 @@ def run_notebook(notebook_path: Path, mock: bool = True) -> None:
         raise e
 
 
-if __name__ == "__main__":
-    SLICE = slice(-2, None)
-    MOCK = True
+def run_parameters(notebook_paths: list[Path]):
+    return [
+        (notebook_path, notebook_path.name not in FULL_RUNS)
+        for notebook_path in notebook_paths
+    ]
 
-    NOTEBOOKS = NOTEBOOKS[SLICE]
+
+if __name__ == "__main__":
+    notebooks_to_run = NOTEBOOKS
 
     setup_logging()
     logging.info("Starting notebook runner")
-    logging.info(f"Notebooks to run: {NOTEBOOKS}")
-    run = partial(run_notebook, mock=MOCK)
+    logging.info(f"Notebooks to run: {notebooks_to_run}")
     Parallel(n_jobs=-1)(
-        delayed(run)(notebook_path) for notebook_path in tqdm(NOTEBOOKS)
+        delayed(run_notebook)(notebook_path=notebook_path, mock=mock)
+        for notebook_path, mock in run_parameters(notebooks_to_run)
     )
 
     logging.info("Notebooks run successfully!")
