@@ -1,3 +1,5 @@
+"""Injected code to the top of each notebook to mock long running code."""
+
 import numpy as np
 import pymc as pm
 import xarray as xr
@@ -35,3 +37,5 @@ def mock_sample(*args, **kwargs):
 
 
 pm.sample = mock_sample
+pm.HalfFlat = pm.Uniform
+pm.Flat = pm.Normal
