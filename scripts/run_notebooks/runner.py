@@ -100,10 +100,10 @@ def run_notebook(notebook_path: Path, mock: bool = True) -> None:
 
 
 def run_parameters(notebook_paths: list[Path]):
-    return [
-        (notebook_path, notebook_path.name not in FULL_RUNS)
-        for notebook_path in notebook_paths
-    ]
+    def to_mock(notebook_path: Path):
+        return notebook_path, notebook_path.name not in FULL_RUNS
+
+    return [to_mock(notebook_path) for notebook_path in notebook_paths]
 
 
 if __name__ == "__main__":
