@@ -21,7 +21,7 @@ from arviz import InferenceData, from_dict
 
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.prior import Prior
-from tests.conftest import set_model_fit
+from tests.conftest import mock_fit_MAP, mock_sample, set_model_fit
 
 
 class CLVModelTest(CLVModel):
@@ -75,9 +75,11 @@ class TestCLVModel:
         model.build_model()
         assert model.__repr__() == "CLVModelTest\nx ~ Normal(0, 1)\ny ~ Normal(x, 1)"
 
-    def test_fit_mcmc(self):
+    def test_fit_mcmc(self, mocker):
         model = CLVModelTest()
-        model.build_model()
+
+        mocker.patch("pymc.sample", mock_sample)
+
         idata = model.fit(
             tune=5,
             chains=2,
@@ -89,10 +91,12 @@ class TestCLVModel:
         assert len(idata.posterior.draw) == 10
         assert model.fit_result is idata.posterior
 
-    def test_fit_map(self):
+    def test_fit_map(self, mocker):
         model = CLVModelTest()
-        model.build_model()
+
+        mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
         idata = model.fit(fit_method="map")
+
         assert isinstance(idata, InferenceData)
         assert len(idata.posterior.chain) == 1
         assert len(idata.posterior.draw) == 1
@@ -115,9 +119,11 @@ class TestCLVModel:
         with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
             model.fit_result
 
-    def test_load(self):
+    def test_load(self, mocker):
         model = CLVModelTest()
-        model.build_model()
+
+        mocker.patch("pymc.sample", mock_sample)
+
         model.fit(tune=0, chains=2, draws=5)
         model.save("test_model")
         model2 = model.load("test_model")
@@ -143,9 +149,10 @@ class TestCLVModel:
         model.idata = None
         model.fit_result = fake_fit
 
-    def test_fit_summary_for_mcmc(self):
+    def test_fit_summary_for_mcmc(self, mocker):
         model = CLVModelTest()
-        model.build_model()
+
+        mocker.patch("pymc.sample", mock_sample)
         model.fit(tune=0, chains=2, draws=5)
         summ = model.fit_summary()
         assert isinstance(summ, pd.DataFrame)
@@ -156,13 +163,14 @@ class TestCLVModel:
         assert isinstance(serializable_config, dict)
         assert serializable_config == model.model_config
 
-    def test_fail_id_after_load(self, monkeypatch):
+    def test_fail_id_after_load(self, mocker, monkeypatch):
         # This is the new behavior for the property
         def mock_property(self):
             return "for sure not correct id"
 
         # Now create an instance of MyClass
         mock_basic = CLVModelTest()
+        mocker.patch("pymc.sample", mock_sample)
         mock_basic.fit(tune=0, chains=2, draws=5)
         mock_basic.save("test_model")
 
