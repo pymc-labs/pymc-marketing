@@ -151,6 +151,9 @@ addopts = [
     "--strict-config",
     "--cov=pymc_marketing",
     "--cov-report=term-missing",
+    "--cov-report=xml",
+    "--no-cov-on-fail",
+    "--durations=50",
     "--color=yes",
 ]
 filterwarnings = ["ignore::DeprecationWarning:bokeh.core.property.primitive:37"]

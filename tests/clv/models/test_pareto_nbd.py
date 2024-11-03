@@ -23,7 +23,7 @@ from lifetimes import ParetoNBDFitter
 from pymc_marketing.clv import ParetoNBDModel
 from pymc_marketing.clv.distributions import ParetoNBD
 from pymc_marketing.prior import Prior
-from tests.conftest import set_model_fit
+from tests.conftest import create_mock_fit, set_model_fit
 
 
 class TestParetoNBDModel:
@@ -65,6 +65,16 @@ class TestParetoNBDModel:
         cls.N = len(cls.customer_id)
         cls.chains = 2
         cls.draws = 50
+        mock_fit = create_mock_fit(
+            {
+                "r": cls.r_true,
+                "alpha": cls.alpha_true,
+                "s": cls.s_true,
+                "beta": cls.beta_true,
+            }
+        )
+
+        mock_fit(cls.model, chains=cls.chains, draws=cls.draws, rng=cls.rng)
         cls.mock_fit = az.from_dict(
             {
                 "r": cls.rng.normal(cls.r_true, 1e-3, size=(cls.chains, cls.draws)),
@@ -371,15 +381,7 @@ class TestParetoNBDModel:
         np.testing.assert_allclose(customer_freq.std(), ref_freq.std(), rtol=0.5)
 
     def test_save_load_pareto_nbd(self):
-        # TODO: Create a pytest fixture for this
-        test_data = pd.read_csv("data/clv_quickstart.csv")
-        test_data["customer_id"] = test_data.index
-        model = ParetoNBDModel(
-            data=test_data,
-        )
-
-        model.fit("map")
-        model.save("test_model")
+        self.model.save("test_model")
         # Testing the valid case.
 
         loaded_model = ParetoNBDModel.load("test_model")
@@ -387,10 +389,14 @@ class TestParetoNBDModel:
         # Check if the loaded model is indeed an instance of the class
         assert isinstance(loaded_model, ParetoNBDModel)
         # Check if the loaded data matches with the model data
-        pd.testing.assert_frame_equal(model.data, loaded_model.data, check_names=False)
-        assert model.model_config == loaded_model.model_config
-        assert model.sampler_config == loaded_model.sampler_config
-        assert model.idata == loaded_model.idata
+        pd.testing.assert_frame_equal(
+            self.model.data,
+            loaded_model.data,
+            check_names=False,
+        )
+        assert self.model.model_config == loaded_model.model_config
+        assert self.model.sampler_config == loaded_model.sampler_config
+        assert self.model.idata == loaded_model.idata
         os.remove("test_model")
 
 
