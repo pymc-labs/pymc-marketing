@@ -3,6 +3,7 @@
 import logging
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from typing import TypedDict
 from uuid import uuid4
 
 import papermill
@@ -83,9 +84,14 @@ def run_notebook(notebook_path: Path, mock: bool = True) -> None:
         raise e
 
 
-def run_parameters(notebook_paths: list[Path]):
-    def to_mock(notebook_path: Path):
-        return notebook_path, True
+class RunParams(TypedDict):
+    notebook_path: Path
+    mock: bool
+
+
+def run_parameters(notebook_paths: list[Path]) -> list[RunParams]:
+    def to_mock(notebook_path: Path) -> RunParams:
+        return RunParams(notebook_path=notebook_path, mock=True)
 
     return [to_mock(notebook_path) for notebook_path in notebook_paths]
 
@@ -97,8 +103,8 @@ if __name__ == "__main__":
     logging.info("Starting notebook runner")
     logging.info(f"Notebooks to run: {notebooks_to_run}")
     Parallel(n_jobs=-1)(
-        delayed(run_notebook)(notebook_path=notebook_path, mock=mock)
-        for notebook_path, mock in run_parameters(notebooks_to_run)
+        delayed(run_notebook)(**run_params)
+        for run_params in run_parameters(notebooks_to_run)
     )
 
     logging.info("Notebooks run successfully!")
