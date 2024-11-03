@@ -23,6 +23,7 @@ from lifetimes.fitters.beta_geo_fitter import BetaGeoFitter
 
 from pymc_marketing.clv.models.beta_geo import BetaGeoModel
 from pymc_marketing.prior import Prior
+from tests.conftest import create_mock_fit, mock_sample
 
 
 class TestBetaGeoModel:
@@ -63,18 +64,17 @@ class TestBetaGeoModel:
         cls.N = len(cls.customer_id)
         cls.chains = 2
         cls.draws = 50
-        cls.mock_fit = az.from_dict(
+
+        mock_fit = create_mock_fit(
             {
-                "a": cls.rng.normal(cls.a_true, 1e-3, size=(cls.chains, cls.draws)),
-                "b": cls.rng.normal(cls.b_true, 1e-3, size=(cls.chains, cls.draws)),
-                "alpha": cls.rng.normal(
-                    cls.alpha_true, 1e-3, size=(cls.chains, cls.draws)
-                ),
-                "r": cls.rng.normal(cls.r_true, 1e-3, size=(cls.chains, cls.draws)),
+                "a": cls.a_true,
+                "b": cls.b_true,
+                "alpha": cls.alpha_true,
+                "r": cls.r_true,
             }
         )
 
-        cls.model.idata = cls.mock_fit
+        mock_fit(cls.model, cls.chains, cls.draws, cls.rng)
 
     @pytest.fixture(scope="class")
     def model_config(self):
@@ -241,10 +241,12 @@ class TestBetaGeoModel:
             rtol=rtol,
         )
 
-    def test_fit_result_without_fit(self, model_config):
+    def test_fit_result_without_fit(self, mocker, model_config):
         model = BetaGeoModel(data=self.data, model_config=model_config)
         with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
             model.fit_result
+
+        mocker.patch("pymc.sample", mock_sample)
 
         idata = model.fit(
             tune=5,
@@ -580,8 +582,6 @@ class TestBetaGeoModel:
         )
 
     def test_save_load(self):
-        self.model.build_model()
-        self.model.fit("map", maxeval=1)
         self.model.save("test_model")
         # Testing the valid case.
 

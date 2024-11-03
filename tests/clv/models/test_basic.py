@@ -21,7 +21,7 @@ from arviz import InferenceData, from_dict
 
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.prior import Prior
-from tests.conftest import set_model_fit
+from tests.conftest import mock_sample, set_model_fit
 
 
 class CLVModelTest(CLVModel):
@@ -75,8 +75,11 @@ class TestCLVModel:
         model.build_model()
         assert model.__repr__() == "CLVModelTest\nx ~ Normal(0, 1)\ny ~ Normal(x, 1)"
 
-    def test_fit_mcmc(self):
+    def test_fit_mcmc(self, mocker):
         model = CLVModelTest()
+
+        mocker.patch("pymc.sample", mock_sample)
+
         model.build_model()
         idata = model.fit(
             tune=5,
