@@ -3,10 +3,16 @@ name: Test
 on:
   pull_request:
     branches: [main]
-    paths: '**.py'
+    paths:
+     - "pyproject.toml"
+     - "tests/**.py"
+     - "pymc_marketing/**"
   push:
     branches: [main]
-    paths: '**.py'
+    paths:
+     - "pyproject.toml"
+     - "tests/**.py"
+     - "pymc_marketing/**"
 
 env:
   # The lower bound from the pyproject.toml file
@@ -60,13 +66,3 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
           name: "test_slow"
           fail_ci_if_error: false
-
-  all:
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    name: All checks
-    needs: [ test, test_slow ]
-    steps:
-      - name: Confirm checks passed
-        if: ${{ (needs.test.result != 'success' || needs.test_slow.result != 'success') }}
-        run: exit 1
