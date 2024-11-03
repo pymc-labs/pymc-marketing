@@ -37,8 +37,8 @@ Explore these topics further by watching our video on [Bayesian Marketing Mix Mo
 ### Community Resources
 
 - [PyMC-Marketing Discussions](https://github.com/pymc-labs/pymc-marketing/discussions)
-- [PyMC discourse](https://discourse.pymc.io/)
-- [Bayesian discord server](https://discord.gg/swztKRaVKe)
+- [PyMC Discourse](https://discourse.pymc.io/)
+- [Bayesian Discord server](https://discord.gg/swztKRaVKe)
 - [MMM Hub Slack](https://www.mmmhub.org/slack)
 
 ## Quick Installation Guide for Marketing Mix Modeling (MMM) & CLV
@@ -70,6 +70,7 @@ Leverage our Bayesian MMM API to tailor your marketing strategies effectively. L
 | Time-varying Media Contribution            | Capture time-varying media efficiency in your model (using modern and efficient Gaussian processes approximation methods). See the [guide notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_tvp_example.html).                                                                                                                                                       |
 | Visualization and Model Diagnostics        | Get a comprehensive view of your model's performance and insights.                                                                                                                                                                                                                                                                                                                     |
 | Choose among many inference algorithms     | We provide the option to choose between various NUTS samplers (e.g. BlackJax, NumPyro and Nutpie). See the [example notebook](https://www.pymc-marketing.io/en/stable/notebooks/general/other_nuts_samplers.html) for more details.                                                                                                                                                    |
+| GPU Support                                | PyMC's multiple backends allow for GPU acceleration.                                                                                                                                                                                                                                                                                                                                   |
 | Out-of-sample Predictions                  | Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.                                                                                                                                                                                                                                                                         |
 | Budget Optimization                        | Allocate your marketing spend efficiently across various channels for maximum ROI. See the [budget optimization example notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_budget_allocation_example.html)                                                                                                                                                            |
 | Experiment Calibration                     | Fine-tune your model based on empirical experiments for a more unified view of marketing. See the [lift test integration explanation](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_lift_test.html) for more details. [Here](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_roas.html) you can find a *Case Study: Unobserved Confounders, ROAS and Lift Tests*. |

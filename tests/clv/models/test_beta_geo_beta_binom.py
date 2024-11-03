@@ -25,6 +25,7 @@ from lifetimes.fitters.beta_geo_beta_binom_fitter import BetaGeoBetaBinomFitter
 from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models import BetaGeoBetaBinomModel
 from pymc_marketing.prior import Prior
+from tests.conftest import create_mock_fit, mock_sample
 
 
 class TestBetaGeoBetaBinomModel:
@@ -89,26 +90,19 @@ class TestBetaGeoBetaBinomModel:
 
         # Mock an idata object for tests requiring a fitted model
         cls.N = len(cls.data)
-        cls.chains = 2
-        cls.draws = 50
-        cls.mock_fit = az.from_dict(
+
+        mock_fit = create_mock_fit(
             {
-                "alpha": cls.rng.normal(
-                    cls.alpha_true, 1e-3, size=(cls.chains, cls.draws)
-                ),
-                "beta": cls.rng.normal(
-                    cls.beta_true, 1e-3, size=(cls.chains, cls.draws)
-                ),
-                "delta": cls.rng.normal(
-                    cls.delta_true, 1e-3, size=(cls.chains, cls.draws)
-                ),
-                "gamma": cls.rng.normal(
-                    cls.gamma_true, 1e-3, size=(cls.chains, cls.draws)
-                ),
+                "alpha": cls.alpha_true,
+                "beta": cls.beta_true,
+                "delta": cls.delta_true,
+                "gamma": cls.gamma_true,
             }
         )
 
-        cls.model.idata = cls.mock_fit
+        cls.chains = 2
+        cls.draws = 50
+        mock_fit(cls.model, chains=cls.chains, draws=cls.draws, rng=cls.rng)
 
     @pytest.fixture(scope="class")
     def model_config(self):
@@ -306,10 +300,12 @@ class TestBetaGeoBetaBinomModel:
             rtol=rtol,
         )
 
-    def test_fit_result_without_fit(self, model_config):
+    def test_fit_result_without_fit(self, mocker, model_config):
         model = BetaGeoBetaBinomModel(data=self.pred_data, model_config=model_config)
         with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
             model.fit_result
+
+        mocker.patch("pymc.sample", mock_sample)
 
         idata = model.fit(
             tune=5,
@@ -509,8 +505,6 @@ class TestBetaGeoBetaBinomModel:
         )
 
     def test_save_load(self):
-        self.model.build_model()
-        self.model.fit("map", maxeval=1)
         self.model.save("test_model")
         # Testing the valid case.
 
