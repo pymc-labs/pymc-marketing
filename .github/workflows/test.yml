@@ -3,10 +3,16 @@ name: Test
 on:
   pull_request:
     branches: [main]
-    paths: '**.py'
+    paths:
+     - "pyproject.toml"
+     - "tests/**.py"
+     - "pymc_marketing/**"
   push:
     branches: [main]
-    paths: '**.py'
+    paths:
+     - "pyproject.toml"
+     - "tests/**.py"
+     - "pymc_marketing/**"
 
 env:
   # The lower bound from the pyproject.toml file
