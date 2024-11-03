@@ -144,3 +144,11 @@ def mock_sample(*args, **kwargs):
     if "prior_predictive" in idata:
         del idata.prior_predictive
     return idata
+
+
+def mock_fit_MAP(self, *args, **kwargs):
+    draws = 1
+    chains = 1
+    idata = mock_sample(*args, **kwargs, chains=chains, draws=draws, model=self.model)
+
+    return idata.sel(chain=[0], draw=[0])
