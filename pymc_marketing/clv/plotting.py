@@ -18,7 +18,7 @@ from collections.abc import Sequence
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pymc
+import pymc as pm
 from matplotlib.lines import Line2D
 
 from pymc_marketing.clv import BetaGeoModel, ParetoNBDModel
@@ -482,7 +482,7 @@ def plot_purchase_pmf(
     max_purchases: int = 10,
     ax: plt.Axes | None = None,
     random_seed: int = 45,
-    samples: int = 1,
+    samples: int = 1000,
     **kwargs,
 ) -> plt.Axes:
     """Plot a prior or posterior predictive check for the customer purchase frequency distribution.
@@ -510,42 +510,47 @@ def plot_purchase_pmf(
     if ax is None:
         ax = plt.subplot(111)
 
-    # TODO: See utilities_plotting.ipynb dev notebook on using arviz.stats
     match ppc:
         case "prior":
+            # build model if it has not been fit
+            model.build_model()
             with model.model:
-                prior_idata = pymc.sample_prior_predictive(
+                prior_idata = pm.sample_prior_predictive(
                     random_seed=random_seed, samples=samples
                 )
-            obs_freq = model.idata.observed_data["recency_frequency"].sel(
+            obs_freq = prior_idata.observed_data["recency_frequency"].sel(
                 obs_var="frequency"
             )
-            ppc_freq = (
-                prior_idata.prior_predictive["recency_frequency"]
-                .sel(obs_var="frequency")
-                .mean(("chain", "draw"))
+            ppc_freq = prior_idata.prior_predictive["recency_frequency"].sel(
+                obs_var="frequency"
             )
             title = "Prior Predictive Check of Repeat Purchases per Customer"
         case "posterior":
-            obs_freq = model.observed_data["recency_frequency"].sel(obs_var="frequency")
-            # TODO: add samples parameters
-            ppc_freq = (
-                model.distribution_new_customer_recency_frequency(
-                    model.data,
-                    random_seed=random_seed,
-                )
-                .sel(chain=0, draw=0, obs_var="frequency")
-                .mean(("chain", "draw"))
+            obs_freq = model.idata.observed_data["recency_frequency"].sel(
+                obs_var="frequency"
             )
+            # Keep samples at 1 here because (chain * draw * customer) samples are being drawn
+            ppc_freq = model.distribution_new_customer_recency_frequency(
+                # model.data["T"], # TODO: Add optional data param here?
+                random_seed=random_seed,
+                n_samples=1,
+            ).sel(obs_var="frequency")
+            title = "Posterior Predictive Check of Repeat Purchases per Customer"
         case _:
-            raise NameError("Specify 'prior' or 'posterior' for ppc parameter.")
+            raise NameError("Specify 'prior' or 'posterior' for `ppc` parameter.")
 
     # PPC histogram plot
     ax = (
         pd.DataFrame(
             {
-                "Model Estimations": ppc_freq.to_pandas().value_counts().sort_index(),
-                "Observed": obs_freq.to_pandas().value_counts().sort_index(),
+                "Model Estimations": ppc_freq.to_dataframe()
+                .value_counts(normalize=True)
+                .sort_index()
+                * 100,
+                "Observed": obs_freq.to_dataframe()
+                .value_counts(normalize=True)
+                .sort_index()
+                * 100,
             }
         )
         .head(max_purchases)
