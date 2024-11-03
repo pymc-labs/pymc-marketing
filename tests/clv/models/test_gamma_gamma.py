@@ -24,7 +24,7 @@ from pymc_marketing.clv.models.gamma_gamma import (
     GammaGammaModelIndividual,
 )
 from pymc_marketing.prior import Prior
-from tests.conftest import set_model_fit
+from tests.conftest import mock_fit_MAP, set_model_fit
 
 
 class BaseTestGammaGammaModel:
@@ -168,7 +168,6 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             data=self.data,
             model_config=custom_model_config,
         )
-        model.build_model()
         model.fit(chains=1, progressbar=False, random_seed=self.rng)
 
         # Force posterior close to empirical mean with many observations
@@ -283,11 +282,15 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             "\nlikelihood~Potential(f(q,p,v))"
         )
 
-    def test_save_load(self):
+    def test_save_load(self, mocker):
         model = GammaGammaModel(
             data=self.data,
         )
-        model.build_model()
+        model.model_config = {
+            param: Prior("HalfNormal") for param in model.model_config
+        }
+
+        mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
         model.fit("map", maxeval=1)
         model.save("test_model")
         # Testing the valid case.
@@ -434,11 +437,14 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             "\nspend~Gamma(p,f(nu))"
         )
 
-    def test_save_load(self):
+    def test_save_load(self, mocker):
         model = GammaGammaModelIndividual(
             data=self.individual_data,
         )
-        model.build_model()
+        model.model_config = {
+            param: Prior("HalfNormal") for param in model.model_config
+        }
+        mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
         model.fit("map", maxeval=1)
         model.save("test_model")
         # Testing the valid case.
