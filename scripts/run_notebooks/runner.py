@@ -15,23 +15,7 @@ HERE = Path(__file__).parent
 KERNEL_NAME: str = "python3"
 DOC_SOURCE = Path("docs/source")
 NOTEBOOKS_PATH = DOC_SOURCE / "notebooks"
-FULL_RUNS = [
-    # Samples from HalfFlat distribution
-    # "clv_quickstart.ipynb",
-    # "other_nuts_samplers.ipynb",
-    # "sBG.ipynb",
-    # Uses the MAP estimate
-    # "bg_nbd.ipynb",
-    # "gamma_gamma.ipynb",
-    # "pareto_nbd.ipynb",
-]
-NOTEBOOKS_SKIP: list[str] = [
-    # This notebook takes too long to run
-    # "other_nuts_samplers.ipynb",
-    # "mmm_tvp_example.ipynb",
-]
 NOTEBOOKS: list[Path] = list(NOTEBOOKS_PATH.glob("*/*.ipynb"))
-NOTEBOOKS = [nb for nb in NOTEBOOKS if nb.name not in NOTEBOOKS_SKIP]
 NOTEBOOKS.append(DOC_SOURCE / "guide" / "benefits" / "model_deployment.ipynb")
 
 INJECTED_CODE_FILE = HERE / "injected.py"
@@ -101,7 +85,7 @@ def run_notebook(notebook_path: Path, mock: bool = True) -> None:
 
 def run_parameters(notebook_paths: list[Path]):
     def to_mock(notebook_path: Path):
-        return notebook_path, notebook_path.name not in FULL_RUNS
+        return notebook_path, True
 
     return [to_mock(notebook_path) for notebook_path in notebook_paths]
 
