@@ -7,6 +7,9 @@ repo=pymc-marketing
 issue_number=1158
 title="Speed up test times :rocket:"
 workflow=Test
+
+echo "Updating issue $issue_number with slowest test times"
+
 latest_id=$(gh run list --workflow $workflow --status completed --limit 1 --json databaseId --jq '.[0].databaseId')
 jobs=$(gh api /repos/$owner/$repo/actions/runs/$latest_id/jobs --jq '.jobs | map({name: .name, run_id: .run_id, id: .id})')
 
