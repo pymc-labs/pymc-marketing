@@ -18,6 +18,7 @@ jobs:
       - name: CD to the directory
         run: cd scripts/slowest_tests/
       - name: Trigger the script
-        run: ./update-slowest-times-issue.sh
+        run: |
+          source update-slowest-times-issue.sh
         with:
           GITHUB_TOKEN: ${{ github.token }}
