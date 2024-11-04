@@ -4,13 +4,15 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - '**.py'
-      - '**.ipynb'
+     - "pyproject.toml"
+     - "tests/**.py"
+     - "pymc_marketing/**"
   push:
     branches: [main]
     paths:
-      - '**.py'
-      - '**.ipynb'
+     - "pyproject.toml"
+     - "tests/**.py"
+     - "pymc_marketing/**"
 
 jobs:
   example_notebooks:
