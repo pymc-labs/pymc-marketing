@@ -1,15 +1,38 @@
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+"""Causal identification class."""
+
+from collections.abc import Sequence
+from typing import Any
+
 import networkx as nx
-from dowhy.graph import get_backdoor_paths, get_instruments, build_graph_from_str, build_graph
 from dowhy.causal_identifier.auto_identifier import (
     construct_backdoor_estimand,
-    construct_frontdoor_estimand
+    construct_frontdoor_estimand,
 )
-from typing import list, Set, Optional
+from dowhy.graph import (
+    build_graph,
+    build_graph_from_str,
+    get_backdoor_paths,
+    get_instruments,
+)
+
 
 class CausalGraphModel:
-    """
-    A class representing a causal model based on a Directed Acyclic Graph (DAG).
-    It provides methods to analyze causal relationships, determine adjustment sets,
+    """Represent a causal model based on a Directed Acyclic Graph (DAG).
+
+    Provides methods to analyze causal relationships, determine adjustment sets,
     and assess the possibility of backdoor and frontdoor adjustments.
 
     Parameters
@@ -21,6 +44,7 @@ class CausalGraphModel:
     outcome : list[str]
         A list of outcome variable names.
     """
+
     def __init__(self, graph: nx.DiGraph, treatment: list[str], outcome: list[str]):
         self.graph = graph
         self.treatment = treatment
@@ -28,8 +52,7 @@ class CausalGraphModel:
 
     @classmethod
     def from_string(cls, graph_str: str, treatment: list[str], outcome: list[str]):
-        """
-        Constructs a CausalModel from a string representation of a graph.
+        """Create a CausalGraphModel from a string representation of a graph.
 
         Parameters
         ----------
@@ -42,78 +65,84 @@ class CausalGraphModel:
 
         Returns
         -------
-        CausalModel
-            An instance of CausalModel constructed from the given graph string.
+        CausalGraphModel
+            An instance of CausalGraphModel constructed from the given graph string.
         """
         graph = build_graph_from_str(graph_str)
         return cls(graph, treatment, outcome)
 
     @classmethod
-    def from_nodes_and_edges(cls, action_nodes: list[str], outcome_nodes: list[str],
-                             common_cause_nodes: Optional[list[str]] = None,
-                             instrument_nodes: Optional[list[str]] = None,
-                             mediator_nodes: Optional[list[str]] = None):
-        """
-        Constructs a CausalModel from lists of nodes categorized by their roles in the causal graph.
+    def from_nodes_and_edges(
+        cls,
+        action_nodes: list[str],
+        outcome_nodes: list[str],
+        common_cause_nodes: list[str] | None = None,
+        instrument_nodes: list[str] | None = None,
+        mediator_nodes: list[str] | None = None,
+    ):
+        """Create a CausalGraphModel from lists of nodes categorized by their roles in the causal graph.
 
         Parameters
         ----------
         action_nodes : list[str]
-            list of treatment (action) variable names.
+            List of treatment (action) variable names.
         outcome_nodes : list[str]
-            list of outcome variable names.
+            List of outcome variable names.
         common_cause_nodes : Optional[list[str]], default=None
-            list of common cause (confounder) variable names.
+            List of common cause (confounder) variable names.
         instrument_nodes : Optional[list[str]], default=None
-            list of instrumental variable names.
+            List of instrumental variable names.
         mediator_nodes : Optional[list[str]], default=None
-            list of mediator variable names.
+            List of mediator variable names.
 
         Returns
         -------
-        CausalModel
-            An instance of CausalModel constructed from the specified nodes.
+        CausalGraphModel
+            An instance of CausalGraphModel constructed from the specified nodes.
         """
         graph = build_graph(
             action_nodes=action_nodes,
             outcome_nodes=outcome_nodes,
             common_cause_nodes=common_cause_nodes,
             instrument_nodes=instrument_nodes,
-            mediator_nodes=mediator_nodes
+            mediator_nodes=mediator_nodes,
         )
         return cls(graph, action_nodes, outcome_nodes)
 
-    def get_backdoor_paths(self) -> dict[str, dict[str, list[list[str]]]]:
-      """
-        Finds all backdoor paths between treatment and outcome variables and computes adjustment sets.
+    def get_backdoor_paths(self) -> dict[str, dict[str, Sequence[Any]]]:
+        """Find all backdoor paths between treatment and outcome variables and compute adjustment sets.
 
         Returns
         -------
-        dict[str, dict[str, list[list[str]]]]
+        dict[str, dict[str, Sequence[Any]]]
             A dictionary where each key is a treatment variable, and the value is another dictionary containing:
             - 'adjustment_sets': A list of adjustment sets (lists of variable names) for backdoor adjustment.
-            - 'minimal_adjustment_set': The minimal adjustment set (with the least number of variables) required to block all backdoor paths.
+            - 'minimal_adjustment_set': The minimal adjustment set (with the least number of variables) required
+              to block all backdoor paths.
         """
-      backdoor_dict = {}
-      for treatment_node in self.treatment:
-          paths = get_backdoor_paths(self.graph, [treatment_node], self.outcome)
+        backdoor_dict = {}
+        for treatment_node in self.treatment:
+            paths = get_backdoor_paths(self.graph, [treatment_node], self.outcome)
 
-          # Exclude treatment and outcome nodes from each backdoor path to obtain valid adjustment sets
-          adjustment_sets = {
-              tuple(sorted(set(path) - {treatment_node} - set(self.outcome)))
-              for path in paths
-          }
+            # Exclude treatment and outcome nodes from each backdoor path to obtain valid adjustment sets
+            adjustment_sets = {
+                tuple(sorted(set(path) - {treatment_node} - set(self.outcome)))
+                for path in paths
+            }
 
-          backdoor_dict[treatment_node] = {
-              "adjustment_sets": [list(adjustment_set) for adjustment_set in adjustment_sets],
-              "minimal_adjustment_set": min(adjustment_sets, key=len) if adjustment_sets else []
-          }
+            backdoor_dict[treatment_node] = {
+                "adjustment_sets": [
+                    list(adjustment_set) for adjustment_set in adjustment_sets
+                ],
+                "minimal_adjustment_set": min(adjustment_sets, key=len)
+                if adjustment_sets
+                else [],
+            }
 
-      return backdoor_dict
+        return backdoor_dict
 
     def is_backdoor_adjustment_possible(self) -> bool:
-        """
-        Determines whether backdoor adjustment is possible for the causal model.
+        """Determine whether backdoor adjustment is possible for the causal model.
 
         Returns
         -------
@@ -121,11 +150,12 @@ class CausalGraphModel:
             True if backdoor adjustment is possible (i.e., there exists a backdoor path), False otherwise.
         """
         backdoor_paths = self.get_backdoor_paths()
-        return any(backdoor_paths[node]["minimal_adjustment_set"] for node in backdoor_paths)
+        return any(
+            backdoor_paths[node]["minimal_adjustment_set"] for node in backdoor_paths
+        )
 
-    def get_minimal_adjustment_sets(self) -> Optional[Set[str]]:
-        """
-        Computes the minimal adjustment set(s) required for backdoor adjustment using DoWhy.
+    def get_minimal_adjustment_sets(self) -> set[str] | None:
+        """Compute the minimal adjustment set(s) required for backdoor adjustment using DoWhy.
 
         Returns
         -------
@@ -142,8 +172,7 @@ class CausalGraphModel:
             return None
 
     def is_frontdoor_adjustment_possible(self) -> bool:
-        """
-        Determines whether frontdoor adjustment is possible for the causal model.
+        """Determine whether frontdoor adjustment is possible for the causal model.
 
         Returns
         -------
@@ -158,9 +187,8 @@ class CausalGraphModel:
         except Exception:
             return False
 
-    def get_instrumental_variables(self) -> list[str]:
-        """
-        Identifies instrumental variables in the causal graph using DoWhy.
+    def get_instrumental_variables(self):
+        """Identify instrumental variables in the causal graph using DoWhy.
 
         Returns
         -------
@@ -174,9 +202,8 @@ class CausalGraphModel:
             print("Error identifying instruments:", e)
             return []
 
-    def get_unique_minimal_adjustment_elements(self) -> Set[str]:
-        """
-        Extracts unique variables from all minimal adjustment sets across all treatments.
+    def get_unique_minimal_adjustment_elements(self):
+        """Extract unique variables from all minimal adjustment sets across all treatments.
 
         Returns
         -------
@@ -185,6 +212,6 @@ class CausalGraphModel:
         """
         backdoor_info = self.get_backdoor_paths()
         unique_elements = set()
-        for node, info in backdoor_info.items():
+        for _node, info in backdoor_info.items():
             unique_elements.update(info["minimal_adjustment_set"])
         return unique_elements

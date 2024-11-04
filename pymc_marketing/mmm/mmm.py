@@ -20,6 +20,7 @@ from typing import Annotated, Any, Literal
 
 import arviz as az
 import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -28,11 +29,11 @@ import pytensor.tensor as pt
 import seaborn as sns
 from pydantic import Field, InstanceOf, validate_call
 from xarray import DataArray, Dataset
-import networkx as nx
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.base import BaseValidateMMM
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     adstock_from_dict,
@@ -55,7 +56,6 @@ from pymc_marketing.mmm.utils import (
 from pymc_marketing.mmm.validating import ValidateControlColumns
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import Prior
-from pymc_marketing.mmm.causal import CausalGraphModel
 
 __all__ = ["BaseMMM", "MMM"]
 
@@ -191,18 +191,16 @@ class BaseMMM(BaseValidateMMM):
         )
 
         self.yearly_seasonality = yearly_seasonality
-        
+
         # Begin addition for DAG and CausalGraphModel
         if dag is not None and outcome_column is not None:
             if isinstance(dag, str):
-                
                 causal_model = CausalGraphModel.from_string(
                     graph_str=dag,
                     treatment=channel_columns,
                     outcome=[outcome_column],
                 )
             elif isinstance(dag, nx.DiGraph):
-                
                 causal_model = CausalGraphModel(
                     graph=dag,
                     treatment=channel_columns,
@@ -212,20 +210,23 @@ class BaseMMM(BaseValidateMMM):
                 raise ValueError("dag must be either a string or a networkx DiGraph")
 
             # Get minimal adjustment sets
-            minimal_adjustment_set = causal_model.get_minimal_adjustment_sets()
+            minimal_adjustment_set: set[Any] = (
+                causal_model.get_minimal_adjustment_sets()
+            )
 
             if minimal_adjustment_set is not None:
                 # Update control_columns with minimal adjustment set
-                self.control_columns = list(
-                    set(self.control_columns).union(minimal_adjustment_set)
-                )
+                if self.control_columns is not None:
+                    self.control_columns = list(
+                        set(self.control_columns).union(minimal_adjustment_set)
+                    )
                 # Check if seasonality_variable is in the minimal adjustment set
                 if "yearly_seasonality" not in minimal_adjustment_set:
                     # Set yearly_seasonality to None to disable it
                     self.yearly_seasonality = None
             else:
-                warnings.warn("No minimal adjustment set found.")
-        
+                warnings.warn("No minimal adjustment set found.", stacklevel=2)
+
         if self.yearly_seasonality is not None:
             self.yearly_fourier = YearlyFourier(
                 n_order=self.yearly_seasonality,
