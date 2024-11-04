@@ -18,9 +18,8 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: "3.11"
-      - name: CD to the directory
-        run: cd scripts/slowest_tests/
       - name: Trigger the script
+        working-directory: scripts/slowest_tests
         run: source update-slowest-times-issue.sh
-        with:
+        env:
           GITHUB_TOKEN: ${{ github.token }}
