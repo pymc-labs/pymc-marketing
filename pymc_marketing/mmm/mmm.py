@@ -28,6 +28,7 @@ import pytensor.tensor as pt
 import seaborn as sns
 from pydantic import Field, InstanceOf, validate_call
 from xarray import DataArray, Dataset
+import networkx as nx
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.base import BaseValidateMMM
@@ -54,6 +55,7 @@ from pymc_marketing.mmm.utils import (
 from pymc_marketing.mmm.validating import ValidateControlColumns
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import Prior
+from pymc_marketing.mmm.causal import CausalGraphModel
 
 __all__ = ["BaseMMM", "MMM"]
 
@@ -113,6 +115,13 @@ class BaseMMM(BaseValidateMMM):
         adstock_first: bool = Field(
             True, description="Whether to apply adstock first."
         ),
+        dag: str | nx.DiGraph | None = Field(
+            None,
+            description="Optional DAG provided as a string or networkx DiGraph for causal identification.",
+        ),
+        outcome_column: str = Field(
+            None, description="Name of the outcome variable to use in the causal graph."
+        ),
     ) -> None:
         """Define the constructor method.
 
@@ -149,6 +158,10 @@ class BaseMMM(BaseValidateMMM):
             Number of Fourier modes to model yearly seasonality, by default None.
         adstock_first : bool, optional
             Whether to apply adstock first, by default True.
+        dag : Optional[str | nx.DiGraph], optional
+            Optional DAG provided as a string or networkx DiGraph for causal modeling, by default None.
+        outcome_column : str, optional
+            Name of the outcome variable, by default None.
         """
         self.control_columns = control_columns
         self.time_varying_intercept = time_varying_intercept
@@ -178,6 +191,41 @@ class BaseMMM(BaseValidateMMM):
         )
 
         self.yearly_seasonality = yearly_seasonality
+        
+        # Begin addition for DAG and CausalGraphModel
+        if dag is not None and outcome_column is not None:
+            if isinstance(dag, str):
+                
+                causal_model = CausalGraphModel.from_string(
+                    graph_str=dag,
+                    treatment=channel_columns,
+                    outcome=[outcome_column],
+                )
+            elif isinstance(dag, nx.DiGraph):
+                
+                causal_model = CausalGraphModel(
+                    graph=dag,
+                    treatment=channel_columns,
+                    outcome=[outcome_column],
+                )
+            else:
+                raise ValueError("dag must be either a string or a networkx DiGraph")
+
+            # Get minimal adjustment sets
+            minimal_adjustment_set = causal_model.get_minimal_adjustment_sets()
+
+            if minimal_adjustment_set is not None:
+                # Update control_columns with minimal adjustment set
+                self.control_columns = list(
+                    set(self.control_columns).union(minimal_adjustment_set)
+                )
+                # Check if seasonality_variable is in the minimal adjustment set
+                if "yearly_seasonality" not in minimal_adjustment_set:
+                    # Set yearly_seasonality to None to disable it
+                    self.yearly_seasonality = None
+            else:
+                warnings.warn("No minimal adjustment set found.")
+        
         if self.yearly_seasonality is not None:
             self.yearly_fourier = YearlyFourier(
                 n_order=self.yearly_seasonality,
