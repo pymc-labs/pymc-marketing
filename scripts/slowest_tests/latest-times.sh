@@ -1,0 +1,36 @@
+#!/bin/bash
+
+owner=pymc-labs
+repo=pymc-marketing
+issue_number=1158
+title="Slowest test times"
+workflow=Test
+latest_id=$(gh run list --workflow $workflow --status completed --limit 1 --json databaseId --jq '.[0].databaseId')
+jobs=$(gh api /repos/$owner/$repo/actions/runs/$latest_id/jobs --jq '.jobs | map({name: .name, run_id: .run_id, id: .id})')
+
+all_times=""
+echo "$jobs" | jq -c '.[]' | while read -r job; do
+    id=$(echo $job | jq -r '.id')
+    name=$(echo $job | jq -r '.name')
+    run_id=$(echo $job | jq -r '.run_id')
+
+    echo "Processing job: $name (ID: $id, Run ID: $run_id)"
+    times=$(gh run view --job $id --log | python extract-slow-tests.py)
+
+    top="<details><summary>$name</summary>\n\n\n\`\`\`"
+    bottom="\`\`\`\n\n</details>"
+
+    formatted_times="$top\n$times\n$bottom"
+
+    if [ -n "$all_times" ]; then
+        all_times="$all_times\n$formatted_times"
+    else
+        all_times="$formatted_times"
+    fi
+done
+
+run_date=$(date +"%Y-%m-%d")
+body="Some tests could use improvements. Here are some of the slowest test times:\n\n$all_times\n\nLatest run date: $run_date"
+
+echo $body | gh issue edit $issue_number --body-file - --title "$title"
+echo "Updated issue $issue_number with all times"
