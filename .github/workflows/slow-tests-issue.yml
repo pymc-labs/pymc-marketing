@@ -1,0 +1,23 @@
+---
+name: Slow Tests Issue Body
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+
+jobs:
+  update-comment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.11"
+      - name: CD to the directory
+        run: cd scripts/slowest_tests/
+      - name: Trigger the script
+        run: ./update-slowest-times-issue.sh
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
