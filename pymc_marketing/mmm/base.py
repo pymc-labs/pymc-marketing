@@ -21,7 +21,7 @@ from inspect import (
     ismemberdescriptor,
     ismethoddescriptor,
 )
-from typing import Any
+from typing import Any, Literal
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -472,38 +472,56 @@ class MMMModelBuilder(ModelBuilder):
 
         return fig
 
-    def _get_posterior_predictive_data(self, original_scale: bool = False) -> Dataset:
-        """Get the posterior predictive data."""
+    def _get_group_predictive_data(
+        self,
+        group: Literal["prior predictive", "posterior predictive"],
+        original_scale: bool = False,
+    ) -> Dataset:
+        """Get the prior or posterior predictive data."""
         try:
-            posterior_predictive_data: Dataset = self.posterior_predictive
+            group_data: Dataset = getattr(self, group)
 
         except Exception as e:
             raise RuntimeError(
-                "Make sure the model has bin fitted and the posterior predictive has been sampled!"
+                f"Make sure the model has bin fitted and the {group} has been sampled!"
             ) from e
 
         if original_scale:
-            posterior_predictive_data = apply_sklearn_transformer_across_dim(
-                data=posterior_predictive_data,
+            group_data = apply_sklearn_transformer_across_dim(
+                data=group_data,
                 func=self.get_target_transformer().inverse_transform,
                 dim_name="date",
             )
-        return posterior_predictive_data
+        return group_data
+
+    def _get_prior_predictive_data(self, original_scale: bool = False) -> Dataset:
+        return self._get_group_predictive_data(
+            group="prior_predictive", original_scale=original_scale
+        )
+
+    def _get_posterior_predictive_data(self, original_scale: bool = False) -> Dataset:
+        return self._get_group_predictive_data(
+            group="posterior_predictive", original_scale=original_scale
+        )
 
     def _add_mean_to_plot(
-        self, ax, original_scale: bool = False, color="blue", linestyle="-", **kwargs
+        self,
+        ax: plt.Axes,
+        group: Literal["prior predictive", "posterior predictive"],
+        original_scale: bool = False,
+        color="blue",
+        linestyle="-",
+        **kwargs,
     ) -> plt.Axes:
         """Add mean prediction to existing plot."""
-        posterior_predictive_data: Dataset = self._get_posterior_predictive_data(
-            original_scale=original_scale
+        group_data: Dataset = self._get_group_predictive_data(
+            group=group, original_scale=original_scale
         )
 
-        mean_prediction = posterior_predictive_data[self.output_var].mean(
-            dim=["chain", "draw"]
-        )
+        mean_prediction = group_data[self.output_var].mean(dim=["chain", "draw"])
 
         ax.plot(
-            np.asarray(posterior_predictive_data.date),
+            np.asarray(group_data.date),
             mean_prediction,
             color=color,
             linestyle=linestyle,
@@ -514,6 +532,7 @@ class MMMModelBuilder(ModelBuilder):
     def _add_hdi_to_plot(
         self,
         ax: plt.Axes,
+        group: Literal["prior predictive", "posterior predictive"],
         original_scale: bool = False,
         hdi_prob: float = 0.94,
         color: str = "C0",
@@ -521,16 +540,16 @@ class MMMModelBuilder(ModelBuilder):
         **kwargs,
     ) -> plt.Axes:
         """Add HDI to existing plot."""
-        posterior_predictive_data: Dataset = self._get_posterior_predictive_data(
-            original_scale=original_scale
+        group_data: Dataset = self._get_group_predictive_data(
+            group=group, original_scale=original_scale
         )
 
-        likelihood_hdi: DataArray = az.hdi(
-            ary=posterior_predictive_data, hdi_prob=hdi_prob
-        )[self.output_var]
+        likelihood_hdi: DataArray = az.hdi(ary=group_data, hdi_prob=hdi_prob)[
+            self.output_var
+        ]
 
         ax.fill_between(
-            x=posterior_predictive_data.date,
+            x=group_data.date,
             y1=likelihood_hdi[:, 0],
             y2=likelihood_hdi[:, 1],
             color=color,
@@ -543,13 +562,14 @@ class MMMModelBuilder(ModelBuilder):
     def _add_gradient_to_plot(
         self,
         ax: plt.Axes,
+        group: Literal["prior predictive", "posterior predictive"],
         original_scale: bool = False,
         n_percentiles: int = 30,
         palette: str = "Blues",
         **kwargs,
     ) -> plt.Axes:
         """
-        Add a gradient representation of the posterior predictive distribution to an existing plot.
+        Add a gradient representation of the prior or posterior predictive distribution to an existing plot.
 
         This method creates a shaded area plot where the color intensity represents
         the density of the posterior predictive distribution.
@@ -573,13 +593,11 @@ class MMMModelBuilder(ModelBuilder):
             The matplotlib axes object with the gradient added.
         """
         # Get posterior predictive data and flatten it
-        posterior_predictive = self._get_posterior_predictive_data(
-            original_scale=original_scale
+        group_data: Dataset = self._get_group_predictive_data(
+            group=group, original_scale=original_scale
         )
-        posterior_predictive_flattened = posterior_predictive.stack(
-            sample=("chain", "draw")
-        ).to_dataarray()
-        dates = posterior_predictive.date.values
+        group_data_flattened = group_data.stack(sample=("chain", "draw")).to_dataarray()
+        dates = group_data.date.values
 
         # Set up color map and ranges
         cmap = plt.get_cmap(palette)
@@ -589,10 +607,10 @@ class MMMModelBuilder(ModelBuilder):
         # Create gradient by filling between percentile ranges
         for i in range(len(percentile_ranges) - 1):
             lower_percentile = np.percentile(
-                posterior_predictive_flattened, percentile_ranges[i], axis=2
+                group_data_flattened, percentile_ranges[i], axis=2
             ).squeeze()
             upper_percentile = np.percentile(
-                posterior_predictive_flattened, percentile_ranges[i + 1], axis=2
+                group_data_flattened, percentile_ranges[i + 1], axis=2
             ).squeeze()
             if i < n_percentiles // 2:
                 color_val = color_range[i]
