@@ -140,7 +140,66 @@ class TestBasePlotting:
     @pytest.mark.parametrize(
         argnames="func_plot_name, kwargs_plot",
         argvalues=[
+            # Prior predictive
             ("plot_prior_predictive", {}),
+            ("plot_prior_predictive", {"original_scale": True}),
+            ("plot_prior_predictive", {"ax": plt.subplots()[1]}),
+            (
+                "plot_prior_predictive",
+                {
+                    "add_mean": True,
+                    "original_scale": False,
+                },
+            ),
+            (
+                "plot_prior_predictive",
+                {
+                    "add_gradient": True,
+                    "original_scale": True,
+                },
+            ),
+            (
+                "plot_prior_predictive",
+                {
+                    "original_scale": False,
+                },
+            ),
+            (
+                "plot_prior_predictive",
+                {
+                    "add_mean": True,
+                    "original_scale": True,
+                },
+            ),
+            (
+                "plot_prior_predictive",
+                {
+                    "add_mean": True,
+                    "add_gradient": True,
+                    "original_scale": False,
+                },
+            ),
+            (
+                "plot_prior_predictive",
+                {
+                    "add_mean": True,
+                    "add_gradient": True,
+                    "original_scale": True,
+                },
+            ),
+            (
+                "plot_prior_predictive",
+                {
+                    "add_mean": False,
+                    "add_gradient": True,
+                    "original_scale": False,
+                },
+            ),
+            ("plot_prior_predictive", {"hdi_list": None}),
+            ("plot_prior_predictive", {"hdi_list": []}),
+            ("plot_prior_predictive", {"hdi_list": [0.94]}),
+            ("plot_prior_predictive", {"hdi_list": [0.94, 0.5]}),
+            # Posterior predictive
             ("plot_posterior_predictive", {}),
             ("plot_posterior_predictive", {"original_scale": True}),
             ("plot_posterior_predictive", {"ax": plt.subplots()[1]}),
@@ -199,6 +258,7 @@ class TestBasePlotting:
             ("plot_posterior_predictive", {"hdi_list": []}),
             ("plot_posterior_predictive", {"hdi_list": [0.94]}),
             ("plot_posterior_predictive", {"hdi_list": [0.94, 0.5]}),
+            # Other plots
             ("plot_errors", {}),
             ("plot_errors", {"original_scale": True}),
             ("plot_errors", {"ax": plt.subplots()[1]}),
