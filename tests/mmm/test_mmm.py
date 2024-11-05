@@ -685,6 +685,23 @@ class TestMMM:
         )
         assert isinstance(fig, plt.Figure)
 
+    @pytest.mark.parametrize(
+        argnames="group",
+        argvalues=["prior_predictive", "posterior_predictive"],
+        ids=["prior_predictive", "posterior_predictive"],
+    )
+    def test_get_group_predictive_data(
+        self, mmm_fitted_with_posterior_predictive: MMM, group: str
+    ):
+        dataset = mmm_fitted_with_posterior_predictive._get_group_predictive_data(
+            group=group
+        )
+        assert isinstance(dataset, xr.Dataset)
+        assert dataset.dims["chain"] == 1
+        assert dataset.dims["draw"] == 500
+        assert dataset.dims["date"] == 135
+        assert dataset["y"].dims == ("chain", "draw", "date")
+
     def test_data_setter(self, toy_X, toy_y):
         base_delayed_saturated_mmm = BaseMMM(
             date_column="date",
