@@ -306,7 +306,7 @@ class MMMModelBuilder(ModelBuilder):
 
     def _get_group_predictive_data(
         self,
-        group: Literal["prior predictive", "posterior predictive"],
+        group: Literal["prior_predictive", "posterior_predictive"],
         original_scale: bool = False,
     ) -> Dataset:
         """Get the prior or posterior predictive data."""
@@ -339,7 +339,7 @@ class MMMModelBuilder(ModelBuilder):
     def _add_mean_to_plot(
         self,
         ax: plt.Axes,
-        group: Literal["prior predictive", "posterior predictive"],
+        group: Literal["prior_predictive", "posterior_predictive"],
         original_scale: bool = False,
         color="blue",
         linestyle="-",
@@ -364,7 +364,7 @@ class MMMModelBuilder(ModelBuilder):
     def _add_hdi_to_plot(
         self,
         ax: plt.Axes,
-        group: Literal["prior predictive", "posterior predictive"],
+        group: Literal["prior_predictive", "posterior_predictive"],
         original_scale: bool = False,
         hdi_prob: float = 0.94,
         color: str = "C0",
@@ -394,7 +394,7 @@ class MMMModelBuilder(ModelBuilder):
     def _add_gradient_to_plot(
         self,
         ax: plt.Axes,
-        group: Literal["prior predictive", "posterior predictive"],
+        group: Literal["prior_predictive", "posterior_predictive"],
         original_scale: bool = False,
         n_percentiles: int = 30,
         palette: str = "Blues",
@@ -410,6 +410,8 @@ class MMMModelBuilder(ModelBuilder):
         ----------
         ax : plt.Axes
             The matplotlib axes object to add the gradient to.
+        group : Literal["prior_predictive", "posterior_predictive"]
+            The group of data to plot.
         original_scale : bool, optional
             If True, use the original scale of the data. Default is False.
         n_percentiles : int, optional
@@ -464,7 +466,7 @@ class MMMModelBuilder(ModelBuilder):
 
     def _plot_group_predictive(
         self,
-        group: Literal["prior predictive", "posterior predictive"],
+        group: Literal["prior_predictive", "posterior_predictive"],
         original_scale: bool = False,
         hdi_list: list[float] | None = None,
         add_mean: bool = True,
@@ -481,7 +483,7 @@ class MMMModelBuilder(ModelBuilder):
 
         Parameters
         ----------
-        group : Literal["prior predictive", "posterior predictive"]
+        group : Literal["prior_predictive", "posterior_predictive"]
             The group of data to plot.
         original_scale : bool, optional
             If True, plot in the original scale of the target variable.
@@ -549,17 +551,25 @@ class MMMModelBuilder(ModelBuilder):
             alpha_list = np.linspace(0.2, 0.4, len(hdi_list))
             for hdi_prob, alpha in zip(hdi_list, alpha_list, strict=True):
                 ax = self._add_hdi_to_plot(
-                    ax=ax, original_scale=original_scale, hdi_prob=hdi_prob, alpha=alpha
+                    ax=ax,
+                    group=group,
+                    original_scale=original_scale,
+                    hdi_prob=hdi_prob,
+                    alpha=alpha,
                 )
 
         if add_mean:
             ax = self._add_mean_to_plot(
-                ax=ax, original_scale=original_scale, color="blue"
+                ax=ax, group=group, original_scale=original_scale, color="blue"
             )
 
         if add_gradient:
             ax = self._add_gradient_to_plot(
-                ax=ax, original_scale=original_scale, n_percentiles=30, palette="Blues"
+                ax=ax,
+                group=group,
+                original_scale=original_scale,
+                n_percentiles=30,
+                palette="Blues",
             )
 
         ax.plot(
@@ -577,11 +587,132 @@ class MMMModelBuilder(ModelBuilder):
 
         return fig
 
-    def plot_prior_predictive(self, **kwargs: Any) -> plt.Figure:
-        return self._plot_group_predictive(group="prior predictive", **kwargs)
+    def plot_prior_predictive(
+        self,
+        original_scale: bool = False,
+        hdi_list: list[float] | None = None,
+        add_mean: bool = True,
+        add_gradient: bool = False,
+        ax: plt.Axes = None,
+        **plt_kwargs: Any,
+    ) -> plt.Figure:
+        """
+        Plot the prior predictive distribution from the model fit.
 
-    def plot_posterior_predictive(self, **kwargs: Any) -> plt.Figure:
-        return self._plot_group_predictive(group="posterior predictive", **kwargs)
+        This function creates a visualization of the model's prior predictive distribution,
+        allowing for comparison with observed data. It can include highest density intervals (HDI),
+        mean predictions, and a gradient representation of the full distribution.
+
+        Parameters
+        ----------
+        original_scale : bool, optional
+            If True, plot in the original scale of the target variable.
+            If False, plot in the transformed scale used for modeling. Default is False.
+        hdi_list : list of float, optional
+            List of HDI levels to plot. Default is [0.94] Provide an empty list to omit plotting the HDI.
+        add_mean : bool, optional
+            If True, add the mean prediction to the plot. Default is True.
+        add_gradient : bool, optional
+            If True, add a gradient representation of the full posterior distribution. Default is False.
+        ax : plt.Axes, optional
+            A matplotlib Axes object to plot on. If None, a new figure and axes will be created.
+        **plt_kwargs : dict
+            Additional keyword arguments to pass to plt.subplots() when creating a new figure.
+
+        Returns
+        -------
+        plt.Figure
+            The matplotlib Figure object containing the plot.
+
+        Raises
+        ------
+        ValueError
+            If the length of the target variable doesn't match the length
+            of the date column in the posterior predictive data.
+
+        Notes
+        -----
+        This function visualizes the model's predictions against the observed data.
+        The observed data is always plotted as a black line.
+        Depending on the parameters, it can also show:
+        - HDI (Highest Density Intervals) at 94% and 50% levels
+        - Mean prediction line
+        - Gradient representation of the full posterior distribution
+        """
+        return self._plot_group_predictive(
+            group="prior_predictive",
+            original_scale=original_scale,
+            hdi_list=hdi_list,
+            add_mean=add_mean,
+            add_gradient=add_gradient,
+            ax=ax,
+            **plt_kwargs,
+        )
+
+    def plot_posterior_predictive(
+        self,
+        original_scale: bool = False,
+        hdi_list: list[float] | None = None,
+        add_mean: bool = True,
+        add_gradient: bool = False,
+        ax: plt.Axes = None,
+        **plt_kwargs: Any,
+    ) -> plt.Figure:
+        """
+        Plot the posterior predictive distribution from the model fit.
+
+        This function creates a visualization of the model's posterior predictive distribution,
+        allowing for comparison with observed data. It can include highest density intervals (HDI),
+        mean predictions, and a gradient representation of the full distribution.
+
+        Parameters
+        ----------
+        original_scale : bool, optional
+            If True, plot in the original scale of the target variable.
+            If False, plot in the transformed scale used for modeling. Default is False.
+        hdi_list : list of float, optional
+            List of HDI levels to plot. Default is [0.94] Provide an empty list to omit plotting the HDI.
+        add_mean : bool, optional
+            If True, add the mean prediction to the plot. Default is True.
+        add_gradient : bool, optional
+            If True, add a gradient representation of the full posterior distribution. Default is False.
+        ax : plt.Axes, optional
+            A matplotlib Axes object to plot on. If None, a new figure and axes will be created.
+        **plt_kwargs : dict
+            Additional keyword arguments to pass to plt.subplots() when creating a new figure.
+
+        Returns
+        -------
+        plt.Figure
+            The matplotlib Figure object containing the plot.
+
+        Raises
+        ------
+        ValueError
+            If the length of the target variable doesn't match the length
+            of the date column in the posterior predictive data.
+
+        Notes
+        -----
+        This function visualizes the model's predictions against the observed data.
+        The observed data is always plotted as a black line.
+        Depending on the parameters, it can also show:
+        - HDI (Highest Density Intervals) at 94% and 50% levels
+        - Mean prediction line
+        - Gradient representation of the full posterior distribution
+
+        If predicting out-of-sample, ensure that `self.y` is overwritten with the
+        corresponding non-transformed target variable.
+        """
+        return self._plot_group_predictive(
+            group="posterior_predictive",
+            original_scale=original_scale,
+            hdi_list=hdi_list,
+            add_mean=add_mean,
+            add_gradient=add_gradient,
+            ax=ax,
+            **plt_kwargs,
+        )
 
     def get_errors(self, original_scale: bool = False) -> DataArray:
         """Get model errors posterior distribution.
