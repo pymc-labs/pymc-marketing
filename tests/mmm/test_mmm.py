@@ -690,11 +690,19 @@ class TestMMM:
         argvalues=["prior_predictive", "posterior_predictive"],
         ids=["prior_predictive", "posterior_predictive"],
     )
+    @pytest.mark.parametrize(
+        argnames="original_scale",
+        argvalues=[False, True],
+        ids=["scaled", "original-scale"],
+    )
     def test_get_group_predictive_data(
-        self, mmm_fitted_with_posterior_predictive: MMM, group: str
+        self,
+        mmm_fitted_with_posterior_predictive: MMM,
+        group: str,
+        original_scale: bool,
     ):
         dataset = mmm_fitted_with_posterior_predictive._get_group_predictive_data(
-            group=group
+            group=group, original_scale=original_scale
         )
         assert isinstance(dataset, xr.Dataset)
         assert dataset.dims["chain"] == 1
