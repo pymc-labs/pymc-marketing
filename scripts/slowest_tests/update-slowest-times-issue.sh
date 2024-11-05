@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/zsh
 
 DRY_RUN=false
 
