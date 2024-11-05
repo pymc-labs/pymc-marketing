@@ -304,174 +304,6 @@ class MMMModelBuilder(ModelBuilder):
             )
         return self.idata["posterior_predictive"]
 
-    def plot_prior_predictive(self, **plt_kwargs: Any) -> plt.Figure:
-        """Plot the prior predictive data.
-
-        Parameters
-        ----------
-        **plt_kwargs
-            Keyword arguments passed to `plt.subplots`.
-
-        Returns
-        -------
-        plt.Figure
-
-        """
-        prior_predictive_data: az.InferenceData = self.prior_predictive
-
-        likelihood_hdi_94: DataArray = az.hdi(ary=prior_predictive_data, hdi_prob=0.94)[
-            self.output_var
-        ]
-        likelihood_hdi_50: DataArray = az.hdi(ary=prior_predictive_data, hdi_prob=0.50)[
-            self.output_var
-        ]
-
-        fig, ax = plt.subplots(**plt_kwargs)
-        if self.X is not None and self.y is not None:
-            ax.fill_between(
-                x=np.asarray(self.X[self.date_column]),
-                y1=likelihood_hdi_94[:, 0],
-                y2=likelihood_hdi_94[:, 1],
-                color="C0",
-                alpha=0.2,
-                label=r"$94\%$ HDI",
-            )
-
-            ax.fill_between(
-                x=np.asarray(self.X[self.date_column]),
-                y1=likelihood_hdi_50[:, 0],
-                y2=likelihood_hdi_50[:, 1],
-                color="C0",
-                alpha=0.3,
-                label=r"$50\%$ HDI",
-            )
-
-            ax.plot(
-                np.asarray(self.X[self.date_column]),
-                np.asarray(self.preprocessed_data["y"]),  # type: ignore
-                color="black",
-            )
-            ax.set(
-                title="Prior Predictive Check", xlabel="date", ylabel=self.output_var
-            )
-        else:
-            raise RuntimeError(
-                "The model hasn't been fit yet, call .fit() first with X and y data."
-            )
-        return fig
-
-    def plot_posterior_predictive(
-        self,
-        original_scale: bool = False,
-        hdi_list: list[float] | None = None,
-        add_mean: bool = True,
-        add_gradient: bool = False,
-        ax: plt.Axes = None,
-        **plt_kwargs: Any,
-    ) -> plt.Figure:
-        """
-        Plot the posterior predictive distribution from the model fit.
-
-        This function creates a visualization of the model's posterior predictive distribution,
-        allowing for comparison with observed data. It can include highest density intervals (HDI),
-        mean predictions, and a gradient representation of the full distribution.
-
-        Parameters
-        ----------
-        original_scale : bool, optional
-            If True, plot in the original scale of the target variable.
-            If False, plot in the transformed scale used for modeling. Default is False.
-        hdi_list : list of float, optional
-            List of HDI levels to plot. Default is [0.94] Provide an empty list to omit plotting the HDI.
-        add_mean : bool, optional
-            If True, add the mean prediction to the plot. Default is True.
-        add_gradient : bool, optional
-            If True, add a gradient representation of the full posterior distribution. Default is False.
-        ax : plt.Axes, optional
-            A matplotlib Axes object to plot on. If None, a new figure and axes will be created.
-        **plt_kwargs : dict
-            Additional keyword arguments to pass to plt.subplots() when creating a new figure.
-
-        Returns
-        -------
-        plt.Figure
-            The matplotlib Figure object containing the plot.
-
-        Raises
-        ------
-        ValueError
-            If the length of the target variable doesn't match the length
-            of the date column in the posterior predictive data.
-
-        Notes
-        -----
-        This function visualizes the model's predictions against the observed data.
-        The observed data is always plotted as a black line.
-        Depending on the parameters, it can also show:
-        - HDI (Highest Density Intervals) at 94% and 50% levels
-        - Mean prediction line
-        - Gradient representation of the full posterior distribution
-
-        If predicting out-of-sample, ensure that `self.y` is overwritten with the
-        corresponding non-transformed target variable.
-        """
-        posterior_predictive_data: Dataset = self._get_posterior_predictive_data(
-            original_scale=original_scale
-        )
-
-        target_to_plot = np.asarray(
-            self.y
-            if original_scale
-            else transform_1d_array(self.get_target_transformer().transform, self.y)
-        )
-
-        if len(target_to_plot) != len(posterior_predictive_data.date):
-            raise ValueError(
-                "The length of the target variable doesn't match the length of the date column. "
-                "If you are predicting out-of-sample, please overwrite `self.y` with the "
-                "corresponding (non-transformed) target variable."
-            )
-
-        if ax is None:
-            fig, ax = plt.subplots(**plt_kwargs)
-        else:
-            fig = ax.figure
-
-        if hdi_list is None:
-            hdi_list = [0.94, 0.5]
-
-        if hdi_list:
-            alpha_list = np.linspace(0.2, 0.4, len(hdi_list))
-            for hdi_prob, alpha in zip(hdi_list, alpha_list, strict=True):
-                ax = self._add_hdi_to_plot(
-                    ax=ax, original_scale=original_scale, hdi_prob=hdi_prob, alpha=alpha
-                )
-
-        if add_mean:
-            ax = self._add_mean_to_plot(
-                ax=ax, original_scale=original_scale, color="blue"
-            )
-
-        if add_gradient:
-            ax = self._add_gradient_to_plot(
-                ax=ax, original_scale=original_scale, n_percentiles=30, palette="Blues"
-            )
-
-        ax.plot(
-            np.asarray(posterior_predictive_data.date),
-            target_to_plot,
-            color="black",
-            label="Observed",
-        )
-        ax.legend()
-        ax.set(
-            title="Posterior Predictive Check",
-            xlabel="date",
-            ylabel=self.output_var,
-        )
-
-        return fig
-
     def _get_group_predictive_data(
         self,
         group: Literal["prior predictive", "posterior predictive"],
@@ -629,6 +461,127 @@ class MMMModelBuilder(ModelBuilder):
             )
 
         return ax
+
+    def _plot_group_predictive(
+        self,
+        group: Literal["prior predictive", "posterior predictive"],
+        original_scale: bool = False,
+        hdi_list: list[float] | None = None,
+        add_mean: bool = True,
+        add_gradient: bool = False,
+        ax: plt.Axes = None,
+        **plt_kwargs: Any,
+    ) -> plt.Figure:
+        """
+        Plot the prior or posterior predictive distribution from the model fit.
+
+        This function creates a visualization of the model's prior or posterior predictive distribution,
+        allowing for comparison with observed data. It can include highest density intervals (HDI),
+        mean predictions, and a gradient representation of the full distribution.
+
+        Parameters
+        ----------
+        group : Literal["prior predictive", "posterior predictive"]
+            The group of data to plot.
+        original_scale : bool, optional
+            If True, plot in the original scale of the target variable.
+            If False, plot in the transformed scale used for modeling. Default is False.
+        hdi_list : list of float, optional
+            List of HDI levels to plot. Default is [0.94] Provide an empty list to omit plotting the HDI.
+        add_mean : bool, optional
+            If True, add the mean prediction to the plot. Default is True.
+        add_gradient : bool, optional
+            If True, add a gradient representation of the full posterior distribution. Default is False.
+        ax : plt.Axes, optional
+            A matplotlib Axes object to plot on. If None, a new figure and axes will be created.
+        **plt_kwargs : dict
+            Additional keyword arguments to pass to plt.subplots() when creating a new figure.
+
+        Returns
+        -------
+        plt.Figure
+            The matplotlib Figure object containing the plot.
+
+        Raises
+        ------
+        ValueError
+            If the length of the target variable doesn't match the length
+            of the date column in the posterior predictive data.
+
+        Notes
+        -----
+        This function visualizes the model's predictions against the observed data.
+        The observed data is always plotted as a black line.
+        Depending on the parameters, it can also show:
+        - HDI (Highest Density Intervals) at 94% and 50% levels
+        - Mean prediction line
+        - Gradient representation of the full posterior distribution
+
+        If predicting out-of-sample, ensure that `self.y` is overwritten with the
+        corresponding non-transformed target variable.
+        """
+        group_data: Dataset = self._get_group_predictive_data(
+            group=group, original_scale=original_scale
+        )
+
+        target_to_plot = np.asarray(
+            self.y
+            if original_scale
+            else transform_1d_array(self.get_target_transformer().transform, self.y)
+        )
+
+        if len(target_to_plot) != len(group_data.date):
+            raise ValueError(
+                "The length of the target variable doesn't match the length of the date column. "
+                "If you are predicting out-of-sample, please overwrite `self.y` with the "
+                "corresponding (non-transformed) target variable."
+            )
+
+        if ax is None:
+            fig, ax = plt.subplots(**plt_kwargs)
+        else:
+            fig = ax.figure
+
+        if hdi_list is None:
+            hdi_list = [0.94, 0.5]
+
+        if hdi_list:
+            alpha_list = np.linspace(0.2, 0.4, len(hdi_list))
+            for hdi_prob, alpha in zip(hdi_list, alpha_list, strict=True):
+                ax = self._add_hdi_to_plot(
+                    ax=ax, original_scale=original_scale, hdi_prob=hdi_prob, alpha=alpha
+                )
+
+        if add_mean:
+            ax = self._add_mean_to_plot(
+                ax=ax, original_scale=original_scale, color="blue"
+            )
+
+        if add_gradient:
+            ax = self._add_gradient_to_plot(
+                ax=ax, original_scale=original_scale, n_percentiles=30, palette="Blues"
+            )
+
+        ax.plot(
+            np.asarray(group_data.date),
+            target_to_plot,
+            color="black",
+            label="Observed",
+        )
+        ax.legend()
+        ax.set(
+            title=f"{group} predictive check",
+            xlabel="date",
+            ylabel=self.output_var,
+        )
+
+        return fig
+
+    def plot_prior_predictive(self, **kwargs: Any) -> plt.Figure:
+        return self._plot_group_predictive(group="prior predictive", **kwargs)
+
+    def plot_posterior_predictive(self, **kwargs: Any) -> plt.Figure:
+        return self._plot_group_predictive(group="posterior predictive", **kwargs)
 
     def get_errors(self, original_scale: bool = False) -> DataArray:
         """Get model errors posterior distribution.
