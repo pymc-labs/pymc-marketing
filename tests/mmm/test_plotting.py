@@ -140,6 +140,8 @@ class TestBasePlotting:
     @pytest.mark.parametrize(
         argnames="func_plot_name, kwargs_plot",
         argvalues=[
+            ("_plot_group_predictive", {"group": "prior_predictive"}),
+            ("_plot_group_predictive", {"group": "posterior_predictive"}),
             # Prior predictive
             ("plot_prior_predictive", {}),
             ("plot_prior_predictive", {"original_scale": True}),
