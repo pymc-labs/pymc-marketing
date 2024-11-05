@@ -579,7 +579,7 @@ class TestMMM:
         )
         with pytest.raises(
             RuntimeError,
-            match="Make sure the model has bin fitted and the posterior predictive has been sampled!",
+            match="Make sure the model has bin fitted and the posterior_predictive has been sampled!",
         ):
             my_mmm.get_errors()
 
@@ -593,7 +593,7 @@ class TestMMM:
         )
         with pytest.raises(
             RuntimeError,
-            match="Make sure the model has bin fitted and the posterior predictive has been sampled!",
+            match="Make sure the model has bin fitted and the posterior_predictive has been sampled!",
         ):
             my_mmm.plot_posterior_predictive()
 
