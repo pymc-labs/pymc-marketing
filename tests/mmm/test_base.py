@@ -353,7 +353,7 @@ def test_plot_prior_predictive_no_fitted(test_mmm) -> None:
 def test_plot_posterior_predictive_no_fitted(test_mmm) -> None:
     with pytest.raises(
         RuntimeError,
-        match="Make sure the model has bin fitted and the posterior_predictive has been sampled!",
+        match="Make sure the model has been fitted and the posterior_predictive has been sampled!",
     ):
         test_mmm.plot_posterior_predictive()
 
@@ -361,6 +361,6 @@ def test_plot_posterior_predictive_no_fitted(test_mmm) -> None:
 def test_get_errors_raises_not_fitted(test_mmm) -> None:
     with pytest.raises(
         RuntimeError,
-        match="Make sure the model has bin fitted and the posterior predictive has been sampled!",
+        match="Make sure the model has been fitted and the posterior_predictive has been sampled!",
     ):
         test_mmm.get_errors()
