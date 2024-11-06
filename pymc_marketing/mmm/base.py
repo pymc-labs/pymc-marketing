@@ -315,7 +315,7 @@ class MMMModelBuilder(ModelBuilder):
 
         except Exception as e:
             raise RuntimeError(
-                f"Make sure the model has bin fitted and the {group} has been sampled!"
+                f"Make sure the model has been fitted and the {group} has been sampled!"
             ) from e
 
         if original_scale:
@@ -734,7 +734,7 @@ class MMMModelBuilder(ModelBuilder):
 
         except Exception as e:
             raise RuntimeError(
-                "Make sure the model has bin fitted and the posterior predictive has been sampled!"
+                "Make sure the model has been fitted and the posterior_predictive has been sampled!"
             ) from e
 
         target_array = np.asarray(
