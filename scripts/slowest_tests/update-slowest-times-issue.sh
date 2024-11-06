@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/zsh
 
 DRY_RUN=false
 
@@ -7,7 +7,7 @@ repo=pymc-marketing
 issue_number=1158
 title="Speed up test times :rocket:"
 workflow=Test
-latest_id=$(gh run list --workflow $workflow --status completed --limit 1 --json databaseId --jq '.[0].databaseId')
+latest_id=$(gh run list --workflow $workflow --status success --limit 1 --json databaseId --jq '.[0].databaseId')
 jobs=$(gh api /repos/$owner/$repo/actions/runs/$latest_id/jobs --jq '.jobs | map({name: .name, run_id: .run_id, id: .id})')
 
 all_times=""
@@ -18,6 +18,7 @@ echo "$jobs" | jq -c '.[]' | while read -r job; do
 
     echo "Processing job: $name (ID: $id, Run ID: $run_id)"
     times=$(gh run view --job $id --log | python extract-slow-tests.py)
+    echo $times
 
     top="<details><summary>$name</summary>\n\n\n\`\`\`"
     bottom="\`\`\`\n\n</details>"
