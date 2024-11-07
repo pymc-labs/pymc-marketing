@@ -1075,7 +1075,7 @@ class MMMModelBuilder(ModelBuilder):
         original_scale: bool = False,
         area_kwargs: dict[str, Any] | None = None,
         **plt_kwargs: Any,
-    ) -> plt.Figure:
+    ) -> plt.Figure | None:
         """Plot a time series area chart for all channel contributions.
 
         Since a chart like this can become quite crowded if you have many channels or
@@ -1123,19 +1123,18 @@ class MMMModelBuilder(ModelBuilder):
 
             all_contributions_over_time = pd.concat(grouped_buffer, axis="columns")
 
-            if (all_contributions_over_time < 0).sum().sum() > 0:
-                all_contributions_over_time = all_contributions_over_time.clip(lower=0)
-                warnings.warn(
-                    "Some contributions were negative and have been clipped to zero. "
-                    "This can happen when using stack_groups with variables that have negative effects.",
-                    stacklevel=2,
-                )
-
         fig, ax = plt.subplots(**plt_kwargs)
         area_params = dict(stacked=True, ax=ax)
         if area_kwargs is not None:
             area_params.update(area_kwargs)
-        all_contributions_over_time.plot.area(**area_params)
+        try:
+            all_contributions_over_time.plot.area(**area_params)
+        except ValueError:
+            warnings.warn(
+                "Each contribution value must be either all positive or all negative",
+                stacklevel=2,
+            )
+            return None
         ax.legend(title="groups", loc="center left", bbox_to_anchor=(1, 0.5))
         return fig
 
