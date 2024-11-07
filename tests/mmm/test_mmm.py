@@ -503,6 +503,24 @@ class TestMMM:
             inference_periods == num_periods
         ), f"Number of periods in the data {inference_periods} does not match the expected {num_periods}"
 
+    def test_allocate_budget_to_maximize_response_bad_noise_level(
+        self, mmm_fitted: MMM
+    ) -> None:
+        budget = 2.0
+        num_periods = 8
+        time_granularity = "weekly"
+        budget_bounds = {"channel_1": [0.5, 1.2], "channel_2": [0.5, 1.5]}
+        noise_level = "bad_noise_level"
+
+        with pytest.raises(ValueError, match="noise_level must be a float"):
+            mmm_fitted.allocate_budget_to_maximize_response(
+                budget=budget,
+                time_granularity=time_granularity,
+                num_periods=num_periods,
+                budget_bounds=budget_bounds,
+                noise_level=noise_level,
+            )
+
     @pytest.mark.parametrize(
         argnames="original_scale",
         argvalues=[False, True],
@@ -561,7 +579,7 @@ class TestMMM:
         )
         with pytest.raises(
             RuntimeError,
-            match="Make sure the model has bin fitted and the posterior predictive has been sampled!",
+            match="Make sure the model has been fitted and the posterior_predictive has been sampled!",
         ):
             my_mmm.get_errors()
 
@@ -575,7 +593,7 @@ class TestMMM:
         )
         with pytest.raises(
             RuntimeError,
-            match="Make sure the model has bin fitted and the posterior predictive has been sampled!",
+            match="Make sure the model has been fitted and the posterior_predictive has been sampled!",
         ):
             my_mmm.plot_posterior_predictive()
 
@@ -666,6 +684,31 @@ class TestMMM:
             start=0, stop=1.5, num=2, absolute_xrange=absolute_xrange
         )
         assert isinstance(fig, plt.Figure)
+
+    @pytest.mark.parametrize(
+        argnames="group",
+        argvalues=["prior_predictive", "posterior_predictive"],
+        ids=["prior_predictive", "posterior_predictive"],
+    )
+    @pytest.mark.parametrize(
+        argnames="original_scale",
+        argvalues=[False, True],
+        ids=["scaled", "original-scale"],
+    )
+    def test_get_group_predictive_data(
+        self,
+        mmm_fitted_with_posterior_predictive: MMM,
+        group: str,
+        original_scale: bool,
+    ):
+        dataset = mmm_fitted_with_posterior_predictive._get_group_predictive_data(
+            group=group, original_scale=original_scale
+        )
+        assert isinstance(dataset, xr.Dataset)
+        assert dataset.dims["chain"] == 1
+        assert dataset.dims["draw"] == 500
+        assert dataset.dims["date"] == 135
+        assert dataset["y"].dims == ("chain", "draw", "date")
 
     def test_data_setter(self, toy_X, toy_y):
         base_delayed_saturated_mmm = BaseMMM(

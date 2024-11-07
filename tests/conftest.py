@@ -13,10 +13,13 @@
 #   limitations under the License.
 import warnings
 
+import arviz as az
+import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 from arviz import InferenceData
-from xarray import Dataset
+from xarray import DataArray, Dataset
 
 from pymc_marketing.clv.models import CLVModel
 
@@ -88,3 +91,64 @@ def set_model_fit(model: CLVModel, fit: InferenceData | Dataset):
         )
         model.idata.add_groups(fit_data=model.data.to_xarray())
     model.set_idata_attrs(fit)
+
+
+def set_idata(model):
+    """Part of basic fit method for CLVModel."""
+    model.set_idata_attrs(model.idata)
+    if model.data is not None:
+        model._add_fit_data_group(model.data)
+
+
+def create_mock_fit(params: dict[str, float]):
+    """This is a mock of the fit method for the CLVModel.
+
+    It create a fake InferenceData object that is centered around the given parameters.
+
+    """
+
+    def mock_fit(model, chains, draws, rng):
+        model.idata = az.from_dict(
+            {
+                param: rng.normal(value, 1e-3, size=(chains, draws))
+                for param, value in params.items()
+            }
+        )
+        set_idata(model)
+
+    return mock_fit
+
+
+def mock_sample(*args, **kwargs):
+    """This is a mock of pm.sample that returns the prior predictive samples as the posterior."""
+    random_seed = kwargs.get("random_seed", None)
+    model = kwargs.get("model", None)
+    samples = kwargs.get("draws", 10)
+    n_chains = kwargs.get("chains", 1)
+    idata: InferenceData = pm.sample_prior_predictive(
+        model=model,
+        random_seed=random_seed,
+        samples=samples,
+    )
+
+    expanded_chains = DataArray(
+        np.ones(n_chains),
+        coords={"chain": np.arange(n_chains)},
+    )
+    idata.add_groups(
+        posterior=(idata.prior.mean("chain") * expanded_chains).transpose(
+            "chain", "draw", ...
+        )
+    )
+    del idata.prior
+    if "prior_predictive" in idata:
+        del idata.prior_predictive
+    return idata
+
+
+def mock_fit_MAP(self, *args, **kwargs):
+    draws = 1
+    chains = 1
+    idata = mock_sample(*args, **kwargs, chains=chains, draws=draws, model=self.model)
+
+    return idata.sel(chain=[0], draw=[0])

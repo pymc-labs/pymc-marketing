@@ -1,0 +1,29 @@
+name: "Pull Request Labeler"
+on:
+- pull_request_target
+
+jobs:
+  file-change:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+    - name: Run Labeler Action
+      uses: actions/labeler@v5
+
+  sync:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Sync labels with closing issues
+      uses: wd60622/closing-labels@v0.0.4
+      with:
+        exclude: "question,request discussion,help wanted"
+        respect_unlabeled: true
+      env:
+        GH_TOKEN: ${{ github.token }}
