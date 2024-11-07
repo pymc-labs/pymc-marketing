@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Base class for Marketing Mix Models (MMM)."""
 
+import warnings
 from collections.abc import Callable
 from inspect import (
     getattr_static,
@@ -1126,7 +1127,17 @@ class MMMModelBuilder(ModelBuilder):
         area_params = dict(stacked=True, ax=ax)
         if area_kwargs is not None:
             area_params.update(area_kwargs)
-        all_contributions_over_time.plot.area(**area_params)
+        try:
+            all_contributions_over_time.plot.area(**area_params)
+        except ValueError:
+            warnings.warn(
+                """
+                Each contribution value must be either all positive or all negative.
+                Try deselecting variables with negative contributions.
+                """,
+                stacklevel=2,
+            )
+            return fig
         ax.legend(title="groups", loc="center left", bbox_to_anchor=(1, 0.5))
         return fig
 
