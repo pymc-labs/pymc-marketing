@@ -1075,7 +1075,7 @@ class MMMModelBuilder(ModelBuilder):
         original_scale: bool = False,
         area_kwargs: dict[str, Any] | None = None,
         **plt_kwargs: Any,
-    ) -> plt.Figure | None:
+    ) -> plt.Figure:
         """Plot a time series area chart for all channel contributions.
 
         Since a chart like this can become quite crowded if you have many channels or
@@ -1131,10 +1131,13 @@ class MMMModelBuilder(ModelBuilder):
             all_contributions_over_time.plot.area(**area_params)
         except ValueError:
             warnings.warn(
-                "Each contribution value must be either all positive or all negative",
+                """
+                Each contribution value must be either all positive or all negative.
+                Try deselecting variables with negative contributions.
+                """,
                 stacklevel=2,
             )
-            return None
+            return fig
         ax.legend(title="groups", loc="center left", bbox_to_anchor=(1, 0.5))
         return fig
 

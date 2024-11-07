@@ -281,13 +281,7 @@ class TestBasePlotting:
     )
     def test_plots(self, plotting_mmm, func_plot_name, kwargs_plot) -> None:
         func = plotting_mmm.__getattribute__(func_plot_name)
-        plots_that_might_fail = ["plot_grouped_contribution_breakdown_over_time"]
-        expetected_type = (
-            plt.Figure
-            if func_plot_name not in plots_that_might_fail
-            else plt.Figure | None
-        )
-        assert isinstance(func(**kwargs_plot), expetected_type)
+        assert isinstance(func(**kwargs_plot), plt.Figure)
         plt.close("all")
 
 
