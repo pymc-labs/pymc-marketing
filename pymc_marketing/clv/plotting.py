@@ -518,6 +518,7 @@ def plot_purchase_pmf(
                 prior_idata = pm.sample_prior_predictive(
                     random_seed=random_seed, samples=samples
                 )
+            # obs_var must be retrieved from prior_idata object if model has not been fit
             obs_freq = prior_idata.observed_data["recency_frequency"].sel(
                 obs_var="frequency"
             )
@@ -531,7 +532,6 @@ def plot_purchase_pmf(
             )
             # Keep samples at 1 here because (chain * draw * customer) samples are being drawn
             ppc_freq = model.distribution_new_customer_recency_frequency(
-                # model.data["T"], # TODO: Add optional data param here?
                 random_seed=random_seed,
                 n_samples=1,
             ).sel(obs_var="frequency")
@@ -539,28 +539,24 @@ def plot_purchase_pmf(
         case _:
             raise NameError("Specify 'prior' or 'posterior' for `ppc` parameter.")
 
+    # convert estimated and observed xarrays into dataframes for plotting
+    estimated = ppc_freq.to_dataframe().value_counts(normalize=True).sort_index() * 100
+    observed = obs_freq.to_dataframe().value_counts(normalize=True).sort_index() * 100
+
     # PPC histogram plot
-    ax = (
-        pd.DataFrame(
-            {
-                "Model Estimations": ppc_freq.to_dataframe()
-                .value_counts(normalize=True)
-                .sort_index()
-                * 100,
-                "Observed": obs_freq.to_dataframe()
-                .value_counts(normalize=True)
-                .sort_index()
-                * 100,
-            }
-        )
-        .head(max_purchases)
-        .plot(
-            kind="bar",
-            title=title,
-            xlabel="Repeat Purchases per Customer",
-            ylabel="Number of Customers",
-            **kwargs,
-        )
+    ax = pd.DataFrame(
+        {
+            "Estimated": estimated.reset_index()["proportion"].head(max_purchases),
+            "Observed": observed.reset_index()["proportion"].head(max_purchases),
+        },
+    ).plot(
+        kind="bar",
+        ax=ax,
+        title=title,
+        xlabel="Repeat Purchases per Customer",
+        ylabel="Percent of Purchases",
+        rot=0.0,
+        **kwargs,
     )
     return ax
 
