@@ -1,3 +1,16 @@
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 
 #   Copyright 2024 The PyMC Labs Developers
 #
@@ -13,14 +26,18 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 """Risk assessment module."""
+
+from collections.abc import Callable
+
 import numpy as np
-from typing import Callable
 
 ObjectiveFunction = Callable[[np.ndarray, np.ndarray], float]
 
+
 def default_assessment(samples: np.ndarray, budgets: np.ndarray):
-    """Default assessment function."""
+    """Assess the default function."""
     return np.mean(samples)
+
 
 def tail_distance(confidence_level: float = 0.75) -> ObjectiveFunction:
     R"""Calculate the absolute distance between the mean and the quantiles.
@@ -47,6 +64,7 @@ def tail_distance(confidence_level: float = 0.75) -> ObjectiveFunction:
     ObjectiveFunction
         A function that calculates the tail distance metric given samples and budgets.
     """
+
     def _tail_distance(samples: np.ndarray, budgets: np.ndarray) -> float:
         mean = np.mean(samples)
         q1 = np.quantile(samples, confidence_level)
@@ -55,6 +73,7 @@ def tail_distance(confidence_level: float = 0.75) -> ObjectiveFunction:
         return abs(q1 - mean) + abs(mean - q2)
 
     return _tail_distance
+
 
 def mean_tightness_score(
     alpha: float = 0.5, confidence_level: float = 0.75
@@ -89,12 +108,14 @@ def mean_tightness_score(
     ObjectiveFunction
         A function that calculates the mean tightness score given samples and budgets.
     """
+
     def _mean_tightness_score(samples: np.ndarray, budgets: np.ndarray) -> float:
         mean = np.mean(samples)
         tail_metric = tail_distance(confidence_level)
         return mean - alpha * tail_metric(samples, budgets)
 
     return _mean_tightness_score
+
 
 def _calculate_roas_distribution_for_allocation(
     samples: np.ndarray, budgets: np.ndarray
@@ -139,6 +160,7 @@ def value_at_risk(confidence_level: float = 0.95) -> ObjectiveFunction:
     ----------
     - Jorion, P. (2006). Value at Risk: The New Benchmark for Managing Financial Risk.
     """
+
     def _value_at_risk(samples: np.ndarray, budgets: np.ndarray) -> float:
         if not 0 < confidence_level < 1:
             raise ValueError("Confidence level must be between 0 and 1.")
@@ -147,9 +169,7 @@ def value_at_risk(confidence_level: float = 0.95) -> ObjectiveFunction:
     return _value_at_risk
 
 
-def conditional_value_at_risk(
-    confidence_level: float = 0.95
-) -> ObjectiveFunction:
+def conditional_value_at_risk(confidence_level: float = 0.95) -> ObjectiveFunction:
     R"""
     Calculate the Conditional Value at Risk (CVaR) at a specified confidence level.
 
@@ -185,6 +205,7 @@ def conditional_value_at_risk(
     ----------
     - Rockafellar, R.T., & Uryasev, S. (2000). Optimization of Conditional Value-at-Risk.
     """
+
     def _conditional_value_at_risk(samples: np.ndarray, budgets: np.ndarray) -> float:
         if not 0 < confidence_level < 1:
             raise ValueError("Confidence level must be between 0 and 1.")
@@ -235,6 +256,7 @@ def sharpe_ratio(risk_free_rate: float = 0.0) -> ObjectiveFunction:
     ----------
     - Sharpe, W.F. (1966). Mutual Fund Performance.
     """
+
     def _sharpe_ratio(samples: np.ndarray, budgets: np.ndarray) -> float:
         excess_returns = samples - risk_free_rate
         mean_excess_return = np.mean(excess_returns)
@@ -249,9 +271,7 @@ def sharpe_ratio(risk_free_rate: float = 0.0) -> ObjectiveFunction:
     return _sharpe_ratio
 
 
-def raroc(
-    risk_free_rate: float = 0.0
-) -> ObjectiveFunction:
+def raroc(risk_free_rate: float = 0.0) -> ObjectiveFunction:
     R"""
     Calculate the Risk-Adjusted Return on Capital (RAROC).
 
@@ -290,6 +310,7 @@ def raroc(
     ----------
     - Matten, C. (2000). Managing Bank Capital: Capital Allocation and Performance Measurement.
     """
+
     def _raroc(samples: np.ndarray, budgets: np.ndarray) -> float:
         capital = np.sum(budgets)
         if capital <= 0:
@@ -341,7 +362,10 @@ def adjusted_value_at_risk_score(
         If the risk aversion parameter is not between 0 and 1.
         If confidence_level is not between 0 and 1.
     """
-    def _adjusted_value_at_risk_score(samples: np.ndarray, budgets: np.ndarray) -> float:
+
+    def _adjusted_value_at_risk_score(
+        samples: np.ndarray, budgets: np.ndarray
+    ) -> float:
         if not 0 <= risk_aversion <= 1:
             raise ValueError("Risk aversion parameter must be between 0 and 1.")
         if not 0 < confidence_level < 1:
@@ -431,9 +455,7 @@ def diversification_ratio(samples: np.ndarray, budgets: np.ndarray) -> float:
     """
     weights = budgets / np.sum(budgets)
     individual_volatilities = np.std(samples, axis=0, ddof=1)
-    portfolio_volatility = np.sqrt(
-        weights @ np.cov(samples, rowvar=False) @ weights.T
-    )
+    portfolio_volatility = np.sqrt(weights @ np.cov(samples, rowvar=False) @ weights.T)
     weighted_avg_volatility = np.sum(weights * individual_volatilities)
     diversification_ratio = weighted_avg_volatility / portfolio_volatility
     return diversification_ratio
