@@ -16,7 +16,6 @@
 import json
 import logging
 import warnings
-from collections.abc import Callable
 from typing import Annotated, Any, Literal
 
 import arviz as az
@@ -47,6 +46,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
+from pymc_marketing.mmm.risk_assessment import ObjectiveFunction, default_assessment
 from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
@@ -1639,17 +1639,14 @@ class MMM(
             'channels': ['x1', 'x2']
         }
         """
-        if self.idata is not None:
-            saturation_params: dict[str, np.ndarray] = {
-                key: self.idata.posterior[f"saturation_{key}"].values
-                for key in self.saturation.default_priors.keys()
-            }
-            adstock_params: dict[str, np.ndarray] = {
-                key: self.idata.posterior[f"adstock_{key}"].values
-                for key in self.adstock.default_priors.keys()
-            }
-        else:
-            raise ValueError("idata is not initialized.")
+        saturation_params: dict[str, np.ndarray] = {
+            key: self.fit_result[f"saturation_{key}"].values
+            for key in self.saturation.default_priors.keys()
+        }
+        adstock_params: dict[str, np.ndarray] = {
+            key: self.fit_result[f"adstock_{key}"].values
+            for key in self.adstock.default_priors.keys()
+        }
 
         return {
             "saturation_params": saturation_params,
@@ -2178,8 +2175,7 @@ class MMM(
         budget_bounds: dict[str, tuple[float, float]] | None = None,
         custom_constraints: dict[str, float] | None = None,
         noise_level: float = 0.01,
-        objective_function: Callable[[np.ndarray], float] = np.mean,
-        objective_function_kwargs: dict[str, Any] | None = None,
+        objective_function: ObjectiveFunction = default_assessment,
         **minimize_kwargs,
     ) -> az.InferenceData:
         """Allocate the given budget to maximize the response over a specified time period.
@@ -2213,10 +2209,8 @@ class MMM(
             Custom constraints for the optimization. If None, no custom constraints are applied.
         noise_level : float, optional
             The level of noise added to the allocation strategy (by default 1%).
-        objective_function : Callable[[np.ndarray], float], optional
+        objective_function : ObjectiveFunction, optional
             The objective function to maximize.
-        objective_function_kwargs : dict[str, Any], optional
-            Additional keyword arguments for the objective function.
         **minimize_kwargs
             Additional arguments to pass to the `BudgetOptimizer`.
 
@@ -2236,9 +2230,6 @@ class MMM(
         if not isinstance(noise_level, float):
             raise ValueError("noise_level must be a float")
 
-        if objective_function_kwargs is None:
-            objective_function_kwargs = {}
-
         _parameters = self._format_parameters_for_budget_allocator()
 
         allocator = BudgetOptimizer(
@@ -2249,7 +2240,6 @@ class MMM(
             num_periods=num_periods,
             scales=self.channel_transformer["scaler"].scale_,
             objective_function=objective_function,
-            objective_function_kwargs=objective_function_kwargs,
         )
 
         self.optimal_allocation_dict, _ = allocator.allocate_budget(
