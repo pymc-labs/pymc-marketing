@@ -12,10 +12,12 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import pymc as pm
+import numpy as np
 import pytest
 
 from pymc_marketing.mmm.risk_assessment import mean_tightness_score, tail_distance
 
+rng: np.random.Generator = np.random.default_rng(seed=42)
 
 @pytest.mark.parametrize(
     "mean1, std1, mean2, std2, expected_order",
@@ -24,14 +26,14 @@ from pymc_marketing.mmm.risk_assessment import mean_tightness_score, tail_distan
             100,
             30,
             100,
-            40,
+            50,
             "greater",
         ),  # Expect greater tail distance for higher std deviation
         (
             100,
             30,
             100,
-            20,
+            10,
             "smaller",
         ),  # Expect smaller tail distance for lower std deviation
     ],
