@@ -11,13 +11,14 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import pymc as pm
 import numpy as np
+import pymc as pm
 import pytest
 
 from pymc_marketing.mmm.risk_assessment import mean_tightness_score, tail_distance
 
 rng: np.random.Generator = np.random.default_rng(seed=42)
+
 
 @pytest.mark.parametrize(
     "mean1, std1, mean2, std2, expected_order",
