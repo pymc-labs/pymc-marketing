@@ -20,7 +20,6 @@ from typing import Annotated, Any, Literal
 
 import arviz as az
 import matplotlib.pyplot as plt
-import networkx as nx
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -115,12 +114,16 @@ class BaseMMM(BaseValidateMMM):
         adstock_first: bool = Field(
             True, description="Whether to apply adstock first."
         ),
-        dag: str | nx.DiGraph | None = Field(
+        dag: str | None = Field(
             None,
-            description="Optional DAG provided as a string or networkx DiGraph for causal identification.",
+            description="Optional DAG provided as a string Dot format for causal identification.",
         ),
-        outcome_column: str = Field(
-            None, description="Name of the outcome variable to use in the causal graph."
+        treatment_nodes: list[str] | tuple[str] | None = Field(
+            None,
+            description="Column names of the variables of interest to identify causal effects on outcome.",
+        ),
+        outcome_node: str | None = Field(
+            None, description="Name of the outcome variable."
         ),
     ) -> None:
         """Define the constructor method.
@@ -158,9 +161,11 @@ class BaseMMM(BaseValidateMMM):
             Number of Fourier modes to model yearly seasonality, by default None.
         adstock_first : bool, optional
             Whether to apply adstock first, by default True.
-        dag : Optional[str | nx.DiGraph], optional
-            Optional DAG provided as a string or networkx DiGraph for causal modeling, by default None.
-        outcome_column : str, optional
+        dag : Optional[str], optional
+            Optional DAG provided as a string Dot format for causal modeling, by default None.
+        treatment_nodes : Optional[list[str]], optional
+            Column names of the variables of interest to identify causal effects on outcome.
+        outcome_node : Optional[str], optional
             Name of the outcome variable, by default None.
         """
         self.control_columns = control_columns
@@ -192,38 +197,56 @@ class BaseMMM(BaseValidateMMM):
 
         self.yearly_seasonality = yearly_seasonality
 
-        # Begin addition for DAG and CausalGraphModel
-        if dag is not None and outcome_column is not None:
-            if isinstance(dag, str):
-                causal_model = CausalGraphModel.from_string(
-                    graph_str=dag,
-                    treatment=channel_columns,
-                    outcome=[outcome_column],
-                )
-            elif isinstance(dag, nx.DiGraph):
-                causal_model = CausalGraphModel(
-                    graph=dag,
-                    treatment=channel_columns,
-                    outcome=[outcome_column],
-                )
-            else:
-                raise ValueError("dag must be either a string or a networkx DiGraph")
+        self.dag = dag
+        self.treatment_nodes = treatment_nodes
+        self.outcome_node = outcome_node
 
-            # Get minimal adjustment sets
-            minimal_adjustment_set: set[Any] = (
-                causal_model.get_minimal_adjustment_sets()
+        if (
+            self.dag is not None
+            and self.outcome_node is not None
+            and self.treatment_nodes is None
+        ):
+            self.treatment_nodes = self.channel_columns
+            warnings.warn(
+                "No treatment nodes provided. Using channel columns as treatment nodes.",
+                stacklevel=2,
             )
 
-            if minimal_adjustment_set is not None:
+        # Begin addition for DAG and CausalGraphModel
+        if (
+            self.dag is not None
+            and self.outcome_node is not None
+            and self.treatment_nodes is not None
+        ):
+            self.causal_graphical_model = CausalGraphModel.from_string(
+                graph_str=self.dag,
+                treatment=self.treatment_nodes,
+                outcome=self.outcome_node,
+            )
+
+            # Get minimal adjustment sets
+            self.adjustment_set = (
+                self.causal_graphical_model.get_unique_adjustment_nodes()
+            )
+
+            # Only add treatment_nodes if it's not None
+            if self.treatment_nodes:
+                self.minimal_adjustment_set = self.adjustment_set + self.treatment_nodes
+
+            if self.minimal_adjustment_set:
                 # Update control_columns with minimal adjustment set
                 if self.control_columns is not None:
                     self.control_columns = list(
-                        set(self.control_columns).union(minimal_adjustment_set)
+                        set(self.control_columns).intersection(self.minimal_adjustment_set)
+                        - set(self.channel_columns)
                     )
                 # Check if seasonality_variable is in the minimal adjustment set
-                if "yearly_seasonality" not in minimal_adjustment_set:
+                if "yearly_seasonality" not in self.minimal_adjustment_set:
                     # Set yearly_seasonality to None to disable it
                     self.yearly_seasonality = None
+                else:
+                    # delete yearly_seasonality from minimal adjustment set
+                    self.control_columns.remove("yearly_seasonality")
             else:
                 warnings.warn("No minimal adjustment set found.", stacklevel=2)
 

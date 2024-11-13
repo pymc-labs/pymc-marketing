@@ -341,6 +341,16 @@ class ModelBuilder(ABC):
             default=default,
         )
 
+        attrs["dag"] = (
+            json.dumps(self.dag, default=default) if hasattr(self, "dag") else "None"
+        )
+        attrs["treatment_nodes"] = (
+            self.treatment_nodes if hasattr(self, "treatment_nodes") else "None"
+        )
+        attrs["outcome_node"] = (
+            self.outcome_node if hasattr(self, "outcome_node") else "None"
+        )
+
         return attrs
 
     def set_idata_attrs(
