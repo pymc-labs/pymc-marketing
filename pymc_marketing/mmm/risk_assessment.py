@@ -25,18 +25,75 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Risk assessment module."""
+"""
+Risk assessment module for portfolio optimization and investment modeling.
+
+This module provides various objective functions and metrics for assessing
+risk and returns in optimization processes, particularly in the context of
+budget allocation (e.g., marketing spend) and posterior response modeling.
+
+Key Concepts:
+-------------
+- **Samples**:
+    A PyTensor tensor variable (`pt.TensorVariable`) representing posterior
+    response samples. Typically, these are outputs of probabilistic models
+    (e.g., PyMC models) that predict the expected outcomes (e.g., ROI, sales,
+    engagement) given different budget allocations.
+    - Example: Posterior samples of sales increase due to marketing spend
+    after use `pymc.posterior_predictive`.
+
+- **Budgets**:
+    A PyTensor tensor variable representing a set of monetary budgets allocated
+    to different channels or investments. Each element corresponds to the budget
+    for a specific channel in the optimization process.
+    - Example: `[5000, 10000, 15000]` for spend across three channels x1, x2, x3.
+
+Objective:
+----------
+The functions provided here are designed to calculate metrics such as tail
+distance, Sharpe ratio, diversification, and others, based on these `samples`
+and `budgets`. These metrics are crucial for making informed decisions in
+optimization tasks like allocating marketing budgets while minimizing risk
+based on the user's preferences.
+"""
 
 from collections.abc import Callable
 
-import numpy as np
+import pytensor.tensor as pt
 
-ObjectiveFunction = Callable[[np.ndarray, np.ndarray], float]
+ObjectiveFunction = Callable[[pt.TensorVariable, pt.TensorVariable], float]
 
 
-def default_assessment(samples: np.ndarray, budgets: np.ndarray):
-    """Assess the default function."""
-    return np.mean(samples)
+def _compute_quantile(x: pt.TensorVariable, q: float) -> pt.TensorVariable:
+    """
+    Compute the quantile of a PyTensor tensor variable.
+
+    Parameters
+    ----------
+    x : pt.TensorVariable
+        A 1D PyTensor tensor variable containing samples.
+    q : float
+        The quantile to compute, between 0 and 1.
+
+    Returns
+    -------
+    pt.TensorVariable
+        The quantile value.
+    """
+    sorted_x = pt.sort(x)
+    n = x.shape[0]
+    idx = q * (n - 1)
+    idx_floor = pt.floor(idx).astype("int64")
+    idx_ceil = pt.ceil(idx).astype("int64")
+    weight = idx - idx_floor
+    return (1 - weight) * sorted_x[idx_floor] + weight * sorted_x[idx_ceil]
+
+
+def average_response(
+    samples: pt.TensorVariable, budgets: pt.TensorVariable
+) -> pt.TensorVariable:
+    """Compute the average response of the posterior predictive distribution."""
+    return pt.mean(samples)
 
 
 def tail_distance(confidence_level: float = 0.75) -> ObjectiveFunction:
@@ -46,8 +103,8 @@ def tail_distance(confidence_level: float = 0.75) -> ObjectiveFunction:
 
     The tail distance is calculated as:
 
-        .. math::
-            Tail\\ Distance = |Q_{(1 - \\alpha)} - \\mu| + |\\mu - Q_{\\alpha}|
+    .. math::
+        Tail\\ Distance = |Q_{(1 - \\alpha)} - \\mu| + |\\mu - Q_{\\alpha}|
 
     where:
         - :math:`\\mu` is the mean of the sample returns.
@@ -64,15 +121,43 @@ def tail_distance(confidence_level: float = 0.75) -> ObjectiveFunction:
     ObjectiveFunction
         A function that calculates the tail distance metric given samples and budgets.
     """
+    if not 0 < confidence_level < 1:
+        raise ValueError("Confidence level must be between 0 and 1.")
 
-    def _tail_distance(samples: np.ndarray, budgets: np.ndarray) -> float:
-        mean = np.mean(samples)
-        q1 = np.quantile(samples, confidence_level)
-        q2 = np.quantile(samples, 1 - confidence_level)
-
-        return abs(q1 - mean) + abs(mean - q2)
+    def _tail_distance(
+        samples: pt.TensorVariable, budgets: pt.TensorVariable
+    ) -> pt.TensorVariable:
+        mean = pt.mean(samples)
+        q1 = _compute_quantile(samples, confidence_level)
+        q2 = _compute_quantile(samples, 1 - confidence_level)
+        return pt.abs(q1 - mean) + pt.abs(mean - q2)
 
     return _tail_distance
+
+
+def _calculate_roas_distribution_for_allocation(
+    samples: pt.TensorVariable, budgets: pt.TensorVariable
+) -> pt.TensorVariable:
+    """Calculate the ROAS (Return on Advertising Spend) distribution for a given total budget.
+
+    This function computes the ratio of each sample (representing returns) to the sum of budgets.
+    The resulting distribution can be used to evaluate the efficiency of budget allocation across samples.
+
+    Parameters
+    ----------
+    samples : pt.TensorVariable
+        A 1D PyTensor tensor variable containing the returns for each asset or campaign.
+    budgets : pt.TensorVariable
+        A 1D PyTensor tensor variable representing the budget allocations for each asset or campaign.
+
+    Returns
+    -------
+    pt.TensorVariable
+        A PyTensor tensor variable representing the ROAS distribution.
+    """
+    total_budget = pt.sum(budgets)
+    roas_distribution = samples / total_budget
+    return roas_distribution
 
 
 def mean_tightness_score(
@@ -108,20 +193,17 @@ def mean_tightness_score(
     ObjectiveFunction
         A function that calculates the mean tightness score given samples and budgets.
     """
+    if not 0 < confidence_level < 1:
+        raise ValueError("Confidence level must be between 0 and 1.")
 
-    def _mean_tightness_score(samples: np.ndarray, budgets: np.ndarray) -> float:
-        mean = np.mean(samples)
+    def _mean_tightness_score(
+        samples: pt.TensorVariable, budgets: pt.TensorVariable
+    ) -> pt.TensorVariable:
+        mean = pt.mean(samples)
         tail_metric = tail_distance(confidence_level)
         return mean - alpha * tail_metric(samples, budgets)
 
     return _mean_tightness_score
-
-
-def _calculate_roas_distribution_for_allocation(
-    samples: np.ndarray, budgets: np.ndarray
-) -> np.ndarray:
-    """Calculate the ROAS distribution for a given total budget."""
-    return samples / np.sum(budgets)
 
 
 def value_at_risk(confidence_level: float = 0.95) -> ObjectiveFunction:
@@ -134,8 +216,8 @@ def value_at_risk(confidence_level: float = 0.95) -> ObjectiveFunction:
 
     The Value at Risk (VaR) is calculated as:
 
-        .. math::
-            VaR = \mu - Q_{(1 - \alpha)}
+    .. math::
+        VaR = \mu - Q_{(1 - \alpha)}
 
     where:
         - :math:`\mu` is the mean of the sample returns.
@@ -158,13 +240,15 @@ def value_at_risk(confidence_level: float = 0.95) -> ObjectiveFunction:
 
     References
     ----------
-    - Jorion, P. (2006). Value at Risk: The New Benchmark for Managing Financial Risk.
+    .. [1] Jorion, P. (2006). Value at Risk: The New Benchmark for Managing Financial Risk.
     """
+    if not 0 < confidence_level < 1:
+        raise ValueError("Confidence level must be between 0 and 1.")
 
-    def _value_at_risk(samples: np.ndarray, budgets: np.ndarray) -> float:
-        if not 0 < confidence_level < 1:
-            raise ValueError("Confidence level must be between 0 and 1.")
-        return np.percentile(samples, (1 - confidence_level) * 100)
+    def _value_at_risk(
+        samples: pt.TensorVariable, budgets: pt.TensorVariable
+    ) -> pt.TensorVariable:
+        return _compute_quantile(samples, 1 - confidence_level)
 
     return _value_at_risk
 
@@ -178,8 +262,8 @@ def conditional_value_at_risk(confidence_level: float = 0.95) -> ObjectiveFuncti
 
     The Conditional Value at Risk (CVaR) is calculated as:
 
-        .. math::
-            CVaR = \mathbb{E}[X \mid X \leq VaR]
+    .. math::
+        CVaR = \mathbb{E}[X \mid X \leq VaR]
 
     where :math:`X` represents the loss distribution, and :math:`VaR` is the Value at Risk
     at the specified confidence level. CVaR provides a more comprehensive view of the risk
@@ -203,19 +287,22 @@ def conditional_value_at_risk(confidence_level: float = 0.95) -> ObjectiveFuncti
 
     References
     ----------
-    - Rockafellar, R.T., & Uryasev, S. (2000). Optimization of Conditional Value-at-Risk.
+    .. [1] Rockafellar, R.T., & Uryasev, S. (2000). Optimization of Conditional Value-at-Risk.
     """
+    if not 0 < confidence_level < 1:
+        raise ValueError("Confidence level must be between 0 and 1.")
 
-    def _conditional_value_at_risk(samples: np.ndarray, budgets: np.ndarray) -> float:
-        if not 0 < confidence_level < 1:
-            raise ValueError("Confidence level must be between 0 and 1.")
-        VaR = np.percentile(samples, (1 - confidence_level) * 100)
-        tail_losses = samples[samples <= VaR]
-        if len(tail_losses) == 0:
-            raise ValueError(
-                "No samples fall below the VaR threshold; CVaR is undefined."
-            )
-        CVaR = tail_losses.mean()
+    def _conditional_value_at_risk(
+        samples: pt.TensorVariable, budgets: pt.TensorVariable
+    ) -> pt.TensorVariable:
+        VaR = _compute_quantile(samples, 1 - confidence_level)
+        mask = samples <= VaR
+        num_tail_losses = pt.sum(mask)
+        CVaR = pt.switch(
+            pt.eq(num_tail_losses, 0),
+            pt.nan,
+            pt.sum(samples * mask) / num_tail_losses,
+        )
         return CVaR
 
     return _conditional_value_at_risk
@@ -230,8 +317,8 @@ def sharpe_ratio(risk_free_rate: float = 0.0) -> ObjectiveFunction:
 
     The Sharpe Ratio is calculated as:
 
-        .. math::
-            Sharpe\ Ratio = \frac{\mathbb{E}[R - R_f]}{\sigma}
+    .. math::
+        Sharpe\ Ratio = \frac{\mathbb{E}[R - R_f]}{\sigma}
 
     where:
         - :math:`\mathbb{E}[R - R_f]` is the mean of excess returns.
@@ -254,17 +341,15 @@ def sharpe_ratio(risk_free_rate: float = 0.0) -> ObjectiveFunction:
 
     References
     ----------
-    - Sharpe, W.F. (1966). Mutual Fund Performance.
+    .. [1] Sharpe, W.F. (1966). Mutual Fund Performance.
     """
 
-    def _sharpe_ratio(samples: np.ndarray, budgets: np.ndarray) -> float:
+    def _sharpe_ratio(
+        samples: pt.TensorVariable, budgets: pt.TensorVariable
+    ) -> pt.TensorVariable:
         excess_returns = samples - risk_free_rate
-        mean_excess_return = np.mean(excess_returns)
-        std_excess_return = np.std(excess_returns, ddof=1)
-        if std_excess_return == 0:
-            raise ValueError(
-                "Standard deviation of excess returns is zero; Sharpe Ratio is undefined."
-            )
+        mean_excess_return = pt.mean(excess_returns)
+        std_excess_return = pt.std(excess_returns, ddof=1)
         sharpe_ratio = mean_excess_return / std_excess_return
         return sharpe_ratio
 
@@ -282,8 +367,8 @@ def raroc(risk_free_rate: float = 0.0) -> ObjectiveFunction:
 
     The Risk-Adjusted Return on Capital (RAROC) is calculated as:
 
-        .. math::
-            RAROC = \frac{\mathbb{E}[R] - R_f}{C}
+    .. math::
+        RAROC = \frac{\mathbb{E}[R] - R_f}{C}
 
     where:
         - :math:`\mathbb{E}[R]` is the expected return (mean of samples).
@@ -308,15 +393,14 @@ def raroc(risk_free_rate: float = 0.0) -> ObjectiveFunction:
 
     References
     ----------
-    - Matten, C. (2000). Managing Bank Capital: Capital Allocation and Performance Measurement.
+    .. [1] Matten, C. (2000). Managing Bank Capital: Capital Allocation and Performance Measurement.
     """
 
-    def _raroc(samples: np.ndarray, budgets: np.ndarray) -> float:
-        capital = np.sum(budgets)
-        if capital <= 0:
-            raise ValueError("Capital must be greater than zero.")
-
-        expected_return = np.mean(samples)
+    def _raroc(
+        samples: pt.TensorVariable, budgets: pt.TensorVariable
+    ) -> pt.TensorVariable:
+        capital = pt.sum(budgets)
+        expected_return = pt.mean(samples)
         risk_adjusted_return = expected_return - risk_free_rate
         raroc_value = risk_adjusted_return / capital
         return raroc_value
@@ -336,8 +420,8 @@ def adjusted_value_at_risk_score(
 
     The score is calculated as:
 
-        .. math::
-            AVaR\ Score = (1 - \alpha) \cdot \mu + \alpha \cdot VaR
+    .. math::
+        AVaR\ Score = (1 - \alpha) \cdot \mu + \alpha \cdot VaR
 
     where:
         - :math:`\mu` is the mean of the sample returns.
@@ -362,23 +446,24 @@ def adjusted_value_at_risk_score(
         If the risk aversion parameter is not between 0 and 1.
         If confidence_level is not between 0 and 1.
     """
+    if not 0 <= risk_aversion <= 1:
+        raise ValueError("Risk aversion parameter must be between 0 and 1.")
+    if not 0 < confidence_level < 1:
+        raise ValueError("Confidence level must be between 0 and 1.")
 
     def _adjusted_value_at_risk_score(
-        samples: np.ndarray, budgets: np.ndarray
-    ) -> float:
-        if not 0 <= risk_aversion <= 1:
-            raise ValueError("Risk aversion parameter must be between 0 and 1.")
-        if not 0 < confidence_level < 1:
-            raise ValueError("Confidence level must be between 0 and 1.")
-        # Calculate the empirical VaR directly from the samples
-        var = np.percentile(samples, (1 - confidence_level) * 100)
-        mean = np.mean(samples)
+        samples: pt.TensorVariable, budgets: pt.TensorVariable
+    ) -> pt.TensorVariable:
+        var = _compute_quantile(samples, 1 - confidence_level)
+        mean = pt.mean(samples)
         return (1 - risk_aversion) * mean + risk_aversion * var
 
     return _adjusted_value_at_risk_score
 
 
-def portfolio_entropy(samples: np.ndarray, budgets: np.ndarray) -> float:
+def portfolio_entropy(
+    samples: pt.TensorVariable, budgets: pt.TensorVariable
+) -> pt.TensorVariable:
     R"""
     Calculate the entropy of a portfolio's asset weights to assess diversification.
 
@@ -396,25 +481,49 @@ def portfolio_entropy(samples: np.ndarray, budgets: np.ndarray) -> float:
 
     Parameters
     ----------
-    assets : np.ndarray
-        1D array representing the investment amounts in each asset.
+    samples : pt.TensorVariable
+        1D PyTensor tensor variable containing samples.
+    budgets : pt.TensorVariable
+        1D PyTensor tensor variable representing the investment amounts in each asset.
 
     Returns
     -------
-    float
+    pt.TensorVariable
         Portfolio entropy value.
 
     References
     ----------
-    - Bera, A. K., & Park, S. Y. (2008). Optimal Portfolio Diversification using the Maximum Entropy Principle.
-    - Pola, G. (2013). On entropy and portfolio diversification. *Journal of Asset Management*, 14(4), 228-238.
+    .. [1] Bera, A. K., & Park, S. Y. (2008). Optimal Portfolio Diversification using the Maximum Entropy Principle.
+    .. [2] Pola, G. (2013). On entropy and portfolio diversification. *Journal of Asset Management*, 14(4), 228-238.
     """
-    weights = budgets / np.sum(budgets)
-    entropy = -np.sum(weights * np.log(weights))
+    weights = budgets / pt.sum(budgets)
+    entropy = -pt.sum(weights * pt.log(weights))
     return entropy
 
 
-def diversification_ratio(samples: np.ndarray, budgets: np.ndarray) -> float:
+def _covariance_matrix(samples: pt.TensorVariable) -> pt.TensorVariable:
+    """
+    Compute covariance matrix of samples.
+
+    Parameters
+    ----------
+    samples : pt.TensorVariable
+        2D PyTensor tensor variable where each column represents the returns of an asset.
+
+    Returns
+    -------
+    pt.TensorVariable
+        Covariance matrix.
+    """
+    samples_mean = pt.mean(samples, axis=0, keepdims=True)
+    samples_centered = samples - samples_mean
+    cov_matrix = pt.dot(samples_centered.T, samples_centered) / (samples.shape[0] - 1)
+    return cov_matrix
+
+
+def diversification_ratio(
+    samples: pt.TensorVariable, budgets: pt.TensorVariable
+) -> pt.TensorVariable:
     R"""
     Calculate the Diversification Ratio of a portfolio to evaluate risk distribution.
 
@@ -435,14 +544,14 @@ def diversification_ratio(samples: np.ndarray, budgets: np.ndarray) -> float:
 
     Parameters
     ----------
-    samples : np.ndarray
-        2D array where each column represents the returns of an asset.
-    assets : np.ndarray
-        1D array representing the investment amounts in each asset.
+    samples : pt.TensorVariable
+        2D PyTensor tensor variable where each column represents the returns of an asset.
+    budgets : pt.TensorVariable
+        1D PyTensor tensor variable representing the investment amounts in each asset.
 
     Returns
     -------
-    float
+    pt.TensorVariable
         Diversification Ratio.
 
     This ratio provides insight into how individual asset volatilities and their correlations
@@ -453,9 +562,10 @@ def diversification_ratio(samples: np.ndarray, budgets: np.ndarray) -> float:
     - Choueifaty, Y., & Coignard, Y. (2008). Toward Maximum Diversification. *Journal of Portfolio Management*.
     - Meucci, A. (2009). Managing Diversification. *Risk*, 22(5), 74-79.
     """
-    weights = budgets / np.sum(budgets)
-    individual_volatilities = np.std(samples, axis=0, ddof=1)
-    portfolio_volatility = np.sqrt(weights @ np.cov(samples, rowvar=False) @ weights.T)
-    weighted_avg_volatility = np.sum(weights * individual_volatilities)
+    weights = budgets / pt.sum(budgets)
+    individual_volatilities = pt.std(samples, axis=0, ddof=1)
+    cov_matrix = _covariance_matrix(samples)
+    portfolio_volatility = pt.sqrt(pt.dot(weights, pt.dot(cov_matrix, weights.T)))
+    weighted_avg_volatility = pt.sum(weights * individual_volatilities)
     diversification_ratio = weighted_avg_volatility / portfolio_volatility
     return diversification_ratio

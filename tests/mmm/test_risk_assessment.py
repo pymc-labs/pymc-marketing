@@ -13,9 +13,16 @@
 #   limitations under the License.
 import numpy as np
 import pymc as pm
+import pytensor.tensor as pt
 import pytest
+from pytensor import function
 
-from pymc_marketing.mmm.risk_assessment import mean_tightness_score, tail_distance
+from pymc_marketing.mmm.risk_assessment import (
+    _compute_quantile,
+    _covariance_matrix,
+    mean_tightness_score,
+    tail_distance,
+)
 
 rng: np.random.Generator = np.random.default_rng(seed=42)
 
@@ -46,8 +53,8 @@ def test_tail_distance(mean1, std1, mean2, std2, expected_order):
 
     # Calculate tail distances
     tail_distance_func = tail_distance(confidence_level=0.75)
-    tail_distance1 = tail_distance_func(samples1, None)
-    tail_distance2 = tail_distance_func(samples2, None)
+    tail_distance1 = tail_distance_func(samples1, None).eval()
+    tail_distance2 = tail_distance_func(samples2, None).eval()
 
     # Check that the tail distance is greater for the higher std deviation
     if expected_order == "greater":
@@ -88,8 +95,8 @@ def test_mean_tightness_score(mean1, std1, mean2, std2, alpha, expected_relation
 
     # Calculate mean tightness scores
     mean_tightness_score_func = mean_tightness_score(alpha=alpha, confidence_level=0.75)
-    score1 = mean_tightness_score_func(samples1, None)
-    score2 = mean_tightness_score_func(samples2, None)
+    score1 = mean_tightness_score_func(samples1, None).eval()
+    score2 = mean_tightness_score_func(samples2, None).eval()
 
     # Assertions based on observed behavior: higher mean should dominate in both cases
     if expected_relation == "higher_mean":
@@ -100,3 +107,71 @@ def test_mean_tightness_score(mean1, std1, mean2, std2, alpha, expected_relation
         assert (
             score1 > score2
         ), f"Expected score for std={std1} to be lower, but got {score1} <= {score2}"
+
+
+@pytest.mark.parametrize(
+    "data, quantile",
+    [
+        ([1, 2, 3, 4, 5], 0.25),
+        ([1, 2, 3, 4, 5], 0.5),
+        ([1, 2, 3, 4, 5], 0.75),
+        ([10, 20, 30, 40, 50], 0.1),
+        ([10, 20, 30, 40, 50], 0.9),
+        ([-5, -1, 0, 1, 5], 0.5),
+        ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 0.33),
+        ([100], 0.5),  # Single-element edge case
+        ([1, 2], 0.5),  # Small array edge case
+    ],
+)
+def test_compute_quantile_matches_numpy(data, quantile):
+    # Convert data to NumPy array
+    np_data = np.array(data)
+
+    # Define symbolic variable for input
+    pt_data = pt.vector("pt_data")  # Symbolic variable for 1D input data
+
+    # Compile the PyTensor quantile function
+    pt_quantile_func = function([pt_data], _compute_quantile(pt_data, quantile))
+
+    # Compute results
+    pytensor_result = pt_quantile_func(np_data)  # Pass NumPy array here
+    numpy_result = np.quantile(np_data, quantile)
+
+    # Assert the results are close
+    np.testing.assert_allclose(
+        pytensor_result,
+        numpy_result,
+        rtol=1e-3,
+        atol=1e-8,
+        err_msg=f"Mismatch for data={data} and quantile={quantile}",
+    )
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        np.array([[1, 2], [3, 4], [5, 6]]),  # Small test case
+        np.random.rand(100, 10),  # Random large dataset
+        np.array([[1, 1], [1, 1], [1, 1]]),  # Identical columns (zero variance)
+        np.array([[1], [2], [3]]),  # Single-column case
+    ],
+)
+def test_covariance_matrix_matches_numpy(data):
+    # Define symbolic variable for input
+    pt_data = pt.matrix("pt_data")  # Symbolic variable for 2D input data
+
+    # Compile the PyTensor covariance matrix function
+    pt_cov_func = function([pt_data], _covariance_matrix(pt_data))
+
+    # Compute results
+    pytensor_result = pt_cov_func(data)  # Pass NumPy array directly
+    numpy_result = np.cov(data, rowvar=False)
+
+    # Assert the results are close
+    np.testing.assert_allclose(
+        pytensor_result,
+        numpy_result,
+        rtol=1e-5,
+        atol=1e-8,
+        err_msg=f"Mismatch for input data:\n{data}",
+    )

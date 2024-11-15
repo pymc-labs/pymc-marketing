@@ -46,7 +46,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
-from pymc_marketing.mmm.risk_assessment import ObjectiveFunction, default_assessment
+from pymc_marketing.mmm.risk_assessment import ObjectiveFunction, average_response
 from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
@@ -1614,9 +1614,7 @@ class MMM(
 
         return channels_info
 
-    def _format_parameters_for_budget_allocator(
-        self,
-    ) -> dict[str, Any]:
+    def _format_parameters_for_budget_allocator(self) -> dict[str, Any]:
         """Format the parameters for the budget allocator.
 
         Returns
@@ -2167,6 +2165,53 @@ class MMM(
 
         return pd.DataFrame(new_rows)
 
+    def _sample_posterior_predictive_based_on_allocation(
+        self,
+        allocation_strategy: dict[str, float],
+        time_granularity: str,
+        num_periods: int,
+        noise_level: float,
+    ) -> az.InferenceData:
+        """Generate synthetic dataset and sample posterior predictive based on allocation.
+
+        Parameters
+        ----------
+        allocation_strategy : dict[str, float]
+            The allocation strategy for the channels.
+        time_granularity : str
+            The granularity of the time units (e.g., 'daily', 'weekly', 'monthly').
+        num_periods : int
+            The number of time periods for prediction.
+        noise_level : float
+            The level of noise to add to the synthetic data.
+
+        Returns
+        -------
+        az.InferenceData
+            The posterior predictive samples based on the synthetic dataset.
+        """
+        synth_dataset = self._create_synth_dataset(
+            df=self.X,
+            date_column=self.date_column,
+            allocation_strategy=allocation_strategy,
+            channels=self.channel_columns,
+            controls=self.control_columns,
+            target_col=self.output_var,
+            time_granularity=time_granularity,
+            time_length=num_periods,
+            lag=self.adstock.l_max,
+            noise_level=noise_level,
+        )
+
+        return self.sample_posterior_predictive(
+            X_pred=synth_dataset,
+            extend_idata=False,
+            include_last_observations=True,
+            original_scale=False,
+            var_names=["y", "channel_contributions"],
+            progressbar=False,
+        )
+
     def allocate_budget_to_maximize_response(
         self,
         budget: float | int,
@@ -2175,7 +2220,7 @@ class MMM(
         budget_bounds: dict[str, tuple[float, float]] | None = None,
         custom_constraints: dict[str, float] | None = None,
         noise_level: float = 0.01,
-        objective_function: ObjectiveFunction = default_assessment,
+        objective_function: ObjectiveFunction = average_response,
         **minimize_kwargs,
     ) -> az.InferenceData:
         """Allocate the given budget to maximize the response over a specified time period.
@@ -2210,7 +2255,7 @@ class MMM(
         noise_level : float, optional
             The level of noise added to the allocation strategy (by default 1%).
         objective_function : ObjectiveFunction, optional
-            The objective function to maximize.
+            The objective function to maximize. Default is the mean of the response distribution.
         **minimize_kwargs
             Additional arguments to pass to the `BudgetOptimizer`.
 
@@ -2249,26 +2294,11 @@ class MMM(
             **minimize_kwargs,
         )
 
-        synth_dataset = self._create_synth_dataset(
-            df=self.X,
-            date_column=self.date_column,
+        return self._sample_posterior_predictive_based_on_allocation(
             allocation_strategy=self.optimal_allocation_dict,
-            channels=self.channel_columns,
-            controls=self.control_columns,
-            target_col=self.output_var,
             time_granularity=time_granularity,
-            time_length=num_periods,
-            lag=self.adstock.l_max,
+            num_periods=num_periods,
             noise_level=noise_level,
-        )
-
-        return self.sample_posterior_predictive(
-            X_pred=synth_dataset,
-            extend_idata=False,
-            include_last_observations=True,
-            original_scale=False,
-            var_names=["y", "channel_contributions"],
-            progressbar=False,
         )
 
     def plot_budget_allocation(

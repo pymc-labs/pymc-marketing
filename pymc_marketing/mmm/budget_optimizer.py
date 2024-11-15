@@ -11,18 +11,23 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+
 """Budget optimization module."""
 
-import warnings
-from typing import Any
+import logging
+from typing import Any, ClassVar
 
 import numpy as np
+import pytensor.tensor as pt
 from pydantic import BaseModel, ConfigDict, Field
+from pytensor import function
 from scipy.optimize import minimize
 
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
-from pymc_marketing.mmm.risk_assessment import ObjectiveFunction, default_assessment
+from pymc_marketing.mmm.risk_assessment import ObjectiveFunction, average_response
+
+logger = logging.getLogger(__name__)
 
 
 class MinimizeException(Exception):
@@ -59,8 +64,6 @@ class BudgetOptimizer(BaseModel):
         Default is True.
     objective_function : Callable[[np.ndarray], float], optional
         The objective function to maximize. Default is the mean of the response distribution.
-    objective_function_kwargs : dict, optional
-        Additional keyword arguments for the objective function. Default is an empty dictionary.
 
     """
 
@@ -88,10 +91,61 @@ class BudgetOptimizer(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     objective_function: ObjectiveFunction = Field(
-        default=default_assessment,
+        default=average_response,
         description="Objective function to maximize.",
         arbitrary_types_allowed=True,
     )
+
+    scales_tensor: pt.TensorVariable = Field(
+        default=None, exclude=True, repr=False, description="Scales tensor variable."
+    )
+
+    DEFAULT_MINIMIZE_KWARGS: ClassVar[dict] = {
+        "method": "SLSQP",
+        "options": {"ftol": 1e-9, "maxiter": 1_000},
+    }
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Convert scales to a PyTensor tensor
+        object.__setattr__(self, "scales_tensor", pt.as_tensor_variable(self.scales))
+        self._compiled_functions = {}
+        self._compile_objective_and_grad()
+
+    def _compile_objective_and_grad(self):
+        """Compile the objective function and its gradient using symbolic computation."""
+        budgets_sym = pt.vector("budgets")
+
+        _response_distribution = self._estimate_response(budgets=budgets_sym)
+
+        response_distribution = _response_distribution.sum(axis=(2, 3)).flatten()
+
+        objective_value = -self.objective_function(
+            samples=response_distribution, budgets=budgets_sym
+        )
+
+        # Compute gradient symbolically
+        grad_obj = pt.grad(objective_value, budgets_sym)
+
+        # Compile the functions
+        objective_func = function([budgets_sym], objective_value)
+        grad_func = function([budgets_sym], grad_obj)
+
+        # Cache the compiled functions
+        self._compiled_functions[self.objective_function] = {
+            "objective": objective_func,
+            "gradient": grad_func,
+        }
+
+    def objective(self, budgets):
+        """Objective function for the budget optimization."""
+        return self._compiled_functions[self.objective_function]["objective"](
+            budgets
+        ).item()
+
+    def gradient(self, budgets):
+        """Gradient of the objective function."""
+        return self._compiled_functions[self.objective_function]["gradient"](budgets)
 
     def _estimate_response(self, budgets: list[float]) -> np.ndarray:
         """Calculate the total response during a period of time given the budgets.
@@ -115,42 +169,41 @@ class BudgetOptimizer(BaseModel):
             else (self.saturation, self.adstock)
         )
 
-        budget = budgets / self.scales  # dim: (channels)
+        # Ensure scales are tensor variables
+        scales_sym = pt.as_tensor_variable(self.scales)
+        budget = budgets / scales_sym
 
-        first_params = (
+        # Convert parameters to tensor variables if necessary
+        def convert_params(params):
+            return {
+                k: (pt.as_tensor_variable(v) if isinstance(v, np.ndarray) else v)
+                for k, v in params.items()
+            }
+
+        first_params = convert_params(
             self.parameters["adstock_params"]
             if self.adstock_first
             else self.parameters["saturation_params"]
         )
-        second_params = (
+        second_params = convert_params(
             self.parameters["saturation_params"]
             if self.adstock_first
             else self.parameters["adstock_params"]
         )
 
-        spend = np.tile(budget, (self.num_periods, 1))  # dim: (periods, channels)
-        spend_extended = np.vstack(
-            [spend, np.zeros((self.adstock.l_max, spend.shape[1]))]
-        )  # dim: (periods + l_max, channels)
+        spend = pt.tile(budget, (self.num_periods, 1))
+        spend_extended = pt.concatenate(
+            [spend, pt.zeros((self.adstock.l_max, spend.shape[1]))], axis=0
+        )
 
         _response = first_transform.function(x=spend_extended, **first_params)
 
-        # Dynamically reshape parameters in `second_params` to match `_response`
         for param_name, param_value in second_params.items():
-            if param_value.ndim == 3:  # Check if it lacks the `time` dimension
-                # Reshape by adding a singleton dimension for broadcasting over time
-                second_params[param_name] = param_value.reshape(
-                    param_value.shape[0], param_value.shape[1], 1, param_value.shape[2]
-                )
+            if isinstance(param_value, pt.TensorVariable) and param_value.ndim == 3:
+                param_value = param_value.dimshuffle(0, 1, "x", 2)
+                second_params[param_name] = param_value
 
-        # Apply the second transformation with the reshaped `second_params`
-        response = second_transform.function(x=_response, **second_params).eval()
-        return response.sum(axis=(2, 3)).flatten()  # dim: (chain * draw)
-
-    def objective(self, budgets):
-        """Objective function for the budget optimization."""
-        response_distribution = self._estimate_response(budgets=budgets)
-        return -self.objective_function(samples=response_distribution, budgets=budgets)
+        return second_transform.function(x=_response, **second_params)
 
     def allocate_budget(
         self,
@@ -163,15 +216,12 @@ class BudgetOptimizer(BaseModel):
 
         The default budget bounds are (0, total_budget) for each channel.
 
-        The default constraint is the sum of all budgets should be equal to the total budget.
+        The default constraint ensures the sum of all budgets equals the total budget.
 
         The optimization is done using the Sequential Least Squares Quadratic Programming (SLSQP) method
         and it's constrained such that:
         1. The sum of budgets across all channels equals the total available budget.
         2. The budget allocated to each individual channel lies within its specified range.
-
-        The purpose is to maximize the total expected objective based on the inequality
-        and equality constraints.
 
         Parameters
         ----------
@@ -192,7 +242,7 @@ class BudgetOptimizer(BaseModel):
 
         Raises
         ------
-        Exception
+        MinimizeException
             If the optimization fails, an exception is raised with the reason for the failure.
 
         """
@@ -200,18 +250,16 @@ class BudgetOptimizer(BaseModel):
             budget_bounds = {
                 channel: (0, total_budget) for channel in self.parameters["channels"]
             }
-            warnings.warn(
-                "No budget bounds provided. Using default bounds (0, total_budget) for each channel.",
-                stacklevel=2,
+            logger.warning(
+                "No budget bounds provided. Using default bounds (0, total_budget) for each channel."
             )
         elif not isinstance(budget_bounds, dict):
             raise TypeError("`budget_bounds` should be a dictionary.")
 
         if custom_constraints is None:
             constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
-            warnings.warn(
-                "Using default equality constraint: The sum of all budgets should be equal to the total budget.",
-                stacklevel=2,
+            logger.warning(
+                "Using default equality constraint: The sum of all budgets should be equal to the total budget."
             )
         elif not isinstance(custom_constraints, dict):
             raise TypeError("`custom_constraints` should be a dictionary.")
@@ -230,16 +278,14 @@ class BudgetOptimizer(BaseModel):
         ]
 
         if minimize_kwargs is None:
-            minimize_kwargs = {
-                "method": "SLSQP",
-                "options": {"ftol": 1e-9, "maxiter": 1_000},
-            }
+            minimize_kwargs = self.DEFAULT_MINIMIZE_KWARGS
 
         result = minimize(
             fun=self.objective,
             x0=initial_guess,
             bounds=bounds,
             constraints=constraints,
+            jac=self.gradient,
             **minimize_kwargs,
         )
 
@@ -250,6 +296,6 @@ class BudgetOptimizer(BaseModel):
                     self.parameters["channels"], result.x, strict=False
                 )
             }
-            return optimal_budgets, -result.fun
+            return optimal_budgets, result
         else:
             raise MinimizeException(f"Optimization failed: {result.message}")
