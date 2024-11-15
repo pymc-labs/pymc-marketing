@@ -14,7 +14,7 @@
 
 """Budget optimization module."""
 
-import logging
+import warnings
 from typing import Any, ClassVar
 
 import numpy as np
@@ -26,8 +26,6 @@ from scipy.optimize import minimize
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.risk_assessment import ObjectiveFunction, average_response
-
-logger = logging.getLogger(__name__)
 
 
 class MinimizeException(Exception):
@@ -137,13 +135,13 @@ class BudgetOptimizer(BaseModel):
             "gradient": grad_func,
         }
 
-    def objective(self, budgets):
+    def objective(self, budgets: pt.TensorVariable) -> float:
         """Objective function for the budget optimization."""
         return self._compiled_functions[self.objective_function]["objective"](
             budgets
         ).item()
 
-    def gradient(self, budgets):
+    def gradient(self, budgets: pt.TensorVariable) -> pt.TensorVariable:
         """Gradient of the objective function."""
         return self._compiled_functions[self.objective_function]["gradient"](budgets)
 
@@ -250,16 +248,20 @@ class BudgetOptimizer(BaseModel):
             budget_bounds = {
                 channel: (0, total_budget) for channel in self.parameters["channels"]
             }
-            logger.warning(
-                "No budget bounds provided. Using default bounds (0, total_budget) for each channel."
+            warnings.warn(
+                "No budget bounds provided. Using default bounds (0, total_budget) for each channel.",
+                UserWarning,
+                stacklevel=2,
             )
         elif not isinstance(budget_bounds, dict):
             raise TypeError("`budget_bounds` should be a dictionary.")
 
         if custom_constraints is None:
             constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
-            logger.warning(
-                "Using default equality constraint: The sum of all budgets should be equal to the total budget."
+            warnings.warn(
+                "Using default equality constraint: The sum of all budgets should be equal to the total budget.",
+                UserWarning,
+                stacklevel=2,
             )
         elif not isinstance(custom_constraints, dict):
             raise TypeError("`custom_constraints` should be a dictionary.")

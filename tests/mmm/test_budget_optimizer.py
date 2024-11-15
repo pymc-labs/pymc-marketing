@@ -110,7 +110,7 @@ def test_allocate_budget(
 
     # Assert Results
     assert optimal_budgets == expected_optimal
-    assert total_response == pytest.approx(expected_response, rel=1e-2)
+    assert -total_response.fun == pytest.approx(expected_response, rel=1e-2)
 
 
 @pytest.mark.parametrize(
@@ -160,7 +160,7 @@ def test_allocate_budget_zero_total(
             total_budget, budget_bounds
         )
     assert optimal_budgets == pytest.approx(expected_optimal, rel=1e-2)
-    assert total_response == pytest.approx(expected_response, abs=1e-1)
+    assert -total_response.fun == pytest.approx(expected_response, abs=1e-1)
 
 
 @patch("pymc_marketing.mmm.budget_optimizer.minimize")
