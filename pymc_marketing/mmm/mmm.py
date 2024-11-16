@@ -201,54 +201,31 @@ class BaseMMM(BaseValidateMMM):
         self.treatment_nodes = treatment_nodes
         self.outcome_node = outcome_node
 
-        if (
-            self.dag is not None
-            and self.outcome_node is not None
-            and self.treatment_nodes is None
-        ):
-            self.treatment_nodes = self.channel_columns
-            warnings.warn(
-                "No treatment nodes provided. Using channel columns as treatment nodes.",
-                stacklevel=2,
-            )
-
-        # Begin addition for DAG and CausalGraphModel
-        if (
-            self.dag is not None
-            and self.outcome_node is not None
-            and self.treatment_nodes is not None
-        ):
-            self.causal_graphical_model = CausalGraphModel.from_string(
-                graph_str=self.dag,
+        # Initialize causal graph if provided
+        if self.dag is not None and self.outcome_node is not None:
+            if self.treatment_nodes is None:
+                self.treatment_nodes = self.channel_columns
+                warnings.warn(
+                    "No treatment nodes provided, using channel columns as treatment nodes.",
+                    stacklevel=2,
+                )
+            self.causal_graphical_model = CausalGraphModel.build_graphical_model(
+                graph=self.dag,
                 treatment=self.treatment_nodes,
                 outcome=self.outcome_node,
             )
 
-            # Get minimal adjustment sets
-            self.adjustment_set = (
-                self.causal_graphical_model.get_unique_adjustment_nodes()
+            self.control_columns = self.causal_graphical_model.compute_adjustment_sets(
+                control_columns=self.control_columns,
+                channel_columns=self.channel_columns,
             )
 
-            # Only add treatment_nodes if it's not None
-            if self.treatment_nodes:
-                self.minimal_adjustment_set = self.adjustment_set + self.treatment_nodes
-
-            if self.minimal_adjustment_set:
-                # Update control_columns with minimal adjustment set
-                if self.control_columns is not None:
-                    self.control_columns = list(
-                        set(self.control_columns).intersection(self.minimal_adjustment_set)
-                        - set(self.channel_columns)
-                    )
-                # Check if seasonality_variable is in the minimal adjustment set
-                if "yearly_seasonality" not in self.minimal_adjustment_set:
-                    # Set yearly_seasonality to None to disable it
-                    self.yearly_seasonality = None
-                else:
-                    # delete yearly_seasonality from minimal adjustment set
-                    self.control_columns.remove("yearly_seasonality")
-            else:
-                warnings.warn("No minimal adjustment set found.", stacklevel=2)
+            if "yearly_seasonality" not in self.causal_graphical_model.adjustment_set:
+                warnings.warn(
+                    "Yearly seasonality excluded as it's not required for adjustment.",
+                    stacklevel=2,
+                )
+                self.yearly_seasonality = None
 
         if self.yearly_seasonality is not None:
             self.yearly_fourier = YearlyFourier(

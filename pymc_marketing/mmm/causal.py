@@ -13,6 +13,8 @@
 #   limitations under the License.
 """Causal identification class."""
 
+import warnings
+
 import pandas as pd
 from dowhy import CausalModel
 
@@ -41,15 +43,15 @@ class CausalGraphModel:
         self.outcome = outcome
 
     @classmethod
-    def from_string(
-        cls, graph_str: str, treatment: list[str] | tuple[str], outcome: str
+    def build_graphical_model(
+        cls, graph: str, treatment: list[str] | tuple[str], outcome: str
     ):
         """Create a CausalGraphModel from a string representation of a graph.
 
         Parameters
         ----------
-        graph_str : str
-            A string representation of the graph (e.g., in DOT format).
+        graph : str
+            A string representation of the graph (e.g., String in DOT format).
         treatment : list[str]
             A list of treatment variable names.
         outcome : str
@@ -61,7 +63,7 @@ class CausalGraphModel:
             An instance of CausalGraphModel constructed from the given graph string.
         """
         causal_model = CausalModel(
-            data=pd.DataFrame(), graph=graph_str, treatment=treatment, outcome=outcome
+            data=pd.DataFrame(), graph=graph, treatment=treatment, outcome=outcome
         )
         return cls(causal_model, treatment, outcome)
 
@@ -95,3 +97,38 @@ class CausalGraphModel:
             if node not in self.treatment and node != self.outcome
         )
         return list(adjustment_nodes)
+
+    def compute_adjustment_sets(
+        self,
+        channel_columns: list[str],
+        control_columns: list[str] | None = None,
+    ):
+        """Compute minimal adjustment sets and handle warnings."""
+        # Return the input control_columns as is if it is None
+        if control_columns is None:
+            return control_columns
+
+        self.adjustment_set = self.get_unique_adjustment_nodes()
+
+        common_controls = set(control_columns).intersection(self.adjustment_set)
+        unique_controls = set(control_columns) - set(self.adjustment_set)
+
+        if unique_controls:
+            warnings.warn(
+                f"Columns {unique_controls} are not in the adjustment set. Controls are being modified.",
+                stacklevel=2,
+            )
+
+        control_columns = list(common_controls - set(channel_columns))
+
+        self.minimal_adjustment_set = control_columns + list(channel_columns)
+
+        for column in self.adjustment_set:
+            if column not in control_columns and column not in channel_columns:
+                warnings.warn(
+                    f"""Column {column} in adjustment set not found in data.
+                    Not controlling for this may induce bias in treatment effect estimates.""",
+                    stacklevel=2,
+                )
+
+        return control_columns
