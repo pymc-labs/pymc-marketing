@@ -1,9 +1,25 @@
+#   Copyright 2024 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 import warnings
+
 import pytest
+
 from pymc_marketing.mmm.causal import CausalGraphModel
 
 # Suppress specific dowhy warnings globally
 warnings.filterwarnings("ignore", message="The graph defines .* variables")
+
 
 @pytest.mark.filterwarnings("ignore:The graph defines .* variables")
 @pytest.mark.parametrize(
@@ -70,9 +86,9 @@ def test_get_unique_adjustment_nodes(dag, treatment, outcome, expected_adjustmen
         graph=dag, treatment=treatment, outcome=outcome
     )
     adjustment_set = causal_model.get_unique_adjustment_nodes()
-    assert set(adjustment_set) == set(expected_adjustment_set), (
-        f"Expected {expected_adjustment_set}, but got {adjustment_set}"
-    )
+    assert set(adjustment_set) == set(
+        expected_adjustment_set
+    ), f"Expected {expected_adjustment_set}, but got {adjustment_set}"
 
 
 @pytest.mark.parametrize(
@@ -150,6 +166,6 @@ def test_compute_adjustment_sets(
     adjusted_controls = causal_model.compute_adjustment_sets(
         control_columns=control_columns, channel_columns=channel_columns
     )
-    assert adjusted_controls == expected_controls, (
-        f"Expected {expected_controls}, but got {adjusted_controls}"
-    )
+    assert (
+        adjusted_controls == expected_controls
+    ), f"Expected {expected_controls}, but got {adjusted_controls}"
