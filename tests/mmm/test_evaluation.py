@@ -22,7 +22,7 @@ from pymc_marketing.mmm.evaluation import (
 )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def manage_random_state():
     """Fixture to manage random state before and after each test."""
     # Setup: save current state and set seed
