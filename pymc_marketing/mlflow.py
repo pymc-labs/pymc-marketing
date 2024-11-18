@@ -760,6 +760,7 @@ def load_model(
         run_id=run_id, artifact_path="idata.nc", dst_path="idata"
     )
     model = MMM.load(idata_path)
+
     if not keep_idata:
         os.remove(idata_path)
         os.rmdir("idata")
@@ -892,30 +893,29 @@ def autolog(
         @wraps(sample)
         def new_sample(*args, **kwargs):
             model = pm.modelcontext(kwargs.get("model"))
-            with model:
-                idata = sample(*args, **kwargs)
-                mlflow.log_param("nuts_sampler", kwargs.get("nuts_sampler", "pymc"))
+            idata = sample(*args, **kwargs)
+            mlflow.log_param("nuts_sampler", kwargs.get("nuts_sampler", "pymc"))
 
-                # Align with the default values in pymc.sample
-                tune = kwargs.get("tune", 1000)
+            # Align with the default values in pymc.sample
+            tune = kwargs.get("tune", 1000)
 
-                if log_sampler_info:
-                    log_sample_diagnostics(idata, tune=tune)
-                    log_arviz_summary(
-                        idata,
-                        "summary.html",
-                        var_names=summary_var_names,
-                        **arviz_summary_kwargs,
-                    )
+            if log_sampler_info:
+                log_sample_diagnostics(idata, tune=tune)
+                log_arviz_summary(
+                    idata,
+                    "summary.html",
+                    var_names=summary_var_names,
+                    **arviz_summary_kwargs,
+                )
 
-                if log_model_info:
-                    log_model_derived_info(model)
+            if log_model_info:
+                log_model_derived_info(model)
 
-                if log_metadata_info:
-                    log_metadata(model=model, idata=idata)
+            if log_metadata_info:
+                log_metadata(model=model, idata=idata)
 
-                if log_loocv:
-                    log_loocv_metrics(idata=idata)
+            if log_loocv:
+                log_loocv_metrics(idata=idata)
 
             return idata
 
