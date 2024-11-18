@@ -548,7 +548,7 @@ class MMMModelBuilder(ModelBuilder):
         if hdi_list is None:
             hdi_list = [0.94, 0.5]
 
-        if hdi_list:
+        if hdi_list and not add_gradient:
             alpha_list = np.linspace(0.2, 0.4, len(hdi_list))
             for hdi_prob, alpha in zip(hdi_list, alpha_list, strict=True):
                 ax = self._add_hdi_to_plot(
