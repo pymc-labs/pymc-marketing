@@ -754,15 +754,15 @@ def load_model(
 
     if not full_model:
         model = mlflow.pyfunc.load_model(model_uri)
+        return model
 
-    else:
-        idata_path = mlflow.artifacts.download_artifacts(
-            run_id=run_id, artifact_path="idata.nc", dst_path="idata"
-        )
-        model = MMM.load(idata_path)
-        if not keep_idata:
-            os.remove(idata_path)
-            os.rmdir("idata")
+    idata_path = mlflow.artifacts.download_artifacts(
+        run_id=run_id, artifact_path="idata.nc", dst_path="idata"
+    )
+    model = MMM.load(idata_path)
+    if not keep_idata:
+        os.remove(idata_path)
+        os.rmdir("idata")
 
     return model
 
