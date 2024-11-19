@@ -889,7 +889,7 @@ class MMM(
         from pymc_marketing.prior import Prior
 
         my_model_config = {
-            "beta_channel": Prior("LogNormal", mu=np.array([2, 1]), sigma=1),
+            "saturation_beta": Prior("LogNormal", mu=np.array([2, 1]), sigma=1),
             "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
         }
 

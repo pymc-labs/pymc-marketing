@@ -186,6 +186,8 @@ class LinearTrend(BaseModel):
 
     Plot the curve HDI and samples:
 
+    .. code-block:: python
+
         sample_kwargs = {"n": 3, "rng": rng}
         fig, axes = hierarchical_trend.plot_curve(
             curve,
