@@ -25,7 +25,6 @@ warnings.filterwarnings("ignore", message="The graph defines .* variables")
 @pytest.mark.parametrize(
     "dag, treatment, outcome, expected_adjustment_set",
     [
-        # Case 1: Simple backdoor path
         (
             """
             digraph {
@@ -38,7 +37,6 @@ warnings.filterwarnings("ignore", message="The graph defines .* variables")
             "Y",
             ["Z"],  # Z is needed to block backdoor paths
         ),
-        # Case 2: Multiple confounders
         (
             """
             digraph {
@@ -53,7 +51,6 @@ warnings.filterwarnings("ignore", message="The graph defines .* variables")
             "Y",
             ["Z1", "Z2"],  # Both Z1 and Z2 are needed
         ),
-        # Case 3: No confounders
         (
             """
             digraph {
@@ -64,7 +61,6 @@ warnings.filterwarnings("ignore", message="The graph defines .* variables")
             "Y",
             [],  # No adjustment is needed
         ),
-        # Case 4: Multiple treatments
         (
             """
             digraph {
@@ -80,6 +76,12 @@ warnings.filterwarnings("ignore", message="The graph defines .* variables")
             ["Z"],  # Z is needed for both treatments
         ),
     ],
+    ids=[
+        "simple_backdoor_path",
+        "multiple_confounders",
+        "no_confounders",
+        "multiple_treatments",
+    ],
 )
 def test_get_unique_adjustment_nodes(dag, treatment, outcome, expected_adjustment_set):
     causal_model = CausalGraphModel.build_graphical_model(
@@ -94,7 +96,6 @@ def test_get_unique_adjustment_nodes(dag, treatment, outcome, expected_adjustmen
 @pytest.mark.parametrize(
     "dag, treatment, outcome, control_columns, channel_columns, expected_controls",
     [
-        # Case 1: Relevant control column
         (
             """
             digraph {
@@ -109,7 +110,6 @@ def test_get_unique_adjustment_nodes(dag, treatment, outcome, expected_adjustmen
             ["X"],  # Channels
             ["Z"],  # Z remains
         ),
-        # Case 2: Irrelevant control column
         (
             """
             digraph {
@@ -124,7 +124,6 @@ def test_get_unique_adjustment_nodes(dag, treatment, outcome, expected_adjustmen
             ["X"],
             [],  # W is removed
         ),
-        # Case 3: No controls provided
         (
             """
             digraph {
@@ -139,7 +138,6 @@ def test_get_unique_adjustment_nodes(dag, treatment, outcome, expected_adjustmen
             ["X"],
             None,  # Return None unchanged
         ),
-        # Case 4: Mixed relevant and irrelevant controls
         (
             """
             digraph {
@@ -155,6 +153,12 @@ def test_get_unique_adjustment_nodes(dag, treatment, outcome, expected_adjustmen
             ["X"],
             ["Z"],  # Only Z remains, as W and V are irrelevant for adjustment
         ),
+    ],
+    ids=[
+        "relevant_control",
+        "irrelevant_control",
+        "no_controls",
+        "mixed_controls",
     ],
 )
 def test_compute_adjustment_sets(

@@ -36,11 +36,10 @@ dependencies = [
     "seaborn>=0.12.2",
     "xarray>=2024.1.0",
     "xarray-einstats>=0.5.1",
-    "networkx",
-    "dowhy",
 ]
 
 [project.optional-dependencies]
+dag = ["dowhy", "networkx"]
 docs = [
     "blackjax",
     "fastprogress",

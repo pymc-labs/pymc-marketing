@@ -16,7 +16,14 @@
 import warnings
 
 import pandas as pd
-from dowhy import CausalModel
+
+try:
+    from dowhy import CausalModel
+except ImportError as e:
+    raise ImportError(
+        "To use Causal Graph functionality, please install the optional dependencies with: "
+        "pip install pymc-marketing[dag]"
+    ) from e
 
 
 class CausalGraphModel:
