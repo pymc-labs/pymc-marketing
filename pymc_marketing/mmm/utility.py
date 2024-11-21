@@ -26,42 +26,27 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 """
-Risk assessment module for portfolio optimization and investment modeling.
-
-This module provides various objective functions and metrics for assessing
-risk and returns in optimization processes, particularly in the context of
-budget allocation (e.g., marketing spend) and posterior response modeling.
+Utility functions for Bayesian optimization.
 
 Key Concepts:
 -------------
+
 - **Samples**:
-    A PyTensor tensor variable (`pt.TensorVariable`) representing posterior
-    response samples. Typically, these are outputs of probabilistic models
-    (e.g., PyMC models) that predict the expected outcomes (e.g., ROI, sales,
-    engagement) given different budget allocations.
-    - Example: Posterior samples of sales increase due to marketing spend
-    after use `pymc.posterior_predictive`.
+    A PyTensor tensor variable (`pt.TensorVariable`) representing samples drawn from the posterior
+    distributions of the model outputs. These samples capture the uncertainty in the model predictions
+    and are essential for computing expected utilities and risk measures in Bayesian optimization.
 
 - **Budgets**:
-    A PyTensor tensor variable representing a set of monetary budgets allocated
-    to different channels or investments. Each element corresponds to the budget
-    for a specific channel in the optimization process.
-    - Example: `[5000, 10000, 15000]` for spend across three channels x1, x2, x3.
-
-Objective:
-----------
-The functions provided here are designed to calculate metrics such as tail
-distance, Sharpe ratio, diversification, and others, based on these `samples`
-and `budgets`. These metrics are crucial for making informed decisions in
-optimization tasks like allocating marketing budgets while minimizing risk
-based on the user's preferences.
+    A PyTensor tensor variable representing a set of monetary budgets allocated to different assets,
+    investments, or channels. Each element corresponds to the budget for a specific option in the
+    optimization process.
 """
 
 from collections.abc import Callable
 
 import pytensor.tensor as pt
 
-ObjectiveFunction = Callable[[pt.TensorVariable, pt.TensorVariable], float]
+UtilityFunction = Callable[[pt.TensorVariable, pt.TensorVariable], float]
 
 
 def _compute_quantile(x: pt.TensorVariable, q: float) -> pt.TensorVariable:
@@ -96,7 +81,7 @@ def average_response(
     return pt.mean(samples)
 
 
-def tail_distance(confidence_level: float = 0.75) -> ObjectiveFunction:
+def tail_distance(confidence_level: float = 0.75) -> UtilityFunction:
     R"""Calculate the absolute distance between the mean and the quantiles.
 
     It is a simple and interpretable metric that can be used to assess the risk.
@@ -118,7 +103,7 @@ def tail_distance(confidence_level: float = 0.75) -> ObjectiveFunction:
 
     Returns
     -------
-    ObjectiveFunction
+    UtilityFunction
         A function that calculates the tail distance metric given samples and budgets.
     """
     if not 0 < confidence_level < 1:
@@ -162,7 +147,7 @@ def _calculate_roas_distribution_for_allocation(
 
 def mean_tightness_score(
     alpha: float = 0.5, confidence_level: float = 0.75
-) -> ObjectiveFunction:
+) -> UtilityFunction:
     R"""
     Calculate the mean tightness score.
 
@@ -190,7 +175,7 @@ def mean_tightness_score(
 
     Returns
     -------
-    ObjectiveFunction
+    UtilityFunction
         A function that calculates the mean tightness score given samples and budgets.
     """
     if not 0 < confidence_level < 1:
@@ -206,7 +191,7 @@ def mean_tightness_score(
     return _mean_tightness_score
 
 
-def value_at_risk(confidence_level: float = 0.95) -> ObjectiveFunction:
+def value_at_risk(confidence_level: float = 0.95) -> UtilityFunction:
     R"""
     Calculate the Value at Risk (VaR) at a specified confidence level.
 
@@ -230,7 +215,7 @@ def value_at_risk(confidence_level: float = 0.95) -> ObjectiveFunction:
 
     Returns
     -------
-    ObjectiveFunction
+    UtilityFunction
         A function that calculates the VaR value at the specified confidence level given samples and budgets.
 
     Raises
@@ -253,7 +238,7 @@ def value_at_risk(confidence_level: float = 0.95) -> ObjectiveFunction:
     return _value_at_risk
 
 
-def conditional_value_at_risk(confidence_level: float = 0.95) -> ObjectiveFunction:
+def conditional_value_at_risk(confidence_level: float = 0.95) -> UtilityFunction:
     R"""
     Calculate the Conditional Value at Risk (CVaR) at a specified confidence level.
 
@@ -276,7 +261,7 @@ def conditional_value_at_risk(confidence_level: float = 0.95) -> ObjectiveFuncti
 
     Returns
     -------
-    ObjectiveFunction
+    UtilityFunction
         A function that calculates the CVaR value at the specified confidence level given samples and budgets.
 
     Raises
@@ -308,7 +293,7 @@ def conditional_value_at_risk(confidence_level: float = 0.95) -> ObjectiveFuncti
     return _conditional_value_at_risk
 
 
-def sharpe_ratio(risk_free_rate: float = 0.0) -> ObjectiveFunction:
+def sharpe_ratio(risk_free_rate: float = 0.0) -> UtilityFunction:
     R"""
     Calculate the Sharpe Ratio.
 
@@ -331,13 +316,8 @@ def sharpe_ratio(risk_free_rate: float = 0.0) -> ObjectiveFunction:
 
     Returns
     -------
-    ObjectiveFunction
+    UtilityFunction
         A function that calculates the Sharpe Ratio given samples and budgets.
-
-    Raises
-    ------
-    ValueError
-        If the standard deviation of excess returns is zero.
 
     References
     ----------
@@ -356,7 +336,7 @@ def sharpe_ratio(risk_free_rate: float = 0.0) -> ObjectiveFunction:
     return _sharpe_ratio
 
 
-def raroc(risk_free_rate: float = 0.0) -> ObjectiveFunction:
+def raroc(risk_free_rate: float = 0.0) -> UtilityFunction:
     R"""
     Calculate the Risk-Adjusted Return on Capital (RAROC).
 
@@ -383,13 +363,8 @@ def raroc(risk_free_rate: float = 0.0) -> ObjectiveFunction:
 
     Returns
     -------
-    ObjectiveFunction
+    UtilityFunction
         A function that calculates the RAROC value given samples and budgets.
-
-    Raises
-    ------
-    ValueError
-        If `capital` is less than or equal to zero, as RAROC requires positive capital.
 
     References
     ----------
@@ -410,7 +385,7 @@ def raroc(risk_free_rate: float = 0.0) -> ObjectiveFunction:
 
 def adjusted_value_at_risk_score(
     confidence_level: float = 0.95, risk_aversion: float = 0.8
-) -> ObjectiveFunction:
+) -> UtilityFunction:
     R"""
     Calculate adjusted Value at Risk (AVaR) score.
 
@@ -437,7 +412,7 @@ def adjusted_value_at_risk_score(
 
     Returns
     -------
-    ObjectiveFunction
+    UtilityFunction
         A function that calculates the adjusted Value at Risk score given samples and budgets.
 
     Raises

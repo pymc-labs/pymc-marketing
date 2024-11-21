@@ -25,7 +25,7 @@ from scipy.optimize import minimize
 
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
-from pymc_marketing.mmm.risk_assessment import ObjectiveFunction, average_response
+from pymc_marketing.mmm.utility import UtilityFunction, average_response
 
 
 class MinimizeException(Exception):
@@ -57,11 +57,15 @@ class BudgetOptimizer(BaseModel):
         The number of time units.
     parameters : dict
         A dictionary of parameters for each channel.
+    scales : np.ndarray
+        The scale parameter for each channel variable.
+    response_scaler : float, optional
+        The scaling factor for the target response variable. Default is 1.
     adstock_first : bool, optional
         Whether to apply adstock transformation first or saturation transformation first.
         Default is True.
-    objective_function : Callable[[np.ndarray], float], optional
-        The objective function to maximize. Default is the mean of the response distribution.
+    utility_function : UtilityFunction, optional
+        The utility function to maximize. Default is the mean of the response distribution.
 
     """
 
@@ -82,20 +86,27 @@ class BudgetOptimizer(BaseModel):
     scales: np.ndarray = Field(
         ..., description="The scale parameter for each channel variable"
     )
+    response_scaler: float = Field(
+        default=1.0,
+        description="Scaling factor for the target response variable. Defaults to 1.",
+    )
     adstock_first: bool = Field(
         True,
         description="Whether to apply adstock transformation first or saturation transformation first.",
     )
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    objective_function: ObjectiveFunction = Field(
-        default=average_response,
-        description="Objective function to maximize.",
-        arbitrary_types_allowed=True,
+    response_scaler_sym: pt.TensorVariable = Field(
+        default=None,
+        exclude=True,
+        repr=False,
+        description="Response scaler tensor variable.",
     )
 
-    scales_tensor: pt.TensorVariable = Field(
-        default=None, exclude=True, repr=False, description="Scales tensor variable."
+    utility_function: UtilityFunction = Field(
+        default=average_response,
+        description="Utility function to maximize.",
+        arbitrary_types_allowed=True,
     )
 
     DEFAULT_MINIMIZE_KWARGS: ClassVar[dict] = {
@@ -105,8 +116,7 @@ class BudgetOptimizer(BaseModel):
 
     def __init__(self, **data):
         super().__init__(**data)
-        # Convert scales to a PyTensor tensor
-        object.__setattr__(self, "scales_tensor", pt.as_tensor_variable(self.scales))
+        self.response_scaler_sym = pt.as_tensor_variable(self.response_scaler)
         self._compiled_functions = {}
         self._compile_objective_and_grad()
 
@@ -118,7 +128,7 @@ class BudgetOptimizer(BaseModel):
 
         response_distribution = _response_distribution.sum(axis=(2, 3)).flatten()
 
-        objective_value = -self.objective_function(
+        objective_value = -self.utility_function(
             samples=response_distribution, budgets=budgets_sym
         )
 
@@ -126,24 +136,24 @@ class BudgetOptimizer(BaseModel):
         grad_obj = pt.grad(objective_value, budgets_sym)
 
         # Compile the functions
-        objective_func = function([budgets_sym], objective_value)
+        utility_func = function([budgets_sym], objective_value)
         grad_func = function([budgets_sym], grad_obj)
 
         # Cache the compiled functions
-        self._compiled_functions[self.objective_function] = {
-            "objective": objective_func,
+        self._compiled_functions[self.utility_function] = {
+            "objective": utility_func,
             "gradient": grad_func,
         }
 
-    def objective(self, budgets: pt.TensorVariable) -> float:
+    def _objective(self, budgets: pt.TensorVariable) -> float:
         """Objective function for the budget optimization."""
-        return self._compiled_functions[self.objective_function]["objective"](
+        return self._compiled_functions[self.utility_function]["objective"](
             budgets
         ).item()
 
-    def gradient(self, budgets: pt.TensorVariable) -> pt.TensorVariable:
+    def _gradient(self, budgets: pt.TensorVariable) -> pt.TensorVariable:
         """Gradient of the objective function."""
-        return self._compiled_functions[self.objective_function]["gradient"](budgets)
+        return self._compiled_functions[self.utility_function]["gradient"](budgets)
 
     def _estimate_response(self, budgets: list[float]) -> np.ndarray:
         """Calculate the total response during a period of time given the budgets.
@@ -157,8 +167,8 @@ class BudgetOptimizer(BaseModel):
 
         Returns
         -------
-        float
-            The negative total response value.
+        np.ndarray
+            The estimated response distribution.
 
         """
         first_transform, second_transform = (
@@ -167,9 +177,8 @@ class BudgetOptimizer(BaseModel):
             else (self.saturation, self.adstock)
         )
 
-        # Ensure scales are tensor variables
-        scales_sym = pt.as_tensor_variable(self.scales)
-        budget = budgets / scales_sym
+        # Convert scales to a tensor variable when needed
+        budget = budgets / pt.as_tensor_variable(self.scales)
 
         # Convert parameters to tensor variables if necessary
         def convert_params(params):
@@ -201,7 +210,11 @@ class BudgetOptimizer(BaseModel):
                 param_value = param_value.dimshuffle(0, 1, "x", 2)
                 second_params[param_name] = param_value
 
-        return second_transform.function(x=_response, **second_params)
+        # Multiply by the response_scaler_sym
+        return (
+            second_transform.function(x=_response, **second_params)
+            * self.response_scaler_sym
+        )
 
     def allocate_budget(
         self,
@@ -236,7 +249,7 @@ class BudgetOptimizer(BaseModel):
         Returns
         -------
         tuple[dict[str, float], float]
-            The optimal budgets for each channel and the negative total response value.
+            The optimal budgets for each channel and the optimization result object.
 
         Raises
         ------
@@ -283,11 +296,11 @@ class BudgetOptimizer(BaseModel):
             minimize_kwargs = self.DEFAULT_MINIMIZE_KWARGS
 
         result = minimize(
-            fun=self.objective,
+            fun=self._objective,
             x0=initial_guess,
             bounds=bounds,
             constraints=constraints,
-            jac=self.gradient,
+            jac=self._gradient,
             **minimize_kwargs,
         )
 

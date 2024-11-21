@@ -26,6 +26,7 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import seaborn as sns
+import xarray as xr
 from pydantic import Field, InstanceOf, validate_call
 from xarray import DataArray, Dataset
 
@@ -46,8 +47,8 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
-from pymc_marketing.mmm.risk_assessment import ObjectiveFunction, average_response
 from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
+from pymc_marketing.mmm.utility import UtilityFunction, average_response
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
@@ -2165,7 +2166,7 @@ class MMM(
 
         return pd.DataFrame(new_rows)
 
-    def _sample_posterior_predictive_based_on_allocation(
+    def sample_response_distribution(
         self,
         allocation_strategy: dict[str, float],
         time_granularity: str,
@@ -2203,6 +2204,15 @@ class MMM(
             noise_level=noise_level,
         )
 
+        constant_data = xr.Dataset(
+            data_vars={
+                "allocation": (["channel"], list(allocation_strategy.values())),
+            },
+            coords={
+                "channel": list(allocation_strategy.keys()),
+            },
+        )
+
         return self.sample_posterior_predictive(
             X_pred=synth_dataset,
             extend_idata=False,
@@ -2210,6 +2220,87 @@ class MMM(
             original_scale=False,
             var_names=["y", "channel_contributions"],
             progressbar=False,
+        ).merge(constant_data)
+
+    def optimize_budget(
+        self,
+        budget: float | int,
+        num_periods: int,
+        budget_bounds: dict[str, tuple[float, float]] | None = None,
+        custom_constraints: dict[str, float] | None = None,
+        noise_level: float = 0.01,
+        response_scaler: float = 1.0,
+        utility_function: UtilityFunction = average_response,
+        **minimize_kwargs,
+    ) -> az.InferenceData:
+        """Optimize the given budget based on the specified utility function over a specified time period.
+
+        This function optimizes the allocation of a given budget across different channels
+        to maximize the response, considering adstock and saturation effects. It scales the
+        budget and budget bounds, performs the optimization, and generates a synthetic dataset
+        for posterior predictive sampling.
+
+        The function first scales the budget and budget bounds using the maximum scale
+        of the channel transformer. It then uses the `BudgetOptimizer` to allocate the
+        budget, and creates a synthetic dataset based on the optimal allocation. Finally,
+        it performs posterior predictive sampling on the synthetic dataset.
+
+        **Important**: When generating the posterior predicive distribution for the target with the optimized budget,
+        we are setting the control variables to zero! This is done because in many situations we do not have all the
+        control variables in the future (e.g. outlier control, special events).
+
+        Parameters
+        ----------
+        budget : float or int
+            The total budget to be allocated.
+        num_periods : float
+            The number of time units over which the budget is to be allocated.
+        budget_bounds : dict[str, list[Any]], optional
+            A dictionary specifying the lower and upper bounds for the budget allocation
+            for each channel. If None, no bounds are applied.
+        custom_constraints : dict[str, float], optional
+            Custom constraints for the optimization. If None, no custom constraints are applied.
+        noise_level : float, optional
+            The level of noise added to the allocation strategy (by default 1%).
+        utility_function : UtilityFunction, optional
+            The utility function to maximize. Default is the mean of the response distribution.
+        **minimize_kwargs
+            Additional arguments to pass to the `BudgetOptimizer`.
+
+        Returns
+        -------
+        az.InferenceData
+            The posterior predictive samples generated from the synthetic dataset.
+
+        Raises
+        ------
+        ValueError
+            If the time granularity is not supported.
+
+        ValueError
+            If the noise level is not a float.
+        """
+        if not isinstance(noise_level, float):
+            raise ValueError("noise_level must be a float")
+
+        _parameters = self._format_parameters_for_budget_allocator()
+
+        allocator = BudgetOptimizer(
+            adstock=self.adstock,
+            saturation=self.saturation,
+            parameters=_parameters,
+            adstock_first=self.adstock_first,
+            num_periods=num_periods,
+            scales=self.channel_transformer["scaler"].scale_,
+            response_scaler=response_scaler,
+            utility_function=utility_function,
+        )
+
+        return allocator.allocate_budget(
+            total_budget=budget,
+            budget_bounds=budget_bounds,
+            custom_constraints=custom_constraints,
+            **minimize_kwargs,
         )
 
     def allocate_budget_to_maximize_response(
@@ -2220,10 +2311,14 @@ class MMM(
         budget_bounds: dict[str, tuple[float, float]] | None = None,
         custom_constraints: dict[str, float] | None = None,
         noise_level: float = 0.01,
-        objective_function: ObjectiveFunction = average_response,
+        utility_function: UtilityFunction = average_response,
         **minimize_kwargs,
     ) -> az.InferenceData:
         """Allocate the given budget to maximize the response over a specified time period.
+
+        .. deprecated:: 0.1.0
+            This method is deprecated and will be removed in a future version.
+            Use :meth:`optimize_budget` instead.
 
         This function optimizes the allocation of a given budget across different channels
         to maximize the response, considering adstock and saturation effects. It scales the
@@ -2254,8 +2349,8 @@ class MMM(
             Custom constraints for the optimization. If None, no custom constraints are applied.
         noise_level : float, optional
             The level of noise added to the allocation strategy (by default 1%).
-        objective_function : ObjectiveFunction, optional
-            The objective function to maximize. Default is the mean of the response distribution.
+        utility_function : UtilityFunction, optional
+            The utility function to maximize. Default is the mean of the response distribution.
         **minimize_kwargs
             Additional arguments to pass to the `BudgetOptimizer`.
 
@@ -2272,6 +2367,13 @@ class MMM(
         ValueError
             If the noise level is not a float.
         """
+        warnings.warn(
+            "This method is deprecated and will be removed in a future version. "
+            "Use optimize_budget() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         if not isinstance(noise_level, float):
             raise ValueError("noise_level must be a float")
 
@@ -2284,7 +2386,7 @@ class MMM(
             adstock_first=self.adstock_first,
             num_periods=num_periods,
             scales=self.channel_transformer["scaler"].scale_,
-            objective_function=objective_function,
+            utility_function=utility_function,
         )
 
         self.optimal_allocation_dict, _ = allocator.allocate_budget(
@@ -2294,7 +2396,7 @@ class MMM(
             **minimize_kwargs,
         )
 
-        return self._sample_posterior_predictive_based_on_allocation(
+        return self.sample_response_distribution(
             allocation_strategy=self.optimal_allocation_dict,
             time_granularity=time_granularity,
             num_periods=num_periods,
@@ -2335,7 +2437,7 @@ class MMM(
         if original_scale:
             channel_contributions *= self.get_target_transformer()["scaler"].scale_
 
-        allocated_spend = np.array(list(self.optimal_allocation_dict.values()))
+        allocated_spend = samples.allocation.to_numpy()
 
         if ax is None:
             fig, ax = plt.subplots(figsize=figsize)
