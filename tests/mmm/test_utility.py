@@ -18,18 +18,18 @@ import pytest
 from pytensor import function
 
 from pymc_marketing.mmm.utility import (
+    _calculate_roas_distribution_for_allocation,
     _compute_quantile,
     _covariance_matrix,
-    mean_tightness_score,
-    tail_distance,
-    _calculate_roas_distribution_for_allocation,
-    average_response,
-    sharpe_ratio,
-    raroc,
-    portfolio_entropy,
     adjusted_value_at_risk_score,
-    value_at_risk,
+    average_response,
     conditional_value_at_risk,
+    mean_tightness_score,
+    portfolio_entropy,
+    raroc,
+    sharpe_ratio,
+    tail_distance,
+    value_at_risk,
 )
 
 rng: np.random.Generator = np.random.default_rng(seed=42)
@@ -46,21 +46,25 @@ EXPECTED_RESULTS = {
     "entropy": 2.15181,
 }
 
+
 @pytest.fixture
 def test_data():
     """
     Fixture to generate consistent test data for all tests.
     """
-    samples = [1,2,3,4,5,6,7,8,9,10]
-    budgets = [100,200,300,400,500,600,700,800,900,1000]
+    samples = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    budgets = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
     return pt.as_tensor_variable(samples), pt.as_tensor_variable(budgets)
+
 
 def test_mean_tightness_score(test_data):
     samples, budgets = test_data
     result = mean_tightness_score(0.5, 0.75)(samples, budgets).eval()
     np.testing.assert_almost_equal(
-        result, EXPECTED_RESULTS["mean_tight_score"], 
-        decimal=3, err_msg=f"Mean Tightness Score mismatch: {result} != {EXPECTED_RESULTS['mean_tight_score']}"
+        result,
+        EXPECTED_RESULTS["mean_tight_score"],
+        decimal=3,
+        err_msg=f"Mean Tightness Score mismatch: {result} != {EXPECTED_RESULTS['mean_tight_score']}",
     )
 
 
@@ -68,8 +72,10 @@ def test_value_at_risk(test_data):
     samples, budgets = test_data
     result = value_at_risk(0.95)(samples, budgets).eval()
     np.testing.assert_almost_equal(
-        result, EXPECTED_RESULTS["var_95"], 
-        decimal=3, err_msg=f"Value at Risk mismatch: {result} != {EXPECTED_RESULTS['var_95']}"
+        result,
+        EXPECTED_RESULTS["var_95"],
+        decimal=3,
+        err_msg=f"Value at Risk mismatch: {result} != {EXPECTED_RESULTS['var_95']}",
     )
 
 
@@ -77,8 +83,10 @@ def test_conditional_value_at_risk(test_data):
     samples, budgets = test_data
     result = conditional_value_at_risk(0.95)(samples, budgets).eval()
     np.testing.assert_almost_equal(
-        result, EXPECTED_RESULTS["cvar_95"], 
-        decimal=3, err_msg=f"Conditional Value at Risk mismatch: {result} != {EXPECTED_RESULTS['cvar_95']}"
+        result,
+        EXPECTED_RESULTS["cvar_95"],
+        decimal=3,
+        err_msg=f"Conditional Value at Risk mismatch: {result} != {EXPECTED_RESULTS['cvar_95']}",
     )
 
 
@@ -86,8 +94,10 @@ def test_sharpe_ratio(test_data):
     samples, budgets = test_data
     result = sharpe_ratio(0.01)(samples, budgets).eval()
     np.testing.assert_almost_equal(
-        result, EXPECTED_RESULTS["sharpe"], 
-        decimal=3, err_msg=f"Sharpe Ratio mismatch: {result} != {EXPECTED_RESULTS['sharpe']}"
+        result,
+        EXPECTED_RESULTS["sharpe"],
+        decimal=3,
+        err_msg=f"Sharpe Ratio mismatch: {result} != {EXPECTED_RESULTS['sharpe']}",
     )
 
 
@@ -95,8 +105,10 @@ def test_raroc(test_data):
     samples, budgets = test_data
     result = raroc(0.01)(samples, budgets).eval()
     np.testing.assert_almost_equal(
-        result, EXPECTED_RESULTS["raroc_value"], 
-        decimal=3, err_msg=f"RAROC mismatch: {result} != {EXPECTED_RESULTS['raroc_value']}"
+        result,
+        EXPECTED_RESULTS["raroc_value"],
+        decimal=3,
+        err_msg=f"RAROC mismatch: {result} != {EXPECTED_RESULTS['raroc_value']}",
     )
 
 
@@ -104,8 +116,10 @@ def test_adjusted_value_at_risk_score(test_data):
     samples, budgets = test_data
     result = adjusted_value_at_risk_score(0.95, 0.8)(samples, budgets).eval()
     np.testing.assert_almost_equal(
-        result, EXPECTED_RESULTS["adjusted_var"], 
-        decimal=3, err_msg=f"Adjusted Value at Risk mismatch: {result} != {EXPECTED_RESULTS['adjusted_var']}"
+        result,
+        EXPECTED_RESULTS["adjusted_var"],
+        decimal=3,
+        err_msg=f"Adjusted Value at Risk mismatch: {result} != {EXPECTED_RESULTS['adjusted_var']}",
     )
 
 
@@ -113,8 +127,10 @@ def test_portfolio_entropy(test_data):
     samples, budgets = test_data
     result = portfolio_entropy(samples, budgets).eval()
     np.testing.assert_almost_equal(
-        result, EXPECTED_RESULTS["entropy"], 
-        decimal=3, err_msg=f"Portfolio Entropy mismatch: {result} != {EXPECTED_RESULTS['entropy']}"
+        result,
+        EXPECTED_RESULTS["entropy"],
+        decimal=3,
+        err_msg=f"Portfolio Entropy mismatch: {result} != {EXPECTED_RESULTS['entropy']}",
     )
 
 
@@ -179,7 +195,9 @@ def test_tail_distance(mean1, std1, mean2, std2, expected_order):
         ),  # With low alpha, higher mean should dominate
     ],
 )
-def test_mean_tightness_score(mean1, std1, mean2, std2, alpha, expected_relation):
+def test_compare_mean_tightness_score(
+    mean1, std1, mean2, std2, alpha, expected_relation
+):
     # Generate samples for both distributions
     samples1 = pm.draw(pm.Normal.dist(mu=mean1, sigma=std1, size=100), random_seed=rng)
     samples2 = pm.draw(pm.Normal.dist(mu=mean2, sigma=std2, size=100), random_seed=rng)
@@ -267,12 +285,15 @@ def test_covariance_matrix_matches_numpy(data):
         err_msg=f"Mismatch for input data:\n{data}",
     )
 
+
 # Test Cases
 @pytest.mark.parametrize(
     "data",
     [
         np.array([10, 20, 30, 40, 50]),  # Small dataset
-        pm.draw(pm.Normal.dist(mu=10, sigma=5, size=50), random_seed=rng),  # PyMC generated samples
+        pm.draw(
+            pm.Normal.dist(mu=10, sigma=5, size=50), random_seed=rng
+        ),  # PyMC generated samples
         np.linspace(1, 100, 100),  # Linearly spaced values
         np.array([]),  # Empty array corner case
     ],
@@ -285,43 +306,21 @@ def test_compute_quantile(data):
         pytensor_quantile = _compute_quantile(pt.as_tensor_variable(data), 0.95).eval()
         numpy_quantile = np.quantile(data, 0.95)
         np.testing.assert_allclose(
-            pytensor_quantile, numpy_quantile, rtol=1e-5, atol=1e-8, err_msg="Quantile mismatch"
+            pytensor_quantile,
+            numpy_quantile,
+            rtol=1e-5,
+            atol=1e-8,
+            err_msg="Quantile mismatch",
         )
-
-
-@pytest.mark.parametrize(
-    "data",
-    [
-        np.array([[1, 2], [3, 4], [5, 6]]),  # Small test case
-        np.random.rand(100, 10),  # Random large dataset
-        np.array([[1, 1], [1, 1], [1, 1]]),  # Identical columns (zero variance)
-        np.array([[1], [2], [3]]),  # Single-column case
-    ],
-)
-def test_covariance_matrix_matches_numpy(data):
-    pt_data = pt.matrix("pt_data")  # Symbolic variable for 2D input data
-
-    pt_cov_func = function([pt_data], _covariance_matrix(pt_data))
-
-    # Compute results
-    pytensor_result = pt_cov_func(data)  # Pass NumPy array directly
-    numpy_result = np.cov(data, rowvar=False)
-
-    # Assert the results are close
-    np.testing.assert_allclose(
-        pytensor_result,
-        numpy_result,
-        rtol=1e-5,
-        atol=1e-8,
-        err_msg=f"Mismatch for input data:\n{data}",
-    )
 
 
 @pytest.mark.parametrize(
     "samples, budgets",
     [
-        (pm.draw(pm.Normal.dist(mu=10, sigma=2, size=100), random_seed=rng),
-         pm.draw(pm.Normal.dist(mu=300, sigma=50, size=100), random_seed=rng)),
+        (
+            pm.draw(pm.Normal.dist(mu=10, sigma=2, size=100), random_seed=rng),
+            pm.draw(pm.Normal.dist(mu=300, sigma=50, size=100), random_seed=rng),
+        ),
         (np.array([1, 2, 3]), np.array([100, 200, 300])),  # Simple case
     ],
 )
@@ -329,11 +328,14 @@ def test_roas_distribution(samples, budgets):
     pt_samples = pt.as_tensor_variable(samples)
     pt_budgets = pt.as_tensor_variable(budgets)
 
-    pytensor_roas = _calculate_roas_distribution_for_allocation(pt_samples, pt_budgets).eval()
+    pytensor_roas = _calculate_roas_distribution_for_allocation(
+        pt_samples, pt_budgets
+    ).eval()
     numpy_roas = samples / np.sum(budgets)
     np.testing.assert_allclose(
         pytensor_roas, numpy_roas, rtol=1e-5, atol=1e-8, err_msg="ROAS mismatch"
     )
+
 
 @pytest.mark.parametrize(
     "samples, budgets, func",
@@ -341,22 +343,22 @@ def test_roas_distribution(samples, budgets):
         (
             pm.draw(pm.Normal.dist(mu=100, sigma=20, size=100), random_seed=rng),
             pm.draw(pm.Normal.dist(mu=1000, sigma=100, size=100), random_seed=rng),
-            average_response
+            average_response,
         ),
         (
             pm.draw(pm.Normal.dist(mu=100, sigma=20, size=100), random_seed=rng),
             pm.draw(pm.Normal.dist(mu=1000, sigma=100, size=100), random_seed=rng),
-            sharpe_ratio(0.01)
+            sharpe_ratio(0.01),
         ),
         (
             pm.draw(pm.Normal.dist(mu=100, sigma=20, size=100), random_seed=rng),
             pm.draw(pm.Normal.dist(mu=1000, sigma=100, size=100), random_seed=rng),
-            raroc(0.01)
+            raroc(0.01),
         ),
         (
             pm.draw(pm.Normal.dist(mu=100, sigma=20, size=100), random_seed=rng),
             pm.draw(pm.Normal.dist(mu=1000, sigma=100, size=100), random_seed=rng),
-            portfolio_entropy
+            portfolio_entropy,
         ),
     ],
 )
@@ -371,4 +373,4 @@ def test_general_functions(samples, budgets, func):
         pytensor_result = func(pt_samples, pt_budgets).eval()
         assert pytensor_result is not None, "Function returned None"
     except Exception as e:
-        pytest.fail(f"Function {func.__name__} raised an unexpected exception: {str(e)}")
+        pytest.fail(f"Function {func.__name__} raised an unexpected exception: {e!s}")
