@@ -42,7 +42,7 @@ jobs:
         if: ${{ matrix.config.oldest-pymc }}
         run: python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}'"
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
           name: ${{ matrix.config.python-version }}
@@ -61,7 +61,7 @@ jobs:
           pip install -e .[test]
           pytest --only-slow
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
           name: "test_slow"
