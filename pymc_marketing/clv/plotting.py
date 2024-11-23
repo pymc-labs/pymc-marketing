@@ -544,7 +544,7 @@ def plot_purchase_pmf(
             ).sel(obs_var="frequency")
             title = "Posterior Predictive Check of Repeat Purchases per Customer"
         case _:
-            raise NameError("Specify 'prior' or 'posterior' for `ppc` parameter.")
+            raise NameError("Specify 'prior' or 'posterior' for 'ppc' parameter.")
 
     # convert estimated and observed xarrays into dataframes for plotting
     estimated = ppc_freq.to_dataframe().value_counts(normalize=True).sort_index() * 100

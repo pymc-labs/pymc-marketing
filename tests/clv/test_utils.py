@@ -84,33 +84,6 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
 
 
 @pytest.fixture(scope="module")
-def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
-    rng = np.random.default_rng(45)
-
-    model_config = {
-        # Narrow Gaussian centered at MLE params from lifetimes ParetoNBDFitter
-        "r_prior": Prior("DiracDelta", c=0.560),
-        "alpha_prior": Prior("DiracDelta", c=10.591),
-        "s_prior": Prior("DiracDelta", c=0.550),
-        "beta_prior": Prior("DiracDelta", c=9.756),
-    }
-    pnbd_model = ParetoNBDModel(
-        data=test_summary_data,
-        model_config=model_config,
-    )
-    pnbd_model.build_model()
-
-    # Mock an idata object for tests requiring a fitted model
-    # TODO: This is quite slow. Check similar fixtures in the model tests to speed this up.
-    fake_fit = pm.sample_prior_predictive(
-        samples=50, model=pnbd_model.model, random_seed=rng
-    ).prior
-    set_model_fit(pnbd_model, fake_fit)
-
-    return pnbd_model
-
-
-@pytest.fixture(scope="module")
 def fitted_gg(test_summary_data) -> GammaGammaModel:
     rng = np.random.default_rng(40)
     pd.Series({"p": 6.25, "q": 3.74, "v": 15.44})

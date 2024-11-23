@@ -23,12 +23,14 @@ from pymc_marketing.clv import (
     plot_expected_purchases,
     plot_frequency_recency_matrix,
     plot_probability_alive_matrix,
+    plot_purchase_pmf,
 )
 
 
 class MockModel:
     def __init__(self, data: pd.DataFrame):
         self.data = data
+        self._model_type = None
 
     def _mock_posterior(self, data: pd.DataFrame) -> xr.DataArray:
         n_customers = len(data)
@@ -178,3 +180,21 @@ def test_plot_expected_purchases(
 
     # clear any existing pyplot figures
     plt.clf()
+
+
+def test_plot_purchase_pmf_exceptions(mock_model):
+    with pytest.raises(
+        NameError, match="Specify 'prior' or 'posterior' for 'ppc' parameter."
+    ):
+        plot_purchase_pmf(mock_model, ppc="ppc")
+
+    mock_model._model_type = "BG/BND"
+
+    with pytest.raises(
+        AttributeError, match="BetaGeoModel is unsupported for this function."
+    ):
+        plot_purchase_pmf(mock_model)
+
+
+def test_plot_purchase_pmf(fitted_pnbd):
+    pass
