@@ -492,14 +492,14 @@ def plot_purchase_pmf(
     Parameters
     ----------
     model : CLV model
-        Prior predictive checks can be ran before or after a model is fit.
+        Prior predictive checks can be performed before or after a model is fit.
         Posterior predictive checks require a fitted model.
     ppc : string, optional
-        Type of predictive check to perform; options are `prior` or `posterior` Default is 'posterior'.
+        Type of predictive check to perform. Options are 'prior' or 'posterior'; defaults to 'posterior'.
     max_purchases : int, optional
-        Cutoff for number of repeat purchases to plot. Default is 10.
+        Cutoff for bars of purchase counts to plot. Default is 10.
     samples : int, optional
-        Number of samples to draw for prior predictive checks. This does not apply for posterior predictive checks.
+        Number of samples to draw for prior predictive checks. This is not used for posterior predictive checks.
     random_seed : int, optional
         Random seed to fix sampling results
     ax : matplotlib.AxesSubplot, optional
