@@ -536,7 +536,7 @@ def plot_purchase_pmf(
             ppc_freq = prior_idata.prior_predictive["recency_frequency"].sel(
                 obs_var="frequency"
             )
-            title = "Prior Predictive Check of Repeat Purchases per Customer"
+            title = "Prior Predictive Check for Customer Frequency"
         case "posterior":
             obs_freq = model.idata.observed_data["recency_frequency"].sel(
                 obs_var="frequency"
@@ -546,13 +546,13 @@ def plot_purchase_pmf(
                 random_seed=random_seed,
                 n_samples=1,
             ).sel(obs_var="frequency")
-            title = "Posterior Predictive Check of Repeat Purchases per Customer"
+            title = "Posterior Predictive Check for Customer Frequency"
         case _:
             raise NameError("Specify 'prior' or 'posterior' for 'ppc' parameter.")
 
     # convert estimated and observed xarrays into dataframes for plotting
-    estimated = ppc_freq.to_dataframe().value_counts(normalize=True).sort_index() * 100
-    observed = obs_freq.to_dataframe().value_counts(normalize=True).sort_index() * 100
+    estimated = ppc_freq.to_dataframe().value_counts(normalize=True).sort_index()
+    observed = obs_freq.to_dataframe().value_counts(normalize=True).sort_index()
 
     # PPC histogram plot
     ax = pd.DataFrame(
@@ -564,8 +564,8 @@ def plot_purchase_pmf(
         kind="bar",
         ax=ax,
         title=title,
-        xlabel="Repeat Purchases per Customer",
-        ylabel="Percent of Purchases",
+        xlabel="Repeat Purchases",
+        ylabel="% of Customer Population",
         rot=0.0,
         **kwargs,
     )
