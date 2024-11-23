@@ -18,7 +18,7 @@ import pytest
 import xarray as xr
 from pytensor.tensor import TensorVariable
 
-from pymc_marketing.clv.plotting import (
+from pymc_marketing.clv import (
     plot_customer_exposure,
     plot_expected_purchases,
     plot_frequency_recency_matrix,

@@ -26,9 +26,9 @@ from pymc_marketing.clv.utils import _expected_cumulative_transactions
 
 __all__ = [
     "plot_customer_exposure",
+    "plot_expected_purchases",
     "plot_frequency_recency_matrix",
     "plot_probability_alive_matrix",
-    "plot_expected_purchases",
     "plot_purchase_pmf",
 ]
 
@@ -530,7 +530,7 @@ def plot_purchase_pmf(
             obs_freq = model.idata.observed_data["recency_frequency"].sel(
                 obs_var="frequency"
             )
-            # Keep samples at 1 here because (chain * draw * customer) samples are being drawn
+            # Keep samples at 1 here because (chain * draw * customer) samples are already being drawn
             ppc_freq = model.distribution_new_customer_recency_frequency(
                 random_seed=random_seed,
                 n_samples=1,
