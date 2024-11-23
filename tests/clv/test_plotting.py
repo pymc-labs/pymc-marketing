@@ -182,19 +182,32 @@ def test_plot_expected_purchases(
     plt.clf()
 
 
-def test_plot_purchase_pmf_exceptions(mock_model):
-    with pytest.raises(
-        NameError, match="Specify 'prior' or 'posterior' for 'ppc' parameter."
-    ):
-        plot_purchase_pmf(mock_model, ppc="ppc")
-
-    mock_model._model_type = "BG/BND"
-
+def test_plot_purchase_pmf_exceptions(fitted_bg, fitted_pnbd):
     with pytest.raises(
         AttributeError, match="BetaGeoModel is unsupported for this function."
     ):
-        plot_purchase_pmf(mock_model)
+        plot_purchase_pmf(fitted_bg)
+
+    with pytest.raises(
+        NameError, match="Specify 'prior' or 'posterior' for 'ppc' parameter."
+    ):
+        plot_purchase_pmf(fitted_pnbd, ppc="ppc")
 
 
-def test_plot_purchase_pmf(fitted_pnbd):
-    pass
+@pytest.mark.parametrize(
+    "ppc, max_purchases, samples, subplot",
+    [("prior", 10, 100, None), ("posterior", 20, 50, plt.subplot())],
+)
+def test_plot_purchase_pmf(fitted_pnbd, ppc, max_purchases, samples, subplot):
+    ax = plot_purchase_pmf(
+        model=fitted_pnbd,
+        ppc=ppc,
+        max_purchases=max_purchases,
+        samples=samples,
+        ax=subplot,
+    )
+
+    assert isinstance(ax, plt.Axes)
+
+    # clear any existing pyplot figures
+    plt.clf()

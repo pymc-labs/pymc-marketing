@@ -511,7 +511,8 @@ def plot_purchase_pmf(
     -------
     axes: matplotlib.AxesSubplot
     """
-    if model._model_type == "BG/NBD":
+    # TODO: BetaGeoModel requires its own dist class in distributions.py for this function.
+    if isinstance(model, BetaGeoModel):
         raise AttributeError("BetaGeoModel is unsupported for this function.")
 
     if ax is None:
@@ -521,11 +522,14 @@ def plot_purchase_pmf(
         case "prior":
             # build model if it has not been fit yet
             model.build_model()
-            with model.model:
-                prior_idata = pm.sample_prior_predictive(
-                    random_seed=random_seed, samples=samples
-                )
-            # obs_var must be retrieved from prior_idata object if model has not been fit
+
+            prior_idata = pm.sample_prior_predictive(
+                samples=samples,
+                model=model.model,
+                random_seed=random_seed,
+            )
+
+            # obs_var must be retrieved from prior_idata if model has not been fit
             obs_freq = prior_idata.observed_data["recency_frequency"].sel(
                 obs_var="frequency"
             )
