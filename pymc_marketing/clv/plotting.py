@@ -480,9 +480,9 @@ def plot_purchase_pmf(
     model,
     ppc: str = "posterior",
     max_purchases: int = 10,
-    ax: plt.Axes | None = None,
-    random_seed: int = 45,
     samples: int = 1000,
+    random_seed: int = 45,
+    ax: plt.Axes | None = None,
     **kwargs,
 ) -> plt.Axes:
     """Plot a prior or posterior predictive check for the customer purchase frequency distribution.
@@ -491,14 +491,21 @@ def plot_purchase_pmf(
 
     Parameters
     ----------
-    model :
-    ppc :
-    max_purchases :
-    ax :
-    random_seed :
-    samples :
+    model : CLV model
+        Prior predictive checks can be ran before or after a model is fit.
+        Posterior predictive checks require a fitted model.
+    ppc : string, optional
+        Type of predictive check to perform; options are `prior` or `posterior` Default is 'posterior'.
+    max_purchases : int, optional
+        Cutoff for number of repeat purchases to plot. Default is 10.
+    samples : int, optional
+        Number of samples to draw for prior predictive checks. This does not apply for posterior predictive checks.
+    random_seed : int, optional
+        Random seed to fix sampling results
+    ax : matplotlib.AxesSubplot, optional
+        A matplotlib axes instance. Creates new axes instance by default.
     **kwargs
-        Additional arguments to pass into pandas.DataFrame.plot
+        Additional arguments to pass into the pandas.DataFrame.plot command.
 
     Returns
     -------
@@ -512,7 +519,7 @@ def plot_purchase_pmf(
 
     match ppc:
         case "prior":
-            # build model if it has not been fit
+            # build model if it has not been fit yet
             model.build_model()
             with model.model:
                 prior_idata = pm.sample_prior_predictive(
