@@ -29,7 +29,7 @@ __all__ = [
     "plot_expected_purchases",
     "plot_frequency_recency_matrix",
     "plot_probability_alive_matrix",
-    "plot_purchase_pmf",
+    "plot_expected_purchases_ppc",
 ]
 
 
@@ -476,7 +476,7 @@ def plot_expected_purchases(
     return ax
 
 
-def plot_purchase_pmf(
+def plot_expected_purchases_ppc(
     model,
     ppc: str = "posterior",
     max_purchases: int = 10,

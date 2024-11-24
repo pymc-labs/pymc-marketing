@@ -21,9 +21,9 @@ from pytensor.tensor import TensorVariable
 from pymc_marketing.clv import (
     plot_customer_exposure,
     plot_expected_purchases,
+    plot_expected_purchases_ppc,
     plot_frequency_recency_matrix,
     plot_probability_alive_matrix,
-    plot_purchase_pmf,
 )
 
 
@@ -182,24 +182,24 @@ def test_plot_expected_purchases(
     plt.clf()
 
 
-def test_plot_purchase_pmf_exceptions(fitted_bg, fitted_pnbd):
+def test_plot_expected_purchases_ppc_exceptions(fitted_bg, fitted_pnbd):
     with pytest.raises(
         AttributeError, match="BetaGeoModel is unsupported for this function."
     ):
-        plot_purchase_pmf(fitted_bg)
+        plot_expected_purchases_ppc(fitted_bg)
 
     with pytest.raises(
         NameError, match="Specify 'prior' or 'posterior' for 'ppc' parameter."
     ):
-        plot_purchase_pmf(fitted_pnbd, ppc="ppc")
+        plot_expected_purchases_ppc(fitted_pnbd, ppc="ppc")
 
 
 @pytest.mark.parametrize(
     "ppc, max_purchases, samples, subplot",
     [("prior", 10, 100, None), ("posterior", 20, 50, plt.subplot())],
 )
-def test_plot_purchase_pmf(fitted_pnbd, ppc, max_purchases, samples, subplot):
-    ax = plot_purchase_pmf(
+def test_plot_expected_purchases_ppc(fitted_pnbd, ppc, max_purchases, samples, subplot):
+    ax = plot_expected_purchases_ppc(
         model=fitted_pnbd,
         ppc=ppc,
         max_purchases=max_purchases,
