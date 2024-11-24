@@ -489,6 +489,9 @@ def plot_expected_purchases_ppc(
 
     At this time only ParetoNBDModel and BetaGeoBetaBinomModel are supported.
 
+    Adapted from legacy ``lifetimes`` library:
+    https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/plotting.py#L25
+
     Parameters
     ----------
     model : CLV model
