@@ -718,10 +718,11 @@ def log_model(
 
 
 def load_model(
-    run_id: str | None = None,
+    run_id: str,
     full_model: bool = False,
     keep_idata: bool = False,
     artifact_path: str = "model",
+    dst_path: str | None = None,
 ) -> mlflow.pyfunc.PyFuncModel | MMM:
     """
     Load a PyMC-Marketing MMM model from MLflow.
@@ -730,7 +731,7 @@ def load_model(
 
     Parameters
     ----------
-    run_id : str, optional
+    run_id : str
         The MLflow run ID from which to load the model.
     full_model : bool, default=True
         If True, load the full MMM model including the InferenceData.
@@ -738,6 +739,9 @@ def load_model(
         If True, keep the downloaded InferenceData saved locally.
     artifact_path : str, default="model"
         The artifact path within the run where the model is stored.
+    dst_path : str | None, default=None
+        The local destination path where the InferenceData will be downloaded.
+        If None, defaults to "idata_{run_id}" to avoid conflicts when loading multiple models.
 
     Returns
     -------
@@ -756,9 +760,14 @@ def load_model(
         model = mlflow.pyfunc.load_model(model_uri)
         return model
 
+    # Create unique destination path if not provided
+    if dst_path is None:
+        dst_path = f"idata_{run_id}"
+
     idata_path = mlflow.artifacts.download_artifacts(
-        run_id=run_id, artifact_path="idata.nc", dst_path="idata"
+        run_id=run_id, artifact_path="idata.nc", dst_path=dst_path
     )
+
     model = MMM.load(idata_path)
 
     if not keep_idata:
