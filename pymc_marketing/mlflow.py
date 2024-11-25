@@ -912,6 +912,24 @@ def autolog(
     """
     arviz_summary_kwargs = arviz_summary_kwargs or {}
 
+    def patch_compute_log_likelihood(compute_log_likelihood):
+        """Patch the compute_log_likelihood function to log LOOCV metrics.
+
+        We don't need to call this directly again in MMM.fit patch, since that function calls
+        pm.sample() internally anyway.
+        """
+
+        @wraps(compute_log_likelihood)
+        def new_compute_log_likelihood(*args, **kwargs):
+            idata = compute_log_likelihood(*args, **kwargs)
+            log_loocv_metrics(idata=idata)
+
+            return idata
+
+        return new_compute_log_likelihood
+
+    pm.compute_log_likelihood = patch_compute_log_likelihood(pm.compute_log_likelihood)
+
     def patch_sample(sample):
         @wraps(sample)
         def new_sample(*args, **kwargs):
@@ -937,8 +955,9 @@ def autolog(
             if log_metadata_info:
                 log_metadata(model=model, idata=idata)
 
-            if log_loocv:
-                log_loocv_metrics(idata=idata)
+            # mmm.fit() calls pm.sample() internally, so we need to make sure log-likelihood is only added once
+            if log_loocv and "log_likelihood" not in idata.groups():
+                pm.compute_log_likelihood(idata=idata, model=model)
 
             return idata
 
@@ -978,9 +997,6 @@ def autolog(
                 )
 
             log_inference_data(idata, save_file="idata.nc")
-
-            if log_loocv:
-                log_loocv_metrics(idata=idata)
 
             posterior_preds = self.sample_posterior_predictive(self.X)
             log_summary_metrics(
