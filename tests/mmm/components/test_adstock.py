@@ -89,7 +89,7 @@ def test_default_prefix(adstock) -> None:
 def test_adstock_no_negative_lmax():
     with pytest.raises(
         ValidationError,
-        match="1 validation error for __init__\\nl_max\\n  Input should be greater than 0",
+        match="__init__\\nl_max\\n  Input should be greater than 0",
     ):
         DelayedAdstock(l_max=-1)
 
