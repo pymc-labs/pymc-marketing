@@ -771,8 +771,22 @@ def load_model(
     model = MMM.load(idata_path)
 
     if not keep_idata:
-        os.remove(idata_path)
-        os.rmdir("idata")
+        # Force load all groups into memory since ArviZ does lazy loading
+        for group in model.idata.groups():
+            # Convert each group to an in-memory dataset
+            if hasattr(model.idata, group):
+                group_data = getattr(model.idata, group)
+                if hasattr(group_data, "load"):
+                    group_data.load()
+        try:
+            os.remove(idata_path)
+            os.rmdir(dst_path)
+        except OSError:
+            warnings.warn(
+                f"Could not remove temporary files at {dst_path}. You may want to remove them manually.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     return model
 
