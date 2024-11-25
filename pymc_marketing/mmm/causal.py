@@ -19,11 +19,19 @@ import pandas as pd
 
 try:
     from dowhy import CausalModel
-except ImportError as e:
-    raise ImportError(
-        "To use Causal Graph functionality, please install the optional dependencies with: "
-        "pip install pymc-marketing[dag]"
-    ) from e
+except ImportError:
+
+    class LazyCausalModel:
+        """Lazy import of dowhy's CausalModel."""
+
+        def __init__(self, *args, **kwargs):
+            msg = (
+                "To use Causal Graph functionality, please install the optional dependencies with: "
+                "pip install pymc-marketing[dag]"
+            )
+            raise ImportError(msg)
+
+    CausalModel = LazyCausalModel
 
 
 class CausalGraphModel:
