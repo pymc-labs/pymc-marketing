@@ -904,6 +904,7 @@ def autolog(
 
         with mlflow.start_run():
             idata = mmm.fit(X, y)
+            posterior_preds = mmm.sample_posterior_predictive(X)
 
             # Additional specific logging
             fig = mmm.plot_components_contributions()
@@ -998,20 +999,26 @@ def autolog(
 
             log_inference_data(idata, save_file="idata.nc")
 
-            posterior_preds = self.sample_posterior_predictive(self.X)
+            return idata
+
+        return new_fit
+
+    def patch_mmm_sample_posterior_predictive(sample_posterior_predictive):
+        @wraps(sample_posterior_predictive)
+        def new_sample_posterior_predictive(self, *args, **kwargs):
+            posterior_preds = sample_posterior_predictive(self, *args, **kwargs)
+
             log_summary_metrics(
                 y_true=self.y,
                 y_pred=posterior_preds[self.output_var],
             )
 
-            log_model(
-                self,
-                registered_model_name=registered_model_name,
-            )
+            return posterior_preds
 
-            return idata
-
-        return new_fit
+        return new_sample_posterior_predictive
 
     if log_mmm:
         MMM.fit = patch_mmm_fit(MMM.fit)
+        MMM.sample_posterior_predictive = patch_mmm_sample_posterior_predictive(
+            MMM.sample_posterior_predictive
+        )
