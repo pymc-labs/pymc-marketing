@@ -39,7 +39,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dag = ["dowhy", "networkx"]
+dag = [
+    "dowhy",
+    "networkx",
+]
 docs = [
     "blackjax",
     "fastprogress",

@@ -58,7 +58,7 @@ jobs:
           python-version: "3.10"
       - name: Run tests
         run: |
-          pip install -e .[test]
+          pip install -e .[test,dag]
           pytest --only-slow
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

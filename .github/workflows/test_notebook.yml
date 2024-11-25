@@ -31,6 +31,6 @@ jobs:
       run: |
         sudo apt-get install graphviz
         pip install -e .[docs]
-        pip install -e .[test]
+        pip install -e .[test,dag]
     - name: Run notebooks
       run: make run_notebooks
