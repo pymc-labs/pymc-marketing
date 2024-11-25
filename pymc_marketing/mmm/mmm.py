@@ -55,7 +55,7 @@ from pymc_marketing.mmm.validating import ValidateControlColumns
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import Prior
 
-__all__ = ["BaseMMM", "MMM"]
+__all__ = ["MMM", "BaseMMM"]
 
 
 class BaseMMM(BaseValidateMMM):
