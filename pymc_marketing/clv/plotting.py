@@ -487,14 +487,14 @@ def plot_expected_purchases_ppc(
 ) -> plt.Axes:
     """Plot a prior or posterior predictive check for the customer purchase frequency distribution.
 
-    At this time only ParetoNBDModel and BetaGeoBetaBinomModel are supported.
+    At this time only ``ParetoNBDModel`` and ``BetaGeoBetaBinomModel``:q are supported.
 
     Adapted from legacy ``lifetimes`` library:
     https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/plotting.py#L25
 
     Parameters
     ----------
-    model : CLV model
+    model : CLVModel
         Prior predictive checks can be performed before or after a model is fit.
         Posterior predictive checks require a fitted model.
     ppc : string, optional
@@ -512,7 +512,7 @@ def plot_expected_purchases_ppc(
 
     Returns
     -------
-    axes: matplotlib.AxesSubplot
+    axes : matplotlib.AxesSubplot
     """
     # TODO: BetaGeoModel requires its own dist class in distributions.py for this function.
     if isinstance(model, BetaGeoModel):
