@@ -22,11 +22,11 @@ import xarray
 from numpy import datetime64
 
 __all__ = [
-    "to_xarray",
     "customer_lifetime_value",
     "rfm_segments",
     "rfm_summary",
     "rfm_train_test_split",
+    "to_xarray",
 ]
 
 
