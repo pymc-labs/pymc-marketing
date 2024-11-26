@@ -25,9 +25,9 @@ from pymc_marketing.clv.utils import _expected_cumulative_transactions
 
 __all__ = [
     "plot_customer_exposure",
+    "plot_expected_purchases",
     "plot_frequency_recency_matrix",
     "plot_probability_alive_matrix",
-    "plot_expected_purchases",
 ]
 
 

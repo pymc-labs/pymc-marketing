@@ -35,16 +35,16 @@ from pymc_marketing.clv.utils import (
 )
 
 __all__ = (
-    "BetaGeoModel",
     "BetaGeoBetaBinomModel",
-    "ParetoNBDModel",
+    "BetaGeoModel",
     "GammaGammaModel",
     "GammaGammaModelIndividual",
+    "ParetoNBDModel",
     "ShiftedBetaGeoModelIndividual",
     "customer_lifetime_value",
     "plot_customer_exposure",
-    "plot_frequency_recency_matrix",
     "plot_expected_purchases",
+    "plot_frequency_recency_matrix",
     "plot_probability_alive_matrix",
     "rfm_segments",
     "rfm_summary",
