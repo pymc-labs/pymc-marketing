@@ -390,7 +390,6 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
     assert set(artifacts) == {
         "coords.json",
         "idata.nc",
-        "model",
         "model_graph.pdf",
         "model_repr.txt",
         "summary.html",
