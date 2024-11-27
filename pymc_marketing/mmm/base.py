@@ -46,7 +46,7 @@ from pymc_marketing.mmm.validating import (
 )
 from pymc_marketing.model_builder import ModelBuilder
 
-__all__ = ["MMMModelBuilder", "BaseValidateMMM"]
+__all__ = ["BaseValidateMMM", "MMMModelBuilder"]
 
 from pydantic import Field, validate_call
 
