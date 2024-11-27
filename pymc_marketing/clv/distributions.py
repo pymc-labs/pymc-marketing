@@ -23,7 +23,7 @@ from pytensor import scan
 from pytensor.graph import vectorize_graph
 from pytensor.tensor.random.op import RandomVariable
 
-__all__ = ["ContContract", "ContNonContract", "ParetoNBD", "BetaGeoBetaBinom"]
+__all__ = ["BetaGeoBetaBinom", "ContContract", "ContNonContract", "ParetoNBD"]
 
 
 class ContNonContractRV(RandomVariable):

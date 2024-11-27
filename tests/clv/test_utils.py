@@ -20,7 +20,7 @@ import pytest
 import xarray
 from pandas.testing import assert_frame_equal
 
-from pymc_marketing.clv import BetaGeoModel, GammaGammaModel, ParetoNBDModel
+from pymc_marketing.clv import GammaGammaModel, ParetoNBDModel
 from pymc_marketing.clv.utils import (
     _expected_cumulative_transactions,
     _find_first_transactions,
@@ -57,57 +57,6 @@ def test_to_xarray():
     new_y = to_xarray(customer_id, y, dim="test_dim")
     assert new_y.dims == ("test_dim",)
     np.testing.assert_array_equal(new_y.coords["test_dim"], customer_id)
-
-
-@pytest.fixture(scope="module")
-def fitted_bg(test_summary_data) -> BetaGeoModel:
-    rng = np.random.default_rng(13)
-
-    model_config = {
-        # Narrow Gaussian centered at MLE params from lifetimes BetaGeoFitter
-        "a_prior": Prior("DiracDelta", c=1.85034151),
-        "alpha_prior": Prior("DiracDelta", c=1.86428187),
-        "b_prior": Prior("DiracDelta", c=3.18105431),
-        "r_prior": Prior("DiracDelta", c=0.16385072),
-    }
-    model = BetaGeoModel(
-        data=test_summary_data,
-        model_config=model_config,
-    )
-    model.build_model()
-    fake_fit = pm.sample_prior_predictive(
-        samples=50, model=model.model, random_seed=rng
-    ).prior
-    set_model_fit(model, fake_fit)
-
-    return model
-
-
-@pytest.fixture(scope="module")
-def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
-    rng = np.random.default_rng(45)
-
-    model_config = {
-        # Narrow Gaussian centered at MLE params from lifetimes ParetoNBDFitter
-        "r_prior": Prior("DiracDelta", c=0.560),
-        "alpha_prior": Prior("DiracDelta", c=10.591),
-        "s_prior": Prior("DiracDelta", c=0.550),
-        "beta_prior": Prior("DiracDelta", c=9.756),
-    }
-    pnbd_model = ParetoNBDModel(
-        data=test_summary_data,
-        model_config=model_config,
-    )
-    pnbd_model.build_model()
-
-    # Mock an idata object for tests requiring a fitted model
-    # TODO: This is quite slow. Check similar fixtures in the model tests to speed this up.
-    fake_fit = pm.sample_prior_predictive(
-        samples=50, model=pnbd_model.model, random_seed=rng
-    ).prior
-    set_model_fit(pnbd_model, fake_fit)
-
-    return pnbd_model
 
 
 @pytest.fixture(scope="module")
