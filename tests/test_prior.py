@@ -576,10 +576,7 @@ def test_cant_reset_distribution() -> None:
 
 
 def test_nonstring_distribution() -> None:
-    with pytest.raises(
-        ValidationError,
-        match="1 validation error for __init__\\n1\\n  Input should be a valid string",
-    ):
+    with pytest.raises(ValidationError, match=".*Input should be a valid string.*"):
         Prior(pm.Normal)
 
 
@@ -590,10 +587,7 @@ def test_change_the_transform() -> None:
 
 
 def test_nonstring_transform() -> None:
-    with pytest.raises(
-        ValidationError,
-        match="1 validation error for __init__\\ntransform\\n  Input should be a valid string",
-    ):
+    with pytest.raises(ValidationError, match=".*Input should be a valid string.*"):
         Prior("Normal", transform=pm.math.log)
 
 

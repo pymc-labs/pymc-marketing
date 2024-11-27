@@ -19,12 +19,12 @@ from warnings import warn
 import pandas as pd
 
 __all__ = [
+    "ValidateChannelColumns",
+    "ValidateControlColumns",
+    "ValidateDateColumn",
+    "ValidateTargetColumn",
     "validation_method_X",
     "validation_method_y",
-    "ValidateControlColumns",
-    "ValidateTargetColumn",
-    "ValidateDateColumn",
-    "ValidateChannelColumns",
 ]
 
 
