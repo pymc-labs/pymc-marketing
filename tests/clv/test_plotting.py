@@ -18,9 +18,10 @@ import pytest
 import xarray as xr
 from pytensor.tensor import TensorVariable
 
-from pymc_marketing.clv.plotting import (
+from pymc_marketing.clv import (
     plot_customer_exposure,
     plot_expected_purchases,
+    plot_expected_purchases_ppc,
     plot_frequency_recency_matrix,
     plot_probability_alive_matrix,
 )
@@ -29,6 +30,7 @@ from pymc_marketing.clv.plotting import (
 class MockModel:
     def __init__(self, data: pd.DataFrame):
         self.data = data
+        self._model_type = None
 
     def _mock_posterior(self, data: pd.DataFrame) -> xr.DataArray:
         n_customers = len(data)
@@ -171,6 +173,37 @@ def test_plot_expected_purchases(
         set_index_date=set_index_date,
         t=10,
         t_unobserved=8,
+        ax=subplot,
+    )
+
+    assert isinstance(ax, plt.Axes)
+
+    # clear any existing pyplot figures
+    plt.clf()
+
+
+def test_plot_expected_purchases_ppc_exceptions(fitted_bg, fitted_pnbd):
+    with pytest.raises(
+        AttributeError, match="BetaGeoModel is unsupported for this function."
+    ):
+        plot_expected_purchases_ppc(fitted_bg)
+
+    with pytest.raises(
+        NameError, match="Specify 'prior' or 'posterior' for 'ppc' parameter."
+    ):
+        plot_expected_purchases_ppc(fitted_pnbd, ppc="ppc")
+
+
+@pytest.mark.parametrize(
+    "ppc, max_purchases, samples, subplot",
+    [("prior", 10, 100, None), ("posterior", 20, 50, plt.subplot())],
+)
+def test_plot_expected_purchases_ppc(fitted_pnbd, ppc, max_purchases, samples, subplot):
+    ax = plot_expected_purchases_ppc(
+        model=fitted_pnbd,
+        ppc=ppc,
+        max_purchases=max_purchases,
+        samples=samples,
         ax=subplot,
     )
 
