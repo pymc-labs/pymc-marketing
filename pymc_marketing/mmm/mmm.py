@@ -717,9 +717,9 @@ class BaseMMM(BaseValidateMMM):
             "time_varying_media": json.loads(attrs.get("time_varying_media", "false")),
             "validate_data": json.loads(attrs["validate_data"]),
             "sampler_config": json.loads(attrs["sampler_config"]),
-            "dag": json.loads(attrs["dag"]),
-            "treatment_nodes": json.loads(attrs["treatment_nodes"]),
-            "outcome_node": json.loads(attrs["outcome_node"]),
+            "dag": json.loads(attrs.get("dag", "null")),
+            "treatment_nodes": json.loads(attrs.get("treatment_nodes", "null")),
+            "outcome_node": json.loads(attrs.get("outcome_node", "null")),
         }
 
     def _data_setter(
