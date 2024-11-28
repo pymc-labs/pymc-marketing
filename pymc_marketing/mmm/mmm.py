@@ -352,6 +352,9 @@ class BaseMMM(BaseValidateMMM):
         attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
         attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
         attrs["time_varying_media"] = json.dumps(self.time_varying_media)
+        attrs["dag"] = json.dumps(self.dag)
+        attrs["treatment_nodes"] = json.dumps(self.treatment_nodes)
+        attrs["outcome_node"] = json.dumps(self.outcome_node)
 
         return attrs
 
@@ -714,6 +717,9 @@ class BaseMMM(BaseValidateMMM):
             "time_varying_media": json.loads(attrs.get("time_varying_media", "false")),
             "validate_data": json.loads(attrs["validate_data"]),
             "sampler_config": json.loads(attrs["sampler_config"]),
+            "dag": json.loads(attrs["dag"]),
+            "treatment_nodes": json.loads(attrs["treatment_nodes"]),
+            "outcome_node": json.loads(attrs["outcome_node"]),
         }
 
     def _data_setter(
