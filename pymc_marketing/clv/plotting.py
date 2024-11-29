@@ -18,6 +18,7 @@ from collections.abc import Sequence
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pymc as pm
 from matplotlib.lines import Line2D
 
 from pymc_marketing.clv import BetaGeoModel, ParetoNBDModel
@@ -26,6 +27,7 @@ from pymc_marketing.clv.utils import _expected_cumulative_transactions
 __all__ = [
     "plot_customer_exposure",
     "plot_expected_purchases",
+    "plot_expected_purchases_ppc",
     "plot_frequency_recency_matrix",
     "plot_probability_alive_matrix",
 ]
@@ -471,6 +473,105 @@ def plot_expected_purchases(
         ax.axvline(x=x_vline, color="r", linestyle="--")
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
+    return ax
+
+
+def plot_expected_purchases_ppc(
+    model,
+    ppc: str = "posterior",
+    max_purchases: int = 10,
+    samples: int = 1000,
+    random_seed: int = 45,
+    ax: plt.Axes | None = None,
+    **kwargs,
+) -> plt.Axes:
+    """Plot a prior or posterior predictive check for the customer purchase frequency distribution.
+
+    At this time only ``ParetoNBDModel`` and ``BetaGeoBetaBinomModel`` are supported.
+
+    Adapted from legacy ``lifetimes`` library:
+    https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/plotting.py#L25
+
+    Parameters
+    ----------
+    model : CLVModel
+        Prior predictive checks can be performed before or after a model is fit.
+        Posterior predictive checks require a fitted model.
+    ppc : string, optional
+        Type of predictive check to perform. Options are 'prior' or 'posterior'; defaults to 'posterior'.
+    max_purchases : int, optional
+        Cutoff for bars of purchase counts to plot. Default is 10.
+    samples : int, optional
+        Number of samples to draw for prior predictive checks. This is not used for posterior predictive checks.
+    random_seed : int, optional
+        Random seed to fix sampling results
+    ax : matplotlib.AxesSubplot, optional
+        A matplotlib axes instance. Creates new axes instance by default.
+    **kwargs
+        Additional arguments to pass into the pandas.DataFrame.plot command.
+
+    Returns
+    -------
+    axes : matplotlib.AxesSubplot
+    """
+    # TODO: BetaGeoModel requires its own dist class in distributions.py for this function.
+    if isinstance(model, BetaGeoModel):
+        raise AttributeError("BetaGeoModel is unsupported for this function.")
+
+    if ax is None:
+        ax = plt.subplot(111)
+
+    match ppc:
+        case "prior":
+            # build model if it has not been fit yet
+            model.build_model()
+
+            prior_idata = pm.sample_prior_predictive(
+                samples=samples,
+                model=model.model,
+                random_seed=random_seed,
+            )
+
+            # obs_var must be retrieved from prior_idata if model has not been fit
+            obs_freq = prior_idata.observed_data["recency_frequency"].sel(
+                obs_var="frequency"
+            )
+            ppc_freq = prior_idata.prior_predictive["recency_frequency"].sel(
+                obs_var="frequency"
+            )
+            title = "Prior Predictive Check for Customer Frequency"
+        case "posterior":
+            obs_freq = model.idata.observed_data["recency_frequency"].sel(
+                obs_var="frequency"
+            )
+            # Keep samples at 1 here because (chain * draw * customer) samples are already being drawn
+            ppc_freq = model.distribution_new_customer_recency_frequency(
+                random_seed=random_seed,
+                n_samples=1,
+            ).sel(obs_var="frequency")
+            title = "Posterior Predictive Check for Customer Frequency"
+        case _:
+            raise NameError("Specify 'prior' or 'posterior' for 'ppc' parameter.")
+
+    # convert estimated and observed xarrays into dataframes for plotting
+    estimated = ppc_freq.to_dataframe().value_counts(normalize=True).sort_index()
+    observed = obs_freq.to_dataframe().value_counts(normalize=True).sort_index()
+
+    # PPC histogram plot
+    ax = pd.DataFrame(
+        {
+            "Estimated": estimated.reset_index()["proportion"].head(max_purchases),
+            "Observed": observed.reset_index()["proportion"].head(max_purchases),
+        },
+    ).plot(
+        kind="bar",
+        ax=ax,
+        title=title,
+        xlabel="Repeat Purchases",
+        ylabel="% of Customer Population",
+        rot=0.0,
+        **kwargs,
+    )
     return ax
 
 
