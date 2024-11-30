@@ -435,9 +435,6 @@ class Prior:
                 "Must have at least 'mu' and 'sigma' parameter for non-centered"
             )
 
-        if not any(isinstance(value, Prior) for value in self.parameters.values()):
-            raise ValueError("Non-centered must have a Prior for 'mu' or 'sigma'")
-
     def _unique_dims(self) -> None:
         if not self.dims:
             return

@@ -85,16 +85,6 @@ def test_get_item() -> None:
     assert var["sigma"] == 1
 
 
-def test_noncentered_with_scalars() -> None:
-    with pytest.raises(ValueError):
-        Prior(
-            "Normal",
-            mu=2,
-            sigma=10,
-            centered=False,
-        )
-
-
 def test_noncentered_needs_params() -> None:
     with pytest.raises(ValueError):
         Prior(
