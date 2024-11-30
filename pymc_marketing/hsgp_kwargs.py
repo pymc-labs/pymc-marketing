@@ -32,7 +32,7 @@ from pytensor.tensor import TensorLike
 from pytensor.tensor.variable import TensorVariable
 from typing_extensions import Self
 
-from pymc_marketing.plot import plot_curve
+from pymc_marketing.plot import SelToString, plot_curve
 from pymc_marketing.prior import Prior, create_dim_handler
 
 
@@ -427,7 +427,7 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
         same_axes: bool = False,
         colors: Iterable[str] | None = None,
         legend: bool | None = None,
-        sel_to_string=None,
+        sel_to_string: SelToString | None = None,
     ) -> tuple[Figure, npt.NDArray[Axes]]:
         """Plot the curve from the prior.
 
