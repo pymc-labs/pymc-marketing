@@ -17,7 +17,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from pymc_marketing.mmm.plot import (
+from pymc_marketing.plot import (
     plot_curve,
     plot_hdi,
     plot_samples,
