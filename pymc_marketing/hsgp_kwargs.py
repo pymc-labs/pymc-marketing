@@ -15,19 +15,24 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from enum import Enum
 from typing import Annotated
 
 import numpy as np
+import numpy.typing as npt
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from pydantic import BaseModel, Field, InstanceOf, model_validator
 from pymc.distributions.shape_utils import Dims
 from pytensor.tensor import TensorLike
 from pytensor.tensor.variable import TensorVariable
 from typing_extensions import Self
 
+from pymc_marketing.plot import plot_curve
 from pymc_marketing.prior import Prior
 
 
@@ -270,7 +275,9 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
 
     ls_lower: float = Field(1.0, gt=0, description="Lower bound for the lengthscales")
     ls_upper: float | None = Field(
-        None, gt=0, description="Upper bound for the lengthscales"
+        None,
+        gt=0,
+        description="Upper bound for the lengthscales",
     )
     ls_mass: float = Field(0.90, gt=0, lt=1, description="Mass of the lengthscales")
     eta_upper: float = Field(1.0, gt=0, description="Upper bound for the variance")
@@ -379,13 +386,56 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
     def plot_curve(
         self,
         curve: xr.DataArray,
-        **kwargs,
-    ):
-        """Plot the curve from the prior."""
-        from pymc_marketing.mmm.plot import plot_curve
+        subplot_kwargs: dict | None = None,
+        sample_kwargs: dict | None = None,
+        hdi_kwargs: dict | None = None,
+        axes: npt.NDArray[Axes] | None = None,
+        same_axes: bool = False,
+        colors: Iterable[str] | None = None,
+        legend: bool | None = None,
+        sel_to_string=None,
+    ) -> tuple[Figure, npt.NDArray[Axes]]:
+        """Plot the curve from the prior.
 
+        Parameters
+        ----------
+        curve : xr.DataArray
+            Curve to plot
+        subplot_kwargs : dict, optional
+            Additional kwargs to while creating the fig and axes
+        sample_kwargs : dict, optional
+            Kwargs for the :func:`plot_samples` function
+        hdi_kwargs : dict, optional
+            Kwargs for the :func:`plot_hdi` function
+        same_axes : bool
+            If all of the plots are on the same axis
+        colors : Iterable[str], optional
+            Colors for the plots
+        legend : bool, optional
+            If to include a legend. Defaults to True if same_axes
+        sel_to_string : Callable[[Selection], str], optional
+            Function to convert selection to a string. Defaults to
+            ", ".join(f"{key}={value}" for key, value in sel.items())
+
+        Returns
+        -------
+        tuple[plt.Figure, npt.NDArray[plt.Axes]]
+            Figure and the axes
+
+        """
         first_dim: str = self.dims if isinstance(self.dims, str) else self.dims[0]
-        return plot_curve(curve, non_grid_names={first_dim})
+        return plot_curve(
+            curve,
+            non_grid_names={first_dim},
+            subplot_kwargs=subplot_kwargs,
+            sample_kwargs=sample_kwargs,
+            hdi_kwargs=hdi_kwargs,
+            axes=axes,
+            same_axes=same_axes,
+            colors=colors,
+            legend=legend,
+            sel_to_string=sel_to_string,
+        )
 
     def create_variable(self, name: str) -> TensorVariable:
         """Create a variable from HSGP configuration.
