@@ -155,7 +155,9 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
     --------
     HSGP with default configuration:
 
-    .. code-block:: python
+    .. plot::
+        :include-source: True
+        :context: reset
 
         import numpy as np
         import pandas as pd
@@ -183,7 +185,9 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
 
     HSGP with different covariance function
 
-    .. code-block:: python
+    .. plot::
+        :include-source: True
+        :context: reset
 
         import numpy as np
         import pandas as pd
@@ -214,7 +218,9 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
 
     New data predictions with HSGP
 
-    .. code-block:: python
+    .. plot::
+        :include-source: True
+        :context: reset
 
         import numpy as np
         import pandas as pd
@@ -272,7 +278,9 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
 
     Higher dimensional HSGP
 
-    .. code-block:: python
+    .. plot::
+        :include-source: True
+        :context: reset
 
         import numpy as np
         import pymc as pm
