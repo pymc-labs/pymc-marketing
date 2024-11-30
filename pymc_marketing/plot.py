@@ -628,7 +628,7 @@ def plot_curve(
 
         import matplotlib.pyplot as plt
 
-        from pymc_marketing.mmm.plot import plot_curve
+        from pymc_marketing.plot import plot_curve
 
         seed = sum(map(ord, "Arbitrary curve"))
         rng = np.random.default_rng(seed)
