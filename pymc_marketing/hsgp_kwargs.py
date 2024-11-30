@@ -37,7 +37,7 @@ from pymc_marketing.prior import Prior, create_dim_handler
 
 
 def pc_prior_1d(alpha: float = 0.1, lower: float = 1.0) -> Prior:
-    R"""Create a one-dimensional PC prior for GP lengthscales.
+    R"""Create a one-dimensional PC prior for GP lengthscale.
 
     The prior is defined with the following property:
 
@@ -45,19 +45,19 @@ def pc_prior_1d(alpha: float = 0.1, lower: float = 1.0) -> Prior:
 
         P[\ell < \text{lower}] = \alpha
 
-    Where $\ell$ is the lengthscales.
+    Where :math:`\ell` is the lengthscale
 
     Parameters
     ----------
     alpha : float
         Tail probability.
     lower : float
-        Lower bound for the lengthscales.
+        Lower bound for the lengthscale.
 
     Returns
     -------
     Prior
-        Weibull prior for the lengthscales with the given properties.
+        Weibull prior for the lengthscale with the given properties.
     """
     lam_ell = -np.log(alpha) * (1.0 / np.sqrt(lower))
 
