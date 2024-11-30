@@ -18,6 +18,7 @@ import pytest
 import xarray as xr
 
 from pymc_marketing.plot import (
+    drop_scalar_coords,
     plot_curve,
     plot_hdi,
     plot_samples,
@@ -166,3 +167,34 @@ def test_plot_curve_custom_sel_to_string(mock_curve) -> None:
     ]
 
     plt.close(fig)
+
+
+@pytest.fixture
+def mock_curve_with_scalars() -> xr.DataArray:
+    coords = {
+        "x": [1, 2, 3],
+        "y": [10, 20, 30],
+        "scalar1": 42,  # Scalar coordinate
+        "scalar2": 3.14,  # Another scalar coordinate
+    }
+    data = np.random.rand(3, 3)
+    return xr.DataArray(data, coords=coords, dims=["x", "y"])
+
+
+def test_drop_scalar_coords(mock_curve_with_scalars) -> None:
+    original_curve = mock_curve_with_scalars.copy(deep=True)  # Make a deep copy
+    curve = drop_scalar_coords(mock_curve_with_scalars)
+
+    # Ensure scalar coordinates are removed
+    assert "scalar1" not in curve.coords
+    assert "scalar2" not in curve.coords
+
+    # Ensure other coordinates are still present
+    assert "x" in curve.coords
+    assert "y" in curve.coords
+
+    # Ensure data shape is unchanged
+    assert curve.shape == (3, 3)
+
+    # Ensure the original DataArray was not modified
+    xr.testing.assert_identical(mock_curve_with_scalars, original_curve)
