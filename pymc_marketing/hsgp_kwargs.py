@@ -33,7 +33,7 @@ from pytensor.tensor.variable import TensorVariable
 from typing_extensions import Self
 
 from pymc_marketing.plot import plot_curve
-from pymc_marketing.prior import Prior
+from pymc_marketing.prior import Prior, create_dim_handler
 
 
 def pc_prior_1d(alpha: float = 0.1, lower: float = 1.0) -> Prior:
@@ -224,7 +224,6 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
         import matplotlib.pyplot as plt
 
         from pymc_marketing.hsgp_kwargs import HSGP
-        from pymc_marketing.mmm.plot import plot_curve
 
         seed = sum(map(ord, "New data predictions"))
         rng = np.random.default_rng(seed)
@@ -271,6 +270,40 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
         ax.set(xlabel="time", ylabel="f", title="New data predictions")
         plt.show()
 
+    Higher dimensional HSGP
+
+    .. code-block:: python
+
+        import numpy as np
+        import pymc as pm
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.hsgp_kwargs import HSGP
+
+        seed = sum(map(ord, "Higher dimensional HSGP"))
+        rng = np.random.default_rng(seed)
+
+        hsgp = HSGP(dims=("time", "channel", "product"))
+
+        n = 52
+        X = np.arange(n)
+        hsgp.register_data(X)
+
+        coords = {
+            "time": range(n),
+            "channel": ["A", "B"],
+            "product": ["X", "Y", "Z"],
+        }
+        prior = hsgp.sample_prior(coords=coords, random_seed=rng)
+        curve = prior["f"]
+        fig, _ = hsgp.plot_curve(
+            curve,
+            subplot_kwargs={"figsize": (12, 8), "ncols": 3},
+        )
+        fig.suptitle("Higher dimensional HSGP prior")
+        plt.show()
+
     """
 
     ls_lower: float = Field(1.0, gt=0, description="Lower bound for the lengthscales")
@@ -305,6 +338,7 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
     @model_validator(mode="after")
     def _dim_is_at_least_one(self) -> Self:
         if isinstance(self.dims, str):
+            self.dims = (self.dims,)
             return self
 
         if isinstance(self.dims, tuple) and len(self.dims) < 1:
@@ -474,11 +508,8 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
         coord_name: str = f"{name}_m"
         model.add_coord(coord_name, np.arange(m - 1))
 
-        hsgp_dims: Dims
-        if isinstance(self.dims, tuple):
-            hsgp_dims = (self.dims[1], coord_name)
-        else:
-            hsgp_dims = coord_name
+        first_dim, *rest_dims = self.dims
+        hsgp_dims: Dims = (*rest_dims, coord_name)
 
         cov_funcs = {
             "expquad": pm.gp.cov.ExpQuad,
@@ -502,7 +533,19 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
             dims=hsgp_dims,
             centered=self.centered,
         ).create_variable(f"{name}_hsgp_coefs")
-        f = phi @ hsgp_coefs.T
+        # (date, m-1) and (*rest_dims, m-1) -> (date, *rest_dims)
+        if len(rest_dims) <= 1:
+            f = phi @ hsgp_coefs.T
+        else:
+            result_dims = (first_dim, coord_name, *rest_dims)
+            dim_handler = create_dim_handler(desired_dims=result_dims)
+            f = (
+                dim_handler(phi, (first_dim, coord_name))
+                * dim_handler(
+                    hsgp_coefs,
+                    hsgp_dims,
+                )
+            ).sum(axis=1)
         return pm.Deterministic(name, f, dims=self.dims)
 
     def to_dict(self) -> dict:
