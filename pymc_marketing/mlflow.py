@@ -617,17 +617,20 @@ class MMMWrapper(mlflow.pyfunc.PythonModel):
             )
 
 
-def log_model(
+def log_mmm(
     mmm: MMM,
     artifact_path: str = "model",
     registered_model_name: str | None = None,
-    **wrapper_kwargs,
+    extend_idata: bool = False,
+    combined: bool = True,
+    include_last_observations: bool = False,
+    original_scale: bool = True,
 ) -> None:
     """Log a PyMC-Marketing MMM as an MLflow artifact for the current run.
 
     Parameters
     ----------
-    model : MMMWrapper
+    mmm : MMM
         The MMM to be logged.
     artifact_path : str, optional
         The path to the artifact to be logged. Defaults to "mmm_model".
@@ -636,12 +639,23 @@ def log_model(
     registered_model_name : str, optional
         The name of the registered model to be logged. Defaults to None.
         If specified, the model will be registered under this name, otherwise it will not be registered.
-    wrapper_kwargs : dict, optional
-        Additional keyword arguments to pass to the MMMWrapper, controlling inference behaviour of logged model.
+    extend_idata : bool, optional
+        Whether to extend the inference data with predictions. Used for all prediction methods.
+        Defaults to False.
+    combined : bool, optional
+        Whether to combine chain and draw dims into sample. Won't work if a dim named sample
+        already exists. Used for posterior/prior predictive sampling. Defaults to True.
+    include_last_observations : bool, optional
+        Whether to include the last observations of training data for adstock transformation.
+        Assumes X_pred are next predictions following training data. Used for all prediction
+        methods. Defaults to False.
+    original_scale : bool, optional
+        Whether to return predictions in original scale of target variable. Used for all
+        prediction methods. Defaults to True.
 
     Examples
     --------
-    MLFlow Registering for a PyMC-Marketing model:
+    MLFlow Registering for a PyMC-Marketing MMM:
 
     .. code-block:: python
 
@@ -655,7 +669,7 @@ def log_model(
             MMM,
         )
         import pymc_marketing.mlflow
-        from pymc_marketing.mlflow import MMMWrapper
+        from pymc_marketing.mlflow import log_mmmm
 
         pymc_marketing.mlflow.autolog(log_mmm=True)
 
@@ -689,21 +703,20 @@ def log_model(
             fig = mmm.plot_components_contributions()
             mlflow.log_figure(fig, "components.png")
 
-            model_info = log_model(mmm,
-                    registered_model_name="my_amazing_mmm",
-                    include_last_observations=True,
-                    original_scale=False,
-                    )
+            model_info = log_mmm(
+                mmm=mmm,
+                registered_model_name="my_amazing_mmm",
+                include_last_observations=True,
+                original_scale=False,
+            )
     """
     # Incorporate MMM into MLflow workflow
     mlflow_mmm = MMMWrapper(
-        mmm,
-        extend_idata=wrapper_kwargs.get("extend_idata", False),
-        combined=wrapper_kwargs.get("combined", True),
-        include_last_observations=wrapper_kwargs.get(
-            "include_last_observations", False
-        ),
-        original_scale=wrapper_kwargs.get("original_scale", True),
+        model=mmm,
+        extend_idata=extend_idata,
+        combined=combined,
+        include_last_observations=include_last_observations,
+        original_scale=original_scale,
     )
 
     mlflow.pyfunc.log_model(
@@ -717,7 +730,7 @@ def log_model(
         mlflow.register_model(model_uri, registered_model_name)
 
 
-def load_model(
+def load_mmmm(
     run_id: str,
     full_model: bool = False,
     keep_idata: bool = False,
@@ -751,8 +764,10 @@ def load_model(
 
     Examples
     --------
-    # Load model using run_id
-    model = load_model(run_id="your_run_id", full_model=True, keep_idata=True)
+    .. code-block:: python
+
+        # Load model using run_id
+        model = load_mmm(run_id="your_run_id", full_model=True, keep_idata=True)
     """
     model_uri = f"runs:/{run_id}/{artifact_path}"
 
