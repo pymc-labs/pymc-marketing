@@ -110,7 +110,7 @@ def approx_hsgp_hyperparams(
 
     References
     ----------
-    - Ruitort-Mayol, G., Anderson, M., Solin, A., Vehtari, A. (2022).
+    .. [1] Ruitort-Mayol, G., Anderson, M., Solin, A., Vehtari, A. (2022).
     Practical Hilbert Space Approximate Bayesian Gaussian Processes for Probabilistic Programming
     """
     lengthscale_min, lengthscale_max = lengthscale_range
