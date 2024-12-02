@@ -26,7 +26,7 @@ import pytensor.tensor as pt
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from pydantic import BaseModel, Field, InstanceOf, model_validator
+from pydantic import BaseModel, Field, InstanceOf, model_validator, validate_call
 from pymc.distributions.shape_utils import Dims
 from pytensor.tensor import TensorLike
 from pytensor.tensor.variable import TensorVariable
@@ -36,10 +36,11 @@ from pymc_marketing.plot import SelToString, plot_curve
 from pymc_marketing.prior import Prior, create_dim_handler
 
 
+@validate_call
 def create_complexity_penalizing_prior(
     *,
-    alpha: float = 0.1,
-    lower: float = 1.0,
+    alpha: float = Field(0.1, gt=0, lt=1),
+    lower: float = Field(1.0, gt=0),
 ) -> Prior:
     R"""Create prior that penalizes complexity for GP lengthscale.
 
@@ -68,9 +69,6 @@ def create_complexity_penalizing_prior(
     .. [1] Geir-Arne Fuglstad, Daniel Simpson, Finn Lindgren, Håvard Rue (2015).
 
     """
-    if not 0 < alpha < 1:
-        raise ValueError("alpha must be between 0 and 1")
-
     lam_ell = -pt.log(alpha) * (1.0 / pt.sqrt(lower))
 
     return Prior(
@@ -155,7 +153,9 @@ def approx_hsgp_hyperparams(
     """
     lengthscale_min, lengthscale_max = lengthscale_range
     if lengthscale_min >= lengthscale_max:
-        raise ValueError("One of the boundaries out of order")
+        raise ValueError(
+            "The boundaries are out of order. {lengthscale_min} should be less than {lengthscale_max}"
+        )
 
     Xs = x - x_center
     S = np.max(np.abs(Xs), axis=0)
