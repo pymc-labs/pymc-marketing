@@ -21,6 +21,7 @@ from pydantic import ValidationError
 
 from pymc_marketing.hsgp_kwargs import (
     HSGP,
+    HSGPPeriodic,
     approx_hsgp_hyperparams,
     create_complexity_penalizing_prior,
 )
@@ -98,12 +99,30 @@ def test_unsupported_cov_func_raises() -> None:
         )
 
 
-def test_curve_workflow(default_hsgp, data) -> None:
-    coords = {default_hsgp.dims[0]: data}
-    prior = default_hsgp.sample_prior(coords=coords, samples=25)
+@pytest.fixture(scope="module")
+def periodic_hsgp(data) -> HSGP:
+    scale = 1
+    ls = 1
+    hsgp = HSGPPeriodic(scale=scale, ls=ls, m=20, period=60, dims="time")
+    hsgp.register_data(data)
+    return hsgp
+
+
+@pytest.mark.parametrize(
+    "hsgp_fixture_name",
+    [
+        "default_hsgp",
+        "periodic_hsgp",
+    ],
+    ids=["HSGP", "HSGPPeriodic"],
+)
+def test_curve_workflow(request, hsgp_fixture_name, data) -> None:
+    hsgp = request.getfixturevalue(hsgp_fixture_name)
+    coords = {hsgp.dims[0]: data}
+    prior = hsgp.sample_prior(coords=coords, samples=25)
     assert isinstance(prior, xr.Dataset)
     curve = prior["f"]
-    fig, axes = default_hsgp.plot_curve(curve)
+    fig, axes = hsgp.plot_curve(curve)
     assert isinstance(fig, Figure)
     assert isinstance(axes, np.ndarray)
     assert len(axes) == 1
