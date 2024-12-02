@@ -171,7 +171,7 @@ def handle_dims(x: pt.TensorLike, dims: Dims, desired_dims: Dims) -> pt.TensorVa
 
     if difference := set(dims).difference(desired_dims):
         raise UnsupportedShapeError(
-            f"Desired dims {desired_dims} are not a subset of the given dims {dims}. "
+            f"Dims {dims} of data are not a subset of the desired dims {desired_dims}. "
             f"{difference} is missing from the desired dims."
         )
 

@@ -648,6 +648,6 @@ def test_custom_transform_comes_first() -> None:
     ids=["no_incommon", "some_incommon"],
 )
 def test_handle_dims_with_impossible_dims(x, dims, desired_dims) -> None:
-    match = " are not a subset of the given dims "
+    match = " are not a subset of the desired dims "
     with pytest.raises(UnsupportedShapeError, match=match):
         handle_dims(x, dims, desired_dims)
