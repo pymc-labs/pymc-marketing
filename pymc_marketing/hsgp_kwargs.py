@@ -435,7 +435,7 @@ class HSGP(BaseModel):
     ls: InstanceOf[Prior] | float = Field(..., description="Prior for the lengthscales")
     eta: InstanceOf[Prior] | float = Field(..., description="Prior for the variance")
     m: int = Field(..., description="Number of basis functions")
-    L: float = Field(..., description="Extent of basis functions")
+    L: float = Field(..., gt=0, description="Extent of basis functions")
     centered: bool = Field(False, description="Whether the model is centered or not")
     drop_first: bool = Field(
         True, description="Whether to drop the first basis function"
