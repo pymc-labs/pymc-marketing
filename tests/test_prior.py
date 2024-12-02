@@ -627,3 +627,16 @@ def test_custom_transform_comes_first() -> None:
     )
 
     clear_custom_transforms()
+
+
+def test_serialize_with_pytensor() -> None:
+    sigma = pt.arange(1, 4)
+    dist = Prior("Normal", mu=0, sigma=sigma)
+
+    assert dist.to_json() == {
+        "dist": "Normal",
+        "kwargs": {
+            "mu": 0,
+            "sigma": [1, 2, 3],
+        },
+    }

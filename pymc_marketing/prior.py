@@ -653,6 +653,9 @@ class Prior:
                 if isinstance(value, Prior):
                     return value.to_json()
 
+                if isinstance(value, pt.TensorVariable):
+                    value = value.eval()
+
                 if isinstance(value, np.ndarray):
                     return value.tolist()
 
