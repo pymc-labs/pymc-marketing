@@ -36,7 +36,11 @@ from pymc_marketing.plot import SelToString, plot_curve
 from pymc_marketing.prior import Prior, create_dim_handler
 
 
-def create_complexity_penalizing_prior(alpha: float = 0.1, lower: float = 1.0) -> Prior:
+def create_complexity_penalizing_prior(
+    *,
+    alpha: float = 0.1,
+    lower: float = 1.0,
+) -> Prior:
     R"""Create prior that penalizes complexity for GP lengthscale.
 
     The prior is defined with the following property:
@@ -64,6 +68,9 @@ def create_complexity_penalizing_prior(alpha: float = 0.1, lower: float = 1.0) -
     .. [1] Geir-Arne Fuglstad, Daniel Simpson, Finn Lindgren, Håvard Rue (2015).
 
     """
+    if not 0 < alpha < 1:
+        raise ValueError("alpha must be between 0 and 1")
+
     lam_ell = -pt.log(alpha) * (1.0 / pt.sqrt(lower))
 
     return Prior(
@@ -72,6 +79,34 @@ def create_complexity_penalizing_prior(alpha: float = 0.1, lower: float = 1.0) -
         beta=1.0 / pt.square(lam_ell),
         transform="reciprocal",
     )
+
+
+def create_constrained_inverse_gamma_prior(
+    *,
+    upper: float,
+    lower: float = 1.0,
+    mass: float = 0.9,
+) -> Prior:
+    """Create a lengthscale prior for the HSGP model.
+
+    Parameters
+    ----------
+    upper : float
+        Upper bound for the lengthscale.
+    lower : float
+        Lower bound for the lengthscale. Default is 1.0.
+    mass : float
+        Mass of the lengthscales. Default is 0.9 or 90%.
+
+    Returns
+    -------
+    Prior
+        The prior for the lengthscale.
+
+    """
+    return Prior(
+        "InverseGamma",
+    ).constrain(lower=lower, upper=upper, mass=mass)
 
 
 def approx_hsgp_hyperparams(
@@ -153,12 +188,73 @@ class CovFunc(str, Enum):
     Matern32 = "matern32"
 
 
-class HSGP(BaseModel, extra="allow"):  # type: ignore
-    """HSGP component for the time-varying prior.
+def create_eta_prior(mass: float = 0.05, upper: float = 1.0) -> Prior:
+    """Create prior for the variance.
+
+    Parameters
+    ----------
+    mass : float
+        Mass of the variance. Default is 0.05 or 5%.
+    upper : float
+        Upper bound for the variance. Default is 1.0.
+
+    """
+    return Prior(
+        "Exponential",
+        lam=-pt.log(mass) / upper,
+    )
+
+
+def create_m_and_L_recommendations(
+    X: np.ndarray,
+    X_mid: float,
+    ls_lower: float = 1.0,
+    ls_upper: float | None = None,
+    cov_func: CovFunc = CovFunc.ExpQuad,
+) -> tuple[int, float]:
+    """Create recommendations for the number of basis functions based on the data.
+
+    Parameters
+    ----------
+    X : np.ndarray
+        The data.
+    X_mid : float
+        The mean of the data.
+    ls_lower : float
+        Lower bound for the lengthscale. Default is 1.0.
+    ls_upper : float, optional
+        Upper bound for the lengthscale. Default is None.
+    cov_func : CovFunc
+        The covariance function. Default is CovFunc.ExpQuad.
+
+    Returns
+    -------
+    tuple[int, float]
+        The number of basis functions and the boundary of the approximation.
+
+    """
+    if ls_upper is None:
+        ls_upper = 2 * X_mid
+    else:
+        ls_upper = ls_upper
+
+    m, c = approx_hsgp_hyperparams(
+        X,
+        X_mid,
+        lengthscale_range=(ls_lower, ls_upper),
+        cov_func=cov_func,
+    )
+    L = c * X_mid
+
+    return m, L
+
+
+class HSGP(BaseModel):
+    """HSGP component.
 
     Examples
     --------
-    HSGP with default configuration:
+    Literature recommended HSGP configuration:
 
     .. plot::
         :include-source: True
@@ -174,18 +270,18 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
         seed = sum(map(ord, "Out of the box GP"))
         rng = np.random.default_rng(seed)
 
-        hsgp = HSGP(dims="time")
-
         n = 52
         X = np.arange(n)
-        hsgp.register_data(X)
+
+        hsgp = HSGP.parameterize_from_data(X, dims="time")
 
         dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
         coords = {
             "time": dates,
         }
         prior = hsgp.sample_prior(coords=coords, random_seed=rng)
-        hsgp.plot_curve(prior["f"])
+        curve = prior["f"]
+        hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
         plt.show()
 
     HSGP with different covariance function
@@ -204,21 +300,22 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
         seed = sum(map(ord, "Change of covariance function"))
         rng = np.random.default_rng(seed)
 
-        hsgp = HSGP(
-            cov_func="matern52",
-            dims="time",
-        )
-
         n = 52
         X = np.arange(n)
+
+        hsgp = HSGP.parameterize_from_data(
+            X=X,
+            cov_func="matern32",
+            dims="time",
+        )
 
         dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
         coords = {
             "time": dates,
         }
-        hsgp.register_data(X)
         prior = hsgp.sample_prior(coords=coords, random_seed=rng)
-        hsgp.plot_curve(prior["f"])
+        curve = prior["f"]
+        hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
         plt.show()
 
     New data predictions with HSGP
@@ -235,11 +332,20 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
         import matplotlib.pyplot as plt
 
         from pymc_marketing.hsgp_kwargs import HSGP
+        from pymc_marketing.prior import Prior
 
         seed = sum(map(ord, "New data predictions"))
         rng = np.random.default_rng(seed)
 
-        hsgp = HSGP(dims=("time", "channel"))
+        eta = Prior("Exponential", lam=1)
+        ls = Prior("InverseGamma", alpha=2, beta=1)
+        hsgp = HSGP(
+            eta=eta,
+            ls=ls,
+            m=20,
+            L=150,
+            dims=("time", "channel"),
+        )
 
         n = 52
         X = np.arange(n)
@@ -248,7 +354,7 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
         coords = {"time": dates, "channel": ["A", "B"]}
         with pm.Model(coords=coords) as model:
             data = pm.Data("data", X, dims="time")
-            f = hsgp.register_data(data).create_variable("f")
+            hsgp.register_data(data).create_variable("f")
             idata = pm.sample_prior_predictive(random_seed=rng)
 
         prior = idata.prior
@@ -264,7 +370,11 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
                 },
                 coords={"time": new_dates},
             )
-            post = pm.sample_posterior_predictive(prior, var_names=["f"], random_seed=rng)
+            post = pm.sample_posterior_predictive(
+                prior,
+                var_names=["f"],
+                random_seed=rng,
+            )
 
         chain, draw = 0, 50
         colors = ["C0", "C1"]
@@ -297,11 +407,13 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
         seed = sum(map(ord, "Higher dimensional HSGP"))
         rng = np.random.default_rng(seed)
 
-        hsgp = HSGP(dims=("time", "channel", "product"))
-
         n = 52
         X = np.arange(n)
-        hsgp.register_data(X)
+
+        hsgp = HSGP.parameterize_from_data(
+            X=X,
+            dims=("time", "channel", "product"),
+        )
 
         coords = {
             "time": range(n),
@@ -312,6 +424,7 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
         curve = prior["f"]
         fig, _ = hsgp.plot_curve(
             curve,
+            sample_kwargs={"rng": rng},
             subplot_kwargs={"figsize": (12, 8), "ncols": 3},
         )
         fig.suptitle("Higher dimensional HSGP prior")
@@ -319,21 +432,15 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
 
     """
 
-    ls_lower: float = Field(1.0, gt=0, description="Lower bound for the lengthscales")
-    ls_upper: float | None = Field(
-        None,
-        gt=0,
-        description="Upper bound for the lengthscales",
-    )
-    ls_mass: float = Field(0.90, gt=0, lt=1, description="Mass of the lengthscales")
-    eta_upper: float = Field(1.0, gt=0, description="Upper bound for the variance")
-    eta_mass: float = Field(0.05, gt=0, lt=1, description="Mass of the variance")
-
+    ls: InstanceOf[Prior] | float = Field(..., description="Prior for the lengthscales")
+    eta: InstanceOf[Prior] | float = Field(..., description="Prior for the variance")
+    m: int = Field(..., description="Number of basis functions")
+    L: float = Field(..., description="Extent of basis functions")
     centered: bool = Field(False, description="Whether the model is centered or not")
     drop_first: bool = Field(
         True, description="Whether to drop the first basis function"
     )
-    X: InstanceOf[TensorVariable] | None = Field(
+    X: InstanceOf[TensorVariable] | InstanceOf[np.ndarray] | None = Field(
         None,
         description="The data to be used in the model",
         exclude=True,
@@ -341,13 +448,6 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
     X_mid: float | None = Field(None, description="The mean of the data")
     cov_func: CovFunc = Field(CovFunc.ExpQuad, description="The covariance function")
     dims: Dims = Field(..., description="The dimensions of the variable")
-
-    @model_validator(mode="after")
-    def _check_lower_below_upper(self) -> Self:
-        if self.ls_upper is not None and self.ls_lower >= self.ls_upper:
-            raise ValueError("Lower bound must be below the upper bound")
-
-        return self
 
     @model_validator(mode="after")
     def _dim_is_at_least_one(self) -> Self:
@@ -363,25 +463,59 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
 
         return self
 
-    @property
-    def eta(self) -> Prior:
-        """The prior for the variance."""
-        return Prior(
-            "Exponential",
-            lam=-np.log(self.eta_mass) / self.eta_upper,
+    @classmethod
+    def parameterize_from_data(
+        cls,
+        X: np.ndarray,
+        dims: Dims,
+        X_mid: float | None = None,
+        eta_mass: float = 0.05,
+        eta_upper: float = 1.0,
+        ls_lower: float = 1.0,
+        ls_upper: float | None = None,
+        ls_mass: float = 0.9,
+        cov_func: CovFunc = CovFunc.ExpQuad,
+        centered: bool = False,
+        drop_first: bool = True,
+    ) -> HSGP:
+        """Create a HSGP informed by the data with literature-based recommendations."""
+        eta = create_eta_prior(mass=eta_mass, upper=eta_upper)
+        if ls_upper is None:
+            ls = create_complexity_penalizing_prior(
+                lower=ls_lower,
+                alpha=ls_mass,
+            )
+        else:
+            ls = create_constrained_inverse_gamma_prior(
+                lower=ls_lower,
+                upper=ls_upper,
+                mass=ls_mass,
+            )
+        X = pt.as_tensor_variable(X).eval()
+        if X_mid is None:
+            X_mid = float(X.mean())
+        m, L = create_m_and_L_recommendations(
+            X,
+            X_mid,
+            ls_lower=ls_lower,
+            ls_upper=ls_upper,
+            cov_func=cov_func,
         )
 
-    @property
-    def ls(self) -> Prior:
-        """The prior for the lengthscales."""
-        if self.ls_upper is None:
-            return create_complexity_penalizing_prior(
-                alpha=1.0 - self.ls_mass, lower=self.ls_lower
-            )
-
-        return Prior(
-            "InverseGamma",
-        ).constrain(lower=self.ls_lower, upper=self.ls_upper, mass=self.ls_mass)
+        hsgp = cls(
+            ls=ls,
+            eta=eta,
+            m=m,
+            L=L,
+            X=X,
+            X_mid=X_mid,
+            cov_func=cov_func,
+            dims=dims,
+            centered=centered,
+            drop_first=drop_first,
+        )
+        hsgp.register_data(X)
+        return hsgp
 
     def register_data(self, X: TensorLike) -> Self:
         """Register the data to be used in the model.
@@ -507,22 +641,9 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
         if self.X_mid is None:
             self.X_mid = float(self.X.mean().eval())
 
-        if self.ls_upper is None:
-            ls_upper = 2 * self.X_mid
-        else:
-            ls_upper = self.ls_upper
-
-        m, c = approx_hsgp_hyperparams(
-            self.X.eval(),
-            self.X_mid,
-            lengthscale_range=(self.ls_lower, ls_upper),
-            cov_func=self.cov_func,
-        )
-        L = c * self.X_mid
-
         model = pm.modelcontext(None)
         coord_name: str = f"{name}_m"
-        model.add_coord(coord_name, np.arange(m - 1))
+        model.add_coord(coord_name, np.arange(self.m - 1))
 
         first_dim, *rest_dims = self.dims
         hsgp_dims: Dims = (*rest_dims, coord_name)
@@ -532,14 +653,22 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
             "matern52": pm.gp.cov.Matern52,
             "matern32": pm.gp.cov.Matern32,
         }
-        eta = self.eta.create_variable(f"{name}_eta")
-        ls = self.ls.create_variable(f"{name}_ls")
+        eta = (
+            self.eta
+            if not hasattr(self.eta, "create_variable")
+            else self.eta.create_variable(f"{name}_eta")
+        )
+        ls = (
+            self.ls
+            if not hasattr(self.ls, "create_variable")
+            else self.ls.create_variable(f"{name}_ls")
+        )
 
         cov_func = eta**2 * cov_funcs[self.cov_func.lower()](input_dim=1, ls=ls)
 
         gp = pm.gp.HSGP(
-            m=[m],
-            L=[L],
+            m=[self.m],
+            L=[self.L],
             cov_func=cov_func,
             drop_first=self.drop_first,
         )
@@ -578,7 +707,10 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
             The object as a dictionary.
 
         """
-        return self.model_dump()
+        data = self.model_dump()
+        data["eta"] = data["eta"].to_json()
+        data["ls"] = data["ls"].to_json()
+        return data
 
     @classmethod
     def from_dict(cls, data) -> HSGP:
@@ -595,6 +727,8 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
             The object created from the data.
 
         """
+        data["eta"] = Prior.from_json(data["eta"])
+        data["ls"] = Prior.from_json(data["ls"])
         return cls(**data)
 
 
@@ -711,6 +845,7 @@ class HSGPPeriodic(BaseModel):
 
     """
 
+    ls: InstanceOf[Prior] | float = Field(..., description="Prior for the lengthscale")
     scale: InstanceOf[Prior] | float = Field(..., description="Prior for the scale")
     m: int = Field(..., description="Number of basis functions")
     cov_func: PeriodicCovFunc = Field(
@@ -718,7 +853,6 @@ class HSGPPeriodic(BaseModel):
         description="The covariance function",
     )
     period: float = Field(..., description="The period of the function")
-    ls: InstanceOf[Prior] | float = Field(...)
     dims: Dims = Field(..., description="The dimensions of the variable")
     X: InstanceOf[TensorVariable] | None = Field(
         None,
