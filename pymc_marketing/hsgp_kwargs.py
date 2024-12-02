@@ -1029,3 +1029,36 @@ class HSGPPeriodic(BaseModel):
             legend=legend,
             sel_to_string=sel_to_string,
         )
+
+    def to_dict(self) -> dict:
+        """Convert the object to a dictionary.
+
+        Returns
+        -------
+        dict
+            The object as a dictionary.
+
+        """
+        data = self.model_dump()
+        data["scale"] = data["scale"].to_json()
+        data["ls"] = data["ls"].to_json()
+        return data
+
+    @classmethod
+    def from_dict(cls, data) -> HSGPPeriodic:
+        """Create an object from a dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            The data to create the object from.
+
+        Returns
+        -------
+        HSGPPeriodic
+            The object created from the data.
+
+        """
+        data["scale"] = Prior.from_json(data["scale"])
+        data["ls"] = Prior.from_json(data["ls"])
+        return cls(**data)
