@@ -637,3 +637,17 @@ def test_custom_transform_comes_first() -> None:
     )
 
     clear_custom_transforms()
+
+
+@pytest.mark.parametrize(
+    "x, dims, desired_dims",
+    [
+        (np.ones(3), "channel", "something_else"),
+        (np.ones((3, 2)), ("a", "b"), ("a", "B")),
+    ],
+    ids=["no_incommon", "some_incommon"],
+)
+def test_handle_dims_with_impossible_dims(x, dims, desired_dims) -> None:
+    match = " are not a subset of the given dims "
+    with pytest.raises(UnsupportedShapeError, match=match):
+        handle_dims(x, dims, desired_dims)
