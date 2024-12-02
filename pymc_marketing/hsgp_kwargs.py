@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -249,7 +249,165 @@ def create_m_and_L_recommendations(
     return m, L
 
 
-class HSGP(BaseModel):
+class HSGPBase(BaseModel):
+    """Shared logic between HSGP and HSGPPeriodic."""
+
+    m: int = Field(..., description="Number of basis functions")
+    X: InstanceOf[TensorVariable] | InstanceOf[np.ndarray] | None = Field(
+        None,
+        description="The data to be used in the model",
+        exclude=True,
+    )
+    X_mid: float | None = Field(None, description="The mean of the data")
+    dims: Dims = Field(..., description="The dimensions of the variable")
+
+    def register_data(self, X: TensorLike) -> Self:
+        """Register the data to be used in the model.
+
+        To be used before creating a variable but not for out-of-sample prediction.
+        For out-of-sample prediction, use `pm.Data` and `pm.set_data`.
+
+        Parameters
+        ----------
+        X : tensor_like
+            The data to be used in the model.
+
+        Returns
+        -------
+        Self
+            The object with the data registered.
+
+        """
+        self.X = pt.as_tensor_variable(X)
+
+        return self
+
+    @model_validator(mode="after")
+    def _register_user_input_X(self) -> Self:
+        if self.X is None:
+            return self
+
+        return self.register_data(self.X)
+
+    @model_validator(mode="after")
+    def _dim_is_at_least_one(self) -> Self:
+        if isinstance(self.dims, str):
+            self.dims = (self.dims,)
+            return self
+
+        if isinstance(self.dims, tuple) and len(self.dims) < 1:
+            raise ValueError("At least one dimension is required")
+
+        if any(not isinstance(dim, str) for dim in self.dims):
+            raise ValueError("All dimensions must be strings")
+
+        return self
+
+    def create_variable(self, name: str) -> TensorVariable:
+        """Create a variable from configuration."""
+        raise NotImplementedError
+
+    def to_dict(self) -> dict:
+        """Convert the object to a dictionary.
+
+        Returns
+        -------
+        dict
+            The object as a dictionary.
+
+        """
+        data = self.model_dump()
+
+        def handle_prior(value):
+            return value if not hasattr(value, "to_json") else value.to_json()
+
+        return {key: handle_prior(value) for key, value in data.items()}
+
+    def sample_prior(
+        self,
+        coords: dict | None = None,
+        **sample_prior_predictive_kwargs,
+    ) -> xr.Dataset:
+        """Sample from the prior distribution.
+
+        Parameters
+        ----------
+        coords : dict, optional
+            The coordinates for the prior. By default it is None.
+        sample_prior_predictive_kwargs
+            Additional keyword arguments for `pm.sample_prior_predictive`.
+
+        Returns
+        -------
+        xr.Dataset
+            The prior distribution.
+
+        """
+        coords = coords or {}
+        with pm.Model(coords=coords) as model:
+            self.create_variable("f")
+
+        return pm.sample_prior_predictive(
+            model=model,
+            **sample_prior_predictive_kwargs,
+        ).prior
+
+    def plot_curve(
+        self,
+        curve: xr.DataArray,
+        subplot_kwargs: dict | None = None,
+        sample_kwargs: dict | None = None,
+        hdi_kwargs: dict | None = None,
+        axes: npt.NDArray[Axes] | None = None,
+        same_axes: bool = False,
+        colors: Iterable[str] | None = None,
+        legend: bool | None = None,
+        sel_to_string: SelToString | None = None,
+    ) -> tuple[Figure, npt.NDArray[Axes]]:
+        """Plot the curve.
+
+        Parameters
+        ----------
+        curve : xr.DataArray
+            Curve to plot
+        subplot_kwargs : dict, optional
+            Additional kwargs to while creating the fig and axes
+        sample_kwargs : dict, optional
+            Kwargs for the :func:`plot_samples` function
+        hdi_kwargs : dict, optional
+            Kwargs for the :func:`plot_hdi` function
+        same_axes : bool
+            If all of the plots are on the same axis
+        colors : Iterable[str], optional
+            Colors for the plots
+        legend : bool, optional
+            If to include a legend. Defaults to True if same_axes
+        sel_to_string : Callable[[Selection], str], optional
+            Function to convert selection to a string. Defaults to
+            ", ".join(f"{key}={value}" for key, value in sel.items())
+
+        Returns
+        -------
+        tuple[plt.Figure, npt.NDArray[plt.Axes]]
+            Figure and the axes
+
+        """
+        first_dim: str = cast(tuple[str, ...], self.dims)[0]
+        return plot_curve(
+            curve,
+            non_grid_names={first_dim},
+            subplot_kwargs=subplot_kwargs,
+            sample_kwargs=sample_kwargs,
+            hdi_kwargs=hdi_kwargs,
+            axes=axes,
+            same_axes=same_axes,
+            colors=colors,
+            legend=legend,
+            sel_to_string=sel_to_string,
+        )
+
+
+class HSGP(HSGPBase):
     """HSGP component.
 
     Examples
@@ -434,34 +592,12 @@ class HSGP(BaseModel):
 
     ls: InstanceOf[Prior] | float = Field(..., description="Prior for the lengthscales")
     eta: InstanceOf[Prior] | float = Field(..., description="Prior for the variance")
-    m: int = Field(..., description="Number of basis functions")
     L: float = Field(..., gt=0, description="Extent of basis functions")
     centered: bool = Field(False, description="Whether the model is centered or not")
     drop_first: bool = Field(
         True, description="Whether to drop the first basis function"
     )
-    X: InstanceOf[TensorVariable] | InstanceOf[np.ndarray] | None = Field(
-        None,
-        description="The data to be used in the model",
-        exclude=True,
-    )
-    X_mid: float | None = Field(None, description="The mean of the data")
     cov_func: CovFunc = Field(CovFunc.ExpQuad, description="The covariance function")
-    dims: Dims = Field(..., description="The dimensions of the variable")
-
-    @model_validator(mode="after")
-    def _dim_is_at_least_one(self) -> Self:
-        if isinstance(self.dims, str):
-            self.dims = (self.dims,)
-            return self
-
-        if isinstance(self.dims, tuple) and len(self.dims) < 1:
-            raise ValueError("At least one dimension is required")
-
-        if any(not isinstance(dim, str) for dim in self.dims):
-            raise ValueError("All dimensions must be strings")
-
-        return self
 
     @classmethod
     def parameterize_from_data(
@@ -516,110 +652,6 @@ class HSGP(BaseModel):
         )
         hsgp.register_data(X)
         return hsgp
-
-    def register_data(self, X: TensorLike) -> Self:
-        """Register the data to be used in the model.
-
-        To be used before creating a variable but not for out-of-sample prediction.
-        For out-of-sample prediction, use `pm.Data` and `pm.set_data`.
-
-        Parameters
-        ----------
-        X : tensor_like
-            The data to be used in the model.
-
-        Returns
-        -------
-        self : HSGP
-            The object itself.
-
-        """
-        self.X = pt.as_tensor_variable(X)
-
-        return self
-
-    def sample_prior(
-        self,
-        coords: dict | None = None,
-        **sample_prior_predictive_kwargs,
-    ) -> xr.Dataset:
-        """Sample from the prior distribution.
-
-        Parameters
-        ----------
-        coords : dict, optional
-            The coordinates for the prior. By default it is None.
-        sample_prior_predictive_kwargs
-            Additional keyword arguments for `pm.sample_prior_predictive`.
-
-        Returns
-        -------
-        xr.Dataset
-            The prior distribution.
-
-        """
-        coords = coords or {}
-        with pm.Model(coords=coords) as model:
-            self.create_variable("f")
-
-        return pm.sample_prior_predictive(
-            model=model,
-            **sample_prior_predictive_kwargs,
-        ).prior
-
-    def plot_curve(
-        self,
-        curve: xr.DataArray,
-        subplot_kwargs: dict | None = None,
-        sample_kwargs: dict | None = None,
-        hdi_kwargs: dict | None = None,
-        axes: npt.NDArray[Axes] | None = None,
-        same_axes: bool = False,
-        colors: Iterable[str] | None = None,
-        legend: bool | None = None,
-        sel_to_string: SelToString | None = None,
-    ) -> tuple[Figure, npt.NDArray[Axes]]:
-        """Plot the curve.
-
-        Parameters
-        ----------
-        curve : xr.DataArray
-            Curve to plot
-        subplot_kwargs : dict, optional
-            Additional kwargs to while creating the fig and axes
-        sample_kwargs : dict, optional
-            Kwargs for the :func:`plot_samples` function
-        hdi_kwargs : dict, optional
-            Kwargs for the :func:`plot_hdi` function
-        same_axes : bool
-            If all of the plots are on the same axis
-        colors : Iterable[str], optional
-            Colors for the plots
-        legend : bool, optional
-            If to include a legend. Defaults to True if same_axes
-        sel_to_string : Callable[[Selection], str], optional
-            Function to convert selection to a string. Defaults to
-            ", ".join(f"{key}={value}" for key, value in sel.items())
-
-        Returns
-        -------
-        tuple[plt.Figure, npt.NDArray[plt.Axes]]
-            Figure and the axes
-
-        """
-        first_dim: str = self.dims if isinstance(self.dims, str) else self.dims[0]
-        return plot_curve(
-            curve,
-            non_grid_names={first_dim},
-            subplot_kwargs=subplot_kwargs,
-            sample_kwargs=sample_kwargs,
-            hdi_kwargs=hdi_kwargs,
-            axes=axes,
-            same_axes=same_axes,
-            colors=colors,
-            legend=legend,
-            sel_to_string=sel_to_string,
-        )
 
     def create_variable(self, name: str) -> TensorVariable:
         """Create a variable from HSGP configuration.
@@ -697,20 +729,6 @@ class HSGP(BaseModel):
                 )
             ).sum(axis=1)
         return pm.Deterministic(name, f, dims=self.dims)
-
-    def to_dict(self) -> dict:
-        """Convert the object to a dictionary.
-
-        Returns
-        -------
-        dict
-            The object as a dictionary.
-
-        """
-        data = self.model_dump()
-        data["eta"] = data["eta"].to_json()
-        data["ls"] = data["ls"].to_json()
-        return data
 
     @classmethod
     def from_dict(cls, data) -> HSGP:
@@ -801,7 +819,7 @@ class PeriodicCovFunc(str, Enum):
     Periodic = "periodic"
 
 
-class HSGPPeriodic(BaseModel):
+class HSGPPeriodic(HSGPBase):
     """HSGP component for periodic data.
 
     Examples
@@ -855,54 +873,11 @@ class HSGPPeriodic(BaseModel):
 
     ls: InstanceOf[Prior] | float = Field(..., description="Prior for the lengthscale")
     scale: InstanceOf[Prior] | float = Field(..., description="Prior for the scale")
-    m: int = Field(..., description="Number of basis functions")
     cov_func: PeriodicCovFunc = Field(
         PeriodicCovFunc.Periodic,
         description="The covariance function",
     )
     period: float = Field(..., description="The period of the function")
-    dims: Dims = Field(..., description="The dimensions of the variable")
-    X: InstanceOf[TensorVariable] | InstanceOf[np.ndarray] | None = Field(
-        None,
-        description="The data to be used in the model",
-        exclude=True,
-    )
-    X_mid: float | None = Field(None, description="The mean of the data")
-
-    @model_validator(mode="after")
-    def _dim_is_at_least_one(self) -> Self:
-        if isinstance(self.dims, str):
-            self.dims = (self.dims,)
-            return self
-
-        if isinstance(self.dims, tuple) and len(self.dims) < 1:
-            raise ValueError("At least one dimension is required")
-
-        if any(not isinstance(dim, str) for dim in self.dims):
-            raise ValueError("All dimensions must be strings")
-
-        return self
-
-    def register_data(self, X: TensorLike) -> Self:
-        """Register the data to be used in the model.
-
-        To be used before creating a variable but not for out-of-sample prediction.
-        For out-of-sample prediction, use `pm.Data` and `pm.set_data`.
-
-        Parameters
-        ----------
-        X : tensor_like
-            The data to be used in the model.
-
-        Returns
-        -------
-        self : HSGP
-            The object itself.
-
-        """
-        self.X = pt.as_tensor_variable(X)
-
-        return self
 
     def create_variable(self, name: str) -> TensorVariable:
         """Create HSGP variable.
@@ -954,103 +929,6 @@ class HSGPPeriodic(BaseModel):
             + phi_sin[..., 1:] @ (psd[1:] * beta[self.m :]),
             dims=self.dims,
         )
-
-    def sample_prior(
-        self,
-        coords: dict | None = None,
-        **sample_prior_predictive_kwargs,
-    ) -> xr.Dataset:
-        """Sample from the prior distribution.
-
-        Parameters
-        ----------
-        coords : dict, optional
-            The coordinates for the prior. By default it is None.
-        sample_prior_predictive_kwargs
-            Additional keyword arguments for `pm.sample_prior_predictive`.
-
-        Returns
-        -------
-        xr.Dataset
-            The prior distribution.
-
-        """
-        coords = coords or {}
-        with pm.Model(coords=coords) as model:
-            self.create_variable("f")
-
-        return pm.sample_prior_predictive(
-            model=model,
-            **sample_prior_predictive_kwargs,
-        ).prior
-
-    def plot_curve(
-        self,
-        curve: xr.DataArray,
-        subplot_kwargs: dict | None = None,
-        sample_kwargs: dict | None = None,
-        hdi_kwargs: dict | None = None,
-        axes: npt.NDArray[Axes] | None = None,
-        same_axes: bool = False,
-        colors: Iterable[str] | None = None,
-        legend: bool | None = None,
-        sel_to_string: SelToString | None = None,
-    ) -> tuple[Figure, npt.NDArray[Axes]]:
-        """Plot the curve.
-
-        Parameters
-        ----------
-        curve : xr.DataArray
-            Curve to plot
-        subplot_kwargs : dict, optional
-            Additional kwargs to while creating the fig and axes
-        sample_kwargs : dict, optional
-            Kwargs for the :func:`plot_samples` function
-        hdi_kwargs : dict, optional
-            Kwargs for the :func:`plot_hdi` function
-        same_axes : bool
-            If all of the plots are on the same axis
-        colors : Iterable[str], optional
-            Colors for the plots
-        legend : bool, optional
-            If to include a legend. Defaults to True if same_axes
-        sel_to_string : Callable[[Selection], str], optional
-            Function to convert selection to a string. Defaults to
-            ", ".join(f"{key}={value}" for key, value in sel.items())
-
-        Returns
-        -------
-        tuple[plt.Figure, npt.NDArray[plt.Axes]]
-            Figure and the axes
-
-        """
-        first_dim: str = self.dims if isinstance(self.dims, str) else self.dims[0]
-        return plot_curve(
-            curve,
-            non_grid_names={first_dim},
-            subplot_kwargs=subplot_kwargs,
-            sample_kwargs=sample_kwargs,
-            hdi_kwargs=hdi_kwargs,
-            axes=axes,
-            same_axes=same_axes,
-            colors=colors,
-            legend=legend,
-            sel_to_string=sel_to_string,
-        )
-
-    def to_dict(self) -> dict:
-        """Convert the object to a dictionary.
-
-        Returns
-        -------
-        dict
-            The object as a dictionary.
-
-        """
-        data = self.model_dump()
-        data["scale"] = data["scale"].to_json()
-        data["ls"] = data["ls"].to_json()
-        return data
 
     @classmethod
     def from_dict(cls, data) -> HSGPPeriodic:

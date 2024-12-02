@@ -102,6 +102,12 @@ def test_unsupported_cov_func_raises() -> None:
         )
 
 
+def test_X_at_init_stores_as_tensor_variable() -> None:
+    X = np.arange(10)
+    hsgp = HSGP(X=X, dims="time", m=200, L=5, eta=1, ls=1)
+    assert isinstance(hsgp.X, pt.TensorVariable)
+
+
 @pytest.fixture(scope="module")
 def periodic_hsgp(data) -> HSGP:
     scale = 1
