@@ -323,6 +323,7 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
     ls_mass: float = Field(0.90, gt=0, lt=1, description="Mass of the lengthscales")
     eta_upper: float = Field(1.0, gt=0, description="Upper bound for the variance")
     eta_mass: float = Field(0.05, gt=0, lt=1, description="Mass of the variance")
+
     centered: bool = Field(False, description="Whether the model is centered or not")
     drop_first: bool = Field(
         True, description="Whether to drop the first basis function"
@@ -529,7 +530,12 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
 
         cov_func = eta**2 * cov_funcs[self.cov_func.lower()](input_dim=1, ls=ls)
 
-        gp = pm.gp.HSGP(m=[m], L=[L], cov_func=cov_func, drop_first=self.drop_first)
+        gp = pm.gp.HSGP(
+            m=[m],
+            L=[L],
+            cov_func=cov_func,
+            drop_first=self.drop_first,
+        )
         phi, sqrt_psd = gp.prior_linearized(
             self.X[:, None] - self.X_mid,
         )
@@ -646,3 +652,239 @@ class HSGPKwargs(BaseModel):
     cov_func: InstanceOf[pm.gp.cov.Covariance] | None = Field(
         None, description="Gaussian process Covariance function"
     )
+
+
+class PeriodicCovFunc(str, Enum):
+    """Supported covariance functions for the HSGP model."""
+
+    Periodic = "periodic"
+
+
+class HSGPPeriodic(BaseModel):
+    """HSGP component for periodic data.
+
+    Examples
+    --------
+    HSGP with default configuration:
+
+    .. plot::
+        :include-source: True
+        :context: reset
+
+        import numpy as np
+        import pandas as pd
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.hsgp_kwargs import HSGPPeriodic
+
+        n = 52 * 3
+        dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
+        X = np.arange(n)
+        coords = {
+            "time": dates,
+        }
+        scale = Prior("HalfNormal", sigma=1)
+        ls = Prior("InverseGamma", alpha=2, beta=1)
+
+        hsgp = HSGPPeriodic(
+            scale=scale,
+            m=20,
+            cov_func="periodic",
+            ls=ls,
+            period=52,
+            dims="time",
+        )
+        prior = hsgp.register_data(X).sample_prior(coords=coords)
+        curve = prior["f"]
+        fig, axes = hsgp.plot_curve(curve, sample_kwargs={"n": 3})
+        ax = axes[0]
+        ax.set(xlabel="Date", ylabel="f", title="HSGP with period of 52 days")
+        plt.show()
+
+    """
+
+    scale: InstanceOf[Prior] | float = Field(..., description="Prior for the scale")
+    m: int = Field(..., description="Number of basis functions")
+    cov_func: PeriodicCovFunc = Field(
+        PeriodicCovFunc.Periodic,
+        description="The covariance function",
+    )
+    period: float = Field(..., description="The period of the function")
+    ls: InstanceOf[Prior] | float = Field(...)
+    dims: Dims = Field(..., description="The dimensions of the variable")
+    X: InstanceOf[TensorVariable] | None = Field(
+        None,
+        description="The data to be used in the model",
+        exclude=True,
+    )
+    X_mid: float | None = Field(None, description="The mean of the data")
+
+    @model_validator(mode="after")
+    def _dim_is_at_least_one(self) -> Self:
+        if isinstance(self.dims, str):
+            self.dims = (self.dims,)
+            return self
+
+        if isinstance(self.dims, tuple) and len(self.dims) < 1:
+            raise ValueError("At least one dimension is required")
+
+        if any(not isinstance(dim, str) for dim in self.dims):
+            raise ValueError("All dimensions must be strings")
+
+        return self
+
+    def register_data(self, X: TensorLike) -> Self:
+        """Register the data to be used in the model.
+
+        To be used before creating a variable but not for out-of-sample prediction.
+        For out-of-sample prediction, use `pm.Data` and `pm.set_data`.
+
+        Parameters
+        ----------
+        X : tensor_like
+            The data to be used in the model.
+
+        Returns
+        -------
+        self : HSGP
+            The object itself.
+
+        """
+        self.X = pt.as_tensor_variable(X)
+
+        return self
+
+    def create_variable(self, name: str) -> TensorVariable:
+        """Create HSGP variable.
+
+        Parameters
+        ----------
+        name : str
+            The name of the variable.
+
+        Returns
+        -------
+        pt.TensorVariable
+            The variable created from the HSGP configuration.
+
+        """
+        if self.X is None:
+            raise ValueError("The data must be registered before creating a variable.")
+
+        if self.X_mid is None:
+            self.X_mid = float(self.X.mean().eval())
+
+        scale = (
+            self.scale
+            if not hasattr(self.scale, "create_variable")
+            else self.scale.create_variable(f"{name}_scale")
+        )
+
+        ls = (
+            self.ls
+            if not hasattr(self.ls, "create_variable")
+            else self.ls.create_variable(f"{name}_ls")
+        )
+        cov_func = pm.gp.cov.Periodic(1, period=self.period, ls=ls)
+
+        gp = pm.gp.HSGPPeriodic(m=self.m, scale=scale, cov_func=cov_func)
+
+        (phi_cos, phi_sin), psd = gp.prior_linearized(
+            self.X[:, None] - self.X_mid,
+        )
+
+        model = pm.modelcontext(None)
+        coord_name: str = f"{name}_m"
+        model.add_coord(coord_name, np.arange((self.m * 2) - 1))
+        beta = pm.Normal(f"{name}_hsgp_coefs", dims=coord_name)
+
+        return pm.Deterministic(
+            name,
+            phi_cos @ (psd * beta[: self.m])
+            + phi_sin[..., 1:] @ (psd[1:] * beta[self.m :]),
+            dims=self.dims,
+        )
+
+    def sample_prior(
+        self,
+        coords: dict | None = None,
+        **sample_prior_predictive_kwargs,
+    ) -> xr.Dataset:
+        """Sample from the prior distribution.
+
+        Parameters
+        ----------
+        coords : dict, optional
+            The coordinates for the prior. By default it is None.
+        sample_prior_predictive_kwargs
+            Additional keyword arguments for `pm.sample_prior_predictive`.
+
+        Returns
+        -------
+        xr.Dataset
+            The prior distribution.
+
+        """
+        coords = coords or {}
+        with pm.Model(coords=coords) as model:
+            self.create_variable("f")
+
+        return pm.sample_prior_predictive(
+            model=model,
+            **sample_prior_predictive_kwargs,
+        ).prior
+
+    def plot_curve(
+        self,
+        curve: xr.DataArray,
+        subplot_kwargs: dict | None = None,
+        sample_kwargs: dict | None = None,
+        hdi_kwargs: dict | None = None,
+        axes: npt.NDArray[Axes] | None = None,
+        same_axes: bool = False,
+        colors: Iterable[str] | None = None,
+        legend: bool | None = None,
+        sel_to_string: SelToString | None = None,
+    ) -> tuple[Figure, npt.NDArray[Axes]]:
+        """Plot the curve from the prior.
+
+        Parameters
+        ----------
+        curve : xr.DataArray
+            Curve to plot
+        subplot_kwargs : dict, optional
+            Additional kwargs to while creating the fig and axes
+        sample_kwargs : dict, optional
+            Kwargs for the :func:`plot_samples` function
+        hdi_kwargs : dict, optional
+            Kwargs for the :func:`plot_hdi` function
+        same_axes : bool
+            If all of the plots are on the same axis
+        colors : Iterable[str], optional
+            Colors for the plots
+        legend : bool, optional
+            If to include a legend. Defaults to True if same_axes
+        sel_to_string : Callable[[Selection], str], optional
+            Function to convert selection to a string. Defaults to
+            ", ".join(f"{key}={value}" for key, value in sel.items())
+
+        Returns
+        -------
+        tuple[plt.Figure, npt.NDArray[plt.Axes]]
+            Figure and the axes
+
+        """
+        first_dim: str = self.dims if isinstance(self.dims, str) else self.dims[0]
+        return plot_curve(
+            curve,
+            non_grid_names={first_dim},
+            subplot_kwargs=subplot_kwargs,
+            sample_kwargs=sample_kwargs,
+            hdi_kwargs=hdi_kwargs,
+            axes=axes,
+            same_axes=same_axes,
+            colors=colors,
+            legend=legend,
+            sel_to_string=sel_to_string,
+        )
