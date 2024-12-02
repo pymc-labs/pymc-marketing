@@ -862,7 +862,7 @@ class HSGPPeriodic(BaseModel):
     )
     period: float = Field(..., description="The period of the function")
     dims: Dims = Field(..., description="The dimensions of the variable")
-    X: InstanceOf[TensorVariable] | None = Field(
+    X: InstanceOf[TensorVariable] | InstanceOf[np.ndarray] | None = Field(
         None,
         description="The data to be used in the model",
         exclude=True,

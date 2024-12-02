@@ -13,6 +13,7 @@
 #   limitations under the License.
 import matplotlib.pyplot as plt
 import numpy as np
+import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from matplotlib.axes import Axes
@@ -21,7 +22,9 @@ from pydantic import ValidationError
 
 from pymc_marketing.hsgp_kwargs import (
     HSGP,
+    CovFunc,
     HSGPPeriodic,
+    PeriodicCovFunc,
     approx_hsgp_hyperparams,
     create_complexity_penalizing_prior,
 )
@@ -128,3 +131,80 @@ def test_curve_workflow(request, hsgp_fixture_name, data) -> None:
     assert len(axes) == 1
     assert isinstance(axes[0], Axes)
     plt.close()
+
+
+def test_hsgp_to_dict() -> None:
+    eta = Prior("Exponential", lam=pt.as_tensor_variable(1))
+    ls = Prior(
+        "Weibull",
+        alpha=1,
+        beta=pt.as_tensor_variable(1),
+        transform="reciprocal",
+    )
+    X = np.arange(10)
+    hsgp = HSGP(
+        eta=eta,
+        ls=ls,
+        dims="time",
+        m=20,
+        L=30,
+        X=X,
+    )
+    data = hsgp.to_dict()
+
+    assert data == {
+        "L": 30.0,
+        "m": 20,
+        "ls": {
+            "dist": "Weibull",
+            "kwargs": {"alpha": 1, "beta": 1},
+            "transform": "reciprocal",
+        },
+        "eta": {
+            "dist": "Exponential",
+            "kwargs": {"lam": 1},
+        },
+        "X_mid": None,
+        "centered": False,
+        "dims": ("time",),
+        "drop_first": True,
+        "cov_func": CovFunc.ExpQuad,
+    }
+
+
+def test_hsgp_periodic_to_dict() -> None:
+    scale = Prior("Exponential", lam=pt.as_tensor_variable(1))
+    ls = Prior(
+        "Weibull",
+        alpha=1,
+        beta=pt.as_tensor_variable(1),
+        transform="reciprocal",
+    )
+    X = np.arange(10)
+    hsgp = HSGPPeriodic(
+        ls=ls,
+        scale=scale,
+        period=60,
+        dims="time",
+        m=20,
+        X=X,
+    )
+
+    data = hsgp.to_dict()
+
+    assert data == {
+        "m": 20,
+        "period": 60.0,
+        "cov_func": PeriodicCovFunc.Periodic,
+        "ls": {
+            "dist": "Weibull",
+            "kwargs": {"alpha": 1, "beta": 1},
+            "transform": "reciprocal",
+        },
+        "scale": {
+            "dist": "Exponential",
+            "kwargs": {"lam": 1},
+        },
+        "X_mid": None,
+        "dims": ("time",),
+    }
