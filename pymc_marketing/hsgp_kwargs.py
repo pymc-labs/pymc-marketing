@@ -819,8 +819,11 @@ class HSGPPeriodic(BaseModel):
 
         from pymc_marketing.hsgp_kwargs import HSGPPeriodic
 
+        seed = sum(map(ord, "Periodic GP"))
+        rng = np.random.default_rng(seed)
+
         n = 52 * 3
-        dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
+        dates = pd.date_range("2023-01-01", periods=n, freq="W-MON")
         X = np.arange(n)
         coords = {
             "time": dates,
@@ -836,9 +839,14 @@ class HSGPPeriodic(BaseModel):
             period=52,
             dims="time",
         )
-        prior = hsgp.register_data(X).sample_prior(coords=coords)
+        hsgp.register_data(X)
+
+        prior = hsgp.sample_prior(coords=coords, random_seed=rng)
         curve = prior["f"]
-        fig, axes = hsgp.plot_curve(curve, sample_kwargs={"n": 3})
+        fig, axes = hsgp.plot_curve(
+            curve,
+            sample_kwargs={"n": 3, "rng": rng},
+        )
         ax = axes[0]
         ax.set(xlabel="Date", ylabel="f", title="HSGP with period of 52 days")
         plt.show()
