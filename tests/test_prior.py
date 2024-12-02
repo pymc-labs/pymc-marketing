@@ -72,6 +72,20 @@ def test_handle_dims(x, dims, desired_dims, expected_fn) -> None:
     np.testing.assert_array_equal(result, expected_fn(x))
 
 
+@pytest.mark.parametrize(
+    "x, dims, desired_dims",
+    [
+        (np.ones(3), "channel", "something_else"),
+        (np.ones((3, 2)), ("a", "b"), ("a", "B")),
+    ],
+    ids=["no_incommon", "some_incommon"],
+)
+def test_handle_dims_with_impossible_dims(x, dims, desired_dims) -> None:
+    match = " are not a subset of the desired dims "
+    with pytest.raises(UnsupportedShapeError, match=match):
+        handle_dims(x, dims, desired_dims)
+
+
 def test_missing_transform() -> None:
     match = "Neither pytensor.tensor nor pymc.math have the function 'foo_bar'"
     with pytest.raises(UnknownTransformError, match=match):

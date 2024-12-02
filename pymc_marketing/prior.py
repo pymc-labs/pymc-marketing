@@ -110,7 +110,7 @@ from pymc.distributions.shape_utils import Dims
 
 
 class UnsupportedShapeError(Exception):
-    """Error for when the shape of the hierarchical variable is not supported."""
+    """Error for when the shapes from variables are not compatible."""
 
 
 class UnsupportedDistributionError(Exception):
@@ -168,6 +168,12 @@ def handle_dims(x: pt.TensorLike, dims: Dims, desired_dims: Dims) -> pt.TensorVa
 
     dims = dims if isinstance(dims, tuple) else (dims,)
     desired_dims = desired_dims if isinstance(desired_dims, tuple) else (desired_dims,)
+
+    if difference := set(dims).difference(desired_dims):
+        raise UnsupportedShapeError(
+            f"Dims {dims} of data are not a subset of the desired dims {desired_dims}. "
+            f"{difference} is missing from the desired dims."
+        )
 
     aligned_dims = np.array(dims)[:, None] == np.array(desired_dims)
 
