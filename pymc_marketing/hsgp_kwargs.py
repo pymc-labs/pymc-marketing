@@ -36,7 +36,7 @@ from pymc_marketing.plot import SelToString, plot_curve
 from pymc_marketing.prior import Prior, create_dim_handler
 
 
-def pc_prior_1d(alpha: float = 0.1, lower: float = 1.0) -> Prior:
+def create_complexity_penalizing_prior(alpha: float = 0.1, lower: float = 1.0) -> Prior:
     R"""Create prior that penalizes complexity for GP lengthscale.
 
     The prior is defined with the following property:
@@ -64,12 +64,12 @@ def pc_prior_1d(alpha: float = 0.1, lower: float = 1.0) -> Prior:
     .. [1] Geir-Arne Fuglstad, Daniel Simpson, Finn Lindgren, Håvard Rue (2015).
 
     """
-    lam_ell = -np.log(alpha) * (1.0 / np.sqrt(lower))
+    lam_ell = -pt.log(alpha) * (1.0 / pt.sqrt(lower))
 
     return Prior(
         "Weibull",
         alpha=0.5,
-        beta=1.0 / np.square(lam_ell),
+        beta=1.0 / pt.square(lam_ell),
         transform="reciprocal",
     )
 
@@ -375,7 +375,9 @@ class HSGP(BaseModel, extra="allow"):  # type: ignore
     def ls(self) -> Prior:
         """The prior for the lengthscales."""
         if self.ls_upper is None:
-            return pc_prior_1d(alpha=1.0 - self.ls_mass, lower=self.ls_lower)
+            return create_complexity_penalizing_prior(
+                alpha=1.0 - self.ls_mass, lower=self.ls_lower
+            )
 
         return Prior(
             "InverseGamma",
