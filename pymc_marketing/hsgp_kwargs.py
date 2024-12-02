@@ -579,7 +579,7 @@ class HSGP(BaseModel):
         legend: bool | None = None,
         sel_to_string: SelToString | None = None,
     ) -> tuple[Figure, npt.NDArray[Axes]]:
-        """Plot the curve from the prior.
+        """Plot the curve.
 
         Parameters
         ----------
@@ -996,7 +996,7 @@ class HSGPPeriodic(BaseModel):
         legend: bool | None = None,
         sel_to_string: SelToString | None = None,
     ) -> tuple[Figure, npt.NDArray[Axes]]:
-        """Plot the curve from the prior.
+        """Plot the curve.
 
         Parameters
         ----------
