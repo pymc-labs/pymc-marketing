@@ -214,3 +214,80 @@ def test_hsgp_periodic_to_dict() -> None:
         "X_mid": None,
         "dims": ("time",),
     }
+
+
+def test_non_prior_parameters_still_serialize() -> None:
+    hsgp = HSGP(m=10, dims="time", ls=1, eta=1, L=5)
+
+    data = hsgp.to_dict()
+
+    assert data == {
+        "L": 5,
+        "m": 10,
+        "ls": 1,
+        "eta": 1,
+        "X_mid": None,
+        "centered": False,
+        "dims": ("time",),
+        "drop_first": True,
+        "cov_func": CovFunc.ExpQuad,
+    }
+
+
+def test_higher_dimension_hsgp(data) -> None:
+    hsgp = HSGP.parameterize_from_data(data, dims=("time", "channel", "product"))
+    coords = {
+        "time": np.arange(10),
+        "channel": np.arange(5),
+        "product": np.arange(3),
+    }
+    prior = hsgp.sample_prior(samples=25, coords=coords)
+    assert isinstance(prior, xr.Dataset)
+    curve = prior["f"]
+    assert curve.shape == (1, 25, 10, 5, 3)
+
+
+def test_from_dict_with_non_dictionary_distributions_hsgp() -> None:
+    data = {
+        "L": 5,
+        "m": 10,
+        "ls": 1,
+        "eta": 1,
+        "X_mid": None,
+        "centered": False,
+        "dims": ("time",),
+        "drop_first": True,
+        "cov_func": CovFunc.ExpQuad,
+    }
+
+    hsgp = HSGP.from_dict(data)
+    assert hsgp.L == 5
+    assert hsgp.m == 10
+    assert hsgp.ls == 1
+    assert hsgp.eta == 1
+    assert hsgp.X_mid is None
+    assert hsgp.centered is False
+    assert hsgp.dims == ("time",)
+    assert hsgp.drop_first is True
+    assert hsgp.cov_func == CovFunc.ExpQuad
+
+
+def test_from_dict_with_non_dictionary_distribution_hspg_periodic() -> None:
+    data = {
+        "m": 20,
+        "period": 60.0,
+        "cov_func": PeriodicCovFunc.Periodic,
+        "ls": 1,
+        "scale": 1,
+        "X_mid": None,
+        "dims": ("time",),
+    }
+
+    hsgp = HSGPPeriodic.from_dict(data)
+    assert hsgp.m == 20
+    assert hsgp.period == 60.0
+    assert hsgp.cov_func == PeriodicCovFunc.Periodic
+    assert hsgp.ls == 1
+    assert hsgp.scale == 1
+    assert hsgp.X_mid is None
+    assert hsgp.dims == ("time",)

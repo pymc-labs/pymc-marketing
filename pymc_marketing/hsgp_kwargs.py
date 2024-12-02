@@ -641,7 +641,7 @@ class HSGP(HSGPBase):
             cov_func=cov_func,
         )
 
-        hsgp = cls(
+        return cls(
             ls=ls,
             eta=eta,
             m=m,
@@ -653,8 +653,6 @@ class HSGP(HSGPBase):
             centered=centered,
             drop_first=drop_first,
         )
-        hsgp.register_data(X)
-        return hsgp
 
     def create_variable(self, name: str) -> TensorVariable:
         """Create a variable from HSGP configuration.
@@ -751,8 +749,10 @@ class HSGP(HSGPBase):
             The object created from the data.
 
         """
-        data["eta"] = Prior.from_json(data["eta"])
-        data["ls"] = Prior.from_json(data["ls"])
+        for key in ["eta", "ls"]:
+            if isinstance(data[key], dict):
+                data[key] = Prior.from_json(data[key])
+
         return cls(**data)
 
 
@@ -951,6 +951,8 @@ class HSGPPeriodic(HSGPBase):
             The object created from the data.
 
         """
-        data["scale"] = Prior.from_json(data["scale"])
-        data["ls"] = Prior.from_json(data["ls"])
+        for key in ["scale", "ls"]:
+            if isinstance(data[key], dict):
+                data[key] = Prior.from_json(data[key])
+
         return cls(**data)
