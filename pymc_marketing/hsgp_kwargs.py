@@ -431,7 +431,10 @@ class HSGP(HSGPBase):
         n = 52
         X = np.arange(n)
 
-        hsgp = HSGP.parameterize_from_data(X, dims="time")
+        hsgp = HSGP.parameterize_from_data(
+            X=X,
+            dims="time",
+        )
 
         dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
         coords = {
@@ -675,7 +678,10 @@ class HSGP(HSGPBase):
 
         model = pm.modelcontext(None)
         coord_name: str = f"{name}_m"
-        model.add_coord(coord_name, np.arange(self.m - 1))
+        model.add_coord(
+            coord_name,
+            np.arange(self.m - 1 if self.drop_first else self.m),
+        )
 
         first_dim, *rest_dims = self.dims
         hsgp_dims: Dims = (*rest_dims, coord_name)
