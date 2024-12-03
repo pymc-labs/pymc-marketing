@@ -622,7 +622,15 @@ class BaseMMM(BaseValidateMMM):
                 progressbar=False,
             )
 
-        return idata.posterior_predictive.channel_contributions.to_numpy()
+        channel_contributions = idata.posterior_predictive.channel_contributions
+        if self.time_varying_media:
+            # This is coupled with the name of the
+            # latent process Deterministic
+            name = "media_temporal_latent_multiplier"
+            mutliplier = self.fit_result[name]
+            channel_contributions = channel_contributions * mutliplier
+
+        return channel_contributions.to_numpy()
 
     @property
     def _serializable_model_config(self) -> dict[str, Any]:
@@ -996,7 +1004,8 @@ class MMM(
                 delta * self.preprocessed_data["X"][self.channel_columns].to_numpy()
             )
             channel_contribution_forward_pass = self.channel_contributions_forward_pass(
-                channel_data=channel_data, disable_logger_stdout=True
+                channel_data=channel_data,
+                disable_logger_stdout=True,
             )
             channel_contributions.append(channel_contribution_forward_pass)
         return DataArray(
