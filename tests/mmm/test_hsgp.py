@@ -20,7 +20,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import ValidationError
 
-from pymc_marketing.hsgp_kwargs import (
+from pymc_marketing.mmm.hsgp import (
     HSGP,
     CovFunc,
     HSGPPeriodic,

@@ -92,7 +92,8 @@ import pytensor.tensor as pt
 from pymc.distributions.shape_utils import Dims
 
 from pymc_marketing.constants import DAYS_IN_YEAR
-from pymc_marketing.hsgp_kwargs import HSGP, CovFunc, HSGPKwargs
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
+from pymc_marketing.mmm.hsgp import HSGP, CovFunc
 from pymc_marketing.prior import Prior
 
 

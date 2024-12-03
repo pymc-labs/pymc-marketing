@@ -38,6 +38,17 @@ from pymc_marketing.mmm.components.saturation import (
     saturation_from_dict,
 )
 from pymc_marketing.mmm.fourier import MonthlyFourier, YearlyFourier
+from pymc_marketing.mmm.hsgp import (
+    HSGP,
+    CovFunc,
+    HSGPPeriodic,
+    PeriodicCovFunc,
+    approx_hsgp_hyperparams,
+    create_complexity_penalizing_prior,
+    create_constrained_inverse_gamma_prior,
+    create_eta_prior,
+    create_m_and_L_recommendations,
+)
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import (
     MediaConfig,
@@ -52,11 +63,14 @@ from pymc_marketing.mmm.preprocessing import (
 from pymc_marketing.mmm.validating import validation_method_X, validation_method_y
 
 __all__ = [
+    "HSGP",
     "MMM",
     "AdstockTransformation",
     "BaseValidateMMM",
+    "CovFunc",
     "DelayedAdstock",
     "GeometricAdstock",
+    "HSGPPeriodic",
     "HillSaturation",
     "HillSaturationSigmoid",
     "InverseScaledLogisticSaturation",
@@ -68,6 +82,7 @@ __all__ = [
     "MediaTransformation",
     "MichaelisMentenSaturation",
     "MonthlyFourier",
+    "PeriodicCovFunc",
     "RootSaturation",
     "SaturationTransformation",
     "TanhSaturation",
@@ -76,7 +91,12 @@ __all__ = [
     "WeibullPDFAdstock",
     "YearlyFourier",
     "adstock_from_dict",
+    "approx_hsgp_hyperparams",
     "base",
+    "create_complexity_penalizing_prior",
+    "create_constrained_inverse_gamma_prior",
+    "create_eta_prior",
+    "create_m_and_L_recommendations",
     "mmm",
     "preprocessing",
     "preprocessing_method_X",
