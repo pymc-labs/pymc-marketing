@@ -48,7 +48,7 @@ from pymc_marketing.mmm.lift_test import (
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
-from pymc_marketing.mmm.utility import UtilityFunction, average_response
+from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
@@ -2239,7 +2239,7 @@ class MMM(
         custom_constraints: dict[str, float] | None = None,
         noise_level: float = 0.01,
         response_scaler: float = 1.0,
-        utility_function: UtilityFunction = average_response,
+        utility_function: UtilityFunctionType = average_response,
         **minimize_kwargs,
     ) -> az.InferenceData:
         """Optimize the given budget based on the specified utility function over a specified time period.
@@ -2271,7 +2271,7 @@ class MMM(
             Custom constraints for the optimization. If None, no custom constraints are applied.
         noise_level : float, optional
             The level of noise added to the allocation strategy (by default 1%).
-        utility_function : UtilityFunction, optional
+        utility_function : UtilityFunctionType, optional
             The utility function to maximize. Default is the mean of the response distribution.
         **minimize_kwargs
             Additional arguments to pass to the `BudgetOptimizer`.
@@ -2320,7 +2320,7 @@ class MMM(
         budget_bounds: dict[str, tuple[float, float]] | None = None,
         custom_constraints: dict[str, float] | None = None,
         noise_level: float = 0.01,
-        utility_function: UtilityFunction = average_response,
+        utility_function: UtilityFunctionType = average_response,
         **minimize_kwargs,
     ) -> az.InferenceData:
         """Allocate the given budget to maximize the response over a specified time period.
@@ -2358,7 +2358,7 @@ class MMM(
             Custom constraints for the optimization. If None, no custom constraints are applied.
         noise_level : float, optional
             The level of noise added to the allocation strategy (by default 1%).
-        utility_function : UtilityFunction, optional
+        utility_function : UtilityFunctionType, optional
             The utility function to maximize. Default is the mean of the response distribution.
         **minimize_kwargs
             Additional arguments to pass to the `BudgetOptimizer`.

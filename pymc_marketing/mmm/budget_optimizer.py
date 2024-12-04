@@ -25,7 +25,7 @@ from scipy.optimize import minimize
 
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
-from pymc_marketing.mmm.utility import UtilityFunction, average_response
+from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 
 
 class MinimizeException(Exception):
@@ -64,7 +64,7 @@ class BudgetOptimizer(BaseModel):
     adstock_first : bool, optional
         Whether to apply adstock transformation first or saturation transformation first.
         Default is True.
-    utility_function : UtilityFunction, optional
+    utility_function : UtilityFunctionType, optional
         The utility function to maximize. Default is the mean of the response distribution.
 
     """
@@ -103,7 +103,7 @@ class BudgetOptimizer(BaseModel):
         description="Response scaler tensor variable.",
     )
 
-    utility_function: UtilityFunction = Field(
+    utility_function: UtilityFunctionType = Field(
         default=average_response,
         description="Utility function to maximize.",
         arbitrary_types_allowed=True,
@@ -293,7 +293,9 @@ class BudgetOptimizer(BaseModel):
         ]
 
         if minimize_kwargs is None:
-            minimize_kwargs = self.DEFAULT_MINIMIZE_KWARGS
+            minimize_kwargs = self.DEFAULT_MINIMIZE_KWARGS.copy()
+        else:
+            minimize_kwargs = {**self.DEFAULT_MINIMIZE_KWARGS, **minimize_kwargs}
 
         result = minimize(
             fun=self._objective,

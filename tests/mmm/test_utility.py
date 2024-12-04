@@ -374,3 +374,93 @@ def test_general_functions(samples, budgets, func):
         assert pytensor_result is not None, "Function returned None"
     except Exception as e:
         pytest.fail(f"Function {func.__name__} raised an unexpected exception: {e!s}")
+
+
+@pytest.mark.parametrize(
+    "confidence_level",
+    [
+        0.0,
+        1.0,
+    ],
+)
+def test_value_at_risk_invalid_confidence_level(confidence_level, test_data):
+    samples, budgets = test_data
+    with pytest.raises(ValueError, match="Confidence level must be between 0 and 1."):
+        value_at_risk(confidence_level)(samples, budgets).eval()
+
+
+@pytest.mark.parametrize(
+    "confidence_level",
+    [
+        0.0,
+        1.0,
+    ],
+)
+def test_conditional_value_at_risk_invalid_confidence_level(
+    confidence_level, test_data
+):
+    samples, budgets = test_data
+    with pytest.raises(ValueError, match="Confidence level must be between 0 and 1."):
+        conditional_value_at_risk(confidence_level)(samples, budgets).eval()
+
+
+@pytest.mark.parametrize(
+    "confidence_level",
+    [
+        0.0,
+        1.0,
+    ],
+)
+def test_tail_distance_invalid_confidence_level(confidence_level, test_data):
+    samples, budgets = test_data
+    with pytest.raises(ValueError, match="Confidence level must be between 0 and 1."):
+        tail_distance(confidence_level)(samples, budgets).eval()
+
+
+@pytest.mark.parametrize(
+    "confidence_level",
+    [
+        0.0,
+        1.0,
+    ],
+)
+def test_mean_tightness_score_invalid_confidence_level(confidence_level, test_data):
+    samples, budgets = test_data
+    with pytest.raises(ValueError, match="Confidence level must be between 0 and 1."):
+        mean_tightness_score(alpha=0.5, confidence_level=confidence_level)(
+            samples, budgets
+        ).eval()
+
+
+@pytest.mark.parametrize(
+    "confidence_level",
+    [
+        0.0,
+        1.0,
+    ],
+)
+def test_adjusted_value_at_risk_score_invalid_confidence_level(
+    confidence_level, test_data
+):
+    samples, budgets = test_data
+    with pytest.raises(ValueError, match="Confidence level must be between 0 and 1."):
+        adjusted_value_at_risk_score(
+            confidence_level=confidence_level, risk_aversion=0.8
+        )(samples, budgets).eval()
+
+
+@pytest.mark.parametrize(
+    "risk_aversion",
+    [
+        -0.1,
+        1.1,
+    ],
+)
+def test_adjusted_value_at_risk_score_invalid_risk_aversion(risk_aversion, test_data):
+    samples, budgets = test_data
+    with pytest.raises(
+        ValueError, match="Risk aversion parameter must be between 0 and 1."
+    ):
+        adjusted_value_at_risk_score(
+            confidence_level=0.95, risk_aversion=risk_aversion
+        )(samples, budgets).eval()

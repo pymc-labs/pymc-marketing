@@ -46,7 +46,7 @@ from collections.abc import Callable
 
 import pytensor.tensor as pt
 
-UtilityFunction = Callable[[pt.TensorVariable, pt.TensorVariable], float]
+UtilityFunctionType = Callable[[pt.TensorVariable, pt.TensorVariable], float]
 
 
 def _compute_quantile(x: pt.TensorVariable, q: float) -> pt.TensorVariable:
@@ -81,7 +81,7 @@ def average_response(
     return pt.mean(samples)
 
 
-def tail_distance(confidence_level: float = 0.75) -> UtilityFunction:
+def tail_distance(confidence_level: float = 0.75) -> UtilityFunctionType:
     R"""Calculate the absolute distance between the mean and the quantiles.
 
     It is a simple and interpretable metric that can be used to assess the risk.
@@ -100,10 +100,11 @@ def tail_distance(confidence_level: float = 0.75) -> UtilityFunction:
     ----------
     confidence_level : float, optional
         Confidence level for the quantiles (default is 0.75).
+        Confidence level must be between 0 and 1.
 
     Returns
     -------
-    UtilityFunction
+    UtilityFunctionType
         A function that calculates the tail distance metric given samples and budgets.
     """
     if not 0 < confidence_level < 1:
@@ -147,7 +148,7 @@ def _calculate_roas_distribution_for_allocation(
 
 def mean_tightness_score(
     alpha: float = 0.5, confidence_level: float = 0.75
-) -> UtilityFunction:
+) -> UtilityFunctionType:
     R"""
     Calculate the mean tightness score.
 
@@ -172,10 +173,11 @@ def mean_tightness_score(
         Risk tolerance parameter (default is 0.5).
     confidence_level : float, optional
         Confidence level for the quantiles (default is 0.75).
+        Confidence level must be between 0 and 1.
 
     Returns
     -------
-    UtilityFunction
+    UtilityFunctionType
         A function that calculates the mean tightness score given samples and budgets.
     """
     if not 0 < confidence_level < 1:
@@ -191,7 +193,7 @@ def mean_tightness_score(
     return _mean_tightness_score
 
 
-def value_at_risk(confidence_level: float = 0.95) -> UtilityFunction:
+def value_at_risk(confidence_level: float = 0.95) -> UtilityFunctionType:
     R"""
     Calculate the Value at Risk (VaR) at a specified confidence level.
 
@@ -212,10 +214,11 @@ def value_at_risk(confidence_level: float = 0.95) -> UtilityFunction:
     ----------
     confidence_level : float, optional
         Confidence level for VaR (default is 0.95).
+        Confidence level must be between 0 and 1.
 
     Returns
     -------
-    UtilityFunction
+    UtilityFunctionType
         A function that calculates the VaR value at the specified confidence level given samples and budgets.
 
     Raises
@@ -238,7 +241,7 @@ def value_at_risk(confidence_level: float = 0.95) -> UtilityFunction:
     return _value_at_risk
 
 
-def conditional_value_at_risk(confidence_level: float = 0.95) -> UtilityFunction:
+def conditional_value_at_risk(confidence_level: float = 0.95) -> UtilityFunctionType:
     R"""
     Calculate the Conditional Value at Risk (CVaR) at a specified confidence level.
 
@@ -258,10 +261,11 @@ def conditional_value_at_risk(confidence_level: float = 0.95) -> UtilityFunction
     ----------
     confidence_level : float, optional
         Confidence level for CVaR (default is 0.95).
+        Confidence level must be between 0 and 1.
 
     Returns
     -------
-    UtilityFunction
+    UtilityFunctionType
         A function that calculates the CVaR value at the specified confidence level given samples and budgets.
 
     Raises
@@ -293,7 +297,7 @@ def conditional_value_at_risk(confidence_level: float = 0.95) -> UtilityFunction
     return _conditional_value_at_risk
 
 
-def sharpe_ratio(risk_free_rate: float = 0.0) -> UtilityFunction:
+def sharpe_ratio(risk_free_rate: float = 0.0) -> UtilityFunctionType:
     R"""
     Calculate the Sharpe Ratio.
 
@@ -316,7 +320,7 @@ def sharpe_ratio(risk_free_rate: float = 0.0) -> UtilityFunction:
 
     Returns
     -------
-    UtilityFunction
+    UtilityFunctionType
         A function that calculates the Sharpe Ratio given samples and budgets.
 
     References
@@ -336,7 +340,7 @@ def sharpe_ratio(risk_free_rate: float = 0.0) -> UtilityFunction:
     return _sharpe_ratio
 
 
-def raroc(risk_free_rate: float = 0.0) -> UtilityFunction:
+def raroc(risk_free_rate: float = 0.0) -> UtilityFunctionType:
     R"""
     Calculate the Risk-Adjusted Return on Capital (RAROC).
 
@@ -363,7 +367,7 @@ def raroc(risk_free_rate: float = 0.0) -> UtilityFunction:
 
     Returns
     -------
-    UtilityFunction
+    UtilityFunctionType
         A function that calculates the RAROC value given samples and budgets.
 
     References
@@ -385,7 +389,7 @@ def raroc(risk_free_rate: float = 0.0) -> UtilityFunction:
 
 def adjusted_value_at_risk_score(
     confidence_level: float = 0.95, risk_aversion: float = 0.8
-) -> UtilityFunction:
+) -> UtilityFunctionType:
     R"""
     Calculate adjusted Value at Risk (AVaR) score.
 
@@ -407,12 +411,13 @@ def adjusted_value_at_risk_score(
     ----------
     confidence_level : float, optional
         Confidence level for VaR (e.g., 0.95 for 95% VaR).
+        Confidence level must be between 0 and 1.
     risk_aversion : float, optional
         Risk aversion parameter (0 = low risk aversion, 1 = high risk aversion).
 
     Returns
     -------
-    UtilityFunction
+    UtilityFunctionType
         A function that calculates the adjusted Value at Risk score given samples and budgets.
 
     Raises
