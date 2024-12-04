@@ -681,9 +681,6 @@ class HSGP(HSGPBase):
             np.arange(self.m - 1 if self.drop_first else self.m),
         )
 
-        first_dim, *rest_dims = self.dims
-        hsgp_dims: Dims = (*rest_dims, coord_name)
-
         cov_funcs = {
             "expquad": pm.gp.cov.ExpQuad,
             "matern52": pm.gp.cov.Matern52,
@@ -712,6 +709,8 @@ class HSGP(HSGPBase):
             self.X[:, None] - self.X_mid,
         )
 
+        first_dim, *rest_dims = self.dims
+        hsgp_dims: Dims = (*rest_dims, coord_name)
         hsgp_coefs = Prior(
             "Normal",
             mu=0,
@@ -779,6 +778,7 @@ class HSGPPeriodic(HSGPBase):
         import matplotlib.pyplot as plt
 
         from pymc_marketing.mmm import HSGPPeriodic
+        from pymc_marketing.prior import Prior
 
         seed = sum(map(ord, "Periodic GP"))
         rng = np.random.default_rng(seed)
@@ -810,6 +810,56 @@ class HSGPPeriodic(HSGPBase):
         )
         ax = axes[0]
         ax.set(xlabel="Date", ylabel="f", title="HSGP with period of 52 days")
+        plt.show()
+
+    Higher dimensional HSGP with periodic data
+
+    .. plot::
+        :include-source: True
+        :context: reset
+
+        import numpy as np
+        import pandas as pd
+
+        import pymc as pm
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm import HSGPPeriodic
+        from pymc_marketing.prior import Prior
+
+        seed = sum(map(ord, "Higher dimensional HSGP with periodic data"))
+        rng = np.random.default_rng(seed)
+
+        n = 52 * 3
+        dates = pd.date_range("2023-01-01", periods=n, freq="W-MON")
+        X = np.arange(n)
+
+        scale = Prior("HalfNormal", sigma=1)
+        ls = Prior("InverseGamma", alpha=2, beta=1)
+
+        hsgp = HSGPPeriodic(
+            X=X,
+            scale=scale,
+            ls=ls,
+            m=20,
+            cov_func="periodic",
+            period=52,
+            dims=("time", "channel", "product"),
+        )
+
+        coords = {
+            "time": dates,
+            "channel": ["A", "B"],
+            "product": ["X", "Y", "Z"],
+        }
+        prior = hsgp.sample_prior(coords=coords, random_seed=rng)
+        curve = prior["f"]
+        fig, axes = hsgp.plot_curve(
+            curve,
+            sample_kwargs={"n": 3, "rng": rng},
+            subplot_kwargs={"figsize": (12, 8), "ncols": 3},
+        )
         plt.show()
 
     """
@@ -864,12 +914,34 @@ class HSGPPeriodic(HSGPBase):
         model = pm.modelcontext(None)
         coord_name: str = f"{name}_m"
         model.add_coord(coord_name, np.arange((self.m * 2) - 1))
-        beta = pm.Normal(f"{name}_hsgp_coefs", dims=coord_name)
+        first_dim, *rest_dims = self.dims
+        hsgp_dims: Dims = (*rest_dims, coord_name)
+        sigma = pt.concatenate([psd, psd[..., 1:]])
+        hsgp_coefs = Prior(
+            "Normal",
+            mu=0,
+            sigma=sigma,
+            dims=hsgp_dims,
+            centered=False,
+        ).create_variable(f"{name}_hsgp_coefs")
+        phi = pt.concatenate([phi_cos, phi_sin[..., 1:]], axis=1)
+
+        if len(rest_dims) <= 1:
+            f = phi @ hsgp_coefs.T
+        else:
+            result_dims = (first_dim, coord_name, *rest_dims)
+            dim_handler = create_dim_handler(desired_dims=result_dims)
+            f = (
+                dim_handler(phi, (first_dim, coord_name))
+                * dim_handler(
+                    hsgp_coefs,
+                    hsgp_dims,
+                )
+            ).sum(axis=1)
 
         return pm.Deterministic(
             name,
-            phi_cos @ (psd * beta[: self.m])
-            + phi_sin[..., 1:] @ (psd[1:] * beta[self.m :]),
+            f,
             dims=self.dims,
         )
 
