@@ -133,7 +133,9 @@ class Transformation:
         )
 
     def set_dims_for_all_priors(self, dims: Dims):
-        """Convinience method to set the dims for all priors.
+        """Set the dims for all priors.
+
+        Convenience method to loop through all the priors and set the dims.
 
         Parameters
         ----------
