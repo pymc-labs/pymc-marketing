@@ -258,7 +258,7 @@ class HSGPBase(BaseModel):
         description="The data to be used in the model",
         exclude=True,
     )
-    X_mid: float | None = Field(None, description="The mean of the data")
+    X_mid: float | None = Field(None, description="The mean of the training data")
     dims: Dims = Field(..., description="The dimensions of the variable")
 
     def register_data(self, X: TensorLike) -> Self:
@@ -602,6 +602,26 @@ class HSGP(HSGPBase):
     )
     cov_func: CovFunc = Field(CovFunc.ExpQuad, description="The covariance function")
 
+    @model_validator(mode="after")
+    def _ls_is_scalar_prior(self) -> Self:
+        if not isinstance(self.ls, Prior):
+            return self
+
+        if self.ls.dims != ():
+            raise ValueError("The lengthscale prior must be scalar random variable.")
+
+        return self
+
+    @model_validator(mode="after")
+    def _eta_is_scalar_prior(self) -> Self:
+        if not isinstance(self.eta, Prior):
+            return self
+
+        if self.eta.dims != ():
+            raise ValueError("The eta prior must be scalar random variable.")
+
+        return self
+
     @classmethod
     def parameterize_from_data(
         cls,
@@ -871,6 +891,26 @@ class HSGPPeriodic(HSGPBase):
         description="The covariance function",
     )
     period: float = Field(..., description="The period of the function")
+
+    @model_validator(mode="after")
+    def _ls_is_scalar_prior(self) -> Self:
+        if not isinstance(self.ls, Prior):
+            return self
+
+        if self.ls.dims != ():
+            raise ValueError("The lengthscale prior must be scalar random variable.")
+
+        return self
+
+    @model_validator(mode="after")
+    def _scale_is_scalar_prior(self) -> Self:
+        if not isinstance(self.scale, Prior):
+            return self
+
+        if self.scale.dims != ():
+            raise ValueError("The scale prior must be scalar random variable.")
+
+        return self
 
     def create_variable(self, name: str) -> TensorVariable:
         """Create HSGP variable.
