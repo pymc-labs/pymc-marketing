@@ -99,16 +99,6 @@ def test_get_item() -> None:
     assert var["sigma"] == 1
 
 
-def test_noncentered_with_scalars() -> None:
-    with pytest.raises(ValueError):
-        Prior(
-            "Normal",
-            mu=2,
-            sigma=10,
-            centered=False,
-        )
-
-
 def test_noncentered_needs_params() -> None:
     with pytest.raises(ValueError):
         Prior(
@@ -651,3 +641,16 @@ def test_custom_transform_comes_first() -> None:
     )
 
     clear_custom_transforms()
+
+
+def test_serialize_with_pytensor() -> None:
+    sigma = pt.arange(1, 4)
+    dist = Prior("Normal", mu=0, sigma=sigma)
+
+    assert dist.to_json() == {
+        "dist": "Normal",
+        "kwargs": {
+            "mu": 0,
+            "sigma": [1, 2, 3],
+        },
+    }

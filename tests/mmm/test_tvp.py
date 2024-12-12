@@ -50,23 +50,27 @@ def test_time_varying_prior(coords):
     with pm.Model(coords=coords) as model:
         X = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
         hsgp_kwargs = HSGPKwargs(m=3, L=10, eta_lam=1, ls_sigma=5)
-        prior = time_varying_prior(
-            name="test", X=X, X_mid=2, dims="date", hsgp_kwargs=hsgp_kwargs
+        f = time_varying_prior(
+            name="test",
+            X=X,
+            X_mid=2,
+            dims="date",
+            hsgp_kwargs=hsgp_kwargs,
         )
 
         # Assert output verification
-        assert isinstance(prior, pt.TensorVariable)
+        assert isinstance(f, pt.TensorVariable)
 
         # Assert internal parameters are created correctly
-        assert model.test_hsgp_coefs.eval().shape == (3,)
+        assert model.test_raw_hsgp_coefs.eval().shape == (3,)
 
         # Assert default cov_func is used when none is provided
-        assert "test_eta" in model.named_vars
-        assert "test_ls" in model.named_vars
-        assert "test_hsgp_coefs" in model.named_vars
+        assert "test_raw_eta" in model.named_vars
+        assert "test_raw_ls" in model.named_vars
+        assert "test_raw_hsgp_coefs" in model.named_vars
 
         # Test that model can compile and sample
-        pm.Normal("obs", mu=prior, sigma=1, observed=np.random.randn(5))
+        pm.Normal("obs", mu=f, sigma=1, observed=np.random.randn(5))
         try:
             pm.sample(50, tune=50, chains=1)
         except pm.SamplingError:
@@ -76,33 +80,44 @@ def test_time_varying_prior(coords):
 def test_calling_without_default_args(coords):
     with pm.Model(coords=coords) as model:
         X = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
-        prior = time_varying_prior(name="test", X=X, dims="date")
+        f = time_varying_prior(name="test", X=X, dims="date")
 
         # Assert output verification
-        assert isinstance(prior, pt.TensorVariable)
+        assert isinstance(f, pt.TensorVariable)
 
         # Assert internal parameters are created correctly
-        assert model.test_hsgp_coefs.eval().shape == (200,)
+        assert model.test_raw_hsgp_coefs.eval().shape == (200,)
 
         # Assert default cov_func is used when none is provided
-        assert "test_eta" in model.named_vars
-        assert "test_ls" in model.named_vars
-        assert "test_hsgp_coefs" in model.named_vars
+        assert "test_raw_eta" in model.named_vars
+        assert "test_raw_ls" in model.named_vars
+        assert "test_raw_hsgp_coefs" in model.named_vars
 
 
 def test_multidimensional(coords):
     with pm.Model(coords=coords) as model:
         X = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
-        hsgp_kwargs = HSGPKwargs(m=7)
+        m = 7
+        hsgp_kwargs = HSGPKwargs(m=m)
         prior = time_varying_prior(
-            name="test", X=X, X_mid=2, dims=("date", "channel"), hsgp_kwargs=hsgp_kwargs
+            name="test",
+            X=X,
+            X_mid=2,
+            dims=("date", "channel"),
+            hsgp_kwargs=hsgp_kwargs,
         )
 
         # Assert internal parameters are created correctly
-        assert model.test_hsgp_coefs.eval().shape == (3, 7)
+        assert model.test_raw_hsgp_coefs.eval().shape == (3, m)
 
         # Test that model can compile and sample
-        pm.Normal("obs", mu=prior, sigma=1, observed=np.random.randn(5, 3))
+        pm.Normal(
+            "obs",
+            mu=prior,
+            sigma=1,
+            observed=np.random.randn(5, 3),
+            dims=("date", "channel"),
+        )
         try:
             pm.sample(50, tune=50, chains=1)
         except pm.SamplingError:
