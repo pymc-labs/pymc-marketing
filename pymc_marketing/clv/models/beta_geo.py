@@ -57,10 +57,12 @@ class BetaGeoModel(CLVModel):
             * `T`: Time between the first purchase and the end of the observation period
     model_config : dict, optional
         Dictionary of model prior parameters:
-            * `a_prior`: Shape parameter for time until dropout; defaults to `pymc.HalfFlat()`
-            * `b_prior`: Shape parameter for time until dropout; defaults to `pymc.HalfFlat()`
-            * `alpha_prior`: Scale parameter for time between purchases; defaults to `pymc.HalfFlat()`
-            * `r_prior`: Scale parameter for time between purchases; defaults to `pymc.HalfFlat()`
+            * `alpha_prior`: Scale parameter for time between purchases; defaults to `Prior("Gamma", alpha=0.1, beta=1)`
+            * `r_prior`: Scale parameter for time between purchases; defaults to `Prior("Gamma", alpha=0.1, beta=1)`
+            * `a_prior`: Shape parameter of dropout process; defaults to `phi_purchase_prior` * `kappa_purchase_prior`
+            * `b_prior`: Shape parameter of dropout process; defaults to `1-phi_dropout_prior` * `kappa_dropout_prior`
+            * `phi_dropout_prior`: Nested prior for a and b priors; defaults to `Prior("Uniform", lower=0, upper=1)`
+            * `kappa_dropout_prior`: Nested prior for a and b priors; defaults to `Prior("Pareto", alpha=1, m=1)`
     sampler_config : dict, optional
         Dictionary of sampler parameters. Defaults to *None*.
 
