@@ -156,17 +156,11 @@ class CLVModel(ModelBuilder):
         trace = MultiTrace([map_strace])
         return pm.to_inference_data(trace, model=model)
 
-    def _fit_DEMZ(self, kwargs: None | dict = None) -> az.InferenceData:
+    def _fit_DEMZ(self, **kwargs) -> az.InferenceData:
         """Fit a model with DEMetropolisZ gradient-free sampler."""
         sampler_config = {}
         if self.sampler_config is not None:
             sampler_config = self.sampler_config.copy()
-        if kwargs is None:
-            kwargs = {
-                "draws": 3000,
-                "tune": 2500,
-                "idata_kwargs": {"log_likelihood": True},
-            }
         sampler_config.update(**kwargs)
         with self.model:
             return pm.sample(step=pm.DEMetropolisZ(), **sampler_config)
