@@ -1929,9 +1929,12 @@ class MMM(
             if extend_idata:
                 self.idata.extend(post_pred, join="right")  # type: ignore
 
-        posterior_predictive_samples = az.extract(
-            post_pred, "posterior_predictive", combined=combined
+        group = (
+            "posterior_predictive"
+            if sample_posterior_predictive_kwargs.get("predictions", False)
+            else "predictions"
         )
+        posterior_predictive_samples = az.extract(post_pred, group, combined=combined)
 
         if include_last_observations:
             posterior_predictive_samples = posterior_predictive_samples.isel(
