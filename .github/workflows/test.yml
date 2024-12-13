@@ -56,6 +56,13 @@ jobs:
 
   test_slow:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # From referencing https://github.com/pymc-labs/pymc-marketing/issues/1158
+        split:
+          - "tests/clv/models/test_beta_geo_beta_binom.py"
+          - "tests/clv/models/test_pareto_nbd.py"
+          - "--ignore tests/clv/models/test_beta_geo_beta_binom.py --ignore tests/clv/models/test_pareto_nbd.py"
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -65,7 +72,7 @@ jobs:
       - name: Run tests
         run: |
           pip install -e .[test]
-          pytest --only-slow
+          pytest --only-slow ${{ matrix.split }}
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
