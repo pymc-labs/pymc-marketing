@@ -111,11 +111,17 @@ class TestCLVModel:
 
         mocker.patch("pymc.sample", mock_sample)
 
-        idata = model.fit(fit_method="demz")
+        idata = model.fit(
+            fit_method="demz",
+            tune=5,
+            chains=2,
+            draws=10,
+            compute_convergence_checks=False,
+        )
 
         assert isinstance(idata, InferenceData)
-        assert len(idata.posterior.chain) == 1
-        assert len(idata.posterior.draw) == 3000
+        assert len(idata.posterior.chain) == 2
+        assert len(idata.posterior.draw) == 10
         assert model.fit_result is idata.posterior
 
     def test_wrong_fit_method(self):
