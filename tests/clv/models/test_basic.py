@@ -106,11 +106,23 @@ class TestCLVModel:
         assert isinstance(summ, pd.Series)
         assert summ.name == "value"
 
+    def test_fit_demz(self, mocker):
+        model = CLVModelTest()
+
+        mocker.patch("pymc.sample", mock_sample)
+
+        idata = model.fit(fit_method="demz")
+
+        assert isinstance(idata, InferenceData)
+        assert len(idata.posterior.chain) == 1
+        assert len(idata.posterior.draw) == 3000
+        assert model.fit_result is idata.posterior
+
     def test_wrong_fit_method(self):
         model = CLVModelTest()
         with pytest.raises(
             ValueError,
-            match=r"Fit method options are \['mcmc', 'map'\], got: wrong_method",
+            match=r"Fit method options are \['mcmc', 'map', 'demz'\], got: wrong_method",
         ):
             model.fit(fit_method="wrong_method")
 

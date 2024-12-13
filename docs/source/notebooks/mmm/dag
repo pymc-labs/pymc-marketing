@@ -1,0 +1,10 @@
+digraph {
+	graph [dpi=200]
+	media [label="media spend"]
+	seas [label=seasonality]
+	trend [label=trend]
+	y [label=sales]
+	media -> y
+	seas -> y
+	trend -> y
+}
