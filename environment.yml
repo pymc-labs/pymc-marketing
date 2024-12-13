@@ -46,3 +46,4 @@ dependencies:
 - pytest-mock
 - blas
 - mlflow
+- hatch

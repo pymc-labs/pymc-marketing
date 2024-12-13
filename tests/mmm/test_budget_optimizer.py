@@ -28,38 +28,50 @@ from pymc_marketing.mmm.components.saturation import LogisticSaturation
             100,
             {"channel_1": (0, 50), "channel_2": (0, 50)},
             {
-                "channel_1": {
-                    "adstock_params": {"alpha": 0.5},
-                    "saturation_params": {"lam": 10, "beta": 0.5},
+                "saturation_params": {
+                    "lam": np.array(
+                        [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]]
+                    ),  # dims: chain, draw, channel
+                    "beta": np.array(
+                        [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]]
+                    ),  # dims: chain, draw, channel
                 },
-                "channel_2": {
-                    "adstock_params": {"alpha": 0.7},
-                    "saturation_params": {"lam": 20, "beta": 1.0},
+                "adstock_params": {
+                    "alpha": np.array(
+                        [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]]
+                    )  # dims: chain, draw, channel
                 },
+                "channels": ["channel_1", "channel_2"],
             },
             None,
             {"channel_1": 50.0, "channel_2": 50.0},
-            49.5,
+            48.8,
         ),
         (
             100,
             {"channel_1": (0, 50), "channel_2": (0, 50)},
             {
-                "channel_1": {
-                    "adstock_params": {"alpha": 0.5},
-                    "saturation_params": {"lam": 10, "beta": 0.5},
+                "saturation_params": {
+                    "lam": np.array(
+                        [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]]
+                    ),  # dims: chain, draw, channel
+                    "beta": np.array(
+                        [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]]
+                    ),  # dims: chain, draw, channel
                 },
-                "channel_2": {
-                    "adstock_params": {"alpha": 0.7},
-                    "saturation_params": {"lam": 20, "beta": 1.0},
+                "adstock_params": {
+                    "alpha": np.array(
+                        [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]]
+                    )  # dims: chain, draw, channel
                 },
+                "channels": ["channel_1", "channel_2"],
             },
             {
                 "method": "SLSQP",
                 "options": {"ftol": 1e-8, "maxiter": 1_002},
             },
             {"channel_1": 50.0, "channel_2": 50.0},
-            49.5,
+            48.8,
         ),
         # Add more test cases if needed
     ],
@@ -98,7 +110,7 @@ def test_allocate_budget(
 
     # Assert Results
     assert optimal_budgets == expected_optimal
-    assert total_response == pytest.approx(expected_response, rel=1e-2)
+    assert -total_response.fun == pytest.approx(expected_response, rel=1e-2)
 
 
 @pytest.mark.parametrize(
@@ -108,14 +120,20 @@ def test_allocate_budget(
             0,
             {"channel_1": (0, 50), "channel_2": (0, 50)},
             {
-                "channel_1": {
-                    "adstock_params": {"alpha": 0.5},
-                    "saturation_params": {"lam": 10, "beta": 0.5},
+                "saturation_params": {
+                    "lam": np.array(
+                        [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]]
+                    ),  # dims: chain, draw, channel
+                    "beta": np.array(
+                        [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]]
+                    ),  # dims: chain, draw, channel
                 },
-                "channel_2": {
-                    "adstock_params": {"alpha": 0.7},
-                    "saturation_params": {"lam": 20, "beta": 1.0},
+                "adstock_params": {
+                    "alpha": np.array(
+                        [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]]
+                    )  # dims: chain, draw, channel
                 },
+                "channels": ["channel_1", "channel_2"],
             },
             {"channel_1": 0.0, "channel_2": 7.94e-13},
             2.38e-10,
@@ -142,7 +160,7 @@ def test_allocate_budget_zero_total(
             total_budget, budget_bounds
         )
     assert optimal_budgets == pytest.approx(expected_optimal, rel=1e-2)
-    assert total_response == pytest.approx(expected_response, abs=1e-1)
+    assert -total_response.fun == pytest.approx(expected_response, abs=1e-1)
 
 
 @patch("pymc_marketing.mmm.budget_optimizer.minimize")
@@ -150,14 +168,20 @@ def test_allocate_budget_custom_minimize_args(minimize_mock) -> None:
     total_budget = 100
     budget_bounds = {"channel_1": (0.0, 50.0), "channel_2": (0.0, 50.0)}
     parameters = {
-        "channel_1": {
-            "adstock_params": {"alpha": 0.5},
-            "saturation_params": {"lam": 10, "beta": 0.5},
+        "saturation_params": {
+            "lam": np.array(
+                [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]]
+            ),  # dims: chain, draw, channel
+            "beta": np.array(
+                [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]]
+            ),  # dims: chain, draw, channel
         },
-        "channel_2": {
-            "adstock_params": {"alpha": 0.7},
-            "saturation_params": {"lam": 20, "beta": 1.0},
+        "adstock_params": {
+            "alpha": np.array(
+                [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]]
+            )  # dims: chain, draw, channel
         },
+        "channels": ["channel_1", "channel_2"],
     }
     minimize_kwargs = {
         "method": "SLSQP",
@@ -204,14 +228,20 @@ def test_allocate_budget_custom_minimize_args(minimize_mock) -> None:
             100,
             {"channel_1": (0, 50), "channel_2": (0, 50)},
             {
-                "channel_1": {
-                    "adstock_params": {"alpha": 0.5},
-                    "saturation_params": {"lam": 10, "beta": 0.5},
+                "saturation_params": {
+                    "lam": np.array(
+                        [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]]
+                    ),  # dims: chain, draw, channel
+                    "beta": np.array(
+                        [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]]
+                    ),  # dims: chain, draw, channel
                 },
-                "channel_2": {
-                    "adstock_params": {"alpha": 0.7},
-                    "saturation_params": {"lam": 20, "beta": 1.0},
+                "adstock_params": {
+                    "alpha": np.array(
+                        [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]]
+                    )  # dims: chain, draw, channel
                 },
+                "channels": ["channel_1", "channel_2"],
             },
             {
                 "type": "ineq",
