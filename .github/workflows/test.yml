@@ -20,6 +20,7 @@ env:
   # The lower bound from the pyproject.toml file
   OLDEST_PYMC_VERSION: "$(grep -E 'pymc *>' pyproject.toml | sed -n 's/.*>=\\([0-9]*\\.[0-9]*\\.[0-9]*\\).*/\\1/p')"
 
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -27,7 +28,8 @@ jobs:
       matrix:
         config: [ {python-version: "3.10", oldest-pymc: false}, {python-version: "3.12", oldest-pymc: true}]
         split:
-          - "tests/mmm"
+          - "tests/mmm --ignore tests/mmm/test_tvp.py --ignore tests/mmm/test_budget_optimizer.py"
+          - "tests/mmm/test_tvp.py tests/mmm/test_budget_optimizer.py"
           - "tests/clv"
           - "--ignore tests/mmm --ignore tests/clv"
     steps:
