@@ -898,6 +898,30 @@ def test_new_data_sample_posterior_predictive_method(
 
 
 @pytest.mark.parametrize(
+    "predictions",
+    [True, False],
+)
+def test_sample_posterior_predictive_with_prediction_kwarg(
+    generate_data,
+    mmm_fitted,
+    predictions: bool,
+) -> None:
+    new_dates = pd.date_range("2022-01-01", "2022-03-01", freq="W-MON")
+    X_pred = generate_data(new_dates)
+
+    predictions = mmm_fitted.sample_posterior_predictive(
+        X_pred=X_pred,
+        extend_idata=False,
+        combined=True,
+        predictions=predictions,
+    )
+    pd.testing.assert_index_equal(
+        pd.DatetimeIndex(predictions.coords["date"]),
+        new_dates,
+    )
+
+
+@pytest.mark.parametrize(
     "model_name", ["mmm_fitted", "mmm_fitted_with_fourier_features"]
 )
 @pytest.mark.parametrize(
