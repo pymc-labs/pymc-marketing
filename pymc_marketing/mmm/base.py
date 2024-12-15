@@ -1181,21 +1181,6 @@ class MMMModelBuilder(ModelBuilder):
         fig.suptitle("channel Contribution Share", fontsize=16, y=1.05)
         return fig
 
-    def graphviz(self, **kwargs):
-        """Get the graphviz representation of the model.
-
-        Parameters
-        ----------
-        **kwargs
-            Keyword arguments for the `pm.model_to_graphviz` function
-
-        Returns
-        -------
-        graphviz.Digraph
-
-        """
-        return pm.model_to_graphviz(self.model, **kwargs)
-
     def _process_decomposition_components(self, data: pd.DataFrame) -> pd.DataFrame:
         """Process data to compute the sum of contributions by component and calculate their percentages.
 
