@@ -8,19 +8,39 @@ issue_number=1158
 title="Speed up test times :rocket:"
 workflow=Test
 latest_id=$(gh run list --workflow $workflow --status success --limit 1 --json databaseId --jq '.[0].databaseId')
-jobs=$(gh api /repos/$owner/$repo/actions/runs/$latest_id/jobs --jq '.jobs | map({name: .name, run_id: .run_id, id: .id})')
+jobs=$(gh api /repos/$owner/$repo/actions/runs/$latest_id/jobs --jq '.jobs | map({name: .name, run_id: .run_id, id: .id, started_at: .started_at, completed_at: .completed_at})')
+
+function human_readable_time() {
+    started_at=$1
+    completed_at=$2
+
+    start_seconds=$(date -d "$started_at" +%s)
+    end_seconds=$(date -d "$completed_at" +%s)
+
+    seconds=$(($end_seconds - $start_seconds))
+
+    if [ $seconds -lt 60 ]; then
+        echo "$seconds seconds"
+    else
+        echo "$(date -u -d @$seconds +'%-M minutes %-S seconds')"
+    fi
+}
 
 all_times=""
 echo "$jobs" | jq -c '.[]' | while read -r job; do
     id=$(echo $job | jq -r '.id')
     name=$(echo $job | jq -r '.name')
     run_id=$(echo $job | jq -r '.run_id')
+    started_at=$(echo $job | jq -r '.started_at')
+    completed_at=$(echo $job | jq -r '.completed_at')
 
     echo "Processing job: $name (ID: $id, Run ID: $run_id)"
     times=$(gh run view --job $id --log | python extract-slow-tests.py)
     echo $times
 
-    top="<details><summary>$name</summary>\n\n\n\`\`\`"
+    human_readable=$(human_readable_time $started_at $completed_at)
+
+    top="<details><summary>($human_readable) $name</summary>\n\n\n\`\`\`"
     bottom="\`\`\`\n\n</details>"
 
     formatted_times="$top\n$times\n$bottom"
