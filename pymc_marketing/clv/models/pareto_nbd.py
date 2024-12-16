@@ -137,8 +137,8 @@ class ParetoNBDModel(CLVModel):
         model.fit(fit_method='map')
         print(model.fit_summary())
 
-        # Use 'mcmc' for more informative predictions and reliable performance on smaller datasets
-        model.fit(fit_method='mcmc')
+        # Use 'demz' for more informative predictions and reliable performance on smaller datasets
+        model.fit(fit_method='demz')
         print(model.fit_summary())
 
         # Predict number of purchases for customers over the next 10 time periods
@@ -332,8 +332,9 @@ class ParetoNBDModel(CLVModel):
         fit_method : str
             Method used to fit the model. Options are:
 
-            * "map": Posterior point estimates via Maximum a Posteriori (default)
-            * "mcmc": Full posterior distributions via No U-Turn Sampler (NUTS)
+            * "map": Posterior point estimates via Maximum a Posteriori (default).
+            * "demz": Full posterior distributions via DEMetropolisZ.
+            * "mcmc": Full posterior distributions via No U-Turn Sampler (NUTS). This can be very slow.
 
         kwargs : dict
             Other keyword arguments passed to the underlying PyMC routines

@@ -900,3 +900,18 @@ class ModelBuilder(ABC):
         hasher.update(self.version.encode())
         hasher.update(self._model_type.encode())
         return hasher.hexdigest()[:16]
+
+    def graphviz(self, **kwargs):
+        """Get the graphviz representation of the model.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments for the `pm.model_to_graphviz` function
+
+        Returns
+        -------
+        graphviz.Digraph
+
+        """
+        return pm.model_to_graphviz(self.model, **kwargs)

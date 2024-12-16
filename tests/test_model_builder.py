@@ -31,6 +31,7 @@ import sys
 import tempfile
 
 import arviz as az
+import graphviz
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -574,3 +575,16 @@ def test_fit_sampler_config_with_rng_fails(mocker, toy_X, toy_y) -> None:
     match = "Object of type Generator is not JSON serializable"
     with pytest.raises(TypeError, match=match):
         model.fit(toy_X, toy_y)
+
+
+def test_graphviz(toy_X, toy_y):
+    """Test pymc.graphviz utility on model before and after being built"""
+    model = ModelBuilderTest()
+
+    with pytest.raises(
+        AttributeError, match="'ModelBuilderTest' object has no attribute 'model'"
+    ):
+        model.graphviz()
+
+    model.build_model(X=toy_X, y=toy_y)
+    assert isinstance(model.graphviz(), graphviz.graphs.Digraph)
