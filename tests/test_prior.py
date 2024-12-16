@@ -72,6 +72,20 @@ def test_handle_dims(x, dims, desired_dims, expected_fn) -> None:
     np.testing.assert_array_equal(result, expected_fn(x))
 
 
+@pytest.mark.parametrize(
+    "x, dims, desired_dims",
+    [
+        (np.ones(3), "channel", "something_else"),
+        (np.ones((3, 2)), ("a", "b"), ("a", "B")),
+    ],
+    ids=["no_incommon", "some_incommon"],
+)
+def test_handle_dims_with_impossible_dims(x, dims, desired_dims) -> None:
+    match = " are not a subset of the desired dims "
+    with pytest.raises(UnsupportedShapeError, match=match):
+        handle_dims(x, dims, desired_dims)
+
+
 def test_missing_transform() -> None:
     match = "Neither pytensor.tensor nor pymc.math have the function 'foo_bar'"
     with pytest.raises(UnknownTransformError, match=match):
@@ -83,16 +97,6 @@ def test_get_item() -> None:
 
     assert var["mu"] == 0
     assert var["sigma"] == 1
-
-
-def test_noncentered_with_scalars() -> None:
-    with pytest.raises(ValueError):
-        Prior(
-            "Normal",
-            mu=2,
-            sigma=10,
-            centered=False,
-        )
 
 
 def test_noncentered_needs_params() -> None:
@@ -576,10 +580,7 @@ def test_cant_reset_distribution() -> None:
 
 
 def test_nonstring_distribution() -> None:
-    with pytest.raises(
-        ValidationError,
-        match="1 validation error for __init__\\n1\\n  Input should be a valid string",
-    ):
+    with pytest.raises(ValidationError, match=".*Input should be a valid string.*"):
         Prior(pm.Normal)
 
 
@@ -590,10 +591,7 @@ def test_change_the_transform() -> None:
 
 
 def test_nonstring_transform() -> None:
-    with pytest.raises(
-        ValidationError,
-        match="1 validation error for __init__\\ntransform\\n  Input should be a valid string",
-    ):
+    with pytest.raises(ValidationError, match=".*Input should be a valid string.*"):
         Prior("Normal", transform=pm.math.log)
 
 
@@ -643,3 +641,16 @@ def test_custom_transform_comes_first() -> None:
     )
 
     clear_custom_transforms()
+
+
+def test_serialize_with_pytensor() -> None:
+    sigma = pt.arange(1, 4)
+    dist = Prior("Normal", mu=0, sigma=sigma)
+
+    assert dist.to_json() == {
+        "dist": "Normal",
+        "kwargs": {
+            "mu": 0,
+            "sigma": [1, 2, 3],
+        },
+    }

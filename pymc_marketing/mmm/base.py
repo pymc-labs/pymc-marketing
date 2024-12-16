@@ -46,7 +46,7 @@ from pymc_marketing.mmm.validating import (
 )
 from pymc_marketing.model_builder import ModelBuilder
 
-__all__ = ["MMMModelBuilder", "BaseValidateMMM"]
+__all__ = ["BaseValidateMMM", "MMMModelBuilder"]
 
 from pydantic import Field, validate_call
 
@@ -549,7 +549,7 @@ class MMMModelBuilder(ModelBuilder):
             hdi_list = [0.94, 0.5]
 
         if hdi_list and not add_gradient:
-            alpha_list = np.linspace(0.2, 0.4, len(hdi_list))
+            alpha_list = np.linspace(0.2, 0.4, len(hdi_list), dtype=float)
             for hdi_prob, alpha in zip(hdi_list, alpha_list, strict=True):
                 ax = self._add_hdi_to_plot(
                     ax=ax,
@@ -1180,21 +1180,6 @@ class MMMModelBuilder(ModelBuilder):
         fig: plt.Figure = plt.gcf()
         fig.suptitle("channel Contribution Share", fontsize=16, y=1.05)
         return fig
-
-    def graphviz(self, **kwargs):
-        """Get the graphviz representation of the model.
-
-        Parameters
-        ----------
-        **kwargs
-            Keyword arguments for the `pm.model_to_graphviz` function
-
-        Returns
-        -------
-        graphviz.Digraph
-
-        """
-        return pm.model_to_graphviz(self.model, **kwargs)
 
     def _process_decomposition_components(self, data: pd.DataFrame) -> pd.DataFrame:
         """Process data to compute the sum of contributions by component and calculate their percentages.

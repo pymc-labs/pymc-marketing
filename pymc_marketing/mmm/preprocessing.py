@@ -22,11 +22,11 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler, StandardScaler
 
 __all__ = [
+    "MaxAbsScaleChannels",
+    "MaxAbsScaleTarget",
+    "StandardizeControls",
     "preprocessing_method_X",
     "preprocessing_method_y",
-    "MaxAbsScaleTarget",
-    "MaxAbsScaleChannels",
-    "StandardizeControls",
 ]
 
 

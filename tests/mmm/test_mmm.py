@@ -898,6 +898,30 @@ def test_new_data_sample_posterior_predictive_method(
 
 
 @pytest.mark.parametrize(
+    "predictions",
+    [True, False],
+)
+def test_sample_posterior_predictive_with_prediction_kwarg(
+    generate_data,
+    mmm_fitted,
+    predictions: bool,
+) -> None:
+    new_dates = pd.date_range("2022-01-01", "2022-03-01", freq="W-MON")
+    X_pred = generate_data(new_dates)
+
+    predictions = mmm_fitted.sample_posterior_predictive(
+        X_pred=X_pred,
+        extend_idata=False,
+        combined=True,
+        predictions=predictions,
+    )
+    pd.testing.assert_index_equal(
+        pd.DatetimeIndex(predictions.coords["date"]),
+        new_dates,
+    )
+
+
+@pytest.mark.parametrize(
     "model_name", ["mmm_fitted", "mmm_fitted_with_fourier_features"]
 )
 @pytest.mark.parametrize(
@@ -1264,3 +1288,29 @@ def test_missing_attrs_to_defaults(toy_X, toy_y) -> None:
 
     # clean up
     os.remove(file)
+
+
+def test_channel_contributions_forward_pass_time_varying_media(toy_X, toy_y) -> None:
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_media=True,
+    )
+    mmm = mock_fit(mmm, toy_X, toy_y)
+
+    posterior = mmm.fit_result
+
+    baseline_contributions = posterior["baseline_channel_contributions"]
+    multiplier = posterior["media_temporal_latent_multiplier"]
+    target_scale = mmm.y.max()
+    recovered_contributions = baseline_contributions * multiplier * target_scale
+    media_contributions = mmm.channel_contributions_forward_pass(
+        mmm.preprocessed_data["X"][mmm.channel_columns].to_numpy()
+    )
+    np.testing.assert_allclose(
+        recovered_contributions.to_numpy(),
+        media_contributions,
+    )
