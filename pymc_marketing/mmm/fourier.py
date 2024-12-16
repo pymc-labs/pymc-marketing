@@ -222,7 +222,7 @@ from pydantic import BaseModel, Field, InstanceOf, field_serializer, model_valid
 from typing_extensions import Self
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_YEAR
-from pymc_marketing.mmm.plot import SelToString, plot_curve, plot_hdi, plot_samples
+from pymc_marketing.plot import SelToString, plot_curve, plot_hdi, plot_samples
 from pymc_marketing.prior import Prior, create_dim_handler
 
 X_NAME: str = "day"

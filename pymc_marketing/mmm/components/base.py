@@ -36,13 +36,13 @@ from pymc.distributions.shape_utils import Dims
 from pytensor import tensor as pt
 from pytensor.tensor.variable import TensorVariable
 
-from pymc_marketing.mmm.plot import (
+from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.plot import (
     SelToString,
     plot_curve,
     plot_hdi,
     plot_samples,
 )
-from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import DimHandler, Prior, create_dim_handler
 
 # "x" for saturation, "time since exposure" for adstock

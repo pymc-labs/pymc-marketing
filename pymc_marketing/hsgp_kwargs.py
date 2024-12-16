@@ -77,6 +77,6 @@ class HSGPKwargs(BaseModel):
         gt=0,
         description="Standard deviation of the inverse gamma prior for the lengthscale",
     )
-    cov_func: InstanceOf[pm.gp.cov.Covariance] | None = Field(
+    cov_func: InstanceOf[pm.gp.cov.Covariance] | str | None = Field(
         None, description="Gaussian process Covariance function"
     )

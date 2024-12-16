@@ -114,14 +114,17 @@ class CLVModel(ModelBuilder):
         """
         self.build_model()  # type: ignore
 
-        if fit_method == "mcmc":
-            idata = self._fit_mcmc(**kwargs)
-        elif fit_method == "map":
-            idata = self._fit_MAP(**kwargs)
-        else:
-            raise ValueError(
-                f"Fit method options are ['mcmc', 'map'], got: {fit_method}"
-            )
+        match fit_method:
+            case "mcmc":
+                idata = self._fit_mcmc(**kwargs)
+            case "map":
+                idata = self._fit_MAP(**kwargs)
+            case "demz":
+                idata = self._fit_DEMZ(**kwargs)
+            case _:
+                raise ValueError(
+                    f"Fit method options are ['mcmc', 'map', 'demz'], got: {fit_method}"
+                )
 
         self.idata = idata
         self.set_idata_attrs(self.idata)
@@ -131,26 +134,7 @@ class CLVModel(ModelBuilder):
         return self.idata
 
     def _fit_mcmc(self, **kwargs) -> az.InferenceData:
-        """Fit a model using the data passed as a parameter.
-
-        Sets attrs to inference data of the model.
-
-
-        Parameters
-        ----------
-        X : array-like if sklearn is available, otherwise array, shape (n_obs, n_features)
-            The training input samples.
-        y : array-like if sklearn is available, otherwise array, shape (n_obs,)
-            The target values (real numbers).
-        **kwargs : Any
-            Custom sampler settings can be provided in form of keyword arguments.
-
-        Returns
-        -------
-        self : az.InferenceData
-            returns inference data of the fitted model.
-
-        """
+        """Fit a model with NUTS."""
         sampler_config = {}
         if self.sampler_config is not None:
             sampler_config = self.sampler_config.copy()
@@ -171,6 +155,15 @@ class CLVModel(ModelBuilder):
         map_strace.close()
         trace = MultiTrace([map_strace])
         return pm.to_inference_data(trace, model=model)
+
+    def _fit_DEMZ(self, **kwargs) -> az.InferenceData:
+        """Fit a model with DEMetropolisZ gradient-free sampler."""
+        sampler_config = {}
+        if self.sampler_config is not None:
+            sampler_config = self.sampler_config.copy()
+        sampler_config.update(**kwargs)
+        with self.model:
+            return pm.sample(step=pm.DEMetropolisZ(), **sampler_config)
 
     @classmethod
     def load(cls, fname: str):

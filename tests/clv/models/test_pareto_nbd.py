@@ -188,19 +188,12 @@ class TestParetoNBDModel:
     @pytest.mark.slow
     @pytest.mark.parametrize(
         "fit_method, rtol",
-        [
-            ("mcmc", 0.1),
-            ("map", 0.2),
-        ],
+        [("mcmc", 0.1), ("map", 0.2), ("demz", 0.2)],
     )
     def test_model_convergence(self, fit_method, rtol):
-        # Edit priors here for convergence testing
-        # Note that None/pm.HalfFlat is extremely slow to converge
         model = ParetoNBDModel(
             data=self.data,
         )
-        # TODO: This can be removed after build_model() is called internally with __init__
-        model.build_model()
 
         model.fit(fit_method=fit_method, progressbar=False)
 
@@ -660,7 +653,7 @@ class TestParetoNBDModelWithCovariates:
             < res_high["recency_frequency"].sel(obs_var="recency")
         ).all()
 
-    def test_model_convergence(self):
+    def test_covariate_model_convergence(self):
         """Test that we can recover the true parameters with MAP fitting"""
         rng = np.random.default_rng(627)
 
