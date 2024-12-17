@@ -463,6 +463,7 @@ def plot_expected_purchases_over_time(
         if title is None:
             title = "Tracking Cumulative Transactions"
 
+    # TODO: After utility func supports xarrays, refactor this for matplotlib API.
     ax = df_cum_purchases.plot(ax=ax, title=title, **kwargs)
 
     if t_unobserved:
