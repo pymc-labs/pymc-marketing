@@ -17,7 +17,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-IsType = Callable[[Any], bool]
+IsType = Callable[[dict], bool]
 Deserialize = Callable[[dict], Any]
 
 
