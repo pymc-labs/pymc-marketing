@@ -341,3 +341,15 @@ def test_repr(new_transformation) -> None:
         "priors={'a': Prior(\"HalfNormal\", sigma=1), 'b': Prior(\"HalfNormal\", sigma=1)}"
         ")"
     )
+
+
+def test_support_for_non_prior(new_transformation_class) -> None:
+    instance = new_transformation_class(
+        priors={"a": 1, "b": 2},
+    )
+
+    assert instance.to_dict() == {
+        "lookup_name": "new_transformation",
+        "prefix": "new",
+        "priors": {"a": 1, "b": 2},
+    }
