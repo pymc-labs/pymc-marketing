@@ -310,6 +310,9 @@ class Transformation:
 
         def create_variable(parameter_name: str, variable_name: str) -> TensorVariable:
             dist = self.function_priors[parameter_name]
+            if not hasattr(dist, "create_variable"):
+                return dist
+
             var = dist.create_variable(variable_name)
             return dim_handler(var, dist.dims)
 
