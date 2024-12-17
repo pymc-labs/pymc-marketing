@@ -20,7 +20,7 @@ from pytensor.tensor import TensorVariable
 
 from pymc_marketing.clv import (
     plot_customer_exposure,
-    plot_expected_purchases,
+    plot_expected_purchases_over_time,
     plot_expected_purchases_ppc,
     plot_frequency_recency_matrix,
     plot_probability_alive_matrix,
@@ -159,10 +159,10 @@ def test_plot_probability_alive_matrix_with_ax(mock_model) -> None:
     "plot_cumulative, set_index_date, subplot",
     [(True, False, None), (False, True, plt.subplot())],
 )
-def test_plot_expected_purchases(
+def test_plot_expected_purchases_over_time(
     mock_model, cdnow_trans, plot_cumulative, set_index_date, subplot
 ) -> None:
-    ax = plot_expected_purchases(
+    ax = plot_expected_purchases_over_time(
         model=mock_model,
         purchase_history=cdnow_trans,
         customer_id_col="id",
