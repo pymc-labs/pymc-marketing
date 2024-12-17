@@ -654,3 +654,10 @@ def test_serialize_with_pytensor() -> None:
             "sigma": [1, 2, 3],
         },
     }
+
+
+def test_zsn_non_centered() -> None:
+    try:
+        Prior("ZeroSumNormal", sigma=1, centered=False)
+    except Exception as e:
+        pytest.fail(f"Unexpected exception: {e}")
