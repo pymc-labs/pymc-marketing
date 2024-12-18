@@ -16,6 +16,7 @@ import numpy as np
 import pymc as pm
 import pytest
 import xarray as xr
+from pytensor.tensor import TensorVariable
 
 from pymc_marketing.mmm.components.base import (
     MissingDataParameter,
@@ -353,3 +354,47 @@ def test_support_for_non_prior(new_transformation_class) -> None:
         "prefix": "new",
         "priors": {"a": 1, "b": 2},
     }
+
+
+class StandardNormal:
+    def __init__(self, dims: tuple[str, ...]) -> None:
+        self.dims = dims
+
+    def to_dict(self) -> dict:
+        return {
+            "type": "StandardNormal",
+            "dims": self.dims,
+        }
+
+    def create_variable(self, name: str) -> TensorVariable:
+        return pm.Normal(name, 0, 1, dims=self.dims)
+
+
+@pytest.fixture
+def new_transformation_with_custom(new_transformation_class):
+    return new_transformation_class(
+        priors={"a": StandardNormal(("channel",))},
+    )
+
+
+def test_support_customer_serialization(
+    new_transformation_with_custom,
+) -> None:
+    assert new_transformation_with_custom.to_dict() == {
+        "lookup_name": "new_transformation",
+        "prefix": "new",
+        "priors": {
+            "a": {"type": "StandardNormal", "dims": ("channel",)},
+            "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        },
+    }
+
+
+def test_support_customer_samples(
+    new_transformation_with_custom,
+) -> None:
+    coords = {"channel": ["C1", "C2", "C3"]}
+    priors = new_transformation_with_custom.sample_prior(coords=coords)
+
+    assert priors.data_vars.keys() == {"new_a", "new_b"}
+    assert priors["new_a"].sizes == {"chain": 1, "draw": 500, "channel": 3}
