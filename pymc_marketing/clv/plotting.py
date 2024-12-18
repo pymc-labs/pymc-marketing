@@ -26,7 +26,7 @@ from pymc_marketing.clv.utils import _expected_cumulative_transactions
 
 __all__ = [
     "plot_customer_exposure",
-    "plot_expected_purchases",
+    "plot_expected_purchases_over_time",
     "plot_expected_purchases_ppc",
     "plot_frequency_recency_matrix",
     "plot_probability_alive_matrix",
@@ -187,7 +187,7 @@ def plot_frequency_recency_matrix(
     ax: plt.Axes | None = None,
     **kwargs,
 ) -> plt.Axes:
-    """Plot expected transactions in *future_t* time periods as a heatmap based on customer population *frequency* and *recency*.
+    """Plot expected purchases in *future_t* time periods as a heatmap based on customer population *frequency* and *recency*.
 
     Parameters
     ----------
@@ -356,7 +356,7 @@ def plot_probability_alive_matrix(
     return ax
 
 
-def plot_expected_purchases(
+def plot_expected_purchases_over_time(
     model,
     purchase_history: pd.DataFrame,
     customer_id_col: str,
@@ -367,7 +367,7 @@ def plot_expected_purchases(
     datetime_format: str | None = None,
     time_unit: str = "D",
     time_scaler: float | None = 1,
-    sort_transactions: bool | None = True,
+    sort_purchases: bool | None = True,
     set_index_date: bool | None = False,
     title: str | None = None,
     xlabel: str = "Time Periods",
@@ -378,11 +378,11 @@ def plot_expected_purchases(
     """Plot actual and expected purchases over time for a fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
 
     This function is based on the formulation on page 8 of [1]_. Specifically, we take only customers who have made
-    their first transaction before the specified number of ``t`` time periods, and run
+    their first purchase before the specified number of ``t`` time periods, and run
     ``expected_purchases_new_customer()`` for all remaining time periods. Results can be either cumulative or
     incremental.
 
-    Adapted from legacy ``lifetimes`` library:
+    Adapted from the legacy ``lifetimes`` library:
     https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/plotting.py#L392
 
     Parameters
@@ -392,9 +392,9 @@ def plot_expected_purchases(
     purchase_history : ~pandas.DataFrame
         A Pandas DataFrame containing *customer_id_col* and *datetime_col*.
     customer_id_col : string
-        Column in the *transactions* DataFrame denoting the *customer_id*.
+        Column in the *purchases* DataFrame denoting the *customer_id*.
     datetime_col :  string
-        Column in the *transactions* DataFrame denoting datetimes purchase were made.
+        Column in the *purchases* DataFrame denoting datetimes purchase were made.
     t : int
         Number of time units since earliest purchase to include in plot.
     plot_cumulative : bool
@@ -412,10 +412,10 @@ def plot_expected_purchases(
     time_scaler : int, optional
         Default: 1. Scales *recency* & *T* to a different time granularity.
         This is useful for datasets spanning many years, and running predictions in different time scales.
-    sort_transactions : bool, optional
+    sort_purchases : bool, optional
         Default: *True*
-        If *transactions* DataFrame is already sorted in chronological order, set to *False* to improve computational
-        efficiency.
+        If *purchase_history* DataFrame is already sorted in chronological order,
+        set to *False* to improve computational efficiency.
     set_index_date : bool, optional
         Set to True to return a dataframe with a datetime index.
     title : str, optional
@@ -424,8 +424,8 @@ def plot_expected_purchases(
         Figure xlabel
     ylabel : str, optional
         Figure ylabel
-    ax : matplotlib.AxesSubplot, optional
-        Using user axes
+    ax : matplotlib.Axes, optional
+        A matplotlib Axes instance. Creates new axes instance by default.
     kwargs
         Additional arguments to pass into the pandas.DataFrame.plot command.
 
@@ -442,7 +442,7 @@ def plot_expected_purchases(
     if ax is None:
         ax = plt.subplot(111)
 
-    df_cum_transactions = _expected_cumulative_transactions(
+    df_cum_purchases = _expected_cumulative_transactions(
         model=model,
         transactions=purchase_history,
         customer_id_col=customer_id_col,
@@ -451,23 +451,24 @@ def plot_expected_purchases(
         datetime_format=datetime_format,
         time_unit=time_unit,
         time_scaler=time_scaler,
-        sort_transactions=sort_transactions,
+        sort_transactions=sort_purchases,
         set_index_date=set_index_date,
     )
 
     if not plot_cumulative:
-        df_cum_transactions = df_cum_transactions.diff()
+        df_cum_purchases = df_cum_purchases.diff()
         if title is None:
             title = "Tracking Incremental Transactions"
     else:
         if title is None:
             title = "Tracking Cumulative Transactions"
 
-    ax = df_cum_transactions.plot(ax=ax, title=title, **kwargs)
+    # TODO: After utility func supports xarrays, refactor this for matplotlib API.
+    ax = df_cum_purchases.plot(ax=ax, title=title, **kwargs)
 
     if t_unobserved:
         if set_index_date:
-            x_vline = df_cum_transactions.index[int(t_unobserved)]
+            x_vline = df_cum_purchases.index[int(t_unobserved)]
         else:
             x_vline = t_unobserved
         ax.axvline(x=x_vline, color="r", linestyle="--")
@@ -505,8 +506,8 @@ def plot_expected_purchases_ppc(
         Number of samples to draw for prior predictive checks. This is not used for posterior predictive checks.
     random_seed : int, optional
         Random seed to fix sampling results
-    ax : matplotlib.AxesSubplot, optional
-        A matplotlib axes instance. Creates new axes instance by default.
+    ax : matplotlib.Axes, optional
+        A matplotlib Axes instance. Creates new axes instance by default.
     **kwargs
         Additional arguments to pass into the pandas.DataFrame.plot command.
 
