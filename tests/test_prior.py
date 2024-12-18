@@ -661,3 +661,32 @@ def test_zsn_non_centered() -> None:
         Prior("ZeroSumNormal", sigma=1, centered=False)
     except Exception as e:
         pytest.fail(f"Unexpected exception: {e}")
+
+
+class Arbitrary:
+    def __init__(self, dims: tuple[str, ...]) -> None:
+        self.dims = dims
+
+    def create_variable(self, name: str):
+        return pm.Normal(name, dims=self.dims)
+
+
+def test_create_prior_with_arbitrary() -> None:
+    dist = Prior(
+        "Normal",
+        mu=Arbitrary(dims=("channel",)),
+        sigma=1,
+        dims=("channel", "geo"),
+    )
+
+    coords = {
+        "channel": ["C1", "C2", "C3"],
+        "geo": ["G1", "G2"],
+    }
+    with pm.Model(coords=coords) as model:
+        dist.create_variable("var")
+
+    assert "var_mu" in model
+    var_mu = model["var_mu"]
+
+    assert fast_eval(var_mu).shape == (len(coords["channel"]),)

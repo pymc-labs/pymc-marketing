@@ -32,6 +32,7 @@ import pymc as pm
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from pydantic import InstanceOf
 from pymc.distributions.shape_utils import Dims
 from pytensor import tensor as pt
 from pytensor.tensor.variable import TensorVariable
@@ -43,10 +44,14 @@ from pymc_marketing.plot import (
     plot_hdi,
     plot_samples,
 )
-from pymc_marketing.prior import DimHandler, Prior, create_dim_handler
+from pymc_marketing.prior import DimHandler, Prior, VariableFactory, create_dim_handler
 
 # "x" for saturation, "time since exposure" for adstock
 NON_GRID_NAMES: frozenset[str] = frozenset({"x", "time since exposure"})
+
+SupportedPrior = (
+    InstanceOf[Prior] | float | InstanceOf[TensorVariable] | InstanceOf[VariableFactory]
+)
 
 
 class ParameterPriorException(Exception):
@@ -101,7 +106,7 @@ class Transformation:
 
     Parameters
     ----------
-    priors : dict[str, Prior], optional
+    priors : dict[str, Prior | float | TensorVariable | VariableFactory], optional
         Dictionary with the priors for the parameters of the function. The keys should be the
         parameter names and the values the priors. If not provided, it will use the default
         priors from the subclass.
@@ -117,7 +122,10 @@ class Transformation:
     lookup_name: str
 
     def __init__(
-        self, priors: dict[str, Prior] | None = None, prefix: str | None = None
+        self,
+        priors: dict[str, Prior | float | TensorVariable | VariableFactory]
+        | None = None,
+        prefix: str | None = None,
     ) -> None:
         self._checks()
         self.function_priors = priors  # type: ignore
@@ -164,7 +172,8 @@ class Transformation:
             "lookup_name": self.lookup_name,
             "prefix": self.prefix,
             "priors": {
-                key: value.to_json() for key, value in self.function_priors.items()
+                key: _serialize_value(value)
+                for key, value in self.function_priors.items()
             },
         }
 
@@ -184,7 +193,13 @@ class Transformation:
     def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
         priors = priors or {}
 
-        priors = parse_model_config(priors)
+        non_distributions = [
+            key
+            for key, value in priors.items()
+            if not isinstance(value, Prior) and not isinstance(value, dict)
+        ]
+
+        priors = parse_model_config(priors, non_distributions=non_distributions)
         self._function_priors = {**deepcopy(self.default_priors), **priors}
 
     def update_priors(self, priors: dict[str, Prior]) -> None:
@@ -310,6 +325,9 @@ class Transformation:
 
         def create_variable(parameter_name: str, variable_name: str) -> TensorVariable:
             dist = self.function_priors[parameter_name]
+            if not hasattr(dist, "create_variable"):
+                return dist
+
             var = dist.create_variable(variable_name)
             return dim_handler(var, dist.dims)
 
@@ -402,7 +420,9 @@ class Transformation:
         x: pt.TensorLike,
         coords: dict[str, Any],
     ) -> xr.DataArray:
-        required_vars = list(self.variable_mapping.values())
+        required_vars = set(self.variable_mapping.values()).intersection(
+            parameters.data_vars.keys()
+        )
 
         keys = list(coords.keys())
         if len(keys) != 1:
@@ -556,3 +576,26 @@ class Transformation:
         """
         kwargs = self._create_distributions(dims=dims)
         return self.function(x, **kwargs)
+
+
+def _serialize_value(value: Any) -> Any:
+    if isinstance(value, Prior):
+        return value.to_json()
+
+    if hasattr(value, "to_dict"):
+        return value.to_dict()
+
+    if isinstance(value, TensorVariable):
+        value = value.eval()
+
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+
+    return value
+
+
+def _deserialize(value):
+    try:
+        return Prior.from_json(value)
+    except Exception:
+        return value

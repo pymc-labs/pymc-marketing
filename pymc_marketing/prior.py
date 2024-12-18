@@ -99,7 +99,7 @@ from __future__ import annotations
 import copy
 from collections.abc import Callable
 from inspect import signature
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 import numpy as np
 import pymc as pm
@@ -282,6 +282,16 @@ def _get_pymc_parameters(distribution: pm.Distribution) -> set[str]:
     return set(signature(distribution.dist).parameters.keys()) - {"kwargs", "args"}
 
 
+@runtime_checkable
+class VariableFactory(Protocol):
+    """Protocol for something that works like a Prior class."""
+
+    dims: tuple[str, ...]
+
+    def create_variable(self, name: str) -> pt.TensorVariable:
+        """Create a TensorVariable."""
+
+
 class Prior:
     """A class to represent a prior distribution.
 
@@ -413,7 +423,14 @@ class Prior:
         }
 
     def _parameters_are_correct_type(self) -> None:
-        supported_types = (int, float, np.ndarray, Prior, pt.TensorVariable)
+        supported_types = (
+            int,
+            float,
+            np.ndarray,
+            Prior,
+            pt.TensorVariable,
+            VariableFactory,
+        )
 
         incorrect_types = {
             param: type(value)
@@ -457,7 +474,7 @@ class Prior:
     def _param_dims_work(self) -> None:
         other_dims = set()
         for value in self.parameters.values():
-            if isinstance(value, Prior):
+            if hasattr(value, "dims"):
                 other_dims.update(value.dims)
 
         if not other_dims.issubset(self.dims):
@@ -482,7 +499,7 @@ class Prior:
         return f"{self}"
 
     def _create_parameter(self, param, value, name):
-        if not isinstance(value, Prior):
+        if not hasattr(value, "create_variable"):
             return value
 
         child_name = f"{name}_{param}"
@@ -498,7 +515,7 @@ class Prior:
     def _create_non_centered_variable(self, name: str) -> pt.TensorVariable:
         def handle_variable(var_name: str):
             parameter = self.parameters[var_name]
-            if not isinstance(parameter, Prior):
+            if not hasattr(parameter, "create_variable"):
                 return parameter
 
             return self.dim_handler(
@@ -678,6 +695,9 @@ class Prior:
 
                 if isinstance(value, np.ndarray):
                     return value.tolist()
+
+                if hasattr(value, "to_dict"):
+                    return value.to_dict()
 
                 return value
 
