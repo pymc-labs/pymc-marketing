@@ -44,12 +44,14 @@ from pymc_marketing.plot import (
     plot_hdi,
     plot_samples,
 )
-from pymc_marketing.prior import DimHandler, Prior, create_dim_handler
+from pymc_marketing.prior import DimHandler, Prior, VariableFactory, create_dim_handler
 
 # "x" for saturation, "time since exposure" for adstock
 NON_GRID_NAMES: frozenset[str] = frozenset({"x", "time since exposure"})
 
-SupportedPrior = InstanceOf[Prior] | float | InstanceOf[TensorVariable]
+SupportedPrior = (
+    InstanceOf[Prior] | float | InstanceOf[TensorVariable] | VariableFactory
+)
 
 
 class ParameterPriorException(Exception):
@@ -104,7 +106,7 @@ class Transformation:
 
     Parameters
     ----------
-    priors : dict[str, Prior], optional
+    priors : dict[str, Prior | float | TensorVariable | VariableFactory], optional
         Dictionary with the priors for the parameters of the function. The keys should be the
         parameter names and the values the priors. If not provided, it will use the default
         priors from the subclass.
@@ -121,7 +123,8 @@ class Transformation:
 
     def __init__(
         self,
-        priors: Prior | float | TensorVariable | None = None,
+        priors: dict[str, Prior | float | TensorVariable | VariableFactory]
+        | None = None,
         prefix: str | None = None,
     ) -> None:
         self._checks()
