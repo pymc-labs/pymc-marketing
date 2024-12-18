@@ -317,6 +317,7 @@ class Prior:
     non_centered_distributions: dict[str, dict[str, float]] = {
         "Normal": {"mu": 0, "sigma": 1},
         "StudentT": {"mu": 0, "sigma": 1},
+        "ZeroSumNormal": {"sigma": 1},
     }
 
     pymc_distribution: type[pm.Distribution]
@@ -436,9 +437,14 @@ class Prior:
                 f"Choose from {list(self.non_centered_distributions.keys())}"
             )
 
-        if set(self.parameters.keys()) < {"mu", "sigma"}:
+        required_parameters = set(
+            self.non_centered_distributions[self.distribution].keys()
+        )
+
+        if set(self.parameters.keys()) < required_parameters:
+            msg = " and ".join([f"{param!r}" for param in required_parameters])
             raise ValueError(
-                "Must have at least 'mu' and 'sigma' parameter for non-centered"
+                f"Must have at least {msg} parameter for non-centered for {self.distribution!r}"
             )
 
     def _unique_dims(self) -> None:
@@ -492,8 +498,12 @@ class Prior:
     def _create_non_centered_variable(self, name: str) -> pt.TensorVariable:
         def handle_variable(var_name: str):
             parameter = self.parameters[var_name]
+            if not isinstance(parameter, Prior):
+                return parameter
+
             return self.dim_handler(
-                parameter.create_variable(f"{name}_{var_name}"), parameter.dims
+                parameter.create_variable(f"{name}_{var_name}"),
+                parameter.dims,
             )
 
         defaults = self.non_centered_distributions[self.distribution]
@@ -508,11 +518,15 @@ class Prior:
             **other_parameters,
             dims=self.dims,
         )
-        mu = (
-            handle_variable("mu")
-            if isinstance(self.parameters["mu"], Prior)
-            else self.parameters["mu"]
-        )
+        if "mu" in self.parameters:
+            mu = (
+                handle_variable("mu")
+                if isinstance(self.parameters["mu"], Prior)
+                else self.parameters["mu"]
+            )
+        else:
+            mu = 0
+
         sigma = (
             handle_variable("sigma")
             if isinstance(self.parameters["sigma"], Prior)
