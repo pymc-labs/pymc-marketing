@@ -99,7 +99,7 @@ from __future__ import annotations
 import copy
 from collections.abc import Callable
 from inspect import signature
-from typing import Any
+from typing import Any, Protocol
 
 import numpy as np
 import pymc as pm
@@ -280,6 +280,15 @@ def _get_transform(name: str):
 
 def _get_pymc_parameters(distribution: pm.Distribution) -> set[str]:
     return set(signature(distribution.dist).parameters.keys()) - {"kwargs", "args"}
+
+
+class VariableFactory(Protocol):
+    """Protocol for something that works like a Prior class."""
+
+    dims: tuple[str, ...]
+
+    def create_variable(self, name: str) -> pt.TensorVariable:
+        """Create a TensorVariable."""
 
 
 class Prior:
@@ -482,7 +491,7 @@ class Prior:
         return f"{self}"
 
     def _create_parameter(self, param, value, name):
-        if not isinstance(value, Prior):
+        if not hasattr(value, "create_variable"):
             return value
 
         child_name = f"{name}_{param}"
@@ -498,7 +507,7 @@ class Prior:
     def _create_non_centered_variable(self, name: str) -> pt.TensorVariable:
         def handle_variable(var_name: str):
             parameter = self.parameters[var_name]
-            if not isinstance(parameter, Prior):
+            if not hasattr(parameter, "create_variable"):
                 return parameter
 
             return self.dim_handler(
@@ -678,6 +687,9 @@ class Prior:
 
                 if isinstance(value, np.ndarray):
                     return value.tolist()
+
+                if hasattr(value, "to_dict"):
+                    return value.to_dict()
 
                 return value
 
