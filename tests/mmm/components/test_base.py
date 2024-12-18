@@ -14,6 +14,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
+import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pytensor.tensor import TensorVariable
@@ -398,3 +399,21 @@ def test_support_customer_samples(
 
     assert priors.data_vars.keys() == {"new_a", "new_b"}
     assert priors["new_a"].sizes == {"chain": 1, "draw": 500, "channel": 3}
+
+
+def test_serialization(new_transformation_class) -> None:
+    instance = new_transformation_class(
+        priors={
+            "a": pt.as_tensor_variable([1, 2, 3]),
+            "b": np.array([1, 2, 3]),
+        }
+    )
+
+    assert instance.to_dict() == {
+        "lookup_name": "new_transformation",
+        "prefix": "new",
+        "priors": {
+            "a": [1, 2, 3],
+            "b": [1, 2, 3],
+        },
+    }

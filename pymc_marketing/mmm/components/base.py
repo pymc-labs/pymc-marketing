@@ -50,7 +50,7 @@ from pymc_marketing.prior import DimHandler, Prior, VariableFactory, create_dim_
 NON_GRID_NAMES: frozenset[str] = frozenset({"x", "time since exposure"})
 
 SupportedPrior = (
-    InstanceOf[Prior] | float | InstanceOf[TensorVariable] | VariableFactory
+    InstanceOf[Prior] | float | InstanceOf[TensorVariable] | InstanceOf[VariableFactory]
 )
 
 
@@ -586,7 +586,7 @@ def _serialize_value(value: Any) -> Any:
         return value.to_dict()
 
     if isinstance(value, TensorVariable):
-        return value.eval()
+        value = value.eval()
 
     if isinstance(value, np.ndarray):
         return value.tolist()
