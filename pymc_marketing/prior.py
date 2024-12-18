@@ -99,7 +99,7 @@ from __future__ import annotations
 import copy
 from collections.abc import Callable
 from inspect import signature
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 import numpy as np
 import pymc as pm
@@ -282,6 +282,7 @@ def _get_pymc_parameters(distribution: pm.Distribution) -> set[str]:
     return set(signature(distribution.dist).parameters.keys()) - {"kwargs", "args"}
 
 
+@runtime_checkable
 class VariableFactory(Protocol):
     """Protocol for something that works like a Prior class."""
 
@@ -422,7 +423,14 @@ class Prior:
         }
 
     def _parameters_are_correct_type(self) -> None:
-        supported_types = (int, float, np.ndarray, Prior, pt.TensorVariable)
+        supported_types = (
+            int,
+            float,
+            np.ndarray,
+            Prior,
+            pt.TensorVariable,
+            VariableFactory,
+        )
 
         incorrect_types = {
             param: type(value)
@@ -466,7 +474,7 @@ class Prior:
     def _param_dims_work(self) -> None:
         other_dims = set()
         for value in self.parameters.values():
-            if isinstance(value, Prior):
+            if hasattr(value, "dims"):
                 other_dims.update(value.dims)
 
         if not other_dims.issubset(self.dims):
