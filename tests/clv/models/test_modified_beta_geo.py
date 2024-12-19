@@ -33,10 +33,10 @@ class TestModBetaGeoModel:
         cls.rng = np.random.default_rng(34)
 
         # parameters
-        cls.a_true = 0.793
-        cls.b_true = 2.426
-        cls.alpha_true = 4.414
-        cls.r_true = 0.243
+        cls.a_true = 0.891
+        cls.b_true = 1.623
+        cls.alpha_true = 6.282
+        cls.r_true = 0.544
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
         test_data = pd.read_csv("data/clv_quickstart.csv")
@@ -230,7 +230,9 @@ class TestModBetaGeoModel:
         model.build_model()
 
         sample_kwargs = (
-            dict(random_seed=self.rng, chains=2) if fit_method == "mcmc" else {}
+            dict(random_seed=self.rng, chains=2, target_accept=0.90)
+            if fit_method == "mcmc"
+            else {}
         )
         model.fit(fit_method=fit_method, progressbar=False, **sample_kwargs)
 
@@ -527,7 +529,7 @@ class TestModBetaGeoModel:
         )
         model.build_model()
         assert model.__repr__().replace(" ", "") == (
-            "BG/NBD"
+            "MBG/NBD"
             "\nalpha~HalfFlat()"
             "\nr~HalfFlat()"
             "\na~HalfFlat()"

@@ -48,6 +48,8 @@ class ModBetaGeoModel(BetaGeoModel):
        International Journal of Research in Marketing, 25 (3), 225-226.
     """
 
+    _model_type = "MBG/NBD"
+
     def build_model(self) -> None:  # type: ignore[override]
         """Build the model."""
         coords = {"customer_id": self.data["customer_id"]}
