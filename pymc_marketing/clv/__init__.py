@@ -18,6 +18,7 @@ from pymc_marketing.clv.models import (
     BetaGeoModel,
     GammaGammaModel,
     GammaGammaModelIndividual,
+    ModBetaGeoModel,
     ParetoNBDModel,
     ShiftedBetaGeoModelIndividual,
 )
@@ -40,6 +41,7 @@ __all__ = (
     "BetaGeoModel",
     "GammaGammaModel",
     "GammaGammaModelIndividual",
+    "ModBetaGeoModel",
     "ParetoNBDModel",
     "ShiftedBetaGeoModelIndividual",
     "customer_lifetime_value",

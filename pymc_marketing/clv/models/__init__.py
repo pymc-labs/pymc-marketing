@@ -21,6 +21,7 @@ from pymc_marketing.clv.models.gamma_gamma import (
     GammaGammaModel,
     GammaGammaModelIndividual,
 )
+from pymc_marketing.clv.models.modified_beta_geo import ModBetaGeoModel
 from pymc_marketing.clv.models.pareto_nbd import ParetoNBDModel
 from pymc_marketing.clv.models.shifted_beta_geo import ShiftedBetaGeoModelIndividual
 
@@ -30,6 +31,7 @@ __all__ = (
     "CLVModel",
     "GammaGammaModel",
     "GammaGammaModelIndividual",
+    "ModBetaGeoModel",
     "ParetoNBDModel",
     "ShiftedBetaGeoModelIndividual",
 )
