@@ -11,7 +11,35 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Deserialize a dictionary into a PyMC-Marketing object."""
+"""Deserialize a dictionary into a PyMC-Marketing object.
+
+This is a two step process:
+
+1. Determine if the dictionary is of the correct type.
+2. Deserialize the dictionary into a python object for PyMC-Marketing.
+
+Examples
+--------
+Custom class deserialization:
+
+.. code-block:: python
+
+    from pymc_marketing.deserialize import register_deserialization
+
+    class MyClass:
+        def __init__(self, value: int):
+            self.value = value
+
+        def to_dict(self) -> dict:
+            # Example of what the to_dict method might look like.
+            return {"value": self.value}
+
+    register_deserialization(
+        is_type=lambda data: data.keys() == {"value"},
+        deserialize=lambda data: MyClass(value=data["value"]),
+    )
+
+"""
 
 from collections.abc import Callable
 from dataclasses import dataclass
