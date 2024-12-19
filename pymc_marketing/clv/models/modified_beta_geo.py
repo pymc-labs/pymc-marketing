@@ -15,19 +15,38 @@
 
 import warnings
 
-import xarray
-import pandas as pd
 import numpy as np
-import pytensor.tensor as pt
+import pandas as pd
 import pymc as pm
+import pytensor.tensor as pt
+import xarray
 from pymc.distributions.dist_math import check_parameters
+from scipy.special import hyp2f1
+
 from pymc_marketing.clv.models import BetaGeoModel
 from pymc_marketing.clv.utils import to_xarray
-from scipy.special import expit, hyp2f1
-
 
 
 class ModBetaGeoModel(BetaGeoModel):
+    r"""Also known as the MBG/NBD model.
+
+    Based on [5]_, [6]_, this model has the following assumptions:
+    1) Each individual, ``i``, has a hidden ``lambda_i`` and ``p_i`` parameter
+    2) These come from a population wide Gamma and a Beta distribution
+       respectively.
+    3) Individuals purchases follow a Poisson process with rate :math:`\lambda_i*t` .
+    4) At the beginning of their lifetime and after each purchase, an
+       individual has a p_i probability of dieing (never buying again).
+
+    References
+    ----------
+    .. [5] Batislam, E.P., M. Denizel, A. Filiztekin (2007),
+       "Empirical validation and comparison of models for customer base
+       analysis,"
+       International Journal of Research in Marketing, 24 (3), 201-209.
+    .. [6] Wagner, U. and Hoppe D. (2008), "Erratum on the MBG/NBD Model,"
+       International Journal of Research in Marketing, 25 (3), 225-226.
+    """
 
     def build_model(self) -> None:  # type: ignore[override]
         """Build the model."""
@@ -60,7 +79,6 @@ class ModBetaGeoModel(BetaGeoModel):
                 The log-likelihood expression here aligns with expression (4) from [3]
                 due to the possible numerical instability of expression (3).
                 """
-
                 a1 = pt.gammaln(r + x) - pt.gammaln(r) + r * pt.log(alpha)
                 a2 = (
                     pt.gammaln(a + b)
@@ -197,14 +215,12 @@ class ModBetaGeoModel(BetaGeoModel):
         first_term = (a + b + x) / (a - 1)
         second_term = 1 - hyp_term * ((alpha + T) / (alpha + t + T)) ** (r + x)
         numerator = first_term * second_term
-        denominator = 1 + (a / (b + x)) * (
-            (alpha + T) / (alpha + t_x)
-        ) ** (r + x)
+        denominator = 1 + (a / (b + x)) * ((alpha + T) / (alpha + t_x)) ** (r + x)
 
         return (numerator / denominator).transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
-    
+
     def expected_purchases_new_customer(
         self,
         data: pd.DataFrame | None = None,
@@ -250,7 +266,7 @@ class ModBetaGeoModel(BetaGeoModel):
         return (first_term * second_term).transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
-    
+
     def expected_probability_alive(
         self,
         data: pd.DataFrame | None = None,
@@ -295,6 +311,4 @@ class ModBetaGeoModel(BetaGeoModel):
 
         proba = 1.0 / (1 + (a / (b + x)) * ((alpha + T) / (alpha + t_x)) ** (r + x))
 
-        return proba.transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
-        )        
+        return proba.transpose("chain", "draw", "customer_id", missing_dims="ignore")
