@@ -54,10 +54,14 @@ Plot the default priors for an adstock transformation:
 
 import numpy as np
 import xarray as xr
-from pydantic import Field, InstanceOf, validate_call
+from pydantic import Field, validate_call
 
 from pymc_marketing.deserialize import register_deserialization
-from pymc_marketing.mmm.components.base import Transformation
+from pymc_marketing.mmm.components.base import (
+    SupportedPrior,
+    Transformation,
+    _deserialize,
+)
 from pymc_marketing.mmm.transformers import (
     ConvMode,
     WeibullType,
@@ -93,7 +97,7 @@ class AdstockTransformation(Transformation):
             True, description="Whether to normalize the adstock values."
         ),
         mode: ConvMode = Field(ConvMode.After, description="Convolution mode."),
-        priors: dict[str, InstanceOf[Prior]] | None = Field(
+        priors: dict[str, SupportedPrior] | None = Field(
             default=None, description="Priors for the parameters."
         ),
         prefix: str | None = Field(None, description="Prefix for the parameters."),
@@ -342,7 +346,8 @@ def adstock_from_dict(data: dict) -> AdstockTransformation:
     cls = ADSTOCK_TRANSFORMATIONS[lookup_name]
 
     if "priors" in data:
-        data["priors"] = {k: Prior.from_json(v) for k, v in data["priors"].items()}
+        data["priors"] = {k: _deserialize(v) for k, v in data["priors"].items()}
+
     return cls(**data)
 
 

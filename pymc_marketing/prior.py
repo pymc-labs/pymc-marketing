@@ -99,7 +99,7 @@ from __future__ import annotations
 import copy
 from collections.abc import Callable
 from inspect import signature
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 import numpy as np
 import pymc as pm
@@ -284,6 +284,16 @@ def _get_pymc_parameters(distribution: pm.Distribution) -> set[str]:
     return set(signature(distribution.dist).parameters.keys()) - {"kwargs", "args"}
 
 
+@runtime_checkable
+class VariableFactory(Protocol):
+    """Protocol for something that works like a Prior class."""
+
+    dims: tuple[str, ...]
+
+    def create_variable(self, name: str) -> pt.TensorVariable:
+        """Create a TensorVariable."""
+
+
 class Prior:
     """A class to represent a prior distribution.
 
@@ -319,6 +329,7 @@ class Prior:
     non_centered_distributions: dict[str, dict[str, float]] = {
         "Normal": {"mu": 0, "sigma": 1},
         "StudentT": {"mu": 0, "sigma": 1},
+        "ZeroSumNormal": {"sigma": 1},
     }
 
     pymc_distribution: type[pm.Distribution]
@@ -414,7 +425,14 @@ class Prior:
         }
 
     def _parameters_are_correct_type(self) -> None:
-        supported_types = (int, float, np.ndarray, Prior, pt.TensorVariable)
+        supported_types = (
+            int,
+            float,
+            np.ndarray,
+            Prior,
+            pt.TensorVariable,
+            VariableFactory,
+        )
 
         incorrect_types = {
             param: type(value)
@@ -438,9 +456,14 @@ class Prior:
                 f"Choose from {list(self.non_centered_distributions.keys())}"
             )
 
-        if set(self.parameters.keys()) < {"mu", "sigma"}:
+        required_parameters = set(
+            self.non_centered_distributions[self.distribution].keys()
+        )
+
+        if set(self.parameters.keys()) < required_parameters:
+            msg = " and ".join([f"{param!r}" for param in required_parameters])
             raise ValueError(
-                "Must have at least 'mu' and 'sigma' parameter for non-centered"
+                f"Must have at least {msg} parameter for non-centered for {self.distribution!r}"
             )
 
     def _unique_dims(self) -> None:
@@ -453,7 +476,7 @@ class Prior:
     def _param_dims_work(self) -> None:
         other_dims = set()
         for value in self.parameters.values():
-            if isinstance(value, Prior):
+            if hasattr(value, "dims"):
                 other_dims.update(value.dims)
 
         if not other_dims.issubset(self.dims):
@@ -478,7 +501,7 @@ class Prior:
         return f"{self}"
 
     def _create_parameter(self, param, value, name):
-        if not isinstance(value, Prior):
+        if not hasattr(value, "create_variable"):
             return value
 
         child_name = f"{name}_{param}"
@@ -494,8 +517,12 @@ class Prior:
     def _create_non_centered_variable(self, name: str) -> pt.TensorVariable:
         def handle_variable(var_name: str):
             parameter = self.parameters[var_name]
+            if not hasattr(parameter, "create_variable"):
+                return parameter
+
             return self.dim_handler(
-                parameter.create_variable(f"{name}_{var_name}"), parameter.dims
+                parameter.create_variable(f"{name}_{var_name}"),
+                parameter.dims,
             )
 
         defaults = self.non_centered_distributions[self.distribution]
@@ -510,11 +537,15 @@ class Prior:
             **other_parameters,
             dims=self.dims,
         )
-        mu = (
-            handle_variable("mu")
-            if isinstance(self.parameters["mu"], Prior)
-            else self.parameters["mu"]
-        )
+        if "mu" in self.parameters:
+            mu = (
+                handle_variable("mu")
+                if isinstance(self.parameters["mu"], Prior)
+                else self.parameters["mu"]
+            )
+        else:
+            mu = 0
+
         sigma = (
             handle_variable("sigma")
             if isinstance(self.parameters["sigma"], Prior)
@@ -666,6 +697,9 @@ class Prior:
 
                 if isinstance(value, np.ndarray):
                     return value.tolist()
+
+                if hasattr(value, "to_dict"):
+                    return value.to_dict()
 
                 return value
 

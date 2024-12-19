@@ -77,7 +77,10 @@ import xarray as xr
 from pydantic import Field, InstanceOf, validate_call
 
 from pymc_marketing.deserialize import register_deserialization
-from pymc_marketing.mmm.components.base import Transformation
+from pymc_marketing.mmm.components.base import (
+    Transformation,
+    _deserialize,
+)
 from pymc_marketing.mmm.transformers import (
     hill_function,
     hill_saturation_sigmoid,
@@ -481,7 +484,7 @@ def saturation_from_dict(data: dict) -> SaturationTransformation:
 
     if "priors" in data:
         data["priors"] = {
-            key: Prior.from_json(value) for key, value in data["priors"].items()
+            key: _deserialize(value) for key, value in data["priors"].items()
         }
     return cls(**data)
 
