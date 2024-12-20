@@ -75,12 +75,7 @@ class ModBetaGeoModel(BetaGeoModel):
                 b = pm.Deterministic("b", (1.0 - phi_dropout) * kappa_dropout)
 
             def logp(t_x, x, a, b, r, alpha, T):
-                """
-                Compute the log-likelihood of the BG/NBD model.
-
-                The log-likelihood expression here aligns with expression (4) from [3]
-                due to the possible numerical instability of expression (3).
-                """
+                """Compute the log-likelihood of the MBG/NBD model."""
                 a1 = pt.gammaln(r + x) - pt.gammaln(r) + r * pt.log(alpha)
                 a2 = (
                     pt.gammaln(a + b)
