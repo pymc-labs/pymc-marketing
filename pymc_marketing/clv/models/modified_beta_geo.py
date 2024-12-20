@@ -243,8 +243,8 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         The *data* parameter is only required for out-of-sample customers.
 
-        Adapted from equation (10) in [1]_, and *lifetimes* package:
-        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L201
+        Adapted from equation (3) in [1]_, and *lifetimes* package:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L151
 
         Parameters
         ----------
@@ -260,10 +260,10 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         References
         ----------
-        .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005a),
-            "Counting Your Customers the Easy Way: An Alternative to the
-            Pareto/NBD Model," Marketing Science, 24 (2), 275-84.
-            https://www.brucehardie.com/papers/bgnbd_2004-04-20.pdf
+        .. [1] Batislam, E.P., M. Denizel, A. Filiztekin (2007),
+        "Empirical validation and comparison of models for customer base
+        analysis,"
+        International Journal of Research in Marketing, 24 (3), 201-209.
 
         """  # noqa: E501
         if data is None:
