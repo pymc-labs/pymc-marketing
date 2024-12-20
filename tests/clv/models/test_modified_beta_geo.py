@@ -21,12 +21,12 @@ import pytest
 import xarray as xr
 from lifetimes.fitters.modified_beta_geo_fitter import ModifiedBetaGeoFitter
 
-from pymc_marketing.clv.models.modified_beta_geo import ModBetaGeoModel
+from pymc_marketing.clv.models.modified_beta_geo import ModifiedBetaGeoModel
 from pymc_marketing.prior import Prior
 from tests.conftest import create_mock_fit, mock_sample
 
 
-class TestModBetaGeoModel:
+class TestModifiedBetaGeoModel:
     @classmethod
     def setup_class(cls):
         # Set random seed
@@ -49,7 +49,7 @@ class TestModBetaGeoModel:
         cls.T = test_data["T"]
 
         # Instantiate model with CDNOW data for testing
-        cls.model = ModBetaGeoModel(cls.data)
+        cls.model = ModifiedBetaGeoModel(cls.data)
 
         # Also instantiate lifetimes model for comparison
         cls.lifetimes_model = ModifiedBetaGeoFitter()
@@ -96,7 +96,7 @@ class TestModBetaGeoModel:
 
     def test_model(self, model_config, default_model_config):
         for config in (model_config, default_model_config):
-            model = ModBetaGeoModel(
+            model = ModifiedBetaGeoModel(
                 data=self.data,
                 model_config=config,
             )
@@ -146,7 +146,7 @@ class TestModBetaGeoModel:
         with pytest.raises(
             ValueError, match=f"Required column {missing_column} missing"
         ):
-            ModBetaGeoModel(data=data_invalid)
+            ModifiedBetaGeoModel(data=data_invalid)
 
     def test_customer_id_duplicate(self):
         with pytest.raises(
@@ -161,7 +161,7 @@ class TestModBetaGeoModel:
                 }
             )
 
-            ModBetaGeoModel(
+            ModifiedBetaGeoModel(
                 data=data,
             )
 
@@ -190,7 +190,7 @@ class TestModBetaGeoModel:
                 "T": np.asarray([40]),
             }
         )
-        model = ModBetaGeoModel(
+        model = ModifiedBetaGeoModel(
             data=data,
             model_config=model_config,
         )
@@ -214,7 +214,7 @@ class TestModBetaGeoModel:
     )
     def test_model_convergence(self, fit_method, rtol, model_config):
         # b parameter has the largest mismatch of the four parameters
-        model = ModBetaGeoModel(
+        model = ModifiedBetaGeoModel(
             data=self.data,
             model_config=model_config,
         )
@@ -235,7 +235,7 @@ class TestModBetaGeoModel:
         )
 
     def test_fit_result_without_fit(self, mocker, model_config):
-        model = ModBetaGeoModel(data=self.data, model_config=model_config)
+        model = ModifiedBetaGeoModel(data=self.data, model_config=model_config)
         with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
             model.fit_result
 
@@ -268,7 +268,7 @@ class TestModBetaGeoModel:
             }
         )
 
-        mbg_model = ModBetaGeoModel(data=data)
+        mbg_model = ModifiedBetaGeoModel(data=data)
         mbg_model.build_model()
         mbg_model.idata = az.from_dict(
             {
@@ -300,7 +300,7 @@ class TestModBetaGeoModel:
             }
         )
 
-        mbg_model = ModBetaGeoModel(data=data)
+        mbg_model = ModifiedBetaGeoModel(data=data)
         mbg_model.build_model()
         mbg_model.idata = az.from_dict(
             {
@@ -331,7 +331,7 @@ class TestModBetaGeoModel:
             }
         )
 
-        mbg_model = ModBetaGeoModel(data=data)
+        mbg_model = ModifiedBetaGeoModel(data=data)
         mbg_model.build_model()
         mbg_model.idata = az.from_dict(
             {
@@ -362,7 +362,7 @@ class TestModBetaGeoModel:
             }
         )
 
-        mbg_model = ModBetaGeoModel(data=data)
+        mbg_model = ModifiedBetaGeoModel(data=data)
         mbg_model.build_model()
         mbg_model.idata = az.from_dict(
             {
@@ -395,7 +395,7 @@ class TestModBetaGeoModel:
             }
         )
 
-        mbg_model = ModBetaGeoModel(data=data)
+        mbg_model = ModifiedBetaGeoModel(data=data)
         mbg_model.build_model()
         mbg_model.idata = az.from_dict(
             {
@@ -514,7 +514,7 @@ class TestModBetaGeoModel:
             "a_prior": Prior("HalfFlat"),
             "b_prior": Prior("HalfNormal", sigma=10),
         }
-        model = ModBetaGeoModel(
+        model = ModifiedBetaGeoModel(
             data=self.data,
             model_config=model_config,
         )
@@ -529,7 +529,7 @@ class TestModBetaGeoModel:
         )
 
     def test_distribution_new_customer(self) -> None:
-        mock_model = ModBetaGeoModel(
+        mock_model = ModifiedBetaGeoModel(
             data=self.data,
         )
         mock_model.idata = az.from_dict(
@@ -578,10 +578,10 @@ class TestModBetaGeoModel:
         self.model.save("test_model")
         # Testing the valid case.
 
-        model2 = ModBetaGeoModel.load("test_model")
+        model2 = ModifiedBetaGeoModel.load("test_model")
 
         # Check if the loaded model is indeed an instance of the class
-        assert isinstance(self.model, ModBetaGeoModel)
+        assert isinstance(self.model, ModifiedBetaGeoModel)
         # Check if the loaded data matches with the model data
         pd.testing.assert_frame_equal(self.model.data, model2.data, check_names=False)
         assert self.model.model_config == model2.model_config

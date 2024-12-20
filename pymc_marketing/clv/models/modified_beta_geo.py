@@ -27,7 +27,7 @@ from pymc_marketing.clv.models import BetaGeoModel
 from pymc_marketing.clv.utils import to_xarray
 
 
-class ModBetaGeoModel(BetaGeoModel):
+class ModifiedBetaGeoModel(BetaGeoModel):
     r"""Also known as the MBG/NBD model.
 
     Based on [5]_, [6]_, this model has the following assumptions:
