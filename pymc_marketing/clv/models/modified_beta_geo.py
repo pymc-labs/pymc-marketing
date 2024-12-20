@@ -30,21 +30,97 @@ from pymc_marketing.clv.utils import to_xarray
 class ModifiedBetaGeoModel(BetaGeoModel):
     r"""Also known as the MBG/NBD model.
 
-    Based on [5]_, [6]_, this model has the following assumptions:
-    1) Each individual, ``i``, has a hidden ``lambda_i`` and ``p_i`` parameter
-    2) These come from a population wide Gamma and a Beta distribution
-       respectively.
-    3) Individuals purchases follow a Poisson process with rate :math:`\lambda_i*t` .
-    4) At the beginning of their lifetime and after each purchase, an
-       individual has a p_i probability of dieing (never buying again).
+    Based on [1]_, [2]_
+
+    Parameters
+    ----------
+    data : ~pandas.DataFrame
+        DataFrame containing the following columns:
+            * `customer_id`: Unique customer identifier
+            * `frequency`: Number of repeat purchases
+            * `recency`: Time between the first and the last purchase
+            * `T`: Time between the first purchase and the end of the observation period
+    model_config : dict, optional
+        Dictionary of model prior parameters:
+            * `alpha_prior`: Scale parameter for time between purchases; defaults to `Prior("HalfFlat")`
+            * `r_prior`: Shape parameter for time between purchases; defaults to `Prior("HalfFlat")`
+            * `a_prior`: Shape parameter of dropout process; defaults to `phi_purchase_prior` * `kappa_purchase_prior`
+            * `b_prior`: Shape parameter of dropout process; defaults to `1-phi_dropout_prior` * `kappa_dropout_prior`
+            * `phi_dropout_prior`: Nested prior for a and b priors; defaults to `Prior("Uniform", lower=0, upper=1)`
+            * `kappa_dropout_prior`: Nested prior for a and b priors; defaults to `Prior("Pareto", alpha=1, m=1)`
+    sampler_config : dict, optional
+        Dictionary of sampler parameters. Defaults to *None*.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from pymc_marketing.prior import Prior
+        from pymc_marketing.clv import ModifiedBetaGeoModel, rfm_summary
+
+        # customer identifiers and purchase datetimes
+        # are all that's needed to start modeling
+        data = [
+            [1, "2024-01-01"],
+            [1, "2024-02-06"],
+            [2, "2024-01-01"],
+            [3, "2024-01-02"],
+            [3, "2024-01-05"],
+            [4, "2024-01-16"],
+            [4, "2024-02-05"],
+            [5, "2024-01-17"],
+            [5, "2024-01-18"],
+            [5, "2024-01-19"],
+        ]
+        raw_data = pd.DataFrame(data, columns=["id", "date"]
+
+        # preprocess data
+        rfm_df = rfm_summary(raw_data,'id','date')
+
+        # model_config and sampler_configs are optional
+        model = ModifiedBetaGeoModel(
+            data=data,
+            model_config={
+                "r_prior": Prior("HalfFlat"),
+                "alpha_prior": Prior("HalfFlat"),
+                "a_prior": Prior("HalfFlat"),
+                "b_prior": Prior("HalfFlat),
+            },
+            sampler_config={
+                "draws": 1000,
+                "tune": 1000,
+                "chains": 2,
+                "cores": 2,
+            },
+        )
+
+        # The default 'mcmc' fit_method provides informative predictions
+        # and reliable performance on small datasets
+        model.fit()
+        print(model.fit_summary())
+
+        # Maximum a Posteriori can quickly fit a model to large datasets,
+        # but will give limited insights into predictive uncertainty.
+        model.fit(fit_method='map')
+        print(model.fit_summary())
+
+        # Predict number of purchases for current customers
+        # over the next 10 time periods
+        expected_purchases = model.expected_purchases(future_t=10)
+
+        # Predict probability customers are still active
+        probability_alive = model.expected_probability_alive()
+
+        # Predict number of purchases for a new customer over 't' time periods
+        expected_purchases_new_customer = model.expected_purchases_new_customer(t=10)
 
     References
     ----------
-    .. [5] Batislam, E.P., M. Denizel, A. Filiztekin (2007),
+    .. [1] Batislam, E.P., M. Denizel, A. Filiztekin (2007),
        "Empirical validation and comparison of models for customer base
        analysis,"
        International Journal of Research in Marketing, 24 (3), 201-209.
-    .. [6] Wagner, U. and Hoppe D. (2008), "Erratum on the MBG/NBD Model,"
+    .. [2] Wagner, U. and Hoppe D. (2008), "Erratum on the MBG/NBD Model,"
        International Journal of Research in Marketing, 25 (3), 225-226.
     """
 
