@@ -34,9 +34,9 @@ class TestModBetaGeoModel:
 
         # parameters
         cls.a_true = 0.891
-        cls.b_true = 1.623
-        cls.alpha_true = 6.282
-        cls.r_true = 0.544
+        cls.b_true = 1.614
+        cls.alpha_true = 6.183
+        cls.r_true = 0.525
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
         test_data = pd.read_csv("data/clv_quickstart.csv")
