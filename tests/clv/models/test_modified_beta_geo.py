@@ -136,25 +136,16 @@ class TestModBetaGeoModel:
                 "r_log__": (),
             }
 
-    def test_missing_cols(self):
-        data_invalid = self.data.drop(columns="customer_id")
+    @pytest.mark.parametrize(
+        "missing_column",
+        ["customer_id", "frequency", "recency", "T"],
+    )
+    def test_missing_cols(self, missing_column):
+        data_invalid = self.data.drop(columns=missing_column)
 
-        with pytest.raises(ValueError, match="Required column customer_id missing"):
-            ModBetaGeoModel(data=data_invalid)
-
-        data_invalid = self.data.drop(columns="frequency")
-
-        with pytest.raises(ValueError, match="Required column frequency missing"):
-            ModBetaGeoModel(data=data_invalid)
-
-        data_invalid = self.data.drop(columns="recency")
-
-        with pytest.raises(ValueError, match="Required column recency missing"):
-            ModBetaGeoModel(data=data_invalid)
-
-        data_invalid = self.data.drop(columns="T")
-
-        with pytest.raises(ValueError, match="Required column T missing"):
+        with pytest.raises(
+            ValueError, match=f"Required column {missing_column} missing"
+        ):
             ModBetaGeoModel(data=data_invalid)
 
     def test_customer_id_duplicate(self):
