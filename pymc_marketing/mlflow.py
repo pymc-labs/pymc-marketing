@@ -137,6 +137,18 @@ warning_msg = (
 warnings.warn(warning_msg, FutureWarning, stacklevel=1)
 
 
+def _log_and_remove_artifact(path: str | Path) -> None:
+    """Log an artifact to MLflow and then remove the local file.
+
+    Parameters
+    ----------
+    path : str | Path
+        Path to the artifact file to log and remove.
+    """
+    mlflow.log_artifact(str(path))
+    os.remove(path)
+
+
 def log_arviz_summary(
     idata: az.InferenceData,
     path: str | Path,
@@ -162,8 +174,7 @@ def log_arviz_summary(
     """
     df_summary = az.summary(idata, var_names=var_names, **summary_kwargs)
     df_summary.to_html(path)
-    mlflow.log_artifact(str(path))
-    os.remove(path)
+    _log_and_remove_artifact(path)
 
 
 def _backwards_compatiable_data_vars(model: Model) -> list[TensorVariable]:
@@ -247,8 +258,7 @@ def log_model_graph(model: Model, path: str | Path) -> None:
         logging.info(msg)
         return None
     else:
-        mlflow.log_artifact(saved_path)
-        os.remove(saved_path)
+        _log_and_remove_artifact(saved_path)
         os.remove(path)
 
 
@@ -455,8 +465,7 @@ def log_inference_data(
 
     """
     idata.to_netcdf(str(save_file))
-    mlflow.log_artifact(local_path=str(save_file))
-    os.remove(save_file)
+    _log_and_remove_artifact(save_file)
 
 
 def log_mmm_evaluation_metrics(
@@ -665,7 +674,7 @@ def log_mmm(
             MMM,
         )
         import pymc_marketing.mlflow
-        from pymc_marketing.mlflow import log_mmmm
+        from pymc_marketing.mlflow import log_mmm
 
         pymc_marketing.mlflow.autolog(log_mmm=True)
 
