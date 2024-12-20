@@ -272,7 +272,7 @@ class TanhSaturation(SaturationTransformation):
 
     def function(self, x, b, c, beta):
         """Tanh saturation function."""
-        return beta * tanh_saturation(x, b, c)
+        return tanh_saturation(x, b, c)
 
     default_priors = {
         "b": Prior("HalfNormal", sigma=1),
