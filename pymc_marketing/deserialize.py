@@ -93,8 +93,13 @@ def deserialize(data: Any) -> Any:
         except Exception:
             is_type = False
 
-        if is_type:
+        if not is_type:
+            continue
+
+        try:
             return mapping.deserialize(data)
+        except Exception as e:
+            raise DeserializableError(data) from e
     else:
         raise DeserializableError(data)
 
