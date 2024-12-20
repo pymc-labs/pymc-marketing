@@ -348,8 +348,8 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         The *data* parameter is only required for out-of-sample customers.
 
-        Adapted from page (2) in Bruce Hardie's notes [1]_, and *lifetimes* package:
-        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L260
+        Adapted from *lifetimes* package:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L188
 
         Parameters
         ----------
@@ -360,12 +360,6 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             * `frequency`: Number of repeat purchases
             * `recency`: Time between the first and the last purchase
             * `T`: Time between first purchase and end of observation period, model assumptions require T >= recency
-
-        References
-        ----------
-        .. [1] Fader, P. S., Hardie, B. G., & Lee, K. L. (2008). Computing
-               P (alive) using the BG/NBD model. http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf.
-
         """
         if data is None:
             data = self.data
