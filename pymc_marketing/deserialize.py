@@ -11,12 +11,12 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Deserialize a dictionary into a PyMC-Marketing object.
+"""Deserialize into a PyMC-Marketing object.
 
 This is a two step process:
 
-1. Determine if the dictionary is of the correct type.
-2. Deserialize the dictionary into a python object for PyMC-Marketing.
+1. Determine if the data is of the correct type.
+2. Deserialize the data into a python object for PyMC-Marketing.
 
 Examples
 --------
@@ -45,8 +45,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-IsType = Callable[[dict], bool]
-Deserialize = Callable[[dict], Any]
+IsType = Callable[[Any], bool]
+Deserialize = Callable[[Any], Any]
 
 
 @dataclass
@@ -63,7 +63,7 @@ DESERIALIZERS: list[Deserializer] = []
 class DeserializableError(Exception):
     """Error raised when data cannot be deserialized."""
 
-    def __init__(self, data: dict):
+    def __init__(self, data: Any):
         self.data = data
         super().__init__(
             f"Couldn't deserialize {data}. Use register_deserialization to add a deserialization mapping."
@@ -84,9 +84,6 @@ def deserialize(data: Any) -> Any:
         The deserialized object.
 
     """
-    if not isinstance(data, dict):
-        raise ValueError(f"Data must be a dictionary. Not of type {type(data)}")
-
     for mapping in DESERIALIZERS:
         try:
             is_type = mapping.is_type(data)
