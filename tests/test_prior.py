@@ -690,3 +690,26 @@ def test_create_prior_with_arbitrary() -> None:
     var_mu = model["var_mu"]
 
     assert fast_eval(var_mu).shape == (len(coords["channel"]),)
+
+
+class ArbitrarySerializable(Arbitrary):
+    def to_dict(self):
+        return {"dims": self.dims}
+
+
+def test_create_prior_with_arbitrary_serializable() -> None:
+    dist = Prior(
+        "Normal",
+        mu=ArbitrarySerializable(dims=("channel",)),
+        sigma=1,
+        dims=("channel", "geo"),
+    )
+
+    assert dist.to_json() == {
+        "dist": "Normal",
+        "kwargs": {
+            "mu": {"dims": ("channel",)},
+            "sigma": 1,
+        },
+        "dims": ("channel", "geo"),
+    }
