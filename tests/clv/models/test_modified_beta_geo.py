@@ -208,8 +208,8 @@ class TestModifiedBetaGeoModel:
     @pytest.mark.parametrize(
         "fit_method, rtol",
         [
-            ("mcmc", 0.1),
-            ("map", 0.2),
+            ("mcmc", 0.075),
+            ("map", 0.15),
         ],
     )
     def test_model_convergence(self, fit_method, rtol, model_config):
