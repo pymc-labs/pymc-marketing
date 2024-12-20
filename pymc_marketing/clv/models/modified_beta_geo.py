@@ -302,8 +302,8 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     ) -> xarray.DataArray:
         r"""Compute the expected number of purchases for a new customer across *t* time periods.
 
-        Adapted from equation (9) in [1]_, and `lifetimes` library:
-        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L328
+        Adapted from equation (3) in [1]_, and `lifetimes` library:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L130
 
         Parameters
         ----------
@@ -312,10 +312,9 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         References
         ----------
-        .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005a),
-            "Counting Your Customers the Easy Way: An Alternative to the
-            Pareto/NBD Model," Marketing Science, 24 (2), 275-84.
-            http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf
+        .. [1] Batislam, E.P., M. Denizel, A. Filiztekin (2007),
+        "Empirical validation and comparison of models for customer base
+        analysis,"
 
         """
         # TODO: This is extraneous now, but needed for future covariate support.
