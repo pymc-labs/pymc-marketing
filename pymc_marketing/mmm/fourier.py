@@ -223,7 +223,7 @@ from typing_extensions import Self
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_YEAR
 from pymc_marketing.plot import SelToString, plot_curve, plot_hdi, plot_samples
-from pymc_marketing.prior import Prior, create_dim_handler
+from pymc_marketing.prior import Prior, VariableFactory, create_dim_handler
 
 X_NAME: str = "day"
 NON_GRID_NAMES: frozenset[str] = frozenset({X_NAME})
@@ -286,7 +286,7 @@ class FourierBase(BaseModel):
     n_order: int = Field(..., gt=0)
     days_in_period: float = Field(..., gt=0)
     prefix: str = Field("fourier")
-    prior: InstanceOf[Prior] = Field(Prior("Laplace", mu=0, b=1))
+    prior: InstanceOf[Prior] | InstanceOf[VariableFactory] = Field(Prior("Laplace", mu=0, b=1))
     variable_name: str | None = Field(None)
 
     def model_post_init(self, __context: Any) -> None:
