@@ -175,6 +175,7 @@ def compute_summary_metrics(
     Evaluation (error and model metrics) for a PyMC-Marketing MMM.
 
     .. code-block:: python
+
         import pandas as pd
         from pymc_marketing.mmm import (
             GeometricAdstock,

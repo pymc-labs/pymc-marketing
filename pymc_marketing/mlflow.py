@@ -413,12 +413,8 @@ def log_loocv_metrics(
     Parameters
     ----------
     idata : az.InferenceData
-        The InferenceData object returned by the sampling method.
-
-    Sets
-    ----
-    idata.log_likelihood : az.InferenceData
-        The InferenceData object with the log_likelihood group, unless it already exists.
+        The InferenceData object returned by the sampling method. Must contain
+        the groups 'posterior', 'sample_stats', and 'log_likelihood'.
     """
     if (
         "posterior" not in idata
@@ -463,7 +459,7 @@ def log_inference_data(
     os.remove(save_file)
 
 
-def log_summary_metrics(
+def log_mmm_evaluation_metrics(
     y_true: np.ndarray,
     y_pred: np.ndarray,
     metrics_to_calculate: list[str] | None = None,
@@ -730,7 +726,7 @@ def log_mmm(
         mlflow.register_model(model_uri, registered_model_name)
 
 
-def load_mmmm(
+def load_mmm(
     run_id: str,
     full_model: bool = False,
     keep_idata: bool = False,
@@ -815,7 +811,6 @@ def autolog(
     arviz_summary_kwargs: dict | None = None,
     log_mmm: bool = True,
     log_loocv: bool = False,
-    registered_model_name: str | None = None,
     disable: bool = False,
     silent: bool = False,
 ) -> None:
@@ -929,11 +924,7 @@ def autolog(
     arviz_summary_kwargs = arviz_summary_kwargs or {}
 
     def patch_compute_log_likelihood(compute_log_likelihood):
-        """Patch the compute_log_likelihood function to log LOOCV metrics.
-
-        We don't need to call this directly again in MMM.fit patch, since that function calls
-        pm.sample() internally anyway.
-        """
+        """Patch the compute_log_likelihood function to log LOOCV metrics."""
 
         @wraps(compute_log_likelihood)
         def new_compute_log_likelihood(*args, **kwargs):
@@ -952,6 +943,8 @@ def autolog(
             model = pm.modelcontext(kwargs.get("model"))
             idata = sample(*args, **kwargs)
             mlflow.log_param("nuts_sampler", kwargs.get("nuts_sampler", "pymc"))
+            mlflow.log_param("pymc_marketing_version", __version__)
+            mlflow.log_param("pymc_version", pm.__version__)
 
             # Align with the default values in pymc.sample
             tune = kwargs.get("tune", 1000)
@@ -971,7 +964,7 @@ def autolog(
             if log_metadata_info:
                 log_metadata(model=model, idata=idata)
 
-            # mmm.fit() calls pm.sample() internally, so we need to make sure log-likelihood is only added once
+            # Ensure log-likelihood is only added once
             if log_loocv and "log_likelihood" not in idata.groups():
                 pm.compute_log_likelihood(idata=idata, model=model)
 
@@ -989,7 +982,6 @@ def autolog(
             mlflow.log_params(
                 idata.attrs,
             )
-            mlflow.log_param("nuts_sampler", kwargs.get("nuts_sampler", "pymc"))
 
             mlflow.log_param(
                 "adstock_name",
@@ -999,18 +991,6 @@ def autolog(
                 "saturation_name",
                 json.loads(idata.attrs["saturation"])["lookup_name"],
             )
-
-            # Align with the default values in pymc.sample
-            tune = kwargs.get("tune", 1000)
-
-            if log_sampler_info:
-                log_sample_diagnostics(idata, tune=tune)
-                log_arviz_summary(
-                    idata,
-                    "summary.html",
-                    var_names=summary_var_names,
-                    **arviz_summary_kwargs,
-                )
 
             log_inference_data(idata, save_file="idata.nc")
 
@@ -1023,7 +1003,7 @@ def autolog(
         def new_sample_posterior_predictive(self, *args, **kwargs):
             posterior_preds = sample_posterior_predictive(self, *args, **kwargs)
 
-            log_summary_metrics(
+            log_mmm_evaluation_metrics(
                 y_true=self.y,
                 y_pred=posterior_preds[self.output_var],
             )
