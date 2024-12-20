@@ -378,3 +378,12 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         proba = 1.0 / (1 + (a / (b + x)) * ((alpha + T) / (alpha + t_x)) ** (r + x))
 
         return proba.transpose("chain", "draw", "customer_id", missing_dims="ignore")
+
+    def expected_probability_no_purchase(self) -> None:
+        r"""Probability a customer with frequency, recency, and T will have 0 purchases in the period (T, T+t].
+
+        The MBG/NBD model does not support this feature at the moment.
+        """
+        raise NotImplementedError(
+            "The MBG/NBD model does not support this feature at the moment."
+        )
