@@ -60,13 +60,23 @@ class Deserializer:
 DESERIALIZERS: list[Deserializer] = []
 
 
-def deserialize(data: dict) -> Any:
+class DeserializableError(Exception):
+    """Error raised when data cannot be deserialized."""
+
+    def __init__(self, data: dict):
+        self.data = data
+        super().__init__(
+            f"Couldn't deserialize {data}. Use register_deserialization to add a deserialization mapping."
+        )
+
+
+def deserialize(data: Any) -> Any:
     """Deserialize a dictionary into a Python object.
 
     Parameters
     ----------
-    data : dict
-        The dictionary to deserialize.
+    data : Any
+        The data to deserialize.
 
     Returns
     -------
@@ -74,6 +84,9 @@ def deserialize(data: dict) -> Any:
         The deserialized object.
 
     """
+    if not isinstance(data, dict):
+        raise ValueError(f"Data must be a dictionary. Not of type {type(data)}")
+
     for mapping in DESERIALIZERS:
         try:
             is_type = mapping.is_type(data)
@@ -83,7 +96,7 @@ def deserialize(data: dict) -> Any:
         if is_type:
             return mapping.deserialize(data)
     else:
-        raise ValueError(f"Couldn't deserialize {data}")
+        raise DeserializableError(data)
 
 
 def register_deserialization(is_type: IsType, deserialize: Deserialize) -> None:
