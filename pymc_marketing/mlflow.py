@@ -103,6 +103,7 @@ import json
 import logging
 import os
 import warnings
+from collections.abc import Callable
 from functools import wraps
 from pathlib import Path
 from typing import Any, Literal
@@ -932,7 +933,7 @@ def autolog(
     """
     arviz_summary_kwargs = arviz_summary_kwargs or {}
 
-    def patch_compute_log_likelihood(compute_log_likelihood):
+    def patch_compute_log_likelihood(compute_log_likelihood: Callable) -> Callable:
         """Patch the compute_log_likelihood function to log LOOCV metrics."""
 
         @wraps(compute_log_likelihood)
@@ -946,7 +947,7 @@ def autolog(
 
     pm.compute_log_likelihood = patch_compute_log_likelihood(pm.compute_log_likelihood)
 
-    def patch_sample(sample):
+    def patch_sample(sample: Callable) -> Callable:
         @wraps(sample)
         def new_sample(*args, **kwargs):
             model = pm.modelcontext(kwargs.get("model"))
@@ -983,7 +984,7 @@ def autolog(
 
     pm.sample = patch_sample(pm.sample)
 
-    def patch_mmm_fit(fit):
+    def patch_mmm_fit(fit: Callable) -> Callable:
         @wraps(fit)
         def new_fit(self, *args, **kwargs):
             idata = fit(self, *args, **kwargs)
@@ -1007,7 +1008,9 @@ def autolog(
 
         return new_fit
 
-    def patch_mmm_sample_posterior_predictive(sample_posterior_predictive):
+    def patch_mmm_sample_posterior_predictive(
+        sample_posterior_predictive: Callable,
+    ) -> Callable:
         @wraps(sample_posterior_predictive)
         def new_sample_posterior_predictive(self, *args, **kwargs):
             posterior_preds = sample_posterior_predictive(self, *args, **kwargs)
