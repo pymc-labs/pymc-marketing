@@ -379,7 +379,11 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         return proba.transpose("chain", "draw", "customer_id", missing_dims="ignore")
 
-    def expected_probability_no_purchase(self) -> None:
+    def expected_probability_no_purchase(
+        self,
+        t: int,
+        data: pd.DataFrame | None = None,
+    ) -> xarray.DataArray:
         r"""Probability a customer with frequency, recency, and T will have 0 purchases in the period (T, T+t].
 
         The MBG/NBD model does not support this feature at the moment.
