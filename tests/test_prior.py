@@ -24,12 +24,14 @@ from pydantic import ValidationError
 from pymc.model_graph import fast_eval
 
 from pymc_marketing.prior import (
+    Censored,
     MuAlreadyExistsError,
     Prior,
     UnknownTransformError,
     UnsupportedDistributionError,
     UnsupportedParameterizationError,
     UnsupportedShapeError,
+    VariableFactory,
     handle_dims,
     register_tensor_transform,
 )
@@ -690,3 +692,10 @@ def test_create_prior_with_arbitrary() -> None:
     var_mu = model["var_mu"]
 
     assert fast_eval(var_mu).shape == (len(coords["channel"]),)
+
+
+def test_censored_is_variable_factory() -> None:
+    normal = Prior("Normal")
+    censored_normal = Censored(normal, lower=0)
+
+    assert isinstance(censored_normal, VariableFactory)
