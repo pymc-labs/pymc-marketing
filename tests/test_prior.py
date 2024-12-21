@@ -699,3 +699,18 @@ def test_censored_is_variable_factory() -> None:
     censored_normal = Censored(normal, lower=0)
 
     assert isinstance(censored_normal, VariableFactory)
+
+
+def test_censored_variables_created() -> None:
+    normal = Prior("Normal", mu=Prior("Normal"), dims=("dim"))
+    censored_normal = Censored(normal, lower=0)
+
+    coords = {"dim": range(3)}
+    with pm.Model(coords=coords) as model:
+        censored_normal.create_variable("var")
+
+    var_names = ["var", "var_mu"]
+    assert set(var.name for var in model.unobserved_RVs) == set(var_names)
+    dims = [(3,), ()]
+    for var_name, dim in zip(var_names, dims, strict=False):
+        assert fast_eval(model[var_name]).shape == dim
