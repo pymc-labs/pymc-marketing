@@ -196,6 +196,10 @@ class ArbitraryObject:
     def __init__(self, msg: str, value: int) -> None:
         self.msg = msg
         self.value = value
+        self.dims = ()
+
+    def create_variable(self, name: str):
+        return pm.Normal(name, mu=0, sigma=1)
 
 
 @pytest.fixture
@@ -210,24 +214,24 @@ def register_arbitrary_deserialization():
     DESERIALIZERS.pop()
 
 
-# def test_deserialization(
-#     register_arbitrary_deserialization,
-# ) -> None:
-#     data = {
-#         "lookup_name": "geometric",
-#         "prefix": "new",
-#         "l_max": 10,
-#         "priors": {
-#             "alpha": {"msg": "hello", "value": 1},
-#         },
-#     }
-#
-#     instance = deserialize(data)
-#     assert isinstance(instance, GeometricAdstock)
-#     assert instance.prefix == "new"
-#     assert instance.l_max == 10
-#
-#     alpha = instance.function_priors["alpha"]
-#     assert isinstance(alpha, ArbitraryObject)
-#     assert alpha.msg == "hello"
-#     assert alpha.value == 1
+def test_deserialization(
+    register_arbitrary_deserialization,
+) -> None:
+    data = {
+        "lookup_name": "geometric",
+        "prefix": "new",
+        "l_max": 10,
+        "priors": {
+            "alpha": {"msg": "hello", "value": 1},
+        },
+    }
+
+    instance = deserialize(data)
+    assert isinstance(instance, GeometricAdstock)
+    assert instance.prefix == "new"
+    assert instance.l_max == 10
+
+    alpha = instance.function_priors["alpha"]
+    assert isinstance(alpha, ArbitraryObject)
+    assert alpha.msg == "hello"
+    assert alpha.value == 1
