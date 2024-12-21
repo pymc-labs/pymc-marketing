@@ -20,6 +20,11 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 
+from pymc_marketing.deserialize import (
+    DESERIALIZERS,
+    deserialize,
+    register_deserialization,
+)
 from pymc_marketing.mmm import (
     HillSaturation,
     HillSaturationSigmoid,
@@ -235,3 +240,46 @@ def test_saturation_from_dict_without_priors(saturation) -> None:
     assert saturation.default_priors == {
         k: Prior.from_json(v) for k, v in saturation.to_dict()["priors"].items()
     }
+
+
+class ArbitraryObject:
+    def __init__(self, msg: str, value: int) -> None:
+        self.msg = msg
+        self.value = value
+        self.dims = ()
+
+    def create_variable(self, name: str):
+        return pm.Normal(name, mu=0, sigma=1)
+
+
+@pytest.fixture
+def register_arbitrary_deserialization():
+    register_deserialization(
+        lambda data: isinstance(data, dict) and data.keys() == {"msg", "value"},
+        lambda data: ArbitraryObject(**data),
+    )
+
+    yield
+
+    DESERIALIZERS.pop()
+
+
+def test_deserialization(
+    register_arbitrary_deserialization,
+) -> None:
+    data = {
+        "lookup_name": "logistic",
+        "prefix": "new",
+        "priors": {
+            "alpha": {"msg": "hello", "value": 1},
+        },
+    }
+
+    instance = deserialize(data)
+    assert isinstance(instance, LogisticSaturation)
+    assert instance.prefix == "new"
+
+    alpha = instance.function_priors["alpha"]
+    assert isinstance(alpha, ArbitraryObject)
+    assert alpha.msg == "hello"
+    assert alpha.value == 1
