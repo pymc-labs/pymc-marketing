@@ -46,7 +46,7 @@ def model() -> pm.Model:
 
 
 def saturation_functions():
-    return [
+    transformations = [
         LogisticSaturation(),
         InverseScaledLogisticSaturation(),
         TanhSaturation(),
@@ -55,6 +55,10 @@ def saturation_functions():
         HillSaturation(),
         HillSaturationSigmoid(),
         RootSaturation(),
+    ]
+    return [
+        pytest.param(transformation, id=transformation.lookup_name)
+        for transformation in transformations
     ]
 
 

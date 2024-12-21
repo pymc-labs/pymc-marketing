@@ -41,15 +41,19 @@ from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.prior import Prior
 
 
-def adstocks() -> list[AdstockTransformation]:
+def adstocks() -> list:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return [
+        transformations = [
             DelayedAdstock(l_max=10),
             GeometricAdstock(l_max=10),
             WeibullPDFAdstock(l_max=10),
             WeibullCDFAdstock(l_max=10),
         ]
+
+    return [
+        pytest.param(adstock, id=adstock.lookup_name) for adstock in transformations
+    ]
 
 
 @pytest.fixture
