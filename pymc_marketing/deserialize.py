@@ -18,9 +18,12 @@ This is a two step process:
 1. Determine if the data is of the correct type.
 2. Deserialize the data into a python object for PyMC-Marketing.
 
+This is used to deserialize JSON data into PyMC-Marketing objects
+throughout the package.
+
 Examples
 --------
-Custom class deserialization:
+Register custom class deserialization:
 
 .. code-block:: python
 
@@ -38,6 +41,29 @@ Custom class deserialization:
         is_type=lambda data: data.keys() == {"value"},
         deserialize=lambda data: MyClass(value=data["value"]),
     )
+
+Deserialize data into that custom class:
+
+.. code-block:: python
+
+    from pymc_marketing.deserialize import deserialize
+
+    data = {"value": 42}
+    obj = deserialize(data)
+    assert isinstance(obj, MyClass)
+
+Make use of the already registered PyMC-Marketing deserializers:
+
+.. code-block:: python
+
+    from pymc_marketing.deserialize import deserialize
+
+    prior_class_data = {
+        "dist": "Normal",
+        "kwargs": {"mu": 0, "sigma": 1}
+    }
+    prior = deserialize(prior_class_data)
+    # Prior("Normal", mu=0, sigma=1)
 
 """
 
