@@ -56,11 +56,10 @@ import numpy as np
 import xarray as xr
 from pydantic import Field, validate_call
 
-from pymc_marketing.deserialize import register_deserialization
+from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.mmm.components.base import (
     SupportedPrior,
     Transformation,
-    _deserialize,
 )
 from pymc_marketing.mmm.transformers import (
     ConvMode,
@@ -346,7 +345,7 @@ def adstock_from_dict(data: dict) -> AdstockTransformation:
     cls = ADSTOCK_TRANSFORMATIONS[lookup_name]
 
     if "priors" in data:
-        data["priors"] = {k: _deserialize(v) for k, v in data["priors"].items()}
+        data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
 
     return cls(**data)
 
