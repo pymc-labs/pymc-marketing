@@ -108,7 +108,7 @@ import xarray as xr
 from pydantic import validate_call
 from pymc.distributions.shape_utils import Dims
 
-from pymc_marketing.deserialize import register_deserialization
+from pymc_marketing.deserialize import deserialize, register_deserialization
 
 
 class UnsupportedShapeError(Exception):
@@ -761,7 +761,7 @@ class Prior:
 
         def handle_value(value):
             if isinstance(value, dict):
-                return cls.from_json(value)
+                return deserialize(value)
 
             if isinstance(value, list):
                 return np.array(value)
