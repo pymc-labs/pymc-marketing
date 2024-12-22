@@ -801,6 +801,36 @@ def test_censored_likelihood_already_has_mu() -> None:
             )
 
 
+def test_censored_to_dict() -> None:
+    normal = Prior("Normal", mu=0, sigma=1, dims="channel")
+    censored_normal = Censored(normal, lower=0)
+
+    data = censored_normal.to_dict()
+    assert data == {
+        "class": "Censored",
+        "data": {"dist": normal.to_json(), "lower": 0, "upper": float("inf")},
+    }
+
+
+def test_deserialize_censored() -> None:
+    data = {
+        "class": "Censored",
+        "data": {
+            "dist": {
+                "dist": "Normal",
+            },
+            "lower": 0,
+            "upper": float("inf"),
+        },
+    }
+
+    instance = deserialize(data)
+    assert isinstance(instance, Censored)
+    assert isinstance(instance.distribution, Prior)
+    assert instance.lower == 0
+    assert instance.upper == float("inf")
+
+
 class ArbitrarySerializable(Arbitrary):
     def to_dict(self):
         return {"dims": self.dims}

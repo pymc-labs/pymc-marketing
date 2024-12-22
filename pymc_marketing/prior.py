@@ -1083,6 +1083,27 @@ class Censored:
             dims=self.dims,
         )
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the censored distribution to a dictionary."""
+        return {
+            "class": "Censored",
+            "data": {
+                "dist": self.distribution.to_json(),
+                "lower": self.lower,
+                "upper": self.upper,
+            },
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Censored:
+        """Create a censored distribution from a dictionary."""
+        data = data["data"]
+        return cls(
+            distribution=Prior.from_json(data["dist"]),
+            lower=data["lower"],
+            upper=data["upper"],
+        )
+
     def sample_prior(
         self,
         coords=None,
@@ -1225,4 +1246,9 @@ def _is_prior_type(data: dict) -> bool:
     return "dist" in data
 
 
+def _is_censored_type(data: dict) -> bool:
+    return data.keys() == {"class", "data"} and data["class"] == "Censored"
+
+
 register_deserialization(is_type=_is_prior_type, deserialize=Prior.from_json)
+register_deserialization(is_type=_is_censored_type, deserialize=Censored.from_dict)
