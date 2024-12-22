@@ -701,8 +701,23 @@ def test_censored_is_variable_factory() -> None:
     assert isinstance(censored_normal, VariableFactory)
 
 
+@pytest.mark.parametrize(
+    "dims, expected_dims",
+    [
+        ("channel", ("channel",)),
+        (("channel", "geo"), ("channel", "geo")),
+    ],
+    ids=["string", "tuple"],
+)
+def test_censored_dims_from_distribution(dims, expected_dims) -> None:
+    normal = Prior("Normal", dims=dims)
+    censored_normal = Censored(normal, lower=0)
+
+    assert censored_normal.dims == expected_dims
+
+
 def test_censored_variables_created() -> None:
-    normal = Prior("Normal", mu=Prior("Normal"), dims=("dim"))
+    normal = Prior("Normal", mu=Prior("Normal"), dims="dim")
     censored_normal = Censored(normal, lower=0)
 
     coords = {"dim": range(3)}
@@ -714,3 +729,40 @@ def test_censored_variables_created() -> None:
     dims = [(3,), ()]
     for var_name, dim in zip(var_names, dims, strict=False):
         assert fast_eval(model[var_name]).shape == dim
+
+
+def test_censored_sample_prior() -> None:
+    normal = Prior("Normal", dims="channel")
+    censored_normal = Censored(normal, lower=0)
+
+    coords = {"channel": ["A", "B", "C"]}
+    prior = censored_normal.sample_prior(coords=coords, samples=25)
+
+    assert isinstance(prior, xr.Dataset)
+    assert prior.sizes == {"chain": 1, "draw": 25, "channel": 3}
+
+
+def test_censored_to_graph() -> None:
+    normal = Prior("Normal", dims="channel")
+    censored_normal = Censored(normal, lower=0)
+
+    G = censored_normal.to_graph()
+    assert isinstance(G, Digraph)
+
+
+def test_censored_likelihood_variable() -> None:
+    normal = Prior("Normal", sigma=Prior("HalfNormal"), dims="channel")
+    censored_normal = Censored(normal, lower=0)
+
+    coords = {"channel": range(3)}
+    with pm.Model(coords=coords) as model:
+        mu = pm.Normal("mu")
+        variable = censored_normal.create_likelihood_variable(
+            name="likelihood",
+            mu=mu,
+            observed=[1, 2, 3],
+        )
+
+    assert isinstance(variable, pt.TensorVariable)
+    assert model.observed_RVs == [variable]
+    assert "likelihood_sigma" in model
