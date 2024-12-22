@@ -158,7 +158,8 @@ def deserialize(data: Any) -> Any:
     Raises
     ------
     DeserializableError
-        Raised when the data cannot be deserialized.
+        Raised when the data doesn't match any registered deserializations
+        or fails to be deserialized.
 
     Examples
     --------
@@ -193,7 +194,8 @@ def deserialize(data: Any) -> Any:
 def register_deserialization(is_type: IsType, deserialize: Deserialize) -> None:
     """Register an arbitrary deserialization.
 
-    Use the :func:`deserialize` function to then deserialize data.
+    Use the :func:`deserialize` function to then deserialize data using all registered
+    deserialize functions.
 
     Classes from PyMC-Marketing have their deserialization mappings registered
     automatically. However, custom classes will need to be registered manually
@@ -204,7 +206,7 @@ def register_deserialization(is_type: IsType, deserialize: Deserialize) -> None:
     is_type : Callable[[Any], bool]
         Function to determine if the data is of the correct type.
     deserialize : Callable[[dict], Any]
-        Function to deserialize the data.
+        Function to deserialize the data of that type.
 
     Examples
     --------
