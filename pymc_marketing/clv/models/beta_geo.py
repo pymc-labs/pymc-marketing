@@ -19,13 +19,12 @@ from collections.abc import Sequence
 import numpy as np
 import pandas as pd
 import pymc as pm
-import pytensor.tensor as pt
 import xarray
-from pymc.distributions.dist_math import check_parameters
 from pymc.util import RandomState
 from pytensor.tensor import TensorVariable
 from scipy.special import betaln, expit, hyp2f1
 
+from pymc_marketing.clv.distributions import BGNBD
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
@@ -174,7 +173,10 @@ class BetaGeoModel(CLVModel):
 
     def build_model(self) -> None:  # type: ignore[override]
         """Build the model."""
-        coords = {"customer_id": self.data["customer_id"]}
+        coords = {
+            "customer_id": self.data["customer_id"],
+            "obs_var": ["recency", "frequency"],
+        }
         with pm.Model(coords=coords) as self.model:
             # purchase rate priors
             alpha = self.model_config["alpha_prior"].create_variable("alpha")
@@ -196,52 +198,65 @@ class BetaGeoModel(CLVModel):
                 a = pm.Deterministic("a", phi_dropout * kappa_dropout)
                 b = pm.Deterministic("b", (1.0 - phi_dropout) * kappa_dropout)
 
-            def logp(t_x, x, a, b, r, alpha, T):
-                """
-                Compute the log-likelihood of the BG/NBD model.
-
-                The log-likelihood expression here aligns with expression (4) from [3]
-                due to the possible numerical instability of expression (3).
-                """
-                x_non_zero = x > 0
-
-                # Refactored for numerical error
-                d1 = (
-                    pt.gammaln(r + x)
-                    - pt.gammaln(r)
-                    + pt.gammaln(a + b)
-                    + pt.gammaln(b + x)
-                    - pt.gammaln(b)
-                    - pt.gammaln(a + b + x)
-                )
-
-                d2 = r * pt.log(alpha) - (r + x) * pt.log(alpha + t_x)
-                c3 = ((alpha + t_x) / (alpha + T)) ** (r + x)
-                c4 = a / (b + x - 1)
-
-                logp = d1 + d2 + pt.log(c3 + pt.switch(x_non_zero, c4, 0))
-
-                return check_parameters(
-                    logp,
-                    a > 0,
-                    b > 0,
-                    alpha > 0,
-                    r > 0,
-                    msg="a, b, alpha, r > 0",
-                )
-
-            pm.Potential(
-                "likelihood",
-                logp(
-                    x=self.data["frequency"],
-                    t_x=self.data["recency"],
-                    a=a,
-                    b=b,
-                    alpha=alpha,
-                    r=r,
-                    T=self.data["T"],
+            BGNBD(
+                name="recency_frequency",
+                a=a,
+                b=b,
+                r=r,
+                alpha=alpha,
+                T=self.data["T"],
+                observed=np.stack(
+                    (self.data["recency"], self.data["frequency"]), axis=1
                 ),
+                dims=["customer_id", "obs_var"],
             )
+
+            # def logp(t_x, x, a, b, r, alpha, T):
+            #     """
+            #     Compute the log-likelihood of the BG/NBD model.
+
+            #     The log-likelihood expression here aligns with expression (4) from [3]
+            #     due to the possible numerical instability of expression (3).
+            #     """
+            #     x_non_zero = x > 0
+
+            #     # Refactored for numerical error
+            #     d1 = (
+            #         pt.gammaln(r + x)
+            #         - pt.gammaln(r)
+            #         + pt.gammaln(a + b)
+            #         + pt.gammaln(b + x)
+            #         - pt.gammaln(b)
+            #         - pt.gammaln(a + b + x)
+            #     )
+
+            #     d2 = r * pt.log(alpha) - (r + x) * pt.log(alpha + t_x)
+            #     c3 = ((alpha + t_x) / (alpha + T)) ** (r + x)
+            #     c4 = a / (b + x - 1)
+
+            #     logp = d1 + d2 + pt.log(c3 + pt.switch(x_non_zero, c4, 0))
+
+            #     return check_parameters(
+            #         logp,
+            #         a > 0,
+            #         b > 0,
+            #         alpha > 0,
+            #         r > 0,
+            #         msg="a, b, alpha, r > 0",
+            #     )
+
+            # pm.Potential(
+            #     "likelihood",
+            #     logp(
+            #         x=self.data["frequency"],
+            #         t_x=self.data["recency"],
+            #         a=a,
+            #         b=b,
+            #         alpha=alpha,
+            #         r=r,
+            #         T=self.data["T"],
+            #     ),
+            # )
 
     # TODO: delete this utility after API standardization is completed
     def _unload_params(self):

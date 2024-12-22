@@ -662,3 +662,119 @@ class BetaGeoBetaBinom(Discrete):
             delta > 0,
             msg="alpha > 0, beta > 0, gamma > 0, delta > 0",
         )
+
+
+class BGNBDRV(RandomVariable):
+    name = "bg_nbd"
+    ndim_supp = 1
+    ndims_params = [0, 0, 0, 0, 0]
+
+    dtype = "floatX"
+    _print_name = ("BGNBD", "\\operatorname{BGNBD}")
+
+    def make_node(self, rng, size, dtype, a, b, r, alpha, T):
+        a = pt.as_tensor_variable(a)
+        b = pt.as_tensor_variable(b)
+        r = pt.as_tensor_variable(r)
+        alpha = pt.as_tensor_variable(alpha)
+        T = pt.as_tensor_variable(T)
+
+        return super().make_node(rng, size, dtype, a, b, r, alpha, T)
+
+    def __call__(self, a, b, r, alpha, T, size=None, **kwargs):
+        return super().__call__(a, b, r, alpha, T, size=size, **kwargs)
+
+    @classmethod
+    def rng_fn(cls, rng, a, b, r, alpha, T, size):
+        size = pm.distributions.shape_utils.to_tuple(size)
+
+        a = np.asarray(a)
+        b = np.asarray(b)
+        r = np.asarray(r)
+        alpha = np.asarray(alpha)
+        T = np.asarray(T)
+
+        if size == ():
+            size = np.broadcast_shapes(a.shape, b.shape, r.shape, alpha.shape, T.shape)
+
+        a = np.broadcast_to(a, size)
+        b = np.broadcast_to(b, size)
+        r = np.broadcast_to(r, size)
+        alpha = np.broadcast_to(alpha, size)
+        T = np.broadcast_to(T, size)
+
+        output = np.zeros(shape=size + (2,))  # noqa:RUF005
+
+        lam = rng.gamma(shape=r, scale=1 / alpha, size=size)
+        p = rng.beta(a=a, b=b, size=size)
+
+        def sim_data(lam, p, T):
+            t = 0
+            n = 0
+
+            dropout_time = rng.exponential(scale=1 / p)
+            wait = rng.exponential(scale=1 / lam)
+
+            final_t = min(dropout_time, T)
+            while (t + wait) < final_t:
+                t += wait
+                n += 1
+                wait = rng.exponential(scale=1 / lam)
+
+            return np.array(
+                [
+                    t,
+                    n,
+                ],
+            )
+
+        for index in np.ndindex(*size):
+            output[index] = sim_data(lam[index], p[index], T[index])
+
+        return output
+
+    def _supp_shape_from_params(*args, **kwargs):
+        return (2,)
+
+
+bg_nbd = BGNBDRV()
+
+
+class BGNBD(PositiveContinuous):
+    rv_op = bg_nbd
+
+    @classmethod
+    def dist(cls, a, b, r, alpha, T, **kwargs):
+        """Get the distribution from the parameters."""
+        return super().dist([a, b, r, alpha, T], **kwargs)
+
+    def logp(value, a, b, r, alpha, T):
+        """Log-likelihood of the distribution."""
+        t_x = value[..., 0]
+        x = value[..., 1]
+
+        x_non_zero = x > 0
+
+        d1 = (
+            pt.gammaln(r + x)
+            - pt.gammaln(r)
+            + pt.gammaln(a + b)
+            + pt.gammaln(b + x)
+            - pt.gammaln(b)
+            - pt.gammaln(a + b + x)
+        )
+
+        d2 = r * pt.log(alpha) - (r + x) * pt.log(alpha + t_x)
+        c3 = ((alpha + t_x) / (alpha + T)) ** (r + x)
+        c4 = a / (b + x - 1)
+
+        logp = d1 + d2 + pt.log(c3 + pt.switch(x_non_zero, c4, 0))
+
+        return check_parameters(
+            logp,
+            a > 0,
+            b > 0,
+            alpha > 0,
+            r > 0,
+            msg="a, b, alpha, r > 0",
+        )
