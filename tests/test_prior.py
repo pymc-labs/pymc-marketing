@@ -766,3 +766,31 @@ def test_censored_likelihood_variable() -> None:
     assert isinstance(variable, pt.TensorVariable)
     assert model.observed_RVs == [variable]
     assert "likelihood_sigma" in model
+
+
+def test_censored_likelihood_unsupported_distribution() -> None:
+    cauchy = Prior("Cauchy")
+    censored_cauchy = Censored(cauchy, lower=0)
+
+    with pm.Model():
+        mu = pm.Normal("mu")
+        with pytest.raises(UnsupportedDistributionError):
+            censored_cauchy.create_likelihood_variable(
+                name="likelihood",
+                mu=mu,
+                observed=1,
+            )
+
+
+def test_censored_likelihood_already_has_mu() -> None:
+    normal = Prior("Normal", mu=Prior("Normal"), sigma=Prior("HalfNormal"))
+    censored_normal = Censored(normal, lower=0)
+
+    with pm.Model():
+        mu = pm.Normal("mu")
+        with pytest.raises(MuAlreadyExistsError):
+            censored_normal.create_likelihood_variable(
+                name="likelihood",
+                mu=mu,
+                observed=1,
+            )
