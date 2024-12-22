@@ -23,7 +23,7 @@ from pymc_marketing.clv.models import (
 )
 from pymc_marketing.clv.plotting import (
     plot_customer_exposure,
-    plot_expected_purchases,
+    plot_expected_purchases_over_time,
     plot_expected_purchases_ppc,
     plot_frequency_recency_matrix,
     plot_probability_alive_matrix,
@@ -44,7 +44,7 @@ __all__ = (
     "ShiftedBetaGeoModelIndividual",
     "customer_lifetime_value",
     "plot_customer_exposure",
-    "plot_expected_purchases",
+    "plot_expected_purchases_over_time",
     "plot_expected_purchases_ppc",
     "plot_frequency_recency_matrix",
     "plot_probability_alive_matrix",
