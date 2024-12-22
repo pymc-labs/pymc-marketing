@@ -109,6 +109,8 @@ import xarray as xr
 from pydantic import validate_call
 from pymc.distributions.shape_utils import Dims
 
+from pymc_marketing.deserialize import deserialize, register_deserialization
+
 
 class UnsupportedShapeError(Exception):
     """Error for when the shapes from variables are not compatible."""
@@ -760,7 +762,7 @@ class Prior:
 
         def handle_value(value):
             if isinstance(value, dict):
-                return cls.from_json(value)
+                return deserialize(value)
 
             if isinstance(value, list):
                 return np.array(value)
@@ -1217,3 +1219,10 @@ class Censored:
             upper=self.upper,
             dims=self.dims,
         )
+
+
+def _is_prior_type(data: dict) -> bool:
+    return "dist" in data
+
+
+register_deserialization(is_type=_is_prior_type, deserialize=Prior.from_json)

@@ -23,6 +23,11 @@ from preliz.distributions.distributions import Distribution
 from pydantic import ValidationError
 from pymc.model_graph import fast_eval
 
+from pymc_marketing.deserialize import (
+    DESERIALIZERS,
+    deserialize,
+    register_deserialization,
+)
 from pymc_marketing.prior import (
     Censored,
     MuAlreadyExistsError,
@@ -794,3 +799,61 @@ def test_censored_likelihood_already_has_mu() -> None:
                 mu=mu,
                 observed=1,
             )
+
+
+class ArbitrarySerializable(Arbitrary):
+    def to_dict(self):
+        return {"dims": self.dims}
+
+
+@pytest.fixture
+def arbitrary_serialized_data() -> dict:
+    return {"dims": ("channel",)}
+
+
+def test_create_prior_with_arbitrary_serializable(arbitrary_serialized_data) -> None:
+    dist = Prior(
+        "Normal",
+        mu=ArbitrarySerializable(dims=("channel",)),
+        sigma=1,
+        dims=("channel", "geo"),
+    )
+
+    assert dist.to_json() == {
+        "dist": "Normal",
+        "kwargs": {
+            "mu": arbitrary_serialized_data,
+            "sigma": 1,
+        },
+        "dims": ("channel", "geo"),
+    }
+
+
+@pytest.fixture
+def register_arbitrary_deserialization():
+    register_deserialization(
+        lambda data: isinstance(data, dict) and data.keys() == {"dims"},
+        lambda data: ArbitrarySerializable(**data),
+    )
+
+    yield
+
+    DESERIALIZERS.pop()
+
+
+def test_deserialize_arbitrary_within_prior(
+    arbitrary_serialized_data,
+    register_arbitrary_deserialization,
+) -> None:
+    data = {
+        "dist": "Normal",
+        "kwargs": {
+            "mu": arbitrary_serialized_data,
+            "sigma": 1,
+        },
+        "dims": ("channel", "geo"),
+    }
+
+    dist = deserialize(data)
+    assert isinstance(dist["mu"], ArbitrarySerializable)
+    assert dist["mu"].dims == ("channel",)
