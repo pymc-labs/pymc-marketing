@@ -16,4 +16,5 @@
   customer_choice
   metrics
   mlflow
+  deserialize
 ```

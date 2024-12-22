@@ -20,6 +20,11 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 
+from pymc_marketing.deserialize import (
+    DESERIALIZERS,
+    deserialize,
+    register_deserialization,
+)
 from pymc_marketing.mmm import (
     AdstockTransformation,
     DelayedAdstock,
@@ -36,15 +41,19 @@ from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.prior import Prior
 
 
-def adstocks() -> list[AdstockTransformation]:
+def adstocks() -> list:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return [
+        transformations = [
             DelayedAdstock(l_max=10),
             GeometricAdstock(l_max=10),
             WeibullPDFAdstock(l_max=10),
             WeibullCDFAdstock(l_max=10),
         ]
+
+    return [
+        pytest.param(adstock, id=adstock.lookup_name) for adstock in transformations
+    ]
 
 
 @pytest.fixture
@@ -104,7 +113,8 @@ def test_adstock_sample_curve(adstock) -> None:
     assert curve.shape == (1, 500, adstock.l_max)
 
 
-def test_adstock_from_dict() -> None:
+@pytest.mark.parametrize("deserialize_func", [adstock_from_dict, deserialize])
+def test_adstock_from_dict(deserialize_func) -> None:
     data = {
         "lookup_name": "geometric",
         "l_max": 10,
@@ -121,7 +131,7 @@ def test_adstock_from_dict() -> None:
         },
     }
 
-    adstock = adstock_from_dict(data)
+    adstock = deserialize_func(data)
     assert adstock == GeometricAdstock(
         l_max=10,
         prefix="test",
@@ -136,7 +146,8 @@ def test_adstock_from_dict() -> None:
     "adstock",
     adstocks(),
 )
-def test_adstock_from_dict_without_priors(adstock) -> None:
+@pytest.mark.parametrize("deserialize_func", [adstock_from_dict, deserialize])
+def test_adstock_from_dict_without_priors(adstock, deserialize_func) -> None:
     data = {
         "lookup_name": adstock.lookup_name,
         "l_max": 10,
@@ -144,13 +155,14 @@ def test_adstock_from_dict_without_priors(adstock) -> None:
         "mode": "Before",
     }
 
-    adstock = adstock_from_dict(data)
+    adstock = deserialize_func(data)
     assert adstock.default_priors == {
         k: Prior.from_json(v) for k, v in adstock.to_dict()["priors"].items()
     }
 
 
-def test_register_adstock_transformation() -> None:
+@pytest.mark.parametrize("deserialize_func", [adstock_from_dict, deserialize])
+def test_register_adstock_transformation(deserialize_func) -> None:
     class NewTransformation(AdstockTransformation):
         lookup_name: str = "new_transformation"
         default_priors = {}
@@ -168,7 +180,7 @@ def test_register_adstock_transformation() -> None:
         "mode": "Before",
         "priors": {},
     }
-    adstock = adstock_from_dict(data)
+    adstock = deserialize_func(data)
     assert adstock == NewTransformation(
         l_max=10, mode=ConvMode.Before, normalize=False, priors={}
     )
@@ -182,3 +194,48 @@ def test_repr() -> None:
         "priors={'alpha': Prior(\"Beta\", alpha=1, beta=3)}"
         ")"
     )
+
+
+class ArbitraryObject:
+    def __init__(self, msg: str, value: int) -> None:
+        self.msg = msg
+        self.value = value
+        self.dims = ()
+
+    def create_variable(self, name: str):
+        return pm.Normal(name, mu=0, sigma=1)
+
+
+@pytest.fixture
+def register_arbitrary_deserialization():
+    register_deserialization(
+        lambda data: isinstance(data, dict) and data.keys() == {"msg", "value"},
+        lambda data: ArbitraryObject(**data),
+    )
+
+    yield
+
+    DESERIALIZERS.pop()
+
+
+def test_deserialization(
+    register_arbitrary_deserialization,
+) -> None:
+    data = {
+        "lookup_name": "geometric",
+        "prefix": "new",
+        "l_max": 10,
+        "priors": {
+            "alpha": {"msg": "hello", "value": 1},
+        },
+    }
+
+    instance = deserialize(data)
+    assert isinstance(instance, GeometricAdstock)
+    assert instance.prefix == "new"
+    assert instance.l_max == 10
+
+    alpha = instance.function_priors["alpha"]
+    assert isinstance(alpha, ArbitraryObject)
+    assert alpha.msg == "hello"
+    assert alpha.value == 1

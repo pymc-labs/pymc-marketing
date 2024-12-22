@@ -18,6 +18,8 @@ from typing import Annotated
 import pymc as pm
 from pydantic import BaseModel, Field, InstanceOf
 
+from pymc_marketing.deserialize import register_deserialization
+
 
 class HSGPKwargs(BaseModel):
     """HSGP keyword arguments for the time-varying prior.
@@ -80,3 +82,20 @@ class HSGPKwargs(BaseModel):
     cov_func: InstanceOf[pm.gp.cov.Covariance] | str | None = Field(
         None, description="Gaussian process Covariance function"
     )
+
+
+def _is_hsgp_kwargs(data) -> bool:
+    return isinstance(data, dict) and data.keys() == {
+        "m",
+        "L",
+        "eta_lam",
+        "ls_mu",
+        "ls_sigma",
+        "cov_func",
+    }
+
+
+register_deserialization(
+    is_type=_is_hsgp_kwargs,
+    deserialize=lambda data: HSGPKwargs.model_validate(data),
+)
