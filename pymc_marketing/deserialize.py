@@ -23,6 +23,19 @@ throughout the package.
 
 Examples
 --------
+Make use of the already registered PyMC-Marketing deserializers:
+
+.. code-block:: python
+
+    from pymc_marketing.deserialize import deserialize
+
+    prior_class_data = {
+        "dist": "Normal",
+        "kwargs": {"mu": 0, "sigma": 1}
+    }
+    prior = deserialize(prior_class_data)
+    # Prior("Normal", mu=0, sigma=1)
+
 Register custom class deserialization:
 
 .. code-block:: python
@@ -52,18 +65,6 @@ Deserialize data into that custom class:
     obj = deserialize(data)
     assert isinstance(obj, MyClass)
 
-Make use of the already registered PyMC-Marketing deserializers:
-
-.. code-block:: python
-
-    from pymc_marketing.deserialize import deserialize
-
-    prior_class_data = {
-        "dist": "Normal",
-        "kwargs": {"mu": 0, "sigma": 1}
-    }
-    prior = deserialize(prior_class_data)
-    # Prior("Normal", mu=0, sigma=1)
 
 """
 
@@ -137,6 +138,12 @@ def deserialize(data: Any) -> Any:
 
     1. Determine if the data is of the correct type.
     2. Deserialize the data into a Python object.
+
+    Each registered deserialization is checked in order until one is found that can
+    deserialize the data. If no deserialization is found, a :class:`DeserializableError` is raised.
+
+    A :class:`DeserializableError` is raised when the data fails to be deserialized
+    by any of the registered deserializers.
 
     Parameters
     ----------
