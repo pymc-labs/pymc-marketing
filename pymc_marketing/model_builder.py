@@ -933,7 +933,7 @@ class ModelBuilder(ABC):
         hasher.update(self.version.encode())
         hasher.update(self._model_type.encode())
         return hasher.hexdigest()[:16]
-      
+
     def graphviz(self, **kwargs):
         """Get the graphviz representation of the model.
 
@@ -948,7 +948,6 @@ class ModelBuilder(ABC):
 
         """
         return pm.model_to_graphviz(self.model, **kwargs)
-
 
     prior = create_idata_accessor(
         "prior",
@@ -967,4 +966,3 @@ class ModelBuilder(ABC):
         "predictions",
         "Call the 'sample_posterior_predictive' method with predictions=True first.",
     )
-

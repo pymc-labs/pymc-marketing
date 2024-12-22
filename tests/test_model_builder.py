@@ -577,7 +577,6 @@ def test_fit_sampler_config_with_rng_fails(mocker, toy_X, toy_y) -> None:
         model.fit(toy_X, toy_y)
 
 
-
 def test_unmatched_index(toy_X, toy_y) -> None:
     model = ModelBuilderTest()
     toy_X = toy_X.copy()
@@ -585,6 +584,7 @@ def test_unmatched_index(toy_X, toy_y) -> None:
     match = "Index of X and y must match"
     with pytest.raises(ValueError, match=match):
         model.fit(toy_X, toy_y)
+
 
 def test_graphviz(toy_X, toy_y):
     """Test pymc.graphviz utility on model before and after being built"""
@@ -597,4 +597,3 @@ def test_graphviz(toy_X, toy_y):
 
     model.build_model(X=toy_X, y=toy_y)
     assert isinstance(model.graphviz(), graphviz.graphs.Digraph)
-
