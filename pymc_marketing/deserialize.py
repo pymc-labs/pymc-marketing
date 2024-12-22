@@ -38,7 +38,7 @@ Register custom class deserialization:
             return {"value": self.value}
 
     register_deserialization(
-        is_type=lambda data: data.keys() == {"value"},
+        is_type=lambda data: data.keys() == {"value"} and isinstance(data["value"], int),
         deserialize=lambda data: MyClass(value=data["value"]),
     )
 
@@ -77,7 +77,39 @@ Deserialize = Callable[[Any], Any]
 
 @dataclass
 class Deserializer:
-    """Object to store a deserialization mapping."""
+    """Object to store information required for deserialization.
+
+    All deserializers should be stored via the :func:`register_deserialization` function
+    instead of creating this object directly.
+
+    Attributes
+    ----------
+    is_type : IsType
+        Function to determine if the data is of the correct type.
+    deserialize : Deserialize
+        Function to deserialize the data.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from typing import Any
+
+        class MyClass:
+            def __init__(self, value: int):
+                self.value = value
+
+        from pymc_marketing.deserialize import Deserializer
+
+        def is_type(data: Any) -> bool:
+            return data.keys() == {"value"} and isinstance(data["value"], int)
+
+        def deserialize(data: dict) -> MyClass:
+            return MyClass(value=data["value"])
+
+        deserialize_logic = Deserializer(is_type=is_type, deserialize=deserialize)
+
+    """
 
     is_type: IsType
     deserialize: Deserialize
@@ -99,6 +131,13 @@ class DeserializableError(Exception):
 def deserialize(data: Any) -> Any:
     """Deserialize a dictionary into a Python object.
 
+    Use the :func:`register_deserialization` function to add custom deserializations.
+
+    Deserialization is a two step process due to the dynamic nature of the data:
+
+    1. Determine if the data is of the correct type.
+    2. Deserialize the data into a Python object.
+
     Parameters
     ----------
     data : Any
@@ -108,6 +147,23 @@ def deserialize(data: Any) -> Any:
     -------
     Any
         The deserialized object.
+
+    Raises
+    ------
+    DeserializableError
+        Raised when the data cannot be deserialized.
+
+    Examples
+    --------
+    Deserialize a :class:`pymc_marketing.prior.Prior` object:
+
+    .. code-block:: python
+
+        from pymc_marketing.deserialize import deserialize
+
+        data = {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}}
+        prior = deserialize(data)
+        # Prior("Normal", mu=0, sigma=1)
 
     """
     for mapping in DESERIALIZERS:
@@ -128,7 +184,13 @@ def deserialize(data: Any) -> Any:
 
 
 def register_deserialization(is_type: IsType, deserialize: Deserialize) -> None:
-    """Register a deserialization mapping.
+    """Register an arbitrary deserialization.
+
+    Use the :func:`deserialize` function to then deserialize data.
+
+    Classes from PyMC-Marketing have their deserialization mappings registered
+    automatically. However, custom classes will need to be registered manually
+    using this function before they can be deserialized.
 
     Parameters
     ----------
@@ -136,6 +198,37 @@ def register_deserialization(is_type: IsType, deserialize: Deserialize) -> None:
         Function to determine if the data is of the correct type.
     deserialize : Callable[[dict], Any]
         Function to deserialize the data.
+
+    Examples
+    --------
+    Register a custom class deserialization:
+
+    .. code-block:: python
+
+        from pymc_marketing.deserialize import register_deserialization
+
+        class MyClass:
+            def __init__(self, value: int):
+                self.value = value
+
+            def to_dict(self) -> dict:
+                # Example of what the to_dict method might look like.
+                return {"value": self.value}
+
+        register_deserialization(
+            is_type=lambda data: data.keys() == {"value"} and isinstance(data["value"], int),
+            deserialize=lambda data: MyClass(value=data["value"]),
+        )
+
+    Use that custom class deserialization:
+
+    .. code-block:: python
+
+        from pymc_marketing.deserialize import deserialize
+
+        data = {"value": 42}
+        obj = deserialize(data)
+        assert isinstance(obj, MyClass)
 
     """
     mapping = Deserializer(is_type=is_type, deserialize=deserialize)
