@@ -76,9 +76,9 @@ import pytensor.tensor as pt
 import xarray as xr
 from pydantic import Field, InstanceOf, validate_call
 
+from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.mmm.components.base import (
     Transformation,
-    _deserialize,
 )
 from pymc_marketing.mmm.transformers import (
     hill_function,
@@ -483,6 +483,13 @@ def saturation_from_dict(data: dict) -> SaturationTransformation:
 
     if "priors" in data:
         data["priors"] = {
-            key: _deserialize(value) for key, value in data["priors"].items()
+            key: deserialize(value) for key, value in data["priors"].items()
         }
     return cls(**data)
+
+
+def _is_saturation(data):
+    return "lookup_name" in data and data["lookup_name"] in SATURATION_TRANSFORMATIONS
+
+
+register_deserialization(_is_saturation, saturation_from_dict)
