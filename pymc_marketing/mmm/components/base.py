@@ -592,10 +592,3 @@ def _serialize_value(value: Any) -> Any:
         return value.tolist()
 
     return value
-
-
-def _deserialize(value):
-    try:
-        return Prior.from_json(value)
-    except Exception:
-        return value
