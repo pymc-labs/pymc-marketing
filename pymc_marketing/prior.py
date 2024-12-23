@@ -1026,6 +1026,10 @@ class Prior:
         return distribution.create_variable(name)
 
 
+class VariableNotFound(Exception):
+    """Variable is not found."""
+
+
 def _remove_random_variable(var: pt.TensorVariable) -> None:
     if var.name is None:
         raise ValueError("This isn't removable")
@@ -1038,7 +1042,7 @@ def _remove_random_variable(var: pt.TensorVariable) -> None:
             index_to_remove = idx
             break
     else:
-        raise ValueError("Variable not found")
+        raise VariableNotFound(f"Variable {var.name!r} not found")
 
     var.name = None
     model.free_RVs.pop(index_to_remove)
@@ -1060,11 +1064,40 @@ class Censored:
         normal = Prior("Normal")
         censored_normal = Censored(normal, lower=0)
 
+    Create hierarchical censored Normal distribution:
+
+    .. code-block:: python
+
+        from pymc_marketing.prior import Prior, Censored
+
+        normal = Prior(
+            "Normal",
+            mu=Prior("Normal"),
+            sigma=Prior("HalfNormal"),
+            dims="channel",
+        )
+        censored_normal = Censored(normal, lower=0)
+
+        coords = {"channel": range(3)}
+        samples = censored_normal.sample_prior(coords=coords)
+
     """
 
     distribution: Prior
     lower: float | pt.TensorVariable = -np.inf
     upper: float | pt.TensorVariable = np.inf
+
+    def __post_init__(self) -> None:
+        """Check validity at initialization."""
+        if not self.distribution.centered:
+            raise ValueError(
+                "Censored distribution must be centered so that .dist() API can be used on distribution."
+            )
+
+        if self.distribution.transform is not None:
+            raise ValueError(
+                "Censored distribution can't have a transform so that .dist() API can be used on distribution."
+            )
 
     @property
     def dims(self) -> tuple[str, ...]:
@@ -1075,6 +1108,7 @@ class Censored:
         """Create censored random variable."""
         dist = self.distribution.create_variable(name)
         _remove_random_variable(var=dist)
+
         return pm.Censored(
             name,
             dist,
