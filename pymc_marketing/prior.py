@@ -1026,7 +1026,6 @@ class Prior:
         return distribution.create_variable(name)
 
 
-
 def _remove_random_variable(var: pt.TensorVariable) -> None:
     if var.name is None:
         raise ValueError("This isn't removable")
