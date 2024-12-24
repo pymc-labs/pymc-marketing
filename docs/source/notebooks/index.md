@@ -30,6 +30,7 @@ clv/bg_nbd
 clv/gamma_gamma
 clv/pareto_nbd
 clv/sBG
+clv/mbg_nbd
 :::
 
 :::{toctree}

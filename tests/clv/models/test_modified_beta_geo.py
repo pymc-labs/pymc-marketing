@@ -19,24 +19,24 @@ import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
-from lifetimes.fitters.beta_geo_fitter import BetaGeoFitter
+from lifetimes.fitters.modified_beta_geo_fitter import ModifiedBetaGeoFitter
 
-from pymc_marketing.clv.models.beta_geo import BetaGeoModel
+from pymc_marketing.clv.models.modified_beta_geo import ModifiedBetaGeoModel
 from pymc_marketing.prior import Prior
 from tests.conftest import create_mock_fit, mock_sample
 
 
-class TestBetaGeoModel:
+class TestModifiedBetaGeoModel:
     @classmethod
     def setup_class(cls):
         # Set random seed
         cls.rng = np.random.default_rng(34)
 
         # parameters
-        cls.a_true = 0.793
-        cls.b_true = 2.426
-        cls.alpha_true = 4.414
-        cls.r_true = 0.243
+        cls.a_true = 0.891
+        cls.b_true = 1.614
+        cls.alpha_true = 6.183
+        cls.r_true = 0.525
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
         test_data = pd.read_csv("data/clv_quickstart.csv")
@@ -49,10 +49,10 @@ class TestBetaGeoModel:
         cls.T = test_data["T"]
 
         # Instantiate model with CDNOW data for testing
-        cls.model = BetaGeoModel(cls.data)
+        cls.model = ModifiedBetaGeoModel(cls.data)
 
         # Also instantiate lifetimes model for comparison
-        cls.lifetimes_model = BetaGeoFitter()
+        cls.lifetimes_model = ModifiedBetaGeoFitter()
         cls.lifetimes_model.params_ = {
             "a": cls.a_true,
             "b": cls.b_true,
@@ -96,7 +96,7 @@ class TestBetaGeoModel:
 
     def test_model(self, model_config, default_model_config):
         for config in (model_config, default_model_config):
-            model = BetaGeoModel(
+            model = ModifiedBetaGeoModel(
                 data=self.data,
                 model_config=config,
             )
@@ -136,62 +136,94 @@ class TestBetaGeoModel:
                 "r_log__": (),
             }
 
-    def test_missing_cols(self):
-        data_invalid = self.data.drop(columns="customer_id")
+    @pytest.mark.parametrize(
+        "missing_column",
+        ["customer_id", "frequency", "recency", "T"],
+    )
+    def test_missing_cols(self, missing_column):
+        data_invalid = self.data.drop(columns=missing_column)
 
-        with pytest.raises(ValueError, match="Required column customer_id missing"):
-            BetaGeoModel(data=data_invalid)
-
-        data_invalid = self.data.drop(columns="frequency")
-
-        with pytest.raises(ValueError, match="Required column frequency missing"):
-            BetaGeoModel(data=data_invalid)
-
-        data_invalid = self.data.drop(columns="recency")
-
-        with pytest.raises(ValueError, match="Required column recency missing"):
-            BetaGeoModel(data=data_invalid)
-
-        data_invalid = self.data.drop(columns="T")
-
-        with pytest.raises(ValueError, match="Required column T missing"):
-            BetaGeoModel(data=data_invalid)
+        with pytest.raises(
+            ValueError, match=f"Required column {missing_column} missing"
+        ):
+            ModifiedBetaGeoModel(data=data_invalid)
 
     def test_customer_id_duplicate(self):
-        data = pd.DataFrame(
-            {
-                "customer_id": np.asarray([1, 1]),
-                "frequency": np.asarray([1, 1]),
-                "recency": np.asarray([1, 1]),
-                "T": np.asarray([1, 1]),
-            }
-        )
-
         with pytest.raises(
             ValueError, match="Column customer_id has duplicate entries"
         ):
-            BetaGeoModel(
+            data = pd.DataFrame(
+                {
+                    "customer_id": np.asarray([1, 1]),
+                    "frequency": np.asarray([1, 1]),
+                    "recency": np.asarray([1, 1]),
+                    "T": np.asarray([1, 1]),
+                }
+            )
+
+            ModifiedBetaGeoModel(
                 data=data,
             )
+
+    @pytest.mark.parametrize(
+        "frequency, recency, logp_value",
+        [
+            (0, 0, -0.41792826),
+            (200, 38, 100.7869),
+        ],
+    )
+    def test_numerically_stable_logp(
+        self, frequency, recency, logp_value, model_config
+    ):
+        """See Solution #2 on pages 3 and 4 of http://brucehardie.com/notes/027/bgnbd_num_error.pdf"""
+        model_config = {
+            "a_prior": Prior("Flat"),
+            "b_prior": Prior("Flat"),
+            "alpha_prior": Prior("Flat"),
+            "r_prior": Prior("Flat"),
+        }
+        data = pd.DataFrame(
+            {
+                "customer_id": np.asarray([1]),
+                "frequency": np.asarray([frequency]),
+                "recency": np.asarray([recency]),
+                "T": np.asarray([40]),
+            }
+        )
+        model = ModifiedBetaGeoModel(
+            data=data,
+            model_config=model_config,
+        )
+        model.build_model()
+        pymc_model = model.model
+        logp = pymc_model.compile_fn(pymc_model.potentiallogp)
+
+        np.testing.assert_almost_equal(
+            logp({"a": 0.80, "b": 2.50, "r": 0.25, "alpha": 4.00}),
+            logp_value,
+            decimal=5,
+        )
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
         "fit_method, rtol",
         [
-            ("mcmc", 0.1),
-            ("map", 0.2),
+            ("mcmc", 0.075),
+            ("map", 0.15),
         ],
     )
     def test_model_convergence(self, fit_method, rtol, model_config):
         # b parameter has the largest mismatch of the four parameters
-        model = BetaGeoModel(
+        model = ModifiedBetaGeoModel(
             data=self.data,
             model_config=model_config,
         )
         model.build_model()
 
         sample_kwargs = (
-            dict(random_seed=self.rng, chains=2) if fit_method == "mcmc" else {}
+            dict(random_seed=self.rng, chains=2, target_accept=0.90)
+            if fit_method == "mcmc"
+            else {}
         )
         model.fit(fit_method=fit_method, progressbar=False, **sample_kwargs)
 
@@ -203,7 +235,7 @@ class TestBetaGeoModel:
         )
 
     def test_fit_result_without_fit(self, mocker, model_config):
-        model = BetaGeoModel(data=self.data, model_config=model_config)
+        model = ModifiedBetaGeoModel(data=self.data, model_config=model_config)
         with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
             model.fit_result
 
@@ -220,71 +252,7 @@ class TestBetaGeoModel:
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
 
-    def test_expected_probability_no_purchases_infrequent_customers(self):
-        atol = 10e-3
-        customer_id = np.arange(5)
-        test_frequency = [3, 30, 5, 70, 9]
-        test_recency = [100, 30, 500, 70, 900]
-        test_T = [500, 300, 1000, 700, 1800]
-        test_t = 3
-        data = pd.DataFrame(
-            {
-                "customer_id": customer_id,
-                "frequency": test_frequency,
-                "recency": test_recency,
-                "T": test_T,
-            }
-        )
-
-        bg_model = BetaGeoModel(data=data)
-        bg_model.build_model()
-        bg_model.idata = az.from_dict(
-            {
-                "a": np.full((2, 5), self.a_true),
-                "b": np.full((2, 5), self.b_true),
-                "alpha": np.full((2, 5), self.alpha_true),
-                "r": np.full((2, 5), self.r_true),
-            }
-        )
-
-        res_prob_no_purchases = bg_model.expected_probability_no_purchase(
-            t=test_t, data=data
-        )
-        assert np.all(np.isclose(res_prob_no_purchases.to_numpy(), 1, atol=atol))
-
-    @pytest.mark.parametrize("test_t", [30, 90, 120])
-    def test_expected_probability_no_purchases_frequent_customers(self, test_t):
-        atol = 10e-3
-        customer_id = np.arange(5)
-        test_frequency = [100, 300, 500, 700, 900]
-        test_recency = [100, 300, 500, 700, 900]
-        test_T = [100, 300, 500, 700, 900]
-        data = pd.DataFrame(
-            {
-                "customer_id": customer_id,
-                "frequency": test_frequency,
-                "recency": test_recency,
-                "T": test_T,
-            }
-        )
-
-        bg_model = BetaGeoModel(data=data)
-        bg_model.build_model()
-        bg_model.idata = az.from_dict(
-            {
-                "a": np.full((2, 5), self.a_true),
-                "b": np.full((2, 5), self.b_true),
-                "alpha": np.full((2, 5), self.alpha_true),
-                "r": np.full((2, 5), self.r_true),
-            }
-        )
-
-        res_prob_no_purchases = bg_model.expected_probability_no_purchase(
-            t=test_t, data=data
-        )
-        assert np.all(np.isclose(res_prob_no_purchases.to_numpy(), 0, atol=atol))
-
-    def test_expected_probability_no_purchases_now(self):
+    def tests_expected_probability_no_purchases_raises_exception(self):
         customer_id = np.arange(10)
         test_frequency = np.tile([1, 3, 5, 7, 9], 2)
         test_recency = np.tile([20, 30], 5)
@@ -299,9 +267,9 @@ class TestBetaGeoModel:
             }
         )
 
-        bg_model = BetaGeoModel(data=data)
-        bg_model.build_model()
-        bg_model.idata = az.from_dict(
+        mbg_model = ModifiedBetaGeoModel(data=data)
+        mbg_model.build_model()
+        mbg_model.idata = az.from_dict(
             {
                 "a": np.full((2, 5), self.a_true),
                 "b": np.full((2, 5), self.b_true),
@@ -310,43 +278,11 @@ class TestBetaGeoModel:
             }
         )
 
-        res_prob_no_purchases = bg_model.expected_probability_no_purchase(
-            t=test_t, data=data
-        )
-        assert np.all(np.isclose(res_prob_no_purchases.to_numpy(), 1))
-
-    @pytest.mark.parametrize("test_t", [0, 30, 90])
-    def test_expected_probability_no_purchases(self, test_t):
-        customer_id = np.arange(10)
-        test_frequency = np.tile([1, 3, 5, 7, 9], 2)
-        test_recency = np.tile([20, 30], 5)
-        test_T = np.tile([25, 35], 5)
-        data = pd.DataFrame(
-            {
-                "customer_id": customer_id,
-                "frequency": test_frequency,
-                "recency": test_recency,
-                "T": test_T,
-            }
-        )
-
-        bg_model = BetaGeoModel(data=data)
-        bg_model.build_model()
-        bg_model.idata = az.from_dict(
-            {
-                "a": np.full((2, 5), self.a_true),
-                "b": np.full((2, 5), self.b_true),
-                "alpha": np.full((2, 5), self.alpha_true),
-                "r": np.full((2, 5), self.r_true),
-            }
-        )
-
-        res_prob_no_purchases = bg_model.expected_probability_no_purchase(
-            t=test_t, data=data
-        )
-
-        assert res_prob_no_purchases.shape == (2, 5, 10)
-        assert res_prob_no_purchases.dims == ("chain", "draw", "customer_id")
+        with pytest.raises(
+            NotImplementedError,
+            match="The MBG/NBD model does not support this feature at the moment.",
+        ):
+            mbg_model.expected_probability_no_purchase(t=test_t, data=data)
 
     def test_expected_num_purchases(self):
         customer_id = np.arange(10)
@@ -363,9 +299,9 @@ class TestBetaGeoModel:
             }
         )
 
-        bg_model = BetaGeoModel(data=data)
-        bg_model.build_model()
-        bg_model.idata = az.from_dict(
+        mbg_model = ModifiedBetaGeoModel(data=data)
+        mbg_model.build_model()
+        mbg_model.idata = az.from_dict(
             {
                 "a": np.full((2, 5), self.a_true),
                 "b": np.full((2, 5), self.b_true),
@@ -379,7 +315,7 @@ class TestBetaGeoModel:
             FutureWarning,
             match="Deprecated method. Use 'expected_purchases' instead.",
         ):
-            res_num_purchases = bg_model.expected_num_purchases(
+            res_num_purchases = mbg_model.expected_num_purchases(
                 customer_id,
                 test_t,
                 test_frequency,
@@ -390,15 +326,15 @@ class TestBetaGeoModel:
         assert res_num_purchases.dims == ("chain", "draw", "customer_id")
 
         # Compare with lifetimes
-        lifetimes_bg_model = BetaGeoFitter()
-        lifetimes_bg_model.params_ = {
+        lifetimes_mbg_model = ModifiedBetaGeoFitter()
+        lifetimes_mbg_model.params_ = {
             "a": self.a_true,
             "b": self.b_true,
             "alpha": self.alpha_true,
             "r": self.r_true,
         }
         lifetimes_res_num_purchases = (
-            lifetimes_bg_model.conditional_expected_number_of_purchases_up_to_time(
+            lifetimes_mbg_model.conditional_expected_number_of_purchases_up_to_time(
                 t=test_t,
                 frequency=test_frequency,
                 recency=test_recency,
@@ -472,7 +408,7 @@ class TestBetaGeoModel:
         np.testing.assert_allclose(
             true_prob_alive,
             est_prob_alive.mean(("chain", "draw")),
-            rtol=0.001,
+            rtol=0.1,
         )
 
     def test_model_repr(self):
@@ -482,13 +418,13 @@ class TestBetaGeoModel:
             "a_prior": Prior("HalfFlat"),
             "b_prior": Prior("HalfNormal", sigma=10),
         }
-        model = BetaGeoModel(
+        model = ModifiedBetaGeoModel(
             data=self.data,
             model_config=model_config,
         )
         model.build_model()
         assert model.__repr__().replace(" ", "") == (
-            "BG/NBD"
+            "MBG/NBD"
             "\nalpha~HalfFlat()"
             "\nr~HalfFlat()"
             "\na~HalfFlat()"
@@ -497,7 +433,7 @@ class TestBetaGeoModel:
         )
 
     def test_distribution_new_customer(self) -> None:
-        mock_model = BetaGeoModel(
+        mock_model = ModifiedBetaGeoModel(
             data=self.data,
         )
         mock_model.idata = az.from_dict(
@@ -546,10 +482,10 @@ class TestBetaGeoModel:
         self.model.save("test_model")
         # Testing the valid case.
 
-        model2 = BetaGeoModel.load("test_model")
+        model2 = ModifiedBetaGeoModel.load("test_model")
 
         # Check if the loaded model is indeed an instance of the class
-        assert isinstance(self.model, BetaGeoModel)
+        assert isinstance(self.model, ModifiedBetaGeoModel)
         # Check if the loaded data matches with the model data
         pd.testing.assert_frame_equal(self.model.data, model2.data, check_names=False)
         assert self.model.model_config == model2.model_config

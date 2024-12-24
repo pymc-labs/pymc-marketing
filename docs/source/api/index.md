@@ -15,4 +15,5 @@
   prior
   metrics
   mlflow
+  deserialize
 ```
