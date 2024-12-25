@@ -887,3 +887,18 @@ def test_deserialize_arbitrary_within_prior(
     dist = deserialize(data)
     assert isinstance(dist["mu"], ArbitrarySerializable)
     assert dist["mu"].dims == ("channel",)
+
+
+def test_censored_with_tensor_variable() -> None:
+    normal = Prior("Normal", dims="channel")
+    lower = pt.as_tensor_variable([0, 1, 2])
+    censored_normal = Censored(normal, lower=lower)
+
+    assert censored_normal.to_dict() == {
+        "class": "Censored",
+        "data": {
+            "dist": normal.to_json(),
+            "lower": [0, 1, 2],
+            "upper": float("inf"),
+        },
+    }

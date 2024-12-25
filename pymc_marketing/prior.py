@@ -1119,12 +1119,19 @@ class Censored:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the censored distribution to a dictionary."""
+
+        def handle_value(value):
+            if isinstance(value, pt.TensorVariable):
+                return value.eval().tolist()
+
+            return value
+
         return {
             "class": "Censored",
             "data": {
                 "dist": self.distribution.to_json(),
-                "lower": self.lower,
-                "upper": self.upper,
+                "lower": handle_value(self.lower),
+                "upper": handle_value(self.upper),
             },
         }
 
