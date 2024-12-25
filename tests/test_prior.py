@@ -29,12 +29,14 @@ from pymc_marketing.deserialize import (
     register_deserialization,
 )
 from pymc_marketing.prior import (
+    Censored,
     MuAlreadyExistsError,
     Prior,
     UnknownTransformError,
     UnsupportedDistributionError,
     UnsupportedParameterizationError,
     UnsupportedShapeError,
+    VariableFactory,
     handle_dims,
     register_tensor_transform,
 )
@@ -697,6 +699,138 @@ def test_create_prior_with_arbitrary() -> None:
     assert fast_eval(var_mu).shape == (len(coords["channel"]),)
 
 
+def test_censored_is_variable_factory() -> None:
+    normal = Prior("Normal")
+    censored_normal = Censored(normal, lower=0)
+
+    assert isinstance(censored_normal, VariableFactory)
+
+
+@pytest.mark.parametrize(
+    "dims, expected_dims",
+    [
+        ("channel", ("channel",)),
+        (("channel", "geo"), ("channel", "geo")),
+    ],
+    ids=["string", "tuple"],
+)
+def test_censored_dims_from_distribution(dims, expected_dims) -> None:
+    normal = Prior("Normal", dims=dims)
+    censored_normal = Censored(normal, lower=0)
+
+    assert censored_normal.dims == expected_dims
+
+
+def test_censored_variables_created() -> None:
+    normal = Prior("Normal", mu=Prior("Normal"), dims="dim")
+    censored_normal = Censored(normal, lower=0)
+
+    coords = {"dim": range(3)}
+    with pm.Model(coords=coords) as model:
+        censored_normal.create_variable("var")
+
+    var_names = ["var", "var_mu"]
+    assert set(var.name for var in model.unobserved_RVs) == set(var_names)
+    dims = [(3,), ()]
+    for var_name, dim in zip(var_names, dims, strict=False):
+        assert fast_eval(model[var_name]).shape == dim
+
+
+def test_censored_sample_prior() -> None:
+    normal = Prior("Normal", dims="channel")
+    censored_normal = Censored(normal, lower=0)
+
+    coords = {"channel": ["A", "B", "C"]}
+    prior = censored_normal.sample_prior(coords=coords, samples=25)
+
+    assert isinstance(prior, xr.Dataset)
+    assert prior.sizes == {"chain": 1, "draw": 25, "channel": 3}
+
+
+def test_censored_to_graph() -> None:
+    normal = Prior("Normal", dims="channel")
+    censored_normal = Censored(normal, lower=0)
+
+    G = censored_normal.to_graph()
+    assert isinstance(G, Digraph)
+
+
+def test_censored_likelihood_variable() -> None:
+    normal = Prior("Normal", sigma=Prior("HalfNormal"), dims="channel")
+    censored_normal = Censored(normal, lower=0)
+
+    coords = {"channel": range(3)}
+    with pm.Model(coords=coords) as model:
+        mu = pm.Normal("mu")
+        variable = censored_normal.create_likelihood_variable(
+            name="likelihood",
+            mu=mu,
+            observed=[1, 2, 3],
+        )
+
+    assert isinstance(variable, pt.TensorVariable)
+    assert model.observed_RVs == [variable]
+    assert "likelihood_sigma" in model
+
+
+def test_censored_likelihood_unsupported_distribution() -> None:
+    cauchy = Prior("Cauchy")
+    censored_cauchy = Censored(cauchy, lower=0)
+
+    with pm.Model():
+        mu = pm.Normal("mu")
+        with pytest.raises(UnsupportedDistributionError):
+            censored_cauchy.create_likelihood_variable(
+                name="likelihood",
+                mu=mu,
+                observed=1,
+            )
+
+
+def test_censored_likelihood_already_has_mu() -> None:
+    normal = Prior("Normal", mu=Prior("Normal"), sigma=Prior("HalfNormal"))
+    censored_normal = Censored(normal, lower=0)
+
+    with pm.Model():
+        mu = pm.Normal("mu")
+        with pytest.raises(MuAlreadyExistsError):
+            censored_normal.create_likelihood_variable(
+                name="likelihood",
+                mu=mu,
+                observed=1,
+            )
+
+
+def test_censored_to_dict() -> None:
+    normal = Prior("Normal", mu=0, sigma=1, dims="channel")
+    censored_normal = Censored(normal, lower=0)
+
+    data = censored_normal.to_dict()
+    assert data == {
+        "class": "Censored",
+        "data": {"dist": normal.to_json(), "lower": 0, "upper": float("inf")},
+    }
+
+
+def test_deserialize_censored() -> None:
+    data = {
+        "class": "Censored",
+        "data": {
+            "dist": {
+                "dist": "Normal",
+            },
+            "lower": 0,
+            "upper": float("inf"),
+        },
+    }
+
+    instance = deserialize(data)
+    assert isinstance(instance, Censored)
+    assert isinstance(instance.distribution, Prior)
+    assert instance.lower == 0
+    assert instance.upper == float("inf")
+
+
 class ArbitrarySerializable(Arbitrary):
     def to_dict(self):
         return {"dims": self.dims}
@@ -753,3 +887,25 @@ def test_deserialize_arbitrary_within_prior(
     dist = deserialize(data)
     assert isinstance(dist["mu"], ArbitrarySerializable)
     assert dist["mu"].dims == ("channel",)
+
+
+def test_censored_with_tensor_variable() -> None:
+    normal = Prior("Normal", dims="channel")
+    lower = pt.as_tensor_variable([0, 1, 2])
+    censored_normal = Censored(normal, lower=lower)
+
+    assert censored_normal.to_dict() == {
+        "class": "Censored",
+        "data": {
+            "dist": normal.to_json(),
+            "lower": [0, 1, 2],
+            "upper": float("inf"),
+        },
+    }
+
+
+def test_censored_dims_setter() -> None:
+    normal = Prior("Normal", dims="channel")
+    censored_normal = Censored(normal, lower=0)
+    censored_normal.dims = "date"
+    assert normal.dims == ("date",)
