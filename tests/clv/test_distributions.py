@@ -23,6 +23,7 @@ from numpy.testing import assert_almost_equal
 from pymc import Model
 
 from pymc_marketing.clv.distributions import (
+    BGNBD,
     BetaGeoBetaBinom,
     ContContract,
     ContNonContract,
@@ -443,3 +444,72 @@ class TestBetaGeoBetaBinom:
 
         np.testing.assert_allclose(lt_frequency.mean(), recency.mean(), rtol=0.84)
         np.testing.assert_allclose(lt_recency.mean(), frequency.mean(), rtol=0.84)
+
+
+class TestBGNBD:
+    def test_logp_matches_excel(self):
+        a = 0.793
+        b = 2.426
+        r = 0.243
+        alpha = 4.414
+        T = 38.86
+
+        x = np.array([2, 1, 0, 0, 0, 7, 1, 0, 2, 0, 5, 0, 0, 0, 0, 0, 10, 1])
+        t_x = np.array(
+            [
+                30.43,
+                1.71,
+                0.00,
+                0.00,
+                0.00,
+                29.43,
+                5.00,
+                0.00,
+                35.71,
+                0.00,
+                24.43,
+                0.00,
+                0.00,
+                0.00,
+                0.00,
+                0.00,
+                34.14,
+                4.86,
+            ]
+        )
+        expected_logp = np.array(
+            [
+                -9.4596,
+                -4.4711,
+                -0.5538,
+                -0.5538,
+                -0.5538,
+                -21.8644,
+                -4.8651,
+                -0.5538,
+                -9.5367,
+                -0.5538,
+                -17.3593,
+                -0.5538,
+                -0.5538,
+                -0.5538,
+                -0.5538,
+                -0.5538,
+                -27.3144,
+                -4.8520,
+            ]
+        )
+
+        value = np.concatenate([t_x[:, None], x[:, None]], axis=-1)
+        dist = BGNBD.dist(
+            a=a,
+            b=b,
+            r=r,
+            alpha=alpha,
+            T=T,
+        )
+        np.testing.assert_allclose(
+            pm.logp(dist, value).eval(),
+            expected_logp,
+            rtol=2e-3,
+        )
