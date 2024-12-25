@@ -1104,6 +1104,10 @@ class Censored:
         """The dims from the distribution to censor."""
         return self.distribution.dims
 
+    @dims.setter
+    def dims(self, dims) -> None:
+        self.distribution.dims = dims
+
     def create_variable(self, name: str) -> pt.TensorVariable:
         """Create censored random variable."""
         dist = self.distribution.create_variable(name)

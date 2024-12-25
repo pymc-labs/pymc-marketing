@@ -902,3 +902,10 @@ def test_censored_with_tensor_variable() -> None:
             "upper": float("inf"),
         },
     }
+
+
+def test_censored_dims_setter() -> None:
+    normal = Prior("Normal", dims="channel")
+    censored_normal = Censored(normal, lower=0)
+    censored_normal.dims = "date"
+    assert normal.dims == ("date",)
