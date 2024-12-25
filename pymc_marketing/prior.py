@@ -98,7 +98,6 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Callable
-from dataclasses import dataclass
 from inspect import signature
 from typing import Any, Protocol, runtime_checkable
 
@@ -106,7 +105,8 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
-from pydantic import validate_call
+from pydantic import InstanceOf, validate_call
+from pydantic.dataclasses import dataclass
 from pymc.distributions.shape_utils import Dims
 
 from pymc_marketing.deserialize import deserialize, register_deserialization
@@ -1083,9 +1083,9 @@ class Censored:
 
     """
 
-    distribution: Prior
-    lower: float | pt.TensorVariable = -np.inf
-    upper: float | pt.TensorVariable = np.inf
+    distribution: InstanceOf[Prior]
+    lower: float | InstanceOf[pt.TensorVariable] = -np.inf
+    upper: float | InstanceOf[pt.TensorVariable] = np.inf
 
     def __post_init__(self) -> None:
         """Check validity at initialization."""
@@ -1132,7 +1132,7 @@ class Censored:
     def from_dict(cls, data: dict[str, Any]) -> Censored:
         """Create a censored distribution from a dictionary."""
         data = data["data"]
-        return cls(
+        return cls(  # type: ignore
             distribution=Prior.from_json(data["dist"]),
             lower=data["lower"],
             upper=data["upper"],
