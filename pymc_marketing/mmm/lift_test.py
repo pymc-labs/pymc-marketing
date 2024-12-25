@@ -649,7 +649,6 @@ def scale_lift_measurements(
     return pd.concat(components, axis=1)
 
 
-
 def create_time_varying_saturation(
     saturation: SaturationTransformation,
     time_varying_var_name: str,
