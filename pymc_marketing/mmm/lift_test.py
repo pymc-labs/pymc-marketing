@@ -645,7 +645,7 @@ def scale_lift_measurements(
     components = [df_lift_test_channel_scaled, df_target_scaled, df_sigma_scaled]
     if "date" in df_lift_test.columns:
         components.append(df_lift_test[["date"]])
-    
+
     return pd.concat(components, axis=1)
 
 
