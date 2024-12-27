@@ -24,7 +24,7 @@ from pymc.util import RandomState
 from pytensor.tensor import TensorVariable
 from scipy.special import betaln, expit, hyp2f1
 
-from pymc_marketing.clv.distributions import BGNBD
+from pymc_marketing.clv.distributions import BetaGeoNBD
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
@@ -198,7 +198,7 @@ class BetaGeoModel(CLVModel):
                 a = pm.Deterministic("a", phi_dropout * kappa_dropout)
                 b = pm.Deterministic("b", (1.0 - phi_dropout) * kappa_dropout)
 
-            BGNBD(
+            BetaGeoNBD(
                 name="recency_frequency",
                 a=a,
                 b=b,

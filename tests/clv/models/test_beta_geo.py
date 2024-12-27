@@ -21,7 +21,7 @@ import pytest
 import xarray as xr
 from lifetimes.fitters.beta_geo_fitter import BetaGeoFitter
 
-from pymc_marketing.clv.distributions import BGNBD
+from pymc_marketing.clv.distributions import BetaGeoNBD
 from pymc_marketing.clv.models.beta_geo import BetaGeoModel
 from pymc_marketing.prior import Prior
 from tests.conftest import create_mock_fit, mock_sample
@@ -255,7 +255,7 @@ class TestBetaGeoModel:
         mu_mean = self.s_true / self.beta_true
         mu_std = np.sqrt(self.s_true) / self.beta_true
         ref_rec, ref_freq = pm.draw(
-            BGNBD.dist(
+            BetaGeoNBD.dist(
                 r=self.r_true,
                 alpha=self.alpha_true,
                 s=self.s_true,

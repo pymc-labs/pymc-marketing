@@ -23,8 +23,8 @@ from numpy.testing import assert_almost_equal
 from pymc import Model
 
 from pymc_marketing.clv.distributions import (
-    BGNBD,
     BetaGeoBetaBinom,
+    BetaGeoNBD,
     ContContract,
     ContNonContract,
     ParetoNBD,
@@ -446,7 +446,7 @@ class TestBetaGeoBetaBinom:
         np.testing.assert_allclose(lt_recency.mean(), frequency.mean(), rtol=0.84)
 
 
-class TestBGNBD:
+class TestBetaGeoNBD:
     def test_logp_matches_excel(self):
         a = 0.793
         b = 2.426
@@ -501,7 +501,7 @@ class TestBGNBD:
         )
 
         value = np.concatenate([t_x[:, None], x[:, None]], axis=-1)
-        dist = BGNBD.dist(
+        dist = BetaGeoNBD.dist(
             a=a,
             b=b,
             r=r,

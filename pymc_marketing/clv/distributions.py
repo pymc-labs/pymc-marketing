@@ -24,7 +24,13 @@ from pytensor import scan
 from pytensor.graph import vectorize_graph
 from pytensor.tensor.random.op import RandomVariable
 
-__all__ = ["BGNBD", "BetaGeoBetaBinom", "ContContract", "ContNonContract", "ParetoNBD"]
+__all__ = [
+    "BetaGeoBetaBinom",
+    "BetaGeoNBD",
+    "ContContract",
+    "ContNonContract",
+    "ParetoNBD",
+]
 
 
 class ContNonContractRV(RandomVariable):
@@ -589,14 +595,14 @@ class BetaGeoBetaBinom(Discrete):
         )
 
 
-class BGNBDRV(RandomVariable):
+class BetaGeoNBDRV(RandomVariable):
     name = "bg_nbd"
     signature = "(),(),(),(),()->(2)"
     # ndim_supp = 1
     # ndims_params = [0, 0, 0, 0, 0]
 
     dtype = "floatX"
-    _print_name = ("BGNBD", "\\operatorname{BGNBD}")
+    _print_name = ("BetaGeoNBD", "\\operatorname{BetaGeoNBD}")
 
     # def make_node(self, rng, size, dtype, a, b, r, alpha, T):
     #     a = pt.as_tensor_variable(a)
@@ -664,10 +670,10 @@ class BGNBDRV(RandomVariable):
         return (2,)
 
 
-bg_nbd = BGNBDRV()
+bg_nbd = BetaGeoNBDRV()
 
 
-class BGNBD(PositiveContinuous):
+class BetaGeoNBD(PositiveContinuous):
     r"""Population-level distribution class for a discrete, non-contractual, Beta-Geometric/Negative-Binomial process.
 
     It is based on Fader, et al. in [1]_ and [2]_.
