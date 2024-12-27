@@ -448,7 +448,7 @@ def weibull_adstock(
     return batched_convolution(x, w, axis=axis, mode=mode)
 
 
-def logistic_saturation(x, lam: npt.NDArray[np.float64] | float = 0.5):
+def logistic_saturation(x, lam: npt.NDArray | float = 0.5):
     r"""Logistic saturation transformation.
 
     .. math::
@@ -492,7 +492,7 @@ def logistic_saturation(x, lam: npt.NDArray[np.float64] | float = 0.5):
 
 
 def inverse_scaled_logistic_saturation(
-    x, lam: npt.NDArray[np.float64] | float = 0.5, eps: float = np.log(3)
+    x, lam: npt.NDArray | float = 0.5, eps: float = np.log(3)
 ):
     r"""Inverse scaled logistic saturation transformation.
 
@@ -827,9 +827,9 @@ def tanh_saturation_baselined(
 
 
 def michaelis_menten(
-    x: float | np.ndarray | npt.NDArray[np.float64],
-    alpha: float | np.ndarray | npt.NDArray[np.float64],
-    lam: float | np.ndarray | npt.NDArray[np.float64],
+    x: float | np.ndarray | npt.NDArray,
+    alpha: float | np.ndarray | npt.NDArray,
+    lam: float | np.ndarray | npt.NDArray,
 ) -> float | Any:
     r"""Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
 
