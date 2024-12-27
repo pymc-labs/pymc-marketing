@@ -358,3 +358,46 @@ def test_fourier_base_instantiation():
             prior=Prior("Laplace", mu=0, b=1, dims="fourier"),
         )
     assert "Can't instantiate abstract class FourierBase" in str(exc_info.value)
+
+
+class ArbitraryCode:
+    def __init__(self, dims: tuple[str, ...]) -> None:
+        self.dims = dims
+
+    def create_variable(self, name: str):
+        return pm.Normal(name, dims=self.dims)
+
+
+def test_fourier_arbitrary_prior() -> None:
+    prior = ArbitraryCode(dims=("fourier",))
+    fourier = YearlyFourier(n_order=4, prior=prior)
+
+    x = np.arange(10)
+    with pm.Model():
+        y = fourier.apply(x)
+
+    assert y.eval().shape == (10,)
+
+
+def test_fourier_dims_modified() -> None:
+    prior = ArbitraryCode(dims=())
+    YearlyFourier(n_order=4, prior=prior)
+    assert prior.dims == "fourier"
+
+
+class SerializableArbitraryCode(ArbitraryCode):
+    def to_dict(self):
+        return {"dims": self.dims, "msg": "Hello, World!"}
+
+
+def test_fourier_serializable_arbitrary_prior() -> None:
+    prior = SerializableArbitraryCode(dims=("fourier",))
+    fourier = YearlyFourier(n_order=4, prior=prior)
+
+    assert fourier.model_dump(mode="json") == {
+        "n_order": 4,
+        "days_in_period": 365.25,
+        "prefix": "fourier",
+        "prior": {"dims": ["fourier"], "msg": "Hello, World!"},
+        "variable_name": "fourier_beta",
+    }
