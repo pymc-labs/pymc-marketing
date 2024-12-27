@@ -211,53 +211,6 @@ class BetaGeoModel(CLVModel):
                 dims=["customer_id", "obs_var"],
             )
 
-            # def logp(t_x, x, a, b, r, alpha, T):
-            #     """
-            #     Compute the log-likelihood of the BG/NBD model.
-
-            #     The log-likelihood expression here aligns with expression (4) from [3]
-            #     due to the possible numerical instability of expression (3).
-            #     """
-            #     x_non_zero = x > 0
-
-            #     # Refactored for numerical error
-            #     d1 = (
-            #         pt.gammaln(r + x)
-            #         - pt.gammaln(r)
-            #         + pt.gammaln(a + b)
-            #         + pt.gammaln(b + x)
-            #         - pt.gammaln(b)
-            #         - pt.gammaln(a + b + x)
-            #     )
-
-            #     d2 = r * pt.log(alpha) - (r + x) * pt.log(alpha + t_x)
-            #     c3 = ((alpha + t_x) / (alpha + T)) ** (r + x)
-            #     c4 = a / (b + x - 1)
-
-            #     logp = d1 + d2 + pt.log(c3 + pt.switch(x_non_zero, c4, 0))
-
-            #     return check_parameters(
-            #         logp,
-            #         a > 0,
-            #         b > 0,
-            #         alpha > 0,
-            #         r > 0,
-            #         msg="a, b, alpha, r > 0",
-            #     )
-
-            # pm.Potential(
-            #     "likelihood",
-            #     logp(
-            #         x=self.data["frequency"],
-            #         t_x=self.data["recency"],
-            #         a=a,
-            #         b=b,
-            #         alpha=alpha,
-            #         r=r,
-            #         T=self.data["T"],
-            #     ),
-            # )
-
     # TODO: delete this utility after API standardization is completed
     def _unload_params(self):
         trace = self.idata.posterior
