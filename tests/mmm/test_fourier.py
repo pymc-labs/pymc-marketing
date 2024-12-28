@@ -19,6 +19,11 @@ import pymc as pm
 import pytest
 import xarray as xr
 
+from pymc_marketing.deserialize import (
+    DESERIALIZERS,
+    deserialize,
+    register_deserialization,
+)
 from pymc_marketing.mmm.fourier import (
     FourierBase,
     MonthlyFourier,
@@ -401,3 +406,66 @@ def test_fourier_serializable_arbitrary_prior() -> None:
         "prior": {"dims": ["fourier"], "msg": "Hello, World!"},
         "variable_name": "fourier_beta",
     }
+
+
+@pytest.mark.parametrize(
+    "name, cls, days_in_period",
+    [
+        ("YearlyFourier", YearlyFourier, 365.25),
+        ("MonthlyFourier", MonthlyFourier, 30.4375),
+    ],
+    ids=["YearlyFourier", "MonthlyFourier"],
+)
+def test_fourier_to_dict(name, cls, days_in_period) -> None:
+    fourier = cls(n_order=4)
+    assert fourier.to_dict() == {
+        "class": name,
+        "data": {
+            "n_order": 4,
+            "days_in_period": days_in_period,
+            "prefix": "fourier",
+            "prior": {
+                "dist": "Laplace",
+                "kwargs": {"b": 1, "mu": 0},
+                "dims": ["fourier"],
+            },
+            "variable_name": "fourier_beta",
+        },
+    }
+
+
+@pytest.fixture
+def serialization() -> None:
+    register_deserialization(
+        is_type=lambda data: data.keys() == {"dims", "msg"},
+        deserialize=lambda data: SerializableArbitraryCode(dims=data["dims"]),
+    )
+
+    yield
+
+    DESERIALIZERS.pop()
+
+
+@pytest.mark.parametrize(
+    "name, cls",
+    [
+        ("YearlyFourier", YearlyFourier),
+        ("MonthlyFourier", MonthlyFourier),
+    ],
+    ids=["YearlyFourier", "MonthlyFourier"],
+)
+def test_fourier_deserialization(serialization, name, cls) -> None:
+    data = {
+        "class": name,
+        "data": {
+            "n_order": 4,
+            "prior": {"dims": ["fourier"], "msg": "Hello, World!"},
+        },
+    }
+    fourier = deserialize(data)
+
+    assert isinstance(fourier, cls)
+    assert fourier.n_order == 4
+    assert fourier.prefix == "fourier"
+    assert fourier.variable_name == "fourier_beta"
+    assert isinstance(fourier.prior, SerializableArbitraryCode)
