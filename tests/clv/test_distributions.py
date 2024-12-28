@@ -17,6 +17,7 @@ import pytensor
 import pytensor.tensor as pt
 import pytest
 from lifetimes import BetaGeoBetaBinomFitter as BGBBF
+from lifetimes import BetaGeoFitter as BG
 from lifetimes import ParetoNBDFitter as PF
 from lifetimes.generate_data import beta_geometric_beta_binom_model
 from numpy.testing import assert_almost_equal
@@ -447,7 +448,85 @@ class TestBetaGeoBetaBinom:
 
 
 class TestBetaGeoNBD:
+    @pytest.mark.parametrize(
+        "value, r, alpha, a, b, T",
+        [
+            (
+                np.array([1.5, 1]),
+                0.55,
+                10.58,
+                0.61,
+                11.67,
+                12,
+            ),
+            (
+                np.array([1.5, 1]),
+                [0.45, 0.55],
+                10.58,
+                0.61,
+                11.67,
+                12,
+            ),
+            (
+                np.array([1.5, 1]),
+                [0.45, 0.55],
+                10.58,
+                [0.71, 0.61],
+                11.67,
+                12,
+            ),
+            (
+                np.array([[1.5, 1], [5.3, 4], [6, 2]]),
+                0.55,
+                11.67,
+                0.61,
+                10.58,
+                [12, 10, 8],
+            ),
+            (
+                np.array([1.5, 1]),
+                0.55,
+                10.58,
+                0.61,
+                np.full((5, 3), 11.67),
+                12,
+            ),
+        ],
+    )
+    def test_bg_nbd(self, value, r, alpha, a, b, T):
+        # weights = np.ones_like(value, dtype=int)
+
+        def lifetimes_wrapper(
+            r, alpha, a, b, freq, rec, T, weights=np.array(1), penalizer_coef=0.0
+        ):
+            log_r = np.log(r)
+            log_alpha = np.log(alpha)
+            log_a = np.log(a)
+            log_b = np.log(b)
+
+            """Simple wrapper for Vectorizing the lifetimes likelihood function.
+            Lifetimes uses the negative log likelihood, so we need to negate it to match PyMC3's logp.
+            """
+            return -1.0 * BG._negative_log_likelihood(
+                (log_r, log_alpha, log_a, log_b), freq, rec, T, weights, penalizer_coef
+            )
+
+        vectorized_logp = np.vectorize(lifetimes_wrapper)
+
+        with Model():
+            bg_nbd = BetaGeoNBD("bg_nbd", a=a, b=b, r=r, alpha=alpha, T=T)
+        pt = {"bg_nbd": value}
+
+        assert_almost_equal(
+            pm.logp(bg_nbd, value).eval(),
+            vectorized_logp(r, alpha, a, b, value[..., 1], value[..., 0], T),
+            decimal=6,
+            err_msg=str(pt),
+        )
+
     def test_logp_matches_excel(self):
+        # Expected logp values can be found in excel file in http://brucehardie.com/notes/004/
+        # Spreadsheet: BGNBD Estimation
         a = 0.793
         b = 2.426
         r = 0.243
