@@ -32,7 +32,7 @@ from pymc_marketing.mmm.components.saturation import SaturationTransformation
 
 Index = Sequence[int]
 Indices = dict[str, Index]
-Values = npt.NDArray[np.int_] | npt.NDArray[np.float64] | npt.NDArray[np.str_]
+Values = npt.NDArray[np.int_] | npt.NDArray | npt.NDArray[np.str_]
 
 
 def _find_unaligned_values(same_value: npt.NDArray[np.int_]) -> list[int]:
