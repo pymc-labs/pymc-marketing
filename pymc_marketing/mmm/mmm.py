@@ -360,9 +360,7 @@ class BaseMMM(BaseValidateMMM):
 
         return attrs
 
-    def forward_pass(
-        self, x: pt.TensorVariable | npt.NDArray[np.float64]
-    ) -> pt.TensorVariable:
+    def forward_pass(self, x: pt.TensorVariable | npt.NDArray) -> pt.TensorVariable:
         """Transform channel input into target contributions of each channel.
 
         This method handles the ordering of the adstock and saturation
@@ -374,7 +372,7 @@ class BaseMMM(BaseValidateMMM):
 
         Parameters
         ----------
-        x : pt.TensorVariable | npt.NDArray[np.float64]
+        x : pt.TensorVariable | npt.NDArray
             The channel input which could be spends or impressions
 
         Returns
@@ -638,9 +636,9 @@ class BaseMMM(BaseValidateMMM):
 
     def channel_contributions_forward_pass(
         self,
-        channel_data: npt.NDArray[np.float64],
+        channel_data: npt.NDArray,
         disable_logger_stdout: bool | None = False,
-    ) -> npt.NDArray[np.float64]:
+    ) -> npt.NDArray:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
 
         Parameters
@@ -1000,9 +998,9 @@ class MMM(
 
     def channel_contributions_forward_pass(
         self,
-        channel_data: npt.NDArray[np.float64],
+        channel_data: npt.NDArray,
         disable_logger_stdout: bool | None = False,
-    ) -> npt.NDArray[np.float64]:
+    ) -> npt.NDArray:
         """Evaluate the channel contribution for a given channel data and a fitted model, ie. the forward pass.
 
         We return the contribution in the original scale of the target variable.

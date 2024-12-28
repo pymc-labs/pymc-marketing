@@ -90,9 +90,9 @@ def transform_1d_array(
 
 
 def sigmoid_saturation(
-    x: float | np.ndarray | npt.NDArray[np.float64],
-    alpha: float | np.ndarray | npt.NDArray[np.float64],
-    lam: float | np.ndarray | npt.NDArray[np.float64],
+    x: float | np.ndarray | npt.NDArray,
+    alpha: float | np.ndarray | npt.NDArray,
+    lam: float | np.ndarray | npt.NDArray,
 ) -> float | Any:
     """Sigmoid saturation function.
 

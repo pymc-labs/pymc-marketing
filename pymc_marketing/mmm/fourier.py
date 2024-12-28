@@ -222,6 +222,7 @@ from pydantic import BaseModel, Field, InstanceOf, field_serializer, model_valid
 from typing_extensions import Self
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_YEAR
+from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.plot import SelToString, plot_curve, plot_hdi, plot_samples
 from pymc_marketing.prior import Prior, VariableFactory, create_dim_handler
 
@@ -690,6 +691,39 @@ class FourierBase(BaseModel):
             plot_kwargs=plot_kwargs,
         )
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the Fourier seasonality.
+
+        Returns
+        -------
+        dict[str, Any]
+            Serialized Fourier seasonality
+
+        """
+        return {
+            "class": self.__class__.__name__,
+            "data": self.model_dump(mode="json"),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Deserialize the Fourier seasonality.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            Serialized Fourier seasonality
+
+        Returns
+        -------
+        FourierBase
+            Deserialized Fourier seasonality
+
+        """
+        data = data["data"]
+        data["prior"] = deserialize(data["prior"])
+        return cls(**data)
+
 
 class YearlyFourier(FourierBase):
     """Yearly fourier seasonality.
@@ -800,3 +834,22 @@ class MonthlyFourier(FourierBase):
         """
         now = datetime.datetime.now()
         return datetime.datetime(year=now.year, month=now.month, day=1)
+
+
+def _is_yearly_fourier(data: Any) -> bool:
+    return data.get("class") == "YearlyFourier"
+
+
+def _is_monthly_fourier(data: Any) -> bool:
+    return data.get("class") == "MonthlyFourier"
+
+
+register_deserialization(
+    is_type=_is_yearly_fourier,
+    deserialize=lambda data: YearlyFourier.from_dict(data),
+)
+
+register_deserialization(
+    is_type=_is_monthly_fourier,
+    deserialize=lambda data: MonthlyFourier.from_dict(data),
+)

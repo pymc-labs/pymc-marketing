@@ -34,6 +34,14 @@ clv/mbg_nbd
 :::
 
 :::{toctree}
+:caption: Customer Choice
+:maxdepth: 1
+
+customer_choice/mv_its_saturated
+customer_choice/mv_its_unsaturated
+:::
+
+:::{toctree}
 :caption: General
 :maxdepth: 1
 

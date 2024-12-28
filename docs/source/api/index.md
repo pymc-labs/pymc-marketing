@@ -13,6 +13,7 @@
   model_config
   model_builder
   prior
+  customer_choice
   metrics
   mlflow
   deserialize
