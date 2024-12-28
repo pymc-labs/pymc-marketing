@@ -20,9 +20,11 @@ import xarray as xr
 from pytensor.tensor import TensorVariable
 
 from pymc_marketing.mmm.components.base import (
+    DuplicatedTransformationError,
     MissingDataParameter,
     ParameterPriorException,
     Transformation,
+    create_registration_meta,
 )
 from pymc_marketing.prior import Prior
 
@@ -417,3 +419,35 @@ def test_serialization(new_transformation_class) -> None:
             "b": [1, 2, 3],
         },
     }
+
+
+def test_automatic_registration() -> None:
+    subclasses = {}
+
+    RegistrationMeta = create_registration_meta(subclasses)
+
+    class BaseTransform:
+        pass
+
+    class Transform(BaseTransform, metaclass=RegistrationMeta):
+        pass
+
+    class NewTransform(Transform):
+        lookup_name = "new"
+
+    assert subclasses == {"new": NewTransform}
+
+    class AnotherTransform(Transform):
+        lookup_name = "another"
+
+    assert subclasses == {"new": NewTransform, "another": AnotherTransform}
+
+    with pytest.raises(DuplicatedTransformationError) as e:
+
+        class _(Transform):
+            lookup_name = "new"
+
+    exception = e.value
+
+    assert exception.lookup_name == "new"
+    assert exception.name == "Transform"
