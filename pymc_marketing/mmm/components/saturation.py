@@ -71,6 +71,8 @@ for saturation parameter of logistic saturation.
 
 """
 
+from __future__ import annotations
+
 import numpy as np
 import pytensor.tensor as pt
 import xarray as xr
@@ -79,6 +81,7 @@ from pydantic import Field, InstanceOf, validate_call
 from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.mmm.components.base import (
     Transformation,
+    create_registration_meta,
 )
 from pymc_marketing.mmm.transformers import (
     hill_function,
@@ -92,8 +95,12 @@ from pymc_marketing.mmm.transformers import (
 )
 from pymc_marketing.prior import Prior
 
+SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {}
 
-class SaturationTransformation(Transformation):
+SaturationRegistrationMeta = create_registration_meta(SATURATION_TRANSFORMATIONS)
+
+
+class SaturationTransformation(Transformation, metaclass=SaturationRegistrationMeta):  # type: ignore
     """Subclass for all saturation transformations.
 
     In order to use a custom saturation transformation, subclass and define:
@@ -450,21 +457,6 @@ class RootSaturation(SaturationTransformation):
         "alpha": Prior("Beta", alpha=1, beta=2),
         "beta": Prior("Gamma", mu=1, sigma=1),
     }
-
-
-SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
-    cls.lookup_name: cls
-    for cls in [
-        LogisticSaturation,
-        InverseScaledLogisticSaturation,
-        TanhSaturation,
-        TanhSaturationBaselined,
-        MichaelisMentenSaturation,
-        HillSaturation,
-        HillSaturationSigmoid,
-        RootSaturation,
-    ]
-}
 
 
 def register_saturation_transformation(cls: type[SaturationTransformation]) -> None:

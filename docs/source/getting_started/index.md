@@ -13,4 +13,5 @@ installation/index
 
 quickstart/clv/index
 quickstart/mmm/index
+quickstart/customer_choice/index
 :::

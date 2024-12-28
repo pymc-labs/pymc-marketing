@@ -52,6 +52,8 @@ Plot the default priors for an adstock transformation:
 
 """
 
+from __future__ import annotations
+
 import numpy as np
 import xarray as xr
 from pydantic import Field, validate_call
@@ -60,6 +62,7 @@ from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.mmm.components.base import (
     SupportedPrior,
     Transformation,
+    create_registration_meta,
 )
 from pymc_marketing.mmm.transformers import (
     ConvMode,
@@ -70,8 +73,12 @@ from pymc_marketing.mmm.transformers import (
 )
 from pymc_marketing.prior import Prior
 
+ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {}
 
-class AdstockTransformation(Transformation):
+AdstockRegistrationMeta: type[type] = create_registration_meta(ADSTOCK_TRANSFORMATIONS)
+
+
+class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta):  # type: ignore
     """Subclass for all adstock functions.
 
     In order to use a custom saturation function, inherit from this class and define:
@@ -320,17 +327,6 @@ class WeibullCDFAdstock(AdstockTransformation):
         "lam": Prior("Gamma", mu=2, sigma=2.5),
         "k": Prior("Gamma", mu=2, sigma=2.5),
     }
-
-
-ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {
-    cls.lookup_name: cls  # type: ignore
-    for cls in [
-        GeometricAdstock,
-        DelayedAdstock,
-        WeibullPDFAdstock,
-        WeibullCDFAdstock,
-    ]
-}
 
 
 def register_adstock_transformation(cls: type[AdstockTransformation]) -> None:

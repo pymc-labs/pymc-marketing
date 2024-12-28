@@ -32,6 +32,7 @@ from pymc_marketing.mmm import (
     LogisticSaturation,
     MichaelisMentenSaturation,
     RootSaturation,
+    SaturationTransformation,
     TanhSaturation,
     TanhSaturationBaselined,
     saturation_from_dict,
@@ -287,3 +288,20 @@ def test_deserialization(
     assert isinstance(alpha, ArbitraryObject)
     assert alpha.msg == "hello"
     assert alpha.value == 1
+
+
+def test_deserialize_new_transformation() -> None:
+    class NewSaturation(SaturationTransformation):
+        lookup_name = "new_saturation"
+
+        def function(self, x):
+            return x
+
+        default_priors = {}
+
+    data = {
+        "lookup_name": "new_saturation",
+    }
+
+    instance = deserialize(data)
+    assert isinstance(instance, NewSaturation)

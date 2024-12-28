@@ -25,6 +25,7 @@
 <!--- Please list the modules that are affected by this PR by typing an `x` in the boxes below: -->
 - [ ] MMM
 - [ ] CLV
+- [ ] Customer Choice
 <!--- Additionally, if you are a maintainer or reviewer, please make sure that the appropriate labels are added to this PR -->
 
 ## Type of change
