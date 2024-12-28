@@ -379,14 +379,14 @@ def rfm_summary(
     customers["frequency"] = customers["count"] - 1
 
     customers["recency"] = (
-        (pandas.to_datetime(customers["max"]) - pandas.to_datetime(customers["min"]))  # type: ignore
-        / np.timedelta64(1, time_unit)
+        (pandas.to_datetime(customers["max"]) - pandas.to_datetime(customers["min"]))
+        / np.timedelta64(1, time_unit)  # type: ignore[call-overload]
         / time_scaler
     )
 
     customers["T"] = (
         (observation_period_end_ts - customers["min"])
-        / np.timedelta64(1, time_unit)
+        / np.timedelta64(1, time_unit)  # type: ignore[call-overload]
         / time_scaler
     )
 
