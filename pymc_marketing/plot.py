@@ -298,7 +298,7 @@ def random_samples(
     combinations = list(product(range(n_chains), range(n_draws)))
 
     return [
-        tuple(pair) for pair in rng.choice(combinations, size=n, replace=False).tolist()
+        tuple(pair) for pair in list(rng.choice(combinations, size=n, replace=False))
     ]
 
 
