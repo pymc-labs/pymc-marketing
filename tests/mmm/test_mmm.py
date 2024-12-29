@@ -1340,9 +1340,11 @@ def test_time_varying_media_with_lift_test(toy_X, toy_y, df_lift_test_with_date)
         time_varying_media=True,
     )
     mmm.build_model(X=toy_X, y=toy_y)
+    try:
+        mmm.add_lift_test_measurements(df_lift_test_with_date)
+    except Exception as e:
+        pytest.fail(f"add_lift_test_measurements for time_varying_media model failed with error {e}")
 
-    mmm.add_lift_test_measurements(
-        df_lift_test_with_date,
-    )
+      
 
     
