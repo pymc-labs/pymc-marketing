@@ -1101,6 +1101,21 @@ def df_lift_test() -> pd.DataFrame:
     )
 
 
+
+@pytest.fixture
+def df_lift_test_with_date() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "channel": ["channel_1", "channel_1"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+             "date": pd.to_datetime(["2020-08-10", "2020-08-31"])
+        }
+    )
+
+
 def test_add_lift_test_measurements(mmm, toy_X, toy_y, df_lift_test) -> None:
     mmm.build_model(X=toy_X, y=toy_y)
 
@@ -1314,3 +1329,20 @@ def test_channel_contributions_forward_pass_time_varying_media(toy_X, toy_y) -> 
         recovered_contributions.to_numpy(),
         media_contributions,
     )
+
+def test_time_varying_media_with_lift_test(toy_X, toy_y, df_lift_test_with_date) -> None:
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_media=True,
+    )
+    mmm.build_model(X=toy_X, y=toy_y)
+
+    mmm.add_lift_test_measurements(
+        df_lift_test_with_date,
+    )
+
+    
