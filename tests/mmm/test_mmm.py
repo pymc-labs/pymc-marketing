@@ -1101,7 +1101,6 @@ def df_lift_test() -> pd.DataFrame:
     )
 
 
-
 @pytest.fixture
 def df_lift_test_with_date() -> pd.DataFrame:
     return pd.DataFrame(
@@ -1111,7 +1110,7 @@ def df_lift_test_with_date() -> pd.DataFrame:
             "delta_x": [1, 1],
             "delta_y": [1, 1],
             "sigma": [1, 1],
-             "date": pd.to_datetime(["2020-08-10", "2020-08-31"])
+            "date": pd.to_datetime(["2020-08-10", "2020-08-31"]),
         }
     )
 
@@ -1330,7 +1329,10 @@ def test_channel_contributions_forward_pass_time_varying_media(toy_X, toy_y) -> 
         media_contributions,
     )
 
-def test_time_varying_media_with_lift_test(toy_X, toy_y, df_lift_test_with_date) -> None:
+
+def test_time_varying_media_with_lift_test(
+    toy_X, toy_y, df_lift_test_with_date
+) -> None:
     mmm = MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
@@ -1343,8 +1345,6 @@ def test_time_varying_media_with_lift_test(toy_X, toy_y, df_lift_test_with_date)
     try:
         mmm.add_lift_test_measurements(df_lift_test_with_date)
     except Exception as e:
-        pytest.fail(f"add_lift_test_measurements for time_varying_media model failed with error {e}")
-
-      
-
-    
+        pytest.fail(
+            f"add_lift_test_measurements for time_varying_media model failed with error {e}"
+        )
