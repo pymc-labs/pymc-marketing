@@ -714,8 +714,14 @@ class BetaGeoNBD(PositiveContinuous):
 
     def logp(value, a, b, r, alpha, T):
         """Log-likelihood of the distribution."""
-        t_x = value[..., 0]
-        x = value[..., 1]
+        t_x = pt.atleast_1d(value[..., 0])
+        x = pt.atleast_1d(value[..., 1])
+
+        for param in (t_x, x, a, b, r, alpha, T):
+            if param.type.ndim > 1:
+                raise NotImplementedError(
+                    f"BetaGeoNBD logp only implemented for vector parameters, got ndim={param.type.ndim}"
+                )
 
         x_non_zero = x > 0
 
@@ -734,11 +740,23 @@ class BetaGeoNBD(PositiveContinuous):
 
         logp = d1 + d2 + pt.log(c3 + pt.switch(x_non_zero, c4, 0))
 
+        logp = pt.switch(
+            pt.or_(
+                pt.or_(
+                    pt.lt(t_x, 0),
+                    pt.lt(x, 0),
+                ),
+                pt.gt(t_x, T),
+            ),
+            -np.inf,
+            logp,
+        )
+
         return check_parameters(
             logp,
             a > 0,
             b > 0,
             alpha > 0,
             r > 0,
-            msg="a, b, alpha, r > 0",
+            msg="a > 0, b > 0, alpha > 0, r > 0",
         )

@@ -592,3 +592,20 @@ class TestBetaGeoNBD:
             expected_logp,
             rtol=2e-3,
         )
+
+    def test_invalid_value_logp(self):
+        bg_nbd = BetaGeoNBD.dist(a=1.20, b=0.75, r=0.66, alpha=2.78, T=6)
+        value = pt.vector("value", shape=(2,))
+        logp = pm.logp(bg_nbd, value)
+
+        logp_fn = pytensor.function([value], logp)
+        assert logp_fn(np.array([3, -1])) == -np.inf
+        assert logp_fn(np.array([-1, 1.5])) == -np.inf
+        assert logp_fn(np.array([11, 1.5])) == -np.inf
+
+    def test_notimplemented_logp(self):
+        dist = BetaGeoNBD.dist(a=1, b=1, r=2, alpha=2, T=10)
+        invalid_value = np.broadcast_to([1, 3], (4, 3, 2))
+
+        with pytest.raises(NotImplementedError):
+            pm.logp(dist, invalid_value)
