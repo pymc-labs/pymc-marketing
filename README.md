@@ -19,7 +19,7 @@
 
 ## Marketing Analytics Tools from [PyMC Labs](https://www.pymc-labs.com)
 
-Unlock the power of **Marketing Mix Modeling (MMM)** and **Customer Lifetime Value (CLV)** analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
+Unlock the power of **Marketing Mix Modeling (MMM)**, **Customer Lifetime Value (CLV)** and **Customer Choice Analysis (CSA)** analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
 
 ----
 
@@ -175,6 +175,46 @@ Once fitted, we can use the model to predict the number of future purchases for 
 ![](docs/source/_static/expected_purchases.png)
 
 See the Examples section for more on this.
+
+## Customer Choice Analysis with PyMC-Marketing
+
+Analyze the impact of new product launches and understand customer choice behavior with our **Multivariate Interrupted Time Series (MVITS)** models. Our API supports analysis in both saturated and unsaturated markets to help you:
+
+| Feature                     | Description                                                       |
+| --------------------------- | ----------------------------------------------------------------- |
+| Market Share Analysis       | Understand how new products affect existing product market shares |
+| Causal Impact Assessment    | Measure the true causal effect of product launches on sales       |
+| Saturated Market Analysis   | Model scenarios where total market size remains constant          |
+| Unsaturated Market Analysis | Handle cases where new products grow the total market size        |
+| Visualization Tools         | Plot market shares, causal impacts, and counterfactuals           |
+| Bayesian Inference          | Get uncertainty estimates around all predictions                  |
+
+### Customer Choice Quickstart
+
+```python
+import pandas as pd
+from pymc_marketing.customer_choice import MVITS, plot_product
+
+# Define existing products
+existing_products = ["competitor", "own"]
+
+# Create MVITS model
+mvits = MVITS(
+    existing_sales=existing_products,
+    saturated_market=True  # Set False for unsaturated markets
+)
+
+# Fit model
+mvits.fit(X, y)
+
+# Plot counterfactuals
+mvits.plot_counterfactual()
+
+# Plot causal impact on market share
+mvits.plot_causal_impact_market_share()
+```
+
+See our example notebooks for [saturated markets](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mv_its_saturated.html) and [unsaturated markets](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mv_its_unsaturated.html) to learn more about customer choice modeling with PyMC-Marketing.
 
 ## Why PyMC-Marketing vs other solutions?
 
