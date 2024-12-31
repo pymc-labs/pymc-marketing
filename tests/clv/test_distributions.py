@@ -609,3 +609,37 @@ class TestBetaGeoNBD:
 
         with pytest.raises(NotImplementedError):
             pm.logp(dist, invalid_value)
+
+    @pytest.mark.parametrize(
+        "a_size, b_size, r_size, alpha_size, bg_nbd_size, expected_size",
+        [
+            (None, None, None, None, None, (2,)),
+            ((5,), None, None, None, None, (5, 2)),
+            (None, (5,), None, None, (5,), (5, 2)),
+            (None, None, (5, 1), (1, 3), (5, 3), (5, 3, 2)),
+            (None, None, None, None, (5, 3), (5, 3, 2)),
+        ],
+    )
+    def test_bg_nbd_sample_prior(
+        self, a_size, b_size, r_size, alpha_size, bg_nbd_size, expected_size
+    ):
+        with Model():
+            a = pm.HalfNormal(name="a", sigma=10, size=a_size)
+            b = pm.HalfNormal(name="b", sigma=10, size=b_size)
+            r = pm.HalfNormal(name="r", sigma=10, size=r_size)
+            alpha = pm.HalfNormal(name="alpha", sigma=10, size=alpha_size)
+
+            T = pm.Data(name="T", value=np.array(10))
+
+            BetaGeoNBD(
+                name="bg_nbd",
+                a=a,
+                b=b,
+                r=r,
+                alpha=alpha,
+                T=T,
+                size=bg_nbd_size,
+            )
+            prior = pm.sample_prior_predictive(samples=100)
+
+        assert prior["prior"]["bg_nbd"][0].shape == (100, *expected_size)
