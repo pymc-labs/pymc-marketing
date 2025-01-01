@@ -149,7 +149,7 @@ Each of these models is tailored to different types of data and business scenari
 
 Analyze the impact of new product launches and understand customer choice behavior with our **Multivariate Interrupted Time Series (MVITS)** models. Our API supports analysis in both saturated and unsaturated markets to help you:
 
-| Feature                     | Description                                                       |
+| Feature                     | Benefit                                                           |
 | --------------------------- | ----------------------------------------------------------------- |
 | Market Share Analysis       | Understand how new products affect existing product market shares |
 | Causal Impact Assessment    | Measure the true causal effect of product launches on sales       |
