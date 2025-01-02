@@ -641,13 +641,6 @@ class BetaGeoModel(CLVModel):
             alpha = pm.HalfFlat("alpha")
             r = pm.HalfFlat("r")
 
-            # fit_result = self.fit_result
-            # if fit_result.sizes["chain"] == 1 and fit_result.sizes["draw"] == 1:
-            #     # For map fit add a dummy draw dimension
-            #     fit_result = self.fit_result.squeeze("draw").expand_dims(
-            #         draw=range(1000)
-            #     )
-
             pm.Beta("dropout", alpha=a, beta=b)
             pm.Gamma("purchase_rate", alpha=r, beta=alpha)
 
