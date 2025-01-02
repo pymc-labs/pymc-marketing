@@ -464,16 +464,34 @@ class ParetoNBD(PositiveContinuous):
 
 class BetaGeoBetaBinomRV(RandomVariable):
     name = "beta_geo_beta_binom"
-    signature = "(),(),(),(),()->(2)"
+    ndim_supp = 1
+    ndims_params = [0, 0, 0, 0, 0]
     dtype = "floatX"
     _print_name = ("BetaGeoBetaBinom", "\\operatorname{BetaGeoBetaBinom}")
+
+    def make_node(self, rng, size, dtype, alpha, beta, gamma, delta, T):
+        alpha = pt.as_tensor_variable(alpha)
+        beta = pt.as_tensor_variable(beta)
+        gamma = pt.as_tensor_variable(gamma)
+        delta = pt.as_tensor_variable(delta)
+        T = pt.as_tensor_variable(T)
+
+        return super().make_node(rng, size, dtype, alpha, beta, gamma, delta, T)
 
     def __call__(self, alpha, beta, gamma, delta, T, size=None, **kwargs):
         return super().__call__(alpha, beta, gamma, delta, T, size=size, **kwargs)
 
     @classmethod
     def rng_fn(cls, rng, alpha, beta, gamma, delta, T, size) -> np.ndarray:
-        if size is None:
+        size = pm.distributions.shape_utils.to_tuple(size)
+
+        alpha = np.asarray(alpha)
+        beta = np.asarray(beta)
+        gamma = np.asarray(gamma)
+        delta = np.asarray(delta)
+        T = np.asarray(T)
+
+        if size == ():
             size = np.broadcast_shapes(
                 alpha.shape, beta.shape, gamma.shape, delta.shape, T.shape
             )
