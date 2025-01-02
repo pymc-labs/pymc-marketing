@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 from functools import reduce
 
 import numpy as np
+import pymc as pm
 import pytensor.tensor as pt
 from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.dist_math import betaln, check_parameters
@@ -35,16 +36,26 @@ __all__ = [
 
 class ContNonContractRV(RandomVariable):
     name = "continuous_non_contractual"
-    signature = "(),(),()->(2)"
+    ndim_supp = 1
+    ndims_params = [0, 0, 0, 0]
     dtype = "floatX"
     _print_name = ("ContNonContract", "\\operatorname{ContNonContract}")
 
-    def __call__(self, lam, p, T, size=None, **kwargs):
-        return super().__call__(lam, p, T, size=size, **kwargs)
+    def make_node(self, rng, size, dtype, lam, p, T):
+        T = pt.as_tensor_variable(T)
+
+        return super().make_node(rng, size, dtype, lam, p, T)
 
     @classmethod
     def rng_fn(cls, rng, lam, p, T, size):
-        if size is None:
+        size = pm.distributions.shape_utils.to_tuple(size)
+
+        # TODO: broadcast sizes
+        lam = np.asarray(lam)
+        p = np.asarray(p)
+        T = np.asarray(T)
+
+        if size == ():
             size = np.broadcast_shapes(lam.shape, p.shape, T.shape)
 
         lam = np.broadcast_to(lam, size)
@@ -70,6 +81,9 @@ class ContNonContractRV(RandomVariable):
         t_x[nzp] = 0.0
 
         return np.stack([t_x, x], axis=-1)
+
+    def _supp_shape_from_params(*args, **kwargs):
+        return (2,)
 
 
 continuous_non_contractual = ContNonContractRV()
@@ -147,16 +161,29 @@ class ContNonContract(PositiveContinuous):
 
 class ContContractRV(RandomVariable):
     name = "continuous_contractual"
-    signature = "(),(),()->(3)"
+    ndim_supp = 1
+    ndims_params = [0, 0, 0, 0]
     dtype = "floatX"
     _print_name = ("ContinuousContractual", "\\operatorname{ContinuousContractual}")
+
+    def make_node(self, rng, size, dtype, lam, p, T):
+        T = pt.as_tensor_variable(T)
+
+        return super().make_node(rng, size, dtype, lam, p, T)
 
     def __call__(self, lam, p, T, size=None, **kwargs):
         return super().__call__(lam, p, T, size=size, **kwargs)
 
     @classmethod
     def rng_fn(cls, rng, lam, p, T, size):
-        if size is None:
+        size = pm.distributions.shape_utils.to_tuple(size)
+
+        # To do: broadcast sizes
+        lam = np.asarray(lam)
+        p = np.asarray(p)
+        T = np.asarray(T)
+
+        if size == ():
             size = np.broadcast_shapes(lam.shape, p.shape, T.shape)
 
         lam = np.broadcast_to(lam, size)
@@ -236,15 +263,14 @@ class ContContract(PositiveContinuous):
         )
 
         logp = pt.switch(
-            reduce(
-                pt.bitwise_or,
-                [
+            pt.any(
+                (
                     zero_observations,
                     pt.lt(t_x, 0),
                     pt.lt(x, 0),
                     pt.gt(t_x, T),
                     pt.bitwise_not(pt.bitwise_or(pt.eq(churn, 0), pt.eq(churn, 1))),
-                ],
+                ),
             ),
             -np.inf,
             logp,
