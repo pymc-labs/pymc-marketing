@@ -603,7 +603,7 @@ class TestBetaGeoModel:
             "\nr~HalfFlat()"
             "\na~HalfFlat()"
             "\nb~HalfNormal(0,10)"
-            "\nrecency_frequency~BGNBD(a,b,r,alpha,<constant>)"
+            "\nrecency_frequency~BetaGeoNBD(a,b,r,alpha,<constant>)"
         )
 
     def test_distribution_new_customer(self) -> None:
