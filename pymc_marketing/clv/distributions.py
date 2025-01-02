@@ -254,6 +254,11 @@ class ContContract(PositiveContinuous):
         logp += churn * pt.log(p) + (1 - churn) * (pt.log(1 - p) - lam * (T - t_x))
 
         logp = pt.switch(
+            zero_observations,
+            -lam * T,
+            logp,
+        )
+        logp = pt.switch(
             pt.any(pt.or_(pt.lt(t_x, 0), zero_observations)),
             -np.inf,
             logp,
