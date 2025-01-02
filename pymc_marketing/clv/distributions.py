@@ -285,16 +285,34 @@ class ContContract(PositiveContinuous):
 
 class ParetoNBDRV(RandomVariable):
     name = "pareto_nbd"
-    signature = "(),(),(),(),()->(2)"
+    ndim_supp = 1
+    ndims_params = [0, 0, 0, 0, 0]
     dtype = "floatX"
     _print_name = ("ParetoNBD", "\\operatorname{ParetoNBD}")
+
+    def make_node(self, rng, size, dtype, r, alpha, s, beta, T):
+        r = pt.as_tensor_variable(r)
+        alpha = pt.as_tensor_variable(alpha)
+        s = pt.as_tensor_variable(s)
+        beta = pt.as_tensor_variable(beta)
+        T = pt.as_tensor_variable(T)
+
+        return super().make_node(rng, size, dtype, r, alpha, s, beta, T)
 
     def __call__(self, r, alpha, s, beta, T, size=None, **kwargs):
         return super().__call__(r, alpha, s, beta, T, size=size, **kwargs)
 
     @classmethod
     def rng_fn(cls, rng, r, alpha, s, beta, T, size):
-        if size is None:
+        size = pm.distributions.shape_utils.to_tuple(size)
+
+        r = np.asarray(r)
+        alpha = np.asarray(alpha)
+        s = np.asarray(s)
+        beta = np.asarray(beta)
+        T = np.asarray(T)
+
+        if size == ():
             size = np.broadcast_shapes(
                 r.shape, alpha.shape, s.shape, beta.shape, T.shape
             )
