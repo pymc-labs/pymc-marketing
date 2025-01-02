@@ -258,6 +258,7 @@ class ContContract(PositiveContinuous):
             -lam * T,
             logp,
         )
+
         logp = pt.switch(
             pt.any(pt.or_(pt.lt(t_x, 0), zero_observations)),
             -np.inf,
@@ -270,7 +271,6 @@ class ContContract(PositiveContinuous):
             logp,
             -np.inf,
         )
-
         logp = pt.switch(
             pt.any(
                 (
@@ -362,6 +362,9 @@ class ParetoNBDRV(RandomVariable):
             output[index] = sim_data(lam[index], mu[index], T[index])
 
         return output
+
+    def _supp_shape_from_params(*args, **kwargs):
+        return (2,)
 
 
 pareto_nbd = ParetoNBDRV()
@@ -559,6 +562,9 @@ class BetaGeoBetaBinomRV(RandomVariable):
             output[index] = sim_data(purchase_prob[index], churn_prob[index], T[index])
 
         return output
+
+    def _supp_shape_from_params(*args, **kwargs):
+        return (2,)
 
 
 beta_geo_beta_binom = BetaGeoBetaBinomRV()
