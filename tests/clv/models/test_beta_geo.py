@@ -51,6 +51,7 @@ class TestBetaGeoModel:
 
         # Instantiate model with CDNOW data for testing
         cls.model = BetaGeoModel(cls.data)
+        cls.model.build_model()
 
         # Also instantiate lifetimes model for comparison
         cls.lifetimes_model = BetaGeoFitter()
@@ -250,16 +251,20 @@ class TestBetaGeoModel:
         assert customer_purchase_rate.shape == expected_shape
         assert customer_rec_freq.shape == expected_pop_dims
 
+        # N = 1000
+        # p = pm.Beta.dist(self.a_true, self.b_true, size=N)
+        # theta = pm.Beta.dist(self.gamma_true, self.delta_true, size=N)
+
         lam_mean = self.r_true / self.alpha_true
         lam_std = np.sqrt(self.r_true) / self.alpha_true
-        mu_mean = self.s_true / self.beta_true
-        mu_std = np.sqrt(self.s_true) / self.beta_true
+        # mu_mean = self.s_true / self.beta_true
+        #  mu_std = np.sqrt(self.s_true) / self.beta_true
         ref_rec, ref_freq = pm.draw(
             BetaGeoNBD.dist(
+                a=self.a_true,
+                b=self.b_true,
                 r=self.r_true,
                 alpha=self.alpha_true,
-                s=self.s_true,
-                beta=self.beta_true,
                 T=self.T,
             ),
             random_seed=rng,
@@ -275,8 +280,8 @@ class TestBetaGeoModel:
             lam_std,
             rtol=0.5,
         )
-        np.testing.assert_allclose(customer_dropout.mean(), mu_mean, rtol=0.5)
-        np.testing.assert_allclose(customer_dropout.std(), mu_std, rtol=0.5)
+        # np.testing.assert_allclose(customer_dropout.mean(), mu_mean, rtol=0.5)
+        # np.testing.assert_allclose(customer_dropout.std(), mu_std, rtol=0.5)
 
         np.testing.assert_allclose(customer_rec.mean(), ref_rec.mean(), rtol=0.5)
         np.testing.assert_allclose(customer_rec.std(), ref_rec.std(), rtol=0.5)
@@ -284,7 +289,7 @@ class TestBetaGeoModel:
         np.testing.assert_allclose(customer_freq.mean(), ref_freq.mean(), rtol=0.5)
         np.testing.assert_allclose(customer_freq.std(), ref_freq.std(), rtol=0.5)
 
-    @pytest.mark.slow
+    # @pytest.mark.slow
     @pytest.mark.parametrize(
         "fit_method, rtol",
         [

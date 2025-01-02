@@ -580,7 +580,7 @@ class BetaGeoModel(CLVModel):
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
-    def _distribution_new_customers(
+    def distribution_new_customer(
         self,
         data: pd.DataFrame | None = None,
         *,
@@ -670,6 +670,8 @@ class BetaGeoModel(CLVModel):
 
     def distribution_new_customer_dropout(
         self,
+        data: pd.DataFrame | None = None,
+        *,
         random_seed: RandomState | None = None,
     ) -> xarray.Dataset:
         """Sample the Beta distribution for the population-level dropout rate.
@@ -687,13 +689,16 @@ class BetaGeoModel(CLVModel):
             Dataset containing the posterior samples for the population-level dropout rate.
 
         """
-        return self._distribution_new_customers(
+        return self.distribution_new_customer(
+            data=data,
             random_seed=random_seed,
             var_names=["dropout"],
         )["dropout"]
 
     def distribution_new_customer_purchase_rate(
         self,
+        data: pd.DataFrame | None = None,
+        *,
         random_seed: RandomState | None = None,
     ) -> xarray.Dataset:
         """Sample the Gamma distribution for the population-level purchase rate.
@@ -712,7 +717,52 @@ class BetaGeoModel(CLVModel):
             Dataset containing the posterior samples for the population-level purchase rate.
 
         """
-        return self._distribution_new_customers(
+        return self.distribution_new_customer(
+            data=data,
             random_seed=random_seed,
             var_names=["purchase_rate"],
         )["purchase_rate"]
+
+    def distribution_new_customer_recency_frequency(
+        self,
+        data: pd.DataFrame | None = None,
+        *,
+        T: int | np.ndarray | pd.Series | None = None,
+        random_seed: RandomState | None = None,
+        n_samples: int = 1000,
+    ) -> xarray.Dataset:
+        """BG/NBD process representing purchases across the customer population.
+
+        This is the distribution of purchase frequencies given 'T' observation periods for each customer.
+
+        Parameters
+        ----------
+        data : ~pandas.DataFrame, optional
+            DataFrame containing the following columns:
+
+            * `customer_id`: Unique customer identifier
+            * `T`: Time between the first purchase and the end of the observation period.
+            * All covariate columns specified when model was initialized.
+
+            If not provided, the method will use the fit dataset.
+        T : array_like, optional
+            Number of observation periods for each customer. If not provided, T values from fit dataset will be used.
+            Not required if `data` Dataframe contains a `T` column.
+        random_seed : ~numpy.random.RandomState, optional
+            Random state to use for sampling.
+        n_samples : int, optional
+            Number of samples to generate. Defaults to 1000.
+
+        Returns
+        -------
+        ~xarray.Dataset
+            Dataset containing the posterior samples for the customer population.
+
+        """
+        return self.distribution_new_customer(
+            data=data,
+            T=T,
+            random_seed=random_seed,
+            var_names=["recency_frequency"],
+            n_samples=n_samples,
+        )["recency_frequency"]
