@@ -13,8 +13,6 @@
 #   limitations under the License.
 """Distributions for the CLV module."""
 
-from functools import reduce
-
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
@@ -137,14 +135,13 @@ class ContNonContract(PositiveContinuous):
         )
 
         logp = pt.switch(
-            reduce(
-                pt.bitwise_or,
-                [
+            pt.any(
+                (
                     pt.and_(pt.ge(t_x, 0), zero_observations),
                     pt.lt(t_x, 0),
                     pt.lt(x, 0),
                     pt.gt(t_x, T),
-                ],
+                ),
             ),
             -np.inf,
             logp,
