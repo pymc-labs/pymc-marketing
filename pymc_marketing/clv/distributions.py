@@ -672,21 +672,20 @@ class BetaGeoBetaBinom(Discrete):
 
 class BetaGeoNBDRV(RandomVariable):
     name = "bg_nbd"
-    signature = "(),(),(),(),()->(2)"
-    # ndim_supp = 1
-    # ndims_params = [0, 0, 0, 0, 0]
+    ndim_supp = 1
+    ndims_params = [0, 0, 0, 0, 0]
 
     dtype = "floatX"
     _print_name = ("BetaGeoNBD", "\\operatorname{BetaGeoNBD}")
 
-    # def make_node(self, rng, size, dtype, a, b, r, alpha, T):
-    #     a = pt.as_tensor_variable(a)
-    #     b = pt.as_tensor_variable(b)
-    #     r = pt.as_tensor_variable(r)
-    #     alpha = pt.as_tensor_variable(alpha)
-    #     T = pt.as_tensor_variable(T)
+    def make_node(self, rng, size, dtype, a, b, r, alpha, T):
+        a = pt.as_tensor_variable(a)
+        b = pt.as_tensor_variable(b)
+        r = pt.as_tensor_variable(r)
+        alpha = pt.as_tensor_variable(alpha)
+        T = pt.as_tensor_variable(T)
 
-    #     return super().make_node(rng, size, dtype, a, b, r, alpha, T)
+        return super().make_node(rng, size, dtype, a, b, r, alpha, T)
 
     def __call__(self, a, b, r, alpha, T, size=None, **kwargs):
         return super().__call__(a, b, r, alpha, T, size=size, **kwargs)
