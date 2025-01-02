@@ -435,9 +435,9 @@ class BetaGeoModel(CLVModel):
         t_x: xarray.DataArray,
         T: xarray.DataArray,
     ) -> xarray.DataArray:
-        """Log-likelihood of the Pareto/NBD model.
+        """Log-likelihood of the BG/NBD model.
 
-        Utility function for using ParetoNBD log-likelihood in predictive methods.
+        Utility function for using BetaGeoNBD log-likelihood in predictive methods.
         """
         # Add one dummy dimension to the right of the scalar parameters, so they broadcast with the `T` vector
         bg_bnd_dist = BetaGeoNBD.dist(
