@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 
 import warnings
 from collections.abc import Sequence
+from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -581,30 +582,91 @@ class BetaGeoModel(CLVModel):
 
     def _distribution_new_customers(
         self,
+        data: pd.DataFrame | None = None,
+        *,
+        T: int | np.ndarray | pd.Series | None = None,
         random_seed: RandomState | None = None,
-        var_names: Sequence[str] = ("population_dropout", "population_purchase_rate"),
+        var_names: Sequence[
+            Literal["dropout", "purchase_rate", "recency_frequency"]
+        ] = ("dropout", "purchase_rate", "recency_frequency"),
+        n_samples: int = 1000,
     ) -> xarray.Dataset:
-        with pm.Model():
+        """Compute posterior predictive samples of dropout, purchase rate and frequency/recency of new customers.
+
+        In a model with covariates, if `data` is not specified, the dataset used for fitting will be used and
+        a prediction will be computed for a *new customer* with each set of covariates.
+        *This is not a conditional prediction for observed customers!*
+
+        Parameters
+        ----------
+        data : ~pandas.DataFrame, Optional
+            DataFrame containing the following columns:
+
+            * `customer_id`: Unique customer identifier
+            * `T`: Time between the first purchase and the end of the observation period
+
+            If not provided, predictions will be ran with data used to fit model.
+        T : array_like, optional
+            time between the first purchase and the end of the observation period.
+            Not needed if `data` parameter is provided with a `T` column.
+        random_seed : ~numpy.random.RandomState, optional
+            Random state to use for sampling.
+        var_names : sequence of str, optional
+            Names of the variables to sample from. Defaults to ["dropout", "purchase_rate", "recency_frequency"].
+        n_samples : int, optional
+            Number of samples to generate. Defaults to 1000
+
+        """
+        if data is None:
+            data = self.data
+
+        if T is not None:
+            data = data.assign(T=T)
+
+        dataset = self._extract_predictive_variables(data, customer_varnames=["T"])
+        T = dataset["T"].values
+        # Delete "T" so we can pass dataset directly to `sample_posterior_predictive`
+        del dataset["T"]
+
+        if dataset.sizes["chain"] == 1 and dataset.sizes["draw"] == 1:
+            # For map fit add a dummy draw dimension
+            dataset = dataset.squeeze("draw").expand_dims(draw=range(n_samples))
+
+        coords = self.model.coords.copy()  # type: ignore
+        coords["customer_id"] = data["customer_id"]
+
+        with pm.Model(coords=coords):
             a = pm.HalfFlat("a")
             b = pm.HalfFlat("b")
             alpha = pm.HalfFlat("alpha")
             r = pm.HalfFlat("r")
 
-            fit_result = self.fit_result
-            if fit_result.sizes["chain"] == 1 and fit_result.sizes["draw"] == 1:
-                # For map fit add a dummy draw dimension
-                fit_result = self.fit_result.squeeze("draw").expand_dims(
-                    draw=range(1000)
-                )
+            # fit_result = self.fit_result
+            # if fit_result.sizes["chain"] == 1 and fit_result.sizes["draw"] == 1:
+            #     # For map fit add a dummy draw dimension
+            #     fit_result = self.fit_result.squeeze("draw").expand_dims(
+            #         draw=range(1000)
+            #     )
 
-            pm.Beta("population_dropout", alpha=a, beta=b)
-            pm.Gamma("population_purchase_rate", alpha=r, beta=alpha)
+            pm.Beta("dropout", alpha=a, beta=b)
+            pm.Gamma("purchase_rate", alpha=r, beta=alpha)
+
+            BetaGeoNBD(
+                name="recency_frequency",
+                a=a,
+                b=b,
+                r=r,
+                alpha=alpha,
+                T=T,
+                dims=["customer_id", "obs_var"],
+            )
 
             return pm.sample_posterior_predictive(
-                fit_result,
+                dataset,
                 var_names=var_names,
                 random_seed=random_seed,
-            ).posterior_predictive
+                predictions=True,
+            ).predictions
 
     def distribution_new_customer_dropout(
         self,
@@ -627,8 +689,8 @@ class BetaGeoModel(CLVModel):
         """
         return self._distribution_new_customers(
             random_seed=random_seed,
-            var_names=["population_dropout"],
-        )["population_dropout"]
+            var_names=["dropout"],
+        )["dropout"]
 
     def distribution_new_customer_purchase_rate(
         self,
@@ -652,5 +714,5 @@ class BetaGeoModel(CLVModel):
         """
         return self._distribution_new_customers(
             random_seed=random_seed,
-            var_names=["population_purchase_rate"],
-        )["population_purchase_rate"]
+            var_names=["purchase_rate"],
+        )["purchase_rate"]

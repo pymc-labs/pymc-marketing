@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -610,6 +610,7 @@ class TestBetaGeoModel:
         mock_model = BetaGeoModel(
             data=self.data,
         )
+        mock_model.build_model()
         mock_model.idata = az.from_dict(
             {
                 "a": [self.a_true],
