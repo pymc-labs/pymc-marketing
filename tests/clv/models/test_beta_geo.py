@@ -201,13 +201,16 @@ class TestBetaGeoModel:
                 "T": np.asarray([40]),
             }
         )
+
         model = BetaGeoModel(
             data=data,
             model_config=model_config,
         )
+
         model.build_model()
         pymc_model = model.model
-        logp = pymc_model.compile_fn(pymc_model.potentiallogp)
+
+        logp = pymc_model.compile_logp()
 
         np.testing.assert_almost_equal(
             logp({"a": 0.80, "b": 2.50, "r": 0.25, "alpha": 4.00}),
