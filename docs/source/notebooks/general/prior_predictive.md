@@ -67,7 +67,7 @@ In marketing analytics, you'll often encounter these scenarios:
 
 Prior predictive modeling is a crucial step in Bayesian workflow that helps us validate our prior choices before seeing the actual data. The process involves:
 
-1. **Specification**: 
+1. **Specification**:
    - Define prior distributions for model parameters
    - Encode domain knowledge and constraints
    - Document assumptions and choices
@@ -114,13 +114,13 @@ In practice, we can sample from this distribution by:
 
 This process helps us validate our model in several ways:
 
-1. **Parameter Space Coverage**: 
+1. **Parameter Space Coverage**:
    The samples $\{\theta^{(s)}\}_{s=1}^S$ show us what parameter values we consider plausible
 
-2. **Data Space Coverage**: 
+2. **Data Space Coverage**:
    The samples $\{y^{(s)}\}_{s=1}^S$ show us what data our model can generate
 
-3. **Model Sensitivity**: 
+3. **Model Sensitivity**:
    The relationship between $\theta^{(s)}$ and $y^{(s)}$ shows how parameters influence predictions
 
 Let's explore these concepts through practical examples using the `Prior` class from PyMC-Marketing.
@@ -291,7 +291,7 @@ Let's see how these different priors affect our predictions before seeing the da
 def sample_prior_predictive(priors, X, draws=100):
     intercept_samples = priors['intercept'].sample_prior(draws=draws).var.values
     slope_samples = priors['slope'].sample_prior(draws=draws).var.values
-    
+
     y_samples = np.zeros((draws, len(X)))
     for i in range(draws):
         y_samples[i] = intercept_samples[i] + slope_samples[i] * X
@@ -303,14 +303,14 @@ X_plot = np.linspace(-2, 12, 100)
 
 for (name, priors), ax in zip(prior_sets.items(), axes):
     y_samples = sample_prior_predictive(priors, X_plot, draws=100)
-    
+
     # Plot a subset of lines
     for j in range(20):
         ax.plot(X_plot, y_samples[j], 'b-', alpha=0.1)
-    
+
     # Plot the true line
     ax.plot(X_plot, true_intercept + true_slope * X_plot, 'r--', label='True Line')
-    
+
     ax.set_xlabel('X')
     ax.set_ylabel('y')
     ax.set_title(f'{name} Priors\nPrior Predictive Distribution')
@@ -330,16 +330,16 @@ def build_and_sample_model(X, y, priors):
         # Priors
         intercept = priors['intercept'].create_variable('intercept')
         slope = priors['slope'].create_variable('slope')
-        
+
         # Expected value
         mu = intercept + slope * X
-        
+
         # Likelihood
         likelihood = pm.Normal('y', mu=mu, sigma=1, observed=y)
-        
+
         # Sample
         trace = pm.sample(1000, return_inferencedata=True)
-    
+
     return trace
 
 # Sample from each model
@@ -353,20 +353,20 @@ fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 for (name, trace), ax in zip(traces.items(), axes):
     # Plot data
     ax.scatter(X, y, alpha=0.3, label='Data')
-    
+
     # Plot true line
     ax.plot(X, true_intercept + true_slope * X, 'r--', label='True Line')
-    
+
     # Plot posterior predictions
     intercept_samples = trace.posterior.intercept.values.flatten()
     slope_samples = trace.posterior.slope.values.flatten()
-    
+
     # Plot a subset of posterior lines
     for j in range(100):
-        ax.plot(X_plot, 
+        ax.plot(X_plot,
                intercept_samples[j] + slope_samples[j] * X_plot,
                'b-', alpha=0.1)
-    
+
     ax.set_xlabel('X')
     ax.set_ylabel('y')
     ax.set_title(f'{name} Priors\nPosterior Predictions')
@@ -464,11 +464,11 @@ priors = {
 
 for (name, prior), ax in zip(priors.items(), axes):
     y_samples = sample_logistic_prior_predictive(prior, X)
-    
+
     # Plot a subset of curves
     for j in range(20):
         ax.plot(X, y_samples[j], 'b-', alpha=0.1)
-    
+
     ax.set_xlabel('X')
     ax.set_ylabel('Probability')
     ax.set_title(f'{name}\nPrior Predictive')
@@ -508,16 +508,16 @@ def build_logistic_model(X, y, priors):
         # Priors
         intercept = priors['intercept'].create_variable('intercept')
         beta = priors['beta'].create_variable('beta')
-        
+
         # Linear predictor
         eta = intercept + beta * X
-        
+
         # Likelihood using logistic link function
         likelihood = pm.Bernoulli('y', logit_p=eta, observed=y)
-        
+
         # Sample
         trace = pm.sample(1000, return_inferencedata=True)
-    
+
     return trace
 
 # The Student's t prior leads to more reasonable predictions
@@ -567,8 +567,8 @@ The `Prior` class offers several useful features:
    ```python
    # Constrain a distribution to a specific range
    constrained_prior = Prior("Normal").constrain(
-       lower=0, 
-       upper=10, 
+       lower=0,
+       upper=10,
        mass=0.95
    )
    ```
