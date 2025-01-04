@@ -951,16 +951,18 @@ class ModelBuilder(ABC):
 
     prior = create_idata_accessor(
         "prior",
-        "Call the 'sample_prior_predictive' method first.",
+        "The model hasn't been sampled yet, call .sample_prior_predictive() first",
     )
     prior_predictive = create_idata_accessor(
         "prior_predictive",
-        "Call the 'sample_prior_predictive' method first.",
+        "The model hasn't been sampled yet, call .sample_prior_predictive() first",
     )
-    posterior = create_idata_accessor("posterior", "Call the 'fit' method first.")
+    posterior = create_idata_accessor(
+        "posterior", "The model hasn't been fit yet, call .fit() first"
+    )
     posterior_predictive = create_idata_accessor(
         "posterior_predictive",
-        "Call the 'sample_posterior_predictive' method first.",
+        "The model hasn't been fit yet, call .sample_posterior_predictive() first",
     )
     predictions = create_idata_accessor(
         "predictions",
