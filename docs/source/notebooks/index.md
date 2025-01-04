@@ -44,6 +44,7 @@ customer_choice/mv_its_unsaturated
 :caption: General
 :maxdepth: 1
 
-general/other_nuts_samplers
 general/model_configuration
+general/other_nuts_samplers
+general/prior_predictive
 :::
