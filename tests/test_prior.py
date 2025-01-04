@@ -311,8 +311,8 @@ def test_transform() -> None:
         assert fast_eval(model[var_name]).shape == dim
 
 
-def test_to_json(large_var) -> None:
-    data = large_var.to_json()
+def test_to_dict(large_var) -> None:
+    data = large_var.to_dict()
 
     assert data == {
         "dist": "Normal",
@@ -347,9 +347,9 @@ def test_to_json(large_var) -> None:
     }
 
 
-def test_to_json_numpy() -> None:
+def test_to_dict_numpy() -> None:
     var = Prior("Normal", mu=np.array([0, 10, 20]), dims="channel")
-    assert var.to_json() == {
+    assert var.to_dict() == {
         "dist": "Normal",
         "kwargs": {
             "mu": [0, 10, 20],
@@ -358,8 +358,8 @@ def test_to_json_numpy() -> None:
     }
 
 
-def test_json_round_trip(large_var) -> None:
-    assert Prior.from_json(large_var.to_json()) == large_var
+def test_dict_round_trip(large_var) -> None:
+    assert Prior.from_dict(large_var.to_dict()) == large_var
 
 
 def test_constrain_with_transform_error() -> None:
@@ -433,7 +433,7 @@ def mmm_default_model_config():
 
 def test_backwards_compat(mmm_default_model_config) -> None:
     result = {
-        param: Prior.from_json(value)
+        param: Prior.from_dict(value)
         for param, value in mmm_default_model_config.items()
     }
     assert result == {
@@ -479,7 +479,7 @@ def test_to_graph() -> None:
     assert isinstance(G, Digraph)
 
 
-def test_from_json_list() -> None:
+def test_from_dict_list() -> None:
     data = {
         "dist": "Normal",
         "kwargs": {
@@ -489,13 +489,13 @@ def test_from_json_list() -> None:
         "dims": "channel",
     }
 
-    var = Prior.from_json(data)
+    var = Prior.from_dict(data)
     assert var.dims == ("channel",)
     assert isinstance(var["mu"], np.ndarray)
     np.testing.assert_array_equal(var["mu"], [0, 1, 2])
 
 
-def test_from_json_list_dims() -> None:
+def test_from_dict_list_dims() -> None:
     data = {
         "dist": "Normal",
         "kwargs": {
@@ -505,14 +505,14 @@ def test_from_json_list_dims() -> None:
         "dims": ["channel", "geo"],
     }
 
-    var = Prior.from_json(data)
+    var = Prior.from_dict(data)
     assert var.dims == ("channel", "geo")
 
 
-def test_to_json_transform() -> None:
+def test_to_dict_transform() -> None:
     dist = Prior("Normal", transform="sigmoid")
 
-    data = dist.to_json()
+    data = dist.to_dict()
     assert data == {
         "dist": "Normal",
         "transform": "sigmoid",
@@ -655,7 +655,7 @@ def test_serialize_with_pytensor() -> None:
     sigma = pt.arange(1, 4)
     dist = Prior("Normal", mu=0, sigma=sigma)
 
-    assert dist.to_json() == {
+    assert dist.to_dict() == {
         "dist": "Normal",
         "kwargs": {
             "mu": 0,
@@ -809,7 +809,7 @@ def test_censored_to_dict() -> None:
     data = censored_normal.to_dict()
     assert data == {
         "class": "Censored",
-        "data": {"dist": normal.to_json(), "lower": 0, "upper": float("inf")},
+        "data": {"dist": normal.to_dict(), "lower": 0, "upper": float("inf")},
     }
 
 
@@ -850,7 +850,7 @@ def test_create_prior_with_arbitrary_serializable(arbitrary_serialized_data) -> 
         dims=("channel", "geo"),
     )
 
-    assert dist.to_json() == {
+    assert dist.to_dict() == {
         "dist": "Normal",
         "kwargs": {
             "mu": arbitrary_serialized_data,
@@ -898,7 +898,7 @@ def test_censored_with_tensor_variable() -> None:
     assert censored_normal.to_dict() == {
         "class": "Censored",
         "data": {
-            "dist": normal.to_json(),
+            "dist": normal.to_dict(),
             "lower": [0, 1, 2],
             "upper": float("inf"),
         },
