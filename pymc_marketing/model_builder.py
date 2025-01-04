@@ -29,7 +29,6 @@ import xarray as xr
 from pymc.util import RandomState
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
-from pymc_marketing.prior import Prior
 from pymc_marketing.utils import from_netcdf
 
 # If scikit-learn is available, use its data validator
@@ -353,8 +352,8 @@ class ModelBuilder(ABC):
         """
 
         def default(x):
-            if isinstance(x, Prior):
-                return x.to_json()
+            if hasattr(x, "to_dict"):
+                return x.to_dict()
             elif isinstance(x, HSGPKwargs):
                 return x.model_dump(mode="json")
             return x.__dict__

@@ -333,7 +333,7 @@ class FourierBase(BaseModel):
         if hasattr(prior, "to_dict"):
             return prior.to_dict()
 
-        return prior.to_json()
+        return prior.to_dict()
 
     @property
     def nodes(self) -> list[str]:
