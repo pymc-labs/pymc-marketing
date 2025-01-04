@@ -40,9 +40,9 @@ Explore these topics further by watching our video on [Bayesian Marketing Mix Mo
 - [Bayesian Discord server](https://discord.gg/swztKRaVKe)
 - [MMM Hub Slack](https://www.mmmhub.org/slack)
 
-## Quick Installation Guide for Marketing Mix Modeling (MMM) & CLV
+## Quick Installation Guide
 
-To dive into MMM and CLV analytics, set up a specialized Python environment, `marketing_env`, via conda-forge:
+To dive into PyMC-Marketing, set up a specialized Python environment, `marketing_env`, via conda-forge:
 
 ```bash
 conda create -c conda-forge -n marketing_env pymc-marketing
