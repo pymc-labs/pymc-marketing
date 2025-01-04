@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 from copy import deepcopy
+from typing import NamedTuple
 
 import numpy as np
 import pymc as pm
@@ -909,3 +910,102 @@ def test_censored_dims_setter() -> None:
     censored_normal = Censored(normal, lower=0)
     censored_normal.dims = "date"
     assert normal.dims == ("date",)
+
+
+class ModelData(NamedTuple):
+    mu: float
+    observed: list[float]
+
+
+@pytest.fixture(scope="session")
+def model_data() -> ModelData:
+    return ModelData(mu=0, observed=[0, 1, 2, 3, 4])
+
+
+@pytest.fixture(scope="session")
+def normal_model_with_censored_API(model_data) -> pm.Model:
+    coords = {"idx": range(len(model_data.observed))}
+    with pm.Model(coords=coords) as model:
+        sigma = Prior("HalfNormal")
+        normal = Prior("Normal", sigma=sigma, dims="idx")
+        Censored(normal, lower=0).create_likelihood_variable(
+            "censored_normal",
+            mu=model_data.mu,
+            observed=model_data.observed,
+        )
+
+    return model
+
+
+@pytest.fixture(scope="session")
+def normal_model_with_censored_logp(normal_model_with_censored_API):
+    return normal_model_with_censored_API.compile_logp()
+
+
+@pytest.fixture(scope="session")
+def expected_normal_model(model_data) -> pm.Model:
+    n_points = len(model_data.observed)
+    with pm.Model() as expected_model:
+        sigma = pm.HalfNormal("censored_normal_sigma")
+        normal = pm.Normal.dist(mu=model_data.mu, sigma=sigma, shape=n_points)
+        pm.Censored(
+            "censored_normal",
+            normal,
+            lower=0,
+            upper=np.inf,
+            observed=model_data.observed,
+        )
+
+    return expected_model
+
+
+@pytest.fixture(scope="session")
+def expected_normal_model_logp(expected_normal_model):
+    return expected_normal_model.compile_logp()
+
+
+@pytest.mark.parametrize("sigma_log__", [-10, -5, -2.5, 0, 2.5, 5, 10])
+def test_censored_normal_logp(
+    sigma_log__,
+    normal_model_with_censored_logp,
+    expected_normal_model_logp,
+) -> None:
+    points = {"censored_normal_sigma_log__": sigma_log__}
+    normal_model_logp = normal_model_with_censored_logp(points)
+    expected_model_logp = expected_normal_model_logp(points)
+    np.testing.assert_allclose(normal_model_logp, expected_model_logp)
+
+
+@pytest.mark.parametrize(
+    "mu",
+    [
+        0,
+        np.arange(10),
+    ],
+    ids=["scalar", "vector"],
+)
+def test_censored_logp(mu) -> None:
+    n_points = 10
+    observed = np.zeros(n_points)
+    coords = {"idx": range(n_points)}
+    with pm.Model(coords=coords) as model:
+        normal = Prior("Normal", dims="idx")
+        Censored(normal, lower=0).create_likelihood_variable(
+            "censored_normal",
+            observed=observed,
+            mu=mu,
+        )
+    logp = model.compile_logp()
+
+    with pm.Model() as expected_model:
+        pm.Censored(
+            "censored_normal",
+            pm.Normal.dist(mu=mu, sigma=1, shape=n_points),
+            lower=0,
+            upper=np.inf,
+            observed=observed,
+        )
+    expected_logp = expected_model.compile_logp()
+
+    point = {}
+    np.testing.assert_allclose(logp(point), expected_logp(point))
