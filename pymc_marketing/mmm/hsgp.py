@@ -319,7 +319,7 @@ class HSGPBase(BaseModel):
         data = self.model_dump()
 
         def handle_prior(value):
-            return value if not hasattr(value, "to_json") else value.to_json()
+            return value if not hasattr(value, "to_dict") else value.to_dict()
 
         return {key: handle_prior(value) for key, value in data.items()}
 
@@ -770,7 +770,7 @@ class HSGP(HSGPBase):
         """
         for key in ["eta", "ls"]:
             if isinstance(data[key], dict):
-                data[key] = Prior.from_json(data[key])
+                data[key] = Prior.from_dict(data[key])
 
         return cls(**data)
 
@@ -1002,6 +1002,6 @@ class HSGPPeriodic(HSGPBase):
         """
         for key in ["scale", "ls"]:
             if isinstance(data[key], dict):
-                data[key] = Prior.from_json(data[key])
+                data[key] = Prior.from_dict(data[key])
 
         return cls(**data)

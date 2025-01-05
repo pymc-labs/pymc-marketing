@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 from copy import deepcopy
+from typing import NamedTuple
 
 import numpy as np
 import pymc as pm
@@ -310,8 +311,8 @@ def test_transform() -> None:
         assert fast_eval(model[var_name]).shape == dim
 
 
-def test_to_json(large_var) -> None:
-    data = large_var.to_json()
+def test_to_dict(large_var) -> None:
+    data = large_var.to_dict()
 
     assert data == {
         "dist": "Normal",
@@ -346,9 +347,9 @@ def test_to_json(large_var) -> None:
     }
 
 
-def test_to_json_numpy() -> None:
+def test_to_dict_numpy() -> None:
     var = Prior("Normal", mu=np.array([0, 10, 20]), dims="channel")
-    assert var.to_json() == {
+    assert var.to_dict() == {
         "dist": "Normal",
         "kwargs": {
             "mu": [0, 10, 20],
@@ -357,8 +358,8 @@ def test_to_json_numpy() -> None:
     }
 
 
-def test_json_round_trip(large_var) -> None:
-    assert Prior.from_json(large_var.to_json()) == large_var
+def test_dict_round_trip(large_var) -> None:
+    assert Prior.from_dict(large_var.to_dict()) == large_var
 
 
 def test_constrain_with_transform_error() -> None:
@@ -432,7 +433,7 @@ def mmm_default_model_config():
 
 def test_backwards_compat(mmm_default_model_config) -> None:
     result = {
-        param: Prior.from_json(value)
+        param: Prior.from_dict(value)
         for param, value in mmm_default_model_config.items()
     }
     assert result == {
@@ -478,7 +479,7 @@ def test_to_graph() -> None:
     assert isinstance(G, Digraph)
 
 
-def test_from_json_list() -> None:
+def test_from_dict_list() -> None:
     data = {
         "dist": "Normal",
         "kwargs": {
@@ -488,13 +489,13 @@ def test_from_json_list() -> None:
         "dims": "channel",
     }
 
-    var = Prior.from_json(data)
+    var = Prior.from_dict(data)
     assert var.dims == ("channel",)
     assert isinstance(var["mu"], np.ndarray)
     np.testing.assert_array_equal(var["mu"], [0, 1, 2])
 
 
-def test_from_json_list_dims() -> None:
+def test_from_dict_list_dims() -> None:
     data = {
         "dist": "Normal",
         "kwargs": {
@@ -504,14 +505,14 @@ def test_from_json_list_dims() -> None:
         "dims": ["channel", "geo"],
     }
 
-    var = Prior.from_json(data)
+    var = Prior.from_dict(data)
     assert var.dims == ("channel", "geo")
 
 
-def test_to_json_transform() -> None:
+def test_to_dict_transform() -> None:
     dist = Prior("Normal", transform="sigmoid")
 
-    data = dist.to_json()
+    data = dist.to_dict()
     assert data == {
         "dist": "Normal",
         "transform": "sigmoid",
@@ -654,7 +655,7 @@ def test_serialize_with_pytensor() -> None:
     sigma = pt.arange(1, 4)
     dist = Prior("Normal", mu=0, sigma=sigma)
 
-    assert dist.to_json() == {
+    assert dist.to_dict() == {
         "dist": "Normal",
         "kwargs": {
             "mu": 0,
@@ -808,7 +809,7 @@ def test_censored_to_dict() -> None:
     data = censored_normal.to_dict()
     assert data == {
         "class": "Censored",
-        "data": {"dist": normal.to_json(), "lower": 0, "upper": float("inf")},
+        "data": {"dist": normal.to_dict(), "lower": 0, "upper": float("inf")},
     }
 
 
@@ -849,7 +850,7 @@ def test_create_prior_with_arbitrary_serializable(arbitrary_serialized_data) -> 
         dims=("channel", "geo"),
     )
 
-    assert dist.to_json() == {
+    assert dist.to_dict() == {
         "dist": "Normal",
         "kwargs": {
             "mu": arbitrary_serialized_data,
@@ -897,7 +898,7 @@ def test_censored_with_tensor_variable() -> None:
     assert censored_normal.to_dict() == {
         "class": "Censored",
         "data": {
-            "dist": normal.to_json(),
+            "dist": normal.to_dict(),
             "lower": [0, 1, 2],
             "upper": float("inf"),
         },
@@ -909,3 +910,117 @@ def test_censored_dims_setter() -> None:
     censored_normal = Censored(normal, lower=0)
     censored_normal.dims = "date"
     assert normal.dims == ("date",)
+
+
+class ModelData(NamedTuple):
+    mu: float
+    observed: list[float]
+
+
+@pytest.fixture(scope="session")
+def model_data() -> ModelData:
+    return ModelData(mu=0, observed=[0, 1, 2, 3, 4])
+
+
+@pytest.fixture(scope="session")
+def normal_model_with_censored_API(model_data) -> pm.Model:
+    coords = {"idx": range(len(model_data.observed))}
+    with pm.Model(coords=coords) as model:
+        sigma = Prior("HalfNormal")
+        normal = Prior("Normal", sigma=sigma, dims="idx")
+        Censored(normal, lower=0).create_likelihood_variable(
+            "censored_normal",
+            mu=model_data.mu,
+            observed=model_data.observed,
+        )
+
+    return model
+
+
+@pytest.fixture(scope="session")
+def normal_model_with_censored_logp(normal_model_with_censored_API):
+    return normal_model_with_censored_API.compile_logp()
+
+
+@pytest.fixture(scope="session")
+def expected_normal_model(model_data) -> pm.Model:
+    n_points = len(model_data.observed)
+    with pm.Model() as expected_model:
+        sigma = pm.HalfNormal("censored_normal_sigma")
+        normal = pm.Normal.dist(mu=model_data.mu, sigma=sigma, shape=n_points)
+        pm.Censored(
+            "censored_normal",
+            normal,
+            lower=0,
+            upper=np.inf,
+            observed=model_data.observed,
+        )
+
+    return expected_model
+
+
+@pytest.fixture(scope="session")
+def expected_normal_model_logp(expected_normal_model):
+    return expected_normal_model.compile_logp()
+
+
+@pytest.mark.parametrize("sigma_log__", [-10, -5, -2.5, 0, 2.5, 5, 10])
+def test_censored_normal_logp(
+    sigma_log__,
+    normal_model_with_censored_logp,
+    expected_normal_model_logp,
+) -> None:
+    points = {"censored_normal_sigma_log__": sigma_log__}
+    normal_model_logp = normal_model_with_censored_logp(points)
+    expected_model_logp = expected_normal_model_logp(points)
+    np.testing.assert_allclose(normal_model_logp, expected_model_logp)
+
+
+@pytest.mark.parametrize(
+    "mu",
+    [
+        0,
+        np.arange(10),
+    ],
+    ids=["scalar", "vector"],
+)
+def test_censored_logp(mu) -> None:
+    n_points = 10
+    observed = np.zeros(n_points)
+    coords = {"idx": range(n_points)}
+    with pm.Model(coords=coords) as model:
+        normal = Prior("Normal", dims="idx")
+        Censored(normal, lower=0).create_likelihood_variable(
+            "censored_normal",
+            observed=observed,
+            mu=mu,
+        )
+    logp = model.compile_logp()
+
+    with pm.Model() as expected_model:
+        pm.Censored(
+            "censored_normal",
+            pm.Normal.dist(mu=mu, sigma=1, shape=n_points),
+            lower=0,
+            upper=np.inf,
+            observed=observed,
+        )
+    expected_logp = expected_model.compile_logp()
+
+    point = {}
+    np.testing.assert_allclose(logp(point), expected_logp(point))
+
+
+def test_to_json_deprecation() -> None:
+    match = "The `to_json` method is deprecated"
+    with pytest.warns(DeprecationWarning, match=match):
+        Prior("Normal").to_json()
+
+
+def test_from_json_deprecation() -> None:
+    data = {
+        "dist": "Normal",
+    }
+    match = "The `from_json` method is deprecated"
+    with pytest.warns(DeprecationWarning, match=match):
+        Prior.from_json(data)

@@ -321,7 +321,7 @@ class FourierBase(BaseModel):
 
         Parameters
         ----------
-        prior : Prior
+        prior : VariableFactory | Prior
             The prior distribution to serialize.
 
         Returns
@@ -330,10 +330,7 @@ class FourierBase(BaseModel):
             The serialized prior distribution.
 
         """
-        if hasattr(prior, "to_dict"):
-            return prior.to_dict()
-
-        return prior.to_json()
+        return prior.to_dict()
 
     @property
     def nodes(self) -> list[str]:
