@@ -219,9 +219,9 @@ class MVITS(ModelBuilder):
     @property
     def _serializable_model_config(self) -> dict[str, int | float | dict]:  # type: ignore
         result: dict[str, int | float | dict] = {
-            "intercept": self.model_config["intercept"].to_json(),
-            "likelihood": self.model_config["likelihood"].to_json(),
-            "market_distribution": self.model_config["market_distribution"].to_json(),
+            "intercept": self.model_config["intercept"].to_dict(),
+            "likelihood": self.model_config["likelihood"].to_dict(),
+            "market_distribution": self.model_config["market_distribution"].to_dict(),
         }
 
         return result

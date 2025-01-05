@@ -579,9 +579,6 @@ class Transformation:
 
 
 def _serialize_value(value: Any) -> Any:
-    if isinstance(value, Prior):
-        return value.to_json()
-
     if hasattr(value, "to_dict"):
         return value.to_dict()
 

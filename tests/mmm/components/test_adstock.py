@@ -153,7 +153,7 @@ def test_adstock_from_dict_without_priors(adstock, deserialize_func) -> None:
 
     adstock = deserialize_func(data)
     assert adstock.default_priors == {
-        k: Prior.from_json(v) for k, v in adstock.to_dict()["priors"].items()
+        k: Prior.from_dict(v) for k, v in adstock.to_dict()["priors"].items()
     }
 
 

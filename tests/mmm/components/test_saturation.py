@@ -243,7 +243,7 @@ def test_saturation_from_dict_without_priors(saturation) -> None:
 
     saturation = saturation_from_dict(data)
     assert saturation.default_priors == {
-        k: Prior.from_json(v) for k, v in saturation.to_dict()["priors"].items()
+        k: Prior.from_dict(v) for k, v in saturation.to_dict()["priors"].items()
     }
 
 
