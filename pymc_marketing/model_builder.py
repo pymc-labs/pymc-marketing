@@ -72,7 +72,16 @@ def create_idata_accessor(value: str, message: str):
 
         return self.idata[value]
 
-    return property(accessor)
+    def setter(self, res: az.InferenceData) -> None:
+        if self.idata is None:
+            self.idata = res
+        elif "posterior" in self.idata:
+            warnings.warn("Overriding pre-existing fit_result", stacklevel=1)
+            self.idata.posterior = res
+        else:
+            self.idata.posterior = res
+
+    return property(accessor, setter)
 
 
 def create_sample_kwargs(
@@ -957,6 +966,9 @@ class ModelBuilder(ABC):
         "The model hasn't been sampled yet, call .sample_prior_predictive() first",
     )
     posterior = create_idata_accessor(
+        "posterior", "The model hasn't been fit yet, call .fit() first"
+    )
+    fit_result = create_idata_accessor(
         "posterior", "The model hasn't been fit yet, call .fit() first"
     )
     posterior_predictive = create_idata_accessor(
