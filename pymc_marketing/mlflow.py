@@ -590,7 +590,7 @@ def log_mmm(
     include_last_observations: bool = False,
     original_scale: bool = True,
 ) -> None:
-    """Log a PyMC-Marketing MMM as an MLflow artifact for the current run.
+    """Log a PyMC-Marketing MMM as a native MLflow model for the current run.
 
     Parameters
     ----------
@@ -616,6 +616,12 @@ def log_mmm(
     original_scale : bool, optional
         Whether to return predictions in original scale of target variable. Used for all
         prediction methods. Defaults to True.
+
+    Notes
+    -----
+    This function logs the model as a native MLflow model, this is different to the full model object,
+    which includes the InferenceData. Doing this allows for the model to be stored in the MLFlow registry,
+    helping with model versioning and deployment.
 
     Examples
     --------
@@ -803,7 +809,8 @@ def autolog(
     arviz_summary_kwargs : dict, optional
         Additional keyword arguments to pass to `az.summary`.
     log_mmm : bool, optional
-        Whether to log PyMC-Marketing MMM models. Default is True.
+        Whether to log PyMC-Marketing MMM models as a native MLflow model,
+        enabling use of the MLflow model registry. Default is True.
     disable : bool, optional
         Whether to disable autologging. Default is False.
     silent : bool, optional
