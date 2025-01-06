@@ -409,48 +409,6 @@ def log_sample_diagnostics(
     mlflow.log_param("pymc_version", pm.__version__)
 
 
-def log_loocv_metrics(
-    idata: az.InferenceData,
-) -> None:
-    """Log Bayesian LOOCV metrics to MLflow.
-
-    Compute Pareto-smoothed importance sampling leave-one-out cross-validation (PSIS-LOO-CV).
-    Estimates the expected log pointwise predictive density (elpd) using Pareto-smoothed
-    importance sampling leave-one-out cross-validation (PSIS-LOO-CV).
-    In order to compute the PSIS-LOO-CV, we need to compute the log_likelihood of the model too,
-    which will extend the inference data with a log_likelihood group.
-    Requires the user to have already called `pm.compute_log_likelihood()` on the model.
-
-    Parameters
-    ----------
-    idata : az.InferenceData
-        The InferenceData object returned by the sampling method. Must contain
-        the groups 'posterior', 'sample_stats', and 'log_likelihood'.
-    """
-    if (
-        "posterior" not in idata
-        or "sample_stats" not in idata
-        or "log_likelihood" not in idata
-    ):
-        warnings.warn(
-            "Skipping LOOCV metrics: InferenceData object does not contain "
-            "the group posterior, sample stats and log_likelihood.",
-            UserWarning,
-            stacklevel=2,
-        )
-        return
-
-    model_loo = az.loo(idata)
-
-    loocv_metrics = {
-        "loocv_elpd_loo": model_loo.elpd_loo,
-        "loocv_se": model_loo.se,
-        "loocv_p_loo": model_loo.p_loo,
-    }
-
-    mlflow.log_metrics(loocv_metrics)
-
-
 def log_inference_data(
     idata: az.InferenceData,
     save_file: str | Path = "idata.nc",
@@ -820,7 +778,6 @@ def autolog(
     summary_var_names: list[str] | None = None,
     arviz_summary_kwargs: dict | None = None,
     log_mmm: bool = True,
-    log_loocv: bool = False,
     disable: bool = False,
     silent: bool = False,
 ) -> None:
@@ -847,9 +804,6 @@ def autolog(
         Additional keyword arguments to pass to `az.summary`.
     log_mmm : bool, optional
         Whether to log PyMC-Marketing MMM models. Default is True.
-    log_loocv : bool, optional
-        Whether to log LOOCV metrics for model. Default is False.
-        Requires the user to have already called `pm.compute_log_likelihood()` on the model.
     disable : bool, optional
         Whether to disable autologging. Default is False.
     silent : bool, optional
@@ -933,20 +887,6 @@ def autolog(
     """
     arviz_summary_kwargs = arviz_summary_kwargs or {}
 
-    def patch_compute_log_likelihood(compute_log_likelihood: Callable) -> Callable:
-        """Patch the compute_log_likelihood function to log LOOCV metrics."""
-
-        @wraps(compute_log_likelihood)
-        def new_compute_log_likelihood(*args, **kwargs):
-            idata = compute_log_likelihood(*args, **kwargs)
-            log_loocv_metrics(idata=idata)
-
-            return idata
-
-        return new_compute_log_likelihood
-
-    pm.compute_log_likelihood = patch_compute_log_likelihood(pm.compute_log_likelihood)
-
     def patch_sample(sample: Callable) -> Callable:
         @wraps(sample)
         def new_sample(*args, **kwargs):
@@ -973,10 +913,6 @@ def autolog(
 
             if log_metadata_info:
                 log_metadata(model=model, idata=idata)
-
-            # Ensure log-likelihood is only added once
-            if log_loocv and "log_likelihood" not in idata.groups():
-                pm.compute_log_likelihood(idata=idata, model=model)
 
             return idata
 
