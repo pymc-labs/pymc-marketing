@@ -275,7 +275,7 @@ def test_fit_result_error():
         model.fit_result
 
 
-def test_set_fit_result():
+def test_set_fit_result(toy_X, toy_y):
     model = ModelBuilderTest()
     model.build_model(X=toy_X, y=toy_y)
     model.idata = None
