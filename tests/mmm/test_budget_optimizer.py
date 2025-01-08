@@ -167,38 +167,31 @@ def test_allocate_budget_zero_total(
 def test_allocate_budget_custom_minimize_args(minimize_mock) -> None:
     total_budget = 100
     budget_bounds = {"channel_1": (0.0, 50.0), "channel_2": (0.0, 50.0)}
-    parameters = {
-        "saturation_params": {
-            "lam": np.array(
-                [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]]
-            ),  # dims: chain, draw, channel
-            "beta": np.array(
-                [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]]
-            ),  # dims: chain, draw, channel
-        },
-        "adstock_params": {
-            "alpha": np.array(
-                [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]]
-            )  # dims: chain, draw, channel
-        },
-        "channels": ["channel_1", "channel_2"],
-    }
+    # parameters = {
+    #     "saturation_params": {
+    #         "lam": np.array(
+    #             [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]]
+    #         ),  # dims: chain, draw, channel
+    #         "beta": np.array(
+    #             [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]]
+    #         ),  # dims: chain, draw, channel
+    #     },
+    #     "adstock_params": {
+    #         "alpha": np.array(
+    #             [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]]
+    #         )  # dims: chain, draw, channel
+    #     },
+    #     "channels": ["channel_1", "channel_2"],
+    # }
     minimize_kwargs = {
         "method": "SLSQP",
         "options": {"ftol": 1e-8, "maxiter": 1_002},
     }
 
-    adstock = GeometricAdstock(l_max=4)
-    saturation = LogisticSaturation()
+    # adstock = GeometricAdstock(l_max=4)
+    # saturation = LogisticSaturation()
 
-    optimizer = optimizer = BudgetOptimizer(
-        adstock=adstock,
-        saturation=saturation,
-        num_periods=30,
-        parameters=parameters,
-        adstock_first=True,
-        scales=np.array([1, 1]),
-    )
+    optimizer = BudgetOptimizer(num_periods=30)
     match = "Using default equality constraint"
     with pytest.warns(UserWarning, match=match):
         optimizer.allocate_budget(
@@ -253,16 +246,11 @@ def test_allocate_budget_custom_minimize_args(minimize_mock) -> None:
 def test_allocate_budget_infeasible_constraints(
     total_budget, budget_bounds, parameters, custom_constraints
 ):
-    adstock = GeometricAdstock(l_max=4)
-    saturation = LogisticSaturation()
+    # adstock = GeometricAdstock(l_max=4)
+    # saturation = LogisticSaturation()
 
-    optimizer = optimizer = BudgetOptimizer(
-        adstock=adstock,
-        saturation=saturation,
+    optimizer = BudgetOptimizer(
         num_periods=30,
-        parameters=parameters,
-        adstock_first=True,
-        scales=np.array([1, 1]),
     )
 
     with pytest.raises(MinimizeException, match="Optimization failed"):

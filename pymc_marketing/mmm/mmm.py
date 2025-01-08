@@ -32,7 +32,6 @@ from xarray import DataArray, Dataset
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.base import BaseValidateMMM
-from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     adstock_from_dict,
@@ -2232,14 +2231,28 @@ class MMM(
             progressbar=False,
         ).merge(constant_data)
 
+    def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
+        """Return the respective PyMC model with any predictors set for optimization."""
+        model = self.model
+        # Models with HSGP have a time_index data variable
+        if "time_index" in model.named_vars:
+            model = model.copy()
+            start_date = model["time_index"].get_value(borrow=True)[-1]
+            training_dates = (
+                np.arange(num_periods + self.adstock.l_max) + start_date + 1
+            )
+            # Consider using pm.set_data, but then we need new coordinates
+            model["time_index"].set_value(
+                training_dates.astype(model["time_index"].type.dtype)
+            )
+        return model
+
     def optimize_budget(
         self,
         budget: float | int,
         num_periods: int,
         budget_bounds: dict[str, tuple[float, float]] | None = None,
-        custom_constraints: dict[str, float] | None = None,
-        noise_level: float = 0.01,
-        response_scaler: float = 1.0,
+        response_variable: str = "channel_contributions",
         utility_function: UtilityFunctionType = average_response,
         **minimize_kwargs,
     ) -> az.InferenceData:
@@ -2263,15 +2276,13 @@ class MMM(
         ----------
         budget : float or int
             The total budget to be allocated.
-        num_periods : float
+        num_periods : int
             The number of time units over which the budget is to be allocated.
-        budget_bounds : dict[str, list[Any]], optional
+        budget_bounds : dict[str, tuple[float, float]], optional
             A dictionary specifying the lower and upper bounds for the budget allocation
             for each channel. If None, no bounds are applied.
-        custom_constraints : dict[str, float], optional
-            Custom constraints for the optimization. If None, no custom constraints are applied.
-        noise_level : float, optional
-            The level of noise added to the allocation strategy (by default 1%).
+        response_variable : str, optional
+            The response variable to optimize. Default is "channel_contributions".
         utility_function : UtilityFunctionType, optional
             The utility function to maximize. Default is the mean of the response distribution.
         **minimize_kwargs
@@ -2290,26 +2301,18 @@ class MMM(
         ValueError
             If the noise level is not a float.
         """
-        if not isinstance(noise_level, float):
-            raise ValueError("noise_level must be a float")
-
-        _parameters = self._format_parameters_for_budget_allocator()
+        from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
         allocator = BudgetOptimizer(
-            adstock=self.adstock,
-            saturation=self.saturation,
-            parameters=_parameters,
-            adstock_first=self.adstock_first,
             num_periods=num_periods,
-            scales=self.channel_transformer["scaler"].scale_,
-            response_scaler=response_scaler,
             utility_function=utility_function,
+            response_variable=response_variable,
+            hmm_model=self,
         )
 
         return allocator.allocate_budget(
             total_budget=budget,
             budget_bounds=budget_bounds,
-            custom_constraints=custom_constraints,
             **minimize_kwargs,
         )
 
@@ -2389,6 +2392,8 @@ class MMM(
 
         _parameters = self._format_parameters_for_budget_allocator()
 
+        from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+
         allocator = BudgetOptimizer(
             adstock=self.adstock,
             saturation=self.saturation,
@@ -2402,7 +2407,6 @@ class MMM(
         self.optimal_allocation_dict, _ = allocator.allocate_budget(
             total_budget=budget,
             budget_bounds=budget_bounds,
-            custom_constraints=custom_constraints,
             **minimize_kwargs,
         )
 
