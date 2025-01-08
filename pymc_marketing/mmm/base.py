@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -270,40 +270,6 @@ class MMMModelBuilder(ModelBuilder):
         except AttributeError:
             identity_transformer = FunctionTransformer()
             return Pipeline(steps=[("scaler", identity_transformer)])
-
-    @property
-    def prior(self) -> Dataset:
-        """Get the prior data."""
-        if self.idata is None or "prior" not in self.idata:
-            raise RuntimeError(
-                "The model hasn't been sampled yet, call .sample_prior_predictive() first"
-            )
-        return self.idata["prior"]
-
-    @property
-    def prior_predictive(self) -> Dataset:
-        """Get the prior predictive data."""
-        if self.idata is None or "prior_predictive" not in self.idata:
-            raise RuntimeError(
-                "The model hasn't been sampled yet, call .sample_prior_predictive() first"
-            )
-        return self.idata["prior_predictive"]
-
-    @property
-    def fit_result(self) -> Dataset:
-        """Get the posterior data."""
-        if self.idata is None or "posterior" not in self.idata:
-            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        return self.idata["posterior"]
-
-    @property
-    def posterior_predictive(self) -> Dataset:
-        """Get the posterior predictive data."""
-        if self.idata is None or "posterior_predictive" not in self.idata:
-            raise RuntimeError(
-                "The model hasn't been fit yet, call .sample_posterior_predictive() first"
-            )
-        return self.idata["posterior_predictive"]
 
     def _get_group_predictive_data(
         self,

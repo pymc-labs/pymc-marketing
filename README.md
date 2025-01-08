@@ -19,7 +19,7 @@
 
 ## Marketing Analytics Tools from [PyMC Labs](https://www.pymc-labs.com)
 
-Unlock the power of **Marketing Mix Modeling (MMM)** and **Customer Lifetime Value (CLV)** analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
+Unlock the power of **Marketing Mix Modeling (MMM)**, **Customer Lifetime Value (CLV)** and **Customer Choice Analysis (CSA)** analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
 
 ----
 
@@ -40,9 +40,9 @@ Explore these topics further by watching our video on [Bayesian Marketing Mix Mo
 - [Bayesian Discord server](https://discord.gg/swztKRaVKe)
 - [MMM Hub Slack](https://www.mmmhub.org/slack)
 
-## Quick Installation Guide for Marketing Mix Modeling (MMM) & CLV
+## Quick Installation Guide
 
-To dive into MMM and CLV analytics, set up a specialized Python environment, `marketing_env`, via conda-forge:
+To dive into PyMC-Marketing, set up a specialized Python environment, `marketing_env`, via conda-forge:
 
 ```bash
 conda create -c conda-forge -n marketing_env pymc-marketing
@@ -59,19 +59,19 @@ We provide a `Dockerfile` to build a Docker image for PyMC-Marketing so that is 
 
 Leverage our Bayesian MMM API to tailor your marketing strategies effectively. Leveraging on top of the research article [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017)](https://research.google/pubs/pub46001/),  and extending it by integrating the expertise from core PyMC developers, our API provides:
 
-| Feature                                    | Description                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Custom Priors and Likelihoods              | Tailor your model to your specific business needs by including domain knowledge via prior distributions.                                                                                                                                                                                                                                                                               |
-| Adstock Transformation                     | Optimize the carry-over effects in your marketing channels.                                                                                                                                                                                                                                                                                                                            |
-| Saturation Effects                         | Understand the diminishing returns in media investments.                                                                                                                                                                                                                                                                                                                               |
-| Customize adstock and saturation functions | You can select from a variety of adstock and saturation functions. You can even implement your own custom functions. See [documentation guide](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_components.html).                                                                                                                                                             |
-| Time-varying Intercept                     | Capture time-varying baseline contributions in your model (using modern and efficient Gaussian processes approximation methods). See [guide notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_time_varying_media_example.html).                                                                                                                                      |
-| Time-varying Media Contribution            | Capture time-varying media efficiency in your model (using modern and efficient Gaussian processes approximation methods). See the [guide notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_tvp_example.html).                                                                                                                                                       |
-| Visualization and Model Diagnostics        | Get a comprehensive view of your model's performance and insights.                                                                                                                                                                                                                                                                                                                     |
-| Choose among many inference algorithms     | We provide the option to choose between various NUTS samplers (e.g. BlackJax, NumPyro and Nutpie). See the [example notebook](https://www.pymc-marketing.io/en/stable/notebooks/general/other_nuts_samplers.html) for more details.                                                                                                                                                    |
-| GPU Support                                | PyMC's multiple backends allow for GPU acceleration.                                                                                                                                                                                                                                                                                                                                   |
-| Out-of-sample Predictions                  | Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.                                                                                                                                                                                                                                                                         |
-| Budget Optimization                        | Allocate your marketing spend efficiently across various channels for maximum ROI. See the [budget optimization example notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_budget_allocation_example.html)                                                                                                                                                            |
+| Feature                                    | Benefit                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Custom Priors and Likelihoods              | Tailor your model to your specific business needs by including domain knowledge via prior distributions.                                                                                                                                                                                                                                                                                |
+| Adstock Transformation                     | Optimize the carry-over effects in your marketing channels.                                                                                                                                                                                                                                                                                                                             |
+| Saturation Effects                         | Understand the diminishing returns in media investments.                                                                                                                                                                                                                                                                                                                                |
+| Customize adstock and saturation functions | You can select from a variety of adstock and saturation functions. You can even implement your own custom functions. See [documentation guide](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_components.html).                                                                                                                                                              |
+| Time-varying Intercept                     | Capture time-varying baseline contributions in your model (using modern and efficient Gaussian processes approximation methods). See [guide notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_time_varying_media_example.html).                                                                                                                                       |
+| Time-varying Media Contribution            | Capture time-varying media efficiency in your model (using modern and efficient Gaussian processes approximation methods). See the [guide notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_tvp_example.html).                                                                                                                                                        |
+| Visualization and Model Diagnostics        | Get a comprehensive view of your model's performance and insights.                                                                                                                                                                                                                                                                                                                      |
+| Choose among many inference algorithms     | We provide the option to choose between various NUTS samplers (e.g. BlackJax, NumPyro and Nutpie). See the [example notebook](https://www.pymc-marketing.io/en/stable/notebooks/general/other_nuts_samplers.html) for more details.                                                                                                                                                     |
+| GPU Support                                | PyMC's multiple backends allow for GPU acceleration.                                                                                                                                                                                                                                                                                                                                    |
+| Out-of-sample Predictions                  | Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.                                                                                                                                                                                                                                                                          |
+| Budget Optimization                        | Allocate your marketing spend efficiently across various channels for maximum ROI. See the [budget optimization example notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_budget_allocation_example.html)                                                                                                                                                             |
 | Experiment Calibration                     | Fine-tune your model based on empirical experiments for a more unified view of marketing. See the [lift test integration explanation](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_lift_test.html) for more details. [Here](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_roas.html) you can find a *Case Study: Unobserved Confounders, ROAS and Lift Tests*. |
 
 ### MMM Quickstart
@@ -144,6 +144,7 @@ Understand and optimize your customer's value with our **CLV models**. Our API s
 - [Pareto/NBD model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/pareto_nbd.html)
 - [Gamma-Gamma model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/gamma_gamma.html)
 - [Shifted Beta-Geo model](https://www.pymc-marketing.io/en/stable/notebooks/clv/sBG.html)
+- [Modified BG/NBD model](https//pymc-marketing.readthedocs.io/en/stable/notebooks/clv/mbg_nbd.html)
 
 ### Examples
 
@@ -174,6 +175,46 @@ Once fitted, we can use the model to predict the number of future purchases for 
 ![](docs/source/_static/expected_purchases.png)
 
 See the Examples section for more on this.
+
+## Customer Choice Analysis with PyMC-Marketing
+
+Analyze the impact of new product launches and understand customer choice behavior with our **Multivariate Interrupted Time Series (MVITS)** models. Our API supports analysis in both saturated and unsaturated markets to help you:
+
+| Feature                     | Benefit                                                           |
+| --------------------------- | ----------------------------------------------------------------- |
+| Market Share Analysis       | Understand how new products affect existing product market shares |
+| Causal Impact Assessment    | Measure the true causal effect of product launches on sales       |
+| Saturated Market Analysis   | Model scenarios where total market size remains constant          |
+| Unsaturated Market Analysis | Handle cases where new products grow the total market size        |
+| Visualization Tools         | Plot market shares, causal impacts, and counterfactuals           |
+| Bayesian Inference          | Get uncertainty estimates around all predictions                  |
+
+### Customer Choice Quickstart
+
+```python
+import pandas as pd
+from pymc_marketing.customer_choice import MVITS, plot_product
+
+# Define existing products
+existing_products = ["competitor", "own"]
+
+# Create MVITS model
+mvits = MVITS(
+    existing_sales=existing_products,
+    saturated_market=True  # Set False for unsaturated markets
+)
+
+# Fit model
+mvits.fit(X, y)
+
+# Plot counterfactuals
+mvits.plot_counterfactual()
+
+# Plot causal impact on market share
+mvits.plot_causal_impact_market_share()
+```
+
+See our example notebooks for [saturated markets](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mv_its_saturated.html) and [unsaturated markets](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mv_its_unsaturated.html) to learn more about customer choice modeling with PyMC-Marketing.
 
 ## Why PyMC-Marketing vs other solutions?
 

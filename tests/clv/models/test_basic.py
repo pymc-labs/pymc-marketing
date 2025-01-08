@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -132,11 +132,6 @@ class TestCLVModel:
         ):
             model.fit(fit_method="wrong_method")
 
-    def test_fit_result_error(self):
-        model = CLVModelTest()
-        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
-            model.fit_result
-
     def test_load(self, mocker):
         model = CLVModelTest()
 
@@ -152,20 +147,6 @@ class TestCLVModel:
     def test_default_sampler_config(self):
         model = CLVModelTest()
         assert model.sampler_config == {}
-
-    def test_set_fit_result(self):
-        model = CLVModelTest()
-        model.build_model()
-        model.idata = None
-        fake_fit = pm.sample_prior_predictive(
-            samples=50, model=model.model, random_seed=1234
-        )
-        fake_fit.add_groups(dict(posterior=fake_fit.prior))
-        model.fit_result = fake_fit
-        with pytest.warns(UserWarning, match="Overriding pre-existing fit_result"):
-            model.fit_result = fake_fit
-        model.idata = None
-        model.fit_result = fake_fit
 
     def test_fit_summary_for_mcmc(self, mocker):
         model = CLVModelTest()

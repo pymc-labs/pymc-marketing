@@ -160,18 +160,18 @@ class TestBetaGeoModel:
             BetaGeoModel(data=data_invalid)
 
     def test_customer_id_duplicate(self):
+        data = pd.DataFrame(
+            {
+                "customer_id": np.asarray([1, 1]),
+                "frequency": np.asarray([1, 1]),
+                "recency": np.asarray([1, 1]),
+                "T": np.asarray([1, 1]),
+            }
+        )
+
         with pytest.raises(
             ValueError, match="Column customer_id has duplicate entries"
         ):
-            data = pd.DataFrame(
-                {
-                    "customer_id": np.asarray([1, 1]),
-                    "frequency": np.asarray([1, 1]),
-                    "recency": np.asarray([1, 1]),
-                    "T": np.asarray([1, 1]),
-                }
-            )
-
             BetaGeoModel(
                 data=data,
             )

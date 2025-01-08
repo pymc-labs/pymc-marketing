@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -52,14 +52,17 @@ Plot the default priors for an adstock transformation:
 
 """
 
+from __future__ import annotations
+
 import numpy as np
 import xarray as xr
 from pydantic import Field, validate_call
 
+from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.mmm.components.base import (
     SupportedPrior,
     Transformation,
-    _deserialize,
+    create_registration_meta,
 )
 from pymc_marketing.mmm.transformers import (
     ConvMode,
@@ -70,8 +73,12 @@ from pymc_marketing.mmm.transformers import (
 )
 from pymc_marketing.prior import Prior
 
+ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {}
 
-class AdstockTransformation(Transformation):
+AdstockRegistrationMeta: type[type] = create_registration_meta(ADSTOCK_TRANSFORMATIONS)
+
+
+class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta):  # type: ignore
     """Subclass for all adstock functions.
 
     In order to use a custom saturation function, inherit from this class and define:
@@ -322,17 +329,6 @@ class WeibullCDFAdstock(AdstockTransformation):
     }
 
 
-ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {
-    cls.lookup_name: cls  # type: ignore
-    for cls in [
-        GeometricAdstock,
-        DelayedAdstock,
-        WeibullPDFAdstock,
-        WeibullCDFAdstock,
-    ]
-}
-
-
 def register_adstock_transformation(cls: type[AdstockTransformation]) -> None:
     """Register a new adstock transformation."""
     ADSTOCK_TRANSFORMATIONS[cls.lookup_name] = cls
@@ -345,6 +341,16 @@ def adstock_from_dict(data: dict) -> AdstockTransformation:
     cls = ADSTOCK_TRANSFORMATIONS[lookup_name]
 
     if "priors" in data:
-        data["priors"] = {k: _deserialize(v) for k, v in data["priors"].items()}
+        data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
 
     return cls(**data)
+
+
+def _is_adstock(data):
+    return "lookup_name" in data and data["lookup_name"] in ADSTOCK_TRANSFORMATIONS
+
+
+register_deserialization(
+    is_type=_is_adstock,
+    deserialize=adstock_from_dict,
+)

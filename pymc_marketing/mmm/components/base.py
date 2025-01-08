@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -579,9 +579,6 @@ class Transformation:
 
 
 def _serialize_value(value: Any) -> Any:
-    if isinstance(value, Prior):
-        return value.to_json()
-
     if hasattr(value, "to_dict"):
         return value.to_dict()
 
@@ -594,8 +591,45 @@ def _serialize_value(value: Any) -> Any:
     return value
 
 
-def _deserialize(value):
-    try:
-        return Prior.from_json(value)
-    except Exception:
-        return value
+class DuplicatedTransformationError(Exception):
+    """Exception when a transformation is duplicated."""
+
+    def __init__(self, name: str, lookup_name: str):
+        self.name = name
+        self.lookup_name = lookup_name
+        super().__init__(f"Duplicate {name}. The name {lookup_name!r} already exists.")
+
+
+def create_registration_meta(subclasses: dict[str, Any]) -> type[type]:
+    """Create a metaclass for registering subclasses.
+
+    Parameters
+    ----------
+    subclasses : dict[str, type[Transformation]]
+        The subclasses to register.
+
+    Returns
+    -------
+    type
+        The metaclass for registering subclasses.
+
+    """
+
+    class RegistrationMeta(type):
+        def __new__(cls, name, bases, attrs):
+            new_cls = super().__new__(cls, name, bases, attrs)
+
+            if "lookup_name" not in attrs:
+                return new_cls
+
+            base_name = bases[0].__name__
+
+            lookup_name = attrs["lookup_name"]
+            if lookup_name in subclasses:
+                raise DuplicatedTransformationError(base_name, lookup_name)
+
+            subclasses[lookup_name] = new_cls
+
+            return new_cls
+
+    return RegistrationMeta

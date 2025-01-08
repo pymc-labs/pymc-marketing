@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ from pymc_marketing.clv.models import (
     BetaGeoModel,
     GammaGammaModel,
     GammaGammaModelIndividual,
+    ModifiedBetaGeoModel,
     ParetoNBDModel,
     ShiftedBetaGeoModelIndividual,
 )
@@ -40,6 +41,7 @@ __all__ = (
     "BetaGeoModel",
     "GammaGammaModel",
     "GammaGammaModelIndividual",
+    "ModifiedBetaGeoModel",
     "ParetoNBDModel",
     "ShiftedBetaGeoModelIndividual",
     "customer_lifetime_value",

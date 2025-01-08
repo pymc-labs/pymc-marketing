@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -16,15 +16,16 @@
 import warnings
 from typing import Any
 
+from pymc_marketing.deserialize import deserialize
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
-from pymc_marketing.prior import Prior
+from pymc_marketing.prior import Prior, VariableFactory
 
 
 class ModelConfigError(Exception):
     """Exception raised for errors in model configuration."""
 
 
-ModelConfig = dict[str, HSGPKwargs | Prior | Any]
+ModelConfig = dict[str, VariableFactory | HSGPKwargs | Prior | Any]
 
 
 def parse_model_config(
@@ -121,11 +122,11 @@ def parse_model_config(
         if name in non_distributions or name in hsgp_kwargs_fields:
             return prior_config
 
-        if isinstance(prior_config, Prior):
+        if isinstance(prior_config, Prior) or isinstance(prior_config, VariableFactory):
             return prior_config
 
         try:
-            dist = Prior.from_json(prior_config)
+            dist = deserialize(prior_config)
         except Exception as e:
             parse_errors.append(f"Parameter {name}: {e}")
         else:
