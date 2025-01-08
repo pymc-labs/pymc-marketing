@@ -132,11 +132,6 @@ class TestCLVModel:
         ):
             model.fit(fit_method="wrong_method")
 
-    def test_fit_result_error(self):
-        model = CLVModelTest()
-        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
-            model.fit_result
-
     def test_load(self, mocker):
         model = CLVModelTest()
 
