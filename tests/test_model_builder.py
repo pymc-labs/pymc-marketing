@@ -269,13 +269,13 @@ def test_fit_dup_Y(toy_X, toy_y):
         model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
 
 
-def test_fit_result_error(self):
+def test_fit_result_error():
     model = ModelBuilderTest()
     with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
         model.fit_result
 
 
-def test_set_fit_result(self):
+def test_set_fit_result():
     model = ModelBuilderTest()
     model.build_model()
     model.idata = None
