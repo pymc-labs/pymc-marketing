@@ -412,13 +412,13 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             dataset = data.assign(T=T)
 
         dataset = self._extract_predictive_variables(data, customer_varnames=["T"])
-        T = dataset["T"].values
+        T = dataset["T"].values  # type: ignore
         # Delete "T" so we can pass dataset directly to `sample_posterior_predictive`
         del dataset["T"]
 
         if dataset.sizes["chain"] == 1 and dataset.sizes["draw"] == 1:
             # For map fit add a dummy draw dimension
-            dataset = dataset.squeeze("draw").expand_dims(draw=range(n_samples))
+            dataset = dataset.squeeze("draw").expand_dims(draw=range(n_samples))  # type: ignore
 
         with pm.Model():
             a = pm.HalfFlat("a")
