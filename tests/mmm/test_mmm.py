@@ -484,14 +484,14 @@ class TestMMM:
         inference_periods = len(inference_data.coords["date"])
 
         # a) Total budget consistency check
-        allocated_budget = sum(mmm_fitted.optimal_allocation_dict.values())
+        allocated_budget = mmm_fitted.optimal_allocation.sum()
         assert np.isclose(allocated_budget, budget, rtol=1e-5), (
             f"Total allocated budget {allocated_budget} does not match expected budget {budget}"
         )
 
         # b) Budget boundaries check
         for channel, bounds in budget_bounds.items():
-            allocation = mmm_fitted.optimal_allocation_dict[channel]
+            allocation = mmm_fitted.optimal_allocation.sel(channel=channel)
             lower_bound, upper_bound = bounds
             assert lower_bound <= allocation <= upper_bound, (
                 f"Channel {channel} allocation {allocation} is out of bounds ({lower_bound}, {upper_bound})"
