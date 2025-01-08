@@ -593,6 +593,22 @@ def autolog(
 
     pm.sample = patch_sample(pm.sample)
 
+    def patch_find_MAP(find_MAP):
+        @wraps(find_MAP)
+        def new_find_MAP(*args, **kwargs):
+            result = find_MAP(*args, **kwargs)
+
+            model = pm.modelcontext(kwargs.get("model"))
+
+            if log_model_info:
+                log_model_derived_info(model)
+
+            return result
+
+        return new_find_MAP
+
+    pm.find_MAP = patch_find_MAP(pm.find_MAP)
+
     def patch_mmm_fit(fit):
         @wraps(fit)
         def new_fit(*args, **kwargs):
