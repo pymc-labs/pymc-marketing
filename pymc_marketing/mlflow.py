@@ -119,6 +119,7 @@ except ImportError:  # pragma: no cover
 
 from mlflow.utils.autologging_utils import autologging_integration
 
+from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.mmm import MMM
 from pymc_marketing.version import __version__
 
@@ -420,6 +421,7 @@ def autolog(
     summary_var_names: list[str] | None = None,
     arviz_summary_kwargs: dict | None = None,
     log_mmm: bool = True,
+    log_clv: bool = True,
     disable: bool = False,
     silent: bool = False,
 ) -> None:
@@ -446,6 +448,8 @@ def autolog(
         Additional keyword arguments to pass to `az.summary`.
     log_mmm : bool, optional
         Whether to log PyMC-Marketing MMM models. Default is True.
+    log_clv : bool, optional
+        Whether to log PyMC-Marketing CLV models. Default is True.
     disable : bool, optional
         Whether to disable autologging. Default is False.
     silent : bool, optional
@@ -476,7 +480,7 @@ def autolog(
         with mlflow.start_run():
             idata = pm.sample(model=model)
 
-    Autologging for a PyMC-Marketing model:
+    Autologging for a PyMC-Marketing MMM:
 
     .. code-block:: python
 
@@ -524,6 +528,34 @@ def autolog(
             # Additional specific logging
             fig = mmm.plot_components_contributions()
             mlflow.log_figure(fig, "components.png")
+
+    Autologging for a PyMC-Marketing CLV model:
+
+    .. code-block:: python
+
+        import pandas as pd
+
+        import mlflow
+
+        from pymc_marketing.clv import BetaGeoModel
+
+        import pymc_marketing.mlflow
+
+        pymc_marketing.mlflow.autolog(log_clv=True)
+
+        mlflow.set_experiment("CLV Experiment")
+
+        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
+        data = pd.read_csv(data_url)
+        data["customer_id"] = data.index
+
+        model = BetaGeoModel(data=data)
+
+        with mlflow.start_run():
+            model.fit()
+
+        with mlflow.start_run():
+            model.fit(fit_method="map")
 
     """
     arviz_summary_kwargs = arviz_summary_kwargs or {}
@@ -585,3 +617,20 @@ def autolog(
 
     if log_mmm:
         MMM.fit = patch_mmm_fit(MMM.fit)
+
+    def patch_clv_fit(fit):
+        @wraps(fit)
+        def new_fit(self, fit_method: str = "mcmc", **kwargs):
+            mlflow.log_param("model_type", self._model_type)
+            mlflow.log_param("fit_method", fit_method)
+            idata = fit(self, fit_method, **kwargs)
+            mlflow.log_params(
+                idata.attrs,
+            )
+
+            return idata
+
+        return new_fit
+
+    if log_clv:
+        CLVModel.fit = patch_clv_fit(CLVModel.fit)
