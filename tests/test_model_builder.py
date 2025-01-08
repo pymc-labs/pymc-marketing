@@ -277,7 +277,7 @@ def test_fit_result_error():
 
 def test_set_fit_result():
     model = ModelBuilderTest()
-    model.build_model()
+    model.build_model(X=toy_X, y=toy_y)
     model.idata = None
     fake_fit = pm.sample_prior_predictive(
         samples=50, model=model.model, random_seed=1234
