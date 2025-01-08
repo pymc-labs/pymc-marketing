@@ -627,6 +627,7 @@ def autolog(
             mlflow.log_params(
                 idata.attrs,
             )
+            log_inference_data(idata, save_file="idata.nc")
 
             return idata
 
