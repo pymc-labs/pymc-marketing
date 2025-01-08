@@ -488,7 +488,7 @@ class TestBetaGeoNBD:
                 0.55,
                 10.58,
                 0.61,
-                np.full((5, 3), 11.67),
+                np.full((1), 11.67),
                 12,
             ),
         ],
