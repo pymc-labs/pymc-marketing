@@ -15,6 +15,7 @@
 """Budget optimization module."""
 
 import warnings
+from collections.abc import Sequence
 from typing import Any, ClassVar
 
 import numpy as np
@@ -28,6 +29,11 @@ from pytensor.graph.basic import get_var_by_name
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray
 
+from pymc_marketing.mmm.constraints import (
+    build_constraint,
+    build_default_sum_constraint,
+    compile_constraints_for_scipy,
+)
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 
 
@@ -87,6 +93,15 @@ class BudgetOptimizer(BaseModel):
         description="Mask defining a subset of budgets that should be optimized. "
         "Non optimized budgets are fixed to 0.",
     )
+    custom_constraints: Sequence[dict[str, Any]] = Field(
+        default=(),
+        description="Custom constraints to add to the optimizer.",
+        arbitrary_types_allowed=True,
+    )
+    default_constraints: bool = Field(
+        default=True,
+        description="Whether to set the default sum constraint to the optimizer.",
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -112,6 +127,31 @@ class BudgetOptimizer(BaseModel):
 
         self._compiled_functions = {}
         self._compile_objective_and_grad()
+        self._constraints = {}
+        self.set_constraints(
+            default=self.default_constraints, constraints=self.custom_constraints
+        )
+
+    def set_constraints(self, constraints, default=None):
+        """Set constraints"""
+        self._constraints = {}
+        if default is None:
+            default = False if constraints else True
+
+        for c in constraints:
+            new_constraint = build_constraint(
+                key=c["key"],
+                constraint_fun=c["constraint_fun"],
+                constraint_type=c.get("constraint_type", "eq"),
+            )
+            self._constraints[c["key"]] = new_constraint
+
+        if default:
+            self._constraints["default"] = build_default_sum_constraint("default")
+
+        self._compiled_constraints = compile_constraints_for_scipy(
+            constraints=self._constraints, optimizer=self
+        )
 
     def _create_budget_variable(self):
         if self.opt_mask is None:
@@ -328,17 +368,15 @@ class BudgetOptimizer(BaseModel):
                 (low, high) for low, high in budget_bounds.values[self.opt_mask.values]
             ]  # type: ignore
 
-        if custom_constraints is None:
-            constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
-            warnings.warn(
-                "Using default equality constraint: The sum of all budgets should be equal to the total budget.",
-                UserWarning,
-                stacklevel=2,
+        constraints_for_scipy = []
+        for c in self._compiled_constraints:
+            constraints_for_scipy.append(
+                {
+                    "type": c["type"],
+                    "fun": lambda x, f=c["fun"]: f(x, total_budget),
+                    "jac": lambda x, j=c["jac"]: j(x, total_budget),
+                }
             )
-        elif not isinstance(custom_constraints, dict):
-            raise TypeError("`custom_constraints` should be a dictionary.")
-        else:
-            constraints = custom_constraints
 
         [budgets_size] = get_var_by_name(
             [self._create_budget_variable()], "budgets_flat"
@@ -350,11 +388,12 @@ class BudgetOptimizer(BaseModel):
         else:
             minimize_kwargs = {**self.DEFAULT_MINIMIZE_KWARGS, **minimize_kwargs}
 
+        # Add total_budget as an argument to constraints
         result = minimize(
             fun=self._objective,
             x0=initial_guess,
             bounds=bounds,
-            constraints=constraints,
+            constraints=constraints_for_scipy,
             jac=self._gradient,
             **minimize_kwargs,
         )

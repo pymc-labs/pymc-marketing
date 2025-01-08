@@ -16,6 +16,7 @@
 import json
 import logging
 import warnings
+from collections.abc import Sequence
 from typing import Annotated, Any, Literal
 
 import arviz as az
@@ -2254,6 +2255,8 @@ class MMM(
         budget_bounds: dict[str, tuple[float, float]] | None = None,
         response_variable: str = "channel_contributions",
         utility_function: UtilityFunctionType = average_response,
+        constraints: Sequence[dict[str, Any]] = (),
+        default_constraints: bool = True,
         **minimize_kwargs,
     ) -> az.InferenceData:
         """Optimize the given budget based on the specified utility function over a specified time period.
@@ -2285,6 +2288,11 @@ class MMM(
             The response variable to optimize. Default is "channel_contributions".
         utility_function : UtilityFunctionType, optional
             The utility function to maximize. Default is the mean of the response distribution.
+        custom_constraints : list[dict[str, Any]], optional
+            Custom constraints for the optimization. If None, no custom constraints are applied. Format:
+            [{"key":...,"constraint_fun":...,"constraint_type":...}]
+        default_constraints : bool, optional
+            Whether to add the default sum constraint to the optimizer. Default is True.
         **minimize_kwargs
             Additional arguments to pass to the `BudgetOptimizer`.
 
@@ -2308,6 +2316,8 @@ class MMM(
             utility_function=utility_function,
             response_variable=response_variable,
             hmm_model=self,
+            custom_constraints=constraints,
+            default_constraints=default_constraints,
         )
 
         return allocator.allocate_budget(
@@ -2407,6 +2417,7 @@ class MMM(
         self.optimal_allocation_dict, _ = allocator.allocate_budget(
             total_budget=budget,
             budget_bounds=budget_bounds,
+            custom_constraints=custom_constraints,
             **minimize_kwargs,
         )
 
