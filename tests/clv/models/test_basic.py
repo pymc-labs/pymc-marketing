@@ -153,20 +153,6 @@ class TestCLVModel:
         model = CLVModelTest()
         assert model.sampler_config == {}
 
-    def test_set_fit_result(self):
-        model = CLVModelTest()
-        model.build_model()
-        model.idata = None
-        fake_fit = pm.sample_prior_predictive(
-            samples=50, model=model.model, random_seed=1234
-        )
-        fake_fit.add_groups(dict(posterior=fake_fit.prior))
-        model.fit_result = fake_fit
-        with pytest.warns(UserWarning, match="Overriding pre-existing fit_result"):
-            model.fit_result = fake_fit
-        model.idata = None
-        model.fit_result = fake_fit
-
     def test_fit_summary_for_mcmc(self, mocker):
         model = CLVModelTest()
 

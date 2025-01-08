@@ -269,6 +269,21 @@ def test_fit_dup_Y(toy_X, toy_y):
         model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
 
 
+def test_set_fit_result(self):
+    model = ModelBuilderTest()
+    model.build_model()
+    model.idata = None
+    fake_fit = pm.sample_prior_predictive(
+        samples=50, model=model.model, random_seed=1234
+    )
+    fake_fit.add_groups(dict(posterior=fake_fit.prior))
+    model.fit_result = fake_fit
+    with pytest.warns(UserWarning, match="Overriding pre-existing fit_result"):
+        model.fit_result = fake_fit
+    model.idata = None
+    model.fit_result = fake_fit
+
+
 @pytest.mark.skipif(
     sys.platform == "win32",
     reason="Permissions for temp files not granted on windows CI.",
