@@ -13,8 +13,9 @@
 #   limitations under the License.
 """Distributions for the CLV module."""
 
+from functools import reduce
+
 import numpy as np
-import pymc as pm
 import pytensor.tensor as pt
 from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.dist_math import betaln, check_parameters
@@ -28,26 +29,16 @@ __all__ = ["BetaGeoBetaBinom", "ContContract", "ContNonContract", "ParetoNBD"]
 
 class ContNonContractRV(RandomVariable):
     name = "continuous_non_contractual"
-    ndim_supp = 1
-    ndims_params = [0, 0, 0, 0]
+    signature = "(),(),()->(2)"
     dtype = "floatX"
     _print_name = ("ContNonContract", "\\operatorname{ContNonContract}")
 
-    def make_node(self, rng, size, dtype, lam, p, T):
-        T = pt.as_tensor_variable(T)
-
-        return super().make_node(rng, size, dtype, lam, p, T)
+    def __call__(self, lam, p, T, size=None, **kwargs):
+        return super().__call__(lam, p, T, size=size, **kwargs)
 
     @classmethod
     def rng_fn(cls, rng, lam, p, T, size):
-        size = pm.distributions.shape_utils.to_tuple(size)
-
-        # TODO: broadcast sizes
-        lam = np.asarray(lam)
-        p = np.asarray(p)
-        T = np.asarray(T)
-
-        if size == ():
+        if size is None:
             size = np.broadcast_shapes(lam.shape, p.shape, T.shape)
 
         lam = np.broadcast_to(lam, size)
@@ -73,9 +64,6 @@ class ContNonContractRV(RandomVariable):
         t_x[nzp] = 0.0
 
         return np.stack([t_x, x], axis=-1)
-
-    def _supp_shape_from_params(*args, **kwargs):
-        return (2,)
 
 
 continuous_non_contractual = ContNonContractRV()
@@ -129,13 +117,14 @@ class ContNonContract(PositiveContinuous):
         )
 
         logp = pt.switch(
-            pt.any(
-                (
+            reduce(
+                pt.bitwise_or,
+                [
                     pt.and_(pt.ge(t_x, 0), zero_observations),
                     pt.lt(t_x, 0),
                     pt.lt(x, 0),
                     pt.gt(t_x, T),
-                ),
+                ],
             ),
             -np.inf,
             logp,
@@ -152,29 +141,16 @@ class ContNonContract(PositiveContinuous):
 
 class ContContractRV(RandomVariable):
     name = "continuous_contractual"
-    ndim_supp = 1
-    ndims_params = [0, 0, 0, 0]
+    signature = "(),(),()->(3)"
     dtype = "floatX"
     _print_name = ("ContinuousContractual", "\\operatorname{ContinuousContractual}")
-
-    def make_node(self, rng, size, dtype, lam, p, T):
-        T = pt.as_tensor_variable(T)
-
-        return super().make_node(rng, size, dtype, lam, p, T)
 
     def __call__(self, lam, p, T, size=None, **kwargs):
         return super().__call__(lam, p, T, size=size, **kwargs)
 
     @classmethod
     def rng_fn(cls, rng, lam, p, T, size):
-        size = pm.distributions.shape_utils.to_tuple(size)
-
-        # To do: broadcast sizes
-        lam = np.asarray(lam)
-        p = np.asarray(p)
-        T = np.asarray(T)
-
-        if size == ():
+        if size is None:
             size = np.broadcast_shapes(lam.shape, p.shape, T.shape)
 
         lam = np.broadcast_to(lam, size)
@@ -254,24 +230,15 @@ class ContContract(PositiveContinuous):
         )
 
         logp = pt.switch(
-            pt.any(pt.or_(pt.lt(t_x, 0), zero_observations)),
-            -np.inf,
-            logp,
-        )
-        logp = pt.switch(
-            pt.all(
-                pt.or_(pt.eq(churn, 0), pt.eq(churn, 1)),
-            ),
-            logp,
-            -np.inf,
-        )
-        logp = pt.switch(
-            pt.any(
-                (
+            reduce(
+                pt.bitwise_or,
+                [
+                    zero_observations,
                     pt.lt(t_x, 0),
                     pt.lt(x, 0),
                     pt.gt(t_x, T),
-                ),
+                    pt.bitwise_not(pt.bitwise_or(pt.eq(churn, 0), pt.eq(churn, 1))),
+                ],
             ),
             -np.inf,
             logp,
@@ -289,34 +256,16 @@ class ContContract(PositiveContinuous):
 
 class ParetoNBDRV(RandomVariable):
     name = "pareto_nbd"
-    ndim_supp = 1
-    ndims_params = [0, 0, 0, 0, 0]
+    signature = "(),(),(),(),()->(2)"
     dtype = "floatX"
     _print_name = ("ParetoNBD", "\\operatorname{ParetoNBD}")
-
-    def make_node(self, rng, size, dtype, r, alpha, s, beta, T):
-        r = pt.as_tensor_variable(r)
-        alpha = pt.as_tensor_variable(alpha)
-        s = pt.as_tensor_variable(s)
-        beta = pt.as_tensor_variable(beta)
-        T = pt.as_tensor_variable(T)
-
-        return super().make_node(rng, size, dtype, r, alpha, s, beta, T)
 
     def __call__(self, r, alpha, s, beta, T, size=None, **kwargs):
         return super().__call__(r, alpha, s, beta, T, size=size, **kwargs)
 
     @classmethod
     def rng_fn(cls, rng, r, alpha, s, beta, T, size):
-        size = pm.distributions.shape_utils.to_tuple(size)
-
-        r = np.asarray(r)
-        alpha = np.asarray(alpha)
-        s = np.asarray(s)
-        beta = np.asarray(beta)
-        T = np.asarray(T)
-
-        if size == ():
+        if size is None:
             size = np.broadcast_shapes(
                 r.shape, alpha.shape, s.shape, beta.shape, T.shape
             )
@@ -356,9 +305,6 @@ class ParetoNBDRV(RandomVariable):
             output[index] = sim_data(lam[index], mu[index], T[index])
 
         return output
-
-    def _supp_shape_from_params(*args, **kwargs):
-        return (2,)
 
 
 pareto_nbd = ParetoNBDRV()
@@ -489,34 +435,16 @@ class ParetoNBD(PositiveContinuous):
 
 class BetaGeoBetaBinomRV(RandomVariable):
     name = "beta_geo_beta_binom"
-    ndim_supp = 1
-    ndims_params = [0, 0, 0, 0, 0]
+    signature = "(),(),(),(),()->(2)"
     dtype = "floatX"
     _print_name = ("BetaGeoBetaBinom", "\\operatorname{BetaGeoBetaBinom}")
-
-    def make_node(self, rng, size, dtype, alpha, beta, gamma, delta, T):
-        alpha = pt.as_tensor_variable(alpha)
-        beta = pt.as_tensor_variable(beta)
-        gamma = pt.as_tensor_variable(gamma)
-        delta = pt.as_tensor_variable(delta)
-        T = pt.as_tensor_variable(T)
-
-        return super().make_node(rng, size, dtype, alpha, beta, gamma, delta, T)
 
     def __call__(self, alpha, beta, gamma, delta, T, size=None, **kwargs):
         return super().__call__(alpha, beta, gamma, delta, T, size=size, **kwargs)
 
     @classmethod
     def rng_fn(cls, rng, alpha, beta, gamma, delta, T, size) -> np.ndarray:
-        size = pm.distributions.shape_utils.to_tuple(size)
-
-        alpha = np.asarray(alpha)
-        beta = np.asarray(beta)
-        gamma = np.asarray(gamma)
-        delta = np.asarray(delta)
-        T = np.asarray(T)
-
-        if size == ():
+        if size is None:
             size = np.broadcast_shapes(
                 alpha.shape, beta.shape, gamma.shape, delta.shape, T.shape
             )
@@ -556,9 +484,6 @@ class BetaGeoBetaBinomRV(RandomVariable):
             output[index] = sim_data(purchase_prob[index], churn_prob[index], T[index])
 
         return output
-
-    def _supp_shape_from_params(*args, **kwargs):
-        return (2,)
 
 
 beta_geo_beta_binom = BetaGeoBetaBinomRV()
