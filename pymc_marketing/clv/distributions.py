@@ -597,20 +597,10 @@ class BetaGeoBetaBinom(Discrete):
 
 class BetaGeoNBDRV(RandomVariable):
     name = "bg_nbd"
-    ndim_supp = 1
-    ndims_params = [0, 0, 0, 0, 0]
+    signature = "(),(),(),(),()->(2)"
 
     dtype = "floatX"
     _print_name = ("BetaGeoNBD", "\\operatorname{BetaGeoNBD}")
-
-    def make_node(self, rng, size, dtype, a, b, r, alpha, T):
-        a = pt.as_tensor_variable(a)
-        b = pt.as_tensor_variable(b)
-        r = pt.as_tensor_variable(r)
-        alpha = pt.as_tensor_variable(alpha)
-        T = pt.as_tensor_variable(T)
-
-        return super().make_node(rng, size, dtype, a, b, r, alpha, T)
 
     def __call__(self, a, b, r, alpha, T, size=None, **kwargs):
         return super().__call__(a, b, r, alpha, T, size=size, **kwargs)
@@ -664,9 +654,6 @@ class BetaGeoNBDRV(RandomVariable):
             output[index] = sim_data(lam[index], p[index], T[index])
 
         return output
-
-    def _supp_shape_from_params(*args, **kwargs):
-        return (2,)
 
 
 bg_nbd = BetaGeoNBDRV()
