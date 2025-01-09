@@ -271,13 +271,6 @@ class MMMModelBuilder(ModelBuilder):
             identity_transformer = FunctionTransformer()
             return Pipeline(steps=[("scaler", identity_transformer)])
 
-    @property
-    def fit_result(self) -> Dataset:
-        """Get the posterior data."""
-        if self.idata is None or "posterior" not in self.idata:
-            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        return self.idata["posterior"]
-
     def _get_group_predictive_data(
         self,
         group: Literal["prior_predictive", "posterior_predictive"],
