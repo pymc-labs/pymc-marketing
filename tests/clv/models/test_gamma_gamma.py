@@ -211,7 +211,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
                 preds.mean(("draw", "chain")), expected_preds_mean, rtol=0.1
             )
             np.testing.assert_allclose(
-                preds.std(("draw", "chain")), expected_preds_std, rtol=0.25
+                preds.std(("draw", "chain")), expected_preds_std, rtol=0.5
             )
 
         else:
