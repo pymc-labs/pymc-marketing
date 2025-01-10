@@ -425,36 +425,6 @@ class BetaGeoModel(CLVModel):
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
-    @staticmethod
-    def _logp(
-        a: xarray.DataArray,
-        b: xarray.DataArray,
-        r: xarray.DataArray,
-        alpha: xarray.DataArray,
-        x: xarray.DataArray,
-        t_x: xarray.DataArray,
-        T: xarray.DataArray,
-    ) -> xarray.DataArray:
-        """Log-likelihood of the BG/NBD model.
-
-        Utility function for using BetaGeoNBD log-likelihood in predictive methods.
-        """
-        # Add one dummy dimension to the right of the scalar parameters, so they broadcast with the `T` vector
-        bg_bnd_dist = BetaGeoNBD.dist(
-            a=a.values[..., None],
-            b=b.values[..., None],
-            r=r.values[..., None],
-            alpha=alpha.values[..., None]
-            if "customer_id" not in alpha.dims
-            else alpha.values,
-            T=T.values,
-        )
-        values = np.vstack((t_x.values, x.values)).T
-        # TODO: Instead of compiling this function everytime this method is called
-        #  we could compile it once (with mutable inputs) and cache it for reuse with new inputs.
-        loglike = pm.logp(bg_bnd_dist, values).eval()
-        return xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
-
     def expected_probability_no_purchase(
         self,
         t: int,
