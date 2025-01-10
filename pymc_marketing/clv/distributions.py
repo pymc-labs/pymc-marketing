@@ -661,18 +661,18 @@ class BetaGeoNBD(PositiveContinuous):
 
     .. math::
 
-        \mathbb{LL}(\r, \alpha, \a, \b  | x, t_x, T) &=
-        D_1 + D_2 + \ln(C_3) (C_3 + \delta_{x>0} C_4)
-
-        where:
-        D_1 &= \ln \left[ \Gamma(r+x) \rigth] - \ln \left[ \Gamma(r) \right] + \ln \right[ \Gamma(a+b) \left] + \ln \right[ \Gamma(b+x) \left] \\
+        \mathbb{LL}(r, \alpha, a, b  | x, t_x, T) =
+        D_1 + D_2 + \ln(C_3 + \delta_{x>0} C_4) \text{, where:} \\
+        \begin{align}
+        D_1 &= \ln \left[ \Gamma(r+x) \right] - \ln \left[ \Gamma(r) \right] + \ln \left[ \Gamma(a+b) \right] + \ln \left[ \Gamma(b+x) \right] \\
         D_2 &= r \ln(\alpha) - (r+x) \ln(\alpha + t_x) \\
-        C_3 &= (\frac{\alpha + t_x}{\alpha + T})^{r+x} \\
-        C_4 &= (\frac{a}{b+x-1})(\frac{1} \\
+        C_3 &= \left(\frac{\alpha + t_x}{\alpha + T} \right)^{r+x} \\
+        C_4 &= \left(\frac{a}{b+x-1} \right) \\
+        \end{align}
 
     ========  ===============================================
     Support   :math:`t_j >= 0` for :math:`j = 1, \dots,x`
-    Mean      :math:`\mathbb{E}[X(n) | r, \alpha, a, b] = \frac{a+b-1}{a-1} \left[ 1 - (\frac{\alpha}{\alpha + T})^r \leftidx{_2}{F}{_1}(r,b;a+b-1;\frac{t}{\alpha + t}) \right] `
+    Mean      :math:`\mathbb{E}[X(n) | r, \alpha, a, b] = \frac{a+b-1}{a-1} \left[ 1 - \left(\frac{\alpha}{\alpha + T}\right)^r {_2}{F}{_1}(r,b;a+b-1;\frac{t}{\alpha + t}) \right]`
     ========  ===============================================
 
     References
