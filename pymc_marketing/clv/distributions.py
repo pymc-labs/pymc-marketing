@@ -631,24 +631,19 @@ class BetaGeoNBDRV(RandomVariable):
         p = rng.beta(a=a, b=b, size=size)
 
         def sim_data(lam, p, T):
-            t = 0
-            n = 0
+            t = 0  # recency
+            n = 0  # frequency
 
-            dropout_time = rng.exponential(scale=1 / p)
+            churn = 0  # BG/NBD assumes all non-repeat customers are active
             wait = rng.exponential(scale=1 / lam)
 
-            final_t = min(dropout_time, T)
-            while (t + wait) < final_t:
-                t += wait
+            while t + wait < T and not churn:
                 n += 1
+                churn = rng.binomial(n=1, p=p)
+                t += wait
                 wait = rng.exponential(scale=1 / lam)
 
-            return np.array(
-                [
-                    t,
-                    n,
-                ],
-            )
+            return np.array([t, n])
 
         for index in np.ndindex(*size):
             output[index] = sim_data(lam[index], p[index], T[index])
