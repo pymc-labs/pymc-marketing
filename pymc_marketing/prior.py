@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -97,6 +97,7 @@ Create a prior with a custom transform function by registering it with
 from __future__ import annotations
 
 import copy
+import warnings
 from collections.abc import Callable
 from inspect import signature
 from typing import Any, Protocol, runtime_checkable
@@ -641,8 +642,10 @@ class Prior:
 
         return getattr(pz, self.distribution)(**self.parameters)
 
-    def to_json(self) -> dict[str, Any]:
-        """Convert the prior to the previous dictionary format.
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the prior to dictionary format.
+
+        This is equivalent to the older PyMC-Marketing dictionary format.
 
         Returns
         -------
@@ -659,7 +662,7 @@ class Prior:
 
             dist = Prior("Normal", mu=0, sigma=1)
 
-            dist.to_json()
+            dist.to_dict()
             # {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}}
 
         Convert a hierarchical prior to the dictionary format.
@@ -673,7 +676,7 @@ class Prior:
                 dims="channel",
             )
 
-            dist.to_json()
+            dist.to_dict()
             # {
             #     "dist": "Normal",
             #     "kwargs": {
@@ -684,14 +687,14 @@ class Prior:
             # }
 
         """
-        json: dict[str, Any] = {
+        data: dict[str, Any] = {
             "dist": self.distribution,
         }
         if self.parameters:
 
             def handle_value(value):
                 if isinstance(value, Prior):
-                    return value.to_json()
+                    return value.to_dict()
 
                 if isinstance(value, pt.TensorVariable):
                     value = value.eval()
@@ -704,27 +707,45 @@ class Prior:
 
                 return value
 
-            json["kwargs"] = {
+            data["kwargs"] = {
                 param: handle_value(value) for param, value in self.parameters.items()
             }
         if not self.centered:
-            json["centered"] = False
+            data["centered"] = False
 
         if self.dims:
-            json["dims"] = self.dims
+            data["dims"] = self.dims
 
         if self.transform:
-            json["transform"] = self.transform
+            data["transform"] = self.transform
 
-        return json
+        return data
+
+    def to_json(self) -> dict[str, Any]:
+        """Convert the prior to dictionary format.
+
+        Deprecated in favor of :function:`pymc_marketing.prior.Prior.to_dict`.
+
+        Returns
+        -------
+        dict[str, Any]
+            The dictionary format of the prior.
+
+        """
+        warnings.warn(
+            "The `to_json` method is deprecated in favor of `to_dict`",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.to_dict()
 
     @classmethod
-    def from_json(cls, json) -> Prior:
+    def from_dict(cls, data) -> Prior:
         """Create a Prior from the dictionary format.
 
         Parameters
         ----------
-        json : dict[str, Any]
+        data : dict[str, Any]
             The dictionary format of the prior.
 
         Returns
@@ -740,25 +761,25 @@ class Prior:
 
             from pymc_marketing.prior import Prior
 
-            json = {
+            data = {
                 "dist": "Normal",
                 "kwargs": {"mu": 0, "sigma": 1},
             }
 
-            dist = Prior.from_json(json)
+            dist = Prior.from_dict(data)
             dist
             # Prior("Normal", mu=0, sigma=1)
 
         """
-        if not isinstance(json, dict):
+        if not isinstance(data, dict):
             msg = (
                 "Must be a dictionary representation of a prior distribution. "
-                f"Not of type: {type(json)}"
+                f"Not of type: {type(data)}"
             )
             raise ValueError(msg)
 
-        dist = json["dist"]
-        kwargs = json.get("kwargs", {})
+        dist = data["dist"]
+        kwargs = data.get("kwargs", {})
 
         def handle_value(value):
             if isinstance(value, dict):
@@ -770,13 +791,37 @@ class Prior:
             return value
 
         kwargs = {param: handle_value(value) for param, value in kwargs.items()}
-        centered = json.get("centered", True)
-        dims = json.get("dims")
+        centered = data.get("centered", True)
+        dims = data.get("dims")
         if isinstance(dims, list):
             dims = tuple(dims)
-        transform = json.get("transform")
+        transform = data.get("transform")
 
         return cls(dist, dims=dims, centered=centered, transform=transform, **kwargs)
+
+    @classmethod
+    def from_json(cls, json) -> Prior:
+        """Create a Prior from the dictionary format.
+
+        Deprecated in favor of :function:`pymc_marketing.prior.Prior.from_dict`.
+
+        Parameters
+        ----------
+        json : dict[str, Any]
+            The dictionary format of the prior.
+
+        Returns
+        -------
+        Prior
+            The prior distribution.
+
+        """
+        warnings.warn(
+            "The `from_json` method is deprecated in favor of `from_dict`",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return cls.from_dict(json)
 
     def constrain(
         self, lower: float, upper: float, mass: float = 0.95, kwargs=None
@@ -1133,7 +1178,7 @@ class Censored:
         return {
             "class": "Censored",
             "data": {
-                "dist": self.distribution.to_json(),
+                "dist": self.distribution.to_dict(),
                 "lower": handle_value(self.lower),
                 "upper": handle_value(self.upper),
             },
@@ -1144,7 +1189,7 @@ class Censored:
         """Create a censored distribution from a dictionary."""
         data = data["data"]
         return cls(  # type: ignore
-            distribution=Prior.from_json(data["dist"]),
+            distribution=Prior.from_dict(data["dist"]),
             lower=data["lower"],
             upper=data["upper"],
         )
@@ -1295,5 +1340,5 @@ def _is_censored_type(data: dict) -> bool:
     return data.keys() == {"class", "data"} and data["class"] == "Censored"
 
 
-register_deserialization(is_type=_is_prior_type, deserialize=Prior.from_json)
+register_deserialization(is_type=_is_prior_type, deserialize=Prior.from_dict)
 register_deserialization(is_type=_is_censored_type, deserialize=Censored.from_dict)

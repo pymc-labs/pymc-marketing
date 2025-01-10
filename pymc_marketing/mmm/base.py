@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -270,40 +270,6 @@ class MMMModelBuilder(ModelBuilder):
         except AttributeError:
             identity_transformer = FunctionTransformer()
             return Pipeline(steps=[("scaler", identity_transformer)])
-
-    @property
-    def prior(self) -> Dataset:
-        """Get the prior data."""
-        if self.idata is None or "prior" not in self.idata:
-            raise RuntimeError(
-                "The model hasn't been sampled yet, call .sample_prior_predictive() first"
-            )
-        return self.idata["prior"]
-
-    @property
-    def prior_predictive(self) -> Dataset:
-        """Get the prior predictive data."""
-        if self.idata is None or "prior_predictive" not in self.idata:
-            raise RuntimeError(
-                "The model hasn't been sampled yet, call .sample_prior_predictive() first"
-            )
-        return self.idata["prior_predictive"]
-
-    @property
-    def fit_result(self) -> Dataset:
-        """Get the posterior data."""
-        if self.idata is None or "posterior" not in self.idata:
-            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        return self.idata["posterior"]
-
-    @property
-    def posterior_predictive(self) -> Dataset:
-        """Get the posterior predictive data."""
-        if self.idata is None or "posterior_predictive" not in self.idata:
-            raise RuntimeError(
-                "The model hasn't been fit yet, call .sample_posterior_predictive() first"
-            )
-        return self.idata["posterior_predictive"]
 
     def _get_group_predictive_data(
         self,
@@ -944,16 +910,24 @@ class MMMModelBuilder(ModelBuilder):
             )
         return fig
 
-    def compute_channel_contribution_original_scale(self) -> DataArray:
+    def compute_channel_contribution_original_scale(
+        self, prior: bool = False
+    ) -> DataArray:
         """Compute the channel contributions in the original scale of the target variable.
+
+        Parameters
+        ----------
+        prior : bool, optional
+            Whether to use the prior or posterior, by default False (posterior)
 
         Returns
         -------
         DataArray
 
         """
+        _data = self.prior if prior else self.fit_result
         channel_contribution = az.extract(
-            data=self.fit_result, var_names=["channel_contributions"], combined=False
+            data=_data, var_names=["channel_contributions"], combined=False
         )
 
         # sklearn preprocessers expect 2-D arrays of (obs, features)

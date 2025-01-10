@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 #   limitations under the License.
 """PyMC Marketing."""
 
-from pymc_marketing import clv, mmm
+from pymc_marketing import clv, customer_choice, mmm
 from pymc_marketing.version import __version__
 
-__all__ = ["__version__", "clv", "mmm"]
+__all__ = ["__version__", "clv", "customer_choice", "mmm"]

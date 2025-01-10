@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ from pymc_marketing.mmm import (
     LogisticSaturation,
     MichaelisMentenSaturation,
     RootSaturation,
+    SaturationTransformation,
     TanhSaturation,
     TanhSaturationBaselined,
     saturation_from_dict,
@@ -242,7 +243,7 @@ def test_saturation_from_dict_without_priors(saturation) -> None:
 
     saturation = saturation_from_dict(data)
     assert saturation.default_priors == {
-        k: Prior.from_json(v) for k, v in saturation.to_dict()["priors"].items()
+        k: Prior.from_dict(v) for k, v in saturation.to_dict()["priors"].items()
     }
 
 
@@ -287,3 +288,20 @@ def test_deserialization(
     assert isinstance(alpha, ArbitraryObject)
     assert alpha.msg == "hello"
     assert alpha.value == 1
+
+
+def test_deserialize_new_transformation() -> None:
+    class NewSaturation(SaturationTransformation):
+        lookup_name = "new_saturation"
+
+        def function(self, x):
+            return x
+
+        default_priors = {}
+
+    data = {
+        "lookup_name": "new_saturation",
+    }
+
+    instance = deserialize(data)
+    assert isinstance(instance, NewSaturation)

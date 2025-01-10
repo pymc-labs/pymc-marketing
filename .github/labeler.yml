@@ -15,11 +15,16 @@ CLV:
       - docs/source/notebooks/clv/*
       - pymc_marketing/clv/**
 
+"customer choice":
+  - changed-files:
+    - any-glob-to-any-file:
+      - docs/source/notebooks/customer_choice/*
+      - pymc_marketing/customer_choice/**
+
 "Prior class":
   - changed-files:
     - any-glob-to-any-file:
       - pymc_marketing/prior.py
-
 
 streamlit:
   - changed-files:
@@ -35,3 +40,8 @@ mlflow:
   - changed-files:
     - any-glob-to-any-file:
       - pymc_marketing/mlflow.py
+
+ModelBuilder:
+  - changed-files:
+    - any-glob-to-any-file:
+      - pymc_marketing/model_builder.py

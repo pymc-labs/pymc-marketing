@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -298,7 +298,7 @@ def random_samples(
     combinations = list(product(range(n_chains), range(n_draws)))
 
     return [
-        tuple(pair) for pair in rng.choice(combinations, size=n, replace=False).tolist()
+        tuple(pair) for pair in list(rng.choice(combinations, size=n, replace=False))
     ]
 
 

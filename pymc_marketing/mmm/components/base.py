@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ from pymc_marketing.plot import (
     plot_hdi,
     plot_samples,
 )
-from pymc_marketing.prior import DimHandler, Prior, VariableFactory, create_dim_handler
+from pymc_marketing.prior import Prior, VariableFactory, create_dim_handler
 
 # "x" for saturation, "time since exposure" for adstock
 NON_GRID_NAMES: frozenset[str] = frozenset({"x", "time since exposure"})
@@ -318,10 +318,22 @@ class Transformation:
             for parameter in self.default_priors.keys()
         }
 
+    def _infer_output_core_dims(self) -> tuple[str, ...]:
+        parameter_dims = sorted(
+            [
+                (dims,) if isinstance(dims, str) else dims
+                for dist in self.function_priors.values()
+                if (dims := getattr(dist, "dims", None)) is not None
+            ],
+            key=len,
+            reverse=True,
+        )
+        return tuple(list({str(dim): None for dims in parameter_dims for dim in dims}))
+
     def _create_distributions(
         self, dims: Dims | None = None
     ) -> dict[str, TensorVariable]:
-        dim_handler: DimHandler = create_dim_handler(dims)
+        dim_handler = create_dim_handler(dims or self._infer_output_core_dims())
 
         def create_variable(parameter_name: str, variable_name: str) -> TensorVariable:
             dist = self.function_priors[parameter_name]
@@ -420,9 +432,7 @@ class Transformation:
         x: pt.TensorLike,
         coords: dict[str, Any],
     ) -> xr.DataArray:
-        required_vars = set(self.variable_mapping.values()).intersection(
-            parameters.data_vars.keys()
-        )
+        output_core_dims = self._infer_output_core_dims()
 
         keys = list(coords.keys())
         if len(keys) != 1:
@@ -430,34 +440,29 @@ class Transformation:
             raise ValueError(msg)
         x_dim = keys[0]
 
-        function_parameters = parameters[required_vars]
-
-        parameter_coords = function_parameters.coords
-
-        additional_coords = {
-            coord: parameter_coords[coord].to_numpy()
-            for coord in parameter_coords.keys()
-            if coord not in {"chain", "draw"}
-        }
-
-        dims = tuple(additional_coords.keys())
         # Allow broadcasting
         x = np.expand_dims(
             x,
-            axis=tuple(range(1, len(dims) + 1)),
+            axis=tuple(range(1, len(output_core_dims) + 1)),
         )
 
-        coords.update(additional_coords)
+        coords.update(
+            {
+                dim: np.asarray(coord)
+                for dim, coord in parameters.coords.items()
+                if dim not in ["chain", "draw"]
+            }
+        )
 
         with pm.Model(coords=coords):
             pm.Deterministic(
                 var_name,
-                self.apply(x, dims=dims),
-                dims=(x_dim, *dims),
+                self.apply(x, dims=output_core_dims),
+                dims=(x_dim, *output_core_dims),
             )
 
             return pm.sample_posterior_predictive(
-                function_parameters,
+                parameters,
                 var_names=[var_name],
             ).posterior_predictive[var_name]
 
@@ -579,9 +584,6 @@ class Transformation:
 
 
 def _serialize_value(value: Any) -> Any:
-    if isinstance(value, Prior):
-        return value.to_json()
-
     if hasattr(value, "to_dict"):
         return value.to_dict()
 
@@ -592,3 +594,47 @@ def _serialize_value(value: Any) -> Any:
         return value.tolist()
 
     return value
+
+
+class DuplicatedTransformationError(Exception):
+    """Exception when a transformation is duplicated."""
+
+    def __init__(self, name: str, lookup_name: str):
+        self.name = name
+        self.lookup_name = lookup_name
+        super().__init__(f"Duplicate {name}. The name {lookup_name!r} already exists.")
+
+
+def create_registration_meta(subclasses: dict[str, Any]) -> type[type]:
+    """Create a metaclass for registering subclasses.
+
+    Parameters
+    ----------
+    subclasses : dict[str, type[Transformation]]
+        The subclasses to register.
+
+    Returns
+    -------
+    type
+        The metaclass for registering subclasses.
+
+    """
+
+    class RegistrationMeta(type):
+        def __new__(cls, name, bases, attrs):
+            new_cls = super().__new__(cls, name, bases, attrs)
+
+            if "lookup_name" not in attrs:
+                return new_cls
+
+            base_name = bases[0].__name__
+
+            lookup_name = attrs["lookup_name"]
+            if lookup_name in subclasses:
+                raise DuplicatedTransformationError(base_name, lookup_name)
+
+            subclasses[lookup_name] = new_cls
+
+            return new_cls
+
+    return RegistrationMeta

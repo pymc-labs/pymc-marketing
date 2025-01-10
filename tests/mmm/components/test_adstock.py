@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -32,10 +32,6 @@ from pymc_marketing.mmm import (
     WeibullCDFAdstock,
     WeibullPDFAdstock,
     adstock_from_dict,
-    register_adstock_transformation,
-)
-from pymc_marketing.mmm.components.adstock import (
-    ADSTOCK_TRANSFORMATIONS,
 )
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.prior import Prior
@@ -157,31 +153,29 @@ def test_adstock_from_dict_without_priors(adstock, deserialize_func) -> None:
 
     adstock = deserialize_func(data)
     assert adstock.default_priors == {
-        k: Prior.from_json(v) for k, v in adstock.to_dict()["priors"].items()
+        k: Prior.from_dict(v) for k, v in adstock.to_dict()["priors"].items()
     }
 
 
+class AnotherNewTransformation(AdstockTransformation):
+    lookup_name: str = "another_new_transformation"
+    default_priors = {}
+
+    def function(self, x):
+        return x
+
+
 @pytest.mark.parametrize("deserialize_func", [adstock_from_dict, deserialize])
-def test_register_adstock_transformation(deserialize_func) -> None:
-    class NewTransformation(AdstockTransformation):
-        lookup_name: str = "new_transformation"
-        default_priors = {}
-
-        def function(self, x):
-            return x
-
-    register_adstock_transformation(NewTransformation)
-    assert "new_transformation" in ADSTOCK_TRANSFORMATIONS
-
+def test_automatic_register_adstock_transformation(deserialize_func) -> None:
     data = {
-        "lookup_name": "new_transformation",
+        "lookup_name": "another_new_transformation",
         "l_max": 10,
         "normalize": False,
         "mode": "Before",
         "priors": {},
     }
     adstock = deserialize_func(data)
-    assert adstock == NewTransformation(
+    assert adstock == AnotherNewTransformation(
         l_max=10, mode=ConvMode.Before, normalize=False, priors={}
     )
 
@@ -239,3 +233,22 @@ def test_deserialization(
     assert isinstance(alpha, ArbitraryObject)
     assert alpha.msg == "hello"
     assert alpha.value == 1
+
+
+def test_deserialize_new_transformation() -> None:
+    class NewAdstock(AdstockTransformation):
+        lookup_name = "new_adstock"
+
+        def function(self, x):
+            return x
+
+        default_priors = {}
+
+    data = {
+        "lookup_name": "new_adstock",
+        "l_max": 10,
+    }
+
+    instance = deserialize(data)
+    assert isinstance(instance, NewAdstock)
+    assert instance.l_max == 10
