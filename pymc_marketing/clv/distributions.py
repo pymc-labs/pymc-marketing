@@ -679,7 +679,6 @@ class BetaGeoNBD(PositiveContinuous):
     ----------
     .. [1] Fader, Peter S., Bruce G.S. Hardie, and Jen Shang (2010),
        "Counting Your Customers" the Easy Way: An Alternative to the Pareto/NBD Model
-
        Marketing Science, 24 (Spring), 275-284
 
     .. [2] Implementing the BG/NBD Model for Customer Base Analysis in Excel http://brucehardie.com/notes/004/bgnbd_spreadsheet_note.pdf
