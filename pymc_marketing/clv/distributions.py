@@ -661,14 +661,14 @@ class BetaGeoNBD(PositiveContinuous):
 
     .. math::
 
-        \mathbb{L}(\r, \alpha, \a, \b  | x, t_x, T) &=
-        A_1 \cdot A_2 \cdot (A_3 + \delta_{x>0} A_4)
+        \mathbb{LL}(\r, \alpha, \a, \b  | x, t_x, T) &=
+        D_1 + D_2 + \ln(C_3) (C_3 + \delta_{x>0} C_4)
 
         where:
-        A_1 &= \frac{\Gamma(r+x)\alpha^r}{\Gamma(r)} \\
-        A_2 &= \frac{\Gamma(a+b)\Gamma(b+x)}{\Gamma(b)\Gamma(a+b+x)} \\
-        A_3 &= (\frac{1}{\alpha + T})^{r+x} \\
-        A_4 &= (\frac{a}{b+x-1})(\frac{1}{\alpha + t_x})^{r+x} \\
+        D_1 &= \ln \left[ \Gamma(r+x) \rigth] - \ln \left[ \Gamma(r) \right] + \ln \right[ \Gamma(a+b) \left] + \ln \right[ \Gamma(b+x) \left] \\
+        D_2 &= r \ln(\alpha) - (r+x) \ln(\alpha + t_x) \\
+        C_3 &= (\frac{\alpha + t_x}{\alpha + T})^{r+x} \\
+        C_4 &= (\frac{a}{b+x-1})(\frac{1} \\
 
     ========  ===============================================
     Support   :math:`t_j >= 0` for :math:`j = 1, \dots,x`
