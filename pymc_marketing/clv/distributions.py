@@ -683,7 +683,7 @@ class BetaGeoNBD(PositiveContinuous):
        Marketing Science, 24 (Spring), 275-284
 
     .. [2] Implementing the BG/NBD Model for Customer Base Analysis in Excel http://brucehardie.com/notes/004/bgnbd_spreadsheet_note.pdf
-    .. [3] Overcoming the BG/NBD Model's :math:`#NUM!` Error Problem https://brucehardie.com/notes/027/bgnbd_num_error.pdf
+    .. [3] Overcoming the BG/NBD Model's #NUM! Error Problem https://brucehardie.com/notes/027/bgnbd_num_error.pdf
 
     """  # noqa: E501
 
