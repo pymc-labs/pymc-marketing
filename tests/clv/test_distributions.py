@@ -494,8 +494,6 @@ class TestBetaGeoNBD:
         ],
     )
     def test_bg_nbd(self, value, r, alpha, a, b, T):
-        # weights = np.ones_like(value, dtype=int)
-
         def lifetimes_wrapper(
             r, alpha, a, b, freq, rec, T, weights=np.array(1), penalizer_coef=0.0
         ):
