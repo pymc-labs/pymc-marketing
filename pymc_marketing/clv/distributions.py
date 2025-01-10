@@ -638,8 +638,8 @@ class BetaGeoNBDRV(RandomVariable):
             wait = rng.exponential(scale=1 / lam)
 
             while t + wait < T and not churn:
+                churn = rng.random() < p
                 n += 1
-                churn = rng.binomial(n=1, p=p)
                 t += wait
                 wait = rng.exponential(scale=1 / lam)
 
