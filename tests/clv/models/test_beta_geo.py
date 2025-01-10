@@ -254,14 +254,10 @@ class TestBetaGeoModel:
         assert customer_purchase_rate.shape == expected_shape
         assert customer_rec_freq.shape == expected_pop_dims
 
-        # N = 1000
-        # p = pm.Beta.dist(self.a_true, self.b_true, size=N)
-        # theta = pm.Beta.dist(self.gamma_true, self.delta_true, size=N)
+        N = 1000
+        p = pm.Beta.dist(self.a_true, self.b_true, size=N)
+        lam = pm.Gamma.dist(self.r_true, self.alpha_true, size=N)
 
-        lam_mean = self.r_true / self.alpha_true
-        lam_std = np.sqrt(self.r_true) / self.alpha_true
-        # mu_mean = self.s_true / self.beta_true
-        #  mu_std = np.sqrt(self.s_true) / self.beta_true
         ref_rec, ref_freq = pm.draw(
             BetaGeoNBD.dist(
                 a=self.a_true,
@@ -275,16 +271,20 @@ class TestBetaGeoModel:
 
         np.testing.assert_allclose(
             customer_purchase_rate.mean(),
-            lam_mean,
+            pm.draw(lam.mean(), random_seed=rng),
             rtol=0.5,
         )
         np.testing.assert_allclose(
             customer_purchase_rate.std(),
-            lam_std,
+            pm.draw(lam.std(), random_seed=rng),
             rtol=0.5,
         )
-        # np.testing.assert_allclose(customer_dropout.mean(), mu_mean, rtol=0.5)
-        # np.testing.assert_allclose(customer_dropout.std(), mu_std, rtol=0.5)
+        np.testing.assert_allclose(
+            customer_dropout.mean(), pm.draw(p.mean(), random_seed=rng), rtol=0.5
+        )
+        np.testing.assert_allclose(
+            customer_dropout.std(), pm.draw(p.std(), random_seed=rng), rtol=0.5
+        )
 
         np.testing.assert_allclose(customer_rec.mean(), ref_rec.mean(), rtol=0.5)
         np.testing.assert_allclose(customer_rec.std(), ref_rec.std(), rtol=0.5)
