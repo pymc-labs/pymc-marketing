@@ -657,7 +657,7 @@ bg_nbd = BetaGeoNBDRV()
 class BetaGeoNBD(PositiveContinuous):
     r"""Population-level distribution class for a discrete, non-contractual, Beta-Geometric/Negative-Binomial process.
 
-    It is based on Fader, et al. in [1]_ and [2]_.
+    It is based on Fader, et al. in [1]_, [2]_ and [3]_.
 
     .. math::
 
@@ -683,6 +683,7 @@ class BetaGeoNBD(PositiveContinuous):
        Marketing Science, 24 (Spring), 275-284
 
     .. [2] Implementing the BG/NBD Model for Customer Base Analysis in Excel http://brucehardie.com/notes/004/bgnbd_spreadsheet_note.pdf
+    .. [3] Overcoming the BG/NBD Model's :math:`#NUM!` Error Problem https://brucehardie.com/notes/027/bgnbd_num_error.pdf
 
     """  # noqa: E501
 
