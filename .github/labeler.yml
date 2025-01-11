@@ -26,7 +26,6 @@ CLV:
     - any-glob-to-any-file:
       - pymc_marketing/prior.py
 
-
 streamlit:
   - changed-files:
     - any-glob-to-any-file:
@@ -41,3 +40,8 @@ mlflow:
   - changed-files:
     - any-glob-to-any-file:
       - pymc_marketing/mlflow.py
+
+ModelBuilder:
+  - changed-files:
+    - any-glob-to-any-file:
+      - pymc_marketing/model_builder.py

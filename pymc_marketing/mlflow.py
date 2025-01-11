@@ -119,6 +119,7 @@ except ImportError:  # pragma: no cover
 
 from mlflow.utils.autologging_utils import autologging_integration
 
+from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.mmm import MMM
 from pymc_marketing.version import __version__
 
@@ -163,18 +164,6 @@ def log_arviz_summary(
     os.remove(path)
 
 
-def _backwards_compatiable_data_vars(model: Model) -> list[TensorVariable]:
-    # TODO: Remove with PyMC update
-    non_data = (
-        model.observed_RVs + model.free_RVs + model.deterministics + model.potentials
-    )
-    vars = {
-        key: value for key, value in model.named_vars.items() if value not in non_data
-    }
-
-    return list(vars.values())
-
-
 def log_data(model: Model, idata: az.InferenceData) -> None:
     """Log the data used in the model to MLflow.
 
@@ -189,11 +178,7 @@ def log_data(model: Model, idata: az.InferenceData) -> None:
         The InferenceData object returned by the sampling method.
 
     """
-    data_vars: list[TensorVariable] = (
-        _backwards_compatiable_data_vars(model)
-        if not hasattr(model, "data_vars")
-        else model.data_vars
-    )
+    data_vars: list[TensorVariable] = model.data_vars
 
     features = {
         var.name: idata.constant_data[var.name].to_numpy()
@@ -420,6 +405,7 @@ def autolog(
     summary_var_names: list[str] | None = None,
     arviz_summary_kwargs: dict | None = None,
     log_mmm: bool = True,
+    log_clv: bool = True,
     disable: bool = False,
     silent: bool = False,
 ) -> None:
@@ -446,6 +432,8 @@ def autolog(
         Additional keyword arguments to pass to `az.summary`.
     log_mmm : bool, optional
         Whether to log PyMC-Marketing MMM models. Default is True.
+    log_clv : bool, optional
+        Whether to log PyMC-Marketing CLV models. Default is True.
     disable : bool, optional
         Whether to disable autologging. Default is False.
     silent : bool, optional
@@ -476,7 +464,7 @@ def autolog(
         with mlflow.start_run():
             idata = pm.sample(model=model)
 
-    Autologging for a PyMC-Marketing model:
+    Autologging for a PyMC-Marketing MMM:
 
     .. code-block:: python
 
@@ -525,6 +513,34 @@ def autolog(
             fig = mmm.plot_components_contributions()
             mlflow.log_figure(fig, "components.png")
 
+    Autologging for a PyMC-Marketing CLV model:
+
+    .. code-block:: python
+
+        import pandas as pd
+
+        import mlflow
+
+        from pymc_marketing.clv import BetaGeoModel
+
+        import pymc_marketing.mlflow
+
+        pymc_marketing.mlflow.autolog(log_clv=True)
+
+        mlflow.set_experiment("CLV Experiment")
+
+        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
+        data = pd.read_csv(data_url)
+        data["customer_id"] = data.index
+
+        model = BetaGeoModel(data=data)
+
+        with mlflow.start_run():
+            model.fit()
+
+        with mlflow.start_run():
+            model.fit(fit_method="map")
+
     """
     arviz_summary_kwargs = arviz_summary_kwargs or {}
 
@@ -561,6 +577,22 @@ def autolog(
 
     pm.sample = patch_sample(pm.sample)
 
+    def patch_find_MAP(find_MAP):
+        @wraps(find_MAP)
+        def new_find_MAP(*args, **kwargs):
+            result = find_MAP(*args, **kwargs)
+
+            model = pm.modelcontext(kwargs.get("model"))
+
+            if log_model_info:
+                log_model_derived_info(model)
+
+            return result
+
+        return new_find_MAP
+
+    pm.find_MAP = patch_find_MAP(pm.find_MAP)
+
     def patch_mmm_fit(fit):
         @wraps(fit)
         def new_fit(*args, **kwargs):
@@ -585,3 +617,21 @@ def autolog(
 
     if log_mmm:
         MMM.fit = patch_mmm_fit(MMM.fit)
+
+    def patch_clv_fit(fit):
+        @wraps(fit)
+        def new_fit(self, fit_method: str = "mcmc", **kwargs):
+            mlflow.log_param("model_type", self._model_type)
+            mlflow.log_param("fit_method", fit_method)
+            idata = fit(self, fit_method, **kwargs)
+            mlflow.log_params(
+                idata.attrs,
+            )
+            log_inference_data(idata, save_file="idata.nc")
+
+            return idata
+
+        return new_fit
+
+    if log_clv:
+        CLVModel.fit = patch_clv_fit(CLVModel.fit)
