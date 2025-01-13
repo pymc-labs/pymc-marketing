@@ -107,6 +107,8 @@ class CLVModel(ModelBuilder):
             Method used to fit the model. Options are:
             - "mcmc": Samples from the posterior via `pymc.sample` (default)
             - "map": Finds maximum a posteriori via `pymc.find_MAP`
+            - "demz": Samples from the posterior via `pymc.sample` using DEMetropolisZ
+            - "advi": Samples from the posterior via `pymc.fit(method="advi")` and `pymc.sample`
         kwargs:
             Other keyword arguments passed to the underlying PyMC routines
 
@@ -125,7 +127,7 @@ class CLVModel(ModelBuilder):
 
             case _:
                 raise ValueError(
-                    f"Fit method options are ['mcmc', 'map', 'demz'], got: {fit_method}"
+                    f"Fit method options are ['mcmc', 'map', 'demz', 'advi'], got: {fit_method}"
                 )
 
         self.idata = idata
