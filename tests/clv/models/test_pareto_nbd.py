@@ -303,7 +303,7 @@ class TestParetoNBDModel:
             rtol=0.001,
         )
 
-    @pytest.mark.parametrize("fit_type", ("map", "mcmc"))
+    @pytest.mark.parametrize("fit_type", ("map", "mcmc", "advi"))
     def test_posterior_distributions(self, fit_type) -> None:
         rng = np.random.default_rng(42)
         dim_T = 2357

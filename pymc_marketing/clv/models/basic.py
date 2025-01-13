@@ -120,6 +120,9 @@ class CLVModel(ModelBuilder):
                 idata = self._fit_MAP(**kwargs)
             case "demz":
                 idata = self._fit_DEMZ(**kwargs)
+            case "advi":
+                idata = self._fit_advi(**kwargs)
+
             case _:
                 raise ValueError(
                     f"Fit method options are ['mcmc', 'map', 'demz'], got: {fit_method}"
@@ -163,6 +166,20 @@ class CLVModel(ModelBuilder):
         sampler_config.update(**kwargs)
         with self.model:
             return pm.sample(step=pm.DEMetropolisZ(), **sampler_config)
+
+    def _fit_advi(self, **kwargs) -> az.InferenceData:
+        """Fit a model with ADVI."""
+        sampler_config = {}
+        if self.sampler_config is not None:
+            sampler_config = self.sampler_config.copy()
+        sampler_config.update(**kwargs)
+        if sampler_config.get("method") is not None:
+            raise ValueError(
+                "The 'method' parameter is set in sampler_config. Cannot be called with 'advi'."
+            )
+        with self.model:
+            pm.fit(**{"method": "advi"})
+            return pm.sample(**sampler_config)
 
     @classmethod
     def load(cls, fname: str):

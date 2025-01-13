@@ -124,6 +124,19 @@ class TestCLVModel:
         assert len(idata.posterior.draw) == 10
         assert model.fit_result is idata.posterior
 
+    def test_fit_advi(self, mocker):
+        model = CLVModelTest()
+        # mocker.patch("pymc.sample", mock_sample)
+        idata = model.fit(
+            fit_method="advi",
+            tune=5,
+            chains=2,
+            draws=10,
+        )
+        assert isinstance(idata, InferenceData)
+        assert len(idata.posterior.chain) == 2
+        assert len(idata.posterior.draw) == 10
+
     def test_wrong_fit_method(self):
         model = CLVModelTest()
         with pytest.raises(
