@@ -151,6 +151,22 @@ def _log_and_remove_artifact(path: str | Path) -> None:
     os.remove(path)
 
 
+def _force_load_idata_groups(idata: az.InferenceData) -> None:
+    """Force load all groups into memory since ArviZ does lazy loading.
+
+    Parameters
+    ----------
+    idata : az.InferenceData
+        The InferenceData object to force load.
+    """
+    for group in idata.groups():
+        # Convert each group to an in-memory dataset
+        if hasattr(idata, group):
+            group_data = getattr(idata, group)
+            if hasattr(group_data, "load"):
+                group_data.load()
+
+
 def log_arviz_summary(
     idata: az.InferenceData,
     path: str | Path,
@@ -391,8 +407,6 @@ def log_sample_diagnostics(
             posterior.attrs["inference_library_version"],
         )
     mlflow.log_param("arviz_version", posterior.attrs["arviz_version"])
-    mlflow.log_param("pymc_marketing_version", __version__)
-    mlflow.log_param("pymc_version", pm.__version__)
 
 
 def log_inference_data(
@@ -742,13 +756,8 @@ def load_mmm(
     model = MMM.load(idata_path)
 
     if not keep_idata:
-        # Force load all groups into memory since ArviZ does lazy loading
-        for group in model.idata.groups():
-            # Convert each group to an in-memory dataset
-            if hasattr(model.idata, group):
-                group_data = getattr(model.idata, group)
-                if hasattr(group_data, "load"):
-                    group_data.load()
+        _force_load_idata_groups(model.idata)
+
         try:
             os.remove(idata_path)
             os.rmdir(dst_path)
