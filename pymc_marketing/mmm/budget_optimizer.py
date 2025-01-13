@@ -82,6 +82,11 @@ class BudgetOptimizer(BaseModel):
         description="Utility function to maximize.",
         arbitrary_types_allowed=True,
     )
+    opt_mask: DataArray | None = Field(
+        default=None,
+        description="Mask defining a subset of budgets that should be optimized. "
+        "Non optimized budgets are fixed to 0.",
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -109,9 +114,20 @@ class BudgetOptimizer(BaseModel):
         self._compile_objective_and_grad()
 
     def _create_budget_variable(self):
-        size_budgets = np.prod(self._budget_shape)
+        if self.opt_mask is None:
+            size_budgets = np.prod(self._budget_shape)
+        else:
+            size_budgets = self.opt_mask.sum().item()
+
         budgets_flat = pt.tensor("budgets_flat", shape=(size_budgets,))
-        budgets = budgets_flat.reshape(self._budget_shape)
+
+        if self.opt_mask is None:
+            budgets = budgets_flat.reshape(self._budget_shape)
+        else:
+            budgets = pt.zeros(self._budget_shape)[
+                np.asarray(self.opt_mask).astype(bool)
+            ].set(budgets_flat)
+
         return budgets
 
     def _compile_objective_and_grad(self):
@@ -304,7 +320,13 @@ class BudgetOptimizer(BaseModel):
         else:
             raise ValueError("budget_bounds must be an DataArray")
 
-        bounds = [(low, high) for low, high in budget_bounds.values.reshape(-1, 2)]  # type: ignore
+        if self.opt_mask is None:
+            bounds = [(low, high) for low, high in budget_bounds.values.reshape(-1, 2)]  # type: ignore
+        else:
+            # xarray does not allow boolean indexing with >1D arrays
+            bounds = [
+                (low, high) for low, high in budget_bounds.values[self.opt_mask.values]
+            ]  # type: ignore
 
         if custom_constraints is None:
             constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
@@ -338,7 +360,11 @@ class BudgetOptimizer(BaseModel):
         )
 
         if result.success:
-            optimal_budgets = np.reshape(result.x, self._budget_shape)
+            if self.opt_mask is None:
+                optimal_budgets = np.reshape(result.x, self._budget_shape)
+            else:
+                optimal_budgets = np.zeros_like(self.opt_mask.values, dtype=float)
+                optimal_budgets[self.opt_mask.values] = result.x
             optimal_budgets = DataArray(
                 optimal_budgets, dims=self._budget_dims, coords=self._budget_coords
             )
