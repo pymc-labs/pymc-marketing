@@ -1239,49 +1239,6 @@ class MMM(
 
         return contributions
 
-    def plot_hdi_forest(
-        self,
-        var_names: list,
-        hdi_prob: float = 0.94,
-        figsize: tuple = (12, 8),
-        **plot_kwargs,
-    ) -> plt.Figure:
-        """Plot a forest plot to compare high-density intervals (HDIs).
-
-        Plot a forest plot to compare high-density intervals (HDIs) from a given set of
-        posterior distributions, as well as their r-hat statistics.
-
-        Parameters
-        ----------
-        var_names : list
-            List of variable names to include in the forest plot.
-        hdi_prob : float, optional
-            The probability mass of the highest density interval. Defaults to 0.94.
-        figsize : tuple, optional
-            Figure size in inches. Defaults to (12, 8).
-        **plot_kwargs
-            Additional keyword arguments to pass to the az.plot_forest method.
-
-        Returns
-        -------
-        plt.Figure
-            The matplotlib figure object.
-        """
-        fig, ax = plt.subplots(figsize=figsize, ncols=2)
-        az.plot_forest(
-            data=self.idata,
-            var_names=var_names,
-            combined=True,
-            ax=ax,
-            hdi_prob=hdi_prob,
-            r_hat=True,
-            **plot_kwargs,
-        )
-
-        fig.suptitle(f"Posterior Distributions: {hdi_prob:.1%} HDI")
-
-        return fig
-
     def plot_components_contributions(
         self, original_scale: bool = False, **plt_kwargs: Any
     ) -> plt.Figure:
