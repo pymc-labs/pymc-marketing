@@ -29,7 +29,6 @@ from pymc_marketing.clv import BetaGeoModel
 from pymc_marketing.mlflow import (
     autolog,
     log_likelihood_type,
-    log_loocv_metrics,
     log_model_graph,
     log_sample_diagnostics,
     log_summary_metrics,
@@ -578,44 +577,6 @@ def mock_idata_for_loo() -> az.InferenceData:
         sample_stats=sample_stats,
         log_likelihood=log_likelihood,
     )
-
-
-def test_log_loocv_metrics(mock_idata_for_loo) -> None:
-    """Test logging of LOO metrics."""
-    with mlflow.start_run() as run:
-        log_loocv_metrics(mock_idata_for_loo)
-
-    run_id = run.info.run_id
-    run_data = get_run_data(run_id)
-
-    # Check that expected metrics are logged
-    expected_metrics = {
-        "loocv_elpd_loo",
-        "loocv_se",
-        "loocv_p_loo",
-    }
-    assert set(run_data.metrics.keys()) >= expected_metrics
-
-    # Check that values are reasonable
-    assert isinstance(run_data.metrics["loocv_elpd_loo"], float)
-    assert isinstance(run_data.metrics["loocv_se"], float)
-    assert isinstance(run_data.metrics["loocv_p_loo"], float)
-
-
-def test_log_loocv_metrics_no_log_likelihood() -> None:
-    """Test that appropriate error is raised when log_likelihood group is missing."""
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            data_vars={"mu": (("chain", "draw"), rng.random(size=(2, 50)))},
-            coords={"chain": [0, 1], "draw": np.arange(50)},
-        )
-    )
-
-    with pytest.warns(
-        UserWarning,
-        match="Skipping LOOCV metrics: InferenceData object does not contain",
-    ):
-        log_loocv_metrics(idata)
 
 
 def test_log_summary_metrics() -> None:
