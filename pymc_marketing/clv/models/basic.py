@@ -174,19 +174,50 @@ class CLVModel(ModelBuilder):
         sampler_config = {}
         if self.sampler_config is not None:
             sampler_config = self.sampler_config.copy()
+
         sampler_config.update(**kwargs)
-        if "method" in sampler_config:
+        if sampler_config.get("method") is not None:
             raise ValueError(
                 "The 'method' parameter is set in sampler_config. Cannot be called with 'advi'."
             )
+
         if sampler_config.get("chains", 1) > 1:
             warnings.warn(
                 "The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",
                 UserWarning,
                 stacklevel=2,
             )
+
         with self.model:
-            mean_field_approx = pm.fit(**{"method": "advi"})
+            mean_field_approx = pm.fit(
+                method="advi",
+                **{
+                    k: v
+                    for k, v in sampler_config.items()
+                    if k
+                    in [
+                        "n",
+                        "random_seed",
+                        "inf_kwargs",
+                        "start",
+                        "start_sigma",
+                        "score",
+                        "callbacks",
+                        "progressbar",
+                        "progressbar_theme",
+                        "obj_n_mc",
+                        "tf_n_mc",
+                        "obj_optimizer",
+                        "test_optimizer",
+                        "more_obj_params",
+                        "more_tf_params",
+                        "more_updates",
+                        "total_grad_norm_constraint",
+                        "fn_kwargs",
+                        "more_replacements",
+                    ]
+                },
+            )
             return mean_field_approx.sample(
                 **{
                     k: v
