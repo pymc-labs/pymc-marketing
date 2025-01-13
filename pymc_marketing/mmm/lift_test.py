@@ -642,14 +642,21 @@ def scale_lift_measurements(
         df_lift_test["sigma"],
         target_transform,
     )
-    components = [df_lift_test_channel_scaled, df_target_scaled, df_sigma_scaled]
+
     if "date" in df_lift_test.columns:
-        components.append(pd.Series(df_lift_test["date"]))
+        return pd.concat(
+            [
+                df_lift_test_channel_scaled,
+                df_target_scaled,
+                df_sigma_scaled,
+                pd.Series(df_lift_test["date"]),
+            ],
+            axis=1,
+        )
 
-    return pd.concat(components, axis=1)
-
-
-
+    return pd.concat(
+        [df_lift_test_channel_scaled, df_target_scaled, df_sigma_scaled], axis=1
+    )
 
 
 def create_time_varying_saturation(
