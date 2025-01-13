@@ -179,9 +179,21 @@ class CLVModel(ModelBuilder):
             raise ValueError(
                 "The 'method' parameter is set in sampler_config. Cannot be called with 'advi'."
             )
+        if sampler_config.get("chains", 1) > 1:
+            warnings.warn(
+                "The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",
+                UserWarning,
+                stacklevel=2,
+            )
         with self.model:
-            pm.fit(**{"method": "advi"})
-            return pm.sample(**sampler_config)
+            mean_field_approx = pm.fit(**{"method": "advi"})
+            return mean_field_approx.sample(
+                **{
+                    k: v
+                    for k, v in sampler_config.items()
+                    if k in ["draws", "random_seed", "return_inferencedata"]
+                }
+            )
 
     @classmethod
     def load(cls, fname: str):
