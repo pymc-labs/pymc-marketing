@@ -47,4 +47,5 @@ customer_choice/mv_its_unsaturated
 
 general/model_configuration
 general/other_nuts_samplers
+general/prior_predictive
 :::

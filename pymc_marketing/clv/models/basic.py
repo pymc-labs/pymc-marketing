@@ -26,7 +26,6 @@ from pydantic import ConfigDict, InstanceOf, validate_call
 from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
 from pymc.model.core import Model
-from xarray import Dataset
 
 from pymc_marketing.model_builder import ModelBuilder
 from pymc_marketing.model_config import ModelConfig, parse_model_config
@@ -255,23 +254,6 @@ class CLVModel(ModelBuilder):
     @property
     def _serializable_model_config(self) -> dict:
         return self.model_config
-
-    @property
-    def fit_result(self) -> Dataset:
-        """Get the fit result."""
-        if self.idata is None or "posterior" not in self.idata:
-            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        return self.idata["posterior"]
-
-    @fit_result.setter
-    def fit_result(self, res: az.InferenceData) -> None:
-        if self.idata is None:
-            self.idata = res
-        elif "posterior" in self.idata:
-            warnings.warn("Overriding pre-existing fit_result", stacklevel=1)
-            self.idata.posterior = res
-        else:
-            self.idata.posterior = res
 
     def fit_summary(self, **kwargs):
         """Compute the summary of the fit result."""

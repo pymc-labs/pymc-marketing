@@ -271,13 +271,6 @@ class MMMModelBuilder(ModelBuilder):
             identity_transformer = FunctionTransformer()
             return Pipeline(steps=[("scaler", identity_transformer)])
 
-    @property
-    def fit_result(self) -> Dataset:
-        """Get the posterior data."""
-        if self.idata is None or "posterior" not in self.idata:
-            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        return self.idata["posterior"]
-
     def _get_group_predictive_data(
         self,
         group: Literal["prior_predictive", "posterior_predictive"],
@@ -917,16 +910,24 @@ class MMMModelBuilder(ModelBuilder):
             )
         return fig
 
-    def compute_channel_contribution_original_scale(self) -> DataArray:
+    def compute_channel_contribution_original_scale(
+        self, prior: bool = False
+    ) -> DataArray:
         """Compute the channel contributions in the original scale of the target variable.
+
+        Parameters
+        ----------
+        prior : bool, optional
+            Whether to use the prior or posterior, by default False (posterior)
 
         Returns
         -------
         DataArray
 
         """
+        _data = self.prior if prior else self.fit_result
         channel_contribution = az.extract(
-            data=self.fit_result, var_names=["channel_contributions"], combined=False
+            data=_data, var_names=["channel_contributions"], combined=False
         )
 
         # sklearn preprocessers expect 2-D arrays of (obs, features)

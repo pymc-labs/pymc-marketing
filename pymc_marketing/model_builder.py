@@ -684,6 +684,42 @@ class ModelBuilder(ABC):
         self.set_idata_attrs(self.idata)
         return self.idata  # type: ignore
 
+    @property
+    def fit_result(self) -> xr.Dataset:
+        """Get the posterior fit_result.
+
+        Returns
+        -------
+        InferenceData object.
+
+        """
+        return create_idata_accessor(
+            "posterior", "The model hasn't been fit yet, call .fit() first"
+        ).__get__(self)
+
+    @fit_result.setter
+    def fit_result(self, res: az.InferenceData) -> None:
+        """Create a setter method to overwrite the pre-existing fit_result.
+
+        Parameters
+        ----------
+        res : az.InferenceData
+            The inferencedata object to be set
+
+        Returns
+        -------
+        property
+            The property setter for the InferenceData object.
+
+        """
+        if self.idata is None:
+            self.idata = res
+        elif "posterior" in self.idata:
+            warnings.warn("Overriding pre-existing fit_result", stacklevel=1)
+            self.idata.posterior = res
+        else:
+            self.idata.posterior = res
+
     def predict(
         self,
         X_pred: np.ndarray | pd.DataFrame | pd.Series,
@@ -959,6 +995,7 @@ class ModelBuilder(ABC):
     posterior = create_idata_accessor(
         "posterior", "The model hasn't been fit yet, call .fit() first"
     )
+
     posterior_predictive = create_idata_accessor(
         "posterior_predictive",
         "The model hasn't been fit yet, call .sample_posterior_predictive() first",
