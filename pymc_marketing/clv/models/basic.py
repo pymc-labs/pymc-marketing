@@ -189,7 +189,7 @@ class CLVModel(ModelBuilder):
             )
 
         with self.model:
-            mean_field_approx = pm.fit(
+            advifit = pm.fit(
                 method="advi",
                 **{
                     k: v
@@ -218,7 +218,7 @@ class CLVModel(ModelBuilder):
                     ]
                 },
             )
-            return mean_field_approx.sample(
+            return advifit.sample(
                 **{
                     k: v
                     for k, v in sampler_config.items()
