@@ -442,8 +442,14 @@ def log_mmm_evaluation_metrics(
     y_pred : np.ndarray
         The predicted values of the target variable.
     metrics_to_calculate : list of str or None, optional
-        List of metrics to calculate. If None, all available metrics will be calculated
-        see `evaluation.calculate_metric_distributions` for more info.
+        List of metrics to calculate. If None, all available metrics will be calculated.
+        Options include:
+            * `r_squared`: Bayesian R-squared.
+            * `rmse`: Root Mean Squared Error.
+            * `nrmse`: Normalized Root Mean Squared Error.
+            * `mae`: Mean Absolute Error.
+            * `nmae`: Normalized Mean Absolute Error.
+            * `mape`: Mean Absolute Percentage Error.
     hdi_prob : float, optional
         The probability mass of the highest density interval. Defaults to 0.94.
 

@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -65,6 +65,7 @@ def calculate_metric_distributions(
         metrics_to_calculate = list(metric_functions.keys())
 
     invalid_metrics = set(metrics_to_calculate) - set(metric_functions.keys())
+
     if invalid_metrics:
         raise ValueError(
             f"Invalid metrics: {invalid_metrics}. "
