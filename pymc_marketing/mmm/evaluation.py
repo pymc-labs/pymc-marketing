@@ -53,7 +53,9 @@ def calculate_metric_distributions(
         A dictionary containing calculated metric distributions.
     """
     metric_functions = {
-        "r_squared": lambda y_true, y_pred: az.r2_score(y_true, y_pred)["r2"],
+        "r_squared": lambda y_true, y_pred: az.r2_score(y_true, y_pred.to_numpy().T)[
+            "r2"
+        ],
         "rmse": root_mean_squared_error,
         "nrmse": nrmse,
         "mae": mean_absolute_error,
