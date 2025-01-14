@@ -29,9 +29,9 @@ from pymc_marketing.clv import BetaGeoModel
 from pymc_marketing.mlflow import (
     autolog,
     log_likelihood_type,
+    log_mmm_evaluation_metrics,
     log_model_graph,
     log_sample_diagnostics,
-    log_summary_metrics,
 )
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
 from pymc_marketing.version import __version__
@@ -579,14 +579,14 @@ def mock_idata_for_loo() -> az.InferenceData:
     )
 
 
-def test_log_summary_metrics() -> None:
+def test_log_mmm_evaluation_metrics() -> None:
     """Test logging of summary metrics to MLflow."""
     y_true = np.array([1.0, 2.0, 3.0])
     y_pred = np.array([[1.1, 2.1, 3.1]]).T
     custom_metrics = ["r_squared", "rmse", "mae", "mape", "nrmse", "nmae"]
 
     with mlflow.start_run() as run:
-        log_summary_metrics(
+        log_mmm_evaluation_metrics(
             y_true, y_pred, metrics_to_calculate=custom_metrics, hdi_prob=0.94
         )
 
