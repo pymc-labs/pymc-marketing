@@ -486,22 +486,22 @@ class TestMMM:
 
         # a) Total budget consistency check
         allocated_budget = sum(mmm_fitted.optimal_allocation_dict.values())
-        assert np.isclose(
-            allocated_budget, budget, rtol=1e-5
-        ), f"Total allocated budget {allocated_budget} does not match expected budget {budget}"
+        assert np.isclose(allocated_budget, budget, rtol=1e-5), (
+            f"Total allocated budget {allocated_budget} does not match expected budget {budget}"
+        )
 
         # b) Budget boundaries check
         for channel, bounds in budget_bounds.items():
             allocation = mmm_fitted.optimal_allocation_dict[channel]
             lower_bound, upper_bound = bounds
-            assert (
-                lower_bound <= allocation <= upper_bound
-            ), f"Channel {channel} allocation {allocation} is out of bounds ({lower_bound}, {upper_bound})"
+            assert lower_bound <= allocation <= upper_bound, (
+                f"Channel {channel} allocation {allocation} is out of bounds ({lower_bound}, {upper_bound})"
+            )
 
         # c) num_periods consistency check
-        assert (
-            inference_periods == num_periods
-        ), f"Number of periods in the data {inference_periods} does not match the expected {num_periods}"
+        assert inference_periods == num_periods, (
+            f"Number of periods in the data {inference_periods} does not match the expected {num_periods}"
+        )
 
     def test_allocate_budget_to_maximize_response_bad_noise_level(
         self, mmm_fitted: MMM
