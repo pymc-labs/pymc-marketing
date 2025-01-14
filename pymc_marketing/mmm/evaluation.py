@@ -15,6 +15,7 @@
 
 import arviz as az
 import numpy as np
+import numpy.typing as npt
 from sklearn.metrics import (
     mean_absolute_error,
     mean_absolute_percentage_error,
@@ -25,17 +26,17 @@ from pymc_marketing.metrics import nmae, nrmse
 
 
 def calculate_metric_distributions(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
+    y_true: npt.NDArray,
+    y_pred: npt.NDArray,
     metrics_to_calculate: list[str] | None = None,
-) -> dict[str, np.ndarray]:
+) -> dict[str, npt.NDArray]:
     """Calculate distributions of evaluation metrics for posterior samples.
 
     Parameters
     ----------
-    y_true : np.ndarray
+    y_true : npt.NDArray
         True values for the dataset. Shape: (date,)
-    y_pred : np.ndarray
+    y_pred : npt.NDArray
         Posterior predictive samples. Shape: (date, sample)
     metrics_to_calculate : list of str or None, optional
         List of metrics to calculate. Options include:
@@ -49,7 +50,7 @@ def calculate_metric_distributions(
 
     Returns
     -------
-    dict of str to np.ndarray
+    dict of str to npt.NDArray
         A dictionary containing calculated metric distributions.
     """
     metric_functions = {
@@ -88,14 +89,14 @@ def calculate_metric_distributions(
 
 
 def summarize_metric_distributions(
-    metric_distributions: dict[str, np.ndarray],
+    metric_distributions: dict[str, npt.NDArray],
     hdi_prob: float = 0.94,
 ) -> dict[str, dict[str, float]]:
     """Summarize metric distributions with point estimates and HDIs.
 
     Parameters
     ----------
-    metric_distributions : dict of str to np.ndarray
+    metric_distributions : dict of str to npt.NDArray
         Dictionary of metric distributions as returned by calculate_metric_distributions.
     hdi_prob : float, optional
         The probability mass of the highest density interval. Defaults to 0.94.
@@ -130,8 +131,8 @@ def summarize_metric_distributions(
 
 
 def compute_summary_metrics(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
+    y_true: npt.NDArray,
+    y_pred: npt.NDArray,
     metrics_to_calculate: list[str] | None = None,
     hdi_prob: float = 0.94,
 ) -> dict[str, dict[str, float]]:
@@ -142,9 +143,9 @@ def compute_summary_metrics(
 
     Parameters
     ----------
-    y_true : np.ndarray
+    y_true : npt.NDArray
         The true values of the target variable.
-    y_pred : np.ndarray
+    y_pred : npt.NDArray
         The predicted values of the target variable.
     metrics_to_calculate : list of str or None, optional
         List of metrics to calculate. Options include:
