@@ -17,7 +17,7 @@ import json
 import warnings
 from collections.abc import Sequence
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 import arviz as az
 import pandas as pd
@@ -109,12 +109,14 @@ class CLVModel(ModelBuilder):
             - "map": Finds maximum a posteriori via `pymc.find_MAP`
             - "demz": Samples from the posterior via `pymc.sample` using DEMetropolisZ
             - "advi": Samples from the posterior via `pymc.fit(method="advi")` and `pymc.sample`
+            - "fullrank_advi": Samples from the posterior via `pymc.fit(method="fullrank_advi")` and `pymc.sample`
         kwargs:
             Other keyword arguments passed to the underlying PyMC routines
 
         """
         self.build_model()  # type: ignore
 
+        approx = None
         match fit_method:
             case "mcmc":
                 idata = self._fit_mcmc(**kwargs)
@@ -123,14 +125,17 @@ class CLVModel(ModelBuilder):
             case "demz":
                 idata = self._fit_DEMZ(**kwargs)
             case "advi":
-                idata = self._fit_advi(**kwargs)
-
+                approx, idata = self._fit_approx(method="advi", **kwargs)
+            case "fullrank_advi":
+                approx, idata = self._fit_approx(method="fullrank_advi", **kwargs)
             case _:
                 raise ValueError(
-                    f"Fit method options are ['mcmc', 'map', 'demz', 'advi'], got: {fit_method}"
+                    f"Fit method options are ['mcmc', 'map', 'demz', 'advi', 'fullrank_advi'], got: {fit_method}"
                 )
 
         self.idata = idata
+        if approx:
+            self.approx = approx
         self.set_idata_attrs(self.idata)
         if self.data is not None:
             self._add_fit_data_group(self.data)
@@ -169,7 +174,9 @@ class CLVModel(ModelBuilder):
         with self.model:
             return pm.sample(step=pm.DEMetropolisZ(), **sampler_config)
 
-    def _fit_advi(self, **kwargs) -> az.InferenceData:
+    def _fit_approx(
+        self, method: Literal["advi", "fullrank_advi"] = "advi", **kwargs
+    ) -> az.InferenceData:
         """Fit a model with ADVI."""
         sampler_config = {}
         if self.sampler_config is not None:
@@ -190,7 +197,7 @@ class CLVModel(ModelBuilder):
 
         with self.model:
             advifit = pm.fit(
-                method="advi",
+                method=method,
                 **{
                     k: v
                     for k, v in sampler_config.items()
@@ -218,7 +225,7 @@ class CLVModel(ModelBuilder):
                     ]
                 },
             )
-            return advifit.sample(
+            return advifit, advifit.sample(
                 **{
                     k: v
                     for k, v in sampler_config.items()
