@@ -1260,7 +1260,7 @@ class MMMModelBuilder(ModelBuilder):
         ax.set_ylabel("Components")
 
         xticks = np.linspace(0, total_contribution, num=11)
-        xticklabels = [f"{(x/total_contribution)*100:.0f}%" for x in xticks]
+        xticklabels = [f"{(x / total_contribution) * 100:.0f}%" for x in xticks]
         ax.set_xticks(xticks)
         ax.set_xticklabels(xticklabels)
 
