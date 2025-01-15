@@ -22,7 +22,6 @@ from pymc_marketing.mmm.components.adstock import (
     WeibullCDFAdstock,
     WeibullPDFAdstock,
     adstock_from_dict,
-    register_adstock_transformation,
 )
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
@@ -34,7 +33,6 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     TanhSaturation,
     TanhSaturationBaselined,
-    register_saturation_transformation,
     saturation_from_dict,
 )
 from pymc_marketing.mmm.fourier import MonthlyFourier, YearlyFourier
@@ -101,8 +99,6 @@ __all__ = [
     "preprocessing",
     "preprocessing_method_X",
     "preprocessing_method_y",
-    "register_adstock_transformation",
-    "register_saturation_transformation",
     "saturation_from_dict",
     "validating",
     "validation_method_X",
