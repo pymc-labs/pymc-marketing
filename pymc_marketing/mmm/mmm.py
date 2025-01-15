@@ -1114,11 +1114,11 @@ class MMM(
 
         # Determine the number of channels and set up the grid
         num_channels = len(self.channel_columns)
-        num_cols = 3
-        num_rows = (num_channels + num_cols - 1) // num_cols  # Calculate rows needed
+        num_cols = 1
+        num_rows = num_channels
 
         if figsize is None:
-            figsize = (25, 5 * num_rows)
+            figsize = (12, 4 * num_rows)
 
         # Calculate prior and posterior means for sorting
         channel_means = []
@@ -1137,7 +1137,14 @@ class MMM(
             # Otherwise, sort on difference between posterior and prior means
             sorted_channels = sorted(channel_means, key=lambda x: x[3], reverse=True)
 
-        fig, axs = plt.subplots(num_rows, num_cols, figsize=figsize)
+        fig, axs = plt.subplots(
+            nrows=num_rows,
+            ncols=num_cols,
+            figsize=figsize,
+            sharex=True,
+            sharey=False,
+            layout="constrained",
+        )
         axs = axs.flatten()  # Flatten the array for easy iteration
 
         # Plot for each channel
@@ -1152,14 +1159,14 @@ class MMM(
                 prior_samples,
                 ax=axs[i],
                 label="Prior Predictive",
-                color="blue",
+                color="C0",
                 fill=True,
             )
 
             # Add a vertical line for the mean of the prior distribution
             axs[i].axvline(
                 prior_mean,
-                color="blue",
+                color="C0",
                 linestyle="--",
                 linewidth=2,
                 label=f"Prior Mean: {prior_mean:.2f}",
@@ -1175,7 +1182,7 @@ class MMM(
                 posterior_samples,
                 ax=axs[i],
                 label="Posterior Predictive",
-                color="red",
+                color="C1",
                 fill=True,
                 alpha=0.15,
             )
@@ -1183,7 +1190,7 @@ class MMM(
             # Add a vertical line for the mean of the posterior distribution
             axs[i].axvline(
                 posterior_mean,
-                color="red",
+                color="C1",
                 linestyle="--",
                 linewidth=2,
                 label=f"Posterior Mean: {posterior_mean:.2f} (Diff: {difference:.2f})",
@@ -1196,14 +1203,11 @@ class MMM(
             axs[i].legend(loc="upper right")
 
         # Set the overall figure title
-        fig.suptitle(f"Prior vs Posterior Distributions | {var_name}", fontsize=16)
-
-        # Hide any unused subplots
-        for j in range(i + 1, len(axs)):
-            fig.delaxes(axs[j])
-
-        # Adjust layout
-        plt.tight_layout(rect=[0, 0.03, 1, 0.97])  # Adjust layout to fit the title
+        fig.suptitle(
+            f"Prior vs Posterior Distributions | {var_name}",
+            fontsize=16,
+            horizontalalignment="center",
+        )
 
         return fig
 
