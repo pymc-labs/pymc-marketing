@@ -116,12 +116,12 @@ from pytensor.tensor import TensorVariable
 
 try:
     import mlflow
-    import mlflow.artifacts
-    from mlflow.pyfunc.model import PythonModel
 except ImportError:  # pragma: no cover
     msg = "This module requires mlflow. Install using `pip install mlflow`"
     raise ImportError(msg)
 
+import mlflow.artifacts
+from mlflow.pyfunc.model import PythonModel
 from mlflow.utils.autologging_utils import autologging_integration
 
 from pymc_marketing.clv.models.basic import CLVModel
