@@ -50,6 +50,7 @@ class TestModifiedBetaGeoModel:
 
         # Instantiate model with CDNOW data for testing
         cls.model = ModifiedBetaGeoModel(cls.data)
+        cls.model.build_model()
 
         # Also instantiate lifetimes model for comparison
         cls.lifetimes_model = ModifiedBetaGeoFitter()
@@ -436,6 +437,7 @@ class TestModifiedBetaGeoModel:
         mock_model = ModifiedBetaGeoModel(
             data=self.data,
         )
+        mock_model.build_model()
         mock_model.idata = az.from_dict(
             {
                 "a": [self.a_true],

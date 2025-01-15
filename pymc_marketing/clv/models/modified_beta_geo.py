@@ -396,7 +396,10 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             # For map fit add a dummy draw dimension
             dataset = dataset.squeeze("draw").expand_dims(draw=range(n_samples))  # type: ignore
 
-        with pm.Model():
+        coords = self.model.coords.copy()  # type: ignore
+        coords["customer_id"] = data["customer_id"]
+
+        with pm.Model(coords=coords):
             a = pm.HalfFlat("a")
             b = pm.HalfFlat("b")
             alpha = pm.HalfFlat("alpha")
