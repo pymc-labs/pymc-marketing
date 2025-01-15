@@ -15,6 +15,10 @@
 
 import numpy as np
 import numpy.typing as npt
+from sklearn.metrics import (
+    mean_absolute_error,
+    root_mean_squared_error,
+)
 
 
 def per_observation_crps(y_true: npt.NDArray, y_pred: npt.NDArray) -> npt.NDArray:
@@ -127,3 +131,44 @@ def crps(
     - For an introduction to CRPS, see https://towardsdatascience.com/crps-a-scoring-function-for-bayesian-machine-learning-models-dd55a7a337a8
     """
     return np.average(per_observation_crps(y_true, y_pred), weights=sample_weight)
+
+
+def nrmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Calculate the Normalized Root Mean Square Error (NRMSE).
+
+    Normalization allows for comparison across different data sets and methodologies.
+    NRMSE is one of the key metrics used in Robyn MMMs.
+
+    Parameters
+    ----------
+    y_true : np.ndarray
+        True values for target metric
+    y_pred : np.ndarray
+        Predicted values for target metric
+
+    Returns
+    -------
+    float
+        Normalized root mean square error.
+    """
+    return root_mean_squared_error(y_true, y_pred) / (y_true.max() - y_true.min())
+
+
+def nmae(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Calculate the Normalized Mean Absolute Error (NMAE).
+
+    Normalization allows for comparison across different data sets and methodologies.
+
+    Parameters
+    ----------
+    y_true : np.ndarray
+        True values for target metric
+    y_pred : np.ndarray
+        Predicted values for target metric
+
+    Returns
+    -------
+    float
+        Normalized mean absolute error.
+    """
+    return mean_absolute_error(y_true, y_pred) / (y_true.max() - y_true.min())
