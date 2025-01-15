@@ -405,8 +405,19 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             pm.Beta("dropout", alpha=a, beta=b)
             pm.Gamma("purchase_rate", alpha=r, beta=alpha)
 
+            ModifiedBetaGeoNBD(
+                name="recency_frequency",
+                a=a,
+                b=b,
+                r=r,
+                alpha=alpha,
+                T=T,
+                dims=["customer_id", "obs_var"],
+            )
+
             return pm.sample_posterior_predictive(
                 dataset,
                 var_names=var_names,
                 random_seed=random_seed,
-            ).posterior_predictive
+                predictions=True,
+            ).predictions
