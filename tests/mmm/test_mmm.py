@@ -24,11 +24,9 @@ from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.components.adstock import DelayedAdstock, GeometricAdstock
 from pymc_marketing.mmm.components.saturation import (
-    SATURATION_TRANSFORMATIONS,
     LogisticSaturation,
     MichaelisMentenSaturation,
     SaturationTransformation,
-    register_saturation_transformation,
 )
 from pymc_marketing.mmm.mmm import MMM, BaseMMM
 from pymc_marketing.model_builder import DifferentModelError
@@ -1244,8 +1242,6 @@ def test_save_load_with_media_transformation(mmm_with_media_config_fitted) -> No
     file = "tmp-model"
     mmm_with_media_config_fitted.save(file)
 
-    register_saturation_transformation(CustomSaturation)
-
     loaded_mmm = MMM.load(file)
 
     assert loaded_mmm.adstock == GeometricAdstock(
@@ -1263,7 +1259,6 @@ def test_save_load_with_media_transformation(mmm_with_media_config_fitted) -> No
     )
 
     # clean up
-    del SATURATION_TRANSFORMATIONS[CustomSaturation.lookup_name]
     os.remove(file)
 
 
