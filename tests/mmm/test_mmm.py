@@ -29,6 +29,7 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
 )
 from pymc_marketing.mmm.mmm import MMM, BaseMMM
+from pymc_marketing.model_builder import DifferentModelError
 from pymc_marketing.prior import Prior
 
 seed: int = sum(map(ord, "pymc_marketing"))
@@ -781,10 +782,10 @@ class TestMMM:
 
         error_msg = (
             "The file 'test_model' does not "
-            "contain an inference data of the "
+            "contain an InferenceData of the "
             "same model or configuration as 'MMM'"
         )
-        with pytest.raises(ValueError, match=error_msg):
+        with pytest.raises(DifferentModelError, match=error_msg):
             MMM.load("test_model")
         os.remove("test_model")
 
