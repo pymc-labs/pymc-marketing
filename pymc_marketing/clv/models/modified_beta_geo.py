@@ -195,7 +195,6 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         if T.size != 1:
             T = to_xarray(customer_id, T)
 
-        # print(customer_id)
         x, t_x = to_xarray(customer_id, frequency, recency)
 
         a, b, alpha, r = self._unload_params()
