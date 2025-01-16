@@ -806,6 +806,8 @@ mbg_nbd = ModifiedBetaGeoNBDRV()
 class ModifiedBetaGeoNBD(PositiveContinuous):
     r"""Population-level distribution for the Modified-Beta-Geometric/Negative-Binomial process.
 
+    In MBG/NBD, a customer may drop out at time zero with probability p.
+    This is in contrast with the BG/NBD process, which assumes the drop out probability at time zero to be exactly zero.
     Discrete, non-contractual distribution based on Batislam et al. in [1]_, and Wagner et al. in [2]_ .
     .. math::
         \mathbb{LL}(a, b, \alpha, r | x, t_x, T) = \ln \left[
