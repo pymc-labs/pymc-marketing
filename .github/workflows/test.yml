@@ -46,7 +46,7 @@ jobs:
       - name: Run tests
         run: |
           sudo apt-get install graphviz
-          pip install -e .[docs,test]
+          pip install -e .[test]
           pytest ${{ matrix.split }}
       - name: Check oldest version of PyMC
         if: ${{ matrix.config.oldest-pymc }}
@@ -77,7 +77,7 @@ jobs:
           cache-dependency-path: "pyproject.toml"
       - name: Run tests
         run: |
-          pip install -e .[docs,test]
+          pip install -e .[test]
           pytest --only-slow ${{ matrix.split }}
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
