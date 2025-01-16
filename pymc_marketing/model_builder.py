@@ -115,6 +115,10 @@ def create_sample_kwargs(
     return sampler_config
 
 
+class DifferentModelError(Exception):
+    """Error raised when a model loaded is different than one saved."""
+
+
 class ModelBuilder(ABC):
     """Base class for building models with PyMC Marketing.
 
@@ -529,6 +533,53 @@ class ModelBuilder(ABC):
         self.build_model(X, y)
 
     @classmethod
+    def load_from_idata(cls, idata: az.InferenceData) -> "ModelBuilder":
+        """Create a ModelBuilder instance from an InferenceData object.
+
+        This class method has a few steps:
+
+        - Construct a new instance of the model using the InferenceData attrs
+        - Build the model from the InferenceData
+        - Check if the model id matches the id in the InferenceData loaded.
+
+        Parameters
+        ----------
+        idata : az.InferenceData
+            The InferenceData object to load the model from.
+
+        Returns
+        -------
+        ModelBuilder
+            An instance of the ModelBuilder class.
+
+        Raises
+        ------
+        DifferentModelError
+            If the model id in the InferenceData does not match the model id built.
+
+        """
+        # needs to be converted, because json.loads was changing tuple to list
+        init_kwargs = cls.attrs_to_init_kwargs(idata.attrs)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=DeprecationWarning)
+            model = cls(**init_kwargs)
+
+        model.idata = idata
+        model.build_from_idata(idata)
+
+        if model.id != idata.attrs["id"]:
+            msg = (
+                "The model id in the InferenceData does not match the model id. "
+                "There was no error loading the inference data, but the model may "
+                "be different. "
+                "Investigate if the model structure or configuration has changed."
+            )
+            raise DifferentModelError(msg)
+
+        return model
+
+    @classmethod
     def load(cls, fname: str):
         """Create a ModelBuilder instance from a file.
 
@@ -552,7 +603,7 @@ class ModelBuilder(ABC):
 
         Raises
         ------
-        ValueError
+        DifferentModelError
             If the inference data that is loaded doesn't match with the model.
 
         Examples
@@ -568,25 +619,15 @@ class ModelBuilder(ABC):
         filepath = Path(str(fname))
         idata = from_netcdf(filepath)
 
-        # needs to be converted, because json.loads was changing tuple to list
-        init_kwargs = cls.attrs_to_init_kwargs(idata.attrs)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
-            model = cls(**init_kwargs)
-
-        model.idata = idata
-        model.build_from_idata(idata)
-
-        if model.id != idata.attrs["id"]:
+        try:
+            return cls.load_from_idata(idata)
+        except DifferentModelError as e:
             error_msg = (
                 f"The file '{fname}' does not contain "
-                "an inference data of the same model "
+                "an InferenceData of the same model "
                 f"or configuration as '{cls._model_type}'"
             )
-            raise ValueError(error_msg)
-
-        return model
+            raise DifferentModelError(error_msg) from e
 
     def fit(
         self,
