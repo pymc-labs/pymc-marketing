@@ -12,6 +12,7 @@ mmm/mmm_budget_allocation_example
 mmm/mmm_case_study
 mmm/mmm_components
 mmm/mmm_counterfactuals
+mmm/mmm_evaluation
 mmm/mmm_example
 mmm/mmm_lift_test
 mmm/mmm_roas

@@ -1,6 +1,9 @@
 ---
 blank_issues_enabled: true
 contact_links:
+  - name: Found an issue with the code? Open an Issue on GitHub
+    url: https://github.com/pymc-labs/pymc-marketing/issues/new
+    about: Please note that GitHub Discussions are preferred for general questions and discussions
   - name: PyMC-Marketing Discussions
     url: https://github.com/pymc-labs/pymc-marketing/discussions/new
     about: Ask questions and discuss with other PyMC-Marketing community members
@@ -13,6 +16,3 @@ contact_links:
   - name: Bayesian Discord server
     url: https://discord.gg/swztKRaVKe
     about: Ask questions and discuss with other Bayesian community members
-  - name: Blank issue
-    url: https://github.com/pymc-labs/pymc-marketing/issues/new
-    about: Please note that GitHub Discussions should be used in most cases instead

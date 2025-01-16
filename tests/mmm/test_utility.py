@@ -165,13 +165,13 @@ def test_tail_distance(mean1, std1, mean2, std2, expected_order):
 
     # Check that the tail distance is greater for the higher std deviation
     if expected_order == "greater":
-        assert (
-            tail_distance2 > tail_distance1
-        ), f"Expected tail distance to be greater for std={std2}, but got {tail_distance2} <= {tail_distance1}"
+        assert tail_distance2 > tail_distance1, (
+            f"Expected tail distance to be greater for std={std2}, but got {tail_distance2} <= {tail_distance1}"
+        )
     elif expected_order == "smaller":
-        assert (
-            tail_distance1 > tail_distance2
-        ), f"Expected tail distance to be greater for std={std1}, but got {tail_distance1} <= {tail_distance2}"
+        assert tail_distance1 > tail_distance2, (
+            f"Expected tail distance to be greater for std={std1}, but got {tail_distance1} <= {tail_distance2}"
+        )
 
 
 @pytest.mark.parametrize(
@@ -209,13 +209,13 @@ def test_compare_mean_tightness_score(
 
     # Assertions based on observed behavior: higher mean should dominate in both cases
     if expected_relation == "higher_mean":
-        assert (
-            score2 > score1
-        ), f"Expected score for mean={mean2} to be higher, but got {score2} <= {score1}"
+        assert score2 > score1, (
+            f"Expected score for mean={mean2} to be higher, but got {score2} <= {score1}"
+        )
     elif expected_relation == "lower_std":
-        assert (
-            score1 > score2
-        ), f"Expected score for std={std1} to be lower, but got {score1} <= {score2}"
+        assert score1 > score2, (
+            f"Expected score for std={std1} to be lower, but got {score1} <= {score2}"
+        )
 
 
 @pytest.mark.parametrize(

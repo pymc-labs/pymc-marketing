@@ -24,7 +24,13 @@ from pytensor import scan
 from pytensor.graph import vectorize_graph
 from pytensor.tensor.random.op import RandomVariable
 
-__all__ = ["BetaGeoBetaBinom", "ContContract", "ContNonContract", "ParetoNBD"]
+__all__ = [
+    "BetaGeoBetaBinom",
+    "BetaGeoNBD",
+    "ContContract",
+    "ContNonContract",
+    "ParetoNBD",
+]
 
 
 class ContNonContractRV(RandomVariable):
@@ -586,4 +592,152 @@ class BetaGeoBetaBinom(Discrete):
             gamma > 0,
             delta > 0,
             msg="alpha > 0, beta > 0, gamma > 0, delta > 0",
+        )
+
+
+class BetaGeoNBDRV(RandomVariable):
+    name = "bg_nbd"
+    signature = "(),(),(),(),()->(2)"
+
+    dtype = "floatX"
+    _print_name = ("BetaGeoNBD", "\\operatorname{BetaGeoNBD}")
+
+    def __call__(self, a, b, r, alpha, T, size=None, **kwargs):
+        return super().__call__(a, b, r, alpha, T, size=size, **kwargs)
+
+    @classmethod
+    def rng_fn(cls, rng, a, b, r, alpha, T, size):
+        if size is None:
+            size = np.broadcast_shapes(a.shape, b.shape, r.shape, alpha.shape, T.shape)
+
+        a = np.asarray(a)
+        b = np.asarray(b)
+        r = np.asarray(r)
+        alpha = np.asarray(alpha)
+        T = np.asarray(T)
+
+        if size == ():
+            size = np.broadcast_shapes(a.shape, b.shape, r.shape, alpha.shape, T.shape)
+
+        a = np.broadcast_to(a, size)
+        b = np.broadcast_to(b, size)
+        r = np.broadcast_to(r, size)
+        alpha = np.broadcast_to(alpha, size)
+        T = np.broadcast_to(T, size)
+
+        output = np.zeros(shape=size + (2,))  # noqa:RUF005
+
+        lam = rng.gamma(shape=r, scale=1 / alpha, size=size)
+        p = rng.beta(a=a, b=b, size=size)
+
+        def sim_data(lam, p, T):
+            t = 0  # recency
+            n = 0  # frequency
+
+            churn = 0  # BG/NBD assumes all non-repeat customers are active
+            wait = rng.exponential(scale=1 / lam)
+
+            while t + wait < T and not churn:
+                churn = rng.random() < p
+                n += 1
+                t += wait
+                wait = rng.exponential(scale=1 / lam)
+
+            return np.array([t, n])
+
+        for index in np.ndindex(*size):
+            output[index] = sim_data(lam[index], p[index], T[index])
+
+        return output
+
+
+bg_nbd = BetaGeoNBDRV()
+
+
+class BetaGeoNBD(PositiveContinuous):
+    r"""Population-level distribution class for a discrete, non-contractual, Beta-Geometric/Negative-Binomial process.
+
+    It is based on Fader, et al. in [1]_, [2]_ and [3]_.
+
+    .. math::
+
+        \mathbb{LL}(r, \alpha, a, b  | x, t_x, T) =
+        D_1 + D_2 + \ln(C_3 + \delta_{x>0} C_4) \text{, where:} \\
+        \begin{align}
+        D_1 &= \ln \left[ \Gamma(r+x) \right] - \ln \left[ \Gamma(r) \right] + \ln \left[ \Gamma(a+b) \right] + \ln \left[ \Gamma(b+x) \right] \\
+        D_2 &= r \ln(\alpha) - (r+x) \ln(\alpha + t_x) \\
+        C_3 &= \left(\frac{\alpha + t_x}{\alpha + T} \right)^{r+x} \\
+        C_4 &= \left(\frac{a}{b+x-1} \right) \\
+        \end{align}
+
+    ========  ===============================================
+    Support   :math:`t_j >= 0` for :math:`j = 1, \dots,x`
+    Mean      :math:`\mathbb{E}[X(n) | r, \alpha, a, b] = \frac{a+b-1}{a-1} \left[ 1 - \left(\frac{\alpha}{\alpha + T}\right)^r {_2}{F}{_1}(r,b;a+b-1;\frac{t}{\alpha + t}) \right]`
+    ========  ===============================================
+
+    References
+    ----------
+    .. [1] Fader, Peter S., Bruce G.S. Hardie, and Jen Shang (2010),
+       "Counting Your Customers" the Easy Way: An Alternative to the Pareto/NBD Model
+       Marketing Science, 24 (Spring), 275-284
+
+    .. [2] Implementing the BG/NBD Model for Customer Base Analysis in Excel http://brucehardie.com/notes/004/bgnbd_spreadsheet_note.pdf
+    .. [3] Overcoming the BG/NBD Model's #NUM! Error Problem https://brucehardie.com/notes/027/bgnbd_num_error.pdf
+
+    """  # noqa: E501
+
+    rv_op = bg_nbd
+
+    @classmethod
+    def dist(cls, a, b, r, alpha, T, **kwargs):
+        """Get the distribution from the parameters."""
+        return super().dist([a, b, r, alpha, T], **kwargs)
+
+    def logp(value, a, b, r, alpha, T):
+        """Log-likelihood of the distribution."""
+        t_x = pt.atleast_1d(value[..., 0])
+        x = pt.atleast_1d(value[..., 1])
+
+        for param in (t_x, x, a, b, r, alpha, T):
+            if param.type.ndim > 1:
+                raise NotImplementedError(
+                    f"BetaGeoNBD logp only implemented for vector parameters, got ndim={param.type.ndim}"
+                )
+
+        x_non_zero = x > 0
+
+        d1 = (
+            pt.gammaln(r + x)
+            - pt.gammaln(r)
+            + pt.gammaln(a + b)
+            + pt.gammaln(b + x)
+            - pt.gammaln(b)
+            - pt.gammaln(a + b + x)
+        )
+
+        d2 = r * pt.log(alpha) - (r + x) * pt.log(alpha + t_x)
+        c3 = ((alpha + t_x) / (alpha + T)) ** (r + x)
+        c4 = a / (b + x - 1)
+
+        logp = d1 + d2 + pt.log(c3 + pt.switch(x_non_zero, c4, 0))
+
+        logp = pt.switch(
+            pt.or_(
+                pt.or_(
+                    pt.lt(t_x, 0),
+                    pt.lt(x, 0),
+                ),
+                pt.gt(t_x, T),
+            ),
+            -np.inf,
+            logp,
+        )
+
+        return check_parameters(
+            logp,
+            a > 0,
+            b > 0,
+            alpha > 0,
+            r > 0,
+            msg="a > 0, b > 0, alpha > 0, r > 0",
         )

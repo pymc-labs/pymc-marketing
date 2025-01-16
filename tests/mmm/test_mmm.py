@@ -24,13 +24,12 @@ from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.components.adstock import DelayedAdstock, GeometricAdstock
 from pymc_marketing.mmm.components.saturation import (
-    SATURATION_TRANSFORMATIONS,
     LogisticSaturation,
     MichaelisMentenSaturation,
     SaturationTransformation,
-    register_saturation_transformation,
 )
 from pymc_marketing.mmm.mmm import MMM, BaseMMM
+from pymc_marketing.model_builder import DifferentModelError
 from pymc_marketing.prior import Prior
 
 seed: int = sum(map(ord, "pymc_marketing"))
@@ -486,22 +485,22 @@ class TestMMM:
 
         # a) Total budget consistency check
         allocated_budget = sum(mmm_fitted.optimal_allocation_dict.values())
-        assert np.isclose(
-            allocated_budget, budget, rtol=1e-5
-        ), f"Total allocated budget {allocated_budget} does not match expected budget {budget}"
+        assert np.isclose(allocated_budget, budget, rtol=1e-5), (
+            f"Total allocated budget {allocated_budget} does not match expected budget {budget}"
+        )
 
         # b) Budget boundaries check
         for channel, bounds in budget_bounds.items():
             allocation = mmm_fitted.optimal_allocation_dict[channel]
             lower_bound, upper_bound = bounds
-            assert (
-                lower_bound <= allocation <= upper_bound
-            ), f"Channel {channel} allocation {allocation} is out of bounds ({lower_bound}, {upper_bound})"
+            assert lower_bound <= allocation <= upper_bound, (
+                f"Channel {channel} allocation {allocation} is out of bounds ({lower_bound}, {upper_bound})"
+            )
 
         # c) num_periods consistency check
-        assert (
-            inference_periods == num_periods
-        ), f"Number of periods in the data {inference_periods} does not match the expected {num_periods}"
+        assert inference_periods == num_periods, (
+            f"Number of periods in the data {inference_periods} does not match the expected {num_periods}"
+        )
 
     def test_allocate_budget_to_maximize_response_bad_noise_level(
         self, mmm_fitted: MMM
@@ -783,10 +782,10 @@ class TestMMM:
 
         error_msg = (
             "The file 'test_model' does not "
-            "contain an inference data of the "
+            "contain an InferenceData of the "
             "same model or configuration as 'MMM'"
         )
-        with pytest.raises(ValueError, match=error_msg):
+        with pytest.raises(DifferentModelError, match=error_msg):
             MMM.load("test_model")
         os.remove("test_model")
 
@@ -1101,6 +1100,20 @@ def df_lift_test() -> pd.DataFrame:
     )
 
 
+@pytest.fixture
+def df_lift_test_with_date() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "channel": ["channel_1", "channel_1"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+            "date": pd.to_datetime(["2020-08-10", "2020-08-31"]),
+        }
+    )
+
+
 def test_add_lift_test_measurements(mmm, toy_X, toy_y, df_lift_test) -> None:
     mmm.build_model(X=toy_X, y=toy_y)
 
@@ -1229,8 +1242,6 @@ def test_save_load_with_media_transformation(mmm_with_media_config_fitted) -> No
     file = "tmp-model"
     mmm_with_media_config_fitted.save(file)
 
-    register_saturation_transformation(CustomSaturation)
-
     loaded_mmm = MMM.load(file)
 
     assert loaded_mmm.adstock == GeometricAdstock(
@@ -1248,7 +1259,6 @@ def test_save_load_with_media_transformation(mmm_with_media_config_fitted) -> No
     )
 
     # clean up
-    del SATURATION_TRANSFORMATIONS[CustomSaturation.lookup_name]
     os.remove(file)
 
 
@@ -1314,3 +1324,23 @@ def test_channel_contributions_forward_pass_time_varying_media(toy_X, toy_y) -> 
         recovered_contributions.to_numpy(),
         media_contributions,
     )
+
+
+def test_time_varying_media_with_lift_test(
+    toy_X, toy_y, df_lift_test_with_date
+) -> None:
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_media=True,
+    )
+    mmm.build_model(X=toy_X, y=toy_y)
+    try:
+        mmm.add_lift_test_measurements(df_lift_test_with_date)
+    except Exception as e:
+        pytest.fail(
+            f"add_lift_test_measurements for time_varying_media model failed with error {e}"
+        )
