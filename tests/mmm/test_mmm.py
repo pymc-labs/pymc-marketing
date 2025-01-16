@@ -1344,3 +1344,78 @@ def test_time_varying_media_with_lift_test(
         pytest.fail(
             f"add_lift_test_measurements for time_varying_media model failed with error {e}"
         )
+
+
+@pytest.mark.parametrize(
+    argnames="noise_level", argvalues=[0.01, 0.05], ids=["low_noise", "high_noise"]
+)
+@pytest.mark.parametrize(
+    argnames="granularity",
+    argvalues=["weekly", "monthly", "quarterly", "yearly"],
+    ids=["weekly", "monthly", "quarterly", "yearly"],
+)
+@pytest.mark.parametrize(
+    argnames="time_length",
+    argvalues=[8, 12, 16, 20],
+    ids=["time_length_8", "time_length_12", "time_length_16", "time_length_20"],
+)
+@pytest.mark.parametrize(
+    argnames="lag", argvalues=[2, 4, 6, 8], ids=["lag_2", "lag_4", "lag_6", "lag_8"]
+)
+def test_create_synth_dataset(
+    mmm_fitted: MMM,
+    toy_X: pd.DataFrame,
+    noise_level: float,
+    granularity: str,
+    time_length: int,
+    lag: int,
+) -> None:
+    """Test the _create_synth_dataset method of MMM class."""
+
+    # Create a simple allocation strategy
+    channels = mmm_fitted.channel_columns
+    allocation_strategy = xr.DataArray(
+        data=np.ones(len(channels)),
+        dims=["channel"],
+        coords={"channel": channels},
+    )
+
+    # Generate synthetic dataset
+    synth_df = mmm_fitted._create_synth_dataset(
+        df=toy_X,
+        date_column=mmm_fitted.date_column,
+        channels=mmm_fitted.channel_columns,
+        controls=mmm_fitted.control_columns,
+        target_col="y",
+        allocation_strategy=allocation_strategy,
+        time_granularity=granularity,
+        time_length=time_length,
+        lag=lag,
+        noise_level=noise_level,
+    )
+
+    # Test output properties
+    assert isinstance(synth_df, pd.DataFrame)
+    assert len(synth_df) == time_length
+
+    # Check required columns exist
+    required_columns = {
+        mmm_fitted.date_column,
+        *mmm_fitted.channel_columns,
+        "y",
+    }
+    if mmm_fitted.control_columns:
+        required_columns.update(mmm_fitted.control_columns)
+    assert all(col in synth_df.columns for col in required_columns)
+
+    # Check date properties
+    assert pd.api.types.is_datetime64_any_dtype(synth_df[mmm_fitted.date_column])
+    assert len(synth_df[mmm_fitted.date_column].unique()) == time_length
+
+    # Check channel values are non-negative (since they represent spend)
+    for channel in mmm_fitted.channel_columns:
+        assert (synth_df[channel] >= 0).all()
+
+    # Check target variable exists and has reasonable values
+    assert "y" in synth_df.columns
+    assert not synth_df["y"].isna().any()
