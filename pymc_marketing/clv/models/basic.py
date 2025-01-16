@@ -196,8 +196,9 @@ class CLVModel(ModelBuilder):
             )
 
         with self.model:
-            advifit = pm.fit(
+            approx = pm.fit(
                 method=method,
+                callbacks=[pm.callbacks.CheckParametersConvergence(diff="absolute")],
                 **{
                     k: v
                     for k, v in sampler_config.items()
@@ -225,7 +226,7 @@ class CLVModel(ModelBuilder):
                     ]
                 },
             )
-            return advifit, advifit.sample(
+            return approx, approx.sample(
                 **{
                     k: v
                     for k, v in sampler_config.items()
