@@ -329,11 +329,6 @@ class WeibullCDFAdstock(AdstockTransformation):
     }
 
 
-def register_adstock_transformation(cls: type[AdstockTransformation]) -> None:
-    """Register a new adstock transformation."""
-    ADSTOCK_TRANSFORMATIONS[cls.lookup_name] = cls
-
-
 def adstock_from_dict(data: dict) -> AdstockTransformation:
     """Create an adstock transformation from a dictionary."""
     data = data.copy()

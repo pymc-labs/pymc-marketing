@@ -910,16 +910,24 @@ class MMMModelBuilder(ModelBuilder):
             )
         return fig
 
-    def compute_channel_contribution_original_scale(self) -> DataArray:
+    def compute_channel_contribution_original_scale(
+        self, prior: bool = False
+    ) -> DataArray:
         """Compute the channel contributions in the original scale of the target variable.
+
+        Parameters
+        ----------
+        prior : bool, optional
+            Whether to use the prior or posterior, by default False (posterior)
 
         Returns
         -------
         DataArray
 
         """
+        _data = self.prior if prior else self.fit_result
         channel_contribution = az.extract(
-            data=self.fit_result, var_names=["channel_contributions"], combined=False
+            data=_data, var_names=["channel_contributions"], combined=False
         )
 
         # sklearn preprocessers expect 2-D arrays of (obs, features)
@@ -1252,7 +1260,7 @@ class MMMModelBuilder(ModelBuilder):
         ax.set_ylabel("Components")
 
         xticks = np.linspace(0, total_contribution, num=11)
-        xticklabels = [f"{(x/total_contribution)*100:.0f}%" for x in xticks]
+        xticklabels = [f"{(x / total_contribution) * 100:.0f}%" for x in xticks]
         ax.set_xticks(xticks)
         ax.set_xticklabels(xticklabels)
 

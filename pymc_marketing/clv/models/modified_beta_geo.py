@@ -14,6 +14,7 @@
 """Modified Beta-Geometric Negative Binomial Distribution (MBG/NBD) model for a non-contractual customer population across continuous time."""  # noqa: E501
 
 import warnings
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
@@ -21,6 +22,7 @@ import pymc as pm
 import pytensor.tensor as pt
 import xarray
 from pymc.distributions.dist_math import check_parameters
+from pymc.util import RandomState
 from scipy.special import hyp2f1
 
 from pymc_marketing.clv.models import BetaGeoModel
@@ -391,3 +393,44 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         raise NotImplementedError(
             "The MBG/NBD model does not support this feature at the moment."
         )
+
+    def distribution_new_customer(
+        self,
+        data: pd.DataFrame | None = None,
+        *,
+        T: int | np.ndarray | pd.Series | None = None,
+        random_seed: RandomState | None = None,
+        var_names: Sequence[str] = ("dropout", "purchase_rate"),
+        n_samples: int = 1000,
+    ) -> xarray.Dataset:
+        # TODO: This is extraneous now, until a new distribution block is added.
+        """Compute posterior predictive samples of dropout, purchase rate and frequency/recency of new customers."""
+        if data is None:
+            data = self.data
+
+        if T is not None:
+            dataset = data.assign(T=T)
+
+        dataset = self._extract_predictive_variables(data, customer_varnames=["T"])
+        T = dataset["T"].values  # type: ignore
+        # Delete "T" so we can pass dataset directly to `sample_posterior_predictive`
+        del dataset["T"]
+
+        if dataset.sizes["chain"] == 1 and dataset.sizes["draw"] == 1:
+            # For map fit add a dummy draw dimension
+            dataset = dataset.squeeze("draw").expand_dims(draw=range(n_samples))  # type: ignore
+
+        with pm.Model():
+            a = pm.HalfFlat("a")
+            b = pm.HalfFlat("b")
+            alpha = pm.HalfFlat("alpha")
+            r = pm.HalfFlat("r")
+
+            pm.Beta("dropout", alpha=a, beta=b)
+            pm.Gamma("purchase_rate", alpha=r, beta=alpha)
+
+            return pm.sample_posterior_predictive(
+                dataset,
+                var_names=var_names,
+                random_seed=random_seed,
+            ).posterior_predictive
