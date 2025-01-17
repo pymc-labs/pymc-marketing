@@ -441,17 +441,7 @@ class BudgetOptimizer(BaseModel):
             bounds = [
                 (low, high) for (low, high) in budget_bounds_array[self.opt_mask.values]
             ]
-
-        # 3. Build the constraints for SciPy
-        constraints_for_scipy = [
-            {
-                "type": c["type"],
-                "fun": c["fun"],  # compiled function with shared var
-                "jac": c["jac"],
-            }
-            for c in self._compiled_constraints
-        ]
-
+            
         # 4. Determine how many budget entries we optimize
         if self.opt_mask is None:
             budgets_size = np.prod(self._budget_shape)
@@ -474,7 +464,7 @@ class BudgetOptimizer(BaseModel):
             jac=self._compiled_functions[self.utility_function]["gradient"],
             x0=initial_guess,
             bounds=bounds,
-            constraints=constraints_for_scipy,
+            constraints=self._compiled_constraints,
             **minimize_kwargs,
         )
 

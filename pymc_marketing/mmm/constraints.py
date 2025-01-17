@@ -100,13 +100,11 @@ def compile_constraints_for_scipy(constraints, optimizer):
             inputs=[budgets_flat],
             outputs=sym_fun(budgets, optimizer),
             on_unused_input="ignore",
-            # trust_input=True,
         )
         compiled_jac = function(
             inputs=[budgets_flat],
             outputs=sym_jac(budgets, optimizer),
             on_unused_input="ignore",
-            # trust_input=True,
         )
 
         compiled_constraints.append(
