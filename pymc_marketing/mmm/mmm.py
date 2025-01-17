@@ -476,11 +476,11 @@ class BaseMMM(BaseValidateMMM):
                     dims=("date", "channel"),
                 )
 
-                total_channel_contributions = pm.Deterministic(
-                    name="total_channel_contributions",
-                    var=channel_contributions.sum(axis=-1),
-                    dims=("date",),
-                )
+            total_channel_contributions = pm.Deterministic(
+                name="total_channel_contributions",
+                var=channel_contributions.sum(axis=-1),
+                dims=("date",),
+            )
 
             mu_var = intercept + total_channel_contributions
 
