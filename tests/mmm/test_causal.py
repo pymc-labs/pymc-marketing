@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -88,9 +88,9 @@ def test_get_unique_adjustment_nodes(dag, treatment, outcome, expected_adjustmen
         graph=dag, treatment=treatment, outcome=outcome
     )
     adjustment_set = causal_model.get_unique_adjustment_nodes()
-    assert set(adjustment_set) == set(
-        expected_adjustment_set
-    ), f"Expected {expected_adjustment_set}, but got {adjustment_set}"
+    assert set(adjustment_set) == set(expected_adjustment_set), (
+        f"Expected {expected_adjustment_set}, but got {adjustment_set}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -170,6 +170,6 @@ def test_compute_adjustment_sets(
     adjusted_controls = causal_model.compute_adjustment_sets(
         control_columns=control_columns, channel_columns=channel_columns
     )
-    assert (
-        adjusted_controls == expected_controls
-    ), f"Expected {expected_controls}, but got {adjusted_controls}"
+    assert adjusted_controls == expected_controls, (
+        f"Expected {expected_controls}, but got {adjusted_controls}"
+    )

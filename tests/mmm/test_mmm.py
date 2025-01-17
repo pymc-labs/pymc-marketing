@@ -870,9 +870,9 @@ class TestMMM:
         )
 
         assert mmm.dag == dag, "DAG was not set correctly."
-        assert (
-            mmm.treatment_nodes == treatment_nodes
-        ), "Treatment nodes not set correctly."
+        assert mmm.treatment_nodes == treatment_nodes, (
+            "Treatment nodes not set correctly."
+        )
         assert mmm.outcome_node == outcome_node, "Outcome node not set correctly."
 
     def test_mmm_causal_attributes_default_treatment_nodes(self):
@@ -929,9 +929,9 @@ class TestMMM:
             outcome_node=outcome_node,
         )
 
-        assert mmm.control_columns == [
-            "control_1"
-        ], "Control columns were not updated based on the DAG."
+        assert mmm.control_columns == ["control_1"], (
+            "Control columns were not updated based on the DAG."
+        )
 
     def test_mmm_missing_dag_does_not_initialize_causal_graph(self):
         mmm = MMM(
@@ -943,9 +943,9 @@ class TestMMM:
         )
 
         assert mmm.dag is None, "DAG should be None."
-        assert not hasattr(
-            mmm, "causal_graphical_model"
-        ), "Causal graph should not be initialized without a DAG."
+        assert not hasattr(mmm, "causal_graphical_model"), (
+            "Causal graph should not be initialized without a DAG."
+        )
 
 
 def new_date_ranges_to_test():
