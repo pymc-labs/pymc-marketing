@@ -88,8 +88,8 @@ def compile_constraints_for_scipy(constraints, optimizer):
     """Compile constraints for scipy."""
     compiled_constraints = []
 
-    budgets = optimizer._create_budget_variable()
-    [budgets_flat] = get_var_by_name([budgets], "budgets_flat")
+    budgets = optimizer._budgets
+    budgets_flat = optimizer._budgets_flat
     total_budget = pt.scalar("total_budget")
 
     for c in constraints.values() if isinstance(constraints, dict) else constraints:
