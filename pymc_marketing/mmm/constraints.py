@@ -35,7 +35,7 @@ def auto_jacobian(
 
     def _jac(budgets_sym, total_budget_sym, optimizer):
         _fun = constraint_fun(budgets_sym, total_budget_sym, optimizer)
-        [budgets_flat] = get_var_by_name([budgets_sym], "budgets_flat")
+        budgets_flat = optimizer._budgets_flat
         return pt.grad(rewrite_pregrad(_fun), budgets_flat)
 
     return _jac
