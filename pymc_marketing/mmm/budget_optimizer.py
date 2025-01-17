@@ -393,7 +393,7 @@ class BudgetOptimizer(BaseModel):
         MinimizeException
             If the optimization fails for any reason, the exception message will contain the details.
         """
-        self._total_budget_sym.set_value(total_budget)
+        self._total_budget_sym.set_value(np.asarray(total_budget, dtype="float64"))
 
         # 1. Process budget bounds
         if budget_bounds is None:
