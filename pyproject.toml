@@ -73,6 +73,7 @@ test = [
     "lifetimes==0.11.3",
     "papermill",
     "preliz>=0.8.0",
+    "pyprojroot",
     "pytest-cov>=3.0.0",
     "pytest-mock>=3.14.0",
     "pytest>=7.0.1",
@@ -80,9 +81,7 @@ test = [
 ]
 
 [tool.hatch.build.targets.sdist]
-exclude = [
-    "docs",
-]
+exclude = ["docs"]
 
 [tool.hatch.version]
 path = "pymc_marketing/version.py"
