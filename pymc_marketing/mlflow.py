@@ -99,7 +99,6 @@ Autologging for a PyMC-Marketing model:
 
 """
 
-import json
 import logging
 import os
 import warnings
@@ -286,10 +285,7 @@ def log_types_of_parameters(model: Model) -> None:
     """
     mlflow.log_param("n_free_RVs", len(model.free_RVs))
     mlflow.log_param("n_observed_RVs", len(model.observed_RVs))
-    mlflow.log_param(
-        "n_deterministics",
-        len(model.deterministics),
-    )
+    mlflow.log_param("n_deterministics", len(model.deterministics))
     mlflow.log_param("n_potentials", len(model.potentials))
 
 
@@ -330,10 +326,7 @@ def log_model_derived_info(model: Model) -> None:
     mlflow.log_text(model.str_repr(), "model_repr.txt")
 
     if model.coords:
-        mlflow.log_dict(
-            model.coords,
-            "coords.json",
-        )
+        mlflow.log_dict(model.coords, "coords.json")
 
     log_model_graph(model, "model_graph")
     log_likelihood_type(model)
@@ -929,10 +922,15 @@ def autolog(
         @wraps(sample)
         def new_sample(*args, **kwargs):
             model = pm.modelcontext(kwargs.get("model"))
-            idata = sample(*args, **kwargs)
+
             mlflow.log_param("nuts_sampler", kwargs.get("nuts_sampler", "pymc"))
             mlflow.log_param("pymc_marketing_version", __version__)
             mlflow.log_param("pymc_version", pm.__version__)
+
+            if log_model_info:
+                log_model_derived_info(model)
+
+            idata = sample(*args, **kwargs)
 
             # Align with the default values in pymc.sample
             tune = kwargs.get("tune", 1000)
@@ -946,9 +944,6 @@ def autolog(
                     **arviz_summary_kwargs,
                 )
 
-            if log_model_info:
-                log_model_derived_info(model)
-
             if log_metadata_info:
                 log_metadata(model=model, idata=idata)
 
@@ -961,14 +956,12 @@ def autolog(
     def patch_find_MAP(find_MAP):
         @wraps(find_MAP)
         def new_find_MAP(*args, **kwargs):
-            result = find_MAP(*args, **kwargs)
-
             model = pm.modelcontext(kwargs.get("model"))
 
             if log_model_info:
                 log_model_derived_info(model)
 
-            return result
+            return find_MAP(*args, **kwargs)
 
         return new_find_MAP
 
@@ -977,20 +970,13 @@ def autolog(
     def patch_mmm_fit(fit: Callable) -> Callable:
         @wraps(fit)
         def new_fit(self, *args, **kwargs):
+            attrs = self.create_idata_attrs()
+            mlflow.log_params(attrs)
+
+            mlflow.log_param("adstock_name", self.adstock.lookup_name)
+            mlflow.log_param("saturation_name", self.saturation.lookup_name)
+
             idata = fit(self, *args, **kwargs)
-
-            mlflow.log_params(
-                idata.attrs,
-            )
-
-            mlflow.log_param(
-                "adstock_name",
-                json.loads(idata.attrs["adstock"])["lookup_name"],
-            )
-            mlflow.log_param(
-                "saturation_name",
-                json.loads(idata.attrs["saturation"])["lookup_name"],
-            )
 
             log_inference_data(idata, save_file="idata.nc")
 
