@@ -11,7 +11,12 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-# constraints.py
+
+"""Constraints for marketing mix model budget optimization.
+
+This module defines functions for building and compiling constraints,
+for marketing mix model budget optimization in PyMC-Marketing.
+"""
 
 import pytensor.tensor as pt
 from pymc.pytensorf import rewrite_pregrad
@@ -22,7 +27,8 @@ from pytensor.graph.basic import get_var_by_name
 def auto_jacobian(
     constraint_fun,
 ):
-    """
+    """Auto jacobian for scipy.
+
     Given a symbolic constraint function constraint_fun(budgets_sym, total_budget_sym, optimizer),
     return a symbolic jacobian function that depends on the same variables.
     """
@@ -41,9 +47,9 @@ def build_constraint(
     constraint_fun,
     constraint_jac=None,
 ):
-    """
-    Return a dictionary of the form:
+    """Build a constraint for scipy.
 
+    Return a dictionary of the form:
       {
           "key": key,
           "type": constraint_type,

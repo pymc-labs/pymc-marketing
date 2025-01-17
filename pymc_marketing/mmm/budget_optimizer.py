@@ -21,13 +21,14 @@ from typing import Any, ClassVar
 import arviz as az
 import numpy as np
 import pytensor.tensor as pt
+import xarray as xr
 from pydantic import BaseModel, ConfigDict, Field
 from pymc import Model, do
 from pymc.logprob.utils import rvs_in_graph
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pytensor import clone_replace, function
 from pytensor.graph import rewrite_graph, vectorize_graph
-from pytensor.graph.basic import get_var_by_name
+from pytensor.graph.basic import ancestors, get_var_by_name
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray
 
@@ -36,12 +37,41 @@ from pymc_marketing.mmm.constraints import (
     build_default_sum_constraint,
     compile_constraints_for_scipy,
 )
-from pytensor.graph.basic import ancestors
-from scipy.optimize import OptimizeResult, minimize
-from xarray import DataArray
-
 from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
+
+
+def optimizer_xarray_builder(value, **kwargs):
+    """
+    Create an xarray.DataArray with flexible dimensions and coordinates.
+
+    Parameters
+    ----------
+    - value (array-like): The data values for the DataArray. Shape must match the dimensions implied by the kwargs.
+    - **kwargs: Key-value pairs representing dimension names and their corresponding coordinates.
+
+    Returns
+    -------
+    - xarray.DataArray: The resulting DataArray with the specified dimensions and values.
+
+    Raises
+    ------
+    - ValueError: If the shape of `value` doesn't match the lengths of the specified coordinates.
+    """
+    # Extract the dimensions and coordinates
+    dims = list(kwargs.keys())
+    coords = {dim: kwargs[dim] for dim in dims}
+
+    # Validate the shape of `value`
+    expected_shape = tuple(len(coords[dim]) for dim in dims)
+    if np.shape(value) != expected_shape:
+        raise ValueError(
+            f"""The shape of 'value' {np.shape(value)} does not match the expected shape {expected_shape},
+            based on the provided dimensions.
+            """
+        )
+
+    return xr.DataArray(value, coords=coords, dims=dims)
 
 
 class MinimizeException(Exception):
@@ -149,7 +179,7 @@ class BudgetOptimizer(BaseModel):
         )
 
     def set_constraints(self, constraints, default=None):
-        """Set constraints"""
+        """Set constraints."""
         self._constraints = {}
         if default is None:
             default = False if constraints else True
@@ -164,6 +194,11 @@ class BudgetOptimizer(BaseModel):
 
         if default:
             self._constraints["default"] = build_default_sum_constraint("default")
+            warnings.warn(
+                "Using default equality constraint",
+                UserWarning,
+                stacklevel=2,
+            )
 
         self._compiled_constraints = compile_constraints_for_scipy(
             constraints=self._constraints, optimizer=self
@@ -337,105 +372,10 @@ class BudgetOptimizer(BaseModel):
         """Gradient of the objective function."""
         return self._compiled_functions[self.utility_function]["gradient"](budgets)
 
-    def extract_response_distribution(
-        self, budgets: pt.TensorVariable
-    ) -> pt.TensorVariable:
-        """Extract the response graph, conditioned on the posterior draws and a placeholder budget variable."""
-        if not (isinstance(budgets, pt.TensorVariable)):  # and budgets.type.ndim == 1):
-            raise ValueError("budgets must be a TensorVariable")
-
-        num_periods = self.num_periods
-        model = self._pymc_model
-        posterior = self.hmm_model.idata.posterior  # type: ignore
-        max_lag = self.hmm_model.adstock.l_max
-        channel_scales = self.hmm_model.scaler.input_scales[
-            self.hmm_model.channel_columns
-        ].values
-
-        # Freeze all but date dims for a more succinct graph
-        coords = self._pymc_model._coords
-        model = freeze_dims_and_data(
-            model, data=[], dims=[dim for dim in coords if dim != "date"]
-        )
-
-        response_variable = model[self.response_variable]
-
-        # Replicate the budget over num_periods and append zeros to also quantify carry-over effects
-        channel_data_dims = model.named_vars_to_dims["channel_data"]
-        date_dim_idx = list(channel_data_dims).index("date")
-
-        budgets_tiled_shape = list(tuple(budgets.shape))
-        budgets_tiled_shape.insert(date_dim_idx, num_periods)
-        # TODO: If scales become part of the model, we don't need to transform it here
-        budgets /= channel_scales[:, None]
-        budgets_tiled = pt.broadcast_to(
-            pt.expand_dims(budgets, date_dim_idx), budgets_tiled_shape
-        )
-
-        budget_full_shape = list(tuple(budgets.shape))
-        budget_full_shape.insert(date_dim_idx, num_periods + max_lag)
-        budgets_full = pt.zeros(budget_full_shape)
-        set_idxs = (*((slice(None),) * date_dim_idx), slice(None, num_periods))
-        budgets_full = budgets_full[set_idxs].set(budgets_tiled)
-        budgets_full.name = "budgets_full"
-
-        # Replace model free_RVs by placeholder variables
-        placeholder_replace_dict = {
-            model[free_RV.name]: pt.tensor(
-                name=free_RV.name,
-                shape=free_RV.type.shape,
-                dtype=free_RV.dtype,
-            )
-            for free_RV in model.free_RVs
-        }
-
-        # Replace the channel_data by the budget variable
-        placeholder_replace_dict[model["channel_data"]] = budgets_full
-
-        [response_variable] = clone_replace(
-            [response_variable],
-            replace=placeholder_replace_dict,
-        )
-
-        if rvs_in_graph([response_variable]):
-            raise RuntimeError("RVs found in the extracted graph, this is likely a bug")
-
-        # Cleanup graph prior to vectorization
-        response_variable = rewrite_graph(
-            response_variable, include=("canonicalize", "ShapeOpt")
-        )
-
-        # Replace dummy variables by posterior constants (and vectorize graph)
-        replace_dict = {}
-        for placeholder in placeholder_replace_dict.values():
-            if placeholder.name == "budgets_full":
-                continue
-            replace_dict[placeholder] = pt.constant(
-                posterior[placeholder.name].astype(placeholder.dtype),
-                name=placeholder.name,
-            )
-
-        response_variable_distribution = vectorize_graph(
-            response_variable, replace=replace_dict
-        )
-
-        # Final cleanup of the vectorize graph.
-        # This shouldn't be needed, vectorize should just not do anything if there are no batch dims!
-        response_variable_distribution = rewrite_graph(
-            response_variable_distribution,
-            include=(
-                "local_eager_useless_unbatched_blockwise",
-                "local_useless_unbatched_blockwise",
-            ),
-        )
-
-        return response_variable_distribution
-
     def allocate_budget(
         self,
         total_budget: float,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
-        custom_constraints: dict[Any, Any] | None = None,
         minimize_kwargs: dict[str, Any] | None = None,
     ) -> tuple[DataArray, OptimizeResult]:
         """Allocate the budget based on the total budget, budget bounds, and custom constraints.
@@ -455,8 +395,6 @@ class BudgetOptimizer(BaseModel):
             The total budget.
         budget_bounds : DataArray or dict, optional
             DataArray or dict containing the budget bounds for each channel. Default is None.
-        custom_constraints : dict, optional
-            Custom constraints for the optimization. Default is None.
         minimize_kwargs : dict, optional
             Additional keyword arguments for the `scipy.optimize.minimize` function. If None, default values are used.
             Method is set to "SLSQP", ftol is set to 1e-9, and maxiter is set to 1_000.
@@ -478,12 +416,10 @@ class BudgetOptimizer(BaseModel):
                 UserWarning,
                 stacklevel=2,
             )
-            budget_bounds_array = np.full(
-                fill_value=[0, total_budget], shape=(*self._budget_shape, 2)
+            budget_bounds_array = np.array(
+                [[0, total_budget]] * np.prod(self._budget_shape)
             )
-
         elif isinstance(budget_bounds, dict):
-            # For backwards compatibility
             if len(self._budget_dims) > 1:
                 raise ValueError(
                     f"Dict approach to budget_bounds is not supported for budgets with more than one dimension. "
@@ -496,7 +432,6 @@ class BudgetOptimizer(BaseModel):
                 ],
                 axis=0,
             )
-
         elif isinstance(budget_bounds, DataArray):
             if not set(budget_bounds.dims) == {*self._budget_dims, "bound"}:
                 raise ValueError(
@@ -510,33 +445,14 @@ class BudgetOptimizer(BaseModel):
                 "budget_bounds must be a dictionary or an xarray.DataArray"
             )
 
+        # Final bounds setup
         bounds = [(low, high) for low, high in budget_bounds_array.reshape(-1, 2)]  # type: ignore
 
-        if custom_constraints is None:
-            constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
-            warnings.warn(
-                "Using default equality constraint: The sum of all budgets should be equal to the total budget.",
-                UserWarning,
-                stacklevel=2,
-            )
-        elif isinstance(budget_bounds, dict):
-            # TODO: Backwards compatibility with dict approach?
-            raise NotImplementedError("Dict approach is not supported anymore.")
-        elif isinstance(budget_bounds, DataArray):
-            if not set(budget_bounds.dims) == {*self._budget_dims, "bound"}:
-                raise ValueError(
-                    f"budget_bounds must be an DataArray with dims {(*self._budget_dims, 'bound')}"
-                )
-            budget_bounds = budget_bounds.transpose(*self._budget_dims, "bound")
-        else:
-            raise ValueError("budget_bounds must be an DataArray")
-
         if self.opt_mask is None:
-            bounds = [(low, high) for low, high in budget_bounds.values.reshape(-1, 2)]  # type: ignore
+            bounds = [(low, high) for low, high in budget_bounds_array.reshape(-1, 2)]
         else:
-            # xarray does not allow boolean indexing with >1D arrays
             bounds = [
-                (low, high) for low, high in budget_bounds.values[self.opt_mask.values]
+                (low, high) for low, high in budget_bounds_array[self.opt_mask.values]
             ]  # type: ignore
 
         constraints_for_scipy = []
@@ -552,7 +468,7 @@ class BudgetOptimizer(BaseModel):
         [budgets_size] = get_var_by_name(
             [self._create_budget_variable()], "budgets_flat"
         )[0].type.shape
-        
+
         budgets_size = np.prod(self._budget_shape)
         initial_guess = np.ones(budgets_size) * total_budget / budgets_size
         initial_guess = initial_guess.astype(self._budgets_flat.type.dtype)
@@ -568,7 +484,7 @@ class BudgetOptimizer(BaseModel):
             jac=self._compiled_functions[self.utility_function]["gradient"],
             x0=initial_guess,
             bounds=bounds,
-            constraints=constraints,
+            constraints=constraints_for_scipy,
             **minimize_kwargs,
         )
 

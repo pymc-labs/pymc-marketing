@@ -476,7 +476,13 @@ class BaseMMM(BaseValidateMMM):
                     dims=("date", "channel"),
                 )
 
-            mu_var = intercept + channel_contributions.sum(axis=-1)
+                total_channel_contributions = pm.Deterministic(
+                    name="total_channel_contributions",
+                    var=channel_contributions.sum(axis=-1),
+                    dims=("date",),
+                )
+
+            mu_var = intercept + total_channel_contributions
 
             if (
                 self.control_columns is not None
@@ -2431,6 +2437,13 @@ class MMM(
         ValueError
             If the noise level is not a float.
         """
+        # Deprecation warning
+        warnings.warn(
+            "This method is deprecated and will be removed in a future version. "
+            "Use allocate_budget_to_maximize_response() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
         allocator = BudgetOptimizer(
@@ -2452,7 +2465,7 @@ class MMM(
         time_granularity: str,
         num_periods: int,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
-        custom_constraints: dict[str, float] | None = None,
+        custom_constraints: Sequence[dict[str, Any]] | None = None,
         noise_level: float = 0.01,
         utility_function: UtilityFunctionType = average_response,
         **minimize_kwargs,
@@ -2488,7 +2501,7 @@ class MMM(
         budget_bounds : DatArray or dict[str, list[Any]], optional
             An xarray DataArray or a dictionary specifying the lower and upper bounds for the budget allocation
             for each channel. If None, no bounds are applied.
-        custom_constraints : dict[str, float], optional
+        custom_constraints : Sequence[dict[str, Any]], optional
             Custom constraints for the optimization. If None, no custom constraints are applied.
         noise_level : float, optional
             The level of noise added to the allocation strategy (by default 1%).
@@ -2526,12 +2539,12 @@ class MMM(
             model=self,
             num_periods=num_periods,
             utility_function=utility_function,
+            custom_constraints=custom_constraints,
+            default_constraints=True,
         )
-
         self.optimal_allocation, _ = allocator.allocate_budget(
             total_budget=budget,
             budget_bounds=budget_bounds,
-            custom_constraints=custom_constraints,
             **minimize_kwargs,
         )
 
@@ -2620,9 +2633,9 @@ class MMM(
         ax.grid(False)
         ax2.grid(False)
 
-        bars = [bars1[0], bars2[0]]
-        labels = [bar.get_label() for bar in bars]
-        ax.legend(bars, labels)
+        bars = [bars1, bars2]
+        labels = ["Allocated Spend", "Channel Contributions"]
+        ax.legend(bars, labels, loc="best")
 
         return fig, ax
 
