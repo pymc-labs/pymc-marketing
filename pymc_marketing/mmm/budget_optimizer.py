@@ -441,7 +441,7 @@ class BudgetOptimizer(BaseModel):
             bounds = [
                 (low, high) for (low, high) in budget_bounds_array[self.opt_mask.values]
             ]
-            
+
         # 4. Determine how many budget entries we optimize
         if self.opt_mask is None:
             budgets_size = np.prod(self._budget_shape)
