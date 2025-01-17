@@ -24,13 +24,12 @@ from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.components.adstock import DelayedAdstock, GeometricAdstock
 from pymc_marketing.mmm.components.saturation import (
-    SATURATION_TRANSFORMATIONS,
     LogisticSaturation,
     MichaelisMentenSaturation,
     SaturationTransformation,
-    register_saturation_transformation,
 )
 from pymc_marketing.mmm.mmm import MMM, BaseMMM
+from pymc_marketing.model_builder import DifferentModelError
 from pymc_marketing.prior import Prior
 
 seed: int = sum(map(ord, "pymc_marketing"))
@@ -485,14 +484,14 @@ class TestMMM:
         inference_periods = len(inference_data.coords["date"])
 
         # a) Total budget consistency check
-        allocated_budget = sum(mmm_fitted.optimal_allocation_dict.values())
+        allocated_budget = mmm_fitted.optimal_allocation.sum()
         assert np.isclose(allocated_budget, budget, rtol=1e-5), (
             f"Total allocated budget {allocated_budget} does not match expected budget {budget}"
         )
 
         # b) Budget boundaries check
         for channel, bounds in budget_bounds.items():
-            allocation = mmm_fitted.optimal_allocation_dict[channel]
+            allocation = mmm_fitted.optimal_allocation.sel(channel=channel)
             lower_bound, upper_bound = bounds
             assert lower_bound <= allocation <= upper_bound, (
                 f"Channel {channel} allocation {allocation} is out of bounds ({lower_bound}, {upper_bound})"
@@ -783,10 +782,10 @@ class TestMMM:
 
         error_msg = (
             "The file 'test_model' does not "
-            "contain an inference data of the "
+            "contain an InferenceData of the "
             "same model or configuration as 'MMM'"
         )
-        with pytest.raises(ValueError, match=error_msg):
+        with pytest.raises(DifferentModelError, match=error_msg):
             MMM.load("test_model")
         os.remove("test_model")
 
@@ -1243,8 +1242,6 @@ def test_save_load_with_media_transformation(mmm_with_media_config_fitted) -> No
     file = "tmp-model"
     mmm_with_media_config_fitted.save(file)
 
-    register_saturation_transformation(CustomSaturation)
-
     loaded_mmm = MMM.load(file)
 
     assert loaded_mmm.adstock == GeometricAdstock(
@@ -1262,7 +1259,6 @@ def test_save_load_with_media_transformation(mmm_with_media_config_fitted) -> No
     )
 
     # clean up
-    del SATURATION_TRANSFORMATIONS[CustomSaturation.lookup_name]
     os.remove(file)
 
 
