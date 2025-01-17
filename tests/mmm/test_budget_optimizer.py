@@ -266,8 +266,8 @@ def test_allocate_budget_custom_minimize_args(minimize_mock, dummy_df) -> None:
             [
                 {
                     "key": "channel_1_min_constraint",
-                    "constraint_fun": lambda budgets_sym,
-                    optimizer: budgets_sym[0] - 60,
+                    "constraint_fun": lambda budgets_sym, optimizer: budgets_sym[0]
+                    - 60,
                     "constraint_type": "ineq",
                 },
             ],
@@ -310,9 +310,7 @@ def test_allocate_budget_infeasible_constraints(
         optimizer.allocate_budget(total_budget, budget_bounds)
 
 
-def mean_response_eq_constraint_fun(
-    budgets_sym, optimizer, target_response
-):
+def mean_response_eq_constraint_fun(budgets_sym, optimizer, target_response):
     """
     Enforces mean_response(budgets_sym) = target_response,
     i.e. returns (mean_resp - target_response).
@@ -369,9 +367,7 @@ def test_allocate_budget_custom_response_constraint(
     )
 
     def constraint_wrapper(budgets_sym, optimizer):
-        return mean_response_eq_constraint_fun(
-            budgets_sym, optimizer, target_response
-        )
+        return mean_response_eq_constraint_fun(budgets_sym, optimizer, target_response)
 
     custom_constraints = [
         {
