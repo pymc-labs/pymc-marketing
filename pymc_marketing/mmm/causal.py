@@ -48,6 +48,10 @@ class CausalGraphModel:
         A list of treatment variable names.
     outcome : str
         The outcome variable name.
+
+    References
+    ----------
+    .. [1] https://github.com/microsoft/dowhy
     """
 
     def __init__(
@@ -89,6 +93,11 @@ class CausalGraphModel:
         -------
         list[list[str]]
             A list of backdoor paths, where each path is represented as a list of variable names.
+
+        References
+        ----------
+        .. [1] Causal Inference in Statistics: A Primer
+        By Judea Pearl, Madelyn Glymour, Nicholas P. Jewell · 2016
         """
         # Use DoWhy's internal method to get backdoor paths for all treatments combined
         return self.causal_model._graph.get_backdoor_paths(
