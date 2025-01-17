@@ -2437,19 +2437,14 @@ class MMM(
         ValueError
             If the noise level is not a float.
         """
-        # Deprecation warning
-        warnings.warn(
-            "This method is deprecated and will be removed in a future version. "
-            "Use allocate_budget_to_maximize_response() instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
         allocator = BudgetOptimizer(
             num_periods=num_periods,
             utility_function=utility_function,
             response_variable=response_variable,
+            custom_constraints=constraints,
+            default_constraints=default_constraints,
             model=self,
         )
 

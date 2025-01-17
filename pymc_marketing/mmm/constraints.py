@@ -21,7 +21,6 @@ for marketing mix model budget optimization in PyMC-Marketing.
 import pytensor.tensor as pt
 from pymc.pytensorf import rewrite_pregrad
 from pytensor import function
-from pytensor.graph.basic import get_var_by_name
 
 
 def auto_jacobian(
@@ -29,12 +28,12 @@ def auto_jacobian(
 ):
     """Auto jacobian for scipy.
 
-    Given a symbolic constraint function constraint_fun(budgets_sym, total_budget_sym, optimizer),
+    Given a symbolic constraint function constraint_fun(budgets_sym, optimizer),
     return a symbolic jacobian function that depends on the same variables.
     """
 
-    def _jac(budgets_sym, total_budget_sym, optimizer):
-        _fun = constraint_fun(budgets_sym, total_budget_sym, optimizer)
+    def _jac(budgets_sym, optimizer):
+        _fun = constraint_fun(budgets_sym, optimizer)
         budgets_flat = optimizer._budgets_flat
         return pt.grad(rewrite_pregrad(_fun), budgets_flat)
 
@@ -73,8 +72,8 @@ def build_constraint(
 def build_default_sum_constraint(key: str = "default"):
     """Return a constraint dict that enforces sum(budgets) == total_budget."""
 
-    def _constraint_fun(budgets_sym, total_budget_sym, optimizer):
-        return pt.sum(budgets_sym) - total_budget_sym
+    def _constraint_fun(budgets_sym, optimizer):
+        return pt.sum(budgets_sym) - optimizer._total_budget_sym
 
     return build_constraint(
         key=key,
@@ -90,7 +89,6 @@ def compile_constraints_for_scipy(constraints, optimizer):
 
     budgets = optimizer._budgets
     budgets_flat = optimizer._budgets_flat
-    total_budget = pt.scalar("total_budget")
 
     for c in constraints.values() if isinstance(constraints, dict) else constraints:
         ctype = c["type"]
@@ -99,14 +97,16 @@ def compile_constraints_for_scipy(constraints, optimizer):
 
         # Compile symbolic => python callables
         compiled_fun = function(
-            inputs=[budgets_flat, total_budget],
-            outputs=sym_fun(budgets, total_budget, optimizer),
+            inputs=[budgets_flat],
+            outputs=sym_fun(budgets, optimizer),
             on_unused_input="ignore",
+            # trust_input=True,
         )
         compiled_jac = function(
-            inputs=[budgets_flat, total_budget],
-            outputs=sym_jac(budgets, total_budget, optimizer),
+            inputs=[budgets_flat],
+            outputs=sym_jac(budgets, optimizer),
             on_unused_input="ignore",
+            # trust_input=True,
         )
 
         compiled_constraints.append(
