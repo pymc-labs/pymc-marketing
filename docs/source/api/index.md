@@ -8,13 +8,13 @@
   :toctree: generated/
 
   clv
-  hsgp_kwargs
-  mmm
-  model_config
-  model_builder
-  prior
   customer_choice
+  deserialize
+  hsgp_kwargs
   metrics
   mlflow
-  deserialize
+  mmm
+  model_builder
+  model_config
+  prior
 ```

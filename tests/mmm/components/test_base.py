@@ -26,7 +26,8 @@ from pymc_marketing.mmm.components.base import (
     Transformation,
     create_registration_meta,
 )
-from pymc_marketing.prior import Prior
+from pymc_marketing.mmm.components.saturation import TanhSaturation
+from pymc_marketing.prior import Prior, VariableFactory
 
 
 def test_new_transformation_missing_prefix() -> None:
@@ -451,3 +452,28 @@ def test_automatic_registration() -> None:
 
     assert exception.lookup_name == "new"
     assert exception.name == "Transform"
+
+
+def test_transform_sample_curve_with_variable_factory():
+    class Example(VariableFactory):
+        dims = ("dim_a",)
+
+        def create_variable(self, name: str):
+            with pm.Model(name=name):
+                beta = pm.Normal("beta", dims="dim_b")
+                c = pm.Normal("c", dims=("dim_a", "dim_b"))
+                return pt.dot(c, beta)
+
+    saturation = TanhSaturation(
+        priors={
+            "b": Example(),
+            "c": Example(),
+        },
+        prefix="outlet_saturation",
+    )
+
+    with pm.Model(coords={"dim_a": range(5), "dim_b": range(3), "obs": range(10)}):
+        prior = saturation.sample_prior()
+
+    curve = saturation.sample_curve(prior, 10)
+    assert curve.dims == ("chain", "draw", "x", "dim_a")
