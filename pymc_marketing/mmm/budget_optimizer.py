@@ -439,7 +439,8 @@ class BudgetOptimizer(BaseModel):
         else:
             # Only gather bounds for the True positions in the mask
             bounds = [
-                (low, high) for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]
+                (low, high)
+                for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]
             ]
 
         # 4. Determine how many budget entries we optimize
@@ -475,7 +476,9 @@ class BudgetOptimizer(BaseModel):
                 optimal_budgets = np.reshape(result.x, self._budget_shape)
             else:
                 # Fill zeros, then place the solution in masked positions
-                optimal_budgets = np.zeros_like(self.budgets_to_optimize.values, dtype=float)
+                optimal_budgets = np.zeros_like(
+                    self.budgets_to_optimize.values, dtype=float
+                )
                 optimal_budgets[self.budgets_to_optimize.values] = result.x
 
             optimal_budgets = DataArray(
