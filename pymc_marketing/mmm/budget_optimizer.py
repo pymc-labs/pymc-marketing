@@ -126,7 +126,7 @@ class BudgetOptimizer(BaseModel):
         arbitrary_types_allowed=True,
     )
 
-    opt_mask: DataArray | None = Field(
+    budgets_to_optimize: DataArray | None = Field(
         default=None,
         description="Mask that defines a subset of budgets to optimize. Non-optimized budgets remain fixed at 0.",
     )
@@ -169,20 +169,20 @@ class BudgetOptimizer(BaseModel):
         self._budget_shape = tuple(len(coord) for coord in self._budget_coords.values())
 
         # 4. Handle mask vs. no mask in flattening
-        if self.opt_mask is None:
+        if self.budgets_to_optimize is None:
             size_budgets = np.prod(self._budget_shape)
         else:
-            size_budgets = self.opt_mask.sum().item()
+            size_budgets = self.budgets_to_optimize.sum().item()
 
         self._budgets_flat = pt.tensor("budgets_flat", shape=(size_budgets,))
 
-        if self.opt_mask is None:
+        if self.budgets_to_optimize is None:
             # No mask case: reshape entire vector
             self._budgets = self._budgets_flat.reshape(self._budget_shape)
         else:
             # Masked case: fill a zero array, then set only the True positions
             budgets_zeros = pt.zeros(self._budget_shape, name="budgets_zeros")
-            bool_mask = np.asarray(self.opt_mask).astype(bool)
+            bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
             self._budgets = budgets_zeros[bool_mask].set(self._budgets_flat)
 
         # 5. Replace channel_data with budgets in the PyMC model
@@ -434,19 +434,19 @@ class BudgetOptimizer(BaseModel):
             )
 
         # 2. Build the final bounds list
-        if self.opt_mask is None:
+        if self.budgets_to_optimize is None:
             bounds = [(low, high) for (low, high) in budget_bounds_array.reshape(-1, 2)]
         else:
             # Only gather bounds for the True positions in the mask
             bounds = [
-                (low, high) for (low, high) in budget_bounds_array[self.opt_mask.values]
+                (low, high) for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]
             ]
 
         # 4. Determine how many budget entries we optimize
-        if self.opt_mask is None:
+        if self.budgets_to_optimize is None:
             budgets_size = np.prod(self._budget_shape)
         else:
-            budgets_size = self.opt_mask.sum().item()
+            budgets_size = self.budgets_to_optimize.sum().item()
 
         # 5. Create an initial guess
         initial_guess = np.ones(budgets_size) * (total_budget / budgets_size)
@@ -470,13 +470,13 @@ class BudgetOptimizer(BaseModel):
 
         # 7. Process results
         if result.success:
-            if self.opt_mask is None:
+            if self.budgets_to_optimize is None:
                 # Reshape the entire optimized solution
                 optimal_budgets = np.reshape(result.x, self._budget_shape)
             else:
                 # Fill zeros, then place the solution in masked positions
-                optimal_budgets = np.zeros_like(self.opt_mask.values, dtype=float)
-                optimal_budgets[self.opt_mask.values] = result.x
+                optimal_budgets = np.zeros_like(self.budgets_to_optimize.values, dtype=float)
+                optimal_budgets[self.budgets_to_optimize.values] = result.x
 
             optimal_budgets = DataArray(
                 optimal_budgets, dims=self._budget_dims, coords=self._budget_coords
