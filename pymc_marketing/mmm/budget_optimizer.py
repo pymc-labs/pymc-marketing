@@ -35,6 +35,7 @@ from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray
 
 from pymc_marketing.mmm.constraints import (
+    Constraint,
     build_default_sum_constraint,
     compile_constraints_for_scipy,
 )
@@ -131,7 +132,7 @@ class BudgetOptimizer(BaseModel):
         description="Mask that defines a subset of budgets to optimize. Non-optimized budgets remain fixed at 0.",
     )
 
-    custom_constraints: Sequence[dict[str, Any]] = Field(
+    custom_constraints: Sequence[Constraint] = Field(
         default=(),
         description="Custom constraints for the optimizer.",
         arbitrary_types_allowed=True,
@@ -202,19 +203,19 @@ class BudgetOptimizer(BaseModel):
             default=self.default_constraints, constraints=self.custom_constraints
         )
 
-    def set_constraints(self, constraints, default=None):
+    def set_constraints(self, constraints, default=None) -> None:
         """Set constraints for the optimizer."""
         self._constraints = {}
         if default is None:
             default = False if constraints else True
 
         for c in constraints:
-            new_constraint = dict(
-                key=c["key"],
-                constraint_fun=c["constraint_fun"],
-                constraint_type=c.get("constraint_type", "eq"),
-            )  # type: ignore
-            self._constraints[c["key"]] = new_constraint
+            new_constraint = Constraint(
+                key=c.key,
+                constraint_fun=c.constraint_fun,
+                constraint_type=c.constraint_type if c.constraint_type else "eq",
+            )
+            self._constraints[c.key] = new_constraint
 
         if default:
             self._constraints["default"] = build_default_sum_constraint("default")
