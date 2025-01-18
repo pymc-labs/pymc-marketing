@@ -28,6 +28,7 @@ from pymc_marketing.mmm.budget_optimizer import (
 )
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
+from pymc_marketing.mmm.constraints import Constraint
 from pymc_marketing.mmm.utility import _check_samples_dimensionality
 
 
@@ -264,13 +265,13 @@ def test_allocate_budget_custom_minimize_args(minimize_mock, dummy_df) -> None:
             },
             # New-style custom constraint: channel_1 must be >= 60, which is infeasible
             [
-                {
-                    "key": "channel_1_min_constraint",
-                    "constraint_fun": lambda budgets_sym,
+                Constraint(
+                    key="channel_1_min_constraint",
+                    constraint_fun=lambda budgets_sym,
                     total_budget_sym,
                     optimizer: budgets_sym[0] - 60,
-                    "constraint_type": "ineq",
-                },
+                    constraint_type="ineq",
+                ),
             ],
         ),
     ],
@@ -372,11 +373,11 @@ def test_allocate_budget_custom_response_constraint(
         )
 
     custom_constraints = [
-        {
-            "key": "target_response_constraint",
-            "constraint_fun": constraint_wrapper,
-            "constraint_type": "eq",
-        }
+        Constraint(
+            key="target_response_constraint",
+            constraint_fun=constraint_wrapper,
+            constraint_type="eq",
+        )
     ]
 
     optimizer = BudgetOptimizer(
