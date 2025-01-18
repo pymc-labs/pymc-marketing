@@ -476,13 +476,14 @@ class BaseMMM(BaseValidateMMM):
                     dims=("date", "channel"),
                 )
 
-            total_channel_contributions = pm.Deterministic(
-                name="total_channel_contributions",
-                var=channel_contributions.sum(axis=-1),
-                dims=("date",),
+            # We define the deterministic variable to define the optimization by default
+            pm.Deterministic(
+                name="total_contributions",
+                var=channel_contributions.sum(axis=(-2, -1)),
+                dims=(),
             )
 
-            mu_var = intercept + total_channel_contributions
+            mu_var = intercept + channel_contributions.sum(axis=-1)
 
             if (
                 self.control_columns is not None
@@ -2235,7 +2236,7 @@ class MMM(
         budget: float | int,
         num_periods: int,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
-        response_variable: str = "channel_contributions",
+        response_variable: str = "total_contributions",
         utility_function: UtilityFunctionType = average_response,
         constraints: Sequence[dict[str, Any]] = (),
         default_constraints: bool = True,
@@ -2267,7 +2268,7 @@ class MMM(
             An xarray DataArary or dictionary specifying the lower and upper bounds for the budget allocation
             for each channel. If None, no bounds are applied.
         response_variable : str, optional
-            The response variable to optimize. Default is "channel_contributions".
+            The response variable to optimize. Default is "total_contributions".
         utility_function : UtilityFunctionType, optional
             The utility function to maximize. Default is the mean of the response distribution.
         custom_constraints : list[dict[str, Any]], optional

@@ -28,7 +28,7 @@ from pymc_marketing.mmm.budget_optimizer import (
 )
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
-from pymc_marketing.mmm.utility import _sum_non_sample_dims
+from pymc_marketing.mmm.utility import _check_samples_dimensionality
 
 
 @pytest.fixture(scope="module")
@@ -266,8 +266,9 @@ def test_allocate_budget_custom_minimize_args(minimize_mock, dummy_df) -> None:
             [
                 {
                     "key": "channel_1_min_constraint",
-                    "constraint_fun": lambda budgets_sym, optimizer: budgets_sym[0]
-                    - 60,
+                    "constraint_fun": lambda budgets_sym,
+                    total_budget_sym,
+                    optimizer: budgets_sym[0] - 60,
                     "constraint_type": "ineq",
                 },
             ],
@@ -299,7 +300,7 @@ def test_allocate_budget_infeasible_constraints(
     # Instantiate BudgetOptimizer with custom constraints
     optimizer = BudgetOptimizer(
         model=mmm,
-        response_variable="total_channel_contributions",
+        response_variable="total_contributions",
         default_constraints=False,  # Avoid default equality constraints
         custom_constraints=custom_constraints,
         num_periods=30,
@@ -310,16 +311,15 @@ def test_allocate_budget_infeasible_constraints(
         optimizer.allocate_budget(total_budget, budget_bounds)
 
 
-def mean_response_eq_constraint_fun(budgets_sym, optimizer, target_response):
+def mean_response_eq_constraint_fun(
+    budgets_sym, total_budget_sym, optimizer, target_response
+):
     """
     Enforces mean_response(budgets_sym) = target_response,
     i.e. returns (mean_resp - target_response).
     """
-    resp_dist = pytensor.clone_replace(
-        optimizer.extract_response_distribution("total_channel_contributions"),
-        replace={optimizer._budgets_flat: budgets_sym},
-    )
-    mean_resp = pt.mean(_sum_non_sample_dims(resp_dist))
+    resp_dist = optimizer.extract_response_distribution("total_contributions")
+    mean_resp = pt.mean(_check_samples_dimensionality(resp_dist))
     return mean_resp - target_response
 
 
@@ -366,8 +366,10 @@ def test_allocate_budget_custom_response_constraint(
         }
     )
 
-    def constraint_wrapper(budgets_sym, optimizer):
-        return mean_response_eq_constraint_fun(budgets_sym, optimizer, target_response)
+    def constraint_wrapper(budgets_sym, total_budget_sym, optimizer):
+        return mean_response_eq_constraint_fun(
+            budgets_sym, total_budget_sym, optimizer, target_response
+        )
 
     custom_constraints = [
         {
@@ -379,7 +381,7 @@ def test_allocate_budget_custom_response_constraint(
 
     optimizer = BudgetOptimizer(
         model=mmm,
-        response_variable="total_channel_contributions",
+        response_variable="total_contributions",
         utility_function=minimize_budget_utility,
         default_constraints=False,
         custom_constraints=custom_constraints,
@@ -391,10 +393,8 @@ def test_allocate_budget_custom_response_constraint(
         budget_bounds=None,
     )
 
-    resp_dist_sym = optimizer.extract_response_distribution(
-        "total_channel_contributions"
-    )
-    resp_mean_sym = pt.mean(_sum_non_sample_dims(resp_dist_sym))
+    resp_dist_sym = optimizer.extract_response_distribution("total_contributions")
+    resp_mean_sym = pt.mean(_check_samples_dimensionality(resp_dist_sym))
     test_fn = pytensor.function([optimizer._budgets_flat], resp_mean_sym)
     final_resp = test_fn(res.x)
 

@@ -26,6 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pymc import Model, do
 from pymc.logprob.utils import rvs_in_graph
 from pymc.model.transform.optimization import freeze_dims_and_data
+from pymc.pytensorf import rewrite_pregrad
 from pytensor import clone_replace, function
 from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph import rewrite_graph, vectorize_graph
@@ -34,7 +35,6 @@ from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray
 
 from pymc_marketing.mmm.constraints import (
-    build_constraint,
     build_default_sum_constraint,
     compile_constraints_for_scipy,
 )
@@ -116,7 +116,7 @@ class BudgetOptimizer(BaseModel):
     )
 
     response_variable: str = Field(
-        default="channel_contributions",
+        default="total_contributions",
         description="The response variable to optimize.",
     )
 
@@ -155,7 +155,9 @@ class BudgetOptimizer(BaseModel):
         pymc_model = self.mmm_model._set_predictors_for_optimization(self.num_periods)
 
         # 2. Shared variable for total_budget
-        self._total_budget_sym: SharedVariable = shared(0.0, name="total_budget_sym")
+        self._total_budget: SharedVariable = shared(
+            np.array(0.0, dtype="float64"), name="total_budget"
+        )
 
         # 3. Identify budget dimensions and shapes
         self._budget_dims = [
@@ -207,11 +209,11 @@ class BudgetOptimizer(BaseModel):
             default = False if constraints else True
 
         for c in constraints:
-            new_constraint = build_constraint(
+            new_constraint = dict(
                 key=c["key"],
                 constraint_fun=c["constraint_fun"],
                 constraint_type=c.get("constraint_type", "eq"),
-            )
+            )  # type: ignore
             self._constraints[c["key"]] = new_constraint
 
         if default:
@@ -342,7 +344,7 @@ class BudgetOptimizer(BaseModel):
         objective = -self.utility_function(
             samples=response_distribution, budgets=budgets
         )
-        objective_grad = pt.grad(objective, budgets_flat)
+        objective_grad = pt.grad(rewrite_pregrad(objective), budgets_flat)
 
         objective_func = function([budgets_flat], objective)
         grad_func = function([budgets_flat], objective_grad)
@@ -393,7 +395,7 @@ class BudgetOptimizer(BaseModel):
         MinimizeException
             If the optimization fails for any reason, the exception message will contain the details.
         """
-        self._total_budget_sym.set_value(np.asarray(total_budget, dtype="float64"))
+        self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))
 
         # 1. Process budget bounds
         if budget_bounds is None:
