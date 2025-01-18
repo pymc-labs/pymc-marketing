@@ -182,6 +182,12 @@ Classes
 
 ![](docs/source/uml/classes_customer_choice.png)
 
+## 2025 CLV Roadmap
+
+![](docs/source/_static/clv_roadmap_2025.png)
+
+For [issues](https://github.com/pymc-labs/pymc-marketing/issues) to work on, search `is:issue state:open label:CLV`
+
 ---
 
 This guide takes some inspiration from the [Bambi guide to contributing](https://github.com/bambinos/bambi/blob/main/CONTRIBUTING.md)
