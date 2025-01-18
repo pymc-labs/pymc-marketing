@@ -72,7 +72,7 @@ task_docs.add_parallel_task(
     f"{YEAR}-08-15",
     f"{YEAR}-09-30",
     fill_colour=doc_color,
-    font_colour="white",
+    font_colour="black",
 )
 
 # add tasks to utilities swimlane
