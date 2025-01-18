@@ -21,10 +21,10 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray
-from pymc.distributions.dist_math import check_parameters
 from pymc.util import RandomState
 from scipy.special import hyp2f1
 
+from pymc_marketing.clv.distributions import ModifiedBetaGeoNBD
 from pymc_marketing.clv.models import BetaGeoModel
 from pymc_marketing.clv.utils import to_xarray
 
@@ -130,7 +130,10 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
     def build_model(self) -> None:  # type: ignore[override]
         """Build the model."""
-        coords = {"customer_id": self.data["customer_id"]}
+        coords = {
+            "customer_id": self.data["customer_id"],
+            "obs_var": ["recency", "frequency"],
+        }
         with pm.Model(coords=coords) as self.model:
             # purchase rate priors
             alpha = self.model_config["alpha_prior"].create_variable("alpha")
@@ -152,44 +155,17 @@ class ModifiedBetaGeoModel(BetaGeoModel):
                 a = pm.Deterministic("a", phi_dropout * kappa_dropout)
                 b = pm.Deterministic("b", (1.0 - phi_dropout) * kappa_dropout)
 
-            def logp(t_x, x, a, b, r, alpha, T):
-                """Compute the log-likelihood of the MBG/NBD model."""
-                a1 = pt.gammaln(r + x) - pt.gammaln(r) + r * pt.log(alpha)
-                a2 = (
-                    pt.gammaln(a + b)
-                    + pt.gammaln(b + x + 1)
-                    - pt.gammaln(b)
-                    - pt.gammaln(a + b + x + 1)
-                )
-                a3 = -(r + x) * pt.log(alpha + T)
-                a4 = (
-                    pt.log(a)
-                    - pt.log(b + x)
-                    + (r + x) * (pt.log(alpha + T) - pt.log(alpha + t_x))
-                )
-
-                logp = a1 + a2 + a3 + pt.logaddexp(a4, 0)
-
-                return check_parameters(
-                    logp,
-                    a > 0,
-                    b > 0,
-                    alpha > 0,
-                    r > 0,
-                    msg="a, b, alpha, r > 0",
-                )
-
-            pm.Potential(
-                "likelihood",
-                logp(
-                    x=self.data["frequency"],
-                    t_x=self.data["recency"],
-                    a=a,
-                    b=b,
-                    alpha=alpha,
-                    r=r,
-                    T=self.data["T"],
+            ModifiedBetaGeoNBD(
+                name="recency_frequency",
+                a=a,
+                b=b,
+                r=r,
+                alpha=alpha,
+                T=self.data["T"],
+                observed=np.stack(
+                    (self.data["recency"], self.data["frequency"]), axis=1
                 ),
+                dims=["customer_id", "obs_var"],
             )
 
     def expected_num_purchases(
@@ -219,7 +195,6 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         if T.size != 1:
             T = to_xarray(customer_id, T)
 
-        # print(customer_id)
         x, t_x = to_xarray(customer_id, frequency, recency)
 
         a, b, alpha, r = self._unload_params()
@@ -420,7 +395,10 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             # For map fit add a dummy draw dimension
             dataset = dataset.squeeze("draw").expand_dims(draw=range(n_samples))  # type: ignore
 
-        with pm.Model():
+        coords = self.model.coords.copy()  # type: ignore
+        coords["customer_id"] = data["customer_id"]
+
+        with pm.Model(coords=coords):
             a = pm.HalfFlat("a")
             b = pm.HalfFlat("b")
             alpha = pm.HalfFlat("alpha")
@@ -429,8 +407,19 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             pm.Beta("dropout", alpha=a, beta=b)
             pm.Gamma("purchase_rate", alpha=r, beta=alpha)
 
+            ModifiedBetaGeoNBD(
+                name="recency_frequency",
+                a=a,
+                b=b,
+                r=r,
+                alpha=alpha,
+                T=T,
+                dims=["customer_id", "obs_var"],
+            )
+
             return pm.sample_posterior_predictive(
                 dataset,
                 var_names=var_names,
                 random_seed=random_seed,
-            ).posterior_predictive
+                predictions=True,
+            ).predictions
