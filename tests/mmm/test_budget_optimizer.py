@@ -13,12 +13,41 @@
 #   limitations under the License.
 from unittest.mock import patch
 
+import arviz as az
 import numpy as np
+import pandas as pd
 import pytest
 
+from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, MinimizeException
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
+
+
+@pytest.fixture(scope="module")
+def dummy_df():
+    n = 10
+    # Data is not needed for optimization of this model
+    df = pd.DataFrame(
+        data={
+            "date_week": pd.date_range(start=pd.Timestamp.today(), periods=n, freq="W"),
+            "channel_1": np.linspace(0, 1, num=n),
+            "channel_2": np.linspace(0, 1, num=n),
+            "event_1": np.concatenate([np.zeros(n - 1), [1]]),
+            "event_2": np.concatenate([[1], np.zeros(n - 1)]),
+            "t": range(n),
+        }
+    )
+
+    y = np.ones(n)
+
+    df_kwargs = {
+        "date_column": "date_week",
+        "channel_columns": ["channel_1", "channel_2"],
+        "control_columns": ["event_1", "event_2", "t"],
+    }
+
+    return df_kwargs, df, y
 
 
 @pytest.mark.parametrize(
@@ -41,7 +70,6 @@ from pymc_marketing.mmm.components.saturation import LogisticSaturation
                         [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]]
                     )  # dims: chain, draw, channel
                 },
-                "channels": ["channel_1", "channel_2"],
             },
             None,
             {"channel_1": 50.0, "channel_2": 50.0},
@@ -64,7 +92,6 @@ from pymc_marketing.mmm.components.saturation import LogisticSaturation
                         [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]]
                     )  # dims: chain, draw, channel
                 },
-                "channels": ["channel_1", "channel_2"],
             },
             {
                 "method": "SLSQP",
@@ -73,49 +100,7 @@ from pymc_marketing.mmm.components.saturation import LogisticSaturation
             {"channel_1": 50.0, "channel_2": 50.0},
             48.8,
         ),
-        # Add more test cases if needed
-    ],
-    ids=["default_minimizer_kwargs", "custom_minimizer_kwargs"],
-)
-def test_allocate_budget(
-    total_budget,
-    budget_bounds,
-    parameters,
-    minimize_kwargs,
-    expected_optimal,
-    expected_response,
-):
-    # Initialize Adstock and Saturation Transformations
-    adstock = GeometricAdstock(l_max=4)
-    saturation = LogisticSaturation()
-
-    # Create BudgetOptimizer Instance
-    optimizer = BudgetOptimizer(
-        adstock=adstock,
-        saturation=saturation,
-        num_periods=30,
-        parameters=parameters,
-        adstock_first=True,
-        scales=np.array([1, 1]),
-    )
-
-    # Allocate Budget
-    match = "Using default equality constraint"
-    with pytest.warns(UserWarning, match=match):
-        optimal_budgets, total_response = optimizer.allocate_budget(
-            total_budget=total_budget,
-            budget_bounds=budget_bounds,
-            minimize_kwargs=minimize_kwargs,
-        )
-
-    # Assert Results
-    assert optimal_budgets == expected_optimal
-    assert -total_response.fun == pytest.approx(expected_response, rel=1e-2)
-
-
-@pytest.mark.parametrize(
-    "total_budget, budget_bounds, parameters, expected_optimal, expected_response",
-    [
+        # Zero budget case
         (
             0,
             {"channel_1": (0, 50), "channel_2": (0, 50)},
@@ -135,75 +120,100 @@ def test_allocate_budget(
                 },
                 "channels": ["channel_1", "channel_2"],
             },
+            None,
             {"channel_1": 0.0, "channel_2": 7.94e-13},
             2.38e-10,
         ),
     ],
+    ids=["default_minimizer_kwargs", "custom_minimizer_kwargs", "zero_total_budget"],
 )
-def test_allocate_budget_zero_total(
-    total_budget, budget_bounds, parameters, expected_optimal, expected_response
+def test_allocate_budget(
+    total_budget,
+    budget_bounds,
+    parameters,
+    minimize_kwargs,
+    expected_optimal,
+    expected_response,
+    dummy_df,
 ):
-    adstock = GeometricAdstock(l_max=4)
-    saturation = LogisticSaturation()
+    df_kwargs, X_dummy, y_dummy = dummy_df
 
-    optimizer = BudgetOptimizer(
-        adstock=adstock,
-        saturation=saturation,
-        num_periods=30,
-        parameters=parameters,
-        adstock_first=True,
-        scales=np.array([1, 1]),
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
     )
+
+    mmm.build_model(X=X_dummy, y=y_dummy)
+
+    # Only these parameters are needed for the optimizer
+    mmm.idata = az.from_dict(
+        posterior={
+            "saturation_lam": parameters["saturation_params"]["lam"],
+            "saturation_beta": parameters["saturation_params"]["beta"],
+            "adstock_alpha": parameters["adstock_params"]["alpha"],
+        }
+    )
+
+    # Create BudgetOptimizer Instance
+    optimizer = BudgetOptimizer(
+        model=mmm,
+        num_periods=30,
+    )
+
+    # Allocate Budget
     match = "Using default equality constraint"
     with pytest.warns(UserWarning, match=match):
-        optimal_budgets, total_response = optimizer.allocate_budget(
-            total_budget, budget_bounds
+        optimal_budgets, optimization_res = optimizer.allocate_budget(
+            total_budget=total_budget,
+            budget_bounds=budget_bounds,
+            minimize_kwargs=minimize_kwargs,
         )
-    assert optimal_budgets == pytest.approx(expected_optimal, rel=1e-2)
-    assert -total_response.fun == pytest.approx(expected_response, abs=1e-1)
+
+    # Assert Results
+    assert optimal_budgets.to_dataframe(name="_").to_dict()["_"] == pytest.approx(
+        expected_optimal, abs=1e-12
+    )
+    assert -optimization_res.fun == pytest.approx(expected_response, abs=1e-2, rel=1e-2)
 
 
 @patch("pymc_marketing.mmm.budget_optimizer.minimize")
-def test_allocate_budget_custom_minimize_args(minimize_mock) -> None:
+def test_allocate_budget_custom_minimize_args(minimize_mock, dummy_df) -> None:
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    )
+    mmm.build_model(X=X_dummy, y=y_dummy)
+    mmm.idata = az.from_dict(
+        posterior={
+            "saturation_lam": [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]],
+            "saturation_beta": [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]],
+            "adstock_alpha": [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]],
+        }
+    )
+
+    optimizer = BudgetOptimizer(
+        model=mmm,
+        num_periods=30,
+    )
+
     total_budget = 100
     budget_bounds = {"channel_1": (0.0, 50.0), "channel_2": (0.0, 50.0)}
-    parameters = {
-        "saturation_params": {
-            "lam": np.array(
-                [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]]
-            ),  # dims: chain, draw, channel
-            "beta": np.array(
-                [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]]
-            ),  # dims: chain, draw, channel
-        },
-        "adstock_params": {
-            "alpha": np.array(
-                [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]]
-            )  # dims: chain, draw, channel
-        },
-        "channels": ["channel_1", "channel_2"],
-    }
     minimize_kwargs = {
         "method": "SLSQP",
         "options": {"ftol": 1e-8, "maxiter": 1_002},
     }
 
-    adstock = GeometricAdstock(l_max=4)
-    saturation = LogisticSaturation()
-
-    optimizer = optimizer = BudgetOptimizer(
-        adstock=adstock,
-        saturation=saturation,
-        num_periods=30,
-        parameters=parameters,
-        adstock_first=True,
-        scales=np.array([1, 1]),
-    )
     match = "Using default equality constraint"
     with pytest.warns(UserWarning, match=match):
-        optimizer.allocate_budget(
-            total_budget, budget_bounds, minimize_kwargs=minimize_kwargs
-        )
+        # Uninteresting exception raised when we try to convert the mocked result to a DataArray
+        with pytest.raises(ValueError, match="conflicting sizes for dimension"):
+            optimizer.allocate_budget(
+                total_budget, budget_bounds, minimize_kwargs=minimize_kwargs
+            )
 
     kwargs = minimize_mock.call_args_list[0].kwargs
 
@@ -251,18 +261,30 @@ def test_allocate_budget_custom_minimize_args(minimize_mock) -> None:
     ],
 )
 def test_allocate_budget_infeasible_constraints(
-    total_budget, budget_bounds, parameters, custom_constraints
+    total_budget, budget_bounds, parameters, custom_constraints, dummy_df
 ):
-    adstock = GeometricAdstock(l_max=4)
-    saturation = LogisticSaturation()
+    df_kwargs, X_dummy, y_dummy = dummy_df
 
-    optimizer = optimizer = BudgetOptimizer(
-        adstock=adstock,
-        saturation=saturation,
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    )
+
+    mmm.build_model(X=X_dummy, y=y_dummy)
+
+    # Only these parameters are needed for the optimizer
+    mmm.idata = az.from_dict(
+        posterior={
+            "saturation_lam": parameters["saturation_params"]["lam"],
+            "saturation_beta": parameters["saturation_params"]["beta"],
+            "adstock_alpha": parameters["adstock_params"]["alpha"],
+        }
+    )
+
+    optimizer = BudgetOptimizer(
+        model=mmm,
         num_periods=30,
-        parameters=parameters,
-        adstock_first=True,
-        scales=np.array([1, 1]),
     )
 
     with pytest.raises(MinimizeException, match="Optimization failed"):

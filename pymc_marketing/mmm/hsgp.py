@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from enum import Enum
-from typing import cast
+from typing import Literal, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -111,7 +111,7 @@ def approx_hsgp_hyperparams(
     x,
     x_center,
     lengthscale_range: tuple[float, float],
-    cov_func: str,
+    cov_func: Literal["expquad", "matern32", "matern52"],
 ) -> tuple[int, float]:
     """Use heuristics for minimum `m` and `c` values.
 
@@ -130,7 +130,7 @@ def approx_hsgp_hyperparams(
         The center of the data.
     lengthscale_range : tuple[float, float]
         The range of the lengthscales. Should be a list with two elements [lengthscale_min, lengthscale_max].
-    cov_func : str
+    cov_func : Literal["expquad", "matern32", "matern52"]
         The covariance function to use. Supported options are "expquad", "matern52", and "matern32".
 
     Returns
@@ -242,7 +242,7 @@ def create_m_and_L_recommendations(
         X,
         X_mid,
         lengthscale_range=(ls_lower, ls_upper),
-        cov_func=cov_func,
+        cov_func=cast(Literal["expquad", "matern32", "matern52"], cov_func),
     )
     L = c * X_mid
 

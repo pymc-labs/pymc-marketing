@@ -49,6 +49,19 @@ import pytensor.tensor as pt
 UtilityFunctionType = Callable[[pt.TensorVariable, pt.TensorVariable], float]
 
 
+def _sum_non_sample_dims(samples: pt.TensorVariable) -> pt.TensorVariable:
+    """Sum any dimensions besides the first one.
+
+    This is needed until https://github.com/pymc-labs/pymc-marketing/issues/1387 is resolved.
+    """
+    ndim = samples.type.ndim
+    if ndim == 1:
+        # Presumably non-sample dims were already reduced
+        return samples
+    else:
+        return samples.sum(axis=tuple(range(1, ndim)))
+
+
 def _compute_quantile(x: pt.TensorVariable, q: float) -> pt.TensorVariable:
     """
     Compute the quantile of a PyTensor tensor variable.
@@ -78,7 +91,7 @@ def average_response(
     samples: pt.TensorVariable, budgets: pt.TensorVariable
 ) -> pt.TensorVariable:
     """Compute the average response of the posterior predictive distribution."""
-    return pt.mean(samples)
+    return pt.mean(_sum_non_sample_dims(samples))
 
 
 def tail_distance(confidence_level: float = 0.75) -> UtilityFunctionType:
@@ -113,6 +126,7 @@ def tail_distance(confidence_level: float = 0.75) -> UtilityFunctionType:
     def _tail_distance(
         samples: pt.TensorVariable, budgets: pt.TensorVariable
     ) -> pt.TensorVariable:
+        samples = _sum_non_sample_dims(samples)
         mean = pt.mean(samples)
         q1 = _compute_quantile(samples, confidence_level)
         q2 = _compute_quantile(samples, 1 - confidence_level)
@@ -141,6 +155,7 @@ def _calculate_roas_distribution_for_allocation(
     pt.TensorVariable
         A PyTensor tensor variable representing the ROAS distribution.
     """
+    samples = _sum_non_sample_dims(samples)
     total_budget = pt.sum(budgets)
     roas_distribution = samples / total_budget
     return roas_distribution
@@ -186,6 +201,7 @@ def mean_tightness_score(
     def _mean_tightness_score(
         samples: pt.TensorVariable, budgets: pt.TensorVariable
     ) -> pt.TensorVariable:
+        samples = _sum_non_sample_dims(samples)
         mean = pt.mean(samples)
         tail_metric = tail_distance(confidence_level)
         return mean - alpha * tail_metric(samples, budgets)
@@ -236,6 +252,7 @@ def value_at_risk(confidence_level: float = 0.95) -> UtilityFunctionType:
     def _value_at_risk(
         samples: pt.TensorVariable, budgets: pt.TensorVariable
     ) -> pt.TensorVariable:
+        samples = _sum_non_sample_dims(samples)
         return _compute_quantile(samples, 1 - confidence_level)
 
     return _value_at_risk
@@ -284,6 +301,7 @@ def conditional_value_at_risk(confidence_level: float = 0.95) -> UtilityFunction
     def _conditional_value_at_risk(
         samples: pt.TensorVariable, budgets: pt.TensorVariable
     ) -> pt.TensorVariable:
+        samples = _sum_non_sample_dims(samples)
         VaR = _compute_quantile(samples, 1 - confidence_level)
         mask = samples <= VaR
         num_tail_losses = pt.sum(mask)
@@ -331,6 +349,7 @@ def sharpe_ratio(risk_free_rate: float = 0.0) -> UtilityFunctionType:
     def _sharpe_ratio(
         samples: pt.TensorVariable, budgets: pt.TensorVariable
     ) -> pt.TensorVariable:
+        samples = _sum_non_sample_dims(samples)
         excess_returns = samples - risk_free_rate
         mean_excess_return = pt.mean(excess_returns)
         std_excess_return = pt.std(excess_returns, ddof=1)
@@ -378,6 +397,7 @@ def raroc(risk_free_rate: float = 0.0) -> UtilityFunctionType:
     def _raroc(
         samples: pt.TensorVariable, budgets: pt.TensorVariable
     ) -> pt.TensorVariable:
+        samples = _sum_non_sample_dims(samples)
         capital = pt.sum(budgets)
         expected_return = pt.mean(samples)
         risk_adjusted_return = expected_return - risk_free_rate
@@ -434,6 +454,7 @@ def adjusted_value_at_risk_score(
     def _adjusted_value_at_risk_score(
         samples: pt.TensorVariable, budgets: pt.TensorVariable
     ) -> pt.TensorVariable:
+        samples = _sum_non_sample_dims(samples)
         var = _compute_quantile(samples, 1 - confidence_level)
         mean = pt.mean(samples)
         return (1 - risk_aversion) * mean + risk_aversion * var
@@ -542,6 +563,7 @@ def diversification_ratio(
     - Choueifaty, Y., & Coignard, Y. (2008). Toward Maximum Diversification. *Journal of Portfolio Management*.
     - Meucci, A. (2009). Managing Diversification. *Risk*, 22(5), 74-79.
     """
+    samples = _sum_non_sample_dims(samples)
     weights = budgets / pt.sum(budgets)
     individual_volatilities = pt.std(samples, axis=0, ddof=1)
     cov_matrix = _covariance_matrix(samples)

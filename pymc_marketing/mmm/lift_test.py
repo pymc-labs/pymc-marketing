@@ -643,9 +643,19 @@ def scale_lift_measurements(
         target_transform,
     )
 
+    if "date" in df_lift_test.columns:
+        return pd.concat(
+            [
+                df_lift_test_channel_scaled,
+                df_target_scaled,
+                df_sigma_scaled,
+                pd.Series(df_lift_test["date"]),
+            ],
+            axis=1,
+        )
+
     return pd.concat(
-        [df_lift_test_channel_scaled, df_target_scaled, df_sigma_scaled],
-        axis=1,
+        [df_lift_test_channel_scaled, df_target_scaled, df_sigma_scaled], axis=1
     )
 
 

@@ -21,6 +21,7 @@ import pytest
 import xarray as xr
 from lifetimes.fitters.beta_geo_fitter import BetaGeoFitter
 
+from pymc_marketing.clv.distributions import BetaGeoNBD
 from pymc_marketing.clv.models.beta_geo import BetaGeoModel
 from pymc_marketing.prior import Prior
 from tests.conftest import create_mock_fit, mock_sample
@@ -50,6 +51,7 @@ class TestBetaGeoModel:
 
         # Instantiate model with CDNOW data for testing
         cls.model = BetaGeoModel(cls.data)
+        cls.model.build_model()
 
         # Also instantiate lifetimes model for comparison
         cls.lifetimes_model = BetaGeoFitter()
@@ -173,6 +175,122 @@ class TestBetaGeoModel:
             BetaGeoModel(
                 data=data,
             )
+
+    @pytest.mark.parametrize(
+        "frequency, recency, logp_value",
+        [
+            (0, 0, -0.59947382),
+            (200, 38, 100.7957),
+        ],
+    )
+    def test_numerically_stable_logp(
+        self, frequency, recency, logp_value, model_config
+    ):
+        """See Solution #2 on pages 3 and 4 of http://brucehardie.com/notes/027/bgnbd_num_error.pdf"""
+        model_config = {
+            "a_prior": Prior("Flat"),
+            "b_prior": Prior("Flat"),
+            "alpha_prior": Prior("Flat"),
+            "r_prior": Prior("Flat"),
+        }
+        data = pd.DataFrame(
+            {
+                "customer_id": np.asarray([1]),
+                "frequency": np.asarray([frequency]),
+                "recency": np.asarray([recency]),
+                "T": np.asarray([40]),
+            }
+        )
+
+        model = BetaGeoModel(
+            data=data,
+            model_config=model_config,
+        )
+
+        model.build_model()
+        pymc_model = model.model
+
+        logp = pymc_model.compile_logp()
+
+        np.testing.assert_almost_equal(
+            logp({"a": 0.80, "b": 2.50, "r": 0.25, "alpha": 4.00}),
+            logp_value,
+            decimal=5,
+        )
+
+    @pytest.mark.parametrize("fit_type", ("map", "mcmc"))
+    def test_posterior_distributions(self, fit_type) -> None:
+        rng = np.random.default_rng(42)
+        dim_T = 2357
+
+        if fit_type == "map":
+            map_idata = self.model.idata.copy()
+            map_idata.posterior = map_idata.posterior.isel(
+                chain=slice(None, 1), draw=slice(None, 1)
+            )
+            model = self.model._build_with_idata(map_idata)
+            # We expect 1000 draws to be sampled with MAP
+            expected_shape = (1, 1000)
+            expected_pop_dims = (1, 1000, dim_T, 2)
+        else:
+            model = self.model
+            expected_shape = (self.chains, self.draws)
+            expected_pop_dims = (self.chains, self.draws, dim_T, 2)
+
+        data = model.data
+        customer_dropout = model.distribution_new_customer_dropout(
+            data, random_seed=rng
+        )
+        customer_purchase_rate = model.distribution_new_customer_purchase_rate(
+            data, random_seed=rng
+        )
+        customer_rec_freq = model.distribution_new_customer_recency_frequency(
+            data, random_seed=rng
+        )
+        customer_rec = customer_rec_freq.sel(obs_var="recency")
+        customer_freq = customer_rec_freq.sel(obs_var="frequency")
+
+        assert customer_dropout.shape == expected_shape
+        assert customer_purchase_rate.shape == expected_shape
+        assert customer_rec_freq.shape == expected_pop_dims
+
+        N = 1000
+        p = pm.Beta.dist(self.a_true, self.b_true, size=N)
+        lam = pm.Gamma.dist(self.r_true, self.alpha_true, size=N)
+
+        ref_rec, ref_freq = pm.draw(
+            BetaGeoNBD.dist(
+                a=self.a_true,
+                b=self.b_true,
+                r=self.r_true,
+                alpha=self.alpha_true,
+                T=self.T,
+            ),
+            random_seed=rng,
+        ).T
+
+        np.testing.assert_allclose(
+            customer_purchase_rate.mean(),
+            pm.draw(lam.mean(), random_seed=rng),
+            rtol=0.5,
+        )
+        np.testing.assert_allclose(
+            customer_purchase_rate.std(),
+            pm.draw(lam.std(), random_seed=rng),
+            rtol=0.5,
+        )
+        np.testing.assert_allclose(
+            customer_dropout.mean(), pm.draw(p.mean(), random_seed=rng), rtol=0.5
+        )
+        np.testing.assert_allclose(
+            customer_dropout.std(), pm.draw(p.std(), random_seed=rng), rtol=0.5
+        )
+
+        np.testing.assert_allclose(customer_rec.mean(), ref_rec.mean(), rtol=0.5)
+        np.testing.assert_allclose(customer_rec.std(), ref_rec.std(), rtol=0.5)
+
+        np.testing.assert_allclose(customer_freq.mean(), ref_freq.mean(), rtol=0.5)
+        np.testing.assert_allclose(customer_freq.std(), ref_freq.std(), rtol=0.5)
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
@@ -493,13 +611,14 @@ class TestBetaGeoModel:
             "\nr~HalfFlat()"
             "\na~HalfFlat()"
             "\nb~HalfNormal(0,10)"
-            "\nlikelihood~Potential(f(r,alpha,b,a))"
+            "\nrecency_frequency~BetaGeoNBD(a,b,r,alpha,<constant>)"
         )
 
     def test_distribution_new_customer(self) -> None:
         mock_model = BetaGeoModel(
             data=self.data,
         )
+        mock_model.build_model()
         mock_model.idata = az.from_dict(
             {
                 "a": [self.a_true],

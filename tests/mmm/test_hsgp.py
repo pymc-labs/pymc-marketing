@@ -89,6 +89,22 @@ def test_unordered_bounds_raises() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    argnames="cov_func",
+    argvalues=["expquad", "matern32", "matern52"],
+    ids=["exp_quad", "matern32", "matern52"],
+)
+def test_supported_cov_func(cov_func) -> None:
+    x = np.arange(10)
+    x_center = 4.5
+    _ = approx_hsgp_hyperparams(
+        x=x,
+        x_center=x_center,
+        lengthscale_range=(1, 2),
+        cov_func=cov_func,
+    )
+
+
 def test_unsupported_cov_func_raises() -> None:
     x = np.arange(10)
     x_center = 4.5

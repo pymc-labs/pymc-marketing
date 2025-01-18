@@ -277,6 +277,7 @@ class TestBasePlotting:
                 },
             ),
             ("plot_components_contributions", {}),
+            ("plot_prior_vs_posterior", {"var_name": "adstock_alpha"}),
         ],
     )
     def test_plots(self, plotting_mmm, func_plot_name, kwargs_plot) -> None:

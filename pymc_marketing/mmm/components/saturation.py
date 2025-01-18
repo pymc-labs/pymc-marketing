@@ -459,14 +459,6 @@ class RootSaturation(SaturationTransformation):
     }
 
 
-def register_saturation_transformation(cls: type[SaturationTransformation]) -> None:
-    """Register a new saturation transformation.
-
-    Helper for use in the MMM to register a new saturation function.
-    """
-    SATURATION_TRANSFORMATIONS[cls.lookup_name] = cls
-
-
 def saturation_from_dict(data: dict) -> SaturationTransformation:
     """Get a saturation function from a dictionary."""
     data = data.copy()

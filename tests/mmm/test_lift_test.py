@@ -474,9 +474,14 @@ def test_scale_lift_measurements(df_lift_test_with_numerics) -> None:
         delta_x=lambda row: row["delta_x"] * 2.0,
         delta_y=lambda row: row["delta_y"] / 2,
         sigma=lambda row: row["sigma"] / 2,
-    ).loc[:, ["channel", "x", "delta_x", "delta_y", "sigma"]]
+    ).loc[
+        :,
+        ["channel", "x", "delta_x", "delta_y", "sigma"]
+        + (["date"] if "date" in df_lift_test_with_numerics.columns else []),
+    ]
 
     pd.testing.assert_frame_equal(
         result,
         expected,
+        check_like=True,
     )
