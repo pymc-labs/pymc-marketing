@@ -20,8 +20,23 @@ Autologging is supported for PyMC models and PyMC-Marketing models. This includi
 logging of sampler diagnostics, model information, data used in the model, and
 InferenceData objects.
 
-The autologging can be enabled by calling the `autolog` function. This function
-patches the `pymc.sample` and `MMM.fit` calls to log the required information.
+The autologging can be enabled by calling the `autolog` function. The following functions
+are patched:
+
+- `pymc.sample`:
+    - :func:`log_versions`: Log the versions of PyMC-Marketing, PyMC, and ArviZ to MLflow.
+    - :func:`log_model_derived_info`: Log types of parameters, coords, model graph, etc.
+    - :func:`log_sample_diagnostics`: Log information derived from the InferenceData object.
+    - :func:`log_arviz_summary`: Log table of summary statistics about estimated parameters
+    - :func:`log_metadata`: Log the metadata of the data used in the model.
+- `pymc.find_MAP`:
+    - :func:`log_model_derived_info`: Log types of parameters, coords, model graph, etc.
+- `MMM.fit`:
+    - All parameters, metrics, and artifacts from `pymc.sample`
+    - :func:`log_mmm_configuration`: Log the configuration of the MMM model.
+- `CLVModel.fit`:
+    - Information dependent on fit method used (MCMC or MAP)
+    - Model type and fit method
 
 Examples
 --------
@@ -48,7 +63,7 @@ Autologging for a PyMC model:
     with mlflow.start_run():
         idata = pm.sample(model=model)
 
-Autologging for a PyMC-Marketing model:
+Autologging for a PyMC-Marketing MMM:
 
 .. code-block:: python
 
@@ -97,9 +112,33 @@ Autologging for a PyMC-Marketing model:
         fig = mmm.plot_components_contributions()
         mlflow.log_figure(fig, "components.png")
 
+Autologging for a PyMC-Marketing CLV model:
+
+.. code-block:: python
+
+    import pandas as pd
+
+    import mlflow
+
+    from pymc_marketing.clv import BetaGeoModel
+
+    import pymc_marketing.mlflow
+
+    pymc_marketing.mlflow.autolog(log_clv=True)
+
+    mlflow.set_experiment("CLV Experiment")
+
+    data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
+    data = pd.read_csv(data_url)
+    data["customer_id"] = data.index
+
+    model = BetaGeoModel(data=data)
+
+    with mlflow.start_run():
+        model.fit()
+
 """
 
-import json
 import logging
 import os
 import warnings
@@ -286,10 +325,7 @@ def log_types_of_parameters(model: Model) -> None:
     """
     mlflow.log_param("n_free_RVs", len(model.free_RVs))
     mlflow.log_param("n_observed_RVs", len(model.observed_RVs))
-    mlflow.log_param(
-        "n_deterministics",
-        len(model.deterministics),
-    )
+    mlflow.log_param("n_deterministics", len(model.deterministics))
     mlflow.log_param("n_potentials", len(model.potentials))
 
 
@@ -330,10 +366,7 @@ def log_model_derived_info(model: Model) -> None:
     mlflow.log_text(model.str_repr(), "model_repr.txt")
 
     if model.coords:
-        mlflow.log_dict(
-            model.coords,
-            "coords.json",
-        )
+        mlflow.log_dict(model.coords, "coords.json")
 
     log_model_graph(model, "model_graph")
     log_likelihood_type(model)
@@ -406,7 +439,6 @@ def log_sample_diagnostics(
             "inference_library_version",
             posterior.attrs["inference_library_version"],
         )
-    mlflow.log_param("arviz_version", posterior.attrs["arviz_version"])
 
 
 def log_inference_data(
@@ -777,6 +809,22 @@ def load_mmm(
     return model
 
 
+def log_versions() -> None:
+    """Log the versions of PyMC-Marketing, PyMC, and ArviZ to MLflow."""
+    mlflow.log_param("pymc_marketing_version", __version__)
+    mlflow.log_param("pymc_version", pm.__version__)
+    mlflow.log_param("arviz_version", az.__version__)
+
+
+def log_mmm_configuration(mmm: MMM) -> None:
+    """Log the configuration of the MMM model to MLflow."""
+    attrs = mmm.create_idata_attrs()
+    mlflow.log_params(attrs)
+
+    mlflow.log_param("adstock_name", mmm.adstock.lookup_name)
+    mlflow.log_param("saturation_name", mmm.saturation.lookup_name)
+
+
 @autologging_integration(FLAVOR_NAME)
 def autolog(
     log_sampler_info: bool = True,
@@ -928,11 +976,16 @@ def autolog(
     def patch_sample(sample: Callable) -> Callable:
         @wraps(sample)
         def new_sample(*args, **kwargs):
+            log_versions()
+
             model = pm.modelcontext(kwargs.get("model"))
-            idata = sample(*args, **kwargs)
+
             mlflow.log_param("nuts_sampler", kwargs.get("nuts_sampler", "pymc"))
-            mlflow.log_param("pymc_marketing_version", __version__)
-            mlflow.log_param("pymc_version", pm.__version__)
+
+            if log_model_info:
+                log_model_derived_info(model)
+
+            idata = sample(*args, **kwargs)
 
             # Align with the default values in pymc.sample
             tune = kwargs.get("tune", 1000)
@@ -946,9 +999,6 @@ def autolog(
                     **arviz_summary_kwargs,
                 )
 
-            if log_model_info:
-                log_model_derived_info(model)
-
             if log_metadata_info:
                 log_metadata(model=model, idata=idata)
 
@@ -961,14 +1011,12 @@ def autolog(
     def patch_find_MAP(find_MAP):
         @wraps(find_MAP)
         def new_find_MAP(*args, **kwargs):
-            result = find_MAP(*args, **kwargs)
-
             model = pm.modelcontext(kwargs.get("model"))
 
             if log_model_info:
                 log_model_derived_info(model)
 
-            return result
+            return find_MAP(*args, **kwargs)
 
         return new_find_MAP
 
@@ -977,20 +1025,9 @@ def autolog(
     def patch_mmm_fit(fit: Callable) -> Callable:
         @wraps(fit)
         def new_fit(self, *args, **kwargs):
+            log_mmm_configuration(self)
+
             idata = fit(self, *args, **kwargs)
-
-            mlflow.log_params(
-                idata.attrs,
-            )
-
-            mlflow.log_param(
-                "adstock_name",
-                json.loads(idata.attrs["adstock"])["lookup_name"],
-            )
-            mlflow.log_param(
-                "saturation_name",
-                json.loads(idata.attrs["saturation"])["lookup_name"],
-            )
 
             log_inference_data(idata, save_file="idata.nc")
 

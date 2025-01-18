@@ -30,7 +30,7 @@ dependencies = [
     "numpy>=1.17",
     "pandas",
     "pydantic>=2.1.0",
-    # NOTE: Used as minimum pymc version with ci.yml `OLDEST_PYMC_VERSION`
+    # NOTE: Used as minimum pymc version with test.yml `OLDEST_PYMC_VERSION`
     "pymc>=5.20.0",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
@@ -73,6 +73,7 @@ test = [
     "lifetimes==0.11.3",
     "papermill",
     "preliz>=0.8.0",
+    "pyprojroot",
     "pytest-cov>=3.0.0",
     "pytest-mock>=3.14.0",
     "pytest>=7.0.1",
@@ -80,9 +81,7 @@ test = [
 ]
 
 [tool.hatch.build.targets.sdist]
-exclude = [
-    "docs",
-]
+exclude = ["docs"]
 
 [tool.hatch.version]
 path = "pymc_marketing/version.py"
