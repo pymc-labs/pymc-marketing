@@ -20,8 +20,8 @@ Autologging is supported for PyMC models and PyMC-Marketing models. This includi
 logging of sampler diagnostics, model information, data used in the model, and
 InferenceData objects.
 
-The autologging can be enabled by calling the `autolog` function. This function
-patches the `pymc.sample` and `MMM.fit` calls to log the required information.
+The autologging can be enabled by calling the `autolog` function. The following functions
+are patched:
 
 - `pymc.sample`:
     - :func:`log_versions`: Log the versions of PyMC-Marketing, PyMC, and ArviZ to MLflow.
