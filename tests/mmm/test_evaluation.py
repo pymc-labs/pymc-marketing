@@ -215,8 +215,6 @@ def test_metric_consistency_across_functions(y_true, y_pred) -> None:
     # Calculate via compute_summary_metrics
     direct_summaries = compute_summary_metrics(y_true, y_pred)
 
-    assert 0
-
     # Compare results
     for metric in distributions:
         assert summaries[metric]["mean"] == pytest.approx(
