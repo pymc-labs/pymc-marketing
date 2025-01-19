@@ -13,9 +13,13 @@
 #   limitations under the License.
 """Evaluation and diagnostics for MMM models."""
 
+from typing import cast
+
 import arviz as az
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
+import xarray as xr
 from sklearn.metrics import (
     mean_absolute_error,
     mean_absolute_percentage_error,
@@ -26,17 +30,17 @@ from pymc_marketing.metrics import nmae, nrmse
 
 
 def calculate_metric_distributions(
-    y_true: npt.NDArray,
-    y_pred: npt.NDArray,
+    y_true: npt.NDArray | pd.Series,
+    y_pred: npt.NDArray | xr.DataArray,
     metrics_to_calculate: list[str] | None = None,
 ) -> dict[str, npt.NDArray]:
     """Calculate distributions of evaluation metrics for posterior samples.
 
     Parameters
     ----------
-    y_true : npt.NDArray
+    y_true : npt.NDArray | pd.Series
         True values for the dataset. Shape: (date,)
-    y_pred : npt.NDArray
+    y_pred : npt.NDArray | xr.DataArray
         Posterior predictive samples. Shape: (date, sample)
     metrics_to_calculate : list of str or None, optional
         List of metrics to calculate. Options include:
@@ -53,6 +57,12 @@ def calculate_metric_distributions(
     dict of str to npt.NDArray
         A dictionary containing calculated metric distributions.
     """
+    if isinstance(y_true, pd.Series):
+        y_true = cast(np.ndarray, y_true.to_numpy())
+
+    if isinstance(y_pred, xr.DataArray):
+        y_pred = y_pred.values
+
     metric_functions = {
         "r_squared": lambda y_true, y_pred: az.r2_score(y_true, y_pred.T)["r2"],
         "rmse": root_mean_squared_error,
@@ -131,8 +141,8 @@ def summarize_metric_distributions(
 
 
 def compute_summary_metrics(
-    y_true: npt.NDArray,
-    y_pred: npt.NDArray,
+    y_true: npt.NDArray | pd.Series,
+    y_pred: npt.NDArray | xr.DataArray,
     metrics_to_calculate: list[str] | None = None,
     hdi_prob: float = 0.94,
 ) -> dict[str, dict[str, float]]:
@@ -143,9 +153,9 @@ def compute_summary_metrics(
 
     Parameters
     ----------
-    y_true : npt.NDArray
+    y_true : npt.NDArray | pd.Series
         The true values of the target variable.
-    y_pred : npt.NDArray
+    y_pred : npt.NDArray | xr.DataArray
         The predicted values of the target variable.
     metrics_to_calculate : list of str or None, optional
         List of metrics to calculate. Options include:
@@ -213,7 +223,7 @@ def compute_summary_metrics(
         # Evaluate the model
         results = compute_summary_metrics(
             y_true=mmm.y,
-            y_pred=posterior_preds.y.values,
+            y_pred=posterior_preds.y,
             metrics_to_calculate=["r_squared", "rmse", "mae"],
             hdi_prob=0.89
         )
