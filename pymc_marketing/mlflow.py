@@ -466,6 +466,7 @@ def log_mmm_evaluation_metrics(
     y_pred: npt.NDArray | xr.DataArray,
     metrics_to_calculate: list[str] | None = None,
     hdi_prob: float = 0.94,
+    prefix: str = "",
 ) -> None:
     """Log evaluation metrics produced by `pymc_marketing.mmm.evaluation.compute_summary_metrics()` to MLflow.
 
@@ -486,6 +487,26 @@ def log_mmm_evaluation_metrics(
             * `mape`: Mean Absolute Percentage Error.
     hdi_prob : float, optional
         The probability mass of the highest density interval. Defaults to 0.94.
+    prefix : str, optional
+        Prefix to add to the metric names. Defaults to "".
+
+    Examples
+    --------
+    Log in-sample evaluation metrics for a PyMC-Marketing MMM model:
+
+    .. code-block:: python
+
+        import mlflow
+
+        from pymc_marketing.mmm import MMM
+
+        mmm = MMM(...)
+        mmm.fit(X, y)
+
+        predictions = mmm.sample_posterior_predictive(X)
+
+        with mlflow.start_run():
+            log_mmm_evaluation_metrics(y, predictions["y"])
 
     """
     metric_summaries = compute_summary_metrics(
@@ -495,10 +516,13 @@ def log_mmm_evaluation_metrics(
         hdi_prob=hdi_prob,
     )
 
+    if prefix and not prefix.endswith("_"):
+        prefix = f"{prefix}_"
+
     for metric, stats in metric_summaries.items():
         for stat, value in stats.items():
             # mlflow doesn't support % in metric names
-            mlflow.log_metric(f"{metric}_{stat.replace('%', '')}", value)
+            mlflow.log_metric(f"{prefix}{metric}_{stat.replace('%', '')}", value)
 
 
 class MMMWrapper(mlflow.pyfunc.PythonModel):
