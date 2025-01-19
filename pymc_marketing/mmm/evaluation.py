@@ -179,6 +179,7 @@ def compute_summary_metrics(
     .. code-block:: python
 
         import pandas as pd
+
         from pymc_marketing.mmm import (
             GeometricAdstock,
             LogisticSaturation,
@@ -212,8 +213,8 @@ def compute_summary_metrics(
         # Evaluate the model
         results = compute_summary_metrics(
             y_true=mmm.y,
-            y_pred=posterior_preds.y,
-            metrics_to_calculate=['r_squared', 'rmse', 'mae'],
+            y_pred=posterior_preds.y.values,
+            metrics_to_calculate=["r_squared", "rmse", "mae"],
             hdi_prob=0.89
         )
 
@@ -223,9 +224,39 @@ def compute_summary_metrics(
             for stat, value in stats.items():
                 print(f"  {stat}: {value:.4f}")
             print()
+
+        # r_squared:
+        #   mean: 0.9055
+        #   median: 0.9061
+        #   std: 0.0098
+        #   min: 0.8669
+        #   max: 0.9371
+        #   89%_hdi_lower: 0.8891
+        #   89%_hdi_upper: 0.9198
+        #
+        # rmse:
+        #   mean: 351.9120
+        #   median: 351.0219
+        #   std: 19.4732
+        #   min: 290.6544
+        #   max: 418.0821
+        #   89%_hdi_lower: 317.0673
+        #   89%_hdi_upper: 378.1048
+        #
+        # mae:
+        #   mean: 281.6953
+        #   median: 281.2757
+        #   std: 16.3375
+        #   min: 234.1462
+        #   max: 337.9461
+        #   89%_hdi_lower: 255.7273
+        #   89%_hdi_upper: 307.2391
+
     """
     metric_distributions = calculate_metric_distributions(
-        y_true, y_pred, metrics_to_calculate
+        y_true,
+        y_pred,
+        metrics_to_calculate,
     )
     metric_summaries = summarize_metric_distributions(metric_distributions, hdi_prob)
     return metric_summaries
