@@ -56,7 +56,7 @@ class CausalGraphModel:
 
     def __init__(
         self, causal_model: CausalModel, treatment: list[str] | tuple[str], outcome: str
-    ):
+    ) -> None:
         self.causal_model = causal_model
         self.treatment = treatment
         self.outcome = outcome
@@ -64,7 +64,7 @@ class CausalGraphModel:
     @classmethod
     def build_graphical_model(
         cls, graph: str, treatment: list[str] | tuple[str], outcome: str
-    ):
+    ) -> "CausalGraphModel":
         """Create a CausalGraphModel from a string representation of a graph.
 
         Parameters
@@ -124,11 +124,11 @@ class CausalGraphModel:
 
     def compute_adjustment_sets(
         self,
-        channel_columns: list[str],
+        channel_columns: list[str] | tuple[str],
         control_columns: list[str] | None = None,
-    ):
+    ) -> list[str] | None:
         """Compute minimal adjustment sets and handle warnings."""
-        # Return the input control_columns as is if it is None
+        channel_columns = list(channel_columns)
         if control_columns is None:
             return control_columns
 

@@ -8,11 +8,11 @@ Here you will find a collection of examples and how-to guides for using PyMC-Mar
 :maxdepth: 1
 
 mmm/mmm_example
-mmm/mmm_causal_identification
 mmm/mmm_budget_allocation_example
 mmm/mmm_allocation_assessment
 mmm/mmm_budget_allocation_example
 mmm/mmm_case_study
+mmm/mmm_causal_identification
 mmm/mmm_components
 mmm/mmm_counterfactuals
 mmm/mmm_evaluation
