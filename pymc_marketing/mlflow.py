@@ -148,8 +148,10 @@ from pathlib import Path
 from typing import Any, Literal
 
 import arviz as az
-import numpy as np
+import numpy.typing as npt
+import pandas as pd
 import pymc as pm
+import xarray as xr
 from pymc.model.core import Model
 from pytensor.tensor import TensorVariable
 
@@ -460,8 +462,8 @@ def log_inference_data(
 
 
 def log_mmm_evaluation_metrics(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
+    y_true: npt.NDArray | pd.Series,
+    y_pred: npt.NDArray | xr.DataArray,
     metrics_to_calculate: list[str] | None = None,
     hdi_prob: float = 0.94,
 ) -> None:
@@ -469,9 +471,9 @@ def log_mmm_evaluation_metrics(
 
     Parameters
     ----------
-    y_true : np.ndarray
+    y_true : npt.NDArray | pd.Series
         The true values of the target variable.
-    y_pred : np.ndarray
+    y_pred : npt.NDArray | xr.DataArray
         The predicted values of the target variable.
     metrics_to_calculate : list of str or None, optional
         List of metrics to calculate. If None, all available metrics will be calculated.
@@ -486,13 +488,9 @@ def log_mmm_evaluation_metrics(
         The probability mass of the highest density interval. Defaults to 0.94.
 
     """
-    # Convert y_true and y_pred to numpy arrays if they're not already
-    y_true_np = y_true.to_numpy() if hasattr(y_true, "to_numpy") else np.array(y_true)
-    y_pred_np = y_pred.to_numpy() if hasattr(y_pred, "to_numpy") else np.array(y_pred)
-
     metric_summaries = compute_summary_metrics(
-        y_true=y_true_np,
-        y_pred=y_pred_np,
+        y_true=y_true,
+        y_pred=y_pred,
         metrics_to_calculate=metrics_to_calculate,
         hdi_prob=hdi_prob,
     )
