@@ -27,6 +27,7 @@ dependencies:
 - myst-parser
 - myst-nb
 - pydata-sphinx-theme>=0.12.0.dev0
+- roadmapper
 - sphinx-copybutton
 - sphinx-autodoc-typehints
 - sphinxext-opengraph
