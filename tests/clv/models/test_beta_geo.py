@@ -811,3 +811,27 @@ class TestBetaGeoModelWithCovariates:
         different_b = different_vars["b"]
         assert np.all(different_b.customer_id.values == b_model.customer_id.values + 1)
         assert not np.allclose(b_model, different_b)
+
+    def test_logp(self):
+        """Compare logp matches model without covariates when coefficients are zero, and does not otherwise"""
+        model_with_covariates = self.model_with_covariates
+        model_likelihood_fn = model_with_covariates.model.compile_logp(
+            vars=model_with_covariates.model.observed_RVs
+        )
+        ip = model_with_covariates.model.initial_point()
+
+        model_without_covariates = self.model_without_covariates
+        ref_model_likelihood_fn = model_without_covariates.model.compile_logp(
+            vars=model_without_covariates.model.observed_RVs
+        )
+        ref_ip = model_without_covariates.model.initial_point()
+
+        ip["purchase_coefficient"] = np.array([1.0, 2.0])
+        ip["dropout_coefficient"] = np.array([3.0])
+        assert model_likelihood_fn(ip) < ref_model_likelihood_fn(ref_ip)
+
+        ip["purchase_coefficient"] = np.array([0.0, 0.0])
+        ip["dropout_coefficient"] = np.array([0.0])
+        np.testing.assert_allclose(
+            model_likelihood_fn(ip), ref_model_likelihood_fn(ref_ip), rtol=5e-4
+        )

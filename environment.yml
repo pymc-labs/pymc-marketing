@@ -47,3 +47,4 @@ dependencies:
 - blas
 - mlflow
 - hatch
+- pyprojroot
