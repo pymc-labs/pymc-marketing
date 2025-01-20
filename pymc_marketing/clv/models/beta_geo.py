@@ -254,11 +254,13 @@ class BetaGeoModel(CLVModel):
                         "a",
                         a_scale
                         * pm.math.exp(-pm.math.dot(dropout_data, dropout_coefficient)),
+                        dims="customer_id",
                     )
                     b = pm.Deterministic(
                         "b",
                         b_scale
                         * pm.math.exp(-pm.math.dot(dropout_data, dropout_coefficient)),
+                        dims="customer_id",
                     )
                 else:
                     a = self.model_config["a_prior"].create_variable("a")
@@ -295,11 +297,13 @@ class BetaGeoModel(CLVModel):
                         "a",
                         a_scale
                         * pm.math.exp(-pm.math.dot(dropout_data, dropout_coefficient)),
+                        dims="customer_id",
                     )
                     b = pm.Deterministic(
                         "b",
                         b_scale
                         * pm.math.exp(-pm.math.dot(dropout_data, dropout_coefficient)),
+                        dims="customer_id",
                     )
 
                 else:
@@ -360,9 +364,50 @@ class BetaGeoModel(CLVModel):
             must_be_unique=["customer_id"],
         )
 
-        a = self.fit_result["a"]
-        b = self.fit_result["b"]
-        alpha = self.fit_result["alpha"]
+        customer_id = data["customer_id"]
+        model_coords = self.model.coords
+        if self.purchase_covariate_cols:
+            purchase_xarray = xarray.DataArray(
+                data[self.purchase_covariate_cols],
+                dims=["customer_id", "purchase_covariate"],
+                coords=[customer_id, list(model_coords["purchase_covariate"])],
+            )
+            alpha_scale = self.fit_result["alpha_scale"]
+            purchase_coefficient = self.fit_result["purchase_coefficient"]
+            alpha = alpha_scale * np.exp(
+                -xarray.dot(
+                    purchase_coefficient, purchase_xarray, dims="purchase_covariate"
+                )
+            )
+            alpha.name = "alpha"
+        else:
+            alpha = self.fit_result["alpha"]
+
+        if self.dropout_covariate_cols:
+            dropout_xarray = xarray.DataArray(
+                data[self.dropout_covariate_cols],
+                dims=["customer_id", "dropout_covariate"],
+                coords=[customer_id, list(model_coords["dropout_covariate"])],
+            )
+            a_scale = self.fit_result["a_scale"]
+            dropout_coefficient = self.fit_result["dropout_coefficient"]
+            a = a_scale * np.exp(
+                -xarray.dot(
+                    dropout_coefficient, dropout_xarray, dim="dropout_covariate"
+                )
+            )
+            a.name = "a"
+            b_scale = self.fit_result["b_scale"]
+            b = b_scale * np.exp(
+                -xarray.dot(
+                    dropout_coefficient, dropout_xarray, dim="dropout_covariate"
+                )
+            )
+            b.name = "b"
+        else:
+            a = self.fit_result["a"]
+            b = self.fit_result["b"]
+
         r = self.fit_result["r"]
 
         customer_vars = to_xarray(
