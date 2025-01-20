@@ -636,6 +636,7 @@ class GaussianProcessBase:
         # Call the function to define the GP logic
         return self.function(time_index, **prior_vars, dims=dims, **kwargs)
 
+
 def _serialize_value(value: Any) -> Any:
     if hasattr(value, "to_dict"):
         return value.to_dict()

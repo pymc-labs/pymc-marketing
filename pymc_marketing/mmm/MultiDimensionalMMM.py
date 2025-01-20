@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import pytensor.tensor as pt
 import xarray as xr
 from pymc.util import RandomState
 
-from pymc_marketing.hsgp_kwargs import HSGPKwargs
+from pymc_marketing.mmm import HSGP
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
 )
@@ -35,12 +35,13 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
 )
 from pymc_marketing.mmm.fourier import YearlyFourier
+from pymc_marketing.mmm.tvp import infer_time_index
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import Prior
 
 
-class PlotMMMMixin:
-    """Example docstring."""
+class MMMPlotSuite:
+    """Media Mix Model Plot Suite."""
 
     def plot_saturation_curves_scatter(self):
         """Docstring."""
@@ -124,7 +125,7 @@ class PlotMMMMixin:
         return fig, axes
 
 
-class VanillaMultiDimensionalMMM(PlotMMMMixin):
+class MMM(MMMPlotSuite):
     """Docstring example."""
 
     _model_name: str = "BaseMMM"
@@ -198,27 +199,15 @@ class VanillaMultiDimensionalMMM(PlotMMMMixin):
                 "Normal", sigma=Prior("HalfNormal", sigma=2), dims=self.dims
             ),
             "gamma_control": Prior("Normal", mu=0, sigma=2, dims="control"),
-            "gamma_fourier": Prior("Laplace", mu=0, b=1, dims="fourier_mode"),
+            "gamma_fourier": Prior(
+                "Laplace", mu=0, b=1, dims=(*self.dims, "fourier_mode")
+            ),
         }
 
         if self.time_varying_intercept:
-            base_config["intercept_tvp_config"] = HSGPKwargs(
-                m=200,
-                L=None,
-                eta_lam=1,
-                ls_mu=5,
-                ls_sigma=10,
-                cov_func=None,
-            )
+            base_config["intercept_tvp_config"] = {"ls_lower": 0.3, "ls_upper": 2.0}
         if self.time_varying_media:
-            base_config["media_tvp_config"] = HSGPKwargs(
-                m=200,
-                L=None,
-                eta_lam=1,
-                ls_mu=5,
-                ls_sigma=10,
-                cov_func=None,
-            )
+            base_config["media_tvp_config"] = {"ls_lower": 0.3, "ls_upper": 2.0}
 
         for media_transform in [self.adstock, self.saturation]:
             for dist in media_transform.function_priors.values():
@@ -315,6 +304,13 @@ class VanillaMultiDimensionalMMM(PlotMMMMixin):
             for dim in self.xarray_dataset.coords.dims
         }
 
+        if self.time_varying_intercept | self.time_varying_media:
+            self._time_index = np.arange(0, X[self.date_column].unique().shape[0])
+            self._time_index_mid = X[self.date_column].unique().shape[0] // 2
+            self._time_resolution = (
+                X[self.date_column].iloc[1] - X[self.date_column].iloc[0]
+            ).days
+
     def forward_pass(
         self, x: pt.TensorVariable | npt.NDArray[np.float64]
     ) -> pt.TensorVariable:
@@ -344,6 +340,22 @@ class VanillaMultiDimensionalMMM(PlotMMMMixin):
         )
 
         return second.apply(x=first.apply(x=x, dims="channel"), dims="channel")
+
+    def _compute_scales(self) -> None:
+        """Compute and save scaling factors for channels and target."""
+        self.scalers = self.xarray_dataset.max(dim=["date", *self.dims])
+
+    def get_scales_as_xarray(self) -> dict[str, xr.DataArray]:
+        """Return the saved scaling factors as xarray DataArrays."""
+        if not hasattr(self, "scalers"):
+            raise ValueError(
+                "Scales have not been computed yet. Build the model first."
+            )
+
+        return {
+            "channel_scale": self.scalers._channel,
+            "target_scale": self.scalers._target,
+        }
 
     def build_model(
         self,
@@ -380,11 +392,8 @@ class VanillaMultiDimensionalMMM(PlotMMMMixin):
 
         .. code-block:: python
 
-            from pymc_marketing.mmm import (
-                GeometricAdstock,
-                LogisticSaturation
-                MMM,
-            )
+            from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+            from pymc_marketing.mmm.MultiDimensionalMMM import MMM
             from pymc_marketing.prior import Prior
 
             custom_config = {
@@ -413,79 +422,94 @@ class VanillaMultiDimensionalMMM(PlotMMMMixin):
 
         """
         self._generate_and_preprocess_model_data(X, y)
-        print("-init-")
+        # Compute and save scales
+        self._compute_scales()
+
         with pm.Model(
             coords=self.model_coords,
         ) as self.model:
+            _channel_scale = pm.Data(
+                "channel_scale",
+                self.scalers._channel.values,
+                mutable=False,
+                dims="channel",
+            )
+            _target_scale = pm.Data(
+                "target_scale",
+                self.scalers._target.item(),
+                mutable=False,
+            )
+
+            # Scale `channel_data` and `target`
             channel_data_ = pm.Data(
                 name="channel_data",
-                value=self.xarray_dataset._channel.transpose(
-                    "date", *self.dims, "channel"
-                ).values,
+                value=(
+                    self.xarray_dataset._channel.transpose(
+                        "date", *self.dims, "channel"
+                    ).values
+                    / _channel_scale.eval()
+                ),
                 dims=("date", *self.dims, "channel"),
             )
 
             target_ = pm.Data(
                 name="target",
-                value=self.xarray_dataset._target.sum(dim="target")
-                .transpose("date", *self.dims)
-                .values,
+                value=(
+                    self.xarray_dataset._target.sum(dim="target")
+                    .transpose("date", *self.dims)
+                    .values
+                ),
                 dims=("date", *self.dims),
             )
             if self.time_varying_intercept | self.time_varying_media:
-                pass
-                # time_index = pm.Data(
-                #     "time_index",
-                #     self._time_index,
-                #     dims="date",
-                # )
+                time_index = pm.Data(
+                    name="time_index",
+                    value=self._time_index,
+                    dims="date",
+                )
 
+            # Add intercept logic
             if self.time_varying_intercept:
-                pass
-                # baseline_intercept = self.model_config["intercept"].create_variable(
-                #     "baseline_intercept"
-                # )
+                baseline_intercept = self.model_config["intercept"].create_variable(
+                    "baseline_intercept"
+                )
 
-                # intercept_latent_process = create_time_varying_gp_multiplier(
-                #     name="intercept",
-                #     dims="date",
-                #     time_index=time_index,
-                #     time_index_mid=self._time_index_mid,
-                #     time_resolution=self._time_resolution,
-                #     hsgp_kwargs=self.model_config["intercept_tvp_config"],
-                # )
-                # intercept = pm.Deterministic(
-                #     name="intercept",
-                #     var=baseline_intercept * intercept_latent_process,
-                #     dims="date",
-                # )
+                intercept_latent_process = HSGP.parameterize_from_data(
+                    X=time_index,
+                    dims=("date", *self.dims),
+                    **self.model_config["intercept_tvp_config"],
+                ).create_variable("intercept_latent_process")
+
+                intercept = pm.Deterministic(
+                    name="intercept",
+                    var=baseline_intercept[None, ...] * intercept_latent_process,
+                    dims=("date", *self.dims),
+                )
             else:
                 intercept = self.model_config["intercept"].create_variable(
                     name="intercept"
                 )
 
+            # Add media logic
             if self.time_varying_media:
-                # baseline_channel_contributions = pm.Deterministic(
-                #     name="baseline_channel_contributions",
-                #     var=self.forward_pass(x=channel_data_),
-                #     dims=("date", *self.dims, "channel"),
-                # )
+                baseline_channel_contributions = pm.Deterministic(
+                    name="baseline_channel_contributions",
+                    var=self.forward_pass(x=channel_data_),
+                    dims=("date", *self.dims, "channel"),
+                )
 
-                # media_latent_process = create_time_varying_gp_multiplier(
-                #     name="media",
-                #     dims="date",
-                #     time_index=time_index,
-                #     time_index_mid=self._time_index_mid,
-                #     time_resolution=self._time_resolution,
-                #     hsgp_kwargs=self.model_config["media_tvp_config"],
-                # )
-                # channel_contributions = pm.Deterministic(
-                #     name="channel_contributions",
-                #     var=baseline_channel_contributions * media_latent_process[:, None],
-                #     dims=("date", *self.dims, "channel"),
-                # )
-                pass
+                media_latent_process = HSGP.parameterize_from_data(
+                    X=time_index,
+                    dims=("date", *self.dims),
+                    **self.model_config["media_tvp_config"],
+                ).create_variable("media_latent_process")
 
+                channel_contributions = pm.Deterministic(
+                    name="channel_contributions",
+                    var=baseline_channel_contributions
+                    * media_latent_process[..., None],
+                    dims=("date", *self.dims, "channel"),
+                )
             else:
                 channel_contributions = pm.Deterministic(
                     name="channel_contributions",
@@ -493,16 +517,17 @@ class VanillaMultiDimensionalMMM(PlotMMMMixin):
                     dims=("date", *self.dims, "channel"),
                 )
 
+            # Sum across all -("date", *self.dims, "channel")-
+            pm.Deterministic(
+                name="total_media_contribution",
+                var=channel_contributions.sum(),
+                dims=(),
+            )
+
+            # Add other contributions and likelihood
             mu_var = intercept + channel_contributions.sum(axis=-1)
 
-            if (
-                self.control_columns is not None
-                and len(self.control_columns) > 0
-                and all(column in X.columns for column in self.control_columns)
-            ):
-                if self.model_config["gamma_control"].dims != ("control",):
-                    self.model_config["gamma_control"].dims = "control"
-
+            if self.control_columns is not None and len(self.control_columns) > 0:
                 gamma_control = self.model_config["gamma_control"].create_variable(
                     name="gamma_control"
                 )
@@ -523,31 +548,32 @@ class VanillaMultiDimensionalMMM(PlotMMMMixin):
 
                 mu_var += control_contributions.sum(axis=-1)
 
-            # if self.yearly_seasonality is not None:
-            # dayofyear = pm.Data(
-            #     name="dayofyear",
-            #     value=pd.to_datetime(
-            #         self.coords_dict["date"]
-            #     ).dayofyear.to_numpy(),
-            #     dims="date",
-            # )
+            if self.yearly_seasonality is not None:
+                dayofyear = pm.Data(
+                    name="dayofyear",
+                    value=pd.to_datetime(
+                        self.model_coords["date"]
+                    ).dayofyear.to_numpy(),
+                    dims="date",
+                )
 
-            # def create_deterministic(x: pt.TensorVariable) -> None:
-            #     pm.Deterministic(
-            #         "fourier_contributions",
-            #         x,
-            #         dims=("date", *self.yearly_fourier.prior.dims),
-            #     )
+                def create_deterministic(x: pt.TensorVariable) -> None:
+                    pm.Deterministic(
+                        "fourier_contributions",
+                        x,
+                        dims=("date", *self.yearly_fourier.prior.dims),
+                    )
 
-            # yearly_seasonality_contribution = pm.Deterministic(
-            #     name="yearly_seasonality_contribution",
-            #     var=self.yearly_fourier.apply(
-            #         dayofyear, result_callback=create_deterministic
-            #     ),
-            #     dims="date",
-            # )
+                yearly_seasonality_contribution = pm.Deterministic(
+                    name="yearly_seasonality_contribution",
+                    var=self.yearly_fourier.apply(
+                        dayofyear, result_callback=create_deterministic
+                    ),
+                    dims=("date", *self.dims),
+                )
+                mu_var += yearly_seasonality_contribution
 
-            # mu_var += yearly_seasonality_contribution
+            mu_var *= _target_scale.eval()
 
             mu = pm.Deterministic(name="mu", var=mu_var, dims=("date", *self.dims))
 
@@ -557,7 +583,6 @@ class VanillaMultiDimensionalMMM(PlotMMMMixin):
                 mu=mu,
                 observed=target_,
             )
-            print("-end-")
 
     def fit(
         self,
@@ -580,27 +605,23 @@ class VanillaMultiDimensionalMMM(PlotMMMMixin):
             The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
         progressbar : bool, optional
             Specifies whether the fit progress bar should be displayed. Defaults to True.
-        predictor_names : Optional[List[str]] = None,
-            Allows for custom naming of predictors when given in a form of a 2D array.
-            Allows for naming of predictors when given in a form of np.ndarray, if not provided
-            the predictors will be named like predictor1, predictor2...
-        random_seed : Optional[RandomState]
-            Provides sampler with initial random seed for obtaining reproducible samples.
-        **kwargs : Any
-            Custom sampler settings can be provided in form of keyword arguments.
+        predictor_names : list[str], optional
+            Allows custom naming of predictors. If `predictor_names` is provided, predictors
+            will be named accordingly; otherwise, default names will be used.
+        random_seed : RandomState, optional
+            Provides the sampler with an initial random seed for reproducible samples.
+        **kwargs : dict
+            Additional keyword arguments passed to the sampler.
 
         Returns
         -------
-        self : az.InferenceData
-            Returns inference data of the fitted model.
+        az.InferenceData
+            The inference data from the fitted model.
 
         Examples
         --------
         >>> model = MyModel()
-        >>> idata = model.fit(X,y)
-        Auto-assigning NUTS sampler...
-        Initializing NUTS using jitter+adapt_diag...
-
+        >>> idata = model.fit(X, y, progressbar=True)
         """
         if predictor_names is None:
             predictor_names = []
@@ -608,14 +629,18 @@ class VanillaMultiDimensionalMMM(PlotMMMMixin):
         if not hasattr(self, "model"):
             self.build_model(X, y)
 
-        # sampler_kwargs = create_sample_kwargs(
-        #     self.sampler_config,
-        #     progressbar,
-        #     random_seed,
-        #     **kwargs,
-        # )
+        # Ensure sampler_config is initialized as an empty dict if None
+        self.sampler_config = self.sampler_config or {}
+
+        sampler_kwargs = create_sample_kwargs(
+            self.sampler_config,
+            progressbar,
+            random_seed,
+            **kwargs,
+        )  # type: ignore
+
         with self.model:
-            idata = pm.sample()  # type: ignore
+            idata = pm.sample(**sampler_kwargs)
 
         if hasattr(self, "idata"):
             self.idata = self.idata.copy()  # type: ignore
@@ -624,7 +649,7 @@ class VanillaMultiDimensionalMMM(PlotMMMMixin):
             self.idata = idata  # type: ignore
 
         if "fit_data" in self.idata:
-            del self.idata.fit_data  # type: ignore
+            del self.idata.fit_data
 
         with warnings.catch_warnings():
             warnings.filterwarnings(
@@ -632,27 +657,210 @@ class VanillaMultiDimensionalMMM(PlotMMMMixin):
                 category=UserWarning,
                 message="The group fit_data is not defined in the InferenceData scheme",
             )
-            # self.idata.add_groups(fit_data=combined_data.to_xarray())
-        # self.set_idata_attrs(self.idata)
 
         return self.idata  # type: ignore
 
+    def _posterior_predictive_data_transformation(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series | None = None,
+        include_last_observations: bool = False,
+    ):
+        """Transform the data for posterior predictive sampling.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            The input data for prediction.
+        y : pd.Series, optional
+            The target data for prediction.
+        include_last_observations : bool, optional
+            Whether to include the last observations of the training data for continuity.
+
+        Returns
+        -------
+        xr.Dataset
+            The transformed data in xarray format.
+        """
+        dataarrays = []
+        if include_last_observations:
+            last_obs = self.xarray_dataset.isel(date=slice(-self.adstock.l_max, None))
+            dataarrays.append(last_obs)
+
+        # Transform X_pred and y_pred to xarray
+        X_xarray = self.create_xarray_from_dataframe(
+            df=X,
+            date_column=self.date_column,
+            dims=self.dims,
+            metric_list=self.channel_columns,
+            metric_coordinate_name="channel",
+        ).transpose("date", *self.dims, "channel")
+        dataarrays.append(X_xarray)
+
+        if self.control_columns is not None:
+            control_dataarray = self.create_xarray_from_dataframe(
+                df=X,
+                date_column=self.date_column,
+                dims=self.dims,
+                metric_list=self.control_columns,
+                metric_coordinate_name="control",
+            ).transpose("date", *self.dims, "control")
+            dataarrays.append(control_dataarray)
+
+        if y is not None:
+            y_xarray = self.create_xarray_from_dataframe(
+                df=y,
+                date_column=self.date_column,
+                dims=self.dims,
+                metric_list=[self.target_column],
+                metric_coordinate_name="target",
+            ).transpose("date", *self.dims, "target")
+        else:
+            # Return empty xarray with same dimensions as the target but full of zeros
+            y_xarray = xr.DataArray(
+                np.zeros(
+                    (
+                        X[self.date_column].nunique(),
+                        *[len(self.xarray_dataset.coords[dim]) for dim in self.dims],
+                        1,
+                    ),
+                    dtype=np.int32,
+                ),
+                dims=("date", *self.dims, "target"),
+                coords={
+                    "date": X[self.date_column].unique(),
+                    **{dim: self.xarray_dataset.coords[dim] for dim in self.dims},
+                    "target": self.xarray_dataset.coords["target"],
+                },
+                name="_target",
+            ).to_dataset()
+
+        dataarrays.append(y_xarray)
+        self.dataarrays = dataarrays
+        self._new_internal_xarray = xr.merge(dataarrays).fillna(0)
+
+        return xr.merge(dataarrays).fillna(0)
+
+    def _set_xarray_data(
+        self,
+        dataset_xarray: xr.Dataset,
+    ) -> None:
+        """Set xarray data into the model.
+
+        Parameters
+        ----------
+        dataset_xarray : xr.Dataset
+            Input data for channels and other variables.
+
+        Returns
+        -------
+        None
+        """
+        data = {
+            "channel_data": dataset_xarray._channel.transpose(
+                "date", *self.dims, "channel"
+            )
+        }
+        coords = {"date": dataset_xarray["date"].to_numpy()}
+
+        if "control_data" in dataset_xarray:
+            data["control_data"] = dataset_xarray["control_data"].transpose(
+                "date", *self.dims, "control"
+            )
+
+        if "dayofyear" in dataset_xarray:
+            data["dayofyear"] = dataset_xarray["date"].dt.dayofyear.to_numpy()
+
+        if self.time_varying_intercept or self.time_varying_media:
+            data["time_index"] = infer_time_index(
+                dataset_xarray[self.date_column],
+                self.model_coords["date"],
+                self._time_resolution,
+            )
+
+        if "target" in dataset_xarray:
+            data["target"] = dataset_xarray._target.sum(dim="target").transpose(
+                "date", *self.dims
+            )
+
+        with self.model:
+            pm.set_data(data, coords=coords)
+
+    def sample_posterior_predictive(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series | None = None,
+        extend_idata: bool = True,
+        combined: bool = True,
+        include_last_observations: bool = False,
+        **sample_posterior_predictive_kwargs,
+    ) -> xr.DataArray:
+        """Sample from the model's posterior predictive distribution.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Input data for prediction, with the same structure as the training data.
+        y : pd.Series, optional
+            Optional target data for validation or alignment. Default is None.
+        extend_idata : bool, optional
+            Whether to add predictions to the inference data object. Defaults to True.
+        combined : bool, optional
+            Combine chain and draw dimensions into a single sample dimension. Defaults to True.
+        include_last_observations : bool, optional
+            Whether to include the last observations of the training data for continuity
+            (useful for adstock transformations). Defaults to False.
+        **sample_posterior_predictive_kwargs
+            Additional arguments for `pm.sample_posterior_predictive`.
+
+        Returns
+        -------
+        xr.DataArray
+            Posterior predictive samples.
+        """
+        # Update model data with xarray
+        self._set_xarray_data(
+            self._posterior_predictive_data_transformation(
+                X, y, include_last_observations
+            )
+        )
+
+        with self.model:
+            # Sample from posterior predictive
+            post_pred = pm.sample_posterior_predictive(
+                self.idata, **sample_posterior_predictive_kwargs
+            )
+
+            if extend_idata:
+                self.idata.extend(post_pred, join="right")  # type: ignore
+
+        group = "posterior_predictive"
+        posterior_predictive_samples = az.extract(post_pred, group, combined=combined)
+
+        if include_last_observations:
+            # Remove extra observations used for adstock continuity
+            posterior_predictive_samples = posterior_predictive_samples.isel(
+                date=slice(self.adstock.l_max, None)
+            )
+
+        return posterior_predictive_samples
+
 
 def create_sample_kwargs(
-    sampler_config: dict[str, Any] | Any,
+    sampler_config: dict[str, Any] | None,
     progressbar: bool | None,
-    random_seed,
+    random_seed: RandomState | None,
     **kwargs,
 ) -> dict[str, Any]:
     """Create the dictionary of keyword arguments for `pm.sample`.
 
     Parameters
     ----------
-    sampler_config : dict
-        The configuration dictionary for the sampler.
+    sampler_config : dict | None
+        The configuration dictionary for the sampler. If None, defaults to an empty dict.
     progressbar : bool, optional
         Whether to show the progress bar during sampling. Defaults to True.
-    random_seed : RandomState
+    random_seed : RandomState, optional
         The random seed for the sampler.
     **kwargs : Any
         Additional keyword arguments to pass to the sampler.
@@ -661,18 +869,21 @@ def create_sample_kwargs(
     -------
     dict
         The dictionary of keyword arguments for `pm.sample`.
-
     """
-    sampler_config = sampler_config.copy()
+    # Ensure sampler_config is a dictionary
+    sampler_config = sampler_config.copy() if sampler_config is not None else {}
 
-    if progressbar is not None:
-        sampler_config["progressbar"] = progressbar
-    else:
-        sampler_config["progressbar"] = sampler_config.get("progressbar", True)
+    # Handle progress bar configuration
+    sampler_config["progressbar"] = (
+        progressbar
+        if progressbar is not None
+        else sampler_config.get("progressbar", True)
+    )
 
+    # Add random seed if provided
     if random_seed is not None:
         sampler_config["random_seed"] = random_seed
 
-    sampler_config.update(**kwargs)
-
+    # Update with additional keyword arguments
+    sampler_config.update(kwargs)
     return sampler_config
