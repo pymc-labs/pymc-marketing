@@ -15,23 +15,65 @@
 """Budget optimization module."""
 
 import warnings
+from collections.abc import Sequence
 from typing import Any, ClassVar
 
 import arviz as az
 import numpy as np
 import pytensor.tensor as pt
+import xarray as xr
 from pydantic import BaseModel, ConfigDict, Field
 from pymc import Model, do
 from pymc.logprob.utils import rvs_in_graph
 from pymc.model.transform.optimization import freeze_dims_and_data
+from pymc.pytensorf import rewrite_pregrad
 from pytensor import clone_replace, function
+from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph import rewrite_graph, vectorize_graph
 from pytensor.graph.basic import ancestors
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray
 
+from pymc_marketing.mmm.constraints import (
+    Constraint,
+    build_default_sum_constraint,
+    compile_constraints_for_scipy,
+)
 from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
+
+
+def optimizer_xarray_builder(value, **kwargs):
+    """
+    Create an xarray.DataArray with flexible dimensions and coordinates.
+
+    Parameters
+    ----------
+    - value (array-like): The data values for the DataArray. Shape must match the dimensions implied by the kwargs.
+    - **kwargs: Key-value pairs representing dimension names and their corresponding coordinates.
+
+    Returns
+    -------
+    - xarray.DataArray: The resulting DataArray with the specified dimensions and values.
+
+    Raises
+    ------
+    - ValueError: If the shape of `value` doesn't match the lengths of the specified coordinates.
+    """
+    # Extract the dimensions and coordinates
+    dims = list(kwargs.keys())
+    coords = {dim: kwargs[dim] for dim in dims}
+
+    # Validate the shape of `value`
+    expected_shape = tuple(len(coords[dim]) for dim in dims)
+    if np.shape(value) != expected_shape:
+        raise ValueError(
+            f"""The shape of 'value' {np.shape(value)} does not match the expected shape {expected_shape},
+            based on the provided dimensions.
+            """
+        )
+
+    return xr.DataArray(value, coords=coords, dims=dims)
 
 
 class MinimizeException(Exception):
@@ -59,13 +101,12 @@ class BudgetOptimizer(BaseModel):
         The marketing mix model to optimize.
     utility_function : UtilityFunctionType, optional
         The utility function to maximize. Default is the mean of the response distribution.
-
     """
 
     num_periods: int = Field(
         ...,
         gt=0,
-        description="The number of time units at time granularity which the budget is to be allocated.",
+        description="Number of time units at the desired time granularity to allocate budget for.",
     )
 
     mmm_model: MMM = Field(
@@ -76,7 +117,7 @@ class BudgetOptimizer(BaseModel):
     )
 
     response_variable: str = Field(
-        default="channel_contributions",
+        default="total_contributions",
         description="The response variable to optimize.",
     )
 
@@ -84,6 +125,22 @@ class BudgetOptimizer(BaseModel):
         default=average_response,
         description="Utility function to maximize.",
         arbitrary_types_allowed=True,
+    )
+
+    budgets_to_optimize: DataArray | None = Field(
+        default=None,
+        description="Mask that defines a subset of budgets to optimize. Non-optimized budgets remain fixed at 0.",
+    )
+
+    custom_constraints: Sequence[Constraint] = Field(
+        default=(),
+        description="Custom constraints for the optimizer.",
+        arbitrary_types_allowed=True,
+    )
+
+    default_constraints: bool = Field(
+        default=True,
+        description="Whether to add a default sum constraint on the total budget.",
     )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -95,7 +152,15 @@ class BudgetOptimizer(BaseModel):
 
     def __init__(self, **data):
         super().__init__(**data)
+        # 1. Prepare model with time dimension for optimization
         pymc_model = self.mmm_model._set_predictors_for_optimization(self.num_periods)
+
+        # 2. Shared variable for total_budget
+        self._total_budget: SharedVariable = shared(
+            np.array(0.0, dtype="float64"), name="total_budget"
+        )
+
+        # 3. Identify budget dimensions and shapes
         self._budget_dims = [
             dim
             for dim in pymc_model.named_vars_to_dims["channel_data"]
@@ -105,33 +170,78 @@ class BudgetOptimizer(BaseModel):
             dim: list(pymc_model.coords[dim]) for dim in self._budget_dims
         }
         self._budget_shape = tuple(len(coord) for coord in self._budget_coords.values())
-        # Flattened variable that will be optimized
-        self._budgets_flat = pt.tensor(
-            "budgets_flat", shape=(np.prod(self._budget_shape),)
-        )
-        # Unflattened variable used in utility/constraint functions
-        self._budgets = self._budgets_flat.reshape(self._budget_shape)
+
+        # 4. Handle mask vs. no mask in flattening
+        if self.budgets_to_optimize is None:
+            size_budgets = np.prod(self._budget_shape)
+        else:
+            size_budgets = self.budgets_to_optimize.sum().item()
+
+        self._budgets_flat = pt.tensor("budgets_flat", shape=(size_budgets,))
+
+        if self.budgets_to_optimize is None:
+            # No mask case: reshape entire vector
+            self._budgets = self._budgets_flat.reshape(self._budget_shape)
+        else:
+            # Masked case: fill a zero array, then set only the True positions
+            budgets_zeros = pt.zeros(self._budget_shape, name="budgets_zeros")
+            bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
+            self._budgets = budgets_zeros[bool_mask].set(self._budgets_flat)
+
+        # 5. Replace channel_data with budgets in the PyMC model
         self._pymc_model = self._replace_channel_data_by_optimization_variable(
             pymc_model
         )
 
+        # 6. Compile objective & gradient
         self._compiled_functions = {}
         self._compile_objective_and_grad()
 
+        # 7. Build constraints
+        self._constraints = {}
+        self.set_constraints(
+            default=self.default_constraints, constraints=self.custom_constraints
+        )
+
+    def set_constraints(self, constraints, default=None) -> None:
+        """Set constraints for the optimizer."""
+        self._constraints = {}
+        if default is None:
+            default = False if constraints else True
+
+        for c in constraints:
+            new_constraint = Constraint(
+                key=c.key,
+                constraint_fun=c.constraint_fun,
+                constraint_type=c.constraint_type if c.constraint_type else "eq",
+            )
+            self._constraints[c.key] = new_constraint
+
+        if default:
+            self._constraints["default"] = build_default_sum_constraint("default")
+            warnings.warn(
+                "Using default equality constraint",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        # Compile constraints to be used by SciPy
+        self._compiled_constraints = compile_constraints_for_scipy(
+            constraints=self._constraints, optimizer=self
+        )
+
     def _replace_channel_data_by_optimization_variable(self, model: Model) -> Model:
-        """Replace the deterministic `"channel_data"` in the model by the optimization variable."""
+        """Replace `channel_data` in the model graph with our newly created `_budgets` variable."""
         num_periods = self.num_periods
         max_lag = self.mmm_model.adstock.l_max
         channel_data_dims = model.named_vars_to_dims["channel_data"]
         date_dim_idx = list(channel_data_dims).index("date")
         channel_scales = self.mmm_model._channel_scales
 
-        # The optimization budgets variable has the same shape as the channel_data, but without the date dimension
+        # Scale budgets by channel_scales
         budgets = self._budgets
         budgets /= channel_scales
 
-        # Replicate the budgets over num_periods and append zeros to also quantify carry-over effects
-        # If there's a single channel, and num_peridos=2, and max_lag=1, then budget_full==[budgets[0], budget[0], 0]
         # Repeat budgets over num_periods
         repeated_budgets_shape = list(tuple(budgets.shape))
         repeated_budgets_shape.insert(date_dim_idx, num_periods)
@@ -156,56 +266,52 @@ class BudgetOptimizer(BaseModel):
         ].set(repeated_budgets)
         repeated_budgets_with_carry_over.name = "repeated_budgets_with_carry_over"
 
-        # Freeze the dimensions of the model to simplify graph
-        # We don't try to freeze data variables because they may have incorrect shapes on the date dimension
+        # Freeze dims & data in the underlying PyMC model
         model = freeze_dims_and_data(model, data=[])
 
-        # Replace the deterministic channel_data by the optimization variable using do
+        # Use `do(...)` to replace `channel_data` with repeated_budgets_with_carry_over
         return do(model, {"channel_data": repeated_budgets_with_carry_over})
 
     def extract_response_distribution(
         self, response_variable: str
     ) -> pt.TensorVariable:
-        """Extract the response distribution graph, conditioned on posterior parameters and the optimization variable.
+        """Extract the response distribution graph, conditioned on posterior parameters.
 
+        Example:
+        --------
         `BudgetOptimizer(...).extract_response_distribution("channel_contributions")`
-        returns the graph that computes the `"channel_contributions"` variable defined in the PyMC model,
-        as a function of the optimization variable and the posterior of the model parameters.
-        The graph will have shape `(chains * draws, *channel_contributions.shape)`.
-
+        returns a graph that computes `"channel_contributions"` as a function of both
+        the newly introduced budgets and the posterior of model parameters.
         """
         model = self._pymc_model
-        # Stack chain/draws dimensions
+        # Convert InferenceData to a sample-major xarray
         posterior = az.extract(self.mmm_model.idata).transpose("sample", ...)  # type: ignore
 
-        response_variable = model[response_variable]
+        # The PyMC variable to extract
+        response_var = model[response_variable]
 
-        # Replace model free_RVs that are needed to compute `response_variable` by placeholder variables
+        # Identify which free RVs are needed to compute `response_var`
         free_rvs = set(model.free_RVs)
         needed_rvs = [
-            rv
-            for rv in ancestors([response_variable], blockers=free_rvs)
-            if rv in free_rvs
+            rv for rv in ancestors([response_var], blockers=free_rvs) if rv in free_rvs
         ]
         placeholder_replace_dict = {
             model[rv.name]: pt.tensor(name=rv.name, shape=rv.type.shape, dtype=rv.dtype)
             for rv in needed_rvs
         }
 
-        [response_variable] = clone_replace(
-            [response_variable],
+        [response_var] = clone_replace(
+            [response_var],
             replace=placeholder_replace_dict,
         )
 
-        if rvs_in_graph([response_variable]):
+        if rvs_in_graph([response_var]):
             raise RuntimeError("RVs found in the extracted graph, this is likely a bug")
 
-        # Cleanup graph prior to vectorization
-        response_variable = rewrite_graph(
-            response_variable, include=("canonicalize", "ShapeOpt")
-        )
+        # Cleanup graph
+        response_var = rewrite_graph(response_var, include=("canonicalize", "ShapeOpt"))
 
-        # Replace dummy variables by posterior constants (while vectorizing graph)
+        # Replace placeholders with actual posterior samples
         replace_dict = {}
         for placeholder in placeholder_replace_dict.values():
             replace_dict[placeholder] = pt.constant(
@@ -213,14 +319,12 @@ class BudgetOptimizer(BaseModel):
                 name=placeholder.name,
             )
 
-        response_variable_distribution = vectorize_graph(
-            response_variable, replace=replace_dict
-        )
+        # Vectorize across samples
+        response_distribution = vectorize_graph(response_var, replace=replace_dict)
 
-        # Final cleanup of the vectorize graph.
-        # This shouldn't be needed, vectorize should just not do anything if there are no batch dims!
-        response_variable_distribution = rewrite_graph(
-            response_variable_distribution,
+        # Final cleanup
+        response_distribution = rewrite_graph(
+            response_distribution,
             include=(
                 "useless",
                 "local_eager_useless_unbatched_blockwise",
@@ -228,10 +332,10 @@ class BudgetOptimizer(BaseModel):
             ),
         )
 
-        return response_variable_distribution
+        return response_distribution
 
     def _compile_objective_and_grad(self):
-        """Compile the objective function and its gradient using symbolic computation."""
+        """Compile the objective function and its gradient, both referencing `self._budgets_flat`."""
         budgets_flat = self._budgets_flat
         budgets = self._budgets
         response_distribution = self.extract_response_distribution(
@@ -241,19 +345,15 @@ class BudgetOptimizer(BaseModel):
         objective = -self.utility_function(
             samples=response_distribution, budgets=budgets
         )
+        objective_grad = pt.grad(rewrite_pregrad(objective), budgets_flat)
 
-        # Compute gradient symbolically
-        objective_grad = pt.grad(objective, budgets_flat)
-
-        # Compile the functions
         objective_func = function([budgets_flat], objective)
         grad_func = function([budgets_flat], objective_grad)
 
-        # Set trust_input=True to avoid expensive input validation in every call
+        # Avoid repeated input validation for performance
         objective_func.trust_input = True
         grad_func.trust_input = True
 
-        # Store the compiled functions
         self._compiled_functions[self.utility_function] = {
             "objective": objective_func,
             "gradient": grad_func,
@@ -263,60 +363,58 @@ class BudgetOptimizer(BaseModel):
         self,
         total_budget: float,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
-        custom_constraints: dict[Any, Any] | None = None,
         minimize_kwargs: dict[str, Any] | None = None,
     ) -> tuple[DataArray, OptimizeResult]:
-        """Allocate the budget based on the total budget, budget bounds, and custom constraints.
+        """
+        Allocate the budget based on `total_budget`, optional `budget_bounds`, and custom constraints.
 
-        The default budget bounds are (0, total_budget) for each channel.
-
-        The default constraint ensures the sum of all budgets equals the total budget.
-
-        The optimization is done using the Sequential Least Squares Quadratic Programming (SLSQP) method
-        and it's constrained such that:
-        1. The sum of budgets across all channels equals the total available budget.
-        2. The budget allocated to each individual channel lies within its specified range.
+        The default sum constraint ensures that the sum of the optimized budget
+        equals `total_budget`. If `budget_bounds` are not provided, each channel
+        will be constrained to lie in [0, total_budget].
 
         Parameters
         ----------
         total_budget : float
-            The total budget.
+            The total budget to allocate.
         budget_bounds : DataArray or dict, optional
-            DataArray or dict containing the budget bounds for each channel. Default is None.
-        custom_constraints : dict, optional
-            Custom constraints for the optimization. Default is None.
+            - If None, default bounds of [0, total_budget] per channel are assumed.
+            - If a dict, must map each channel to (low, high) budget pairs (only valid if there's one dimension).
+            - If an xarray.DataArray, must have dims (*budget_dims, "bound"), specifying [low, high] per channel cell.
         minimize_kwargs : dict, optional
-            Additional keyword arguments for the `scipy.optimize.minimize` function. If None, default values are used.
-            Method is set to "SLSQP", ftol is set to 1e-9, and maxiter is set to 1_000.
+            Extra kwargs for `scipy.optimize.minimize`. Defaults to method "SLSQP",
+            ftol=1e-9, maxiter=1_000.
 
         Returns
         -------
-        DataArray, OptimizeResult
-            The optimal budgets for each channel and the optimization result object.
+        optimal_budgets : xarray.DataArray
+            The optimized budget allocation across channels.
+        result : OptimizeResult
+            The raw scipy optimization result.
 
         Raises
         ------
         MinimizeException
-            If the optimization fails, an exception is raised with the reason for the failure.
-
+            If the optimization fails for any reason, the exception message will contain the details.
         """
+        self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))
+
+        # 1. Process budget bounds
         if budget_bounds is None:
             warnings.warn(
                 "No budget bounds provided. Using default bounds (0, total_budget) for each channel.",
                 UserWarning,
                 stacklevel=2,
             )
-            budget_bounds_array = np.full(
-                fill_value=[0, total_budget], shape=(*self._budget_shape, 2)
+            budget_bounds_array = np.array(
+                [[0, total_budget]] * np.prod(self._budget_shape)
             )
-
         elif isinstance(budget_bounds, dict):
-            # For backwards compatibility
             if len(self._budget_dims) > 1:
                 raise ValueError(
-                    f"Dict approach to budget_bounds is not supported for budgets with more than one dimension. "
-                    f"budget_dims = {self._budget_dims}. Pass an xarray.Datarray instead"
+                    f"Dict approach to budget_bounds is not supported for multi-dimensional budgets. "
+                    f"budget_dims = {self._budget_dims}. Pass an xarray.DataArray instead."
                 )
+            # Flatten each channel's bounds into an array
             budget_bounds_array = np.concatenate(
                 [
                     np.asarray(budget_bounds[channel])
@@ -324,11 +422,11 @@ class BudgetOptimizer(BaseModel):
                 ],
                 axis=0,
             )
-
         elif isinstance(budget_bounds, DataArray):
-            if not set(budget_bounds.dims) == {*self._budget_dims, "bound"}:
+            # Must have dims (*self._budget_dims, "bound")
+            if set(budget_bounds.dims) != set([*self._budget_dims, "bound"]):
                 raise ValueError(
-                    f"budget_bounds must be an DataArray with dims {(*self._budget_dims, 'bound')}"
+                    f"budget_bounds must be a DataArray with dims {(*self._budget_dims, 'bound')}"
                 )
             budget_bounds_array = budget_bounds.transpose(
                 *self._budget_dims, "bound"
@@ -338,44 +436,58 @@ class BudgetOptimizer(BaseModel):
                 "budget_bounds must be a dictionary or an xarray.DataArray"
             )
 
-        bounds = [(low, high) for low, high in budget_bounds_array.reshape(-1, 2)]  # type: ignore
-
-        if custom_constraints is None:
-            constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
-            warnings.warn(
-                "Using default equality constraint: The sum of all budgets should be equal to the total budget.",
-                UserWarning,
-                stacklevel=2,
-            )
-        elif not isinstance(custom_constraints, dict):
-            raise TypeError("`custom_constraints` should be a dictionary.")
+        # 2. Build the final bounds list
+        if self.budgets_to_optimize is None:
+            bounds = [(low, high) for (low, high) in budget_bounds_array.reshape(-1, 2)]
         else:
-            constraints = custom_constraints
+            # Only gather bounds for the True positions in the mask
+            bounds = [
+                (low, high)
+                for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]
+            ]
 
-        budgets_size = np.prod(self._budget_shape)
-        initial_guess = np.ones(budgets_size) * total_budget / budgets_size
+        # 4. Determine how many budget entries we optimize
+        if self.budgets_to_optimize is None:
+            budgets_size = np.prod(self._budget_shape)
+        else:
+            budgets_size = self.budgets_to_optimize.sum().item()
+
+        # 5. Create an initial guess
+        initial_guess = np.ones(budgets_size) * (total_budget / budgets_size)
         initial_guess = initial_guess.astype(self._budgets_flat.type.dtype)
 
         if minimize_kwargs is None:
             minimize_kwargs = self.DEFAULT_MINIMIZE_KWARGS.copy()
         else:
+            # Merge with defaults (preferring user-supplied keys)
             minimize_kwargs = {**self.DEFAULT_MINIMIZE_KWARGS, **minimize_kwargs}
 
+        # 6. Run the SciPy optimizer
         result = minimize(
             fun=self._compiled_functions[self.utility_function]["objective"],
             jac=self._compiled_functions[self.utility_function]["gradient"],
             x0=initial_guess,
             bounds=bounds,
-            constraints=constraints,
+            constraints=self._compiled_constraints,
             **minimize_kwargs,
         )
 
+        # 7. Process results
         if result.success:
-            optimal_budgets = np.reshape(result.x, self._budget_shape)
+            if self.budgets_to_optimize is None:
+                # Reshape the entire optimized solution
+                optimal_budgets = np.reshape(result.x, self._budget_shape)
+            else:
+                # Fill zeros, then place the solution in masked positions
+                optimal_budgets = np.zeros_like(
+                    self.budgets_to_optimize.values, dtype=float
+                )
+                optimal_budgets[self.budgets_to_optimize.values] = result.x
+
             optimal_budgets = DataArray(
                 optimal_budgets, dims=self._budget_dims, coords=self._budget_coords
             )
-
             return optimal_budgets, result
+
         else:
             raise MinimizeException(f"Optimization failed: {result.message}")
