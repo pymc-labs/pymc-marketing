@@ -22,6 +22,7 @@ import pytest
 import xarray as xr
 from matplotlib import pyplot as plt
 
+from pymc_marketing.mmm.budget_optimizer import optimizer_xarray_builder
 from pymc_marketing.mmm.components.adstock import DelayedAdstock, GeometricAdstock
 from pymc_marketing.mmm.components.saturation import (
     LogisticSaturation,
@@ -469,7 +470,11 @@ class TestMMM:
         budget = 2.0
         num_periods = 8
         time_granularity = "weekly"
-        budget_bounds = {"channel_1": [0.5, 1.2], "channel_2": [0.5, 1.5]}
+        budget_bounds = optimizer_xarray_builder(
+            value=[[0.5, 1.2], [0.5, 1.5]],
+            channel=["channel_1", "channel_2"],
+            bound=["lower", "upper"],
+        )
         noise_level = 0.1
 
         # Call the method
@@ -479,6 +484,7 @@ class TestMMM:
             num_periods=num_periods,
             budget_bounds=budget_bounds,
             noise_level=noise_level,
+            custom_constraints=(),
         )
 
         inference_periods = len(inference_data.coords["date"])
@@ -490,12 +496,14 @@ class TestMMM:
         )
 
         # b) Budget boundaries check
-        for channel, bounds in budget_bounds.items():
-            allocation = mmm_fitted.optimal_allocation.sel(channel=channel)
-            lower_bound, upper_bound = bounds
-            assert lower_bound <= allocation <= upper_bound, (
-                f"Channel {channel} allocation {allocation} is out of bounds ({lower_bound}, {upper_bound})"
-            )
+        allocation = mmm_fitted.optimal_allocation
+        lower_bounds = budget_bounds.sel(bound="lower")
+        upper_bounds = budget_bounds.sel(bound="upper")
+        assert (allocation >= lower_bounds).all() and (
+            allocation <= upper_bounds
+        ).all(), (
+            f"Allocations {allocation.values} are out of bounds ({lower_bounds.values}, {upper_bounds.values})"
+        )
 
         # c) num_periods consistency check
         assert inference_periods == num_periods, (
@@ -508,7 +516,11 @@ class TestMMM:
         budget = 2.0
         num_periods = 8
         time_granularity = "weekly"
-        budget_bounds = {"channel_1": [0.5, 1.2], "channel_2": [0.5, 1.5]}
+        budget_bounds = optimizer_xarray_builder(
+            value=[[0.5, 1.2], [0.5, 1.5]],
+            channel=["channel_1", "channel_2"],
+            bound=["lower", "upper"],
+        )
         noise_level = "bad_noise_level"
 
         with pytest.raises(ValueError, match="noise_level must be a float"):
