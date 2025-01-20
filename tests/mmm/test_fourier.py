@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -19,6 +19,11 @@ import pymc as pm
 import pytest
 import xarray as xr
 
+from pymc_marketing.deserialize import (
+    DESERIALIZERS,
+    deserialize,
+    register_deserialization,
+)
 from pymc_marketing.mmm.fourier import (
     FourierBase,
     MonthlyFourier,
@@ -358,3 +363,109 @@ def test_fourier_base_instantiation():
             prior=Prior("Laplace", mu=0, b=1, dims="fourier"),
         )
     assert "Can't instantiate abstract class FourierBase" in str(exc_info.value)
+
+
+class ArbitraryCode:
+    def __init__(self, dims: tuple[str, ...]) -> None:
+        self.dims = dims
+
+    def create_variable(self, name: str):
+        return pm.Normal(name, dims=self.dims)
+
+
+def test_fourier_arbitrary_prior() -> None:
+    prior = ArbitraryCode(dims=("fourier",))
+    fourier = YearlyFourier(n_order=4, prior=prior)
+
+    x = np.arange(10)
+    with pm.Model():
+        y = fourier.apply(x)
+
+    assert y.eval().shape == (10,)
+
+
+def test_fourier_dims_modified() -> None:
+    prior = ArbitraryCode(dims=())
+    YearlyFourier(n_order=4, prior=prior)
+    assert prior.dims == "fourier"
+
+
+class SerializableArbitraryCode(ArbitraryCode):
+    def to_dict(self):
+        return {"dims": self.dims, "msg": "Hello, World!"}
+
+
+def test_fourier_serializable_arbitrary_prior() -> None:
+    prior = SerializableArbitraryCode(dims=("fourier",))
+    fourier = YearlyFourier(n_order=4, prior=prior)
+
+    assert fourier.model_dump(mode="json") == {
+        "n_order": 4,
+        "days_in_period": 365.25,
+        "prefix": "fourier",
+        "prior": {"dims": ["fourier"], "msg": "Hello, World!"},
+        "variable_name": "fourier_beta",
+    }
+
+
+@pytest.mark.parametrize(
+    "name, cls, days_in_period",
+    [
+        ("YearlyFourier", YearlyFourier, 365.25),
+        ("MonthlyFourier", MonthlyFourier, 30.4375),
+    ],
+    ids=["YearlyFourier", "MonthlyFourier"],
+)
+def test_fourier_to_dict(name, cls, days_in_period) -> None:
+    fourier = cls(n_order=4)
+    assert fourier.to_dict() == {
+        "class": name,
+        "data": {
+            "n_order": 4,
+            "days_in_period": days_in_period,
+            "prefix": "fourier",
+            "prior": {
+                "dist": "Laplace",
+                "kwargs": {"b": 1, "mu": 0},
+                "dims": ["fourier"],
+            },
+            "variable_name": "fourier_beta",
+        },
+    }
+
+
+@pytest.fixture
+def serialization() -> None:
+    register_deserialization(
+        is_type=lambda data: data.keys() == {"dims", "msg"},
+        deserialize=lambda data: SerializableArbitraryCode(dims=data["dims"]),
+    )
+
+    yield
+
+    DESERIALIZERS.pop()
+
+
+@pytest.mark.parametrize(
+    "name, cls",
+    [
+        ("YearlyFourier", YearlyFourier),
+        ("MonthlyFourier", MonthlyFourier),
+    ],
+    ids=["YearlyFourier", "MonthlyFourier"],
+)
+def test_fourier_deserialization(serialization, name, cls) -> None:
+    data = {
+        "class": name,
+        "data": {
+            "n_order": 4,
+            "prior": {"dims": ["fourier"], "msg": "Hello, World!"},
+        },
+    }
+    fourier = deserialize(data)
+
+    assert isinstance(fourier, cls)
+    assert fourier.n_order == 4
+    assert fourier.prefix == "fourier"
+    assert fourier.variable_name == "fourier_beta"
+    assert isinstance(fourier.prior, SerializableArbitraryCode)

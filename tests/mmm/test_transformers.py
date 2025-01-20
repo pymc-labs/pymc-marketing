@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -543,9 +543,9 @@ class TestSaturationTransformers:
     )
     def test_hill_sigmoid_vectorized_input(self, x, sigma, beta, lam):
         y = hill_saturation_sigmoid(x, sigma, beta, lam).eval()
-        assert (
-            y.shape == x.shape
-        ), "The function did not return the correct shape for vectorized input."
+        assert y.shape == x.shape, (
+            "The function did not return the correct shape for vectorized input."
+        )
 
     @pytest.mark.parametrize(
         "sigma, beta, lam",
@@ -640,9 +640,9 @@ class TestSaturationTransformers:
     )
     def test_hill_vectorized_input(self, x, slope, kappa):
         y = hill_function(x, slope, kappa).eval()
-        assert (
-            y.shape == x.shape
-        ), "The function did not return the correct shape for vectorized input."
+        assert y.shape == x.shape, (
+            "The function did not return the correct shape for vectorized input."
+        )
 
     @pytest.mark.parametrize(
         "slope, kappa",

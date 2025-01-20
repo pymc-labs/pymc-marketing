@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
 import pymc as pm
+import seaborn as sns
 from numpy.typing import NDArray
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
@@ -270,40 +271,6 @@ class MMMModelBuilder(ModelBuilder):
         except AttributeError:
             identity_transformer = FunctionTransformer()
             return Pipeline(steps=[("scaler", identity_transformer)])
-
-    @property
-    def prior(self) -> Dataset:
-        """Get the prior data."""
-        if self.idata is None or "prior" not in self.idata:
-            raise RuntimeError(
-                "The model hasn't been sampled yet, call .sample_prior_predictive() first"
-            )
-        return self.idata["prior"]
-
-    @property
-    def prior_predictive(self) -> Dataset:
-        """Get the prior predictive data."""
-        if self.idata is None or "prior_predictive" not in self.idata:
-            raise RuntimeError(
-                "The model hasn't been sampled yet, call .sample_prior_predictive() first"
-            )
-        return self.idata["prior_predictive"]
-
-    @property
-    def fit_result(self) -> Dataset:
-        """Get the posterior data."""
-        if self.idata is None or "posterior" not in self.idata:
-            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        return self.idata["posterior"]
-
-    @property
-    def posterior_predictive(self) -> Dataset:
-        """Get the posterior predictive data."""
-        if self.idata is None or "posterior_predictive" not in self.idata:
-            raise RuntimeError(
-                "The model hasn't been fit yet, call .sample_posterior_predictive() first"
-            )
-        return self.idata["posterior_predictive"]
 
     def _get_group_predictive_data(
         self,
@@ -944,16 +911,24 @@ class MMMModelBuilder(ModelBuilder):
             )
         return fig
 
-    def compute_channel_contribution_original_scale(self) -> DataArray:
+    def compute_channel_contribution_original_scale(
+        self, prior: bool = False
+    ) -> DataArray:
         """Compute the channel contributions in the original scale of the target variable.
+
+        Parameters
+        ----------
+        prior : bool, optional
+            Whether to use the prior or posterior, by default False (posterior)
 
         Returns
         -------
         DataArray
 
         """
+        _data = self.prior if prior else self.fit_result
         channel_contribution = az.extract(
-            data=self.fit_result, var_names=["channel_contributions"], combined=False
+            data=_data, var_names=["channel_contributions"], combined=False
         )
 
         # sklearn preprocessers expect 2-D arrays of (obs, features)
@@ -1211,6 +1186,152 @@ class MMMModelBuilder(ModelBuilder):
 
         return dataframe
 
+    def plot_prior_vs_posterior(
+        self,
+        var_name: str,
+        alphabetical_sort: bool = True,
+        figsize: tuple[int, int] | None = None,
+    ) -> plt.Figure:
+        """
+        Plot the prior vs posterior distribution for a specified variable in a 3 columngrid layout.
+
+        This function generates KDE plots for each MMM channel, showing the prior predictive
+        and posterior distributions with their respective means highlighted.
+        It sorts the plots either alphabetically or based on the difference between the
+        posterior and prior means, with the largest difference (posterior - prior) at the top.
+
+        Parameters
+        ----------
+        var_name: str
+            The variable to analyze (e.g., 'adstock_alpha').
+        alphabetical_sort: bool, optional
+            Whether to sort the channels alphabetically (True) or by the difference
+            between the posterior and prior means (False). Default is True.
+        figsize : tuple of int, optional
+            Figure size in inches. If None, it will be calculated based on the number of channels.
+
+        Returns
+        -------
+        fig : plt.Figure
+            The matplotlib figure object
+
+        Raises
+        ------
+        ValueError
+            If the required attributes (prior, posterior) were not found.
+        ValueError
+            If var_name is not a string.
+        """
+        if not hasattr(self, "fit_result") or not hasattr(self, "prior"):
+            raise ValueError(
+                "Required attributes (fit_result, prior) not found. "
+                "Ensure you've called model.fit() and model.sample_prior_predictive()"
+            )
+
+        if not isinstance(var_name, str):
+            raise ValueError(
+                "var_name must be a string. Please provide a single variable name."
+            )
+
+        # Determine the number of channels and set up the grid
+        num_channels = len(self.channel_columns)
+        num_cols = 1
+        num_rows = num_channels
+
+        if figsize is None:
+            figsize = (12, 4 * num_rows)
+
+        # Calculate prior and posterior means for sorting
+        channel_means = []
+        for channel in self.channel_columns:
+            prior_mean = self.prior[var_name].sel(channel=channel).mean().values
+            posterior_mean = (
+                self.fit_result[var_name].sel(channel=channel).mean().values
+            )
+            difference = posterior_mean - prior_mean
+            channel_means.append((channel, prior_mean, posterior_mean, difference))
+
+        # Choose how to sort the channels
+        if alphabetical_sort:
+            sorted_channels = sorted(channel_means, key=lambda x: x[0])
+        else:
+            # Otherwise, sort on difference between posterior and prior means
+            sorted_channels = sorted(channel_means, key=lambda x: x[3], reverse=True)
+
+        fig, axs = plt.subplots(
+            nrows=num_rows,
+            ncols=num_cols,
+            figsize=figsize,
+            sharex=True,
+            sharey=False,
+            layout="constrained",
+        )
+        axs = axs.flatten()  # Flatten the array for easy iteration
+
+        # Plot for each channel
+        for i, (channel, prior_mean, posterior_mean, difference) in enumerate(
+            sorted_channels
+        ):
+            # Extract prior samples for the current channel
+            prior_samples = self.prior[var_name].sel(channel=channel).values.flatten()
+
+            # Plot the prior predictive distribution
+            sns.kdeplot(
+                prior_samples,
+                ax=axs[i],
+                label="Prior Predictive",
+                color="C0",
+                fill=True,
+            )
+
+            # Add a vertical line for the mean of the prior distribution
+            axs[i].axvline(
+                prior_mean,
+                color="C0",
+                linestyle="--",
+                linewidth=2,
+                label=f"Prior Mean: {prior_mean:.2f}",
+            )
+
+            # Extract posterior samples for the current channel
+            posterior_samples = (
+                self.fit_result[var_name].sel(channel=channel).values.flatten()
+            )
+
+            # Plot the prior predictive distribution
+            sns.kdeplot(
+                posterior_samples,
+                ax=axs[i],
+                label="Posterior Predictive",
+                color="C1",
+                fill=True,
+                alpha=0.15,
+            )
+
+            # Add a vertical line for the mean of the posterior distribution
+            axs[i].axvline(
+                posterior_mean,
+                color="C1",
+                linestyle="--",
+                linewidth=2,
+                label=f"Posterior Mean: {posterior_mean:.2f} (Diff: {difference:.2f})",
+            )
+
+            # Set titles and labels
+            axs[i].set_title(channel)  # Subplot title is just the channel name
+            axs[i].set_xlabel(var_name.capitalize())
+            axs[i].set_ylabel("Density")
+            axs[i].legend(loc="upper right")
+
+        # Set the overall figure title
+        fig.suptitle(
+            f"Prior vs Posterior Distributions | {var_name}",
+            fontsize=16,
+            horizontalalignment="center",
+        )
+
+        return fig
+
     def plot_waterfall_components_decomposition(
         self,
         original_scale: bool = True,
@@ -1286,7 +1407,7 @@ class MMMModelBuilder(ModelBuilder):
         ax.set_ylabel("Components")
 
         xticks = np.linspace(0, total_contribution, num=11)
-        xticklabels = [f"{(x/total_contribution)*100:.0f}%" for x in xticks]
+        xticklabels = [f"{(x / total_contribution) * 100:.0f}%" for x in xticks]
         ax.set_xticks(xticks)
         ax.set_xticklabels(xticklabels)
 

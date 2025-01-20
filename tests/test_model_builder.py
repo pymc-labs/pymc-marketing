@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -267,6 +267,27 @@ def test_fit_dup_Y(toy_X, toy_y):
         match="X includes a column named 'output', which conflicts with the target variable.",
     ):
         model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
+
+
+def test_fit_result_error():
+    model = ModelBuilderTest()
+    with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+        model.fit_result
+
+
+def test_set_fit_result(toy_X, toy_y):
+    model = ModelBuilderTest()
+    model.build_model(X=toy_X, y=toy_y)
+    model.idata = None
+    fake_fit = pm.sample_prior_predictive(
+        samples=50, model=model.model, random_seed=1234
+    )
+    fake_fit.add_groups(dict(posterior=fake_fit.prior))
+    model.fit_result = fake_fit
+    with pytest.warns(UserWarning, match="Overriding pre-existing fit_result"):
+        model.fit_result = fake_fit
+    model.idata = None
+    model.fit_result = fake_fit
 
 
 @pytest.mark.skipif(
@@ -574,6 +595,15 @@ def test_fit_sampler_config_with_rng_fails(mocker, toy_X, toy_y) -> None:
 
     match = "Object of type Generator is not JSON serializable"
     with pytest.raises(TypeError, match=match):
+        model.fit(toy_X, toy_y)
+
+
+def test_unmatched_index(toy_X, toy_y) -> None:
+    model = ModelBuilderTest()
+    toy_X = toy_X.copy()
+    toy_X.index = toy_X.index + 1
+    match = "Index of X and y must match"
+    with pytest.raises(ValueError, match=match):
         model.fit(toy_X, toy_y)
 
 

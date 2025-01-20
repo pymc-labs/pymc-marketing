@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -222,8 +222,9 @@ from pydantic import BaseModel, Field, InstanceOf, field_serializer, model_valid
 from typing_extensions import Self
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_YEAR
+from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.plot import SelToString, plot_curve, plot_hdi, plot_samples
-from pymc_marketing.prior import Prior, create_dim_handler
+from pymc_marketing.prior import Prior, VariableFactory, create_dim_handler
 
 X_NAME: str = "day"
 NON_GRID_NAMES: frozenset[str] = frozenset({X_NAME})
@@ -274,8 +275,8 @@ class FourierBase(BaseModel):
     prefix : str, optional
         Alternative prefix for the fourier seasonality, by default None or
         "fourier"
-    prior : Prior, optional
-        Prior distribution for the fourier seasonality beta parameters, by
+    prior : Prior | VariableFactory, optional
+        Prior distribution or VariableFactory for the fourier seasonality beta parameters, by
         default `Prior("Laplace", mu=0, b=1)`
     variable_name : str, optional
         Name of the variable that multiplies the fourier modes. By default None,
@@ -286,7 +287,9 @@ class FourierBase(BaseModel):
     n_order: int = Field(..., gt=0)
     days_in_period: float = Field(..., gt=0)
     prefix: str = Field("fourier")
-    prior: InstanceOf[Prior] = Field(Prior("Laplace", mu=0, b=1))
+    prior: InstanceOf[Prior] | InstanceOf[VariableFactory] = Field(
+        Prior("Laplace", mu=0, b=1)
+    )
     variable_name: str | None = Field(None)
 
     def model_post_init(self, __context: Any) -> None:
@@ -294,8 +297,10 @@ class FourierBase(BaseModel):
         if self.variable_name is None:
             self.variable_name = f"{self.prefix}_beta"
 
-        if not self.prior.dims:
+        if not self.prior.dims and isinstance(self.prior, Prior):
             self.prior = self.prior.deepcopy()
+            self.prior.dims = self.prefix
+        elif not self.prior.dims:
             self.prior.dims = self.prefix
 
     @model_validator(mode="after")
@@ -311,12 +316,12 @@ class FourierBase(BaseModel):
         return self
 
     @field_serializer("prior", when_used="json")
-    def serialize_prior(prior: Prior) -> dict[str, Any]:
+    def serialize_prior(prior: Any) -> dict[str, Any]:
         """Serialize the prior distribution.
 
         Parameters
         ----------
-        prior : Prior
+        prior : VariableFactory | Prior
             The prior distribution to serialize.
 
         Returns
@@ -325,7 +330,7 @@ class FourierBase(BaseModel):
             The serialized prior distribution.
 
         """
-        return prior.to_json()
+        return prior.to_dict()
 
     @property
     def nodes(self) -> list[str]:
@@ -683,6 +688,39 @@ class FourierBase(BaseModel):
             plot_kwargs=plot_kwargs,
         )
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the Fourier seasonality.
+
+        Returns
+        -------
+        dict[str, Any]
+            Serialized Fourier seasonality
+
+        """
+        return {
+            "class": self.__class__.__name__,
+            "data": self.model_dump(mode="json"),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Deserialize the Fourier seasonality.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            Serialized Fourier seasonality
+
+        Returns
+        -------
+        FourierBase
+            Deserialized Fourier seasonality
+
+        """
+        data = data["data"]
+        data["prior"] = deserialize(data["prior"])
+        return cls(**data)
+
 
 class YearlyFourier(FourierBase):
     """Yearly fourier seasonality.
@@ -718,8 +756,8 @@ class YearlyFourier(FourierBase):
     prefix : str, optional
         Alternative prefix for the fourier seasonality, by default None or
         "fourier"
-    prior : Prior, optional
-        Prior distribution for the fourier seasonality beta parameters, by
+    prior : Prior | VariableFactory, optional
+        Prior distribution or VariableFactory for the fourier seasonality beta parameters, by
         default `Prior("Laplace", mu=0, b=1)`
     name : str, optional
         Name of the variable that multiplies the fourier modes, by default None
@@ -774,8 +812,8 @@ class MonthlyFourier(FourierBase):
     prefix : str, optional
         Alternative prefix for the fourier seasonality, by default None or
         "fourier"
-    prior : Prior, optional
-        Prior distribution for the fourier seasonality beta parameters, by
+    prior : Prior | VariableFactory, optional
+        Prior distribution or VariableFactory for the fourier seasonality beta parameters, by
         default `Prior("Laplace", mu=0, b=1)`
     name : str, optional
         Name of the variable that multiplies the fourier modes, by default None
@@ -793,3 +831,22 @@ class MonthlyFourier(FourierBase):
         """
         now = datetime.datetime.now()
         return datetime.datetime(year=now.year, month=now.month, day=1)
+
+
+def _is_yearly_fourier(data: Any) -> bool:
+    return data.get("class") == "YearlyFourier"
+
+
+def _is_monthly_fourier(data: Any) -> bool:
+    return data.get("class") == "MonthlyFourier"
+
+
+register_deserialization(
+    is_type=_is_yearly_fourier,
+    deserialize=lambda data: YearlyFourier.from_dict(data),
+)
+
+register_deserialization(
+    is_type=_is_monthly_fourier,
+    deserialize=lambda data: MonthlyFourier.from_dict(data),
+)

@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -14,15 +14,20 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
+import pytensor.tensor as pt
 import pytest
 import xarray as xr
+from pytensor.tensor import TensorVariable
 
 from pymc_marketing.mmm.components.base import (
+    DuplicatedTransformationError,
     MissingDataParameter,
     ParameterPriorException,
     Transformation,
+    create_registration_meta,
 )
-from pymc_marketing.prior import Prior
+from pymc_marketing.mmm.components.saturation import TanhSaturation
+from pymc_marketing.prior import Prior, VariableFactory
 
 
 def test_new_transformation_missing_prefix() -> None:
@@ -341,3 +346,134 @@ def test_repr(new_transformation) -> None:
         "priors={'a': Prior(\"HalfNormal\", sigma=1), 'b': Prior(\"HalfNormal\", sigma=1)}"
         ")"
     )
+
+
+def test_support_for_non_prior(new_transformation_class) -> None:
+    instance = new_transformation_class(
+        priors={"a": 1, "b": 2},
+    )
+
+    assert instance.to_dict() == {
+        "lookup_name": "new_transformation",
+        "prefix": "new",
+        "priors": {"a": 1, "b": 2},
+    }
+
+
+class StandardNormal:
+    def __init__(self, dims: tuple[str, ...]) -> None:
+        self.dims = dims
+
+    def to_dict(self) -> dict:
+        return {
+            "type": "StandardNormal",
+            "dims": self.dims,
+        }
+
+    def create_variable(self, name: str) -> TensorVariable:
+        return pm.Normal(name, 0, 1, dims=self.dims)
+
+
+@pytest.fixture
+def new_transformation_with_custom(new_transformation_class):
+    return new_transformation_class(
+        priors={"a": StandardNormal(("channel",))},
+    )
+
+
+def test_support_customer_serialization(
+    new_transformation_with_custom,
+) -> None:
+    assert new_transformation_with_custom.to_dict() == {
+        "lookup_name": "new_transformation",
+        "prefix": "new",
+        "priors": {
+            "a": {"type": "StandardNormal", "dims": ("channel",)},
+            "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        },
+    }
+
+
+def test_support_customer_samples(
+    new_transformation_with_custom,
+) -> None:
+    coords = {"channel": ["C1", "C2", "C3"]}
+    priors = new_transformation_with_custom.sample_prior(coords=coords)
+
+    assert priors.data_vars.keys() == {"new_a", "new_b"}
+    assert priors["new_a"].sizes == {"chain": 1, "draw": 500, "channel": 3}
+
+
+def test_serialization(new_transformation_class) -> None:
+    instance = new_transformation_class(
+        priors={
+            "a": pt.as_tensor_variable([1, 2, 3]),
+            "b": np.array([1, 2, 3]),
+        }
+    )
+
+    assert instance.to_dict() == {
+        "lookup_name": "new_transformation",
+        "prefix": "new",
+        "priors": {
+            "a": [1, 2, 3],
+            "b": [1, 2, 3],
+        },
+    }
+
+
+def test_automatic_registration() -> None:
+    subclasses = {}
+
+    RegistrationMeta = create_registration_meta(subclasses)
+
+    class BaseTransform:
+        pass
+
+    class Transform(BaseTransform, metaclass=RegistrationMeta):
+        pass
+
+    class NewTransform(Transform):
+        lookup_name = "new"
+
+    assert subclasses == {"new": NewTransform}
+
+    class AnotherTransform(Transform):
+        lookup_name = "another"
+
+    assert subclasses == {"new": NewTransform, "another": AnotherTransform}
+
+    with pytest.raises(DuplicatedTransformationError) as e:
+
+        class _(Transform):
+            lookup_name = "new"
+
+    exception = e.value
+
+    assert exception.lookup_name == "new"
+    assert exception.name == "Transform"
+
+
+def test_transform_sample_curve_with_variable_factory():
+    class Example(VariableFactory):
+        dims = ("dim_a",)
+
+        def create_variable(self, name: str):
+            with pm.Model(name=name):
+                beta = pm.Normal("beta", dims="dim_b")
+                c = pm.Normal("c", dims=("dim_a", "dim_b"))
+                return pt.dot(c, beta)
+
+    saturation = TanhSaturation(
+        priors={
+            "b": Example(),
+            "c": Example(),
+        },
+        prefix="outlet_saturation",
+    )
+
+    with pm.Model(coords={"dim_a": range(5), "dim_b": range(3), "obs": range(10)}):
+        prior = saturation.sample_prior()
+
+    curve = saturation.sample_curve(prior, 10)
+    assert curve.dims == ("chain", "draw", "x", "dim_a")

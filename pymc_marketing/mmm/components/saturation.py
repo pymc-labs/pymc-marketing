@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -71,12 +71,18 @@ for saturation parameter of logistic saturation.
 
 """
 
+from __future__ import annotations
+
 import numpy as np
 import pytensor.tensor as pt
 import xarray as xr
 from pydantic import Field, InstanceOf, validate_call
 
-from pymc_marketing.mmm.components.base import Transformation
+from pymc_marketing.deserialize import deserialize, register_deserialization
+from pymc_marketing.mmm.components.base import (
+    Transformation,
+    create_registration_meta,
+)
 from pymc_marketing.mmm.transformers import (
     hill_function,
     hill_saturation_sigmoid,
@@ -89,8 +95,12 @@ from pymc_marketing.mmm.transformers import (
 )
 from pymc_marketing.prior import Prior
 
+SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {}
 
-class SaturationTransformation(Transformation):
+SaturationRegistrationMeta = create_registration_meta(SATURATION_TRANSFORMATIONS)
+
+
+class SaturationTransformation(Transformation, metaclass=SaturationRegistrationMeta):  # type: ignore
     """Subclass for all saturation transformations.
 
     In order to use a custom saturation transformation, subclass and define:
@@ -267,14 +277,13 @@ class TanhSaturation(SaturationTransformation):
 
     lookup_name = "tanh"
 
-    def function(self, x, b, c, beta):
+    def function(self, x, b, c):
         """Tanh saturation function."""
-        return beta * tanh_saturation(x, b, c)
+        return tanh_saturation(x, b, c)
 
     default_priors = {
         "b": Prior("HalfNormal", sigma=1),
         "c": Prior("HalfNormal", sigma=1),
-        "beta": Prior("HalfNormal", sigma=1),
     }
 
 
@@ -450,29 +459,6 @@ class RootSaturation(SaturationTransformation):
     }
 
 
-SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
-    cls.lookup_name: cls
-    for cls in [
-        LogisticSaturation,
-        InverseScaledLogisticSaturation,
-        TanhSaturation,
-        TanhSaturationBaselined,
-        MichaelisMentenSaturation,
-        HillSaturation,
-        HillSaturationSigmoid,
-        RootSaturation,
-    ]
-}
-
-
-def register_saturation_transformation(cls: type[SaturationTransformation]) -> None:
-    """Register a new saturation transformation.
-
-    Helper for use in the MMM to register a new saturation function.
-    """
-    SATURATION_TRANSFORMATIONS[cls.lookup_name] = cls
-
-
 def saturation_from_dict(data: dict) -> SaturationTransformation:
     """Get a saturation function from a dictionary."""
     data = data.copy()
@@ -480,6 +466,13 @@ def saturation_from_dict(data: dict) -> SaturationTransformation:
 
     if "priors" in data:
         data["priors"] = {
-            key: Prior.from_json(value) for key, value in data["priors"].items()
+            key: deserialize(value) for key, value in data["priors"].items()
         }
     return cls(**data)
+
+
+def _is_saturation(data):
+    return "lookup_name" in data and data["lookup_name"] in SATURATION_TRANSFORMATIONS
+
+
+register_deserialization(_is_saturation, saturation_from_dict)

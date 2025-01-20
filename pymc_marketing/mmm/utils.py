@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -90,9 +90,9 @@ def transform_1d_array(
 
 
 def sigmoid_saturation(
-    x: float | np.ndarray | npt.NDArray[np.float64],
-    alpha: float | np.ndarray | npt.NDArray[np.float64],
-    lam: float | np.ndarray | npt.NDArray[np.float64],
+    x: float | np.ndarray | npt.NDArray,
+    alpha: float | np.ndarray | npt.NDArray,
+    lam: float | np.ndarray | npt.NDArray,
 ) -> float | Any:
     """Sigmoid saturation function.
 

@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ from pymc_marketing.mmm.components.saturation import SaturationTransformation
 
 Index = Sequence[int]
 Indices = dict[str, Index]
-Values = npt.NDArray[np.int_] | npt.NDArray[np.float64] | npt.NDArray[np.str_]
+Values = npt.NDArray[np.int_] | npt.NDArray | npt.NDArray[np.str_]
 
 
 def _find_unaligned_values(same_value: npt.NDArray[np.int_]) -> list[int]:
@@ -643,9 +643,19 @@ def scale_lift_measurements(
         target_transform,
     )
 
+    if "date" in df_lift_test.columns:
+        return pd.concat(
+            [
+                df_lift_test_channel_scaled,
+                df_target_scaled,
+                df_sigma_scaled,
+                pd.Series(df_lift_test["date"]),
+            ],
+            axis=1,
+        )
+
     return pd.concat(
-        [df_lift_test_channel_scaled, df_target_scaled, df_sigma_scaled],
-        axis=1,
+        [df_lift_test_channel_scaled, df_target_scaled, df_sigma_scaled], axis=1
     )
 
 

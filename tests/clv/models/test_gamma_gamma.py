@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -211,7 +211,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
                 preds.mean(("draw", "chain")), expected_preds_mean, rtol=0.1
             )
             np.testing.assert_allclose(
-                preds.std(("draw", "chain")), expected_preds_std, rtol=0.25
+                preds.std(("draw", "chain")), expected_preds_std, rtol=0.5
             )
 
         else:

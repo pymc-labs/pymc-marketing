@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import xarray as xr
 from pymc.util import RandomState
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
-from pymc_marketing.prior import Prior
 from pymc_marketing.utils import from_netcdf
 
 # If scikit-learn is available, use its data validator
@@ -45,6 +44,35 @@ except ImportError:
     def check_array(X, **kwargs):
         """Check if the input data is valid for the model."""
         return X
+
+
+def create_idata_accessor(value: str, message: str):
+    """Create a property accessor for an InferenceData object.
+
+    Underlying object must have an InferenceData object attribute named 'idata'.
+
+    Parameters
+    ----------
+    value : str
+        The value to access in the InferenceData object.
+    message : str
+        The error message to raise if the value is not found in the InferenceData object.
+
+    Returns
+    -------
+    property
+        The property accessor for the InferenceData object.
+
+    """
+
+    def accessor(self) -> xr.Dataset:
+        __doc__ = f"""Access the '{value}' attribute of the InferenceData object."""  # noqa: F841
+        if self.idata is None or value not in self.idata:
+            raise RuntimeError(message)
+
+        return self.idata[value]
+
+    return property(accessor)
 
 
 def create_sample_kwargs(
@@ -85,6 +113,10 @@ def create_sample_kwargs(
     sampler_config.update(**kwargs)
 
     return sampler_config
+
+
+class DifferentModelError(Exception):
+    """Error raised when a model loaded is different than one saved."""
 
 
 class ModelBuilder(ABC):
@@ -324,8 +356,8 @@ class ModelBuilder(ABC):
         """
 
         def default(x):
-            if isinstance(x, Prior):
-                return x.to_json()
+            if hasattr(x, "to_dict"):
+                return x.to_dict()
             elif isinstance(x, HSGPKwargs):
                 return x.model_dump(mode="json")
             return x.__dict__
@@ -501,6 +533,53 @@ class ModelBuilder(ABC):
         self.build_model(X, y)
 
     @classmethod
+    def load_from_idata(cls, idata: az.InferenceData) -> "ModelBuilder":
+        """Create a ModelBuilder instance from an InferenceData object.
+
+        This class method has a few steps:
+
+        - Construct a new instance of the model using the InferenceData attrs
+        - Build the model from the InferenceData
+        - Check if the model id matches the id in the InferenceData loaded.
+
+        Parameters
+        ----------
+        idata : az.InferenceData
+            The InferenceData object to load the model from.
+
+        Returns
+        -------
+        ModelBuilder
+            An instance of the ModelBuilder class.
+
+        Raises
+        ------
+        DifferentModelError
+            If the model id in the InferenceData does not match the model id built.
+
+        """
+        # needs to be converted, because json.loads was changing tuple to list
+        init_kwargs = cls.attrs_to_init_kwargs(idata.attrs)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=DeprecationWarning)
+            model = cls(**init_kwargs)
+
+        model.idata = idata
+        model.build_from_idata(idata)
+
+        if model.id != idata.attrs["id"]:
+            msg = (
+                "The model id in the InferenceData does not match the model id. "
+                "There was no error loading the inference data, but the model may "
+                "be different. "
+                "Investigate if the model structure or configuration has changed."
+            )
+            raise DifferentModelError(msg)
+
+        return model
+
+    @classmethod
     def load(cls, fname: str):
         """Create a ModelBuilder instance from a file.
 
@@ -524,7 +603,7 @@ class ModelBuilder(ABC):
 
         Raises
         ------
-        ValueError
+        DifferentModelError
             If the inference data that is loaded doesn't match with the model.
 
         Examples
@@ -540,25 +619,15 @@ class ModelBuilder(ABC):
         filepath = Path(str(fname))
         idata = from_netcdf(filepath)
 
-        # needs to be converted, because json.loads was changing tuple to list
-        init_kwargs = cls.attrs_to_init_kwargs(idata.attrs)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
-            model = cls(**init_kwargs)
-
-        model.idata = idata
-        model.build_from_idata(idata)
-
-        if model.id != idata.attrs["id"]:
+        try:
+            return cls.load_from_idata(idata)
+        except DifferentModelError as e:
             error_msg = (
                 f"The file '{fname}' does not contain "
-                "an inference data of the same model "
+                "an InferenceData of the same model "
                 f"or configuration as '{cls._model_type}'"
             )
-            raise ValueError(error_msg)
-
-        return model
+            raise DifferentModelError(error_msg) from e
 
     def fit(
         self,
@@ -603,11 +672,15 @@ class ModelBuilder(ABC):
         Initializing NUTS using jitter+adapt_diag...
 
         """
+        if isinstance(y, pd.Series) and not X.index.equals(y.index):
+            raise ValueError("Index of X and y must match.")
+
         if predictor_names is None:
             predictor_names = []
         if y is None:
             y = np.zeros(X.shape[0])
-        y_df = pd.DataFrame({self.output_var: y})
+
+        y_df = pd.DataFrame({self.output_var: y}, index=X.index)
         self._generate_and_preprocess_model_data(X, y_df.values.flatten())
         if self.X is None or self.y is None:
             raise ValueError("X and y must be set before calling build_model!")
@@ -651,6 +724,42 @@ class ModelBuilder(ABC):
             self.idata.add_groups(fit_data=combined_data.to_xarray())  # type: ignore
         self.set_idata_attrs(self.idata)
         return self.idata  # type: ignore
+
+    @property
+    def fit_result(self) -> xr.Dataset:
+        """Get the posterior fit_result.
+
+        Returns
+        -------
+        InferenceData object.
+
+        """
+        return create_idata_accessor(
+            "posterior", "The model hasn't been fit yet, call .fit() first"
+        ).__get__(self)
+
+    @fit_result.setter
+    def fit_result(self, res: az.InferenceData) -> None:
+        """Create a setter method to overwrite the pre-existing fit_result.
+
+        Parameters
+        ----------
+        res : az.InferenceData
+            The inferencedata object to be set
+
+        Returns
+        -------
+        property
+            The property setter for the InferenceData object.
+
+        """
+        if self.idata is None:
+            self.idata = res
+        elif "posterior" in self.idata:
+            warnings.warn("Overriding pre-existing fit_result", stacklevel=1)
+            self.idata.posterior = res
+        else:
+            self.idata.posterior = res
 
     def predict(
         self,
@@ -915,3 +1024,24 @@ class ModelBuilder(ABC):
 
         """
         return pm.model_to_graphviz(self.model, **kwargs)
+
+    prior = create_idata_accessor(
+        "prior",
+        "The model hasn't been sampled yet, call .sample_prior_predictive() first",
+    )
+    prior_predictive = create_idata_accessor(
+        "prior_predictive",
+        "The model hasn't been sampled yet, call .sample_prior_predictive() first",
+    )
+    posterior = create_idata_accessor(
+        "posterior", "The model hasn't been fit yet, call .fit() first"
+    )
+
+    posterior_predictive = create_idata_accessor(
+        "posterior_predictive",
+        "The model hasn't been fit yet, call .sample_posterior_predictive() first",
+    )
+    predictions = create_idata_accessor(
+        "predictions",
+        "Call the 'sample_posterior_predictive' method with predictions=True first.",
+    )

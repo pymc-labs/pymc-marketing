@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -25,9 +25,11 @@ import pytest
 import xarray as xr
 from mlflow.client import MlflowClient
 
+from pymc_marketing.clv import BetaGeoModel
 from pymc_marketing.mlflow import (
     autolog,
     log_likelihood_type,
+    log_mmm_evaluation_metrics,
     log_model_graph,
     log_sample_diagnostics,
 )
@@ -385,13 +387,13 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
 
     metric_checks(metrics, "pymc")
 
-    assert artifacts == [
+    assert set(artifacts) == {
         "coords.json",
         "idata.nc",
         "model_graph.pdf",
         "model_repr.txt",
         "summary.html",
-    ]
+    }
     assert tags == {}
 
     assert len(inputs) == 1
@@ -449,3 +451,162 @@ def test_log_sample_diagnostics_missing_group(mock_idata, selected_group: str) -
     match = f"InferenceData object does not contain the group {missing_group}."
     with pytest.raises(KeyError, match=match):
         log_sample_diagnostics(idata)
+
+
+@pytest.fixture
+def clv_data() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "customer_id": [0, 1, 2, 3],
+            "frequency": [0, 1, 1, 3],
+            "recency": [0, 2, 2, 3],
+            "T": [1, 2, 5, 3],
+        }
+    )
+
+
+@pytest.mark.parametrize("model_cls", [BetaGeoModel])
+def test_clv_fit_mcmc(model_cls, clv_data) -> None:
+    mlflow.set_experiment("pymc-marketing-test-suite-clv")
+
+    sampler_config = {
+        "draws": 2,
+        "chains": 1,
+        "tune": 1,
+    }
+
+    model = model_cls(data=clv_data, sampler_config=sampler_config)
+    with mlflow.start_run() as run:
+        model.fit()
+
+    assert mlflow.active_run() is None
+
+    run_id = run.info.run_id
+    inputs, params, metrics, tags, artifacts = get_run_data(run_id)
+
+    assert isinstance(inputs, list)
+
+    assert params["fit_method"] == "mcmc"
+
+    assert set(metrics.keys()) == {
+        "total_divergences",
+        "sampling_time",
+        "time_per_draw",
+    }
+
+    assert tags == {}
+
+    assert set(artifacts) == {
+        "coords.json",
+        "model_repr.txt",
+        "model_graph.pdf",
+        "summary.html",
+        "idata.nc",
+    }
+
+
+@pytest.mark.parametrize("model_cls", [BetaGeoModel])
+def test_clv_fit_map(model_cls, clv_data) -> None:
+    mlflow.set_experiment("pymc-marketing-test-suite-clv")
+
+    model = model_cls(data=clv_data)
+    with mlflow.start_run() as run:
+        model.fit(fit_method="map")
+
+    assert mlflow.active_run() is None
+
+    run_id = run.info.run_id
+    inputs, params, metrics, tags, artifacts = get_run_data(run_id)
+
+    assert inputs == []
+
+    assert params["fit_method"] == "map"
+
+    assert set(metrics.keys()) == set()
+
+    assert tags == {}
+
+    assert set(artifacts) == {
+        "coords.json",
+        "model_repr.txt",
+        "model_graph.pdf",
+        "idata.nc",
+    }
+
+
+@pytest.fixture(scope="function")
+def mock_idata_for_loo() -> az.InferenceData:
+    chains = 2
+    draws = 50
+    obs = 10
+    coords = {
+        "chain": np.arange(chains),
+        "draw": np.arange(draws),
+        "obs_id": np.arange(obs),
+    }
+
+    # Create log likelihood values for testing
+    log_likelihood = xr.Dataset(
+        data_vars={
+            "obs": (("chain", "draw", "obs_id"), rng.normal(size=(chains, draws, obs))),
+        },
+        coords=coords,
+    )
+
+    posterior = xr.Dataset(
+        data_vars={
+            "mu": (("chain", "draw"), rng.random(size=(chains, draws))),
+            "sigma": (("chain", "draw"), rng.random(size=(chains, draws))),
+        },
+        coords=coords,
+    )
+
+    sample_stats = xr.Dataset(
+        data_vars={
+            "diverging": (
+                ("chain", "draw"),
+                rng.integers(0, 2, size=(chains, draws)),
+            ),
+            "energy": (("chain", "draw"), rng.random(size=(chains, draws))),
+        },
+        coords=coords,
+    )
+
+    return az.InferenceData(
+        posterior=posterior,
+        sample_stats=sample_stats,
+        log_likelihood=log_likelihood,
+    )
+
+
+def test_log_mmm_evaluation_metrics() -> None:
+    """Test logging of summary metrics to MLflow."""
+    y_true = np.array([1.0, 2.0, 3.0])
+    y_pred = np.array([[1.1, 2.1, 3.1]]).T
+    custom_metrics = ["r_squared", "rmse", "mae", "mape", "nrmse", "nmae"]
+
+    with mlflow.start_run() as run:
+        log_mmm_evaluation_metrics(
+            y_true, y_pred, metrics_to_calculate=custom_metrics, hdi_prob=0.94
+        )
+
+    run_id = run.info.run_id
+    run_data = get_run_data(run_id)
+
+    # Check that metrics are logged with expected prefixes and suffixes
+    metric_prefixes = {"r_squared", "rmse", "mae", "mape", "nrmse", "nmae"}
+    metric_suffixes = {
+        "mean",
+        "median",
+        "std",
+        "min",
+        "max",
+        "94_hdi_lower",
+        "94_hdi_upper",
+    }
+    expected_metrics = {
+        f"{prefix}_{suffix}" for prefix in metric_prefixes for suffix in metric_suffixes
+    }
+    assert set(run_data.metrics.keys()) == expected_metrics
+
+    assert all(isinstance(value, float) for value in run_data.metrics.values())
