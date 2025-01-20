@@ -186,7 +186,8 @@ Classes
 
 ![](docs/source/_static/clv_roadmap_2025.png)
 
-For [issues](https://github.com/pymc-labs/pymc-marketing/issues) to work on, search `is:issue state:open label:CLV`
+Review [task prioritization YAML](scripts/roadmaps/clv_tasks_priority.yaml) and open repo
+[issues](https://github.com/pymc-labs/pymc-marketing/issues?q=is%3Aissue%20state%3Aopen%20label%3ACLV) to work on.
 
 ---
 
