@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -1057,27 +1057,8 @@ def autolog(
 
         return new_fit
 
-    def patch_mmm_sample_posterior_predictive(
-        sample_posterior_predictive: Callable,
-    ) -> Callable:
-        @wraps(sample_posterior_predictive)
-        def new_sample_posterior_predictive(self, *args, **kwargs):
-            posterior_preds = sample_posterior_predictive(self, *args, **kwargs)
-
-            log_mmm_evaluation_metrics(
-                y_true=self.y,
-                y_pred=posterior_preds[self.output_var],
-            )
-
-            return posterior_preds
-
-        return new_sample_posterior_predictive
-
     if log_mmm:
         MMM.fit = patch_mmm_fit(MMM.fit)
-        MMM.sample_posterior_predictive = patch_mmm_sample_posterior_predictive(
-            MMM.sample_posterior_predictive
-        )
 
     def patch_clv_fit(fit):
         @wraps(fit)
