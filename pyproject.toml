@@ -36,6 +36,7 @@ dependencies = [
     "seaborn>=0.12.2",
     "xarray>=2024.1.0",
     "xarray-einstats>=0.5.1",
+    "pyprojroot",
 ]
 
 [project.optional-dependencies]
@@ -54,7 +55,6 @@ docs = [
     "numpyro",
     "nutpie",
     "pylint",
-    "pyprojroot",
     "sphinx-autodoc-typehints",
     "sphinx-copybutton",
     "sphinx-design",

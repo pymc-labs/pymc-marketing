@@ -16,6 +16,7 @@
 import json
 import logging
 import warnings
+from collections.abc import Sequence
 from typing import Annotated, Any, Literal
 
 import arviz as az
@@ -474,6 +475,13 @@ class BaseMMM(BaseValidateMMM):
                     var=self.forward_pass(x=channel_data_),
                     dims=("date", "channel"),
                 )
+
+            # We define the deterministic variable to define the optimization by default
+            pm.Deterministic(
+                name="total_contributions",
+                var=channel_contributions.sum(axis=(-2, -1)),
+                dims=(),
+            )
 
             mu_var = intercept + channel_contributions.sum(axis=-1)
 
@@ -2228,8 +2236,10 @@ class MMM(
         budget: float | int,
         num_periods: int,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
-        response_variable: str = "channel_contributions",
+        response_variable: str = "total_contributions",
         utility_function: UtilityFunctionType = average_response,
+        constraints: Sequence[dict[str, Any]] = (),
+        default_constraints: bool = True,
         **minimize_kwargs,
     ) -> tuple[DataArray, OptimizeResult]:
         """Optimize the given budget based on the specified utility function over a specified time period.
@@ -2258,9 +2268,14 @@ class MMM(
             An xarray DataArary or dictionary specifying the lower and upper bounds for the budget allocation
             for each channel. If None, no bounds are applied.
         response_variable : str, optional
-            The response variable to optimize. Default is "channel_contributions".
+            The response variable to optimize. Default is "total_contributions".
         utility_function : UtilityFunctionType, optional
             The utility function to maximize. Default is the mean of the response distribution.
+        custom_constraints : list[dict[str, Any]], optional
+            Custom constraints for the optimization. If None, no custom constraints are applied. Format:
+            [{"key":...,"constraint_fun":...,"constraint_type":...}]
+        default_constraints : bool, optional
+            Whether to add the default sum constraint to the optimizer. Default is True.
         **minimize_kwargs
             Additional arguments to pass to the `BudgetOptimizer`.
 
@@ -2283,6 +2298,8 @@ class MMM(
             num_periods=num_periods,
             utility_function=utility_function,
             response_variable=response_variable,
+            custom_constraints=constraints,
+            default_constraints=default_constraints,
             model=self,
         )
 
@@ -2298,7 +2315,7 @@ class MMM(
         time_granularity: Literal["daily", "weekly", "monthly", "quarterly", "yearly"],
         num_periods: int,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
-        custom_constraints: dict[str, float] | None = None,
+        custom_constraints: Sequence[dict[str, Any]] | None = None,
         noise_level: float = 0.01,
         utility_function: UtilityFunctionType = average_response,
         **minimize_kwargs,
@@ -2334,7 +2351,7 @@ class MMM(
         budget_bounds : DatArray or dict[str, list[Any]], optional
             An xarray DataArray or a dictionary specifying the lower and upper bounds for the budget allocation
             for each channel. If None, no bounds are applied.
-        custom_constraints : dict[str, float], optional
+        custom_constraints : Sequence[dict[str, Any]], optional
             Custom constraints for the optimization. If None, no custom constraints are applied.
         noise_level : float, optional
             The level of noise added to the allocation strategy (by default 1%).
@@ -2372,12 +2389,12 @@ class MMM(
             model=self,
             num_periods=num_periods,
             utility_function=utility_function,
+            custom_constraints=custom_constraints,
+            default_constraints=True,
         )
-
         self.optimal_allocation, _ = allocator.allocate_budget(
             total_budget=budget,
             budget_bounds=budget_bounds,
-            custom_constraints=custom_constraints,
             **minimize_kwargs,
         )
 
@@ -2466,9 +2483,9 @@ class MMM(
         ax.grid(False)
         ax2.grid(False)
 
-        bars = [bars1[0], bars2[0]]
-        labels = [bar.get_label() for bar in bars]
-        ax.legend(bars, labels)
+        bars = [bars1, bars2]
+        labels = ["Allocated Spend", "Channel Contributions"]
+        ax.legend(bars, labels, loc="best")
 
         return fig, ax
 
