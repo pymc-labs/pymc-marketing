@@ -281,7 +281,7 @@ class TestModifiedBetaGeoModel:
 
         with pytest.raises(
             NotImplementedError,
-            match="The MBG/NBD model does not support this feature at the moment.",
+            match="The MBG/NBD model does not support this method.",
         ):
             mbg_model.expected_probability_no_purchase(t=test_t, data=data)
 
