@@ -35,6 +35,8 @@ dependencies:
 - sphinx-design
 - watermark
 - typing
+- networkx
+- dowhy
 # lint
 - mypy
 - pandas-stubs
