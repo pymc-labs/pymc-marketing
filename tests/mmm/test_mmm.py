@@ -438,6 +438,48 @@ class TestMMM:
             "intercept",
         ]
 
+    def test_mmm_serializes_and_deserializes_dag_and_nodes(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ) -> None:
+        dag = """
+        digraph {
+            channel_1 -> y;
+            control_1 -> channel_1;
+            control_1 -> y;
+        }
+        """
+        treatment_nodes = ["channel_1"]
+        outcome_node = "y"
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            control_columns=["control_1", "control_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            dag=dag,
+            treatment_nodes=treatment_nodes,
+            outcome_node=outcome_node,
+        )
+
+        mmm = mock_fit(mmm, toy_X, toy_y)
+
+        # Save and reload the model
+        mmm.save("test_model")
+        loaded_mmm = MMM.load("test_model")
+
+        # Assert that the attributes persist
+        assert loaded_mmm.dag == dag, "DAG did not persist correctly."
+        assert loaded_mmm.treatment_nodes == treatment_nodes, (
+            "Treatment nodes did not persist correctly."
+        )
+        assert loaded_mmm.outcome_node == outcome_node, (
+            "Outcome node did not persist correctly."
+        )
+
+        # Clean up
+        os.remove("test_model")
+
     def test_channel_contributions_forward_pass_recovers_contribution(
         self,
         mmm_fitted: MMM,
@@ -858,6 +900,133 @@ class TestMMM:
             assert isinstance(
                 model.model["saturation_beta"].owner.op, pm.HalfNormal
             )  # saturation_beta
+
+    def test_mmm_causal_attributes_initialization(self):
+        dag = """
+        digraph {
+            channel_1 -> y;
+            control_1 -> channel_1;
+            control_1 -> y;
+        }
+        """
+        treatment_nodes = ["channel_1"]
+        outcome_node = "y"
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            control_columns=["control_1", "control_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            dag=dag,
+            treatment_nodes=treatment_nodes,
+            outcome_node=outcome_node,
+        )
+
+        assert mmm.dag == dag, "DAG was not set correctly."
+        assert mmm.treatment_nodes == treatment_nodes, (
+            "Treatment nodes not set correctly."
+        )
+        assert mmm.outcome_node == outcome_node, "Outcome node not set correctly."
+
+    def test_mmm_causal_attributes_default_treatment_nodes(self):
+        dag = """
+        digraph {
+            channel_1 -> y;
+            channel_2 -> y;
+            control_1 -> channel_1;
+            control_1 -> channel_2;
+            control_1 -> y;
+        }
+        """
+        outcome_node = "y"
+
+        with pytest.warns(
+            UserWarning,
+            match="No treatment nodes provided, using channel columns as treatment nodes.",
+        ):
+            mmm = MMM(
+                date_column="date",
+                channel_columns=["channel_1", "channel_2"],
+                control_columns=["control_1", "control_2"],
+                adstock=GeometricAdstock(l_max=2),
+                saturation=LogisticSaturation(),
+                dag=dag,
+                outcome_node=outcome_node,
+            )
+
+        assert mmm.treatment_nodes == [
+            "channel_1",
+            "channel_2",
+        ], "Default treatment nodes are incorrect."
+        assert mmm.outcome_node == "y", "Outcome node was not set correctly."
+
+    def test_mmm_adjustment_set_updates_control_columns(self):
+        dag = """
+        digraph {
+            channel_1 -> y;
+            control_1 -> channel_1;
+            control_1 -> y;
+        }
+        """
+        treatment_nodes = ["channel_1"]
+        outcome_node = "y"
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            control_columns=["control_1", "control_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            dag=dag,
+            treatment_nodes=treatment_nodes,
+            outcome_node=outcome_node,
+        )
+
+        assert mmm.control_columns == ["control_1"], (
+            "Control columns were not updated based on the DAG."
+        )
+
+    def test_mmm_missing_dag_does_not_initialize_causal_graph(self):
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            control_columns=["control_1", "control_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+
+        assert mmm.dag is None, "DAG should be None."
+        assert not hasattr(mmm, "causal_graphical_model"), (
+            "Causal graph should not be initialized without a DAG."
+        )
+
+    def test_mmm_missing_dag_or_nodes(self):
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            control_columns=["control_1", "control_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+
+        # Check that the causal graph is not initialized
+        assert mmm.dag is None, "DAG should be None when not provided."
+        assert not hasattr(mmm, "causal_graphical_model"), (
+            "Causal graph should not be initialized without DAG."
+        )
+
+        # Check behavior with missing treatment or outcome nodes
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            control_columns=["control_1", "control_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            dag="digraph {channel_1 -> y;}",
+        )
+        assert mmm.treatment_nodes is None, "Treatment nodes should default to None."
+        assert mmm.outcome_node is None, "Outcome node should default to None."
 
 
 def new_date_ranges_to_test():
