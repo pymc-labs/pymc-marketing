@@ -36,9 +36,14 @@ dependencies = [
     "seaborn>=0.12.2",
     "xarray>=2024.1.0",
     "xarray-einstats>=0.5.1",
+    "pyprojroot",
 ]
 
 [project.optional-dependencies]
+dag = [
+    "dowhy",
+    "networkx",
+]
 docs = [
     "blackjax",
     "fastprogress",
@@ -54,7 +59,6 @@ docs = [
     "numpyro",
     "nutpie",
     "pylint",
-    "pyprojroot",
     "sphinx-autodoc-typehints",
     "sphinx-copybutton",
     "sphinx-design",
@@ -63,6 +67,8 @@ docs = [
     "sphinxext-opengraph",
     "watermark",
     "mlflow>=2.0.0",
+    "networkx",
+    "dowhy",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
@@ -78,6 +84,8 @@ test = [
     "pytest-mock>=3.14.0",
     "pytest>=7.0.1",
     "mlflow>=2.0.0",
+    "networkx",
+    "dowhy",
 ]
 
 [tool.hatch.build.targets.sdist]

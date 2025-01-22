@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -281,7 +281,7 @@ class TestModifiedBetaGeoModel:
 
         with pytest.raises(
             NotImplementedError,
-            match="The MBG/NBD model does not support this feature at the moment.",
+            match="The MBG/NBD model does not support this method.",
         ):
             mbg_model.expected_probability_no_purchase(t=test_t, data=data)
 

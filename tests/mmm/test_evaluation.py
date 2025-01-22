@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -13,7 +13,9 @@
 #   limitations under the License.
 
 import numpy as np
+import pandas as pd
 import pytest
+import xarray as xr
 
 from pymc_marketing.mmm.evaluation import (
     calculate_metric_distributions,
@@ -43,8 +45,17 @@ def sample_data(manage_random_state) -> tuple[np.ndarray, np.ndarray]:
     return y_true, y_pred
 
 
-def test_calculate_metric_distributions_all_metrics(sample_data) -> None:
+@pytest.mark.parametrize("y_true_cls", [np.array, pd.Series])
+@pytest.mark.parametrize("y_pred_cls", [np.array, xr.DataArray])
+def test_calculate_metric_distributions_all_metrics(
+    sample_data,
+    y_true_cls,
+    y_pred_cls,
+) -> None:
     y_true, y_pred = sample_data
+    y_true = y_true_cls(y_true)
+    y_pred = y_pred_cls(y_pred)
+
     metrics = ["r_squared", "rmse", "nrmse", "mae", "nmae", "mape"]
 
     results = calculate_metric_distributions(y_true, y_pred, metrics)
@@ -56,14 +67,12 @@ def test_calculate_metric_distributions_all_metrics(sample_data) -> None:
     assert all(len(results[metric]) == y_pred.shape[1] for metric in metrics)
 
     # Value range checks
-    assert all(0 <= results["r_squared"]) and all(
-        results["r_squared"] <= 1
-    )  # R² between 0 and 1
-    assert all(results["rmse"] >= 0)  # RMSE non-negative
-    assert all(results["nrmse"] >= 0)  # NRMSE non-negative
-    assert all(results["mae"] >= 0)  # MAE non-negative
-    assert all(results["nmae"] >= 0)  # NMAE non-negative
-    assert all(results["mape"] >= 0)  # MAPE non-negative
+    assert all(0 <= results["r_squared"]) and all(results["r_squared"] <= 1)
+    assert all(results["rmse"] >= 0)
+    assert all(results["nrmse"] >= 0)
+    assert all(results["mae"] >= 0)
+    assert all(results["nmae"] >= 0)
+    assert all(results["mape"] >= 0)
 
 
 def test_calculate_metric_distributions_default_metrics(sample_data) -> None:

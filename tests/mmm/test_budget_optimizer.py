@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -16,12 +16,20 @@ from unittest.mock import patch
 import arviz as az
 import numpy as np
 import pandas as pd
+import pytensor
+import pytensor.tensor as pt
 import pytest
 
 from pymc_marketing.mmm import MMM
-from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, MinimizeException
+from pymc_marketing.mmm.budget_optimizer import (
+    BudgetOptimizer,
+    MinimizeException,
+    optimizer_xarray_builder,
+)
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
+from pymc_marketing.mmm.constraints import Constraint
+from pymc_marketing.mmm.utility import _check_samples_dimensionality
 
 
 @pytest.fixture(scope="module")
@@ -55,7 +63,7 @@ def dummy_df():
     argvalues=[
         (
             100,
-            {"channel_1": (0, 50), "channel_2": (0, 50)},
+            None,
             {
                 "saturation_params": {
                     "lam": np.array(
@@ -72,12 +80,16 @@ def dummy_df():
                 },
             },
             None,
-            {"channel_1": 50.0, "channel_2": 50.0},
+            {"channel_1": 54.78357587906867, "channel_2": 45.21642412093133},
             48.8,
         ),
         (
             100,
-            {"channel_1": (0, 50), "channel_2": (0, 50)},
+            optimizer_xarray_builder(
+                np.array([[0, 50], [0, 50]]),
+                channel=["channel_1", "channel_2"],
+                bound=["lower", "upper"],
+            ),
             {
                 "saturation_params": {
                     "lam": np.array(
@@ -103,7 +115,11 @@ def dummy_df():
         # Zero budget case
         (
             0,
-            {"channel_1": (0, 50), "channel_2": (0, 50)},
+            optimizer_xarray_builder(
+                np.array([[0, 50], [0, 50]]),
+                channel=["channel_1", "channel_2"],
+                bound=["lower", "upper"],
+            ),
             {
                 "saturation_params": {
                     "lam": np.array(
@@ -156,19 +172,19 @@ def test_allocate_budget(
     )
 
     # Create BudgetOptimizer Instance
-    optimizer = BudgetOptimizer(
-        model=mmm,
-        num_periods=30,
-    )
-
-    # Allocate Budget
     match = "Using default equality constraint"
     with pytest.warns(UserWarning, match=match):
-        optimal_budgets, optimization_res = optimizer.allocate_budget(
-            total_budget=total_budget,
-            budget_bounds=budget_bounds,
-            minimize_kwargs=minimize_kwargs,
+        optimizer = BudgetOptimizer(
+            model=mmm,
+            num_periods=30,
         )
+
+    # Allocate Budget
+    optimal_budgets, optimization_res = optimizer.allocate_budget(
+        total_budget=total_budget,
+        budget_bounds=budget_bounds,
+        minimize_kwargs=minimize_kwargs,
+    )
 
     # Assert Results
     assert optimal_budgets.to_dataframe(name="_").to_dict()["_"] == pytest.approx(
@@ -194,11 +210,12 @@ def test_allocate_budget_custom_minimize_args(minimize_mock, dummy_df) -> None:
             "adstock_alpha": [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]],
         }
     )
-
-    optimizer = BudgetOptimizer(
-        model=mmm,
-        num_periods=30,
-    )
+    match = "Using default equality constraint"
+    with pytest.warns(UserWarning, match=match):
+        optimizer = BudgetOptimizer(
+            model=mmm,
+            num_periods=30,
+        )
 
     total_budget = 100
     budget_bounds = {"channel_1": (0.0, 50.0), "channel_2": (0.0, 50.0)}
@@ -207,26 +224,15 @@ def test_allocate_budget_custom_minimize_args(minimize_mock, dummy_df) -> None:
         "options": {"ftol": 1e-8, "maxiter": 1_002},
     }
 
-    match = "Using default equality constraint"
-    with pytest.warns(UserWarning, match=match):
-        # Uninteresting exception raised when we try to convert the mocked result to a DataArray
-        with pytest.raises(ValueError, match="conflicting sizes for dimension"):
-            optimizer.allocate_budget(
-                total_budget, budget_bounds, minimize_kwargs=minimize_kwargs
-            )
+    with pytest.raises(ValueError, match="conflicting sizes for dimension"):
+        optimizer.allocate_budget(
+            total_budget, budget_bounds, minimize_kwargs=minimize_kwargs
+        )
 
     kwargs = minimize_mock.call_args_list[0].kwargs
 
     np.testing.assert_array_equal(x=kwargs["x0"], y=np.array([50.0, 50.0]))
     assert kwargs["bounds"] == [(0.0, 50.0), (0.0, 50.0)]
-    # default constraint constraints = {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
-    assert kwargs["constraints"]["type"] == "eq"
-    assert (
-        kwargs["constraints"]["fun"](np.array([total_budget / 2, total_budget / 2]))
-        == 0.0
-    )
-    assert kwargs["constraints"]["fun"](np.array([100.0, 0.0])) == 0.0
-    assert kwargs["constraints"]["fun"](np.array([0.0, 0.0])) == -total_budget
     assert kwargs["method"] == minimize_kwargs["method"]
     assert kwargs["options"] == minimize_kwargs["options"]
 
@@ -236,7 +242,11 @@ def test_allocate_budget_custom_minimize_args(minimize_mock, dummy_df) -> None:
     [
         (
             100,
-            {"channel_1": (0, 50), "channel_2": (0, 50)},
+            optimizer_xarray_builder(
+                np.array([[0, 50], [0, 50]]),
+                channel=["channel_1", "channel_2"],
+                bound=["lower", "upper"],
+            ),
             {
                 "saturation_params": {
                     "lam": np.array(
@@ -253,10 +263,16 @@ def test_allocate_budget_custom_minimize_args(minimize_mock, dummy_df) -> None:
                 },
                 "channels": ["channel_1", "channel_2"],
             },
-            {
-                "type": "ineq",
-                "fun": lambda x: x[0] - 60,
-            },  # channel_1 must be >= 60, which is infeasible
+            # New-style custom constraint: channel_1 must be >= 60, which is infeasible
+            [
+                Constraint(
+                    key="channel_1_min_constraint",
+                    constraint_fun=lambda budgets_sym,
+                    total_budget_sym,
+                    optimizer: budgets_sym[0] - 60,
+                    constraint_type="ineq",
+                ),
+            ],
         ),
     ],
 )
@@ -265,15 +281,15 @@ def test_allocate_budget_infeasible_constraints(
 ):
     df_kwargs, X_dummy, y_dummy = dummy_df
 
+    # Define the MMM model
     mmm = MMM(
         adstock=GeometricAdstock(l_max=4),
         saturation=LogisticSaturation(),
         **df_kwargs,
     )
-
     mmm.build_model(X=X_dummy, y=y_dummy)
 
-    # Only these parameters are needed for the optimizer
+    # Load necessary parameters into the model
     mmm.idata = az.from_dict(
         posterior={
             "saturation_lam": parameters["saturation_params"]["lam"],
@@ -282,10 +298,105 @@ def test_allocate_budget_infeasible_constraints(
         }
     )
 
+    # Instantiate BudgetOptimizer with custom constraints
     optimizer = BudgetOptimizer(
         model=mmm,
+        response_variable="total_contributions",
+        default_constraints=False,  # Avoid default equality constraints
+        custom_constraints=custom_constraints,
         num_periods=30,
     )
 
+    # Ensure optimization raises MinimizeException due to infeasible constraints
     with pytest.raises(MinimizeException, match="Optimization failed"):
-        optimizer.allocate_budget(total_budget, budget_bounds, custom_constraints)
+        optimizer.allocate_budget(total_budget, budget_bounds)
+
+
+def mean_response_eq_constraint_fun(
+    budgets_sym, total_budget_sym, optimizer, target_response
+):
+    """
+    Enforces mean_response(budgets_sym) = target_response,
+    i.e. returns (mean_resp - target_response).
+    """
+    resp_dist = optimizer.extract_response_distribution("total_contributions")
+    mean_resp = pt.mean(_check_samples_dimensionality(resp_dist))
+    return mean_resp - target_response
+
+
+def minimize_budget_utility(samples, budgets):
+    """
+    A trivial "utility" that just tries to minimize total budget.
+    Since the BudgetOptimizer by default *maximizes* the utility,
+    we use the negative sign to effectively force minimization.
+    """
+    return -pt.sum(budgets)
+
+
+@pytest.mark.parametrize(
+    "total_budget,target_response",
+    [
+        (10, 5.0),
+        (50, 10.0),
+    ],
+    ids=["budget=10->resp=5", "budget=50->resp=10"],
+)
+def test_allocate_budget_custom_response_constraint(
+    dummy_df, total_budget, target_response
+):
+    """
+    Checks that a custom constraint can enforce the model's mean response
+    to equal a target value, while we minimize the total budget usage.
+    """
+    # Extract the dummy data and define the MMM model
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    )
+    mmm.build_model(X_dummy, y_dummy)
+
+    # Provide some dummy posterior samples
+    mmm.idata = az.from_dict(
+        posterior={
+            "saturation_lam": np.array([[[0.1, 0.2]]]),
+            "saturation_beta": np.array([[[0.5, 1.0]]]),
+            "adstock_alpha": np.array([[[0.5, 0.7]]]),
+        }
+    )
+
+    def constraint_wrapper(budgets_sym, total_budget_sym, optimizer):
+        return mean_response_eq_constraint_fun(
+            budgets_sym, total_budget_sym, optimizer, target_response
+        )
+
+    custom_constraints = [
+        Constraint(
+            key="target_response_constraint",
+            constraint_fun=constraint_wrapper,
+            constraint_type="eq",
+        )
+    ]
+
+    optimizer = BudgetOptimizer(
+        model=mmm,
+        response_variable="total_contributions",
+        utility_function=minimize_budget_utility,
+        default_constraints=False,
+        custom_constraints=custom_constraints,
+        num_periods=30,
+    )
+
+    allocation, res = optimizer.allocate_budget(
+        total_budget=total_budget,
+        budget_bounds=None,
+    )
+
+    resp_dist_sym = optimizer.extract_response_distribution("total_contributions")
+    resp_mean_sym = pt.mean(_check_samples_dimensionality(resp_dist_sym))
+    test_fn = pytensor.function([optimizer._budgets_flat], resp_mean_sym)
+    final_resp = test_fn(res.x)
+
+    np.testing.assert_allclose(final_resp, target_response, rtol=1e-2)

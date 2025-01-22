@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 import json
 import logging
 import warnings
+from collections.abc import Sequence
 from typing import Annotated, Any, Literal
 
 import arviz as az
@@ -32,6 +33,7 @@ from xarray import DataArray, Dataset
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.base import BaseValidateMMM
+from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     adstock_from_dict,
@@ -114,6 +116,17 @@ class BaseMMM(BaseValidateMMM):
         adstock_first: bool = Field(
             True, description="Whether to apply adstock first."
         ),
+        dag: str | None = Field(
+            None,
+            description="Optional DAG provided as a string Dot format for causal identification.",
+        ),
+        treatment_nodes: list[str] | tuple[str] | None = Field(
+            None,
+            description="Column names of the variables of interest to identify causal effects on outcome.",
+        ),
+        outcome_node: str | None = Field(
+            None, description="Name of the outcome variable."
+        ),
     ) -> None:
         """Define the constructor method.
 
@@ -150,6 +163,12 @@ class BaseMMM(BaseValidateMMM):
             Number of Fourier modes to model yearly seasonality, by default None.
         adstock_first : bool, optional
             Whether to apply adstock first, by default True.
+        dag : Optional[str], optional
+            Optional DAG provided as a string Dot format for causal modeling, by default None.
+        treatment_nodes : Optional[list[str]], optional
+            Column names of the variables of interest to identify causal effects on outcome.
+        outcome_node : Optional[str], optional
+            Name of the outcome variable, by default None.
         """
         self.control_columns = control_columns
         self.time_varying_intercept = time_varying_intercept
@@ -179,6 +198,37 @@ class BaseMMM(BaseValidateMMM):
         )
 
         self.yearly_seasonality = yearly_seasonality
+
+        self.dag = dag
+        self.treatment_nodes = treatment_nodes
+        self.outcome_node = outcome_node
+
+        # Initialize causal graph if provided
+        if self.dag is not None and self.outcome_node is not None:
+            if self.treatment_nodes is None:
+                self.treatment_nodes = self.channel_columns
+                warnings.warn(
+                    "No treatment nodes provided, using channel columns as treatment nodes.",
+                    stacklevel=2,
+                )
+            self.causal_graphical_model = CausalGraphModel.build_graphical_model(
+                graph=self.dag,
+                treatment=self.treatment_nodes,
+                outcome=self.outcome_node,
+            )
+
+            self.control_columns = self.causal_graphical_model.compute_adjustment_sets(
+                control_columns=self.control_columns,
+                channel_columns=self.channel_columns,
+            )
+
+            if "yearly_seasonality" not in self.causal_graphical_model.adjustment_set:
+                warnings.warn(
+                    "Yearly seasonality excluded as it's not required for adjustment.",
+                    stacklevel=2,
+                )
+                self.yearly_seasonality = None
+
         if self.yearly_seasonality is not None:
             self.yearly_fourier = YearlyFourier(
                 n_order=self.yearly_seasonality,
@@ -304,6 +354,9 @@ class BaseMMM(BaseValidateMMM):
         attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
         attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
         attrs["time_varying_media"] = json.dumps(self.time_varying_media)
+        attrs["dag"] = json.dumps(self.dag)
+        attrs["treatment_nodes"] = json.dumps(self.treatment_nodes)
+        attrs["outcome_node"] = json.dumps(self.outcome_node)
 
         return attrs
 
@@ -474,6 +527,13 @@ class BaseMMM(BaseValidateMMM):
                     var=self.forward_pass(x=channel_data_),
                     dims=("date", "channel"),
                 )
+
+            # We define the deterministic variable to define the optimization by default
+            pm.Deterministic(
+                name="total_contributions",
+                var=channel_contributions.sum(axis=(-2, -1)),
+                dims=(),
+            )
 
             mu_var = intercept + channel_contributions.sum(axis=-1)
 
@@ -672,6 +732,9 @@ class BaseMMM(BaseValidateMMM):
             "time_varying_media": json.loads(attrs.get("time_varying_media", "false")),
             "validate_data": json.loads(attrs["validate_data"]),
             "sampler_config": json.loads(attrs["sampler_config"]),
+            "dag": json.loads(attrs.get("dag", "null")),
+            "treatment_nodes": json.loads(attrs.get("treatment_nodes", "null")),
+            "outcome_node": json.loads(attrs.get("outcome_node", "null")),
         }
 
     def _data_setter(
@@ -2228,8 +2291,10 @@ class MMM(
         budget: float | int,
         num_periods: int,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
-        response_variable: str = "channel_contributions",
+        response_variable: str = "total_contributions",
         utility_function: UtilityFunctionType = average_response,
+        constraints: Sequence[dict[str, Any]] = (),
+        default_constraints: bool = True,
         **minimize_kwargs,
     ) -> tuple[DataArray, OptimizeResult]:
         """Optimize the given budget based on the specified utility function over a specified time period.
@@ -2258,9 +2323,14 @@ class MMM(
             An xarray DataArary or dictionary specifying the lower and upper bounds for the budget allocation
             for each channel. If None, no bounds are applied.
         response_variable : str, optional
-            The response variable to optimize. Default is "channel_contributions".
+            The response variable to optimize. Default is "total_contributions".
         utility_function : UtilityFunctionType, optional
             The utility function to maximize. Default is the mean of the response distribution.
+        custom_constraints : list[dict[str, Any]], optional
+            Custom constraints for the optimization. If None, no custom constraints are applied. Format:
+            [{"key":...,"constraint_fun":...,"constraint_type":...}]
+        default_constraints : bool, optional
+            Whether to add the default sum constraint to the optimizer. Default is True.
         **minimize_kwargs
             Additional arguments to pass to the `BudgetOptimizer`.
 
@@ -2283,6 +2353,8 @@ class MMM(
             num_periods=num_periods,
             utility_function=utility_function,
             response_variable=response_variable,
+            custom_constraints=constraints,
+            default_constraints=default_constraints,
             model=self,
         )
 
@@ -2298,7 +2370,7 @@ class MMM(
         time_granularity: Literal["daily", "weekly", "monthly", "quarterly", "yearly"],
         num_periods: int,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
-        custom_constraints: dict[str, float] | None = None,
+        custom_constraints: Sequence[dict[str, Any]] | None = None,
         noise_level: float = 0.01,
         utility_function: UtilityFunctionType = average_response,
         **minimize_kwargs,
@@ -2334,7 +2406,7 @@ class MMM(
         budget_bounds : DatArray or dict[str, list[Any]], optional
             An xarray DataArray or a dictionary specifying the lower and upper bounds for the budget allocation
             for each channel. If None, no bounds are applied.
-        custom_constraints : dict[str, float], optional
+        custom_constraints : Sequence[dict[str, Any]], optional
             Custom constraints for the optimization. If None, no custom constraints are applied.
         noise_level : float, optional
             The level of noise added to the allocation strategy (by default 1%).
@@ -2372,12 +2444,12 @@ class MMM(
             model=self,
             num_periods=num_periods,
             utility_function=utility_function,
+            custom_constraints=custom_constraints,
+            default_constraints=True,
         )
-
         self.optimal_allocation, _ = allocator.allocate_budget(
             total_budget=budget,
             budget_bounds=budget_bounds,
-            custom_constraints=custom_constraints,
             **minimize_kwargs,
         )
 
@@ -2466,9 +2538,9 @@ class MMM(
         ax.grid(False)
         ax2.grid(False)
 
-        bars = [bars1[0], bars2[0]]
-        labels = [bar.get_label() for bar in bars]
-        ax.legend(bars, labels)
+        bars = [bars1, bars2]
+        labels = ["Allocated Spend", "Channel Contributions"]
+        ax.legend(bars, labels, loc="best")
 
         return fig, ax
 

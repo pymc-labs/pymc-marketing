@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -658,7 +658,7 @@ bg_nbd = BetaGeoNBDRV()
 class BetaGeoNBD(PositiveContinuous):
     r"""Population-level distribution class for a discrete, non-contractual, Beta-Geometric/Negative-Binomial process.
 
-    It is based on Fader, et al. in [1]_, [2]_ and [3]_.
+    Based on Fader, et al. in [1]_, [2]_ and enhancements for numerical stability in [3]_.
 
     .. math::
 
@@ -804,9 +804,12 @@ mbg_nbd = ModifiedBetaGeoNBDRV()
 
 
 class ModifiedBetaGeoNBD(PositiveContinuous):
-    r"""Population-level distribution for the Modified-Beta-Geometric/Negative-Binomial process.
+    r"""Population-level distribution for a discrete, non-contractual Modified-Beta-Geometric/Negative-Binomial process.
 
-    Discrete, non-contractual distribution based on Batislam et al. in [1]_, and Wagner et al. in [2]_ .
+    In MBG/NBD, a customer may drop out at time zero. This is in contrast with the BG/NBD model,
+    which assumes all non-repeat customers are still active.
+    Based on Batislam, et al. in [1]_, and Wagner & Hopper in [2]_ .
+
     .. math::
         \mathbb{LL}(a, b, \alpha, r | x, t_x, T) = \ln \left[
         A_1 * A_2 * (A_3 + \delta_{x>0} A_4) \right] \text{, where:} \\

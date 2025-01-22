@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -583,18 +583,23 @@ def test_log_mmm_evaluation_metrics() -> None:
     """Test logging of summary metrics to MLflow."""
     y_true = np.array([1.0, 2.0, 3.0])
     y_pred = np.array([[1.1, 2.1, 3.1]]).T
-    custom_metrics = ["r_squared", "rmse", "mae", "mape", "nrmse", "nmae"]
+    custom_metrics = ["r_squared", "rmse"]
 
+    prefix: str = "in-sample"
     with mlflow.start_run() as run:
         log_mmm_evaluation_metrics(
-            y_true, y_pred, metrics_to_calculate=custom_metrics, hdi_prob=0.94
+            y_true,
+            y_pred,
+            metrics_to_calculate=custom_metrics,
+            hdi_prob=0.94,
+            prefix=prefix,
         )
 
     run_id = run.info.run_id
     run_data = get_run_data(run_id)
 
     # Check that metrics are logged with expected prefixes and suffixes
-    metric_prefixes = {"r_squared", "rmse", "mae", "mape", "nrmse", "nmae"}
+    metric_prefixes = {"r_squared", "rmse"}
     metric_suffixes = {
         "mean",
         "median",
@@ -605,7 +610,9 @@ def test_log_mmm_evaluation_metrics() -> None:
         "94_hdi_upper",
     }
     expected_metrics = {
-        f"{prefix}_{suffix}" for prefix in metric_prefixes for suffix in metric_suffixes
+        f"{prefix}_{metric_prefix}_{metrix_suffix}"
+        for metric_prefix in metric_prefixes
+        for metrix_suffix in metric_suffixes
     }
     assert set(run_data.metrics.keys()) == expected_metrics
 
