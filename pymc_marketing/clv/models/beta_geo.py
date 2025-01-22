@@ -214,9 +214,9 @@ class BetaGeoModel(CLVModel):
                 self.model_config[
                     "purchase_coefficient_prior"
                 ].dims = "purchase_covariate"
-                purchase_coefficient = self.model_config[
+                purchase_coefficient_gamma1 = self.model_config[
                     "purchase_coefficient_prior"
-                ].create_variable("purchase_coefficient")
+                ].create_variable("purchase_coefficient_gamma1")
 
                 alpha_scale = self.model_config["alpha_prior"].create_variable(
                     "alpha_scale"
@@ -225,7 +225,9 @@ class BetaGeoModel(CLVModel):
                     "alpha",
                     (
                         alpha_scale
-                        * pm.math.exp(-pm.math.dot(purchase_data, purchase_coefficient))
+                        * pm.math.exp(
+                            -pm.math.dot(purchase_data, purchase_coefficient_gamma1)
+                        )
                     ),
                     dims="customer_id",
                 )
@@ -244,22 +246,29 @@ class BetaGeoModel(CLVModel):
                     self.model_config[
                         "dropout_coefficient_prior"
                     ].dims = "dropout_covariate"
-                    dropout_coefficient = self.model_config[
+                    dropout_coefficient_gamma2 = self.model_config[
                         "dropout_coefficient_prior"
-                    ].create_variable("dropout_coefficient")
+                    ].create_variable("dropout_coefficient_gamma2")
+                    dropout_coefficient_gamma3 = self.model_config[
+                        "dropout_coefficient_prior"
+                    ].create_variable("dropout_coefficient_gamma3")
 
                     a_scale = self.model_config["a_prior"].create_variable("a_scale")
                     b_scale = self.model_config["b_prior"].create_variable("b_scale")
                     a = pm.Deterministic(
                         "a",
                         a_scale
-                        * pm.math.exp(-pm.math.dot(dropout_data, dropout_coefficient)),
+                        * pm.math.exp(
+                            pm.math.dot(dropout_data, dropout_coefficient_gamma2)
+                        ),
                         dims="customer_id",
                     )
                     b = pm.Deterministic(
                         "b",
                         b_scale
-                        * pm.math.exp(-pm.math.dot(dropout_data, dropout_coefficient)),
+                        * pm.math.exp(
+                            pm.math.dot(dropout_data, dropout_coefficient_gamma3)
+                        ),
                         dims="customer_id",
                     )
                 else:
@@ -277,9 +286,12 @@ class BetaGeoModel(CLVModel):
                     self.model_config[
                         "dropout_coefficient_prior"
                     ].dims = "dropout_covariate"
-                    dropout_coefficient = self.model_config[
+                    dropout_coefficient_gamma2 = self.model_config[
                         "dropout_coefficient_prior"
-                    ].create_variable("dropout_coefficient")
+                    ].create_variable("dropout_coefficient_gamma2")
+                    dropout_coefficient_gamma3 = self.model_config[
+                        "dropout_coefficient_prior"
+                    ].create_variable("dropout_coefficient_gamma3")
 
                     phi_dropout = self.model_config[
                         "phi_dropout_prior"
@@ -296,13 +308,17 @@ class BetaGeoModel(CLVModel):
                     a = pm.Deterministic(
                         "a",
                         a_scale
-                        * pm.math.exp(-pm.math.dot(dropout_data, dropout_coefficient)),
+                        * pm.math.exp(
+                            pm.math.dot(dropout_data, dropout_coefficient_gamma2)
+                        ),
                         dims="customer_id",
                     )
                     b = pm.Deterministic(
                         "b",
                         b_scale
-                        * pm.math.exp(-pm.math.dot(dropout_data, dropout_coefficient)),
+                        * pm.math.exp(
+                            pm.math.dot(dropout_data, dropout_coefficient_gamma3)
+                        ),
                         dims="customer_id",
                     )
 
@@ -314,8 +330,12 @@ class BetaGeoModel(CLVModel):
                         "kappa_dropout_prior"
                     ].create_variable("kappa_dropout")
 
-                    a = pm.Deterministic("a", phi_dropout * kappa_dropout)
-                    b = pm.Deterministic("b", (1.0 - phi_dropout) * kappa_dropout)
+                    a = pm.Deterministic(
+                        "a", phi_dropout * kappa_dropout, dims="customer_id"
+                    )
+                    b = pm.Deterministic(
+                        "b", (1.0 - phi_dropout) * kappa_dropout, dims="customer_id"
+                    )
 
             # r remains unchanged with or without covariates
             r = self.model_config["r_prior"].create_variable("r")
@@ -373,10 +393,12 @@ class BetaGeoModel(CLVModel):
                 coords=[customer_id, list(model_coords["purchase_covariate"])],
             )
             alpha_scale = self.fit_result["alpha_scale"]
-            purchase_coefficient = self.fit_result["purchase_coefficient"]
+            purchase_coefficient_gamma1 = self.fit_result["purchase_coefficient_gamma1"]
             alpha = alpha_scale * np.exp(
                 -xarray.dot(
-                    purchase_coefficient, purchase_xarray, dims="purchase_covariate"
+                    purchase_xarray,
+                    purchase_coefficient_gamma1,
+                    dim="purchase_covariate",
                 )
             )
             alpha.name = "alpha"
@@ -390,17 +412,19 @@ class BetaGeoModel(CLVModel):
                 coords=[customer_id, list(model_coords["dropout_covariate"])],
             )
             a_scale = self.fit_result["a_scale"]
-            dropout_coefficient = self.fit_result["dropout_coefficient"]
+            dropout_coefficient_gamma2 = self.fit_result["dropout_coefficient_gamma2"]
+            dropout_coefficient_gamma3 = self.fit_result["dropout_coefficient_gamma3"]
+
             a = a_scale * np.exp(
-                -xarray.dot(
-                    dropout_coefficient, dropout_xarray, dim="dropout_covariate"
+                xarray.dot(
+                    dropout_xarray, dropout_coefficient_gamma2, dim="dropout_covariate"
                 )
             )
             a.name = "a"
             b_scale = self.fit_result["b_scale"]
             b = b_scale * np.exp(
-                -xarray.dot(
-                    dropout_coefficient, dropout_xarray, dim="dropout_covariate"
+                xarray.dot(
+                    dropout_xarray, dropout_coefficient_gamma3, dim="dropout_covariate"
                 )
             )
             b.name = "b"
