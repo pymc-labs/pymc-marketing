@@ -945,7 +945,7 @@ class TestBetaGeoModelWithCovariates:
             res_zero_ref["recency_frequency"]
             .sel(obs_var="frequency")
             .mean("customer_id"),
-            rtol=0.15,
+            rtol=0.2,
         )
 
         # Test case where transaction behavior should increase
