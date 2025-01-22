@@ -229,7 +229,6 @@ class BetaGeoModel(CLVModel):
                             -pm.math.dot(purchase_data, purchase_coefficient_gamma1)
                         )
                     ),
-                    dims="customer_id",
                 )
             else:
                 alpha = self.model_config["alpha_prior"].create_variable("alpha")
@@ -261,7 +260,6 @@ class BetaGeoModel(CLVModel):
                         * pm.math.exp(
                             pm.math.dot(dropout_data, dropout_coefficient_gamma2)
                         ),
-                        dims="customer_id",
                     )
                     b = pm.Deterministic(
                         "b",
@@ -269,7 +267,6 @@ class BetaGeoModel(CLVModel):
                         * pm.math.exp(
                             pm.math.dot(dropout_data, dropout_coefficient_gamma3)
                         ),
-                        dims="customer_id",
                     )
                 else:
                     a = self.model_config["a_prior"].create_variable("a")
@@ -311,7 +308,6 @@ class BetaGeoModel(CLVModel):
                         * pm.math.exp(
                             pm.math.dot(dropout_data, dropout_coefficient_gamma2)
                         ),
-                        dims="customer_id",
                     )
                     b = pm.Deterministic(
                         "b",
@@ -319,7 +315,6 @@ class BetaGeoModel(CLVModel):
                         * pm.math.exp(
                             pm.math.dot(dropout_data, dropout_coefficient_gamma3)
                         ),
-                        dims="customer_id",
                     )
 
                 else:
@@ -330,12 +325,8 @@ class BetaGeoModel(CLVModel):
                         "kappa_dropout_prior"
                     ].create_variable("kappa_dropout")
 
-                    a = pm.Deterministic(
-                        "a", phi_dropout * kappa_dropout, dims="customer_id"
-                    )
-                    b = pm.Deterministic(
-                        "b", (1.0 - phi_dropout) * kappa_dropout, dims="customer_id"
-                    )
+                    a = pm.Deterministic("a", phi_dropout * kappa_dropout)
+                    b = pm.Deterministic("b", (1.0 - phi_dropout) * kappa_dropout)
 
             # r remains unchanged with or without covariates
             r = self.model_config["r_prior"].create_variable("r")
