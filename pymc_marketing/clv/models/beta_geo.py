@@ -229,6 +229,7 @@ class BetaGeoModel(CLVModel):
                             -pm.math.dot(purchase_data, purchase_coefficient_gamma1)
                         )
                     ),
+                    dims="customer_id",
                 )
             else:
                 alpha = self.model_config["alpha_prior"].create_variable("alpha")
@@ -260,6 +261,7 @@ class BetaGeoModel(CLVModel):
                         * pm.math.exp(
                             pm.math.dot(dropout_data, dropout_coefficient_gamma2)
                         ),
+                        dims="customer_id",
                     )
                     b = pm.Deterministic(
                         "b",
@@ -267,6 +269,7 @@ class BetaGeoModel(CLVModel):
                         * pm.math.exp(
                             pm.math.dot(dropout_data, dropout_coefficient_gamma3)
                         ),
+                        dims="customer_id",
                     )
                 else:
                     a = self.model_config["a_prior"].create_variable("a")
@@ -297,9 +300,13 @@ class BetaGeoModel(CLVModel):
                         "kappa_dropout_prior"
                     ].create_variable("kappa_dropout")
 
-                    a_scale = pm.Deterministic("a_scale", phi_dropout * kappa_dropout)
+                    a_scale = pm.Deterministic(
+                        "a_scale", phi_dropout * kappa_dropout, dims="customer_id"
+                    )
                     b_scale = pm.Deterministic(
-                        "b_scale", (1.0 - phi_dropout) * kappa_dropout
+                        "b_scale",
+                        (1.0 - phi_dropout) * kappa_dropout,
+                        dims="customer_id",
                     )
 
                     a = pm.Deterministic(
@@ -308,6 +315,7 @@ class BetaGeoModel(CLVModel):
                         * pm.math.exp(
                             pm.math.dot(dropout_data, dropout_coefficient_gamma2)
                         ),
+                        dims="customer_id",
                     )
                     b = pm.Deterministic(
                         "b",
@@ -315,6 +323,7 @@ class BetaGeoModel(CLVModel):
                         * pm.math.exp(
                             pm.math.dot(dropout_data, dropout_coefficient_gamma3)
                         ),
+                        dims="customer_id",
                     )
 
                 else:
@@ -784,14 +793,30 @@ class BetaGeoModel(CLVModel):
         coords = self.model.coords.copy()  # type: ignore
         coords["customer_id"] = data["customer_id"]
 
-        with pm.Model(coords=coords):
-            a = pm.HalfFlat("a")
-            b = pm.HalfFlat("b")
-            alpha = pm.HalfFlat("alpha")
+        with pm.Model(coords=coords) as pred_model:
+            if self.purchase_covariate_cols:
+                alpha = pm.HalfFlat("alpha", dims=["customer_id"])
+            else:
+                alpha = pm.HalfFlat("alpha")
+
+            if self.dropout_covariate_cols:
+                a = pm.HalfFlat("a", dims=["customer_id"])
+                b = pm.HalfFlat("b", dims=["customer_id"])
+            else:
+                a = pm.HalfFlat("a")
+                b = pm.HalfFlat("b")
+
             r = pm.HalfFlat("r")
 
-            pm.Beta("dropout", alpha=a, beta=b)
-            pm.Gamma("purchase_rate", alpha=r, beta=alpha)
+            pm.Beta(
+                "dropout", alpha=a, beta=b, dims=pred_model.named_vars_to_dims.get("a")
+            )
+            pm.Gamma(
+                "purchase_rate",
+                alpha=r,
+                beta=alpha,
+                dims=pred_model.named_vars_to_dims.get("alpha"),
+            )
 
             BetaGeoNBD(
                 name="recency_frequency",
