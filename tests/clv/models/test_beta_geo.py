@@ -689,8 +689,9 @@ class TestBetaGeoModelWithCovariates:
             b_scale=2.426,
             alpha_scale=4.414,
             r=0.243,
-            purchase_coefficient=np.array([1.0, -2.0]),
-            dropout_coefficient=np.array([3.0]),
+            purchase_coefficient_gamma1=np.array([1.0, -2.0]),
+            dropout_coefficient_gamma2=np.array([3.0]),
+            dropout_coefficient_gamma3=np.array([3.0]),
         )
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
@@ -735,13 +736,18 @@ class TestBetaGeoModelWithCovariates:
             "b_scale": rng.normal(
                 cls.true_params["b_scale"], 1e-3, size=(chains, draws)
             ),
-            "purchase_coefficient": rng.normal(
-                cls.true_params["purchase_coefficient"],
+            "purchase_coefficient_gamma1": rng.normal(
+                cls.true_params["purchase_coefficient_gamma1"],
                 1e-3,
                 size=(chains, draws, n_purchase_covariates),
             ),
-            "dropout_coefficient": rng.normal(
-                cls.true_params["dropout_coefficient"],
+            "dropout_coefficient_gamma2": rng.normal(
+                cls.true_params["dropout_coefficient_gamma2"],
+                1e-3,
+                size=(chains, draws, n_dropout_covariates),
+            ),
+            "dropout_coefficient_gamma3": rng.normal(
+                cls.true_params["dropout_coefficient_gamma3"],
                 1e-3,
                 size=(chains, draws, n_dropout_covariates),
             ),
@@ -749,8 +755,9 @@ class TestBetaGeoModelWithCovariates:
         mock_fit_with_covariates = az.from_dict(
             mock_fit_dict,
             dims={
-                "purchase_coefficient": ["purchase_covariate"],
-                "dropout_coefficient": ["dropout_covariate"],
+                "purchase_coefficient_gamma1": ["purchase_covariate"],
+                "dropout_coefficient_gamma2": ["dropout_covariate"],
+                "dropout_coefficient_gamma3": ["dropout_covariate"],
             },
             coords={
                 "purchase_covariate": purchase_covariate_cols,
@@ -760,13 +767,15 @@ class TestBetaGeoModelWithCovariates:
         set_model_fit(cls.model_with_covariates, mock_fit_with_covariates)
 
         # Create a reference model without covariates
-        cls.model_without_covariates = BetaGeoModel(data)
+        cls.model_without_covariates = BetaGeoModel(
+            data, model_config=non_nested_priors
+        )
         mock_fit_without_covariates = az.from_dict(
             {
                 "r": mock_fit_dict["r"],
                 "alpha": mock_fit_dict["alpha_scale"],
-                "a_scale": mock_fit_dict["a_scale"],
-                "b_scale": mock_fit_dict["b_scale"],
+                "a": mock_fit_dict["a_scale"],
+                "b": mock_fit_dict["b_scale"],
             }
         )
         set_model_fit(cls.model_without_covariates, mock_fit_without_covariates)
@@ -826,12 +835,176 @@ class TestBetaGeoModelWithCovariates:
         )
         ref_ip = model_without_covariates.model.initial_point()
 
-        ip["purchase_coefficient"] = np.array([1.0, 2.0])
-        ip["dropout_coefficient"] = np.array([3.0])
-        assert model_likelihood_fn(ip) < ref_model_likelihood_fn(ref_ip)
+        # alpha coefficient: likelihood should go up if purchase covariate1 goes up (coefficient is positive)
+        assert model_likelihood_fn(
+            ip | dict(purchase_coefficient_gamma1=np.array([1.0, 2.0]))
+        ) < ref_model_likelihood_fn(ref_ip)
 
-        ip["purchase_coefficient"] = np.array([0.0, 0.0])
-        ip["dropout_coefficient"] = np.array([0.0])
+        # a coefficient: likelihood should go up if purchase covariate1 goes up (coefficient is positive)
+        assert model_likelihood_fn(
+            ip | dict(dropout_coefficient_gamma2=np.array([3.0]))
+        ) < ref_model_likelihood_fn(ref_ip)
+
+        # b coefficient: likelihood should go up if purchase covariate1 goes up (coefficient is positive)
+        assert model_likelihood_fn(
+            ip | dict(dropout_coefficient_gamma3=np.array([3.0]))
+        ) < ref_model_likelihood_fn(ref_ip)
+
         np.testing.assert_allclose(
             model_likelihood_fn(ip), ref_model_likelihood_fn(ref_ip), rtol=5e-4
         )
+
+    def test_expectation_method(self):
+        """Test that predictive methods work with covariates"""
+        # Higher covariates with positive coefficients -> higher change of death and vice-versa
+        # Zero-d covariates should match the vanilla model
+        model = self.model_with_covariates
+
+        # Use patterns that are compatible with customer still being alive
+        test_data_zero = pd.DataFrame(
+            {
+                "customer_id": [0, 1, 2],
+                "frequency": [12, 14, 10],
+                "recency": [19, 18, 16],
+                "purchase_cov1": [0, 0, 0],
+                "purchase_cov2": [0, 0, 0],
+                "dropout_cov": [0, 0, 0],
+                "T": [20, 19, 20],
+                "future_t": [10, 13, 15],
+            }
+        )
+
+        # Probability should match model without covariates, when covariates are all zero
+        res_zero = model.expected_purchases(test_data_zero).mean(("chain", "draw"))
+        res_zero_ref = self.model_without_covariates.expected_purchases(
+            test_data_zero
+        ).mean(("chain", "draw"))
+        np.testing.assert_allclose(res_zero, res_zero_ref, rtol=1e-6)
+
+        # Probability should go up if purchase covariate1 goes up (coefficient is positive)
+        test_data_high = test_data_zero.assign(purchase_cov1=1.0)
+        res_high_purchase1 = model.expected_purchases(test_data_high).mean(
+            ("chain", "draw")
+        )
+        assert (res_zero < res_high_purchase1).all()
+
+        # Probability should go down if purchase covariate2 goes up (coefficient is negative)
+        test_data_low = test_data_zero.assign(purchase_cov2=1.0)
+        res_high_purchase2 = model.expected_purchases(test_data_low).mean(
+            ("chain", "draw")
+        )
+        assert (res_zero > res_high_purchase2).all()
+
+        # Probability should go up if dropout covariate goes up (coefficient is positive)
+        test_data_low = test_data_zero.assign(dropout_cov=1.0)
+        res_high_drop = model.expected_purchases(test_data_low).mean(("chain", "draw"))
+        assert (res_zero < res_high_drop).all()
+
+    def test_distribution_method(self):
+        model = self.model_with_covariates
+
+        reps = 30
+        test_data_zero = pd.DataFrame(
+            {
+                "customer_id": range(3 * reps),
+                "frequency": [1, 2, 0] * reps,
+                "recency": [7, 5, 2] * reps,
+                "purchase_cov1": [0, 0, 0] * reps,
+                "purchase_cov2": [0, 0, 0] * reps,
+                "dropout_cov": [0, 0, 0] * reps,
+                "T": [20, 20, 20] * reps,
+                "future_t": [2, 3, 4] * reps,
+                "n_purchases": [2, 1, 4] * reps,
+            }
+        )
+
+        # Probability should match model without covariates, when covariates are all zero
+        res_zero = model.distribution_new_customer(test_data_zero).mean(
+            ("chain", "draw")
+        )
+        res_zero_ref = self.model_without_covariates.distribution_new_customer(
+            test_data_zero
+        ).mean(("chain", "draw"))
+        np.testing.assert_allclose(
+            res_zero["dropout"].mean("customer_id"), res_zero_ref["dropout"], rtol=0.3
+        )
+        np.testing.assert_allclose(
+            res_zero["purchase_rate"].mean("customer_id"),
+            res_zero_ref["purchase_rate"],
+            rtol=0.3,
+        )
+        np.testing.assert_allclose(
+            res_zero["recency_frequency"].sel(obs_var="recency").mean("customer_id"),
+            res_zero_ref["recency_frequency"]
+            .sel(obs_var="recency")
+            .mean("customer_id"),
+            rtol=0.3,
+        )
+        np.testing.assert_allclose(
+            res_zero["recency_frequency"].sel(obs_var="frequency").mean("customer_id"),
+            res_zero_ref["recency_frequency"]
+            .sel(obs_var="frequency")
+            .mean("customer_id"),
+            rtol=0.3,
+        )
+
+        # Test case where transaction behavior should increase
+        test_data_alt = test_data_zero.assign(
+            purchase_cov=1.0,  # positive coefficient
+            purchase_cov2=-1,  # negative coefficient
+            dropout_cov=-1,  # positive coefficient
+        )
+        res_high = model.distribution_new_customer(test_data_alt).mean(
+            ("chain", "draw")
+        )
+        assert (res_zero["purchase_rate"] < res_high["purchase_rate"]).all()
+        assert (res_zero["dropout"] > res_high["dropout"]).all()
+        assert (
+            res_zero["recency_frequency"].sel(obs_var="frequency")
+            < res_high["recency_frequency"].sel(obs_var="frequency")
+        ).all()
+        assert (
+            res_zero["recency_frequency"].sel(obs_var="recency")
+            < res_high["recency_frequency"].sel(obs_var="recency")
+        ).all()
+
+    def test_covariate_model_convergence(self):
+        """Test that we can recover the true parameters with MAP fitting"""
+        rng = np.random.default_rng(627)
+
+        # Create synthetic data from "true" params
+        default_model = self.model_with_covariates.model
+        with pm.do(default_model, self.true_params):
+            prior_pred = pm.sample_prior_predictive(
+                samples=1, random_seed=rng
+            ).prior_predictive
+        synthetic_obs = prior_pred["recency_frequency"].squeeze()
+
+        synthetic_data = self.data.assign(
+            recency=synthetic_obs.sel(obs_var="recency"),
+            frequency=synthetic_obs.sel(obs_var="frequency"),
+        )
+        # The default parameter priors are very informative. We use something more broad here
+        custom_priors = {
+            "r_prior": Prior("Exponential", scale=10),
+            "alpha_prior": Prior("Exponential", scale=10),
+            "a_prior": Prior("Exponential", scale=10),
+            "b_prior": Prior("Exponential", scale=10),
+            "purchase_coefficient_prior": Prior("Normal", mu=6, sigma=6),
+            "dropout_coefficient_prior": Prior("Normal", mu=3, sigma=3),
+        }
+        new_model = BetaGeoModel(
+            synthetic_data,
+            model_config=self.model_with_covariates.model_config | custom_priors,
+        )
+        new_model.fit(fit_method="map")
+
+        result = new_model.fit_result
+        for var in default_model.free_RVs:
+            var_name = var.name
+            np.testing.assert_allclose(
+                result[var_name].squeeze(("chain", "draw")),
+                self.true_params[var_name],
+                err_msg=f"Tolerance exceeded for variable {var_name}",
+                rtol=0.2,
+            )
