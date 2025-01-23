@@ -229,23 +229,52 @@ def create_log_callback(
 
     Examples
     --------
+    Create example model:
+
+    .. code-block:: python
+
+        import pymc as pm
+
+        with pm.Model() as model:
+            mu = pm.Normal("mu")
+            sigma = pm.HalfNormal("sigma")
+            obs = pm.Normal("obs", mu=mu, sigma=sigma, observed=[1, 2, 3])
+
     Log off divergences and logp every 100th draw:
 
     .. code-block:: python
+
+        import mlflow
+
+        from pymc_marketing.mlflow import create_log_callback
 
         callback = create_log_callback(
             stats=["diverging", "model_logp"],
             take_every=100,
         )
 
+        mlflow.set_experiment("Live Tracking Stats")
+
+        with mlflow.start_run():
+            idata = pm.sample(model=model, callback=callback)
+
     Log the parameters `mu` and `sigma_log__` every 100th draw:
 
     .. code-block:: python
+
+        import mlflow
+
+        from pymc_marketing.mlflow import create_log_callback
 
         callback = create_log_callback(
             parameters=["mu", "sigma_log__"],
             take_every=100,
         )
+
+        mlflow.set_experiment("Live Tracking Parameters")
+
+        with mlflow.start_run():
+            idata = pm.sample(model=model, callback=callback)
 
     """
     if not stats and not parameters:
