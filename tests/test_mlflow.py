@@ -53,7 +53,7 @@ def setup_module():
 
 
 @pytest.fixture(scope="module")
-def model() -> pm.Model:
+def model_with_likelihood() -> pm.Model:
     n_obs = 15
 
     data = rng.normal(loc=5, scale=2, size=n_obs)
@@ -66,6 +66,25 @@ def model() -> pm.Model:
         sigma = pm.HalfNormal("sigma", sigma=1)
 
         pm.Normal("obs", mu=mu, sigma=sigma, observed=data)
+
+    return model
+
+
+@pytest.fixture(scope="module")
+def model_with_data_in_likelihood() -> pm.Model:
+    n_obs = 15
+
+    data = rng.normal(loc=5, scale=2, size=n_obs)
+
+    coords = {
+        "obs_id": np.arange(n_obs),
+    }
+    with pm.Model(coords=coords) as model:
+        mu = pm.Normal("mu", mu=0, sigma=1)
+        sigma = pm.HalfNormal("sigma", sigma=1)
+
+        target = pm.Data("target", data, dims="obs_id")
+        pm.Normal("obs", mu=mu, sigma=sigma, observed=target, dims="obs_id")
 
     return model
 
@@ -133,12 +152,12 @@ def basic_logging_checks(run_data: RunData) -> None:
     assert len(run_data.artifacts) > 0
 
 
-def test_file_system_uri_supported(model) -> None:
+def test_file_system_uri_supported(model_with_likelihood) -> None:
     mlflow.set_tracking_uri(uri=Path("./mlruns"))
     mlflow.set_experiment("pymc-marketing-test-suite-local-file")
     with mlflow.start_run() as run:
         pm.sample(
-            model=model,
+            model=model_with_likelihood,
             chains=1,
             tune=25,
             draws=30,
@@ -150,6 +169,39 @@ def test_file_system_uri_supported(model) -> None:
     run_id = run.info.run_id
     run_data = get_run_data(run_id)
     basic_logging_checks(run_data)
+
+
+def test_log_with_data_in_likelihood(model_with_data_in_likelihood) -> None:
+    mlflow.set_experiment("pymc-marketing-test-suite-only-target")
+    with mlflow.start_run() as run:
+        pm.sample(
+            model=model_with_data_in_likelihood,
+            chains=1,
+            draws=25,
+            tune=10,
+        )
+
+    run_id = run.info.run_id
+    run_data = get_run_data(run_id)
+
+    basic_logging_checks(run_data)
+
+    inputs = run_data.inputs
+
+    assert len(inputs) == 1
+    profile = json.loads(inputs[0].dataset.profile)
+
+    expected_feature_shape = {}
+    expected_target_shape = {"obs": [15]}
+
+    assert profile["features_shape"] == expected_feature_shape
+    assert profile["targets_shape"] == expected_target_shape
+
+    assert run_data.params["likelihood"] == "Normal"
+    assert run_data.params["n_free_RVs"] == "2"
+    assert run_data.params["n_observed_RVs"] == "1"
+    assert run_data.params["n_deterministics"] == "0"
+    assert run_data.params["n_potentials"] == "0"
 
 
 def no_input_model_checks(run_data: RunData) -> None:
@@ -203,7 +255,12 @@ def test_multi_likelihood_type(multi_likelihood_model) -> None:
     ids=["no_graphviz", "render_error"],
 )
 def test_log_model_graph_no_graphviz(
-    caplog, mocker, model, to_patch, side_effect, expected_info_message
+    caplog,
+    mocker,
+    model_with_likelihood,
+    to_patch,
+    side_effect,
+    expected_info_message,
 ) -> None:
     mocker.patch(
         to_patch,
@@ -211,7 +268,7 @@ def test_log_model_graph_no_graphviz(
     )
     with mlflow.start_run() as run:
         with caplog.at_level(logging.INFO):
-            log_model_graph(model, "model_graph")
+            log_model_graph(model_with_likelihood, "model_graph")
 
     assert caplog.messages == [
         expected_info_message,
@@ -260,7 +317,7 @@ def param_checks(params, draws: int, chains: int, tune: int, nuts_sampler: str) 
         "blackjax",
     ],
 )
-def test_autolog_pymc_model(model, nuts_sampler) -> None:
+def test_autolog_pymc_model(model_with_likelihood, nuts_sampler) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-pymc-model")
     with mlflow.start_run() as run:
         draws = 30
@@ -270,7 +327,7 @@ def test_autolog_pymc_model(model, nuts_sampler) -> None:
             draws=draws,
             tune=tune,
             chains=chains,
-            model=model,
+            model=model_with_likelihood,
             nuts_sampler=nuts_sampler,
         )
 

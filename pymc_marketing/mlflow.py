@@ -253,11 +253,15 @@ def log_metadata(model: Model, idata: az.InferenceData) -> None:
     """
     data_vars: list[TensorVariable] = model.data_vars
 
-    features = {
-        var.name: idata.constant_data[var.name].to_numpy()
-        for var in data_vars
-        if var.name in idata.constant_data
-    }
+    if "constant_data" in idata:
+        features = {
+            var.name: idata.constant_data[var.name].to_numpy()
+            for var in data_vars
+            if var.name in idata.constant_data
+        }
+    else:
+        features = {}
+
     targets = {
         var.name: idata.observed_data[var.name].to_numpy()
         for var in model.observed_RVs
