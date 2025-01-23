@@ -28,6 +28,7 @@ from mlflow.client import MlflowClient
 from pymc_marketing.clv import BetaGeoModel
 from pymc_marketing.mlflow import (
     autolog,
+    create_log_callback,
     log_likelihood_type,
     log_mmm_evaluation_metrics,
     log_model_graph,
@@ -674,3 +675,29 @@ def test_log_mmm_evaluation_metrics() -> None:
     assert set(run_data.metrics.keys()) == expected_metrics
 
     assert all(isinstance(value, float) for value in run_data.metrics.values())
+
+
+def test_logging_callback(model_with_likelihood) -> None:
+    mlflow.set_experiment("pymc-marketing-test-suite-logging-callback")
+
+    callback = create_log_callback(
+        stats=["energy"],
+        take_every=10,
+    )
+    with mlflow.start_run() as run:
+        pm.sample(
+            model=model_with_likelihood,
+            draws=100,
+            tune=1,
+            chains=2,
+            callback=callback,
+        )
+
+    assert mlflow.active_run() is None
+
+    run_id = run.info.run_id
+    client = MlflowClient()
+
+    for chain in [0, 1]:
+        history = client.get_metric_history(run_id, f"chain_{chain}/energy")
+        assert len(history) == 10
