@@ -677,11 +677,18 @@ def test_log_mmm_evaluation_metrics() -> None:
     assert all(isinstance(value, float) for value in run_data.metrics.values())
 
 
+def test_callback_raises() -> None:
+    match = "At least one of"
+    with pytest.raises(ValueError, match=match):
+        create_log_callback()
+
+
 def test_logging_callback(model_with_likelihood) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-logging-callback")
 
     callback = create_log_callback(
         stats=["energy"],
+        parameters=["mu"],
         take_every=10,
     )
     with mlflow.start_run() as run:
@@ -699,5 +706,6 @@ def test_logging_callback(model_with_likelihood) -> None:
     client = MlflowClient()
 
     for chain in [0, 1]:
-        history = client.get_metric_history(run_id, f"chain_{chain}/energy")
-        assert len(history) == 10
+        for value in ["energy", "mu"]:
+            history = client.get_metric_history(run_id, f"chain_{chain}/{value}")
+            assert len(history) == 10
