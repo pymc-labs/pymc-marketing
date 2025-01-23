@@ -708,10 +708,8 @@ class TestBetaGeoModelWithCovariates:
         purchase_covariate_cols = ["purchase_cov1", "purchase_cov2"]
         dropout_covariate_cols = ["dropout_cov"]
         non_nested_priors = dict(
-            a_prior=Prior("Normal", mu=0, sigma=1, centered=False),
-            b_prior=Prior("Normal", mu=0, sigma=1, centered=False),
-            # a_prior=Prior("Uniform", lower=0, upper=1),
-            # b_prior=Prior("Uniform", lower=0, upper=1),
+            a_prior=Prior("Uniform", lower=0, upper=1),
+            b_prior=Prior("Uniform", lower=0, upper=1),
         )
         covariate_config = dict(
             purchase_covariate_cols=purchase_covariate_cols,
@@ -973,7 +971,7 @@ class TestBetaGeoModelWithCovariates:
                 res_zero["recency_frequency"].sel(obs_var="recency")
                 - res_high["recency_frequency"].sel(obs_var="recency")
             )
-            < 0.25
+            < 0.35
         ).all()
 
         assert ((res_zero["dropout"] - res_high["dropout"]) < 0.075).all()

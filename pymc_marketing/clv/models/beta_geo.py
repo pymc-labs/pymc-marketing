@@ -189,10 +189,8 @@ class BetaGeoModel(CLVModel):
             "r_prior": Prior("HalfFlat"),
             "phi_dropout_prior": Prior("Uniform", lower=0, upper=1),
             "kappa_dropout_prior": Prior("Pareto", alpha=1, m=1),
-            "purchase_coefficient_prior": Prior(
-                "Normal", mu=0, sigma=1, centered=False
-            ),
-            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=1, centered=False),
+            "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=1),
+            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=1),
             "purchase_covariate_cols": [],
             "dropout_covariate_cols": [],
         }
