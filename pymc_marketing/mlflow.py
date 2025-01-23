@@ -180,6 +180,102 @@ warning_msg = (
 warnings.warn(warning_msg, FutureWarning, stacklevel=1)
 
 
+def _exclude_tuning(func):
+    def callback(trace, draw):
+        if draw.tuning:
+            return
+
+        return func(trace, draw)
+
+    return callback
+
+
+def _take_every(n: int):
+    def decorator(func):
+        def callback(trace, draw):
+            if draw.draw_idx % n != 0:
+                return
+
+            return func(trace, draw)
+
+        return callback
+
+    return decorator
+
+
+def create_log_callback(
+    stats: list[str] | None = None,
+    parameters: list[str] | None = None,
+    exclude_tuning: bool = True,
+    take_every: int = 100,
+):
+    """Create callback function to log sample stats and parameter values to MLflow during sampling.
+
+    This callback only works for the "pymc" sampler.
+
+    Parameters
+    ----------
+    stats : list of str, optional
+        List of sample statistics to log from the Draw
+    parameters : list of str, optional
+        List of parameters to log from the Draw
+    exclude_tuning : bool, optional
+        Whether to exclude tuning steps from logging. Defaults to True.
+
+    Returns
+    -------
+    callback : Callable
+        The callback function to log sample stats and parameter values to MLflow during sampling
+
+    Examples
+    --------
+    Log off divergences and logp every 100th draw:
+
+    .. code-block:: python
+
+        callback = create_log_callback(
+            stats=["diverging", "model_logp"],
+            take_every=100,
+        )
+
+    Log the parameters `mu` and `sigma_log__` every 100th draw:
+
+    .. code-block:: python
+
+        callback = create_log_callback(
+            parameters=["mu", "sigma_log__"],
+            take_every=100,
+        )
+
+    """
+    if not stats and not parameters:
+        raise ValueError("At least one of `stats` or `parameters` must be provided.")
+
+    def callback(_, draw):
+        prefix = f"chain_{draw.chain}"
+        for stat in stats or []:
+            mlflow.log_metric(
+                key=f"{prefix}/{stat}",
+                value=draw.stats[0][stat],
+                step=draw.draw_idx,
+            )
+
+        for parameter in parameters or []:
+            mlflow.log_metric(
+                key=f"{prefix}/{parameter}",
+                value=draw.point[parameter],
+                step=draw.draw_idx,
+            )
+
+    if exclude_tuning:
+        callback = _exclude_tuning(callback)
+
+    if take_every:
+        callback = _take_every(n=take_every)(callback)
+
+    return callback
+
+
 def _log_and_remove_artifact(path: str | Path) -> None:
     """Log an artifact to MLflow and then remove the local file.
 
