@@ -189,8 +189,10 @@ class BetaGeoModel(CLVModel):
             "r_prior": Prior("HalfFlat"),
             "phi_dropout_prior": Prior("Uniform", lower=0, upper=1),
             "kappa_dropout_prior": Prior("Pareto", alpha=1, m=1),
-            "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=1),
-            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=1),
+            "purchase_coefficient_prior": Prior(
+                "Normal", mu=0, sigma=1, centered=False
+            ),
+            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=1, centered=False),
             "purchase_covariate_cols": [],
             "dropout_covariate_cols": [],
         }
@@ -795,18 +797,18 @@ class BetaGeoModel(CLVModel):
 
         with pm.Model(coords=coords) as pred_model:
             if self.purchase_covariate_cols:
-                alpha = pm.HalfFlat("alpha", dims=["customer_id"])
+                alpha = pm.Flat("alpha", dims=["customer_id"])
             else:
-                alpha = pm.HalfFlat("alpha")
+                alpha = pm.Flat("alpha")
 
             if self.dropout_covariate_cols:
-                a = pm.HalfFlat("a", dims=["customer_id"])
-                b = pm.HalfFlat("b", dims=["customer_id"])
+                a = pm.Flat("a", dims=["customer_id"])
+                b = pm.Flat("b", dims=["customer_id"])
             else:
-                a = pm.HalfFlat("a")
-                b = pm.HalfFlat("b")
+                a = pm.Flat("a")
+                b = pm.Flat("b")
 
-            r = pm.HalfFlat("r")
+            r = pm.Flat("r")
 
             pm.Beta(
                 "dropout", alpha=a, beta=b, dims=pred_model.named_vars_to_dims.get("a")
