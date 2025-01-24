@@ -43,6 +43,7 @@ from pymc_marketing.mmm.components.saturation import (
     saturation_from_dict,
 )
 from pymc_marketing.mmm.fourier import YearlyFourier
+from pymc_marketing.mmm.hsgp import HSGPLike
 from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
@@ -56,7 +57,7 @@ from pymc_marketing.mmm.utils import (
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
 from pymc_marketing.model_config import parse_model_config
-from pymc_marketing.prior import Prior
+from pymc_marketing.prior import Prior, create_dim_handler
 
 __all__ = ["MMM", "BaseMMM"]
 
@@ -87,11 +88,13 @@ class BaseMMM(BaseValidateMMM):
         saturation: InstanceOf[SaturationTransformation] = Field(
             ..., description="Type of saturation transformation to apply."
         ),
-        time_varying_intercept: bool = Field(
-            False, description="Whether to consider time-varying intercept."
+        time_varying_intercept: bool | InstanceOf[HSGPLike] = Field(
+            False,
+            description="Whether to consider time-varying intercept.",
         ),
-        time_varying_media: bool = Field(
-            False, description="Whether to consider time-varying media contributions."
+        time_varying_media: bool | InstanceOf[HSGPLike] = Field(
+            False,
+            description="Whether to consider time-varying media contributions.",
         ),
         model_config: dict | None = Field(None, description="Model configuration."),
         sampler_config: dict | None = Field(None, description="Sampler configuration."),
@@ -172,7 +175,24 @@ class BaseMMM(BaseValidateMMM):
         """
         self.control_columns = control_columns
         self.time_varying_intercept = time_varying_intercept
+        if isinstance(
+            self.time_varying_intercept,
+            HSGPLike,
+        ) and self.time_varying_intercept.dims != ("date",):
+            raise ValueError("Time-varying intercept must have dims=('date',).")
+
         self.time_varying_media = time_varying_media
+        if isinstance(
+            self.time_varying_media,
+            HSGPLike,
+        ) and (
+            self.time_varying_media.dims != ("date",)
+            and self.time_varying_media.dims != ("date", "channel")
+        ):
+            raise ValueError(
+                "Time-varying media must have dims=('date',) or dims=('date', 'channel')."
+            )
+
         self.date_column = date_column
         self.validate_data = validate_data
 
@@ -327,7 +347,7 @@ class BaseMMM(BaseValidateMMM):
         self.X: pd.DataFrame = X_data
         self.y: pd.Series | np.ndarray = y
 
-        if self.time_varying_intercept | self.time_varying_media:
+        if self.has_time_varying_intercept | self.has_time_varying_media:
             self._time_index = np.arange(0, X.shape[0])
             self._time_index_mid = X.shape[0] // 2
             self._time_resolution = (
@@ -387,6 +407,19 @@ class BaseMMM(BaseValidateMMM):
         )
 
         return second.apply(x=first.apply(x=x, dims="channel"), dims="channel")
+
+    @property
+    def has_time_varying_media(self) -> bool:
+        """Check if the model has time-varying media."""
+        return isinstance(self.time_varying_media, HSGPLike) or self.time_varying_media
+
+    @property
+    def has_time_varying_intercept(self) -> bool:
+        """Check if the model has time-varying intercept."""
+        return (
+            isinstance(self.time_varying_intercept, HSGPLike)
+            or self.time_varying_intercept
+        )
 
     def build_model(
         self,
@@ -470,14 +503,28 @@ class BaseMMM(BaseValidateMMM):
                 value=self.preprocessed_data["y"],
                 dims="date",
             )
-            if self.time_varying_intercept | self.time_varying_media:
+
+            if self.has_time_varying_intercept | self.has_time_varying_media:
                 time_index = pm.Data(
                     "time_index",
                     self._time_index,
                     dims="date",
                 )
 
-            if self.time_varying_intercept:
+            if isinstance(self.time_varying_intercept, HSGPLike):
+                baseline_intercept = self.model_config["intercept"].create_variable(
+                    "baseline_intercept"
+                )
+                self.time_varying_intercept.register_data(time_index)
+                intercept_latent_process = self.time_varying_intercept.create_variable(
+                    "intercept"
+                )
+                intercept = pm.Deterministic(
+                    name="intercept",
+                    var=baseline_intercept * intercept_latent_process,
+                    dims="date",
+                )
+            elif self.time_varying_intercept:
                 baseline_intercept = self.model_config["intercept"].create_variable(
                     "baseline_intercept"
                 )
@@ -500,7 +547,24 @@ class BaseMMM(BaseValidateMMM):
                     name="intercept"
                 )
 
-            if self.time_varying_media:
+            if isinstance(self.time_varying_media, HSGPLike):
+                baseline_channel_contributions = pm.Deterministic(
+                    name="baseline_channel_contributions",
+                    var=self.forward_pass(x=channel_data_),
+                    dims=("date", "channel"),
+                )
+                self.time_varying_media.register_data(time_index)
+                media_latent_process = self.time_varying_media.create_variable(
+                    "media_temporal_latent_multiplier"
+                )
+                dim_handler = create_dim_handler(("date", "channel"))
+                channel_contributions = pm.Deterministic(
+                    name="channel_contributions",
+                    var=baseline_channel_contributions
+                    * dim_handler(media_latent_process, self.time_varying_media.dims),
+                    dims=("date", "channel"),
+                )
+            elif self.time_varying_media:
                 baseline_channel_contributions = pm.Deterministic(
                     name="baseline_channel_contributions",
                     var=self.forward_pass(x=channel_data_),
