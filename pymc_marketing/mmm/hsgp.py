@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from enum import Enum
-from typing import Literal, cast
+from typing import Literal, Protocol, cast, runtime_checkable
 
 import numpy as np
 import numpy.typing as npt
@@ -34,6 +34,21 @@ from typing_extensions import Self
 
 from pymc_marketing.plot import SelToString, plot_curve
 from pymc_marketing.prior import Prior, create_dim_handler
+
+
+@runtime_checkable
+class HSGPLike(Protocol):
+    """Quacks like a HSGP."""
+
+    dims: tuple[str, ...]
+
+    def create_variable(self, name: str) -> TensorVariable:
+        """Create a variable."""
+        ...
+
+    def register_data(self, X: TensorLike) -> Self:
+        """Register the data."""
+        ...
 
 
 @validate_call
