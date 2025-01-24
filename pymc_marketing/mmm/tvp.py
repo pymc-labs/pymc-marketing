@@ -87,55 +87,23 @@ Create a basic PyMC model using the time-varying GP multiplier:
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import pymc as pm
 import pytensor.tensor as pt
 from pymc.distributions.shape_utils import Dims
+from pytensor.tensor.basic import TensorVariable
 
 from pymc_marketing.constants import DAYS_IN_YEAR
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
-from pymc_marketing.mmm.hsgp import HSGP, CovFunc
+from pymc_marketing.mmm.hsgp import CovFunc, SoftPlusHSGP
 from pymc_marketing.prior import Prior
-
-
-def _create_hsgp_instance(X, X_mid, dims: Dims, hsgp_kwargs: HSGPKwargs) -> HSGP:
-    X = pt.as_tensor_variable(X)
-    eta = Prior("Exponential", lam=hsgp_kwargs.eta_lam)
-    ls = Prior("InverseGamma", mu=hsgp_kwargs.ls_mu, sigma=hsgp_kwargs.ls_sigma)
-    cov_func = (
-        hsgp_kwargs.cov_func
-        if isinstance(hsgp_kwargs.cov_func, CovFunc)
-        else CovFunc.Matern52
-    )
-
-    if X_mid is None:
-        X_mid = float(X.mean().eval())
-
-    if hsgp_kwargs.L is None:
-        L = X_mid * 2
-    else:
-        L = hsgp_kwargs.L
-
-    return HSGP(
-        eta=eta,
-        ls=ls,
-        m=hsgp_kwargs.m,
-        L=L,
-        cov_func=cov_func,
-        X=X,
-        X_mid=X_mid,
-        centered=False,
-        dims=dims,
-        drop_first=False,
-    )
 
 
 def time_varying_prior(
     name: str,
-    X: pt.sharedvar.TensorSharedVariable,
+    X: TensorVariable,
     dims: Dims,
     X_mid: int | float | None = None,
     hsgp_kwargs: HSGPKwargs | None = None,
-) -> pt.TensorVariable:
+) -> TensorVariable:
     """Time varying prior, based on the Hilbert Space Gaussian Process (HSGP).
 
     For more information see `pymc.gp.HSGP <https://www.pymc.io/projects/docs/en/stable/api/gp/generated/pymc.gp.HSGP.html>`_.
@@ -174,26 +142,47 @@ def time_varying_prior(
     if hsgp_kwargs is None:
         hsgp_kwargs = HSGPKwargs()
 
-    hsgp = _create_hsgp_instance(
+    X = pt.as_tensor_variable(X)
+    eta = Prior("Exponential", lam=hsgp_kwargs.eta_lam)
+    ls = Prior("InverseGamma", mu=hsgp_kwargs.ls_mu, sigma=hsgp_kwargs.ls_sigma)
+    cov_func = (
+        hsgp_kwargs.cov_func
+        if isinstance(hsgp_kwargs.cov_func, CovFunc)
+        else CovFunc.Matern52
+    )
+
+    if X_mid is None:
+        X_mid = float(X.mean().eval())
+
+    if hsgp_kwargs.L is None:
+        L = X_mid * 2
+    else:
+        L = hsgp_kwargs.L
+
+    hsgp = SoftPlusHSGP(
+        eta=eta,
+        ls=ls,
+        m=hsgp_kwargs.m,
+        L=L,
+        cov_func=cov_func,
         X=X,
         X_mid=X_mid,
+        centered=False,
         dims=dims,
-        hsgp_kwargs=hsgp_kwargs,
+        drop_first=False,
     )
-    f = hsgp.create_variable(f"{name}_raw")
-    f = pt.softplus(f)
-    centered_f = f - f.mean(axis=0) + 1
-    return pm.Deterministic(name, centered_f, dims=dims)
+
+    return hsgp.create_variable(name)
 
 
 def create_time_varying_gp_multiplier(
     name: str,
     dims: Dims,
-    time_index: pt.sharedvar.TensorSharedVariable,
+    time_index: TensorVariable,
     time_index_mid: int,
     time_resolution: int,
     hsgp_kwargs: HSGPKwargs,
-) -> pt.TensorVariable:
+) -> TensorVariable:
     """Create a time-varying Gaussian Process multiplier.
 
     Create a time-varying Gaussian Process multiplier based on the provided parameters.
@@ -234,7 +223,9 @@ def create_time_varying_gp_multiplier(
 
 
 def infer_time_index(
-    date_series_new: pd.Series, date_series: pd.Series, time_resolution: int
+    date_series_new: pd.Series,
+    date_series: pd.Series,
+    time_resolution: int,
 ) -> npt.NDArray[np.int_]:
     """Infer the time-index given a new dataset.
 
