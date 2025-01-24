@@ -161,6 +161,8 @@ def _find_first_transactions(
     customer_id_col: str,
     datetime_col: str,
     monetary_value_col: str | None = None,
+    purchase_covariate_cols: list | None = None,
+    dropout_covariate_cols: list | None = None,
     datetime_format: str | None = None,
     observation_period_end: str | pandas.Period | datetime | None = None,
     time_unit: str = "D",
@@ -214,6 +216,18 @@ def _find_first_transactions(
 
     if monetary_value_col:
         select_columns.append(monetary_value_col)
+
+    if purchase_covariate_cols:
+        select_columns.extend(purchase_covariate_cols)
+
+    if dropout_covariate_cols:
+        select_columns.extend(
+            [
+                extra_col
+                for extra_col in dropout_covariate_cols
+                if extra_col not in purchase_covariate_cols
+            ]
+        )
 
     if sort_transactions:
         transactions = transactions[select_columns].sort_values(select_columns).copy()
@@ -877,6 +891,8 @@ def _expected_cumulative_transactions(
         observation_period_end=observation_period_end,
         time_unit=time_unit,
         sort_transactions=sort_transactions,
+        purchase_covariate_cols=model.purchase_covariate_cols,
+        dropout_covariate_cols=model.dropout_covariate_cols,
     )
 
     # Mask, first transactions and repeated transactions
