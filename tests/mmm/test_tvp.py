@@ -149,28 +149,26 @@ def test_create_time_varying_intercept(coords, model_config):
         assert isinstance(result, pt.TensorVariable)
 
 
-@pytest.mark.parametrize("freq, time_resolution", [("D", 1), ("W", 7)])
-def test_infer_time_index_in_sample(freq, time_resolution):
-    date_series = pd.Series(pd.date_range(start="1/1/2022", periods=5, freq=freq))
-    date_series_new = date_series
-    expected = np.arange(0, 5)
-    result = infer_time_index(date_series_new, date_series, time_resolution)
-    np.testing.assert_array_equal(result, expected)
-
-
-@pytest.mark.parametrize("freq, time_resolution", [("D", 1), ("W", 7)])
-def test_infer_time_index_oos_forward(freq, time_resolution):
-    date_series = pd.Series(pd.date_range(start="1/1/2022", periods=5, freq=freq))
-    date_series_new = date_series + pd.Timedelta(5, unit=freq)
-    expected = np.arange(5, 10)
-    result = infer_time_index(date_series_new, date_series, time_resolution)
-    np.testing.assert_array_equal(result, expected)
-
-
-@pytest.mark.parametrize("freq, time_resolution", [("D", 1), ("W", 7)])
-def test_infer_time_index_oos_backward(freq, time_resolution):
-    date_series = pd.Series(pd.date_range(start="1/1/2022", periods=5, freq=freq))
-    date_series_new = date_series - pd.Timedelta(5, unit=freq)
-    expected = np.arange(-5, 0)
+@pytest.mark.parametrize(
+    "freq, time_resolution",
+    [
+        pytest.param("D", 1, id="daily"),
+        pytest.param("W", 7, id="weekly"),
+    ],
+)
+@pytest.mark.parametrize(
+    "index",
+    [np.arange(5), np.arange(5) + 10],
+    ids=["zero-start", "non-zero-start"],
+)
+@pytest.mark.parametrize(
+    "offset, expected",
+    [(0, np.arange(0, 5)), (5, np.arange(5, 10)), (-5, np.arange(-5, 0))],
+    ids=["in-sample", "oos_forward", "oos_backward"],
+)
+def test_infer_time_index(freq, time_resolution, index, offset, expected):
+    dates = pd.date_range(start="1/1/2022", periods=5, freq=freq)
+    date_series = pd.Series(dates, index=index)
+    date_series_new = date_series + pd.Timedelta(offset, unit=freq)
     result = infer_time_index(date_series_new, date_series, time_resolution)
     np.testing.assert_array_equal(result, expected)
