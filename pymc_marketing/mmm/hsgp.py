@@ -154,7 +154,7 @@ def approx_hsgp_hyperparams(
     lengthscale_min, lengthscale_max = lengthscale_range
     if lengthscale_min >= lengthscale_max:
         raise ValueError(
-            "The boundaries are out of order. {lengthscale_min} should be less than {lengthscale_max}"
+            f"The boundaries are out of order. {lengthscale_min} should be less than {lengthscale_max}"
         )
 
     Xs = x - x_center
@@ -1005,3 +1005,14 @@ class HSGPPeriodic(HSGPBase):
                 data[key] = Prior.from_dict(data[key])
 
         return cls(**data)
+
+
+class SoftPlusHSGP(HSGP):
+    """HSGP with softplus transformation."""
+
+    def create_variable(self, name: str) -> TensorVariable:
+        """Create the variable."""
+        f = super().create_variable(f"{name}_raw")
+        f = pt.softplus(f)
+        centered_f = f - f.mean(axis=0) + 1
+        return pm.Deterministic(name, centered_f, dims=self.dims)
