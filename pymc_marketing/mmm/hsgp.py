@@ -50,6 +50,10 @@ class HSGPLike(Protocol):
         """Register the data."""
         ...
 
+    def to_dict(self) -> dict:
+        """Convert the object to a dictionary."""
+        ...
+
 
 @validate_call
 def create_complexity_penalizing_prior(

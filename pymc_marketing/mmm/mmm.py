@@ -372,8 +372,16 @@ class BaseMMM(BaseValidateMMM):
         attrs["channel_columns"] = json.dumps(self.channel_columns)
         attrs["validate_data"] = json.dumps(self.validate_data)
         attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
-        attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
-        attrs["time_varying_media"] = json.dumps(self.time_varying_media)
+        attrs["time_varying_intercept"] = json.dumps(
+            self.time_varying_intercept
+            if not isinstance(self.time_varying_intercept, HSGPLike)
+            else self.time_varying_intercept.to_dict()
+        )
+        attrs["time_varying_media"] = json.dumps(
+            self.time_varying_media
+            if not isinstance(self.time_varying_media, HSGPLike)
+            else self.time_varying_media.to_dict()
+        )
         attrs["dag"] = json.dumps(self.dag)
         attrs["treatment_nodes"] = json.dumps(self.treatment_nodes)
         attrs["outcome_node"] = json.dumps(self.outcome_node)
