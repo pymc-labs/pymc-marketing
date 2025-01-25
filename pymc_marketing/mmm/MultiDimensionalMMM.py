@@ -440,27 +440,31 @@ class MMM(MMMPlotSuite):
                 mutable=False,
             )
 
-            # Scale `channel_data` and `target`
-            channel_data_ = pm.Data(
+            _channel_data_raw = pm.Data(
                 name="channel_data",
-                value=(
-                    self.xarray_dataset._channel.transpose(
-                        "date", *self.dims, "channel"
-                    ).values
-                    / _channel_scale.eval()
-                ),
+                value=self.xarray_dataset._channel.transpose(
+                    "date", *self.dims, "channel"
+                ).values,
+                mutable=False,
                 dims=("date", *self.dims, "channel"),
             )
 
-            target_ = pm.Data(
+            _target_data_raw = pm.Data(
                 name="target",
                 value=(
                     self.xarray_dataset._target.sum(dim="target")
                     .transpose("date", *self.dims)
                     .values
                 ),
+                mutable=False,
                 dims=("date", *self.dims),
             )
+
+            # Scale `channel_data` and `target`
+            channel_data_ = (_channel_data_raw / _channel_scale)
+            channel_data_.name = "channel_data_scaled"
+            channel_data_.dims = ("date", *self.dims, "channel")
+            
             if self.time_varying_intercept | self.time_varying_media:
                 time_index = pm.Data(
                     name="time_index",
@@ -573,15 +577,17 @@ class MMM(MMMPlotSuite):
                 )
                 mu_var += yearly_seasonality_contribution
 
-            mu_var *= _target_scale.eval()
+            mu_var *= _target_scale
 
-            mu = pm.Deterministic(name="mu", var=mu_var, dims=("date", *self.dims))
+            mu_var.name = "mu"
+            mu_var.dims = ("date", *self.dims)
 
             self.model_config["likelihood"].dims = ("date", *self.dims)
+            # self.model_config["likelihood"].parameters["sigma"] *= _target_scale
             self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,
-                mu=mu,
-                observed=target_,
+                mu=mu_var,
+                observed=_target_data_raw,
             )
 
     def fit(
