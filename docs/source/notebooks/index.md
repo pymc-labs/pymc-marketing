@@ -7,8 +7,6 @@ Here you will find a collection of examples and how-to guides for using PyMC-Mar
 :caption: MMMs
 :maxdepth: 1
 
-mmm/mmm_example
-mmm/mmm_budget_allocation_example
 mmm/mmm_allocation_assessment
 mmm/mmm_budget_allocation_example
 mmm/mmm_case_study
