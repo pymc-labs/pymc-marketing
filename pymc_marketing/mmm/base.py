@@ -1116,16 +1116,29 @@ class MMMModelBuilder(ModelBuilder):
         ax.legend(title="groups", loc="center left", bbox_to_anchor=(1, 0.5))
         return fig
 
-    def _get_channel_contributions_share_samples(self) -> DataArray:
+    def get_channel_contributions_share_samples(self, prior: bool = False) -> DataArray:
+        """Get the share of channel contributions in the original scale of the target variable.
+
+        Parameters
+        ----------
+        prior : bool, optional
+            Whether to use the prior or posterior, by default False (posterior)
+
+        Returns
+        -------
+        DataArray
+            The share of channel contributions in the original scale of the target variable.
+
+        """
         channel_contribution_original_scale_samples: DataArray = (
-            self.compute_channel_contribution_original_scale()
+            self.compute_channel_contribution_original_scale(prior=prior)
         )
         numerator: DataArray = channel_contribution_original_scale_samples.sum(["date"])
         denominator: DataArray = numerator.sum("channel")
         return numerator / denominator
 
     def plot_channel_contribution_share_hdi(
-        self, hdi_prob: float = 0.94, **plot_kwargs: Any
+        self, hdi_prob: float = 0.94, prior: bool = False, **plot_kwargs: Any
     ) -> plt.Figure:
         """Plot the share of channel contributions in a forest plot.
 
@@ -1133,6 +1146,8 @@ class MMMModelBuilder(ModelBuilder):
         ----------
         hdi_prob : float, optional
             HDI value to be displayed, by default 0.94
+        prior : bool, optional
+            Whether to use the prior or posterior, by default False (posterior)
         **plot_kwargs
             Additional keyword arguments to pass to `az.plot_forest`.
 
@@ -1142,7 +1157,7 @@ class MMMModelBuilder(ModelBuilder):
 
         """
         channel_contributions_share: DataArray = (
-            self._get_channel_contributions_share_samples()
+            self.get_channel_contributions_share_samples(prior=prior)
         )
 
         ax, *_ = az.plot_forest(
