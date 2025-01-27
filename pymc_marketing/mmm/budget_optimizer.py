@@ -375,8 +375,10 @@ class BudgetOptimizer(BaseModel):
     def allocate_budget(
         self,
         total_budget: float,
+        *,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
         minimize_kwargs: dict[str, Any] | None = None,
+        return_if_fail: bool = False,
     ) -> tuple[DataArray, OptimizeResult]:
         """
         Allocate the budget based on `total_budget`, optional `budget_bounds`, and custom constraints.
@@ -396,6 +398,8 @@ class BudgetOptimizer(BaseModel):
         minimize_kwargs : dict, optional
             Extra kwargs for `scipy.optimize.minimize`. Defaults to method "SLSQP",
             ftol=1e-9, maxiter=1_000.
+        return_if_fail : bool, optional
+            Return output even if optimization fails. Default is False.
 
         Returns
         -------
@@ -487,7 +491,7 @@ class BudgetOptimizer(BaseModel):
         )
 
         # 7. Process results
-        if result.success:
+        if result.success or return_if_fail:
             if self.budgets_to_optimize is None:
                 # Reshape the entire optimized solution
                 optimal_budgets = np.reshape(result.x, self._budget_shape)
