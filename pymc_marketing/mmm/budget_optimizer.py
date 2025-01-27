@@ -196,7 +196,8 @@ class BudgetOptimizer(BaseModel):
             self._budgets = self._budgets_flat.reshape(self._budget_shape)
         else:
             # Masked case: fill a zero array, then set only the True positions
-            budgets_zeros = pt.zeros(self._budget_shape, name="budgets_zeros")
+            budgets_zeros = pt.zeros(self._budget_shape)
+            budgets_zeros.name = "budgets_zeros"
             bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
             self._budgets = budgets_zeros[bool_mask].set(self._budgets_flat)
 
@@ -417,8 +418,9 @@ class BudgetOptimizer(BaseModel):
                 UserWarning,
                 stacklevel=2,
             )
-            budget_bounds_array = np.array(
-                [[0, total_budget]] * np.prod(self._budget_shape)
+            budget_bounds_array = np.broadcast_to(
+                [0, total_budget],
+                (*self._budget_shape, 2),
             )
         elif isinstance(budget_bounds, dict):
             if len(self._budget_dims) > 1:
