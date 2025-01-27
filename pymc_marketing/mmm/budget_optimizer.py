@@ -375,7 +375,6 @@ class BudgetOptimizer(BaseModel):
     def allocate_budget(
         self,
         total_budget: float,
-        *,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
         minimize_kwargs: dict[str, Any] | None = None,
         return_if_fail: bool = False,
