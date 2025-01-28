@@ -912,7 +912,7 @@ class WeeklyFourier(FourierBase):
     days_in_period: float = DAYS_IN_WEEK
 
     def _get_default_start_date(self) -> datetime.datetime:
-        """Get the default start date for monthly seasonality.
+        """Get the default start date for weekly seasonality.
 
         Returns the first day of the current month.
         """
