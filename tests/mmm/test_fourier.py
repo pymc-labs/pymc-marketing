@@ -54,9 +54,18 @@ def test_nodes() -> None:
     assert yearly.nodes == ["sin_1", "sin_2", "cos_1", "cos_2"]
 
 
-def test_sample_prior() -> None:
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_sample_prior(seasonality) -> None:
     n_order = 2
-    yearly = YearlyFourier(n_order=n_order)
+    yearly = seasonality(n_order=n_order)
     prior = yearly.sample_prior(samples=10)
 
     assert prior.sizes == {
@@ -66,17 +75,67 @@ def test_sample_prior() -> None:
     }
 
 
-def test_sample_curve() -> None:
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_sample_curve(seasonality) -> None:
     n_order = 2
-    yearly = YearlyFourier(n_order=n_order)
-    prior = yearly.sample_prior(samples=10)
-    curve = yearly.sample_curve(prior)
+    periodicity = seasonality(n_order=n_order)
+    prior = periodicity.sample_prior(samples=10)
+    curve = periodicity.sample_curve(prior)
 
     assert curve.sizes == {
         "chain": 1,
         "draw": 10,
-        "day": 367,
+        "day": np.ceil(periodicity.days_in_period) + 1,
     }
+
+
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_sample_curve_use_dates(seasonality) -> None:
+    n_order = 2
+    periodicity = seasonality(n_order=n_order)
+    prior = periodicity.sample_prior(samples=10)
+    curve = periodicity.sample_curve(prior, use_dates=True)
+
+    assert curve.sizes == {
+        "chain": 1,
+        "draw": 10,
+        "date": np.ceil(periodicity.days_in_period) + 1,
+    }
+
+
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_sample_curve_same_size(seasonality) -> None:
+    n_order = 2
+    periodicity = seasonality(n_order=n_order)
+    prior = periodicity.sample_prior(samples=10)
+    curve_without_dates = periodicity.sample_curve(prior, use_dates=False)
+    curve_with_dates = periodicity.sample_curve(prior, use_dates=False)
+
+    assert curve_without_dates.sizes == curve_with_dates.sizes
 
 
 def create_mock_variable(coords):
@@ -450,7 +509,7 @@ def test_fourier_serializable_arbitrary_prior() -> None:
     [
         ("YearlyFourier", YearlyFourier, 365.25),
         ("MonthlyFourier", MonthlyFourier, 30.4375),
-        ("WeeklyFrourier", WeeklyFourier, 7),
+        ("WeeklyFourier", WeeklyFourier, 7),
     ],
     ids=["YearlyFourier", "MonthlyFourier", "WeeklyFourier"],
 )
