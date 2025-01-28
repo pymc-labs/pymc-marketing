@@ -866,7 +866,7 @@ class MonthlyFourier(FourierBase):
 
 
 class WeeklyFourier(FourierBase):
-    """Monthly fourier seasonality.
+    """Weekly fourier seasonality.
 
     .. plot::
         :context: close-figs
