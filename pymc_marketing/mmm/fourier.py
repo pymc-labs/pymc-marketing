@@ -875,12 +875,12 @@ class WeeklyFourier(FourierBase):
         import matplotlib.pyplot as plt
         import numpy as np
 
-        from pymc_marketing.mmm import MonthlyFourier
+        from pymc_marketing.mmm import WeeklyFourier
         from pymc_marketing.prior import Prior
 
         az.style.use("arviz-white")
 
-        seed = sum(map(ord, "Monthly"))
+        seed = sum(map(ord, "Weekly"))
         rng = np.random.default_rng(seed)
 
         mu = np.array([0, 0, 0.5, 0])
