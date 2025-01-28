@@ -15,3 +15,4 @@
 
 DAYS_IN_YEAR: float = 365.25
 DAYS_IN_MONTH: float = DAYS_IN_YEAR / 12
+DAYS_IN_WEEK: int = 7
