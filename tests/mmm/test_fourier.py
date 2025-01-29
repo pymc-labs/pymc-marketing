@@ -160,9 +160,9 @@ def test_sample_curve_same_size(seasonality) -> None:
     periodicity = seasonality(n_order=n_order)
     prior = periodicity.sample_prior(samples=10)
     curve_without_dates = periodicity.sample_curve(prior, use_dates=False)
-    curve_with_dates = periodicity.sample_curve(prior, use_dates=False)
+    curve_with_dates = periodicity.sample_curve(prior, use_dates=True)
 
-    assert curve_without_dates.sizes == curve_with_dates.sizes
+    assert curve_without_dates.shape == curve_with_dates.shape
 
 
 def create_mock_variable(coords):
