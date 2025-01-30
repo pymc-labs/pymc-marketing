@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2025 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -43,8 +43,267 @@ from pymc_marketing.prior import Prior
 class MMMPlotSuite:
     """Media Mix Model Plot Suite."""
 
+    def plot_posterior_predictive(
+        self, var: list[str] | None = None, idata: xr.Dataset | None = None
+    ):
+        """Plot time series from the posterior predictive distribution.
+
+        By default, if both `var` and `idata` are not provided, uses
+        `self.idata.posterior_predictive` and defaults the variable to `["y"]`.
+
+        Parameters
+        ----------
+        var : list of str, optional
+            A list of variable names to plot. Default is ["y"] if not provided.
+        idata : xarray.Dataset, optional
+            The posterior predictive dataset to plot. If not provided, tries to
+            use `self.idata.posterior_predictive`.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the subplots.
+        axes : np.ndarray of matplotlib.axes.Axes
+            Array of Axes objects corresponding to each subplot row.
+
+        Raises
+        ------
+        ValueError
+            If no `idata` is provided and `self.idata.posterior_predictive` does
+            not exist, instructing the user to run `MMM.sample_posterior_predictive()`.
+        """
+        # 1. Determine which posterior predictive to use
+        if idata is None:
+            # Check existence of self.idata.posterior_predictive
+            if (
+                not hasattr(self.idata, "posterior_predictive")  # type: ignore
+                or self.idata.posterior_predictive is None  # type: ignore
+            ):
+                raise ValueError(
+                    "No posterior_predictive data found in 'self.idata'. "
+                    "Please run 'MMM.sample_posterior_predictive()' or provide "
+                    "an external 'idata' argument."
+                )
+            else:
+                pp_data = self.idata.posterior_predictive  # type: ignore
+        else:
+            pp_data = idata
+
+        # 2. Determine variables to plot
+        if var is None:
+            var = ["y"]  # default variable
+
+        # 3. Identify dimensions and additional dims
+        main_var = var[0]
+        if main_var not in pp_data:
+            raise ValueError(
+                f"Variable '{main_var}' not found in the provided posterior_predictive dataset."
+            )
+
+        all_dims = list(pp_data[main_var].dims)
+        ignored_dims = {"chain", "draw", "date", "sample"}
+        additional_dims = [d for d in all_dims if d not in ignored_dims]
+
+        # 4. Identify all combinations of additional dimensions
+        if additional_dims:
+            additional_coords = [pp_data.coords[dim].values for dim in additional_dims]
+            dim_combinations = list(itertools.product(*additional_coords))
+        else:
+            dim_combinations = [()]
+
+        # 5. Prepare subplots
+        n_rows = len(dim_combinations)
+        fig, axes = plt.subplots(
+            nrows=n_rows, ncols=1, figsize=(10, 4 * n_rows), squeeze=False
+        )
+
+        # 6. Loop over dimension combinations
+        for row_idx, combo in enumerate(dim_combinations):
+            ax = axes[row_idx][0]
+
+            # Build indexers
+            if additional_dims:
+                indexers = dict(zip(additional_dims, combo, strict=False))
+            else:
+                indexers = {}
+
+            # 7. Plot each requested variable
+            for v in var:
+                if v not in pp_data:
+                    raise ValueError(
+                        f"Variable '{v}' not in the posterior_predictive dataset."
+                    )
+
+                data = pp_data[v].sel(**indexers)
+
+                # Sum out leftover dims (if any remain) except date/chain/draw/sample
+                leftover_dims = [
+                    dim
+                    for dim in data.dims
+                    if dim not in {"date", "chain", "draw", "sample"}
+                ]
+                if leftover_dims:
+                    data = data.sum(dim=leftover_dims)
+
+                # Combine chain + draw into sample if they both exist
+                if "chain" in data.dims and "draw" in data.dims:
+                    data = data.stack(sample=("chain", "draw"))
+
+                # Compute median & 85% intervals across 'sample'
+                # (Adjust to your desired CI if necessary)
+                lower_q = 0.075  # for 85% CI: 0.5 - 0.85/2
+                upper_q = 0.925  # for 85% CI: 0.5 + 0.85/2
+                data_median = data.quantile(0.5, dim="sample")
+                data_lower = data.quantile(lower_q, dim="sample")
+                data_upper = data.quantile(upper_q, dim="sample")
+
+                # Extract date coordinate
+                if "date" not in data.dims:
+                    raise ValueError(
+                        f"Expected 'date' dimension in {v}, but none found."
+                    )
+                dates = data.coords["date"].values
+
+                # Plot
+                ax.plot(dates, data_median, label=v, alpha=0.9)
+                ax.fill_between(dates, data_lower, data_upper, alpha=0.2)
+
+            # 8. Build subplot title & axis labels
+            if additional_dims:
+                title_parts = [
+                    f"{dim}={val}"
+                    for dim, val in zip(additional_dims, combo, strict=False)
+                ]
+                ax.set_title(", ".join(title_parts))
+            else:
+                ax.set_title("Posterior Predictive Time Series")
+
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Posterior Predictive")
+            ax.legend(loc="best")
+
+        # 9. Layout & return
+        # plt.tight_layout()
+        return fig, axes
+
+    def plot_contributions_over_time(self, var: list[str], ci: float = 0.85):
+        """Plot the time-series contributions for each variable in `var`.
+
+        showing the median and the credible interval (default 85%).
+        Creates one subplot per combination of non-(chain/draw/date) dimensions
+        and places all variables on the same subplot.
+
+        Parameters
+        ----------
+        var : list of str
+            A list of variable names to plot from the posterior.
+        ci : float, optional
+            Credible interval width. For instance, 0.85 will show the
+            7.5th to 92.5th percentile range. The default is 0.85.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the subplots.
+        axes : np.ndarray of matplotlib.axes.Axes
+            Array of Axes objects corresponding to each subplot row.
+        """
+        # 1. Determine the set of dimensions besides chain, draw, date
+        #    (Here we assume all variables share the same dimension names
+        #     other than chain/draw/date.)
+        main_var = var[0]
+        all_dims = list(self.idata.posterior[main_var].dims)  # type: ignore
+        ignored_dims = {"chain", "draw", "date"}
+        additional_dims = [d for d in all_dims if d not in ignored_dims]
+
+        # 2. Identify all combinations of these additional dimension coordinates
+        if additional_dims:
+            additional_coords = [
+                self.idata.posterior.coords[dim].values  # type: ignore
+                for dim in additional_dims  # type: ignore
+            ]
+            dim_combinations = list(itertools.product(*additional_coords))
+        else:
+            # If no extra dims, treat it as a single "no-dim" combination
+            dim_combinations = [()]
+
+        # 3. Prepare the subplots
+        n_rows = len(dim_combinations)
+        fig, axes = plt.subplots(
+            nrows=n_rows, ncols=1, figsize=(10, 4 * n_rows), squeeze=False
+        )
+
+        # 4. Loop over each combination of the additional dimensions
+        for row_idx, combo in enumerate(dim_combinations):
+            ax = axes[row_idx][0]
+
+            # Build an indexing dictionary for sel()
+            if additional_dims:
+                indexers = dict(zip(additional_dims, combo, strict=False))
+            else:
+                indexers = {}
+
+            # 5. For each variable in `var`, calculate median and CI, then plot
+            for v in var:
+                # Extract data for this variable and dimension combo
+                data = self.idata.posterior[v].sel(**indexers)  # type: ignore
+                _other_dims = [
+                    dim
+                    for dim in data.dims
+                    if dim not in {"date", "chain", "draw", "sample"}
+                ]
+                if _other_dims:
+                    data = data.sum(dim=_other_dims)
+
+                # Merge chain and draw into one dimension if separate
+                # (this helps in computing quantiles across all samples)
+                if "chain" in data.dims and "draw" in data.dims:
+                    # Combine chain + draw
+                    data = data.stack(sample=("chain", "draw"))
+
+                # Compute median and credible intervals across 'sample'
+                lower_q = 0.5 - ci / 2
+                upper_q = 0.5 + ci / 2
+                data_median = data.quantile(0.5, dim="sample")
+                data_lower = data.quantile(lower_q, dim="sample")
+                data_upper = data.quantile(upper_q, dim="sample")
+
+                # Extract time index
+                # (assuming 'date' is definitely a dimension in data)
+                dates = data.coords["date"].values
+
+                # Plot median
+                ax.plot(dates, data_median, label=f"{v}", alpha=0.9)
+
+                # Plot credible interval as filled area
+                ax.fill_between(dates, data_lower, data_upper, alpha=0.2)
+
+            # 6. Build a meaningful title for the subplot
+            if additional_dims:
+                title_parts = [
+                    f"{dim}={val}"
+                    for dim, val in zip(additional_dims, combo, strict=False)
+                ]
+                ax.set_title(", ".join(title_parts))
+            else:
+                # If no extra dims, just a general title
+                ax.set_title("Time Series")
+
+            # 7. Set labels, legend, etc.
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Posterior Value")
+            ax.legend(loc="best")
+
+        # 8. Tight layout and show (or return)
+        # plt.tight_layout()
+        return fig, axes
+
     def plot_saturation_curves_scatter(self):
-        """Docstring."""
+        """Plot the saturation curves for each channel.
+
+        Creates one subplot per combination of non-(date/channel) dimensions
+        and places all channels on the same subplot.
+        """
         # Identify additional dimensions beyond 'date' and 'channel'
         additional_dims = [
             dim
@@ -87,7 +346,7 @@ class MMMPlotSuite:
                 x_data = self.idata.constant_data.channel_data.sel(**indexers)
 
                 # Select Y data (posterior contributions)
-                y_data = self.idata.posterior.channel_contributions.sel(**indexers)
+                y_data = self.idata.posterior.channel_contribution.sel(**indexers)
 
                 # Flatten 'chain' and 'draw' dimensions into a single 'sample' dimension
                 y_data = y_data.mean(dim=["chain", "draw"])
@@ -357,6 +616,47 @@ class MMM(MMMPlotSuite):
             "target_scale": self.scalers._target,
         }
 
+    def _validate_model_was_built(self) -> None:
+        """Validate that the model was built."""
+        if not hasattr(self, "model"):
+            raise ValueError(
+                "Model was not built. Build the model first using MMM.build_model()"
+            )
+
+    def _validate_contribution_variable(self, var: str) -> None:
+        """Validate that the variable ends with "_contribution" and is in the model."""
+        if not var.endswith("_contribution"):
+            raise ValueError(f"Variable {var} must end with '_contribution'")
+
+        if var not in self.model.named_vars:
+            raise ValueError(f"Variable {var} is not in the model")
+
+    def add_original_scale_contribution_variable(self, var: list[str]) -> None:
+        """Add a pm.Deterministic variable to the model that multiplies by the scaler.
+
+        Restricted to the model parameters. Only make it possible for "_contirbution" variables.
+
+        Parameters
+        ----------
+        var : list[str]
+            The variables to add the original scale contribution variable.
+
+        Examples
+        --------
+        >>> model.add_original_scale_contribution_variable(
+        >>>     var=["channel_contribution", "total_media_contribution", "likelihood"]
+        >>> )
+        """
+        self._validate_model_was_built()
+        with self.model:
+            for v in var:
+                self._validate_contribution_variable(v)
+                pm.Deterministic(
+                    name=v + "_original_scale",
+                    var=self.model[v] * self.model["target_scale"],
+                    dims=self.model.named_vars_to_dims[v],
+                )
+
     def build_model(
         self,
         X: pd.DataFrame,
@@ -440,31 +740,33 @@ class MMM(MMMPlotSuite):
                 mutable=False,
             )
 
-            _channel_data_raw = pm.Data(
+            _channel_data = pm.Data(
                 name="channel_data",
                 value=self.xarray_dataset._channel.transpose(
                     "date", *self.dims, "channel"
                 ).values,
-                mutable=False,
                 dims=("date", *self.dims, "channel"),
             )
 
-            _target_data_raw = pm.Data(
+            _target = pm.Data(
                 name="target",
                 value=(
                     self.xarray_dataset._target.sum(dim="target")
                     .transpose("date", *self.dims)
                     .values
                 ),
-                mutable=False,
                 dims=("date", *self.dims),
             )
 
             # Scale `channel_data` and `target`
-            channel_data_ = (_channel_data_raw / _channel_scale)
+            channel_data_ = _channel_data / _channel_scale
             channel_data_.name = "channel_data_scaled"
             channel_data_.dims = ("date", *self.dims, "channel")
-            
+
+            target_data_ = _target / _target_scale
+            target_data_.name = "target_scaled"
+            target_data_.dims = ("date", *self.dims)
+
             if self.time_varying_intercept | self.time_varying_media:
                 time_index = pm.Data(
                     name="time_index",
@@ -485,19 +787,19 @@ class MMM(MMMPlotSuite):
                 ).create_variable("intercept_latent_process")
 
                 intercept = pm.Deterministic(
-                    name="intercept",
+                    name="intercept_contribution",
                     var=baseline_intercept[None, ...] * intercept_latent_process,
                     dims=("date", *self.dims),
                 )
             else:
                 intercept = self.model_config["intercept"].create_variable(
-                    name="intercept"
+                    name="intercept_contribution"
                 )
 
             # Add media logic
             if self.time_varying_media:
-                baseline_channel_contributions = pm.Deterministic(
-                    name="baseline_channel_contributions",
+                baseline_channel_contribution = pm.Deterministic(
+                    name="baseline_channel_contribution",
                     var=self.forward_pass(x=channel_data_),
                     dims=("date", *self.dims, "channel"),
                 )
@@ -508,28 +810,26 @@ class MMM(MMMPlotSuite):
                     **self.model_config["media_tvp_config"],
                 ).create_variable("media_latent_process")
 
-                channel_contributions = pm.Deterministic(
-                    name="channel_contributions",
-                    var=baseline_channel_contributions
-                    * media_latent_process[..., None],
+                channel_contribution = pm.Deterministic(
+                    name="channel_contribution",
+                    var=baseline_channel_contribution * media_latent_process[..., None],
                     dims=("date", *self.dims, "channel"),
                 )
             else:
-                channel_contributions = pm.Deterministic(
-                    name="channel_contributions",
+                channel_contribution = pm.Deterministic(
+                    name="channel_contribution",
                     var=self.forward_pass(x=channel_data_),
                     dims=("date", *self.dims, "channel"),
                 )
 
-            # Sum across all -("date", *self.dims, "channel")-
             pm.Deterministic(
-                name="total_media_contribution",
-                var=channel_contributions.sum(),
+                name="total_media_contribution_original_scale",
+                var=channel_contribution.sum() * _target_scale,
                 dims=(),
             )
 
             # Add other contributions and likelihood
-            mu_var = intercept + channel_contributions.sum(axis=-1)
+            mu_var = intercept + channel_contribution.sum(axis=-1)
 
             if self.control_columns is not None and len(self.control_columns) > 0:
                 gamma_control = self.model_config["gamma_control"].create_variable(
@@ -544,13 +844,13 @@ class MMM(MMMPlotSuite):
                     dims=("date", *self.dims, "control"),
                 )
 
-                control_contributions = pm.Deterministic(
-                    name="control_contributions",
+                control_contribution = pm.Deterministic(
+                    name="control_contribution",
                     var=control_data_ * gamma_control,
                     dims=("date", *self.dims, "control"),
                 )
 
-                mu_var += control_contributions.sum(axis=-1)
+                mu_var += control_contribution.sum(axis=-1)
 
             if self.yearly_seasonality is not None:
                 dayofyear = pm.Data(
@@ -563,7 +863,7 @@ class MMM(MMMPlotSuite):
 
                 def create_deterministic(x: pt.TensorVariable) -> None:
                     pm.Deterministic(
-                        "fourier_contributions",
+                        "fourier_contribution",
                         x,
                         dims=("date", *self.yearly_fourier.prior.dims),
                     )
@@ -577,17 +877,14 @@ class MMM(MMMPlotSuite):
                 )
                 mu_var += yearly_seasonality_contribution
 
-            mu_var *= _target_scale
-
             mu_var.name = "mu"
             mu_var.dims = ("date", *self.dims)
 
             self.model_config["likelihood"].dims = ("date", *self.dims)
-            # self.model_config["likelihood"].parameters["sigma"] *= _target_scale
             self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,
                 mu=mu_var,
-                observed=_target_data_raw,
+                observed=(_target.eval() / _target_scale.eval()),
             )
 
     def fit(
@@ -779,8 +1076,8 @@ class MMM(MMMPlotSuite):
 
         if self.time_varying_intercept or self.time_varying_media:
             data["time_index"] = infer_time_index(
-                dataset_xarray[self.date_column],
-                self.model_coords["date"],
+                pd.Series(dataset_xarray[self.date_column]),
+                pd.Series(self.model_coords["date"]),
                 self._time_resolution,
             )
 
