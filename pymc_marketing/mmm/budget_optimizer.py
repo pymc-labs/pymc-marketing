@@ -196,7 +196,8 @@ class BudgetOptimizer(BaseModel):
             self._budgets = self._budgets_flat.reshape(self._budget_shape)
         else:
             # Masked case: fill a zero array, then set only the True positions
-            budgets_zeros = pt.zeros(self._budget_shape, name="budgets_zeros")
+            budgets_zeros = pt.zeros(self._budget_shape)
+            budgets_zeros.name = "budgets_zeros"
             bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
             self._budgets = budgets_zeros[bool_mask].set(self._budgets_flat)
 
@@ -376,6 +377,7 @@ class BudgetOptimizer(BaseModel):
         total_budget: float,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
         minimize_kwargs: dict[str, Any] | None = None,
+        return_if_fail: bool = False,
     ) -> tuple[DataArray, OptimizeResult]:
         """
         Allocate the budget based on `total_budget`, optional `budget_bounds`, and custom constraints.
@@ -395,6 +397,8 @@ class BudgetOptimizer(BaseModel):
         minimize_kwargs : dict, optional
             Extra kwargs for `scipy.optimize.minimize`. Defaults to method "SLSQP",
             ftol=1e-9, maxiter=1_000.
+        return_if_fail : bool, optional
+            Return output even if optimization fails. Default is False.
 
         Returns
         -------
@@ -417,8 +421,9 @@ class BudgetOptimizer(BaseModel):
                 UserWarning,
                 stacklevel=2,
             )
-            budget_bounds_array = np.array(
-                [[0, total_budget]] * np.prod(self._budget_shape)
+            budget_bounds_array = np.broadcast_to(
+                [0, total_budget],
+                (*self._budget_shape, 2),
             )
         elif isinstance(budget_bounds, dict):
             if len(self._budget_dims) > 1:
@@ -485,7 +490,7 @@ class BudgetOptimizer(BaseModel):
         )
 
         # 7. Process results
-        if result.success:
+        if result.success or return_if_fail:
             if self.budgets_to_optimize is None:
                 # Reshape the entire optimized solution
                 optimal_budgets = np.reshape(result.x, self._budget_shape)
