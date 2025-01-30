@@ -83,6 +83,7 @@ def dummy_df():
             {"channel_1": 54.78357587906867, "channel_2": 45.21642412093133},
             48.8,
         ),
+        # custom minimize kwargs
         (
             100,
             optimizer_xarray_builder(
