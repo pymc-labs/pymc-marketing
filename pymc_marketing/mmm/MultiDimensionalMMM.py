@@ -385,7 +385,44 @@ class MMMPlotSuite:
 
 
 class MMM(MMMPlotSuite):
-    """Docstring example."""
+    """Media Mix Model class for estimating the impact of marketing channels on a target variable.
+
+    This class implements the core functionality of a Media Mix Model (MMM), allowing for the
+    specification of various marketing channels, adstock transformations, saturation effects,
+    and time-varying parameters. It provides methods for fitting the model to data, making
+    predictions, and visualizing the results.
+
+    Attributes
+    ----------
+    date_column : str
+        The name of the column representing the date in the dataset.
+    channel_columns : list[str]
+        A list of columns representing the marketing channels.
+    target_column : str
+        The name of the column representing the target variable to be predicted.
+    adstock : AdstockTransformation
+        The adstock transformation to apply to the channel data.
+    saturation : SaturationTransformation
+        The saturation transformation to apply to the channel data.
+    time_varying_intercept : bool
+        Whether to use a time-varying intercept in the model.
+    time_varying_media : bool
+        Whether to use time-varying effects for media channels.
+    dims : tuple | None
+        Additional dimensions for the model.
+    model_config : dict | None
+        Configuration settings for the model.
+    sampler_config : dict | None
+        Configuration settings for the sampler.
+    validate_data : bool
+        Whether to validate the input data.
+    control_columns : list[str] | None
+        A list of control variables to include in the model.
+    yearly_seasonality : int | None
+        The number of yearly seasonalities to include in the model.
+    adstock_first : bool
+        Whether to apply adstock transformations before saturation.
+    """
 
     _model_name: str = "BaseMMM"
     _model_type: str = "BaseValidateMMM"
