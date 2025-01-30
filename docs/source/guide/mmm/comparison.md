@@ -16,4 +16,4 @@ Given the popularity of the Media Mix Modelling (MMM) approach, there are many p
 | Custom priors | ✅ | ✅ | ❌ | ❌ | ✅ |
 | Lift-test calibration | ✅  | ❌ | ✅ | ❌ | ✅ |
 | Out of sample predictions | ✅ | ✅ | ❌ | ✅ | ✅ |
-| Unit-tested | ✅ | ✅ | ❌ | ✅ | ? |
+| Unit-tested | ✅ | ✅ | ❌ | ✅ | ✅ |
