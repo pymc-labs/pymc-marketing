@@ -25,6 +25,7 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
+from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
 
 from pymc_marketing.mmm import HSGP
@@ -1189,6 +1190,7 @@ class MMM(ModelBuilder):
     def _set_xarray_data(
         self,
         dataset_xarray: xr.Dataset,
+        clone_model: bool = True,
     ) -> None:
         """Set xarray data into the model.
 
@@ -1201,6 +1203,8 @@ class MMM(ModelBuilder):
         -------
         None
         """
+        model = cm(self.model) if clone_model else self.model
+
         data = {
             "channel_data": dataset_xarray._channel.transpose(
                 "date", *self.dims, "channel"
@@ -1228,7 +1232,7 @@ class MMM(ModelBuilder):
                 "date", *self.dims
             )
 
-        with self.model:
+        with model:
             pm.set_data(data, coords=coords)
 
     def sample_posterior_predictive(

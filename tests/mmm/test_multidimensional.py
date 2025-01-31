@@ -361,3 +361,128 @@ def test_fit_multi_dim(multi_dim_data):
     assert "country" in mmm.idata.posterior.dims, (
         "Posterior should have 'country' dimension."
     )
+
+
+def test_sample_posterior_predictive_new_data(single_dim_data, new_data_single_dim):
+    """
+    Test that sampling from the posterior predictive with new/unseen data
+    properly creates a 'posterior_predictive' group in the InferenceData.
+    """
+    X, y = single_dim_data
+    X_train = X.iloc[:-5]
+    X_new = X.iloc[-5:]
+
+    y_train = y.iloc[:-5]
+    _ = y.iloc[-5:]
+
+    # Build a small model
+    adstock = GeometricAdstock(l_max=2)
+    saturation = LogisticSaturation()
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=adstock,
+        saturation=saturation,
+    )
+
+    # Fit with a fixed seed for reproducibility
+    mmm.build_model(X_train, y_train)
+    mmm.fit(X_train, y_train, draws=200, tune=100, chains=1, random_seed=42)
+
+    mmm.sample_posterior_predictive(X_train, extend_idata=True, random_seed=42)
+
+    # Sample posterior predictive on new data
+    out_of_sample_idata = mmm.sample_posterior_predictive(
+        X_new, extend_idata=False, random_seed=42
+    )
+
+    # Check that posterior_predictive group was added
+    assert hasattr(mmm.idata, "posterior_predictive"), (
+        "After calling sample_posterior_predictive with new data, "
+        "there should be a 'posterior_predictive' group in the inference data."
+    )
+
+    # Check the shape of that group. We expect the new date dimension to match X_new length
+    # plus no addition if we didn't set include_last_observations (which is False by default).
+    assert "date" in out_of_sample_idata.dims, (
+        "posterior_predictive should have a 'date' dimension."
+    )
+    assert out_of_sample_idata.coords["date"].values.shape == X_new.date.values.shape, (
+        "The 'date' dimension in posterior_predictive should match new data length."
+    )
+
+
+def test_sample_posterior_predictive_same_data(single_dim_data):
+    """
+    Test that when we pass the SAME data used for training to sample_posterior_predictive:
+      1) It does NOT overwrite the 'posterior' group.
+      2) The deterministic variable (e.g. 'channel_contribution') from the
+         posterior predictive matches the same data in the posterior group.
+    """
+    X, y = single_dim_data
+    X_train = X.iloc[:-5]
+    _ = X.iloc[-5:]
+
+    y_train = y.iloc[:-5]
+    _ = y.iloc[-5:]
+
+    # Build a small model
+    adstock = GeometricAdstock(l_max=2)
+    saturation = LogisticSaturation()
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=adstock,
+        saturation=saturation,
+    )
+
+    # Fit with a fixed random seed
+    mmm.build_model(X_train, y_train)
+    mmm.fit(X_train, y_train, draws=200, tune=100, chains=1, random_seed=123)
+
+    # Just to confirm: 'posterior' group should exist before posterior predictive
+    assert hasattr(mmm.idata, "posterior"), (
+        "We expect a 'posterior' group after fitting."
+    )
+
+    # Sample posterior predictive with the SAME data
+    out_of_sample_idata = mmm.sample_posterior_predictive(
+        X_train,
+        # y_train,
+        extend_idata=False,
+        combined=False,
+        random_seed=123,
+        include_last_observations=False,
+        var_names=["channel_contribution", "intercept_contribution"],
+    )
+
+    # 1) Check that the 'posterior' group still exists
+    assert hasattr(mmm.idata, "posterior"), (
+        "The existing 'posterior' group should not be overwritten "
+        "by posterior predictive sampling."
+    )
+
+    # 2) Compare 'channel_contribution' in the posterior vs. posterior_predictive
+    # They should have the same shape if the data is the same
+    assert (
+        mmm.idata.posterior.channel_contribution.mean(dim=["draw", "chain"]).shape
+        == out_of_sample_idata.channel_contribution.mean(dim=["draw", "chain"]).shape
+    ), (
+        "Shapes of posterior and posterior_predictive 'channel_contribution' "
+        "must match when using the same data."
+    )
+
+    # They should be equal (or very close) because it's the same deterministic
+    # transformation for the same data and the same random draws.
+    assert np.allclose(
+        mmm.idata.posterior.channel_contribution.mean(dim=["draw", "chain"]),
+        out_of_sample_idata.channel_contribution.mean(dim=["draw", "chain"]),
+        atol=1e-4,
+    ), (
+        "When passing identical data for posterior predictive, "
+        "'channel_contribution' should match exactly (or within floating tolerance) "
+        "the values in the 'posterior' group."
+    )
