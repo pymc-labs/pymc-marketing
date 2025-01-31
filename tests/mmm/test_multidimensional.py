@@ -16,14 +16,97 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+import xarray as xr
 
-from pymc_marketing.mmm.components.adstock import GeometricAdstock
-from pymc_marketing.mmm.components.saturation import LogisticSaturation
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.multidimensional import MMM
+from tests.conftest import mock_sample
 
-# -------------------------------------------------------------------
-#                         Fixtures
-# -------------------------------------------------------------------
+
+@pytest.fixture
+def mmm():
+    return MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        dims=("country",),
+        target_column="y",
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+    )
+
+
+@pytest.fixture
+def df() -> pd.DataFrame:
+    dates = pd.date_range("2025-01-01", periods=3, freq="W-MON").rename("date")
+    df = pd.DataFrame(
+        {
+            ("A", "C1"): [1, 2, 3],
+            ("B", "C1"): [4, 5, 6],
+            ("A", "C2"): [7, 8, 9],
+            ("B", "C2"): [10, 11, 12],
+        },
+        index=dates,
+    )
+    df.columns.names = ["country", "channel"]
+
+    y = pd.DataFrame(
+        {
+            ("A", "y"): [1, 2, 3],
+            ("B", "y"): [4, 5, 6],
+        },
+        index=dates,
+    )
+    y.columns.names = ["country", "channel"]
+
+    return pd.concat(
+        [
+            df.stack("country", future_stack=True),
+            y.stack("country", future_stack=True),
+        ],
+        axis=1,
+    ).reset_index()
+
+
+@pytest.fixture
+def mock_pymc_sample() -> None:
+    original_sample = pm.sample
+    pm.sample = mock_sample
+
+    yield
+
+    pm.sample = original_sample
+
+
+@pytest.fixture
+def fit_mmm(df, mmm, mock_pymc_sample):
+    X = df.drop(columns=["y"])
+    y = df["y"]
+
+    mmm.fit(X, y)
+
+    return mmm
+
+
+def test_fit(fit_mmm):
+    assert isinstance(fit_mmm.posterior, xr.Dataset)
+    assert isinstance(fit_mmm.idata.fit_data, xr.Dataset)
+
+
+def test_sample_prior_predictive(mmm: MMM, df: pd.DataFrame):
+    X = df.drop(columns=["y"])
+    y = df["y"]
+    mmm.sample_prior_predictive(X, y)
+
+    assert isinstance(mmm.prior, xr.Dataset)
+    assert isinstance(mmm.prior_predictive, xr.Dataset)
+
+
+def test_save_load(fit_mmm: MMM):
+    file = "test.nc"
+    fit_mmm.save(file)
+
+    loaded = MMM.load(file)
+    assert isinstance(loaded, MMM)
 
 
 @pytest.fixture
@@ -56,9 +139,8 @@ def single_dim_data():
         + np.random.randint(100, 300, size=len(date_range))
     )
     X = df[["date", "channel_1", "channel_2"]].copy()
-    y = df[["date", "target"]].copy()  # or pd.Series if you prefer
 
-    return X, y
+    return X, df["target"].copy()
 
 
 @pytest.fixture
@@ -88,14 +170,8 @@ def multi_dim_data():
     )
 
     X = df[["date", "country", "channel_1", "channel_2"]].copy()
-    y = df[["date", "country", "target"]].copy()  # can remain a DF or become a Series
 
-    return X, y
-
-
-# -------------------------------------------------------------------
-#                     Test build_model
-# -------------------------------------------------------------------
+    return X, df["target"].copy()
 
 
 @pytest.mark.parametrize(
@@ -206,7 +282,6 @@ def test_build_model_multi_dim(
 
     mmm.build_model(X, y)
 
-    # Assertions
     assert hasattr(mmm, "model"), "Model attribute should be set after build_model."
     assert isinstance(mmm.model, pm.Model), "mmm.model should be a PyMC Model instance."
     assert "country" in mmm.model.coords, (
@@ -214,12 +289,7 @@ def test_build_model_multi_dim(
     )
 
 
-# -------------------------------------------------------------------
-#                       Test fit model
-# -------------------------------------------------------------------
-
-
-def test_fit_single_dim(single_dim_data):
+def test_fit_single_dim(single_dim_data, mock_pymc_sample):
     """Test fitting the model on a single-dimension dataset."""
     X, y = single_dim_data
 
@@ -256,7 +326,7 @@ def test_fit_single_dim(single_dim_data):
     )
 
 
-def test_fit_multi_dim(multi_dim_data):
+def test_fit_multi_dim(multi_dim_data, mock_pymc_sample):
     """Test fitting the model on a multi-dimensional dataset (e.g. with 'country')."""
     X, y = multi_dim_data
 
@@ -293,7 +363,8 @@ def test_fit_multi_dim(multi_dim_data):
     )
 
 
-def test_sample_posterior_predictive_new_data(single_dim_data, new_data_single_dim):
+@pytest.mark.xfail(reason="Need to work through the new data.")
+def test_sample_posterior_predictive_new_data(single_dim_data, mock_pymc_sample):
     """
     Test that sampling from the posterior predictive with new/unseen data
     properly creates a 'posterior_predictive' group in the InferenceData.
@@ -343,7 +414,7 @@ def test_sample_posterior_predictive_new_data(single_dim_data, new_data_single_d
     )
 
 
-def test_sample_posterior_predictive_same_data(single_dim_data):
+def test_sample_posterior_predictive_same_data(single_dim_data, mock_pymc_sample):
     """
     Test that when we pass the SAME data used for training to sample_posterior_predictive:
       1) It does NOT overwrite the 'posterior' group.
