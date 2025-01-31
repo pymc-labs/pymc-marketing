@@ -139,9 +139,8 @@ def single_dim_data():
         + np.random.randint(100, 300, size=len(date_range))
     )
     X = df[["date", "channel_1", "channel_2"]].copy()
-    y = df[["date", "target"]].copy()  # or pd.Series if you prefer
 
-    return X, y
+    return X, df["target"].copy()
 
 
 @pytest.fixture
@@ -171,9 +170,8 @@ def multi_dim_data():
     )
 
     X = df[["date", "country", "channel_1", "channel_2"]].copy()
-    y = df[["date", "country", "target"]].copy()  # can remain a DF or become a Series
 
-    return X, y
+    return X, df["target"].copy()
 
 
 @pytest.mark.parametrize(
@@ -284,7 +282,6 @@ def test_build_model_multi_dim(
 
     mmm.build_model(X, y)
 
-    # Assertions
     assert hasattr(mmm, "model"), "Model attribute should be set after build_model."
     assert isinstance(mmm.model, pm.Model), "mmm.model should be a PyMC Model instance."
     assert "country" in mmm.model.coords, (
