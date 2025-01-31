@@ -508,6 +508,8 @@ class MMM(ModelBuilder):
         self.channel_columns = channel_columns
         self.yearly_seasonality = yearly_seasonality
 
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
+
         if self.yearly_seasonality is not None:
             self.yearly_fourier = YearlyFourier(
                 n_order=self.yearly_seasonality,
@@ -515,8 +517,6 @@ class MMM(ModelBuilder):
                 prior=self.model_config["gamma_fourier"],
                 variable_name="gamma_fourier",
             )
-
-        super().__init__(model_config=model_config, sampler_config=sampler_config)
 
     @property
     def default_sampler_config(self) -> dict:
