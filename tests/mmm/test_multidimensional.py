@@ -58,8 +58,8 @@ def df() -> pd.DataFrame:
 
     return pd.concat(
         [
-            df.stack("country"),
-            y.stack("country"),
+            df.stack("country", future_stack=True),
+            y.stack("country", future_stack=True),
         ],
         axis=1,
     ).reset_index()

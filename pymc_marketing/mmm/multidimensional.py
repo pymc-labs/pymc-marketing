@@ -878,13 +878,11 @@ class MMM(ModelBuilder, MMMPlotSuite):
             _channel_scale = pm.Data(
                 "channel_scale",
                 self.scalers._channel.values,
-                mutable=False,
                 dims="channel",
             )
             _target_scale = pm.Data(
                 "target_scale",
                 self.scalers._target.item(),
-                mutable=False,
             )
 
             _channel_data = pm.Data(
