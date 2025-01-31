@@ -44,9 +44,137 @@ from pymc_marketing.prior import Prior
 
 
 class MMMPlotSuite:
-    """Media Mix Model Plot Suite."""
+    """Media Mix Model Plot Suite.
 
-    def plot_posterior_predictive(
+    Provides methods for visualizing the posterior predictive distribution,
+    contributions over time, and saturation curves for a Media Mix Model.
+    """
+
+    def __init__(self, idata: xr.Dataset | az.InferenceData):
+        self.idata = idata
+
+    def _init_subplots(
+        self,
+        n_subplots: int,
+        ncols: int = 1,
+        width_per_col: float = 10,
+        height_per_row: float = 4,
+    ):
+        """Initialize a grid of subplots.
+
+        Parameters
+        ----------
+        n_subplots : int
+            Number of rows (if ncols=1) or total subplots.
+        ncols : int
+            Number of columns in the subplot grid.
+        width_per_col : float
+            Width (in inches) for each column of subplots.
+        height_per_row : float
+            Height (in inches) for each row of subplots.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The created Figure object.
+        axes : np.ndarray of matplotlib.axes.Axes
+            2D array of axes of shape (n_subplots, ncols).
+        """
+        fig, axes = plt.subplots(
+            nrows=n_subplots,
+            ncols=ncols,
+            figsize=(width_per_col * ncols, height_per_row * n_subplots),
+            squeeze=False,
+        )
+        return fig, axes
+
+    def _build_subplot_title(
+        self,
+        dims: list[str],
+        combo: tuple,
+        fallback_title: str = "Time Series",
+    ) -> str:
+        """Build a subplot title string from dimension names and their values."""
+        if dims:
+            title_parts = [f"{d}={v}" for d, v in zip(dims, combo, strict=False)]
+            return ", ".join(title_parts)
+        return fallback_title
+
+    def _get_additional_dim_combinations(
+        self,
+        data: xr.Dataset,
+        variable: str,
+        ignored_dims: set[str],
+    ) -> tuple[list[str], list[tuple]]:
+        """Identify dimensions to plot over and get their coordinate combinations."""
+        if variable not in data:
+            raise ValueError(f"Variable '{variable}' not found in the dataset.")
+
+        all_dims = list(data[variable].dims)
+        additional_dims = [d for d in all_dims if d not in ignored_dims]
+
+        if additional_dims:
+            additional_coords = [data.coords[d].values for d in additional_dims]
+            dim_combinations = list(itertools.product(*additional_coords))
+        else:
+            # If no extra dims, just treat as a single combination
+            dim_combinations = [()]
+
+        return additional_dims, dim_combinations
+
+    def _reduce_and_stack(
+        self, data: xr.DataArray, dims_to_ignore: set[str] | None = None
+    ) -> xr.DataArray:
+        """Sum over leftover dims and stack chain+draw into sample if present."""
+        if dims_to_ignore is None:
+            dims_to_ignore = {"date", "chain", "draw", "sample"}
+
+        leftover_dims = [d for d in data.dims if d not in dims_to_ignore]
+        if leftover_dims:
+            data = data.sum(dim=leftover_dims)
+
+        # Combine chain+draw into 'sample' if both exist
+        if "chain" in data.dims and "draw" in data.dims:
+            data = data.stack(sample=("chain", "draw"))
+
+        return data
+
+    def _compute_ci(
+        self, data: xr.DataArray, ci: float = 0.85, sample_dim: str = "sample"
+    ) -> tuple[xr.DataArray, xr.DataArray, xr.DataArray]:
+        """Compute median and lower/upper credible intervals over given sample_dim."""
+        lower_q = 0.5 - ci / 2
+        upper_q = 0.5 + ci / 2
+        data_median = data.quantile(0.5, dim=sample_dim)
+        data_lower = data.quantile(lower_q, dim=sample_dim)
+        data_upper = data.quantile(upper_q, dim=sample_dim)
+        return data_median, data_lower, data_upper
+
+    def _get_posterior_predictive_data(
+        self,
+        idata: xr.Dataset | None,
+    ) -> xr.Dataset:
+        """Retrieve the posterior_predictive group from either provided or self.idata."""
+        if idata is not None:
+            return idata
+
+        # Otherwise, check if self.idata has posterior_predictive
+        if (
+            not hasattr(self.idata, "posterior_predictive")  # type: ignore
+            or self.idata.posterior_predictive is None  # type: ignore
+        ):
+            raise ValueError(
+                "No posterior_predictive data found in 'self.idata'. "
+                "Please run 'MMM.sample_posterior_predictive()' or provide "
+                "an external 'idata' argument."
+            )
+        return self.idata.posterior_predictive  # type: ignore
+
+    # ------------------------------------------------------------------------
+    #                          Main Plotting Methods
+    # ------------------------------------------------------------------------
+
+    def posterior_predictive(
         self, var: list[str] | None = None, idata: xr.Dataset | None = None
     ):
         """Plot time series from the posterior predictive distribution.
@@ -75,62 +203,35 @@ class MMMPlotSuite:
             If no `idata` is provided and `self.idata.posterior_predictive` does
             not exist, instructing the user to run `MMM.sample_posterior_predictive()`.
         """
-        # 1. Determine which posterior predictive to use
-        if idata is None:
-            # Check existence of self.idata.posterior_predictive
-            if (
-                not hasattr(self.idata, "posterior_predictive")  # type: ignore
-                or self.idata.posterior_predictive is None  # type: ignore
-            ):
-                raise ValueError(
-                    "No posterior_predictive data found in 'self.idata'. "
-                    "Please run 'MMM.sample_posterior_predictive()' or provide "
-                    "an external 'idata' argument."
-                )
-            else:
-                pp_data = self.idata.posterior_predictive  # type: ignore
-        else:
-            pp_data = idata
+        # 1. Retrieve or validate posterior_predictive data
+        pp_data = self._get_posterior_predictive_data(idata)
 
         # 2. Determine variables to plot
         if var is None:
-            var = ["y"]  # default variable
-
-        # 3. Identify dimensions and additional dims
+            var = ["y"]
         main_var = var[0]
-        if main_var not in pp_data:
-            raise ValueError(
-                f"Variable '{main_var}' not found in the provided posterior_predictive dataset."
-            )
 
-        all_dims = list(pp_data[main_var].dims)
+        # 3. Identify additional dims & get all combos
         ignored_dims = {"chain", "draw", "date", "sample"}
-        additional_dims = [d for d in all_dims if d not in ignored_dims]
-
-        # 4. Identify all combinations of additional dimensions
-        if additional_dims:
-            additional_coords = [pp_data.coords[dim].values for dim in additional_dims]
-            dim_combinations = list(itertools.product(*additional_coords))
-        else:
-            dim_combinations = [()]
-
-        # 5. Prepare subplots
-        n_rows = len(dim_combinations)
-        fig, axes = plt.subplots(
-            nrows=n_rows, ncols=1, figsize=(10, 4 * n_rows), squeeze=False
+        additional_dims, dim_combinations = self._get_additional_dim_combinations(
+            data=pp_data, variable=main_var, ignored_dims=ignored_dims
         )
 
-        # 6. Loop over dimension combinations
+        # 4. Prepare subplots
+        fig, axes = self._init_subplots(n_subplots=len(dim_combinations), ncols=1)
+
+        # 5. Loop over dimension combinations
         for row_idx, combo in enumerate(dim_combinations):
             ax = axes[row_idx][0]
 
             # Build indexers
-            if additional_dims:
-                indexers = dict(zip(additional_dims, combo, strict=False))
-            else:
-                indexers = {}
+            indexers = (
+                dict(zip(additional_dims, combo, strict=False))
+                if additional_dims
+                else {}
+            )
 
-            # 7. Plot each requested variable
+            # 6. Plot each requested variable
             for v in var:
                 if v not in pp_data:
                     raise ValueError(
@@ -138,27 +239,10 @@ class MMMPlotSuite:
                     )
 
                 data = pp_data[v].sel(**indexers)
-
-                # Sum out leftover dims (if any remain) except date/chain/draw/sample
-                leftover_dims = [
-                    dim
-                    for dim in data.dims
-                    if dim not in {"date", "chain", "draw", "sample"}
-                ]
-                if leftover_dims:
-                    data = data.sum(dim=leftover_dims)
-
-                # Combine chain + draw into sample if they both exist
-                if "chain" in data.dims and "draw" in data.dims:
-                    data = data.stack(sample=("chain", "draw"))
-
-                # Compute median & 85% intervals across 'sample'
-                # (Adjust to your desired CI if necessary)
-                lower_q = 0.075  # for 85% CI: 0.5 - 0.85/2
-                upper_q = 0.925  # for 85% CI: 0.5 + 0.85/2
-                data_median = data.quantile(0.5, dim="sample")
-                data_lower = data.quantile(lower_q, dim="sample")
-                data_upper = data.quantile(upper_q, dim="sample")
+                # Sum leftover dims, stack chain+draw if needed
+                data = self._reduce_and_stack(data, ignored_dims)
+                # Compute median & 85% intervals
+                median, lower, upper = self._compute_ci(data, ci=0.85)
 
                 # Extract date coordinate
                 if "date" not in data.dims:
@@ -168,28 +252,23 @@ class MMMPlotSuite:
                 dates = data.coords["date"].values
 
                 # Plot
-                ax.plot(dates, data_median, label=v, alpha=0.9)
-                ax.fill_between(dates, data_lower, data_upper, alpha=0.2)
+                ax.plot(dates, median, label=v, alpha=0.9)
+                ax.fill_between(dates, lower, upper, alpha=0.2)
 
-            # 8. Build subplot title & axis labels
-            if additional_dims:
-                title_parts = [
-                    f"{dim}={val}"
-                    for dim, val in zip(additional_dims, combo, strict=False)
-                ]
-                ax.set_title(", ".join(title_parts))
-            else:
-                ax.set_title("Posterior Predictive Time Series")
-
+            # 7. Subplot title & labels
+            title = self._build_subplot_title(
+                dims=additional_dims,
+                combo=combo,
+                fallback_title="Posterior Predictive Time Series",
+            )
+            ax.set_title(title)
             ax.set_xlabel("Date")
             ax.set_ylabel("Posterior Predictive")
             ax.legend(loc="best")
 
-        # 9. Layout & return
-        # plt.tight_layout()
         return fig, axes
 
-    def plot_contributions_over_time(self, var: list[str], ci: float = 0.85):
+    def contributions_over_time(self, var: list[str], ci: float = 0.85):
         """Plot the time-series contributions for each variable in `var`.
 
         showing the median and the credible interval (default 85%).
@@ -211,15 +290,18 @@ class MMMPlotSuite:
         axes : np.ndarray of matplotlib.axes.Axes
             Array of Axes objects corresponding to each subplot row.
         """
-        # 1. Determine the set of dimensions besides chain, draw, date
-        #    (Here we assume all variables share the same dimension names
-        #     other than chain/draw/date.)
+        if not hasattr(self.idata, "posterior"):
+            raise ValueError(
+                "No posterior data found in 'self.idata'. "
+                "Please ensure 'self.idata' contains a 'posterior' group."
+            )
+
         main_var = var[0]
         all_dims = list(self.idata.posterior[main_var].dims)  # type: ignore
         ignored_dims = {"chain", "draw", "date"}
         additional_dims = [d for d in all_dims if d not in ignored_dims]
 
-        # 2. Identify all combinations of these additional dimension coordinates
+        # Identify combos
         if additional_dims:
             additional_coords = [
                 self.idata.posterior.coords[dim].values  # type: ignore
@@ -227,141 +309,98 @@ class MMMPlotSuite:
             ]
             dim_combinations = list(itertools.product(*additional_coords))
         else:
-            # If no extra dims, treat it as a single "no-dim" combination
             dim_combinations = [()]
 
-        # 3. Prepare the subplots
-        n_rows = len(dim_combinations)
-        fig, axes = plt.subplots(
-            nrows=n_rows, ncols=1, figsize=(10, 4 * n_rows), squeeze=False
-        )
+        # Prepare subplots
+        fig, axes = self._init_subplots(len(dim_combinations), ncols=1)
 
-        # 4. Loop over each combination of the additional dimensions
+        # Loop combos
         for row_idx, combo in enumerate(dim_combinations):
             ax = axes[row_idx][0]
+            indexers = (
+                dict(zip(additional_dims, combo, strict=False))
+                if additional_dims
+                else {}
+            )
 
-            # Build an indexing dictionary for sel()
-            if additional_dims:
-                indexers = dict(zip(additional_dims, combo, strict=False))
-            else:
-                indexers = {}
-
-            # 5. For each variable in `var`, calculate median and CI, then plot
+            # Plot each var
             for v in var:
-                # Extract data for this variable and dimension combo
                 data = self.idata.posterior[v].sel(**indexers)  # type: ignore
-                _other_dims = [
-                    dim
-                    for dim in data.dims
-                    if dim not in {"date", "chain", "draw", "sample"}
-                ]
-                if _other_dims:
-                    data = data.sum(dim=_other_dims)
+                data = self._reduce_and_stack(data, {"date", "chain", "draw", "sample"})
 
-                # Merge chain and draw into one dimension if separate
-                # (this helps in computing quantiles across all samples)
-                if "chain" in data.dims and "draw" in data.dims:
-                    # Combine chain + draw
-                    data = data.stack(sample=("chain", "draw"))
+                # Compute median and credible intervals
+                median, lower, upper = self._compute_ci(data, ci=ci)
 
-                # Compute median and credible intervals across 'sample'
-                lower_q = 0.5 - ci / 2
-                upper_q = 0.5 + ci / 2
-                data_median = data.quantile(0.5, dim="sample")
-                data_lower = data.quantile(lower_q, dim="sample")
-                data_upper = data.quantile(upper_q, dim="sample")
-
-                # Extract time index
-                # (assuming 'date' is definitely a dimension in data)
+                # Extract dates
                 dates = data.coords["date"].values
+                ax.plot(dates, median, label=f"{v}", alpha=0.9)
+                ax.fill_between(dates, lower, upper, alpha=0.2)
 
-                # Plot median
-                ax.plot(dates, data_median, label=f"{v}", alpha=0.9)
-
-                # Plot credible interval as filled area
-                ax.fill_between(dates, data_lower, data_upper, alpha=0.2)
-
-            # 6. Build a meaningful title for the subplot
-            if additional_dims:
-                title_parts = [
-                    f"{dim}={val}"
-                    for dim, val in zip(additional_dims, combo, strict=False)
-                ]
-                ax.set_title(", ".join(title_parts))
-            else:
-                # If no extra dims, just a general title
-                ax.set_title("Time Series")
-
-            # 7. Set labels, legend, etc.
+            title = self._build_subplot_title(
+                dims=additional_dims, combo=combo, fallback_title="Time Series"
+            )
+            ax.set_title(title)
             ax.set_xlabel("Date")
             ax.set_ylabel("Posterior Value")
             ax.legend(loc="best")
 
-        # 8. Tight layout and show (or return)
-        # plt.tight_layout()
         return fig, axes
 
-    def plot_saturation_curves_scatter(self):
+    def saturation_curves_scatter(self):
         """Plot the saturation curves for each channel.
 
         Creates one subplot per combination of non-(date/channel) dimensions
         and places all channels on the same subplot.
         """
-        # Identify additional dimensions beyond 'date' and 'channel'
-        additional_dims = [
-            dim
-            for dim in self.idata.constant_data.channel_data.dims
-            if dim not in ("date", "channel")
-        ]
+        if not hasattr(self.idata, "constant_data"):
+            raise ValueError(
+                "No 'constant_data' found in 'self.idata'. "
+                "Please ensure 'self.idata' contains the constant_data group."
+            )
 
-        # Get all possible combinations of the additional dimensions
+        # Identify additional dimensions beyond 'date' and 'channel'
+        cdims = self.idata.constant_data.channel_data.dims
+        additional_dims = [dim for dim in cdims if dim not in ("date", "channel")]
+
+        # Get all possible combinations
         if additional_dims:
             additional_coords = [
-                self.idata.constant_data.coords[dim].values for dim in additional_dims
+                self.idata.constant_data.coords[d].values for d in additional_dims
             ]
             additional_combinations = list(itertools.product(*additional_coords))
         else:
             additional_combinations = [()]
 
-        # Determine the number of rows and columns for subplots
+        # Rows = channels, Columns = additional_combinations
+        channels = self.idata.constant_data.coords["channel"].values
+        n_rows = len(channels)
         n_columns = len(additional_combinations)
-        n_rows = len(self.idata.constant_data.coords["channel"])
 
         # Create subplots
-        fig, axes = plt.subplots(
-            nrows=n_rows,
-            ncols=n_columns,
-            figsize=(5 * n_columns, 4 * n_rows),
-            squeeze=False,
+        fig, axes = self._init_subplots(
+            n_subplots=n_rows, ncols=n_columns, width_per_col=5, height_per_row=4
         )
 
-        # Loop over each channel (row)
-        for row_idx, channel in enumerate(
-            self.idata.constant_data.coords["channel"].values
-        ):
-            # Loop over each combination of additional dimensions (column)
+        # Loop channels & combos
+        for row_idx, channel in enumerate(channels):
             for col_idx, combo in enumerate(additional_combinations):
-                # Build indexers for selecting data
+                ax = axes[row_idx][col_idx] if n_columns > 1 else axes[row_idx][0]
                 indexers = dict(zip(additional_dims, combo, strict=False))
                 indexers["channel"] = channel
 
                 # Select X data (constant_data)
                 x_data = self.idata.constant_data.channel_data.sel(**indexers)
-
                 # Select Y data (posterior contributions)
                 y_data = self.idata.posterior.channel_contribution.sel(**indexers)
 
-                # Flatten 'chain' and 'draw' dimensions into a single 'sample' dimension
+                # Flatten chain & draw by taking mean (or sum, up to design)
                 y_data = y_data.mean(dim=["chain", "draw"])
 
-                # Ensure X and Y have matching 'date' coordinates
+                # Ensure X and Y have matching date coords
                 x_data = x_data.broadcast_like(y_data)
                 y_data = y_data.broadcast_like(x_data)
 
-                # Select the appropriate axis
-                ax = axes[row_idx][col_idx] if n_columns > 1 else axes[row_idx][0]
-
-                # Plot the scatter plot
+                # Scatter
                 ax.scatter(
                     x_data.values.flatten(),
                     y_data.values.flatten(),
@@ -369,25 +408,19 @@ class MMMPlotSuite:
                     color=f"C{row_idx}",
                 )
 
-                # Set plot title and labels
-                title_parts = [
-                    f"{dim}={val}"
-                    for dim, val in zip(
-                        ["channel", *additional_dims],
-                        [channel, *list(combo)],
-                        strict=False,
-                    )
-                ]
-                ax.set_title(", ".join(title_parts))
+                title = self._build_subplot_title(
+                    dims=["channel", *additional_dims],
+                    combo=(channel, *combo),
+                    fallback_title="Channel Saturation Curves",
+                )
+                ax.set_title(title)
                 ax.set_xlabel("Channel Data (X)")
                 ax.set_ylabel("Channel Contributions (Y)")
 
-        # Adjust layout and display the plot
-        # plt.tight_layout()
         return fig, axes
 
 
-class MMM(ModelBuilder, MMMPlotSuite):
+class MMM(ModelBuilder):
     """Media Mix Model class for estimating the impact of marketing channels on a target variable.
 
     This class implements the core functionality of a Media Mix Model (MMM), allowing for the
@@ -417,8 +450,6 @@ class MMM(ModelBuilder, MMMPlotSuite):
         Configuration settings for the model.
     sampler_config : dict | None
         Configuration settings for the sampler.
-    validate_data : bool
-        Whether to validate the input data.
     control_columns : list[str] | None
         A list of control variables to include in the model.
     yearly_seasonality : int | None
@@ -429,7 +460,7 @@ class MMM(ModelBuilder, MMMPlotSuite):
 
     _model_name: str = "BaseMMM"
     _model_type: str = "BaseValidateMMM"
-    version: str = "0.0.3"
+    version: str = "0.0.1"
 
     def __init__(
         self,
@@ -443,7 +474,6 @@ class MMM(ModelBuilder, MMMPlotSuite):
         dims: tuple | None = None,
         model_config: dict | None = None,  # Ensure model_config is a dictionary
         sampler_config: dict | None = None,
-        validate_data: bool = True,
         control_columns: list[str] | None = None,
         yearly_seasonality: int | None = None,
         adstock_first: bool = True,
@@ -454,7 +484,6 @@ class MMM(ModelBuilder, MMMPlotSuite):
         self.time_varying_intercept = time_varying_intercept
         self.time_varying_media = time_varying_media
         self.date_column = date_column
-        self.validate_data = validate_data
 
         self.adstock = adstock
         self.saturation = saturation
@@ -588,6 +617,15 @@ class MMM(ModelBuilder, MMMPlotSuite):
         }
 
     @property
+    def plot(
+        self,
+    ):
+        """Use the MMMPlotSuite to plot the results."""
+        self._validate_model_was_built()
+        self._validate_idata_exists()
+        return MMMPlotSuite(idata=self.idata)
+
+    @property
     def default_model_config(self) -> dict:
         """Define the default model configuration."""
         base_config = {
@@ -623,10 +661,20 @@ class MMM(ModelBuilder, MMMPlotSuite):
         """
         return "y"
 
-    def create_xarray_from_dataframe(
+    def _validate_idata_exists(self) -> None:
+        """Validate that the idata exists."""
+        if not hasattr(self, "idata"):
+            raise ValueError("idata does not exist. Build the model first and fit.")
+
+    def _create_xarray_from_dataframe(
         self, df, date_column, dims, metric_list, metric_coordinate_name
     ):
-        """Dosctring Example."""
+        """Create an xarray Dataset from a DataFrame.
+
+        This method reshapes a DataFrame into a long format and converts it into an xarray Dataset.
+        It filters out dimensions that do not exist in the DataFrame and ensures that the metric_list
+        is present in the DataFrame.
+        """
         # Filter out dimensions that do not exist in the DataFrame
         valid_dims = [dim for dim in dims if dim in df.columns]
 
@@ -687,7 +735,7 @@ class MMM(ModelBuilder, MMMPlotSuite):
         dataarrays.append(y_dataarray)
 
         if self.control_columns is not None:
-            control_dataarray = self.create_xarray_from_dataframe(
+            control_dataarray = self._create_xarray_from_dataframe(
                 df=X,
                 date_column=self.date_column,
                 dims=self.dims,
@@ -735,6 +783,13 @@ class MMM(ModelBuilder, MMMPlotSuite):
         -------
         The contributions associated with the channel input
 
+        Examples
+        --------
+        >>> mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            target_column="target",
+        )
         """
         first, second = (
             (self.adstock, self.saturation)
@@ -749,7 +804,23 @@ class MMM(ModelBuilder, MMMPlotSuite):
         self.scalers = self.xarray_dataset.max(dim=["date", *self.dims])
 
     def get_scales_as_xarray(self) -> dict[str, xr.DataArray]:
-        """Return the saved scaling factors as xarray DataArrays."""
+        """Return the saved scaling factors as xarray DataArrays.
+
+        Returns
+        -------
+        dict[str, xr.DataArray]
+            A dictionary containing the scaling factors for channels and target.
+
+        Examples
+        --------
+        >>> mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            target_column="target",
+        )
+        >>> mmm.build_model(X, y)
+        >>> mmm.get_scales_as_xarray()
+        """
         if not hasattr(self, "scalers"):
             raise ValueError(
                 "Scales have not been computed yet. Build the model first."
@@ -837,7 +908,7 @@ class MMM(ModelBuilder, MMMPlotSuite):
         .. code-block:: python
 
             from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-            from pymc_marketing.mmm.MultiDimensionalMMM import MMM
+            from pymc_marketing.mmm.multidimensional import MMM
             from pymc_marketing.prior import Prior
 
             custom_config = {
@@ -1064,7 +1135,7 @@ class MMM(ModelBuilder, MMMPlotSuite):
             dataarrays.append(last_obs)
 
         # Transform X_pred and y_pred to xarray
-        X_xarray = self.create_xarray_from_dataframe(
+        X_xarray = self._create_xarray_from_dataframe(
             df=X,
             date_column=self.date_column,
             dims=self.dims,
@@ -1074,7 +1145,7 @@ class MMM(ModelBuilder, MMMPlotSuite):
         dataarrays.append(X_xarray)
 
         if self.control_columns is not None:
-            control_dataarray = self.create_xarray_from_dataframe(
+            control_dataarray = self._create_xarray_from_dataframe(
                 df=X,
                 date_column=self.date_column,
                 dims=self.dims,
@@ -1084,7 +1155,7 @@ class MMM(ModelBuilder, MMMPlotSuite):
             dataarrays.append(control_dataarray)
 
         if y is not None:
-            y_xarray = self.create_xarray_from_dataframe(
+            y_xarray = self._create_xarray_from_dataframe(
                 df=y,
                 date_column=self.date_column,
                 dims=self.dims,
