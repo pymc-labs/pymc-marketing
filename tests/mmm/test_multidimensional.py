@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import arviz as az
+import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
@@ -106,21 +108,6 @@ def test_save_load(fit_mmm: MMM):
     loaded = MMM.load(file)
     assert isinstance(loaded, MMM)
 
-    
-import arviz as az
-import numpy as np
-import pandas as pd
-import pymc as pm
-import pytest
-
-from pymc_marketing.mmm.components.adstock import GeometricAdstock
-from pymc_marketing.mmm.components.saturation import LogisticSaturation
-from pymc_marketing.mmm.multidimensional import MMM
-
-# -------------------------------------------------------------------
-#                         Fixtures
-# -------------------------------------------------------------------
-
 
 @pytest.fixture
 def single_dim_data():
@@ -187,11 +174,6 @@ def multi_dim_data():
     y = df[["date", "country", "target"]].copy()  # can remain a DF or become a Series
 
     return X, y
-
-
-# -------------------------------------------------------------------
-#                     Test build_model
-# -------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -308,11 +290,6 @@ def test_build_model_multi_dim(
     assert "country" in mmm.model.coords, (
         "Extra dimension 'country' should be in model coords."
     )
-
-
-# -------------------------------------------------------------------
-#                       Test fit model
-# -------------------------------------------------------------------
 
 
 def test_fit_single_dim(single_dim_data):
