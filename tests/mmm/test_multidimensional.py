@@ -1,24 +1,36 @@
-import pytest
-import pandas as pd
-import numpy as np
-import pymc as pm
+#   Copyright 2025 - 2025 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 import arviz as az
+import numpy as np
+import pandas as pd
+import pymc as pm
+import pytest
 
-from pymc_marketing.prior import Prior
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.multidimensional import MMM
-
 
 # -------------------------------------------------------------------
 #                         Fixtures
 # -------------------------------------------------------------------
 
+
 @pytest.fixture
 def single_dim_data():
     """
     Generate a simple single-dimension (no extra dims) synthetic dataset.
-    
+
     - date: 2023-01-01 to 2023-01-14 (14 days)
     - 2 channels: 'channel_1', 'channel_2'
     - target = sum of channels + random noise
@@ -29,14 +41,20 @@ def single_dim_data():
     # Generate random channel data
     channel_1 = np.random.randint(100, 500, size=len(date_range))
     channel_2 = np.random.randint(100, 500, size=len(date_range))
-    
-    df = pd.DataFrame({
-        "date": date_range,
-        "channel_1": channel_1,
-        "channel_2": channel_2,
-    })
+
+    df = pd.DataFrame(
+        {
+            "date": date_range,
+            "channel_1": channel_1,
+            "channel_2": channel_2,
+        }
+    )
     # Target is sum of channels with noise
-    df["target"] = df["channel_1"] + df["channel_2"] + np.random.randint(100, 300, size=len(date_range))
+    df["target"] = (
+        df["channel_1"]
+        + df["channel_2"]
+        + np.random.randint(100, 300, size=len(date_range))
+    )
     X = df[["date", "channel_1", "channel_2"]].copy()
     y = df[["date", "target"]].copy()  # or pd.Series if you prefer
 
@@ -47,7 +65,7 @@ def single_dim_data():
 def multi_dim_data():
     """
     Generate a multi-dimensional dataset (e.g., includes 'country' dimension).
-    
+
     - date: 2023-01-01 to 2023-01-07 (7 days)
     - countries: ["Venezuela", "Colombia", "Chile"]
     - 2 channels: 'channel_1', 'channel_2'
@@ -65,7 +83,9 @@ def multi_dim_data():
             target = channel_1 + channel_2 + np.random.randint(50, 150)
             records.append((date, country, channel_1, channel_2, target))
 
-    df = pd.DataFrame(records, columns=["date", "country", "channel_1", "channel_2", "target"])
+    df = pd.DataFrame(
+        records, columns=["date", "country", "channel_1", "channel_2", "target"]
+    )
 
     X = df[["date", "country", "channel_1", "channel_2"]].copy()
     y = df[["date", "country", "target"]].copy()  # can remain a DF or become a Series
@@ -77,22 +97,28 @@ def multi_dim_data():
 #                     Test build_model
 # -------------------------------------------------------------------
 
+
 @pytest.mark.parametrize(
     "time_varying_intercept, time_varying_media, yearly_seasonality, dims",
     [
-        (False, False, None, ()),        # no time-varying, no seasonality, no extra dims
-        (False, False, 4, ()),           # no time-varying, has seasonality, no extra dims
-        (True,  False, None, ()),        # time-varying intercept only, no seasonality, no extra dims
-        (False, True,  4, ()),           # time-varying media only, has seasonality, no extra dims
-        (True,  True,  4, ()),           # both time-varying, has seasonality, no extra dims
-    ]
+        (False, False, None, ()),  # no time-varying, no seasonality, no extra dims
+        (False, False, 4, ()),  # no time-varying, has seasonality, no extra dims
+        (
+            True,
+            False,
+            None,
+            (),
+        ),  # time-varying intercept only, no seasonality, no extra dims
+        (False, True, 4, ()),  # time-varying media only, has seasonality, no extra dims
+        (True, True, 4, ()),  # both time-varying, has seasonality, no extra dims
+    ],
 )
 def test_build_model_single_dim(
     single_dim_data,
     time_varying_intercept,
     time_varying_media,
     yearly_seasonality,
-    dims
+    dims,
 ):
     """Test that building the model works with different configurations (single-dim)."""
     X, y = single_dim_data
@@ -132,18 +158,34 @@ def test_build_model_single_dim(
 @pytest.mark.parametrize(
     "time_varying_intercept, time_varying_media, yearly_seasonality, dims",
     [
-        (False, False, None, ("country",)),  # no time-varying, no seasonality, 1 extra dim
-        (True,  False, 4, ("country",)),     # time-varying intercept only, has seasonality, 1 extra dim
-        (False, True,  4, ("country",)),     # time-varying media only, has seasonality, 1 extra dim
-        (True,  True,  2, ("country",)),     # both time-varying, has seasonality, 1 extra dim
-    ]
+        (
+            False,
+            False,
+            None,
+            ("country",),
+        ),  # no time-varying, no seasonality, 1 extra dim
+        (
+            True,
+            False,
+            4,
+            ("country",),
+        ),  # time-varying intercept only, has seasonality, 1 extra dim
+        (
+            False,
+            True,
+            4,
+            ("country",),
+        ),  # time-varying media only, has seasonality, 1 extra dim
+        (
+            True,
+            True,
+            2,
+            ("country",),
+        ),  # both time-varying, has seasonality, 1 extra dim
+    ],
 )
 def test_build_model_multi_dim(
-    multi_dim_data,
-    time_varying_intercept,
-    time_varying_media,
-    yearly_seasonality,
-    dims
+    multi_dim_data, time_varying_intercept, time_varying_media, yearly_seasonality, dims
 ):
     """Test building the model when extra dimensions (like 'country') are present."""
     X, y = multi_dim_data
@@ -167,12 +209,15 @@ def test_build_model_multi_dim(
     # Assertions
     assert hasattr(mmm, "model"), "Model attribute should be set after build_model."
     assert isinstance(mmm.model, pm.Model), "mmm.model should be a PyMC Model instance."
-    assert "country" in mmm.model.coords, "Extra dimension 'country' should be in model coords."
+    assert "country" in mmm.model.coords, (
+        "Extra dimension 'country' should be in model coords."
+    )
 
 
 # -------------------------------------------------------------------
 #                       Test fit model
 # -------------------------------------------------------------------
+
 
 def test_fit_single_dim(single_dim_data):
     """Test fitting the model on a single-dimension dataset."""
@@ -188,7 +233,7 @@ def test_fit_single_dim(single_dim_data):
         dims=(),
         adstock=adstock,
         saturation=saturation,
-        yearly_seasonality=None,     # disable yearly seasonality
+        yearly_seasonality=None,  # disable yearly seasonality
         time_varying_intercept=False,
         time_varying_media=False,
     )
@@ -198,11 +243,17 @@ def test_fit_single_dim(single_dim_data):
 
     # To keep tests fast, set small number of draws/tune
     idata = mmm.fit(X, y, draws=10, tune=10, chains=1)
-    assert isinstance(idata, az.InferenceData), "fit should return an InferenceData object."
-    assert hasattr(mmm, "idata"), "MMM instance should store the inference data as 'idata'."
+    assert isinstance(idata, az.InferenceData), (
+        "fit should return an InferenceData object."
+    )
+    assert hasattr(mmm, "idata"), (
+        "MMM instance should store the inference data as 'idata'."
+    )
 
     # Check presence of posterior group
-    assert hasattr(mmm.idata, "posterior"), "InferenceData should have a posterior group."
+    assert hasattr(mmm.idata, "posterior"), (
+        "InferenceData should have a posterior group."
+    )
 
 
 def test_fit_multi_dim(multi_dim_data):
@@ -229,8 +280,14 @@ def test_fit_multi_dim(multi_dim_data):
 
     # Again, keep the sampler small for test speed
     idata = mmm.fit(X, y, draws=10, tune=10, chains=1)
-    assert isinstance(idata, az.InferenceData), "fit should return an InferenceData object."
-    assert hasattr(mmm, "idata"), "MMM instance should store the inference data as 'idata'."
+    assert isinstance(idata, az.InferenceData), (
+        "fit should return an InferenceData object."
+    )
+    assert hasattr(mmm, "idata"), (
+        "MMM instance should store the inference data as 'idata'."
+    )
 
     # Check if 'country' is in the posterior dimensions
-    assert "country" in mmm.idata.posterior.dims, "Posterior should have 'country' dimension."
+    assert "country" in mmm.idata.posterior.dims, (
+        "Posterior should have 'country' dimension."
+    )
