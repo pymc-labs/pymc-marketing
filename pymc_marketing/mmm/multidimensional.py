@@ -549,7 +549,6 @@ class MMM(ModelBuilder):
         attrs["adstock_first"] = json.dumps(self.adstock_first)
         attrs["control_columns"] = json.dumps(self.control_columns)
         attrs["channel_columns"] = json.dumps(self.channel_columns)
-        attrs["validate_data"] = json.dumps(self.validate_data)
         attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
         attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
         attrs["time_varying_media"] = json.dumps(self.time_varying_media)
@@ -611,7 +610,6 @@ class MMM(ModelBuilder):
             ),
             "target_column": attrs["target_column"],
             "time_varying_media": json.loads(attrs.get("time_varying_media", "false")),
-            "validate_data": json.loads(attrs["validate_data"]),
             "sampler_config": json.loads(attrs["sampler_config"]),
             "dims": tuple(json.loads(attrs.get("dims", "[]"))),
         }
@@ -716,7 +714,7 @@ class MMM(ModelBuilder):
 
         y = pd.Series(y, index=X.index, name=self.target_column)  # type: ignore
 
-        X_dataarray = self.create_xarray_from_dataframe(
+        X_dataarray = self._create_xarray_from_dataframe(
             df=X,
             date_column=self.date_column,
             dims=self.dims,
@@ -725,7 +723,7 @@ class MMM(ModelBuilder):
         )
         dataarrays.append(X_dataarray)
 
-        y_dataarray = self.create_xarray_from_dataframe(
+        y_dataarray = self._create_xarray_from_dataframe(
             df=pd.concat([y, X.loc[:, (self.date_column, *self.dims)]], axis=1),  # type: ignore
             date_column=self.date_column,
             dims=self.dims,
