@@ -505,11 +505,6 @@ class MMM(MMMPlotSuite):
         if self.time_varying_media:
             base_config["media_tvp_config"] = {"ls_lower": 0.3, "ls_upper": 2.0}
 
-        for media_transform in [self.adstock, self.saturation]:
-            for dist in media_transform.function_priors.values():
-                if dist.dims != ("channel",):
-                    dist.dims = "channel"
-
         return {
             **base_config,
             **self.adstock.model_config,
@@ -608,7 +603,9 @@ class MMM(MMMPlotSuite):
             ).days
 
     def forward_pass(
-        self, x: pt.TensorVariable | npt.NDArray[np.float64]
+        self,
+        x: pt.TensorVariable | npt.NDArray[np.float64],
+        dims: tuple[str, ...],
     ) -> pt.TensorVariable:
         """Transform channel input into target contributions of each channel.
 
@@ -635,7 +632,7 @@ class MMM(MMMPlotSuite):
             else (self.saturation, self.adstock)
         )
 
-        return second.apply(x=first.apply(x=x, dims="channel"), dims="channel")
+        return second.apply(x=first.apply(x=x, dims=dims), dims=dims)
 
     def _compute_scales(self) -> None:
         """Compute and save scaling factors for channels and target."""
@@ -837,7 +834,9 @@ class MMM(MMMPlotSuite):
             if self.time_varying_media:
                 baseline_channel_contribution = pm.Deterministic(
                     name="baseline_channel_contribution",
-                    var=self.forward_pass(x=channel_data_),
+                    var=self.forward_pass(
+                        x=channel_data_, dims=(*self.dims, "channel")
+                    ),
                     dims=("date", *self.dims, "channel"),
                 )
 
@@ -855,7 +854,9 @@ class MMM(MMMPlotSuite):
             else:
                 channel_contribution = pm.Deterministic(
                     name="channel_contribution",
-                    var=self.forward_pass(x=channel_data_),
+                    var=self.forward_pass(
+                        x=channel_data_, dims=(*self.dims, "channel")
+                    ),
                     dims=("date", *self.dims, "channel"),
                 )
 
