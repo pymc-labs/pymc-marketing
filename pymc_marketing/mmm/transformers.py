@@ -501,7 +501,7 @@ def inverse_scaled_logistic_saturation(
     when using default value for eps.
 
     .. math::
-        f(x) = \\frac{1 - e^{-x*\epsilon/\lambda}}{1 + e^{-x*\epsilon/\lambda}}
+        f(x) = \frac{1 - e^{-x*\epsilon/\lambda}}{1 + e^{-x*\epsilon/\lambda}}
 
     .. plot::
         :context: close-figs
