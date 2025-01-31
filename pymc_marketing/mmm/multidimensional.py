@@ -14,7 +14,7 @@
 """Media Mix Model class."""
 
 import itertools
-import warnings
+import json
 from typing import Any, Literal
 
 import arviz as az
@@ -30,12 +30,15 @@ from pymc.util import RandomState
 from pymc_marketing.mmm import HSGP
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
+    adstock_from_dict,
 )
 from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
+    saturation_from_dict,
 )
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.tvp import infer_time_index
+from pymc_marketing.model_builder import ModelBuilder
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import Prior
 
@@ -384,7 +387,7 @@ class MMMPlotSuite:
         return fig, axes
 
 
-class MMM(MMMPlotSuite):
+class MMM(ModelBuilder, MMMPlotSuite):
     """Media Mix Model class for estimating the impact of marketing channels on a target variable.
 
     This class implements the core functionality of a Media Mix Model (MMM), allowing for the
@@ -474,8 +477,6 @@ class MMM(MMMPlotSuite):
         self.date_column = date_column
         self.target_column = target_column
         self.channel_columns = channel_columns
-        self.model_config = self.default_model_config
-        self.sampler_config = sampler_config
         self.yearly_seasonality = yearly_seasonality
 
         if self.yearly_seasonality is not None:
@@ -485,6 +486,106 @@ class MMM(MMMPlotSuite):
                 prior=self.model_config["gamma_fourier"],
                 variable_name="gamma_fourier",
             )
+
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
+
+    @property
+    def default_sampler_config(self) -> dict:
+        """Default sampler configuration."""
+        return {}
+
+    def _data_setter(self, X, y=None): ...
+
+    @property
+    def _serializable_model_config(self) -> dict[str, Any]:
+        def ndarray_to_list(d: dict) -> dict:
+            new_d = d.copy()  # Copy the dictionary to avoid mutating the original one
+            for key, value in new_d.items():
+                if isinstance(value, np.ndarray):
+                    new_d[key] = value.tolist()
+                elif isinstance(value, dict):
+                    new_d[key] = ndarray_to_list(value)
+            return new_d
+
+        serializable_config = self.model_config.copy()
+        return ndarray_to_list(serializable_config)
+
+    def create_idata_attrs(self) -> dict[str, str]:
+        """Return the idata attributes for the model."""
+        attrs = super().create_idata_attrs()
+        attrs["dims"] = json.dumps(self.dims)
+        attrs["date_column"] = self.date_column
+        attrs["adstock"] = json.dumps(self.adstock.to_dict())
+        attrs["saturation"] = json.dumps(self.saturation.to_dict())
+        attrs["adstock_first"] = json.dumps(self.adstock_first)
+        attrs["control_columns"] = json.dumps(self.control_columns)
+        attrs["channel_columns"] = json.dumps(self.channel_columns)
+        attrs["validate_data"] = json.dumps(self.validate_data)
+        attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
+        attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
+        attrs["time_varying_media"] = json.dumps(self.time_varying_media)
+        attrs["target_column"] = self.target_column
+
+        return attrs
+
+    @classmethod
+    def _model_config_formatting(cls, model_config: dict) -> dict:
+        """Format the model configuration.
+
+        Because of json serialization, model_config values that were originally tuples
+        or numpy are being encoded as lists. This function converts them back to tuples
+        and numpy arrays to ensure correct id encoding.
+
+        Parameters
+        ----------
+        model_config : dict
+            The model configuration to format.
+
+        Returns
+        -------
+        dict
+            The formatted model configuration.
+
+        """
+
+        def format_nested_dict(d: dict) -> dict:
+            for key, value in d.items():
+                if isinstance(value, dict):
+                    d[key] = format_nested_dict(value)
+                elif isinstance(value, list):
+                    # Check if the key is "dims" to convert it to tuple
+                    if key == "dims":
+                        d[key] = tuple(value)
+                    # Convert all other lists to numpy arrays
+                    else:
+                        d[key] = np.array(value)
+            return d
+
+        return format_nested_dict(model_config.copy())
+
+    @classmethod
+    def attrs_to_init_kwargs(cls, attrs: dict[str, str]) -> dict[str, Any]:
+        """Convert the idata attributes to the model initialization kwargs."""
+        return {
+            "model_config": cls._model_config_formatting(
+                json.loads(attrs["model_config"])
+            ),
+            "date_column": attrs["date_column"],
+            "control_columns": json.loads(attrs["control_columns"]),
+            "channel_columns": json.loads(attrs["channel_columns"]),
+            "adstock": adstock_from_dict(json.loads(attrs["adstock"])),
+            "saturation": saturation_from_dict(json.loads(attrs["saturation"])),
+            "adstock_first": json.loads(attrs.get("adstock_first", "true")),
+            "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
+            "time_varying_intercept": json.loads(
+                attrs.get("time_varying_intercept", "false")
+            ),
+            "target_column": attrs["target_column"],
+            "time_varying_media": json.loads(attrs.get("time_varying_media", "false")),
+            "validate_data": json.loads(attrs["validate_data"]),
+            "sampler_config": json.loads(attrs["sampler_config"]),
+            "dims": tuple(json.loads(attrs.get("dims", "[]"))),
+        }
 
     @property
     def default_model_config(self) -> dict:
@@ -557,9 +658,15 @@ class MMM(MMMPlotSuite):
 
         return df_xarray
 
-    def _generate_and_preprocess_model_data(self, X, y):
+    def _generate_and_preprocess_model_data(
+        self,
+        X: pd.DataFrame | pd.Series,
+        y: np.ndarray,
+    ):
         dataarrays = []
         X[self.date_column] = pd.to_datetime(X[self.date_column])
+
+        y = pd.Series(y, index=X.index, name=self.target_column)  # type: ignore
 
         X_dataarray = self.create_xarray_from_dataframe(
             df=X,
@@ -571,7 +678,7 @@ class MMM(MMMPlotSuite):
         dataarrays.append(X_dataarray)
 
         y_dataarray = self.create_xarray_from_dataframe(
-            df=y,
+            df=pd.concat([y, X.loc[:, (self.date_column, *self.dims)]], axis=1),  # type: ignore
             date_column=self.date_column,
             dims=self.dims,
             metric_list=[self.target_column],
@@ -601,6 +708,9 @@ class MMM(MMMPlotSuite):
             self._time_resolution = (
                 X[self.date_column].iloc[1] - X[self.date_column].iloc[0]
             ).days
+
+        self.X = X  # type: ignore
+        self.y = y
 
     def forward_pass(
         self,
@@ -694,7 +804,7 @@ class MMM(MMMPlotSuite):
     def build_model(
         self,
         X: pd.DataFrame,
-        y: pd.Series | np.ndarray | Any,
+        y: pd.Series | np.ndarray,
         **kwargs,
     ) -> None:
         """Build a probabilistic model using PyMC for marketing mix modeling.
@@ -755,7 +865,10 @@ class MMM(MMMPlotSuite):
             )
 
         """
-        self._generate_and_preprocess_model_data(X, y)
+        self._generate_and_preprocess_model_data(
+            X,
+            y if isinstance(y, np.ndarray) else y.values,  # type: ignore
+        )
         # Compute and save scales
         self._compute_scales()
 
@@ -925,82 +1038,6 @@ class MMM(MMMPlotSuite):
                 observed=(_target.eval() / _target_scale.eval()),
             )
 
-    def fit(
-        self,
-        X: pd.DataFrame | Any,
-        y: pd.DataFrame | None | Any = None,
-        progressbar: bool | None = None,
-        predictor_names: list[str] | None = None,
-        random_seed: RandomState | None = None,
-        **kwargs: Any,
-    ) -> az.InferenceData:
-        """Fit a model using the data passed as a parameter.
-
-        Sets attrs to inference data of the model.
-
-        Parameters
-        ----------
-        X : array-like | array, shape (n_obs, n_features)
-            The training input samples. If scikit-learn is available, array-like, otherwise array.
-        y : array-like | array, shape (n_obs,)
-            The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
-        progressbar : bool, optional
-            Specifies whether the fit progress bar should be displayed. Defaults to True.
-        predictor_names : list[str], optional
-            Allows custom naming of predictors. If `predictor_names` is provided, predictors
-            will be named accordingly; otherwise, default names will be used.
-        random_seed : RandomState, optional
-            Provides the sampler with an initial random seed for reproducible samples.
-        **kwargs : dict
-            Additional keyword arguments passed to the sampler.
-
-        Returns
-        -------
-        az.InferenceData
-            The inference data from the fitted model.
-
-        Examples
-        --------
-        >>> model = MyModel()
-        >>> idata = model.fit(X, y, progressbar=True)
-        """
-        if predictor_names is None:
-            predictor_names = []
-
-        if not hasattr(self, "model"):
-            self.build_model(X, y)
-
-        # Ensure sampler_config is initialized as an empty dict if None
-        self.sampler_config = self.sampler_config or {}
-
-        sampler_kwargs = create_sample_kwargs(
-            self.sampler_config,
-            progressbar,
-            random_seed,
-            **kwargs,
-        )  # type: ignore
-
-        with self.model:
-            idata = pm.sample(**sampler_kwargs)
-
-        if hasattr(self, "idata"):
-            self.idata = self.idata.copy()  # type: ignore
-            self.idata.extend(idata, join="right")  # type: ignore
-        else:
-            self.idata = idata  # type: ignore
-
-        if "fit_data" in self.idata:
-            del self.idata.fit_data
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
-            )
-
-        return self.idata  # type: ignore
-
     def _posterior_predictive_data_transformation(
         self,
         X: pd.DataFrame,
@@ -1129,8 +1166,7 @@ class MMM(MMMPlotSuite):
 
     def sample_posterior_predictive(
         self,
-        X: pd.DataFrame,
-        y: pd.Series | None = None,
+        X_pred: pd.DataFrame,
         extend_idata: bool = True,
         combined: bool = True,
         include_last_observations: bool = False,
@@ -1162,7 +1198,8 @@ class MMM(MMMPlotSuite):
         # Update model data with xarray
         self._set_xarray_data(
             self._posterior_predictive_data_transformation(
-                X, y, include_last_observations
+                X=X_pred,
+                include_last_observations=include_last_observations,
             )
         )
 
