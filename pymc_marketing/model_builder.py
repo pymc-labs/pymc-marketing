@@ -826,6 +826,9 @@ class ModelBuilder(ABC):
         ----------
         X : array, shape (n_pred, n_features)
             The input data used for prediction using prior distribution.
+        y : array, shape (n_pred,), optional
+            The target values (real numbers) used for prediction using prior distribution.
+            If not set, defaults to an array of zeros.
         samples : int
             Number of samples from the prior parameter distributions to generate.
             If not set, uses sampler_config['draws'] if that is available, otherwise defaults to 500.
