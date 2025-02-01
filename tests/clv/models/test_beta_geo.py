@@ -689,9 +689,9 @@ class TestBetaGeoModelWithCovariates:
             b_scale=2.426,
             alpha_scale=4.414,
             r=0.243,
-            purchase_coefficient_gamma1=np.array([1.0, -2.0]),
-            dropout_coefficient_gamma2=np.array([3.0]),
-            dropout_coefficient_gamma3=np.array([3.0]),
+            purchase_coefficient_alpha=np.array([1.0, -2.0]),
+            dropout_coefficient_a=np.array([3.0]),
+            dropout_coefficient_b=np.array([3.0]),
         )
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
@@ -736,18 +736,18 @@ class TestBetaGeoModelWithCovariates:
             "b_scale": rng.normal(
                 cls.true_params["b_scale"], 1e-3, size=(chains, draws)
             ),
-            "purchase_coefficient_gamma1": rng.normal(
-                cls.true_params["purchase_coefficient_gamma1"],
+            "purchase_coefficient_alpha": rng.normal(
+                cls.true_params["purchase_coefficient_alpha"],
                 1e-3,
                 size=(chains, draws, n_purchase_covariates),
             ),
-            "dropout_coefficient_gamma2": rng.normal(
-                cls.true_params["dropout_coefficient_gamma2"],
+            "dropout_coefficient_a": rng.normal(
+                cls.true_params["dropout_coefficient_a"],
                 1e-3,
                 size=(chains, draws, n_dropout_covariates),
             ),
-            "dropout_coefficient_gamma3": rng.normal(
-                cls.true_params["dropout_coefficient_gamma3"],
+            "dropout_coefficient_b": rng.normal(
+                cls.true_params["dropout_coefficient_b"],
                 1e-3,
                 size=(chains, draws, n_dropout_covariates),
             ),
@@ -755,9 +755,9 @@ class TestBetaGeoModelWithCovariates:
         mock_fit_with_covariates = az.from_dict(
             mock_fit_dict,
             dims={
-                "purchase_coefficient_gamma1": ["purchase_covariate"],
-                "dropout_coefficient_gamma2": ["dropout_covariate"],
-                "dropout_coefficient_gamma3": ["dropout_covariate"],
+                "purchase_coefficient_alpha": ["purchase_covariate"],
+                "dropout_coefficient_a": ["dropout_covariate"],
+                "dropout_coefficient_b": ["dropout_covariate"],
             },
             coords={
                 "purchase_covariate": purchase_covariate_cols,
@@ -837,17 +837,17 @@ class TestBetaGeoModelWithCovariates:
 
         # alpha coefficient: likelihood should go up if purchase covariate1 goes up (coefficient is positive)
         assert model_likelihood_fn(
-            ip | dict(purchase_coefficient_gamma1=np.array([1.0, 2.0]))
+            ip | dict(purchase_coefficient_alpha=np.array([1.0, 2.0]))
         ) < ref_model_likelihood_fn(ref_ip)
 
         # a coefficient: likelihood should go up if purchase covariate1 goes up (coefficient is positive)
         assert model_likelihood_fn(
-            ip | dict(dropout_coefficient_gamma2=np.array([3.0]))
+            ip | dict(dropout_coefficient_a=np.array([3.0]))
         ) < ref_model_likelihood_fn(ref_ip)
 
         # b coefficient: likelihood should go up if purchase covariate1 goes up (coefficient is positive)
         assert model_likelihood_fn(
-            ip | dict(dropout_coefficient_gamma3=np.array([3.0]))
+            ip | dict(dropout_coefficient_b=np.array([3.0]))
         ) < ref_model_likelihood_fn(ref_ip)
 
         np.testing.assert_allclose(
