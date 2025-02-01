@@ -35,7 +35,7 @@ from pymc_marketing.mmm.components.saturation import (
     TanhSaturationBaselined,
     saturation_from_dict,
 )
-from pymc_marketing.mmm.fourier import MonthlyFourier, YearlyFourier
+from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.hsgp import (
     HSGP,
     CovFunc,
@@ -85,6 +85,7 @@ __all__ = [
     "SaturationTransformation",
     "TanhSaturation",
     "TanhSaturationBaselined",
+    "WeeklyFourier",
     "WeibullCDFAdstock",
     "WeibullPDFAdstock",
     "YearlyFourier",
