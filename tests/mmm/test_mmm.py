@@ -1063,10 +1063,10 @@ def test_new_data_sample_posterior_predictive_method(
 ) -> None:
     """This is the method that is used in all the other methods that generate predictions."""
     mmm = request.getfixturevalue(model_name)
-    X_pred = generate_data(new_dates)
+    X = generate_data(new_dates)
 
     posterior_predictive = mmm.sample_posterior_predictive(
-        X_pred=X_pred,
+        X=X,
         extend_idata=False,
         combined=combined,
         original_scale=original_scale,
@@ -1087,10 +1087,10 @@ def test_sample_posterior_predictive_with_prediction_kwarg(
     predictions: bool,
 ) -> None:
     new_dates = pd.date_range("2022-01-01", "2022-03-01", freq="W-MON")
-    X_pred = generate_data(new_dates)
+    X = generate_data(new_dates)
 
     predictions = mmm_fitted.sample_posterior_predictive(
-        X_pred=X_pred,
+        X=X,
         extend_idata=False,
         combined=True,
         predictions=predictions,
@@ -1115,14 +1115,14 @@ def test_new_data_include_last_observation_same_dims(
     request,
 ) -> None:
     mmm = request.getfixturevalue(model_name)
-    X_pred = generate_data(new_dates)
+    X = generate_data(new_dates)
 
     pp_without = mmm.predict_posterior(
-        X_pred,
+        X,
         include_last_observations=False,
     )
     pp_with = mmm.predict_posterior(
-        X_pred,
+        X,
         include_last_observations=True,
     )
 
@@ -1148,9 +1148,9 @@ def test_new_data_predict_method(
     request,
 ) -> None:
     mmm = request.getfixturevalue(model_name)
-    X_pred = generate_data(new_dates)
+    X = generate_data(new_dates)
 
-    posterior_predictive_mean = mmm.predict(X_pred=X_pred)
+    posterior_predictive_mean = mmm.predict(X=X)
 
     assert isinstance(posterior_predictive_mean, np.ndarray)
     assert posterior_predictive_mean.shape[0] == new_dates.size
@@ -1202,7 +1202,7 @@ def test_new_spend_contributions_prior_error() -> None:
 @pytest.mark.parametrize("original_scale", [True, False])
 def test_new_spend_contributions_prior(original_scale, mmm, toy_X) -> None:
     mmm.sample_prior_predictive(
-        X_pred=toy_X,
+        X=toy_X,
         extend_idata=True,
     )
 

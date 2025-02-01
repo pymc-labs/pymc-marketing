@@ -1902,7 +1902,7 @@ class MMM(
 
     def sample_posterior_predictive(
         self,
-        X_pred,
+        X,
         extend_idata: bool = True,
         combined: bool = True,
         include_last_observations: bool = False,
@@ -1913,7 +1913,7 @@ class MMM(
 
         Parameters
         ----------
-        X_pred : array, shape (n_pred, n_features)
+        X : array, shape (n_pred, n_features)
             The input data used for prediction.
         extend_idata : bool, optional
             Boolean determining whether the predictions should be added to inference data object. Defaults to True.
@@ -1921,7 +1921,7 @@ class MMM(
             Combine chain and draw dims into sample. Won't work if a dim named sample already exists. Defaults to True.
         include_last_observations: bool, optional
             Boolean determining whether to include the last observations of the training data in order to carry over
-            costs with the adstock transformation. Assumes that X_pred are the next predictions following the
+            costs with the adstock transformation. Assumes that X are the next predictions following the
             training data.Defaults to False.
         original_scale: bool, optional
             Boolean determining whether to return the predictions in the original scale of the target variable.
@@ -1932,15 +1932,15 @@ class MMM(
         Returns
         -------
         posterior_predictive_samples : DataArray, shape (n_pred, samples)
-            Posterior predictive samples for each input X_pred
+            Posterior predictive samples for each input X
 
         """
         if include_last_observations:
-            X_pred = pd.concat(
-                [self.X.iloc[-self.adstock.l_max :, :], X_pred], axis=0
+            X = pd.concat(
+                [self.X.iloc[-self.adstock.l_max :, :], X], axis=0
             ).sort_values(by=self.date_column)
 
-        self._data_setter(X_pred)
+        self._data_setter(X)
 
         with self.model:  # sample with new input data
             post_pred = pm.sample_posterior_predictive(
@@ -2251,7 +2251,7 @@ class MMM(
         constant_data = allocation_strategy.to_dataset(name="allocation")
 
         return self.sample_posterior_predictive(
-            X_pred=synth_dataset,
+            X=synth_dataset,
             extend_idata=False,
             include_last_observations=True,
             original_scale=False,
