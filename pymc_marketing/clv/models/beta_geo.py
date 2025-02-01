@@ -36,7 +36,7 @@ class BetaGeoModel(CLVModel):
     r"""Beta-Geometric Negative Binomial Distribution (BG/NBD) model for a non-contractual customer population across continuous time.
 
     First introduced by Fader, Hardie & Lee [1]_, with additional predictive methods
-    and enhancements in [2]_,[3]_ and [4]_.
+    and enhancements in [2]_,[3]_, [4]_ and [5]_
 
     The BG/NBD model assumes dropout probabilities for the customer population are Beta distributed,
     and time between transactions follows a Gamma distribution while the customer is still active.
