@@ -790,7 +790,7 @@ class ModelBuilder(ABC):
 
     def predict(
         self,
-        X: np.ndarray | pd.DataFrame | pd.Series,
+        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
         extend_idata: bool = True,
         **kwargs,
     ) -> np.ndarray:
