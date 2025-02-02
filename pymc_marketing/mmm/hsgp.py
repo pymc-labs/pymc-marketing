@@ -658,7 +658,7 @@ class HSGP(HSGPBase):
             numeric_X = X.get_value(borrow=False)
         else:
             raise ValueError(
-                "X must be a NumPy array (or list) or a pm.Data/pm.MutableData. "
+                "X must be a NumPy array (or list) or a TensorVariable. "
                 "If it's a plain symbolic tensor, you must manually specify m, L."
             )
 
