@@ -1902,7 +1902,7 @@ class MMM(
 
     def sample_posterior_predictive(
         self,
-        X,
+        X=None,
         extend_idata: bool = True,
         combined: bool = True,
         include_last_observations: bool = False,
