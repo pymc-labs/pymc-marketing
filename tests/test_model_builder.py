@@ -618,3 +618,21 @@ def test_graphviz(toy_X, toy_y):
 
     model.build_model(X=toy_X, y=toy_y)
     assert isinstance(model.graphviz(), graphviz.graphs.Digraph)
+
+
+@pytest.mark.parametrize(
+    "method_name",
+    [
+        "sample_posterior_predictive",
+        "predict",
+    ],
+)
+def test_X_pred_deprecation(method_name, fitted_model_instance, toy_X) -> None:
+    if "posterior_predictive" in fitted_model_instance.idata:
+        del fitted_model_instance.idata.posterior_predictive
+
+    with pytest.warns(DeprecationWarning, match="X_pred is deprecated"):
+        method = getattr(fitted_model_instance, method_name)
+        method(X_pred=toy_X)
+
+    assert isinstance(fitted_model_instance.posterior_predictive, xr.Dataset)
