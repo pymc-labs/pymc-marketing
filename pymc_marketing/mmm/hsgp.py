@@ -625,7 +625,7 @@ class HSGP(HSGPBase):
     @classmethod
     def parameterize_from_data(
         cls,
-        X: np.ndarray,
+        X: TensorLike | np.ndarray,
         dims: Dims,
         X_mid: float | None = None,
         eta_mass: float = 0.05,
@@ -650,11 +650,25 @@ class HSGP(HSGPBase):
                 upper=ls_upper,
                 mass=ls_mass,
             )
-        X = pt.as_tensor_variable(X).eval()
+
+        numeric_X = None
+        if isinstance(X, np.ndarray):
+            numeric_X = np.asarray(X)
+        elif isinstance(X, TensorVariable):
+            numeric_X = X.get_value(borrow=False)  # current numeric data
+        else:
+            raise ValueError(
+                "X must be a NumPy array (or list) or a pm.Data/pm.MutableData. "
+                "If it's a plain symbolic tensor, you must manually specify m, L."
+            )
+
+        numeric_X = np.asarray(numeric_X)
         if X_mid is None:
-            X_mid = float(X.mean())
+            X_mid = float(numeric_X.mean())
+
+        # 3. Use the standard approximation
         m, L = create_m_and_L_recommendations(
-            X,
+            numeric_X,  # numeric version
             X_mid,
             ls_lower=ls_lower,
             ls_upper=ls_upper,
@@ -666,7 +680,7 @@ class HSGP(HSGPBase):
             eta=eta,
             m=m,
             L=L,
-            X=X,
+            X=X,  # store the original reference (even if symbolic)
             X_mid=X_mid,
             cov_func=cov_func,
             dims=dims,

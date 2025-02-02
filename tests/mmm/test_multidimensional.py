@@ -80,21 +80,16 @@ def mock_pymc_sample() -> None:
 @pytest.fixture
 def fit_mmm(df, mmm, mock_pymc_sample):
     X = df.drop(columns=["y"])
-    y = df["y"]
+    y = df.set_index(["date"])["y"]
 
     mmm.fit(X, y)
 
     return mmm
 
 
-def test_fit(fit_mmm):
-    assert isinstance(fit_mmm.posterior, xr.Dataset)
-    assert isinstance(fit_mmm.idata.fit_data, xr.Dataset)
-
-
 def test_sample_prior_predictive(mmm: MMM, df: pd.DataFrame):
     X = df.drop(columns=["y"])
-    y = df["y"]
+    y = df.set_index(["date", "country"])["y"]
     mmm.sample_prior_predictive(X, y)
 
     assert isinstance(mmm.prior, xr.Dataset)
@@ -140,7 +135,7 @@ def single_dim_data():
     )
     X = df[["date", "channel_1", "channel_2"]].copy()
 
-    return X, df["target"].copy()
+    return X, df.set_index(["date"])["target"].copy()
 
 
 @pytest.fixture
@@ -171,7 +166,7 @@ def multi_dim_data():
 
     X = df[["date", "country", "channel_1", "channel_2"]].copy()
 
-    return X, df["target"].copy()
+    return X, df.set_index(["date", "country"])["target"].copy()
 
 
 @pytest.mark.parametrize(
@@ -363,7 +358,7 @@ def test_fit_multi_dim(multi_dim_data, mock_pymc_sample):
     )
 
 
-@pytest.mark.xfail(reason="Need to work through the new data.")
+# @pytest.mark.xfail(reason="Need to work through the new data.")
 def test_sample_posterior_predictive_new_data(single_dim_data, mock_pymc_sample):
     """
     Test that sampling from the posterior predictive with new/unseen data

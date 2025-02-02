@@ -15,6 +15,7 @@
 
 import itertools
 import json
+import warnings
 from typing import Any, Literal
 
 import arviz as az
@@ -630,7 +631,9 @@ class MMM(ModelBuilder):
         base_config = {
             "intercept": Prior("Normal", mu=0, sigma=2, dims=self.dims),
             "likelihood": Prior(
-                "Normal", sigma=Prior("HalfNormal", sigma=2), dims=self.dims
+                "Normal",
+                sigma=Prior("HalfNormal", sigma=2, dims=self.dims),
+                dims=self.dims,
             ),
             "gamma_control": Prior("Normal", mu=0, sigma=2, dims="control"),
             "gamma_fourier": Prior(
@@ -665,27 +668,123 @@ class MMM(ModelBuilder):
         if not hasattr(self, "idata"):
             raise ValueError("idata does not exist. Build the model first and fit.")
 
-    def _create_xarray_from_dataframe(
-        self, df, date_column, dims, metric_list, metric_coordinate_name
-    ):
-        """Create an xarray Dataset from a DataFrame.
+    def _validate_dims_in_multiindex(
+        self, index: pd.MultiIndex, dims: tuple[str, ...], date_column: str
+    ) -> list[str]:
+        """Validate that dimensions exist in the MultiIndex.
 
-        This method reshapes a DataFrame into a long format and converts it into an xarray Dataset.
-        It filters out dimensions that do not exist in the DataFrame and ensures that the metric_list
-        is present in the DataFrame.
+        Parameters
+        ----------
+        index : pd.MultiIndex
+            The MultiIndex to check
+        dims : tuple[str, ...]
+            The dimensions to validate
+        date_column : str
+            The name of the date column
+
+        Returns
+        -------
+        list[str]
+            List of valid dimensions found in the index
+
+        Raises
+        ------
+        ValueError
+            If date_column is not in the index
         """
-        # Filter out dimensions that do not exist in the DataFrame
+        if date_column not in index.names:
+            raise ValueError(f"date_column '{date_column}' not found in index")
+
+        valid_dims = [dim for dim in dims if dim in index.names]
+        return valid_dims
+
+    def _validate_dims_in_dataframe(
+        self, df: pd.DataFrame, dims: tuple[str, ...], date_column: str
+    ) -> list[str]:
+        """Validate that dimensions exist in the DataFrame columns.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            The DataFrame to check
+        dims : tuple[str, ...]
+            The dimensions to validate
+        date_column : str
+            The name of the date column
+
+        Returns
+        -------
+        list[str]
+            List of valid dimensions found in the DataFrame
+
+        Raises
+        ------
+        ValueError
+            If date_column is not in the DataFrame
+        """
+        if date_column not in df.columns:
+            raise ValueError(f"date_column '{date_column}' not found in DataFrame")
+
         valid_dims = [dim for dim in dims if dim in df.columns]
+        return valid_dims
 
-        # Ensure metric_list is present in the DataFrame
-        valid_metrics = [metric for metric in metric_list if metric in df.columns]
+    def _validate_metrics(
+        self, data: pd.DataFrame | pd.Series, metric_list: list[str]
+    ) -> list[str]:
+        """Validate that metrics exist in the data.
 
-        # Reshape the DataFrame to a long format with 'metric_coordinate_name' as a variable
-        df_long = df.melt(
-            id_vars=[date_column, *valid_dims],
-            value_vars=valid_metrics,
-            var_name=metric_coordinate_name,
-            value_name="_" + metric_coordinate_name,
+        Parameters
+        ----------
+        data : pd.DataFrame | pd.Series
+            The data to check
+        metric_list : list[str]
+            The metrics to validate
+
+        Returns
+        -------
+        list[str]
+            List of valid metrics found in the data
+        """
+        if isinstance(data, pd.DataFrame):
+            return [metric for metric in metric_list if metric in data.columns]
+        else:  # pd.Series
+            return [metric for metric in metric_list if metric in data.index.names]
+
+    def _process_multiindex_series(
+        self,
+        series: pd.Series,
+        date_column: str,
+        valid_dims: list[str],
+        metric_coordinate_name: str,
+    ) -> xr.Dataset:
+        """Process a MultiIndex Series into an xarray Dataset.
+
+        Parameters
+        ----------
+        series : pd.Series
+            The MultiIndex Series to process
+        date_column : str
+            The name of the date column
+        valid_dims : list[str]
+            List of valid dimensions
+        metric_coordinate_name : str
+            Name for the metric coordinate
+
+        Returns
+        -------
+        xr.Dataset
+            The processed xarray Dataset
+        """
+        # Reset index to get a DataFrame with all index levels as columns
+        df = series.reset_index()
+
+        # The series values become the metric values
+        df_long = pd.DataFrame(
+            {
+                **{col: df[col] for col in [date_column, *valid_dims]},
+                metric_coordinate_name: series.name,
+                f"_{metric_coordinate_name}": series.values,
+            }
         )
 
         # Drop duplicates to avoid non-unique MultiIndex
@@ -693,30 +792,135 @@ class MMM(ModelBuilder):
             subset=[date_column, *valid_dims, metric_coordinate_name]
         )
 
-        # Convert the long DataFrame to an xarray Dataset
+        # Convert to xarray
         if valid_dims:
-            df_xarray = df_long.set_index(
+            return df_long.set_index(
                 [date_column, *valid_dims, metric_coordinate_name]
             ).to_xarray()
-        else:
-            df_xarray = df_long.set_index(
-                [date_column, metric_coordinate_name]
-            ).to_xarray()
+        return df_long.set_index([date_column, metric_coordinate_name]).to_xarray()
 
-        return df_xarray
+    def _process_dataframe(
+        self,
+        df: pd.DataFrame,
+        date_column: str,
+        valid_dims: list[str],
+        valid_metrics: list[str],
+        metric_coordinate_name: str,
+    ) -> xr.Dataset:
+        """Process a DataFrame into an xarray Dataset.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            The DataFrame to process
+        date_column : str
+            The name of the date column
+        valid_dims : list[str]
+            List of valid dimensions
+        valid_metrics : list[str]
+            List of valid metrics
+        metric_coordinate_name : str
+            Name for the metric coordinate
+
+        Returns
+        -------
+        xr.Dataset
+            The processed xarray Dataset
+        """
+        # Reshape DataFrame to long format
+        df_long = df.melt(
+            id_vars=[date_column, *valid_dims],
+            value_vars=valid_metrics,
+            var_name=metric_coordinate_name,
+            value_name=f"_{metric_coordinate_name}",
+        )
+
+        # Drop duplicates to avoid non-unique MultiIndex
+        df_long = df_long.drop_duplicates(
+            subset=[date_column, *valid_dims, metric_coordinate_name]
+        )
+
+        # Convert to xarray
+        if valid_dims:
+            return df_long.set_index(
+                [date_column, *valid_dims, metric_coordinate_name]
+            ).to_xarray()
+        return df_long.set_index([date_column, metric_coordinate_name]).to_xarray()
+
+    def _create_xarray_from_pandas(
+        self,
+        data: pd.DataFrame | pd.Series,
+        date_column: str,
+        dims: tuple[str, ...],
+        metric_list: list[str],
+        metric_coordinate_name: str,
+    ) -> xr.Dataset:
+        """Create an xarray Dataset from a DataFrame or Series.
+
+        This method handles both DataFrame and MultiIndex Series inputs, reshaping them
+        into a long format and converting into an xarray Dataset. It validates dimensions
+        and metrics, ensuring they exist in the input data.
+
+        Parameters
+        ----------
+        data : pd.DataFrame | pd.Series
+            The input data to transform
+        date_column : str
+            The name of the date column
+        dims : tuple[str, ...]
+            The dimensions to include
+        metric_list : list[str]
+            List of metrics to include
+        metric_coordinate_name : str
+            Name for the metric coordinate in the output
+
+        Returns
+        -------
+        xr.Dataset
+            The transformed data in xarray format
+
+        Raises
+        ------
+        ValueError
+            If date_column is not found in the data
+        """
+        # Validate dimensions based on input type
+        if isinstance(data, pd.Series):
+            valid_dims = self._validate_dims_in_multiindex(
+                index=data.index,  # type: ignore
+                dims=dims,  # type: ignore
+                date_column=date_column,  # type: ignore
+            )
+            return self._process_multiindex_series(
+                series=data,
+                date_column=date_column,
+                valid_dims=valid_dims,
+                metric_coordinate_name=metric_coordinate_name,
+            )
+        else:  # pd.DataFrame
+            valid_dims = self._validate_dims_in_dataframe(
+                df=data,
+                dims=dims,
+                date_column=date_column,  # type: ignore
+            )
+            valid_metrics = self._validate_metrics(data, metric_list)
+            return self._process_dataframe(
+                df=data,
+                date_column=date_column,
+                valid_dims=valid_dims,
+                valid_metrics=valid_metrics,
+                metric_coordinate_name=metric_coordinate_name,
+            )
 
     def _generate_and_preprocess_model_data(
         self,
-        X: pd.DataFrame | pd.Series,
-        y: np.ndarray,
+        X: pd.DataFrame | pd.Series,  # type: ignore
+        y: pd.DataFrame | pd.Series,  # type: ignore
     ):
         dataarrays = []
-        X[self.date_column] = pd.to_datetime(X[self.date_column])
 
-        y = pd.Series(y, index=X.index, name=self.target_column)  # type: ignore
-
-        X_dataarray = self._create_xarray_from_dataframe(
-            df=X,
+        X_dataarray = self._create_xarray_from_pandas(
+            data=X,
             date_column=self.date_column,
             dims=self.dims,
             metric_list=self.channel_columns,
@@ -724,8 +928,8 @@ class MMM(ModelBuilder):
         )
         dataarrays.append(X_dataarray)
 
-        y_dataarray = self._create_xarray_from_dataframe(
-            df=pd.concat([y, X.loc[:, (self.date_column, *self.dims)]], axis=1),  # type: ignore
+        y_dataarray = self._create_xarray_from_pandas(
+            data=y,
             date_column=self.date_column,
             dims=self.dims,
             metric_list=[self.target_column],
@@ -734,8 +938,8 @@ class MMM(ModelBuilder):
         dataarrays.append(y_dataarray)
 
         if self.control_columns is not None:
-            control_dataarray = self._create_xarray_from_dataframe(
-                df=X,
+            control_dataarray = self._create_xarray_from_pandas(
+                data=X,
                 date_column=self.date_column,
                 dims=self.dims,
                 metric_list=self.control_columns,
@@ -757,7 +961,7 @@ class MMM(ModelBuilder):
             ).days
 
         self.X = X  # type: ignore
-        self.y = y
+        self.y = y  # type: ignore
 
     def forward_pass(
         self,
@@ -936,8 +1140,8 @@ class MMM(ModelBuilder):
 
         """
         self._generate_and_preprocess_model_data(
-            X,
-            y if isinstance(y, np.ndarray) else y.values,  # type: ignore
+            X=X,  # type: ignore
+            y=y,  # type: ignore
         )
         # Compute and save scales
         self._compute_scales()
@@ -961,16 +1165,18 @@ class MMM(ModelBuilder):
                     "date", *self.dims, "channel"
                 ).values,
                 dims=("date", *self.dims, "channel"),
+                mutable=True,
             )
 
             _target = pm.Data(
-                name="target",
+                name="target_data",
                 value=(
                     self.xarray_dataset._target.sum(dim="target")
                     .transpose("date", *self.dims)
                     .values
                 ),
                 dims=("date", *self.dims),
+                mutable=True,
             )
 
             # Scale `channel_data` and `target`
@@ -978,15 +1184,24 @@ class MMM(ModelBuilder):
             channel_data_.name = "channel_data_scaled"
             channel_data_.dims = ("date", *self.dims, "channel")
 
-            target_data_ = _target / _target_scale
-            target_data_.name = "target_scaled"
-            target_data_.dims = ("date", *self.dims)
+            ## Hot fix for target data meanwhile pymc allows for internal scaling `https://github.com/pymc-devs/pymc/pull/7656`
+            target_data_scaled = _target / _target_scale
+            target_data_scaled.name = "target_scaled"
+            target_data_scaled.dims = ("date", *self.dims)
+
+            target_data_ = pm.Data(
+                name="target",
+                value=target_data_scaled.eval(),
+                dims=("date", *self.dims),
+                mutable=True,
+            )
 
             if self.time_varying_intercept | self.time_varying_media:
                 time_index = pm.Data(
                     name="time_index",
                     value=self._time_index,
                     dims="date",
+                    mutable=True,
                 )
 
             # Add intercept logic
@@ -996,7 +1211,7 @@ class MMM(ModelBuilder):
                 )
 
                 intercept_latent_process = HSGP.parameterize_from_data(
-                    X=time_index,
+                    X=time_index,  # this is
                     dims=("date", *self.dims),
                     **self.model_config["intercept_tvp_config"],
                 ).create_variable("intercept_latent_process")
@@ -1103,7 +1318,7 @@ class MMM(ModelBuilder):
             self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,
                 mu=mu_var,
-                observed=(_target.eval() / _target_scale.eval()),
+                observed=target_data_,
             )
 
     def _posterior_predictive_data_transformation(
@@ -1133,9 +1348,9 @@ class MMM(ModelBuilder):
             last_obs = self.xarray_dataset.isel(date=slice(-self.adstock.l_max, None))
             dataarrays.append(last_obs)
 
-        # Transform X_pred and y_pred to xarray
-        X_xarray = self._create_xarray_from_dataframe(
-            df=X,
+        # Transform X and y_pred to xarray
+        X_xarray = self._create_xarray_from_pandas(
+            data=X,
             date_column=self.date_column,
             dims=self.dims,
             metric_list=self.channel_columns,
@@ -1144,8 +1359,8 @@ class MMM(ModelBuilder):
         dataarrays.append(X_xarray)
 
         if self.control_columns is not None:
-            control_dataarray = self._create_xarray_from_dataframe(
-                df=X,
+            control_dataarray = self._create_xarray_from_pandas(
+                data=X,
                 date_column=self.date_column,
                 dims=self.dims,
                 metric_list=self.control_columns,
@@ -1154,8 +1369,8 @@ class MMM(ModelBuilder):
             dataarrays.append(control_dataarray)
 
         if y is not None:
-            y_xarray = self._create_xarray_from_dataframe(
-                df=y,
+            y_xarray = self._create_xarray_from_pandas(
+                data=y,
                 date_column=self.date_column,
                 dims=self.dims,
                 metric_list=[self.target_column],
@@ -1185,7 +1400,7 @@ class MMM(ModelBuilder):
         self.dataarrays = dataarrays
         self._new_internal_xarray = xr.merge(dataarrays).fillna(0)
 
-        return xr.merge(dataarrays).fillna(0)
+        return xr.merge(dataarrays).fillna(0).astype(np.int32)
 
     def _set_xarray_data(
         self,
@@ -1217,7 +1432,7 @@ class MMM(ModelBuilder):
                 "date", *self.dims, "control"
             )
 
-        if "dayofyear" in dataset_xarray:
+        if self.yearly_seasonality is not None:
             data["dayofyear"] = dataset_xarray["date"].dt.dayofyear.to_numpy()
 
         if self.time_varying_intercept or self.time_varying_media:
@@ -1232,16 +1447,96 @@ class MMM(ModelBuilder):
                 "date", *self.dims
             )
 
+            data["target_data"] = dataset_xarray._target.sum(dim="target").transpose(
+                "date", *self.dims
+            )
+
+        self.new_updated_data = data
+        self.new_updated_coords = coords
+        self.new_updated_model = model
         with model:
             pm.set_data(data, coords=coords)
 
+        return model
+
+    def fit(
+        self,
+        X: pd.DataFrame | Any,
+        y: pd.DataFrame | None | Any = None,
+        progressbar: bool | None = None,
+        predictor_names: list[str] | None = None,
+        random_seed: RandomState | None = None,
+        **kwargs: Any,
+    ) -> az.InferenceData:
+        """Fit a model using the data passed as a parameter.
+
+        Parameters
+        ----------
+        X : array-like | array, shape (n_obs, n_features)
+            The training input samples. If scikit-learn is available, array-like, otherwise array.
+        y : array-like | array, shape (n_obs,)
+            The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
+        progressbar : bool, optional
+            Specifies whether the fit progress bar should be displayed. Defaults to True.
+        predictor_names : list[str], optional
+            Allows custom naming of predictors. If `predictor_names` is provided, predictors
+            will be named accordingly; otherwise, default names will be used.
+        random_seed : RandomState, optional
+            Provides the sampler with an initial random seed for reproducible samples.
+        **kwargs : dict
+            Additional keyword arguments passed to the sampler.
+
+        Returns
+        -------
+        az.InferenceData
+            The inference data from the fitted model.
+
+        Examples
+        --------
+        >>> model = MyModel()
+        >>> idata = model.fit(X, y, progressbar=True)
+        """
+        if predictor_names is None:
+            predictor_names = []
+
+        if not hasattr(self, "model"):
+            self.build_model(
+                X=X,
+                y=y,  # type: ignore
+            )
+
+        # Ensure sampler_config is initialized as an empty dict if None
+        self.sampler_config = self.sampler_config or {}
+
+        sampler_kwargs = create_sample_kwargs(
+            self.sampler_config,
+            progressbar,
+            random_seed,
+            **kwargs,
+        )  # type: ignore
+
+        with self.model:
+            idata = pm.sample(**sampler_kwargs)
+
+        self.idata = idata  # type: ignore
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=UserWarning,
+                message="The group fit_data is not defined in the InferenceData scheme",
+            )
+
+        return self.idata  # type: ignore
+
     def sample_posterior_predictive(
         self,
-        X_pred: pd.DataFrame,
-        extend_idata: bool = True,
-        combined: bool = True,
-        include_last_observations: bool = False,
-        **sample_posterior_predictive_kwargs,
+        X: pd.DataFrame,  # type: ignore
+        extend_idata: bool = True,  # type: ignore
+        combined: bool = True,  # type: ignore
+        include_last_observations: bool = False,  # type: ignore
+        clone_model: bool = True,  # type: ignore
+        **sample_posterior_predictive_kwargs,  # type: ignore
     ) -> xr.DataArray:
         """Sample from the model's posterior predictive distribution.
 
@@ -1267,14 +1562,15 @@ class MMM(ModelBuilder):
             Posterior predictive samples.
         """
         # Update model data with xarray
-        self._set_xarray_data(
+        model = self._set_xarray_data(
             self._posterior_predictive_data_transformation(
-                X=X_pred,
+                X=X,
                 include_last_observations=include_last_observations,
-            )
+            ),
+            clone_model=clone_model,
         )
 
-        with self.model:
+        with model:
             # Sample from posterior predictive
             post_pred = pm.sample_posterior_predictive(
                 self.idata, **sample_posterior_predictive_kwargs
