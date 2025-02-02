@@ -56,7 +56,7 @@ def _handle_deprecate_pred_argument(
     if name_pred in kwargs and value is not None:
         raise ValueError(f"Both {name} and {name_pred} cannot be provided.")
 
-    if name_pred not in kwargs and value is None and not none_allowed:
+    if name_pred not in kwargs and value is None and none_allowed:
         return value
 
     if name_pred not in kwargs and value is None:
