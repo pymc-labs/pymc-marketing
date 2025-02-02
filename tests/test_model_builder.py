@@ -627,7 +627,11 @@ def test_graphviz(toy_X, toy_y):
         "predict",
     ],
 )
-def test_X_pred_deprecation(method_name, fitted_model_instance, toy_X) -> None:
+def test_X_pred_posterior_deprecation(
+    method_name,
+    fitted_model_instance,
+    toy_X,
+) -> None:
     if "posterior_predictive" in fitted_model_instance.idata:
         del fitted_model_instance.idata.posterior_predictive
 
@@ -636,3 +640,19 @@ def test_X_pred_deprecation(method_name, fitted_model_instance, toy_X) -> None:
         method(X_pred=toy_X)
 
     assert isinstance(fitted_model_instance.posterior_predictive, xr.Dataset)
+
+
+def test_X_pred_prior_deprecation(fitted_model_instance, toy_X, toy_y) -> None:
+    if "prior" in fitted_model_instance.idata:
+        del fitted_model_instance.idata.prior
+    if "prior_predictive" in fitted_model_instance.idata:
+        del fitted_model_instance.idata.prior_predictive
+
+    with pytest.warns(DeprecationWarning, match="X_pred is deprecated"):
+        fitted_model_instance.sample_prior_predictive(X_pred=toy_X)
+
+    with pytest.warns(DeprecationWarning, match="y_pred is deprecated"):
+        fitted_model_instance.sample_prior_predictive(toy_X, y_pred=toy_y)
+
+    assert isinstance(fitted_model_instance.prior, xr.Dataset)
+    assert isinstance(fitted_model_instance.prior_predictive, xr.Dataset)
