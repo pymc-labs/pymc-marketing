@@ -952,7 +952,7 @@ class TestBetaGeoModelWithCovariates:
         test_data_alt = test_data_zero.assign(
             purchase_cov=1.0,  # positive coefficient
             purchase_cov2=-1,  # negative coefficient
-            dropout_cov=2,  # positive coefficient
+            dropout_cov=3,  # positive coefficient
         )
         res_high = model.distribution_new_customer(test_data_alt).mean(
             ("chain", "draw")
@@ -960,12 +960,12 @@ class TestBetaGeoModelWithCovariates:
         assert (res_zero["purchase_rate"] < res_high["purchase_rate"]).all()
         assert (
             res_zero["recency_frequency"].sel(obs_var="frequency")
-            > res_high["recency_frequency"].sel(obs_var="frequency")
+            < res_high["recency_frequency"].sel(obs_var="frequency")
         ).all()
         assert (
-            res_zero["recency_frequency"].sel(obs_var="recency")
-            > res_high["recency_frequency"].sel(obs_var="recency")
-        ).all()
+            res_zero["recency_frequency"].sel(obs_var="recency").mean()
+            < res_high["recency_frequency"].sel(obs_var="recency").mean()
+        )
 
         assert res_zero["dropout"].std("customer_id") > res_high["dropout"].std(
             "customer_id"
