@@ -55,6 +55,7 @@ from pymc_marketing.mmm.utils import (
     create_new_spend_data,
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
+from pymc_marketing.model_builder import _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import Prior
 
@@ -1935,6 +1936,7 @@ class MMM(
             Posterior predictive samples for each input X
 
         """
+        X = _handle_deprecate_pred_argument(X, "X", sample_posterior_predictive_kwargs)
         if include_last_observations:
             X = pd.concat(
                 [self.X.iloc[-self.adstock.l_max :, :], X], axis=0
