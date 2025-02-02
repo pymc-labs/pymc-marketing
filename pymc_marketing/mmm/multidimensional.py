@@ -17,7 +17,6 @@ import itertools
 import json
 import warnings
 from typing import Any, Literal
-from pathlib import Path
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -920,7 +919,7 @@ class MMM(ModelBuilder):
     ):
         self.X = X  # type: ignore
         self.y = y  # type: ignore
-        
+
         dataarrays = []
 
         X_dataarray = self._create_xarray_from_pandas(

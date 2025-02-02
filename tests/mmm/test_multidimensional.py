@@ -86,6 +86,7 @@ def fit_mmm(df, mmm, mock_pymc_sample):
 
     return mmm
 
+
 def test_fit(fit_mmm):
     assert isinstance(fit_mmm.posterior, xr.Dataset)
     assert isinstance(fit_mmm.idata.constant_data, xr.Dataset)
