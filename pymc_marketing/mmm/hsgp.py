@@ -655,7 +655,7 @@ class HSGP(HSGPBase):
         if isinstance(X, np.ndarray):
             numeric_X = np.asarray(X)
         elif isinstance(X, TensorVariable):
-            numeric_X = X.get_value(borrow=False)  # current numeric data
+            numeric_X = X.get_value(borrow=False)
         else:
             raise ValueError(
                 "X must be a NumPy array (or list) or a pm.Data/pm.MutableData. "
@@ -666,9 +666,8 @@ class HSGP(HSGPBase):
         if X_mid is None:
             X_mid = float(numeric_X.mean())
 
-        # 3. Use the standard approximation
         m, L = create_m_and_L_recommendations(
-            numeric_X,  # numeric version
+            numeric_X,
             X_mid,
             ls_lower=ls_lower,
             ls_upper=ls_upper,
@@ -680,7 +679,7 @@ class HSGP(HSGPBase):
             eta=eta,
             m=m,
             L=L,
-            X=X,  # store the original reference (even if symbolic)
+            X=X,
             X_mid=X_mid,
             cov_func=cov_func,
             dims=dims,
