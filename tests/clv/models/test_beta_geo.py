@@ -960,21 +960,16 @@ class TestBetaGeoModelWithCovariates:
         assert (res_zero["purchase_rate"] < res_high["purchase_rate"]).all()
         assert (
             res_zero["recency_frequency"].sel(obs_var="frequency")
-            < res_high["recency_frequency"].sel(obs_var="frequency")
+            > res_high["recency_frequency"].sel(obs_var="frequency")
         ).all()
-        # NOTE: These are the problematic tests due to poor convergence
-        # We would need to test eg:
-        # assert (res_zero["dropout"] < res_high["dropout"]).all()
-        # Instead we test "less than" within tolerance
         assert (
-            (
-                res_zero["recency_frequency"].sel(obs_var="recency")
-                - res_high["recency_frequency"].sel(obs_var="recency")
-            )
-            < 0.35
+            res_zero["recency_frequency"].sel(obs_var="recency")
+            > res_high["recency_frequency"].sel(obs_var="recency")
         ).all()
 
-        assert ((res_zero["dropout"] - res_high["dropout"]) < 0.075).all()
+        assert res_zero["dropout"].std("customer_id") > res_high["dropout"].std(
+            "customer_id"
+        )
 
     def test_covariate_model_convergence(self):
         """Test that we can recover the true parameters with MAP fitting"""
