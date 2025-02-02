@@ -952,7 +952,7 @@ class TestBetaGeoModelWithCovariates:
         test_data_alt = test_data_zero.assign(
             purchase_cov=1.0,  # positive coefficient
             purchase_cov2=-1,  # negative coefficient
-            dropout_cov=1,  # positive coefficient
+            dropout_cov=2,  # positive coefficient
         )
         res_high = model.distribution_new_customer(test_data_alt).mean(
             ("chain", "draw")
