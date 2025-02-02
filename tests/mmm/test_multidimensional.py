@@ -80,11 +80,15 @@ def mock_pymc_sample() -> None:
 @pytest.fixture
 def fit_mmm(df, mmm, mock_pymc_sample):
     X = df.drop(columns=["y"])
-    y = df.set_index(["date"])["y"]
+    y = df.set_index(["date", "country"])["y"]
 
     mmm.fit(X, y)
 
     return mmm
+
+def test_fit(fit_mmm):
+    assert isinstance(fit_mmm.posterior, xr.Dataset)
+    assert isinstance(fit_mmm.idata.constant_data, xr.Dataset)
 
 
 def test_sample_prior_predictive(mmm: MMM, df: pd.DataFrame):
