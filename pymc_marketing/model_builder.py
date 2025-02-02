@@ -947,18 +947,6 @@ class ModelBuilder(ABC):
 
         return az.extract(post_pred, variable_name, combined=combined)
 
-    def get_params(self, deep=True):
-        """Get all the model parameters needed to instantiate a copy of the model, not including training data."""
-        return {
-            "model_config": self.model_config,
-            "sampler_config": self.sampler_config,
-        }
-
-    def set_params(self, **params):
-        """Set all the model parameters needed to instantiate the model, not including training data."""
-        self.model_config = params["model_config"]
-        self.sampler_config = params["sampler_config"]
-
     @property
     @abstractmethod
     def _serializable_model_config(self) -> dict[str, int | float | dict]:
