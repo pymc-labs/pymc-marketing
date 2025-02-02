@@ -17,6 +17,7 @@ import itertools
 import json
 import warnings
 from typing import Any, Literal
+from pathlib import Path
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -917,6 +918,9 @@ class MMM(ModelBuilder):
         X: pd.DataFrame | pd.Series,  # type: ignore
         y: pd.DataFrame | pd.Series,  # type: ignore
     ):
+        self.X = X  # type: ignore
+        self.y = y  # type: ignore
+        
         dataarrays = []
 
         X_dataarray = self._create_xarray_from_pandas(
@@ -959,9 +963,6 @@ class MMM(ModelBuilder):
             self._time_resolution = (
                 X[self.date_column].iloc[1] - X[self.date_column].iloc[0]
             ).days
-
-        self.X = X  # type: ignore
-        self.y = y  # type: ignore
 
     def forward_pass(
         self,
@@ -1520,12 +1521,23 @@ class MMM(ModelBuilder):
 
         self.idata = idata  # type: ignore
 
+        # (3) Add X,y to a custom group in the InferenceData
+        # Combine X and y into one DataFrame then convert to xarray
+        df_fit = X.copy()
+        df_fit[self.target_column] = y.reset_index(drop=True)
+
+        # To xarray:
+        fit_data_xr = df_fit.to_xarray()
+
+        # It's possible ArviZ might raise a UserWarning about "fit_data"
+        # not matching a recognized group. We'll just ignore that.
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
                 category=UserWarning,
                 message="The group fit_data is not defined in the InferenceData scheme",
             )
+            self.idata.add_groups({"fit_data": fit_data_xr})
 
         return self.idata  # type: ignore
 
