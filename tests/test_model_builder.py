@@ -358,7 +358,7 @@ def test_sample_xxx_predictive_keeps_second(
     X_pred = toy_X
 
     kwargs = {
-        "X_pred": X_pred,
+        "X": X_pred,
         "combined": False,
         "extend_idata": True,
         "random_seed": rng,
@@ -457,7 +457,7 @@ def test_insufficient_attrs() -> None:
 
     match = "__init__ has parameters that are not in the attrs"
     with pytest.raises(ValueError, match=match):
-        model.sample_prior_predictive(X_pred=X_pred)
+        model.sample_prior_predictive(X=X_pred)
 
 
 def test_incorrect_set_idata_attrs_override() -> None:
@@ -471,7 +471,7 @@ def test_incorrect_set_idata_attrs_override() -> None:
 
     match = "Missing required keys in attrs"
     with pytest.raises(ValueError, match=match):
-        model.sample_prior_predictive(X_pred=X_pred)
+        model.sample_prior_predictive(X=X_pred)
 
 
 @pytest.mark.parametrize(
@@ -618,3 +618,41 @@ def test_graphviz(toy_X, toy_y):
 
     model.build_model(X=toy_X, y=toy_y)
     assert isinstance(model.graphviz(), graphviz.graphs.Digraph)
+
+
+@pytest.mark.parametrize(
+    "method_name",
+    [
+        "sample_posterior_predictive",
+        "predict",
+    ],
+)
+def test_X_pred_posterior_deprecation(
+    method_name,
+    fitted_model_instance,
+    toy_X,
+) -> None:
+    if "posterior_predictive" in fitted_model_instance.idata:
+        del fitted_model_instance.idata.posterior_predictive
+
+    with pytest.warns(DeprecationWarning, match="X_pred is deprecated"):
+        method = getattr(fitted_model_instance, method_name)
+        method(X_pred=toy_X)
+
+    assert isinstance(fitted_model_instance.posterior_predictive, xr.Dataset)
+
+
+def test_X_pred_prior_deprecation(fitted_model_instance, toy_X, toy_y) -> None:
+    if "prior" in fitted_model_instance.idata:
+        del fitted_model_instance.idata.prior
+    if "prior_predictive" in fitted_model_instance.idata:
+        del fitted_model_instance.idata.prior_predictive
+
+    with pytest.warns(DeprecationWarning, match="X_pred is deprecated"):
+        fitted_model_instance.sample_prior_predictive(X_pred=toy_X)
+
+    with pytest.warns(DeprecationWarning, match="y_pred is deprecated"):
+        fitted_model_instance.sample_prior_predictive(toy_X, y_pred=toy_y)
+
+    assert isinstance(fitted_model_instance.prior, xr.Dataset)
+    assert isinstance(fitted_model_instance.prior_predictive, xr.Dataset)
