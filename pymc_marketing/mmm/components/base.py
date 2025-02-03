@@ -583,60 +583,6 @@ class Transformation:
         return self.function(x, **kwargs)
 
 
-class GaussianProcessBase:
-    """Base class for defining Gaussian Process transformations."""
-
-    def __init__(self, prefix: str = "gp", priors: dict[str, Prior] | None = None):
-        self.prefix = prefix
-        self.default_priors = {}  # type: ignore
-        self._update_priors(priors)
-
-    def _update_priors(self, priors: dict[str, Prior] | None = None) -> None:
-        """Update the default priors with user-provided priors."""
-        if priors:
-            self.default_priors.update(priors)
-
-    def _create_distributions(
-        self, dims: tuple[str, ...] | str
-    ) -> dict[str, pt.TensorVariable]:
-        """Create distributions for the GP priors."""
-        if isinstance(dims, str):
-            dims = (dims,)
-
-        return {
-            name: prior.create_variable(f"{self.prefix}_{name}")
-            for name, prior in self.default_priors.items()
-        }
-
-    def function(self, time_index: pt.TensorLike, **kwargs) -> pt.TensorVariable:
-        """Define the Gaussian Process logic."""
-        raise NotImplementedError(
-            "Subclasses must implement the `function` method for defining the GP."
-        )
-
-    def apply(
-        self,
-        dims: tuple[str, ...] | str,
-        priors: dict[str, Prior] | None = None,
-        **kwargs,
-    ) -> pt.TensorVariable:
-        """Apply the GP transformation within a PyMC model context."""
-        if isinstance(dims, str):
-            dims = (dims,)
-
-        # Update priors if provided
-        if priors:
-            self._update_priors(priors)
-
-        # Fetch the time index and priors
-        model = pm.modelcontext(None)
-        time_index = model["time_index"]
-        prior_vars = self._create_distributions(dims=dims)
-
-        # Call the function to define the GP logic
-        return self.function(time_index, **prior_vars, dims=dims, **kwargs)
-
-
 def _serialize_value(value: Any) -> Any:
     if hasattr(value, "to_dict"):
         return value.to_dict()
