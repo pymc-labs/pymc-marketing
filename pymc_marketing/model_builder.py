@@ -625,8 +625,12 @@ class ModelBuilder(ABC):
 
     def create_fit_data(self, X, y) -> xr.Dataset:
         """Create the fit_data group based on the input data."""
+        if isinstance(y, np.ndarray):
+            y = pd.Series(y, index=X.index, name=self.output_var)
+
         X_df = pd.DataFrame(X, columns=X.columns)
         combined_data = pd.concat([X_df, y], axis=1)
+
         if not all(combined_data.columns):
             raise ValueError("All columns must have non-empty names")
 
