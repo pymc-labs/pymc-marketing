@@ -207,8 +207,8 @@ class ModelBuilder(ABC):
     @abstractmethod
     def _data_setter(
         self,
-        X: np.ndarray | pd.DataFrame,
-        y: np.ndarray | pd.Series | None = None,
+        X: np.ndarray | pd.DataFrame | xr.Dataset,
+        y: np.ndarray | pd.Series | xr.DataArray | None = None,
     ) -> None:
         """Set new data in the model.
 
@@ -305,43 +305,10 @@ class ModelBuilder(ABC):
         """
 
     @abstractmethod
-    def _generate_and_preprocess_model_data(
-        self, X: pd.DataFrame | pd.Series, y: np.ndarray
-    ) -> None:
-        """Apply preprocessing to the data before fitting the model.
-
-        if validate is True, it will check if the data is valid for the model.
-        sets self.model_coords based on provided dataset
-
-        In case of optional parameters being passed into the model, this method should implement the conditional
-        logic responsible for correct handling of the optional parameters, and including them into the dataset.
-
-        Parameters
-        ----------
-        X : array, shape (n_obs, n_features)
-        y : array, shape (n_obs,)
-
-        Examples
-        --------
-        >>>     @classmethod
-        >>>     def _generate_and_preprocess_model_data(self, X, y):
-                    coords = {
-                        'x_dim': X.dim_variable,
-                    } #only include if applicable for your model
-        >>>         self.X = X
-        >>>         self.y = y
-
-        Returns
-        -------
-        None
-
-        """
-
-    @abstractmethod
     def build_model(
         self,
-        X: pd.DataFrame,
-        y: pd.Series | np.ndarray,
+        X: pd.DataFrame | xr.Dataset,
+        y: pd.Series | np.ndarray | xr.DataArray,
         **kwargs,
     ) -> None:
         """Create an instance of `pm.Model` based on provided data and model_config.
@@ -656,10 +623,19 @@ class ModelBuilder(ABC):
             )
             raise DifferentModelError(error_msg) from e
 
+    def create_fit_data(self, X, y) -> xr.Dataset:
+        """Create the fit_data group based on the input data."""
+        X_df = pd.DataFrame(X, columns=X.columns)
+        combined_data = pd.concat([X_df, y], axis=1)
+        if not all(combined_data.columns):
+            raise ValueError("All columns must have non-empty names")
+
+        return combined_data.to_xarray()
+
     def fit(
         self,
-        X: pd.DataFrame,
-        y: pd.Series | np.ndarray | None = None,
+        X: pd.DataFrame | xr.Dataset,
+        y: pd.Series | xr.DataArray | np.ndarray | None = None,
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
         **kwargs: Any,
@@ -694,23 +670,23 @@ class ModelBuilder(ABC):
         Initializing NUTS using jitter+adapt_diag...
 
         """
-        if isinstance(y, pd.Series) and not X.index.equals(y.index):
+        if (
+            isinstance(y, pd.Series)
+            and isinstance(X, pd.DataFrame)
+            and not X.index.equals(y.index)
+        ):
             raise ValueError("Index of X and y must match.")
 
         if y is None:
             y = np.zeros(X.shape[0])
 
-        y_df = pd.DataFrame({self.output_var: y}, index=X.index)
-        self._generate_and_preprocess_model_data(X, y_df.values.flatten())
-        if self.X is None or self.y is None:
-            raise ValueError("X and y must be set before calling build_model!")
-        if self.output_var in X.columns:
+        if self.output_var in X:
             raise ValueError(
                 f"X includes a column named '{self.output_var}', which conflicts with the target variable."
             )
 
         if not hasattr(self, "model"):
-            self.build_model(self.X, self.y)
+            self.build_model(X, y)
 
         sampler_kwargs = create_sample_kwargs(
             self.sampler_config,
@@ -727,13 +703,10 @@ class ModelBuilder(ABC):
         else:
             self.idata = idata
 
-        X_df = pd.DataFrame(X, columns=X.columns)
-        combined_data = pd.concat([X_df, y_df], axis=1)
-        if not all(combined_data.columns):
-            raise ValueError("All columns must have non-empty names")
-
         if "fit_data" in self.idata:
             del self.idata.fit_data
+
+        fit_data = self.create_fit_data(X, y)
 
         with warnings.catch_warnings():
             warnings.filterwarnings(
@@ -741,7 +714,7 @@ class ModelBuilder(ABC):
                 category=UserWarning,
                 message="The group fit_data is not defined in the InferenceData scheme",
             )
-            self.idata.add_groups(fit_data=combined_data.to_xarray())  # type: ignore
+            self.idata.add_groups(fit_data=fit_data)
         self.set_idata_attrs(self.idata)
         return self.idata  # type: ignore
 
