@@ -631,13 +631,13 @@ class ModelBuilder(ABC):
         if y.name is None:
             y.name = self.output_var
 
-        X_df = pd.DataFrame(X, columns=X.columns)
-        combined_data = pd.concat([X_df, y], axis=1)
+        if isinstance(X, pd.DataFrame):
+            X = X.to_xarray()
 
-        if not all(combined_data.columns):
-            raise ValueError("All columns must have non-empty names")
+        if isinstance(y, pd.Series):
+            y = y.to_xarray()
 
-        return combined_data.to_xarray()
+        return X.merge(y)
 
     def fit(
         self,
