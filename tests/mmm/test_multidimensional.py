@@ -80,7 +80,7 @@ def mock_pymc_sample() -> None:
 @pytest.fixture
 def fit_mmm(df, mmm, mock_pymc_sample):
     X = df.drop(columns=["y"])
-    y = df.set_index(["date", "country"])["y"]
+    y = df["y"]
 
     mmm.fit(X, y)
 
@@ -94,7 +94,7 @@ def test_fit(fit_mmm):
 
 def test_sample_prior_predictive(mmm: MMM, df: pd.DataFrame):
     X = df.drop(columns=["y"])
-    y = df.set_index(["date", "country"])["y"]
+    y = df["y"]
     mmm.sample_prior_predictive(X, y)
 
     assert isinstance(mmm.prior, xr.Dataset)
@@ -171,7 +171,7 @@ def multi_dim_data():
 
     X = df[["date", "country", "channel_1", "channel_2"]].copy()
 
-    return X, df.set_index(["date", "country"])["target"].copy()
+    return X, df["target"].copy()
 
 
 @pytest.mark.parametrize(

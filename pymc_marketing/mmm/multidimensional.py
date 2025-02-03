@@ -40,7 +40,7 @@ from pymc_marketing.mmm.components.saturation import (
 )
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.tvp import infer_time_index
-from pymc_marketing.model_builder import ModelBuilder
+from pymc_marketing.model_builder import ModelBuilder, _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import Prior
 
@@ -914,8 +914,8 @@ class MMM(ModelBuilder):
 
     def _generate_and_preprocess_model_data(
         self,
-        X: pd.DataFrame | pd.Series,  # type: ignore
-        y: pd.DataFrame | pd.Series,  # type: ignore
+        X: pd.DataFrame,  # type: ignore
+        y: pd.Series,  # type: ignore
     ):
         self.X = X  # type: ignore
         self.y = y  # type: ignore
@@ -932,7 +932,9 @@ class MMM(ModelBuilder):
         dataarrays.append(X_dataarray)
 
         y_dataarray = self._create_xarray_from_pandas(
-            data=y,
+            data=pd.concat([self.X, self.y], axis=1).set_index(
+                [self.date_column, *self.dims]
+            )[self.target_column],
             date_column=self.date_column,
             dims=self.dims,
             metric_list=[self.target_column],
@@ -1406,7 +1408,7 @@ class MMM(ModelBuilder):
         self,
         dataset_xarray: xr.Dataset,
         clone_model: bool = True,
-    ) -> None:
+    ) -> pm.Model:
         """Set xarray data into the model.
 
         Parameters
@@ -1454,6 +1456,7 @@ class MMM(ModelBuilder):
         self.new_updated_data = data
         self.new_updated_coords = coords
         self.new_updated_model = model
+
         with model:
             pm.set_data(data, coords=coords)
 
@@ -1461,10 +1464,9 @@ class MMM(ModelBuilder):
 
     def fit(
         self,
-        X: pd.DataFrame | Any,
-        y: pd.DataFrame | None | Any = None,
+        X: pd.DataFrame,
+        y: pd.Series | np.ndarray | None = None,
         progressbar: bool | None = None,
-        predictor_names: list[str] | None = None,
         random_seed: RandomState | None = None,
         **kwargs: Any,
     ) -> az.InferenceData:
@@ -1478,9 +1480,6 @@ class MMM(ModelBuilder):
             The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
         progressbar : bool, optional
             Specifies whether the fit progress bar should be displayed. Defaults to True.
-        predictor_names : list[str], optional
-            Allows custom naming of predictors. If `predictor_names` is provided, predictors
-            will be named accordingly; otherwise, default names will be used.
         random_seed : RandomState, optional
             Provides the sampler with an initial random seed for reproducible samples.
         **kwargs : dict
@@ -1496,8 +1495,10 @@ class MMM(ModelBuilder):
         >>> model = MyModel()
         >>> idata = model.fit(X, y, progressbar=True)
         """
-        if predictor_names is None:
-            predictor_names = []
+        if not isinstance(X, pd.DataFrame):
+            raise ValueError("X must be a pandas DataFrame")
+        if not isinstance(y, pd.Series):
+            raise ValueError("y must be a pandas Series")
 
         if not hasattr(self, "model"):
             self.build_model(
@@ -1522,8 +1523,7 @@ class MMM(ModelBuilder):
 
         # (3) Add X,y to a custom group in the InferenceData
         # Combine X and y into one DataFrame then convert to xarray
-        df_fit = X.copy()
-        df_fit[self.target_column] = y.reset_index(drop=True)
+        df_fit = pd.concat([X, y], axis=1)
 
         # To xarray:
         fit_data_xr = df_fit.to_xarray()
@@ -1542,7 +1542,7 @@ class MMM(ModelBuilder):
 
     def sample_posterior_predictive(
         self,
-        X: pd.DataFrame,  # type: ignore
+        X: pd.DataFrame | None = None,  # type: ignore
         extend_idata: bool = True,  # type: ignore
         combined: bool = True,  # type: ignore
         include_last_observations: bool = False,  # type: ignore
@@ -1572,7 +1572,10 @@ class MMM(ModelBuilder):
         xr.DataArray
             Posterior predictive samples.
         """
+        X = _handle_deprecate_pred_argument(X, "X", sample_posterior_predictive_kwargs)
         # Update model data with xarray
+        if X is None:
+            raise ValueError("X values must be provided")
         model = self._set_xarray_data(
             self._posterior_predictive_data_transformation(
                 X=X,
