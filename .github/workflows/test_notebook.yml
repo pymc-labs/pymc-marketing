@@ -18,6 +18,10 @@ on:
      - "docs/source/notebooks/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   example_notebooks:
     runs-on: ubuntu-latest
