@@ -1175,7 +1175,6 @@ class MMM(ModelBuilder):
                     "date", *self.dims, "channel"
                 ).values,
                 dims=("date", *self.dims, "channel"),
-                mutable=True,
             )
 
             _target = pm.Data(
@@ -1186,7 +1185,6 @@ class MMM(ModelBuilder):
                     .values
                 ),
                 dims=("date", *self.dims),
-                mutable=True,
             )
 
             # Scale `channel_data` and `target`
@@ -1203,7 +1201,6 @@ class MMM(ModelBuilder):
                 name="target",
                 value=target_data_scaled.eval(),
                 dims=("date", *self.dims),
-                mutable=True,
             )
 
             if self.time_varying_intercept | self.time_varying_media:
@@ -1211,7 +1208,6 @@ class MMM(ModelBuilder):
                     name="time_index",
                     value=self._time_index,
                     dims="date",
-                    mutable=True,
                 )
 
             # Add intercept logic
