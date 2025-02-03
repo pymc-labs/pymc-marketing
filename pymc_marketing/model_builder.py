@@ -307,7 +307,7 @@ class ModelBuilder(ABC):
     @abstractmethod
     def build_model(
         self,
-        X: pd.DataFrame | xr.Dataset,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | np.ndarray | xr.DataArray,
         **kwargs,
     ) -> None:
@@ -623,7 +623,11 @@ class ModelBuilder(ABC):
             )
             raise DifferentModelError(error_msg) from e
 
-    def create_fit_data(self, X, y) -> xr.Dataset:
+    def create_fit_data(
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: np.ndarray | pd.Series | xr.DataArray,
+    ) -> xr.Dataset:
         """Create the fit_data group based on the input data."""
         if isinstance(y, np.ndarray):
             y = pd.Series(y, index=X.index, name=self.output_var)
@@ -637,11 +641,11 @@ class ModelBuilder(ABC):
         if isinstance(y, pd.Series):
             y = y.to_xarray()
 
-        return X.merge(y)
+        return xr.merge([X, y])
 
     def fit(
         self,
-        X: pd.DataFrame | xr.Dataset,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | xr.DataArray | np.ndarray | None = None,
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
