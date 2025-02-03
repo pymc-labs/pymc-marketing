@@ -1538,6 +1538,7 @@ class MMM(ModelBuilder):
             )
             self.idata.add_groups({"fit_data": fit_data_xr})
 
+        self.set_idata_attrs(self.idata)
         return self.idata  # type: ignore
 
     def sample_posterior_predictive(
