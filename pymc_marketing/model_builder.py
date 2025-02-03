@@ -661,7 +661,6 @@ class ModelBuilder(ABC):
         X: pd.DataFrame,
         y: pd.Series | np.ndarray | None = None,
         progressbar: bool | None = None,
-        predictor_names: list[str] | None = None,
         random_seed: RandomState | None = None,
         **kwargs: Any,
     ) -> az.InferenceData:
@@ -677,10 +676,6 @@ class ModelBuilder(ABC):
             The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
         progressbar : bool, optional
             Specifies whether the fit progress bar should be displayed. Defaults to True.
-        predictor_names : Optional[List[str]] = None,
-            Allows for custom naming of predictors when given in a form of a 2D array.
-            Allows for naming of predictors when given in a form of np.ndarray, if not provided
-            the predictors will be named like predictor1, predictor2...
         random_seed : Optional[RandomState]
             Provides sampler with initial random seed for obtaining reproducible samples.
         **kwargs : Any
@@ -702,8 +697,6 @@ class ModelBuilder(ABC):
         if isinstance(y, pd.Series) and not X.index.equals(y.index):
             raise ValueError("Index of X and y must match.")
 
-        if predictor_names is None:
-            predictor_names = []
         if y is None:
             y = np.zeros(X.shape[0])
 
