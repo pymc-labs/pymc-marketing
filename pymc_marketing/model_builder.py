@@ -207,7 +207,7 @@ class ModelBuilder(ABC):
     @abstractmethod
     def _data_setter(
         self,
-        X: np.ndarray | pd.DataFrame | xr.Dataset,
+        X: np.ndarray | pd.DataFrame | xr.Dataset | xr.DataArray,
         y: np.ndarray | pd.Series | xr.DataArray | None = None,
     ) -> None:
         """Set new data in the model.
