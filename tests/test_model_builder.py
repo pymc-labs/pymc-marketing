@@ -293,9 +293,7 @@ def test_set_fit_result(toy_X, toy_y):
     model = ModelBuilderTest()
     model.build_model(X=toy_X, y=toy_y)
     model.idata = None
-    fake_fit = pm.sample_prior_predictive(
-        samples=50, model=model.model, random_seed=1234
-    )
+    fake_fit = pm.sample_prior_predictive(draws=50, model=model.model, random_seed=1234)
     fake_fit.add_groups(dict(posterior=fake_fit.prior))
     model.fit_result = fake_fit
     with pytest.warns(UserWarning, match="Overriding pre-existing fit_result"):
@@ -670,3 +668,90 @@ def test_X_pred_prior_deprecation(fitted_model_instance, toy_X, toy_y) -> None:
 
     assert isinstance(fitted_model_instance.prior, xr.Dataset)
     assert isinstance(fitted_model_instance.prior_predictive, xr.Dataset)
+
+
+class XarrayModel(ModelBuilder):
+    """Multivariate Regression model."""
+
+    def build_model(self, X, y, **kwargs):
+        coords = {
+            "country": ["A", "B"],
+            "date": [0, 1],
+        }
+        with pm.Model(coords=coords) as self.model:
+            x = pm.Data("X", X["x"].values, dims=("country", "date"))
+            y = pm.Data("y", y.values, dims=("country", "date"))
+
+            alpha = pm.Normal("alpha", 0, 1, dims=("country",))
+            beta = pm.Normal("beta", 0, 1, dims=("country",))
+
+            mu = alpha + beta * x
+
+            sigma = pm.HalfNormal("sigma")
+
+            pm.Normal("output", mu=mu, sigma=sigma, observed=y)
+
+    def _data_setter(self, X, y=None):
+        pass
+
+    @property
+    def _serializable_model_config(self):
+        return {}
+
+    @property
+    def output_var(self):
+        return "output"
+
+    @property
+    def default_model_config(self):
+        return {}
+
+    @property
+    def default_sampler_config(self):
+        return {}
+
+
+@pytest.fixture
+def xarray_X() -> xr.Dataset:
+    return (
+        pd.DataFrame(
+            {
+                "x": [1, 2, 3, 4],
+                "date": [0, 1, 0, 1],
+                "country": ["A", "A", "B", "B"],
+            }
+        )
+        .set_index(["country", "date"])
+        .to_xarray()
+    )
+
+
+@pytest.fixture
+def xarray_y(xarray_X) -> xr.DataArray:
+    alpha = xr.DataArray(
+        [1, 2],
+        dims=["country"],
+        coords={"country": ["A", "B"]},
+    )
+    beta = xr.DataArray([1, 2], dims=["country"], coords={"country": ["A", "B"]})
+
+    return (alpha + beta * xarray_X["x"]).rename("output")
+
+
+def test_xarray_model_builder(xarray_X, xarray_y, mock_pymc_sample) -> None:
+    model = XarrayModel()
+
+    model.fit(xarray_X, xarray_y)
+
+    xr.testing.assert_equal(
+        model.idata.fit_data,  # type: ignore
+        pd.DataFrame(
+            {
+                "x": [1, 2, 3, 4],
+                "output": [2, 3, 8, 10],
+            },
+            index=pd.MultiIndex.from_tuples(
+                [("A", 0), ("A", 1), ("B", 0), ("B", 1)], names=["country", "date"]
+            ),
+        ).to_xarray(),
+    )
