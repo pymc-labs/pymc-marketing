@@ -46,6 +46,33 @@ except ImportError:
         return X
 
 
+def _handle_deprecate_pred_argument(
+    value,
+    name: str,
+    kwargs: dict,
+    none_allowed: bool = False,
+):
+    name_pred = f"{name}_pred"
+    if name_pred in kwargs and value is not None:
+        raise ValueError(f"Both {name} and {name_pred} cannot be provided.")
+
+    if name_pred not in kwargs and value is None and none_allowed:
+        return value
+
+    if name_pred not in kwargs and value is None:
+        raise ValueError(f"Please provide {name}.")
+
+    if name_pred in kwargs:
+        warnings.warn(
+            f"{name_pred} is deprecated, use {name} instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return kwargs.pop(name_pred)
+
+    return value
+
+
 def create_idata_accessor(value: str, message: str):
     """Create a property accessor for an InferenceData object.
 
@@ -634,7 +661,6 @@ class ModelBuilder(ABC):
         X: pd.DataFrame,
         y: pd.Series | np.ndarray | None = None,
         progressbar: bool | None = None,
-        predictor_names: list[str] | None = None,
         random_seed: RandomState | None = None,
         **kwargs: Any,
     ) -> az.InferenceData:
@@ -650,10 +676,6 @@ class ModelBuilder(ABC):
             The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
         progressbar : bool, optional
             Specifies whether the fit progress bar should be displayed. Defaults to True.
-        predictor_names : Optional[List[str]] = None,
-            Allows for custom naming of predictors when given in a form of a 2D array.
-            Allows for naming of predictors when given in a form of np.ndarray, if not provided
-            the predictors will be named like predictor1, predictor2...
         random_seed : Optional[RandomState]
             Provides sampler with initial random seed for obtaining reproducible samples.
         **kwargs : Any
@@ -675,8 +697,6 @@ class ModelBuilder(ABC):
         if isinstance(y, pd.Series) and not X.index.equals(y.index):
             raise ValueError("Index of X and y must match.")
 
-        if predictor_names is None:
-            predictor_names = []
         if y is None:
             y = np.zeros(X.shape[0])
 
@@ -763,7 +783,7 @@ class ModelBuilder(ABC):
 
     def predict(
         self,
-        X_pred: np.ndarray | pd.DataFrame | pd.Series,
+        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
         extend_idata: bool = True,
         **kwargs,
     ) -> np.ndarray:
@@ -773,7 +793,7 @@ class ModelBuilder(ABC):
 
         Parameters
         ----------
-        X_pred : array-like | array, shape (n_pred, n_features)
+        X : array-like | array, shape (n_pred, n_features)
             The input data used for prediction. If scikit-learn is available, array-like, otherwise array.
         extend_idata : Boolean
             Determine whether the predictions should be added to inference data object.
@@ -782,8 +802,8 @@ class ModelBuilder(ABC):
 
         Returns
         -------
-        y_pred : ndarray, shape (n_pred,)
-            Predicted output corresponding to input X_pred.
+        ndarray, shape (n_pred,)
+            Predicted output corresponding to input X.
 
         Examples
         --------
@@ -795,7 +815,10 @@ class ModelBuilder(ABC):
 
         """
         posterior_predictive_samples = self.sample_posterior_predictive(
-            X_pred, extend_idata, combined=False, **kwargs
+            X,
+            extend_idata=extend_idata,
+            combined=False,
+            **kwargs,
         )
 
         if self.output_var not in posterior_predictive_samples:
@@ -810,8 +833,8 @@ class ModelBuilder(ABC):
 
     def sample_prior_predictive(
         self,
-        X_pred,
-        y_pred=None,
+        X=None,
+        y=None,
         samples: int | None = None,
         extend_idata: bool = True,
         combined: bool = True,
@@ -821,8 +844,11 @@ class ModelBuilder(ABC):
 
         Parameters
         ----------
-        X_pred : array, shape (n_pred, n_features)
+        X : array, shape (n_pred, n_features)
             The input data used for prediction using prior distribution.
+        y : array, shape (n_pred,), optional
+            The target values (real numbers) used for prediction using prior distribution.
+            If not set, defaults to an array of zeros.
         samples : int
             Number of samples from the prior parameter distributions to generate.
             If not set, uses sampler_config['draws'] if that is available, otherwise defaults to 500.
@@ -837,16 +863,19 @@ class ModelBuilder(ABC):
         Returns
         -------
         prior_predictive_samples : DataArray, shape (n_pred, samples)
-            Prior predictive samples for each input X_pred
+            Prior predictive samples for each input X
 
         """
-        if y_pred is None:
-            y_pred = np.zeros(len(X_pred))
+        X = _handle_deprecate_pred_argument(X, "X", kwargs)
+        y = _handle_deprecate_pred_argument(y, "y", kwargs, none_allowed=True)
+
+        if y is None:
+            y = np.zeros(len(X))
         if samples is None:
             samples = self.sampler_config.get("draws", 500)
 
         if not hasattr(self, "model"):
-            self.build_model(X_pred, y_pred)
+            self.build_model(X, y)
 
         with self.model:  # sample with new input data
             prior_pred: az.InferenceData = pm.sample_prior_predictive(samples, **kwargs)
@@ -866,7 +895,7 @@ class ModelBuilder(ABC):
 
     def sample_posterior_predictive(
         self,
-        X_pred,
+        X=None,
         extend_idata: bool = True,
         combined: bool = True,
         **sample_posterior_predictive_kwargs,
@@ -875,7 +904,7 @@ class ModelBuilder(ABC):
 
         Parameters
         ----------
-        X_pred : array, shape (n_pred, n_features)
+        X : array, shape (n_pred, n_features)
             The input data used for prediction using prior distribution..
         extend_idata : Boolean
             Determine whether the predictions should be added to inference data object.
@@ -888,10 +917,12 @@ class ModelBuilder(ABC):
         Returns
         -------
         posterior_predictive_samples : DataArray, shape (n_pred, samples)
-            Posterior predictive samples for each input X_pred
+            Posterior predictive samples for each input X
 
         """
-        self._data_setter(X_pred)
+        X = _handle_deprecate_pred_argument(X, "X", sample_posterior_predictive_kwargs)
+
+        self._data_setter(X)
 
         with self.model:
             post_pred = pm.sample_posterior_predictive(
@@ -909,18 +940,6 @@ class ModelBuilder(ABC):
 
         return az.extract(post_pred, variable_name, combined=combined)
 
-    def get_params(self, deep=True):
-        """Get all the model parameters needed to instantiate a copy of the model, not including training data."""
-        return {
-            "model_config": self.model_config,
-            "sampler_config": self.sampler_config,
-        }
-
-    def set_params(self, **params):
-        """Set all the model parameters needed to instantiate the model, not including training data."""
-        self.model_config = params["model_config"]
-        self.sampler_config = params["sampler_config"]
-
     @property
     @abstractmethod
     def _serializable_model_config(self) -> dict[str, int | float | dict]:
@@ -937,17 +956,17 @@ class ModelBuilder(ABC):
 
     def predict_proba(
         self,
-        X_pred: np.ndarray | pd.DataFrame | pd.Series,
+        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
         extend_idata: bool = True,
         combined: bool = False,
         **kwargs,
     ) -> xr.DataArray:
         """Alias for `predict_posterior`, for consistency with scikit-learn probabilistic estimators."""
-        return self.predict_posterior(X_pred, extend_idata, combined, **kwargs)
+        return self.predict_posterior(X, extend_idata, combined, **kwargs)
 
     def predict_posterior(
         self,
-        X_pred: np.ndarray | pd.DataFrame | pd.Series,
+        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
         extend_idata: bool = True,
         combined: bool = True,
         **kwargs,
@@ -956,7 +975,7 @@ class ModelBuilder(ABC):
 
         Parameters
         ----------
-        X_pred : array-like | array, shape (n_pred, n_features)
+        X : array-like | array, shape (n_pred, n_features)
             The input data used for prediction. If scikit-learn is available, array-like, otherwise array.
         extend_idata : Boolean
             Determine whether the predictions should be added to inference data object.
@@ -969,13 +988,14 @@ class ModelBuilder(ABC):
         Returns
         -------
         y_pred : DataArray
-            Posterior predictive samples for each input X_pred.
+            Posterior predictive samples for each input X.
             Shape is (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred).
 
         """
-        X_pred = self._validate_data(X_pred)
+        X = _handle_deprecate_pred_argument(X, "X", kwargs)
+        X = self._validate_data(X)
         posterior_predictive_samples = self.sample_posterior_predictive(
-            X_pred, extend_idata, combined, **kwargs
+            X, extend_idata, combined, **kwargs
         )
 
         if self.output_var not in posterior_predictive_samples:
