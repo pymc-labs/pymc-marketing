@@ -674,12 +674,15 @@ class XarrayModel(ModelBuilder):
     """Multivariate Regression model."""
 
     def build_model(self, X, y, **kwargs):
+        if isinstance(X, xr.Dataset):
+            X = X["x"]
+
         coords = {
             "country": ["A", "B"],
             "date": [0, 1],
         }
         with pm.Model(coords=coords) as self.model:
-            x = pm.Data("X", X["x"].values, dims=("country", "date"))
+            x = pm.Data("X", X.values, dims=("country", "date"))
             y = pm.Data("y", y.values, dims=("country", "date"))
 
             alpha = pm.Normal("alpha", 0, 1, dims=("country",))
@@ -738,10 +741,13 @@ def xarray_y(xarray_X) -> xr.DataArray:
     return (alpha + beta * xarray_X["x"]).rename("output")
 
 
-def test_xarray_model_builder(xarray_X, xarray_y, mock_pymc_sample) -> None:
+@pytest.mark.parametrize("X_is_array", [False, True], ids=["DataArray", "Dataset"])
+def test_xarray_model_builder(X_is_array, xarray_X, xarray_y, mock_pymc_sample) -> None:
     model = XarrayModel()
 
-    model.fit(xarray_X, xarray_y)
+    X = xarray_X if X_is_array else xarray_X["x"]
+
+    model.fit(X, xarray_y)
 
     xr.testing.assert_equal(
         model.idata.fit_data,  # type: ignore
