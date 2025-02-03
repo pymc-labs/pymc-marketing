@@ -11,20 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-#   Copyright 2023 The PyMC Developers
-#
-#   Licensed under the Apache License, Version 2.0 (the "License");
-#   you may not use this file except in compliance with the License.
-#   You may obtain a copy of the License at
-#
-#       http://www.apache.org/licenses/LICENSE-2.0
-#
-#   Unless required by applicable law or agreed to in writing, software
-#   distributed under the License is distributed on an "AS IS" BASIS,
-#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#   See the License for the specific language governing permissions and
-#   limitations under the License.
-
 import hashlib
 import json
 import sys
@@ -106,24 +92,29 @@ class ModelBuilderTest(ModelBuilder):
     _model_type = "test_model"
     version = "0.1"
 
-    def build_model(self, X: pd.DataFrame, y: pd.Series, model_config=None):
+    def build_model(self, X: pd.DataFrame, y: pd.Series):
         coords = {"numbers": np.arange(len(X))}
-        self._generate_and_preprocess_model_data(X, y)
+
+        y = y if isinstance(y, np.ndarray) else y.values
+
         with pm.Model(coords=coords) as self.model:
-            if model_config is None:
-                model_config = self.default_model_config
-            x = pm.Data("x", self.X["input"].values)
-            y_data = pm.Data("y_data", self.y)
+            x = pm.Data("x", X["input"].values)
+            y_data = pm.Data("y_data", y)
 
             # prior parameters
-            a_loc = model_config["a"]["loc"]
-            a_scale = model_config["a"]["scale"]
-            b_loc = model_config["b"]["loc"]
-            b_scale = model_config["b"]["scale"]
-            obs_error = model_config["obs_error"]
+            a_loc = self.model_config["a"]["loc"]
+            a_scale = self.model_config["a"]["scale"]
+            b_loc = self.model_config["b"]["loc"]
+            b_scale = self.model_config["b"]["scale"]
+            obs_error = self.model_config["obs_error"]
 
             # priors
-            a = pm.Normal("a", a_loc, sigma=a_scale, dims=model_config["a"]["dims"])
+            a = pm.Normal(
+                "a",
+                a_loc,
+                sigma=a_scale,
+                dims=self.model_config["a"]["dims"],
+            )
             b = pm.Normal("b", b_loc, sigma=b_scale)
             obs_error = pm.HalfNormal("σ_model_fmc", obs_error)
 
@@ -140,7 +131,7 @@ class ModelBuilderTest(ModelBuilder):
     def output_var(self):
         return "output"
 
-    def _data_setter(self, X: pd.DataFrame, y: pd.Series = None):
+    def _data_setter(self, X: pd.DataFrame, y: pd.Series | None = None):
         with self.model:
             pm.set_data({"x": X["input"].values})
             if y is not None:
@@ -150,10 +141,6 @@ class ModelBuilderTest(ModelBuilder):
     @property
     def _serializable_model_config(self):
         return self.model_config
-
-    def _generate_and_preprocess_model_data(self, X: pd.DataFrame, y: pd.Series):
-        self.X = X
-        self.y = y
 
     @property
     def default_model_config(self) -> dict:
@@ -279,9 +266,7 @@ def test_set_fit_result(toy_X, toy_y):
     model = ModelBuilderTest()
     model.build_model(X=toy_X, y=toy_y)
     model.idata = None
-    fake_fit = pm.sample_prior_predictive(
-        samples=50, model=model.model, random_seed=1234
-    )
+    fake_fit = pm.sample_prior_predictive(draws=50, model=model.model, random_seed=1234)
     fake_fit.add_groups(dict(posterior=fake_fit.prior))
     model.fit_result = fake_fit
     with pytest.warns(UserWarning, match="Overriding pre-existing fit_result"):
@@ -656,3 +641,96 @@ def test_X_pred_prior_deprecation(fitted_model_instance, toy_X, toy_y) -> None:
 
     assert isinstance(fitted_model_instance.prior, xr.Dataset)
     assert isinstance(fitted_model_instance.prior_predictive, xr.Dataset)
+
+
+class XarrayModel(ModelBuilder):
+    """Multivariate Regression model."""
+
+    def build_model(self, X, y, **kwargs):
+        if isinstance(X, xr.Dataset):
+            X = X["x"]
+
+        coords = {
+            "country": ["A", "B"],
+            "date": [0, 1],
+        }
+        with pm.Model(coords=coords) as self.model:
+            x = pm.Data("X", X.values, dims=("country", "date"))
+            y = pm.Data("y", y.values, dims=("country", "date"))
+
+            alpha = pm.Normal("alpha", 0, 1, dims=("country",))
+            beta = pm.Normal("beta", 0, 1, dims=("country",))
+
+            mu = alpha + beta * x
+
+            sigma = pm.HalfNormal("sigma")
+
+            pm.Normal("output", mu=mu, sigma=sigma, observed=y)
+
+    def _data_setter(self, X, y=None):
+        pass
+
+    @property
+    def _serializable_model_config(self):
+        return {}
+
+    @property
+    def output_var(self):
+        return "output"
+
+    @property
+    def default_model_config(self):
+        return {}
+
+    @property
+    def default_sampler_config(self):
+        return {}
+
+
+@pytest.fixture
+def xarray_X() -> xr.Dataset:
+    return (
+        pd.DataFrame(
+            {
+                "x": [1, 2, 3, 4],
+                "date": [0, 1, 0, 1],
+                "country": ["A", "A", "B", "B"],
+            }
+        )
+        .set_index(["country", "date"])
+        .to_xarray()
+    )
+
+
+@pytest.fixture
+def xarray_y(xarray_X) -> xr.DataArray:
+    alpha = xr.DataArray(
+        [1, 2],
+        dims=["country"],
+        coords={"country": ["A", "B"]},
+    )
+    beta = xr.DataArray([1, 2], dims=["country"], coords={"country": ["A", "B"]})
+
+    return (alpha + beta * xarray_X["x"]).rename("output")
+
+
+@pytest.mark.parametrize("X_is_array", [False, True], ids=["DataArray", "Dataset"])
+def test_xarray_model_builder(X_is_array, xarray_X, xarray_y, mock_pymc_sample) -> None:
+    model = XarrayModel()
+
+    X = xarray_X if X_is_array else xarray_X["x"]
+
+    model.fit(X, xarray_y)
+
+    xr.testing.assert_equal(
+        model.idata.fit_data,  # type: ignore
+        pd.DataFrame(
+            {
+                "x": [1, 2, 3, 4],
+                "output": [2, 3, 8, 10],
+            },
+            index=pd.MultiIndex.from_tuples(
+                [("A", 0), ("A", 1), ("B", 0), ("B", 1)], names=["country", "date"]
+            ),
+        ).to_xarray(),
+    )
