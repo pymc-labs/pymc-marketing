@@ -417,9 +417,6 @@ class InsufficientModel(ModelBuilder):
         super().__init__(model_config=model_config, sampler_config=sampler_config)
         self.new_parameter = new_parameter
 
-    def _data_setter(self, X: pd.DataFrame, y: pd.Series = None) -> None:
-        pass
-
     def build_model(self, X: pd.DataFrame, y: pd.Series, model_config=None) -> None:
         with pm.Model() as self.model:
             intercept = pm.Normal("intercept")
