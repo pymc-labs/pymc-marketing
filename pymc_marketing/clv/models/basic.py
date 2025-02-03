@@ -273,10 +273,6 @@ class CLVModel(ModelBuilder):
         """Output variable of the model."""
         pass
 
-    def _generate_and_preprocess_model_data(self, *args, **kwargs):
-        """Generate and preprocess model data."""
-        pass
-
     def _data_setter(self):
         """Set the data for the model."""
         pass
