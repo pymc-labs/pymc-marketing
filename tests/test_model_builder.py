@@ -1,4 +1,17 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2025 - 2025 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+#   Copyright 2022 - 2025 The PyMC Labs Developer
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -106,24 +119,29 @@ class ModelBuilderTest(ModelBuilder):
     _model_type = "test_model"
     version = "0.1"
 
-    def build_model(self, X: pd.DataFrame, y: pd.Series, model_config=None):
+    def build_model(self, X: pd.DataFrame, y: pd.Series):
         coords = {"numbers": np.arange(len(X))}
-        self._generate_and_preprocess_model_data(X, y)
+
+        y = y if isinstance(y, np.ndarray) else y.values
+
         with pm.Model(coords=coords) as self.model:
-            if model_config is None:
-                model_config = self.default_model_config
-            x = pm.Data("x", self.X["input"].values)
-            y_data = pm.Data("y_data", self.y)
+            x = pm.Data("x", X["input"].values)
+            y_data = pm.Data("y_data", y)
 
             # prior parameters
-            a_loc = model_config["a"]["loc"]
-            a_scale = model_config["a"]["scale"]
-            b_loc = model_config["b"]["loc"]
-            b_scale = model_config["b"]["scale"]
-            obs_error = model_config["obs_error"]
+            a_loc = self.model_config["a"]["loc"]
+            a_scale = self.model_config["a"]["scale"]
+            b_loc = self.model_config["b"]["loc"]
+            b_scale = self.model_config["b"]["scale"]
+            obs_error = self.model_config["obs_error"]
 
             # priors
-            a = pm.Normal("a", a_loc, sigma=a_scale, dims=model_config["a"]["dims"])
+            a = pm.Normal(
+                "a",
+                a_loc,
+                sigma=a_scale,
+                dims=self.model_config["a"]["dims"],
+            )
             b = pm.Normal("b", b_loc, sigma=b_scale)
             obs_error = pm.HalfNormal("σ_model_fmc", obs_error)
 
@@ -140,7 +158,7 @@ class ModelBuilderTest(ModelBuilder):
     def output_var(self):
         return "output"
 
-    def _data_setter(self, X: pd.DataFrame, y: pd.Series = None):
+    def _data_setter(self, X: pd.DataFrame, y: pd.Series | None = None):
         with self.model:
             pm.set_data({"x": X["input"].values})
             if y is not None:
@@ -150,10 +168,6 @@ class ModelBuilderTest(ModelBuilder):
     @property
     def _serializable_model_config(self):
         return self.model_config
-
-    def _generate_and_preprocess_model_data(self, X: pd.DataFrame, y: pd.Series):
-        self.X = X
-        self.y = y
 
     @property
     def default_model_config(self) -> dict:
