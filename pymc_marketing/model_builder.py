@@ -628,6 +628,9 @@ class ModelBuilder(ABC):
         if isinstance(y, np.ndarray):
             y = pd.Series(y, index=X.index, name=self.output_var)
 
+        if y.name is None:
+            y.name = self.output_var
+
         X_df = pd.DataFrame(X, columns=X.columns)
         combined_data = pd.concat([X_df, y], axis=1)
 
