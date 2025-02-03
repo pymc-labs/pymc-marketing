@@ -124,12 +124,12 @@ def mock_sample(*args, **kwargs):
     """This is a mock of pm.sample that returns the prior predictive samples as the posterior."""
     random_seed = kwargs.get("random_seed", None)
     model = kwargs.get("model", None)
-    samples = kwargs.get("draws", 10)
+    draws = kwargs.get("draws", 10)
     n_chains = kwargs.get("chains", 1)
     idata: InferenceData = pm.sample_prior_predictive(
         model=model,
         random_seed=random_seed,
-        samples=samples,
+        draws=draws,
     )
 
     expanded_chains = DataArray(
@@ -145,6 +145,16 @@ def mock_sample(*args, **kwargs):
     if "prior_predictive" in idata:
         del idata.prior_predictive
     return idata
+
+
+@pytest.fixture
+def mock_pymc_sample():
+    original_sample = pm.sample
+    pm.sample = mock_sample
+
+    yield
+
+    pm.sample = original_sample
 
 
 def mock_fit_MAP(self, *args, **kwargs):
@@ -173,9 +183,7 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
         model_config=model_config,
     )
     model.build_model()
-    fake_fit = pm.sample_prior_predictive(
-        samples=50, model=model.model, random_seed=rng
-    )
+    fake_fit = pm.sample_prior_predictive(draws=50, model=model.model, random_seed=rng)
     # posterior group required to pass L80 assert check
     fake_fit.add_groups(posterior=fake_fit.prior)
     set_model_fit(model, fake_fit)
@@ -205,7 +213,9 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
     # Mock an idata object for tests requiring a fitted model
     # TODO: This is quite slow. Check similar fixtures in the model tests to speed this up.
     fake_fit = pm.sample_prior_predictive(
-        samples=50, model=pnbd_model.model, random_seed=rng
+        draws=50,
+        model=pnbd_model.model,
+        random_seed=rng,
     )
     # posterior group required to pass L80 assert check
     fake_fit.add_groups(posterior=fake_fit.prior)
