@@ -44,6 +44,14 @@ from pymc_marketing.model_builder import ModelBuilder, _handle_deprecate_pred_ar
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import Prior
 
+PYMC_MARKETING_ISSUE = "https://github.com/pymc-labs/pymc-marketing/issues/new"
+warning_msg = (
+    "This functionality is experimental and subject to change. "
+    "If you encounter any issues or have suggestions, please raise them at: "
+    f"{PYMC_MARKETING_ISSUE}"
+)
+warnings.warn(warning_msg, FutureWarning, stacklevel=1)
+
 
 class MMMPlotSuite:
     """Media Mix Model Plot Suite.
