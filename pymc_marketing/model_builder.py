@@ -632,8 +632,7 @@ class ModelBuilder(ABC):
         if isinstance(y, np.ndarray):
             y = pd.Series(y, index=X.index, name=self.output_var)
 
-        if y.name is None:
-            y.name = self.output_var
+        y.name = self.output_var
 
         if isinstance(X, pd.DataFrame):
             X = X.to_xarray()
