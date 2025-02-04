@@ -147,7 +147,7 @@ def mock_sample(*args, **kwargs):
     return idata
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def mock_pymc_sample():
     original_sample = pm.sample
     pm.sample = mock_sample
