@@ -24,7 +24,7 @@ import pymc as pm
 import pytest
 import xarray as xr
 
-from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
+from pymc_marketing.model_builder import RegressionModelBuilder, create_sample_kwargs
 
 
 @pytest.fixture(scope="module")
@@ -84,7 +84,7 @@ def not_fitted_model_instance():
     )
 
 
-class ModelBuilderTest(ModelBuilder):
+class ModelBuilderTest(RegressionModelBuilder):
     def __init__(self, model_config=None, sampler_config=None, test_parameter=None):
         self.test_parameter = test_parameter
         super().__init__(model_config=model_config, sampler_config=sampler_config)
@@ -182,6 +182,7 @@ def test_save_load(fitted_model_instance):
     rng = np.random.default_rng(42)
     temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
     fitted_model_instance.save(temp.name)
+
     test_builder2 = ModelBuilderTest.load(temp.name)
 
     assert fitted_model_instance.idata.groups() == test_builder2.idata.groups()
@@ -197,7 +198,9 @@ def test_save_load(fitted_model_instance):
     temp.close()
 
 
-def test_initial_build_and_fit(fitted_model_instance, check_idata=True) -> ModelBuilder:
+def test_initial_build_and_fit(
+    fitted_model_instance, check_idata=True
+) -> RegressionModelBuilder:
     if check_idata:
         assert fitted_model_instance.idata is not None
         assert "posterior" in fitted_model_instance.idata.groups()
@@ -395,7 +398,7 @@ def test_second_fit(toy_X, toy_y):
     assert id_before != id_after
 
 
-class InsufficientModel(ModelBuilder):
+class InsufficientModel(RegressionModelBuilder):
     def __init__(
         self, model_config=None, sampler_config=None, new_parameter=None
     ) -> None:
@@ -643,7 +646,7 @@ def test_X_pred_prior_deprecation(fitted_model_instance, toy_X, toy_y) -> None:
     assert isinstance(fitted_model_instance.prior_predictive, xr.Dataset)
 
 
-class XarrayModel(ModelBuilder):
+class XarrayModel(RegressionModelBuilder):
     """Multivariate Regression model."""
 
     def build_model(self, X, y, **kwargs):

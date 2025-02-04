@@ -26,14 +26,14 @@ from matplotlib.axes import Axes
 from typing_extensions import Self
 from xarray import DataArray
 
-from pymc_marketing.model_builder import ModelBuilder, create_idata_accessor
+from pymc_marketing.model_builder import RegressionModelBuilder, create_idata_accessor
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import Prior
 
 HDI_ALPHA = 0.5
 
 
-class MVITS(ModelBuilder):
+class MVITS(RegressionModelBuilder):
     """Multivariate Interrupted Time Series class.
 
     Class to perform a multivariate interrupted time series analysis with the
