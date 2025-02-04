@@ -43,7 +43,7 @@ def toy_y(toy_X):
 
 
 @pytest.fixture(scope="module")
-def fitted_model_instance(toy_X, mock_pymc_sample):
+def fitted_model_instance(toy_X, toy_y, mock_pymc_sample):
     sampler_config = {
         "draws": 100,
         "tune": 100,
@@ -62,6 +62,7 @@ def fitted_model_instance(toy_X, mock_pymc_sample):
     )
     model.fit(
         toy_X,
+        toy_y,
         chains=1,
         draws=100,
         tune=100,
