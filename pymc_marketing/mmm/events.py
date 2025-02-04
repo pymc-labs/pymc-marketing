@@ -22,18 +22,22 @@ This module provides event transformations for use in Marketing Mix Models.
     import pandas as pd
     import pymc as pm
 
+    import matplotlib.pyplot as plt
+
     from pymc_marketing.mmm.events import EventEffect, GaussianBasis
     from pymc_marketing.plot import plot_curve
     from pymc_marketing.prior import Prior
 
+    seed = sum(map(ord, "Events"))
+    rng = np.random.default_rng(seed)
+
     df_events = pd.DataFrame(
         {
-            "event": ["first", "second"],
-            "start_date": pd.to_datetime(["2023-01-01", "2023-01-20"]),
-            "end_date": pd.to_datetime(["2023-01-02", "2023-01-25"]),
+            "event": ["single day", "multi day"],
+            "start_date": pd.to_datetime(["2025-01-01", "2025-01-20"]),
+            "end_date": pd.to_datetime(["2025-01-02", "2025-01-25"]),
         }
     )
-
 
     def difference_in_days(model_dates, event_dates):
         if hasattr(model_dates, "to_numpy"):
@@ -67,7 +71,7 @@ This module provides event transformations for use in Marketing Mix Models.
     effect_size = Prior("Normal", mu=1, sigma=1, dims="event")
     effect = EventEffect(basis=gaussian, effect_size=effect_size, dims=("event",))
 
-    dates = pd.date_range("2022-12-01", periods=3 * 31, freq="D")
+    dates = pd.date_range("2024-12-01", periods=3 * 31, freq="D")
 
     X = create_basis_matrix(df_events, model_dates=dates)
 
@@ -75,14 +79,16 @@ This module provides event transformations for use in Marketing Mix Models.
     with pm.Model(coords=coords) as model:
         pm.Deterministic("effect", effect.apply(X), dims=("date", "event"))
 
-        idata = pm.sample_prior_predictive()
+        idata = pm.sample_prior_predictive(random_seed=rng)
 
     fig, axes = idata.prior.effect.pipe(
         plot_curve,
         {"date"},
         subplot_kwargs={"ncols": 1},
+        sample_kwargs={"rng": rng},
     )
-fig.suptitle("Gaussian Event Effect")
+    fig.suptitle("Gaussian Event Effect")
+    plt.show()
 
 """
 
@@ -113,7 +119,7 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[misc]
         parameters: InstanceOf[xr.Dataset] = Field(
             ..., description="Parameters of the saturation transformation."
         ),
-        days: int = Field(0, ge=0, description="Minimum number of days."),
+        days: int = Field(0, ge=0, description="Number of days around basis."),
     ) -> xr.DataArray:
         """Sample the curve of the saturation transformation given parameters.
 
@@ -121,6 +127,8 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[misc]
         ----------
         parameters : xr.Dataset
             Dataset with the parameters of the saturation transformation.
+        days : int
+            Number of days around basis.
 
         Returns
         -------
