@@ -712,7 +712,7 @@ def xarray_y(xarray_X) -> xr.DataArray:
     )
     beta = xr.DataArray([1, 2], dims=["country"], coords={"country": ["A", "B"]})
 
-    return (alpha + beta * xarray_X["x"]).rename("output")
+    return (alpha + beta * xarray_X["x"]).rename("name other than output")
 
 
 @pytest.mark.parametrize("X_is_array", [False, True], ids=["DataArray", "Dataset"])
