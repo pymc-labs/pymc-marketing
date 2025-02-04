@@ -370,7 +370,7 @@ class ModelIO:
         """Build the model from the InferenceData object."""
 
     @classmethod
-    def load(cls, fname: str, check: bool = False):
+    def load(cls, fname: str, check: bool = True):
         """Create a ModelBuilder instance from a file.
 
         Loads inference data for the model.
@@ -386,6 +386,9 @@ class ModelIO:
         ----------
         fname : string
             This denotes the name with path from where idata should be loaded from.
+        check : bool, optional
+            Whether to check if the model id matches the id in the InferenceData loaded.
+            Defaults to True.
 
         Returns
         -------
@@ -420,7 +423,7 @@ class ModelIO:
             raise DifferentModelError(error_msg) from e
 
     @classmethod
-    def load_from_idata(cls, idata: az.InferenceData, check: bool = False) -> "ModelIO":
+    def load_from_idata(cls, idata: az.InferenceData, check: bool = True) -> "ModelIO":
         """Create a ModelBuilder instance from an InferenceData object.
 
         This class method has a few steps:
@@ -433,6 +436,9 @@ class ModelIO:
         ----------
         idata : az.InferenceData
             The InferenceData object to load the model from.
+        check : bool, optional
+            Whether to check if the model id matches the id in the InferenceData loaded.
+            Defaults to True.
 
         Returns
         -------
