@@ -149,6 +149,15 @@ def mmm_fitted_with_posterior_predictive(
 
 
 @pytest.fixture(scope="module")
+def mmm_fitted_with_prior_and_posterior_predictive(
+    mmm_fitted_with_posterior_predictive,
+    toy_X,
+):
+    _ = mmm_fitted_with_posterior_predictive.sample_prior_predictive(toy_X)
+    return mmm_fitted_with_posterior_predictive
+
+
+@pytest.fixture(scope="module")
 def mmm_fitted_with_fourier_features(
     mmm_with_fourier_features: MMM,
     toy_X: pd.DataFrame,
@@ -736,16 +745,17 @@ class TestMMM:
     )
     def test_get_group_predictive_data(
         self,
-        mmm_fitted_with_posterior_predictive: MMM,
+        mmm_fitted_with_prior_and_posterior_predictive: MMM,
         group: str,
         original_scale: bool,
     ):
-        dataset = mmm_fitted_with_posterior_predictive._get_group_predictive_data(
-            group=group, original_scale=original_scale
+        dataset = (
+            mmm_fitted_with_prior_and_posterior_predictive._get_group_predictive_data(
+                group=group,
+                original_scale=original_scale,
+            )
         )
         assert isinstance(dataset, xr.Dataset)
-        assert dataset.dims["chain"] == 1
-        assert dataset.dims["draw"] == 500
         assert dataset.dims["date"] == 135
         assert dataset["y"].dims == ("chain", "draw", "date")
 
