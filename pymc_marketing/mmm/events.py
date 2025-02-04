@@ -48,8 +48,6 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[misc]
         ----------
         parameters : xr.Dataset
             Dataset with the parameters of the saturation transformation.
-        max_value : float, optional
-            Maximum value of the curve, by default 1.0.
 
         Returns
         -------
