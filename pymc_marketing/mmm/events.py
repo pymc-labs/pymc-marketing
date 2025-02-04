@@ -1,20 +1,36 @@
-from dataclasses import dataclass
+#   Copyright 2025 - 2025 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+"""Event transformations."""
 
 import numpy as np
-import pandas as pd
 import pymc as pm
+import pytensor.tensor as pt
 import xarray as xr
-from pydantic import Field, InstanceOf, validate_call
+from pydantic import BaseModel, Field, InstanceOf, validate_call
+from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.mmm.components.base import Transformation, create_registration_meta
 from pymc_marketing.prior import Prior, create_dim_handler
 
-BASIS_TRANSFORMATIONS = {}
+BASIS_TRANSFORMATIONS: dict = {}
 BasisMeta = create_registration_meta(BASIS_TRANSFORMATIONS)
 
 
-class Basis(Transformation, metaclass=BasisMeta):
+class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[misc]
+    """Basis transformation associated with an event model."""
+
     prefix: str = "basis"
     lookup_name: str
 
@@ -43,9 +59,7 @@ class Basis(Transformation, metaclass=BasisMeta):
         """
         x = np.linspace(-days, days, 100)
 
-        coords = {
-            "x": x,
-        }
+        coords = {"x": x}
 
         return self._sample_curve(
             var_name="saturation",
@@ -77,13 +91,14 @@ register_deserialization(
 )
 
 
-@dataclass
-class EventEffect:
+class EventEffect(BaseModel):
+    """Event effect associated with an event model."""
+
     basis: Basis
     effect_size: Prior
     dims: tuple[str, ...]
 
-    def apply(self, X, name: str = "event"):
+    def apply(self, X: pt.TensorLike, name: str = "event") -> TensorVariable:
         """Apply the event effect to the data."""
         dim_handler = create_dim_handler(("x", *self.dims))
         return self.basis.apply(X, dims=self.dims) * dim_handler(
@@ -91,7 +106,8 @@ class EventEffect:
             self.effect_size.dims,
         )
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
+        """Convert the event effect to a dictionary."""
         return {
             "class": "EventEffect",
             "data": {
@@ -102,7 +118,8 @@ class EventEffect:
         }
 
     @classmethod
-    def from_dict(cls, data):
+    def from_dict(cls, data: dict) -> "EventEffect":
+        """Create an event effect from a dictionary."""
         return cls(
             basis=deserialize(data["basis"]),
             effect_size=deserialize(data["effect_size"]),
@@ -110,7 +127,8 @@ class EventEffect:
         )
 
 
-def _is_event_effect(data):
+def _is_event_effect(data: dict) -> bool:
+    """Check if the data is an event effect."""
     return data["class"] == "EventEffect"
 
 
@@ -120,88 +138,15 @@ register_deserialization(
 )
 
 
-if __name__ == "__main__":
-    import matplotlib.pyplot as plt
+class GaussianBasis(Basis):
+    """Gaussian basis transformation."""
 
-    from pymc_marketing.plot import plot_curve
+    lookup_name = "gaussian"
 
-    class GaussianBasis(Basis):
-        lookup_name = "gaussian"
+    def function(self, x: pt.TensorLike, sigma: pt.TensorLike) -> TensorVariable:
+        """Gaussian bump function."""
+        return pm.math.exp(-0.5 * (x / sigma) ** 2)
 
-        def function(self, x, sigma):
-            return pm.math.exp(-0.5 * (x / sigma) ** 2)
-
-        default_priors = {
-            "sigma": Prior("Gamma", mu=7, sigma=1),
-        }
-
-    gaussian = GaussianBasis(
-        priors={
-            "sigma": Prior("Gamma", mu=[4, 7, 10], sigma=1, dims="event"),
-        },
-    )
-    coords = {"event": ["NYE", "Grand Opening Game Show", "Super Bowl"]}
-    prior = gaussian.sample_prior(coords=coords)
-    curve = gaussian.sample_curve(prior, days=21)
-
-    fig, axes = gaussian.plot_curve(curve, same_axes=True)
-    fig.suptitle("Gaussian Basis")
-    plt.savefig("gaussian-basis")
-    plt.close()
-
-    df_events = pd.DataFrame(
-        {
-            "event": ["first", "second"],
-            "start_date": pd.to_datetime(["2023-01-01", "2023-01-20"]),
-            "end_date": pd.to_datetime(["2023-01-02", "2023-01-25"]),
-        }
-    )
-
-    def difference_in_days(model_dates, event_dates):
-        if hasattr(model_dates, "to_numpy"):
-            model_dates = model_dates.to_numpy()
-        if hasattr(event_dates, "to_numpy"):
-            event_dates = event_dates.to_numpy()
-
-        one_day = np.timedelta64(1, "D")
-        return (model_dates[:, None] - event_dates) / one_day
-
-    def create_basis_matrix(df_events: pd.DataFrame, model_dates: np.ndarray):
-        start_dates = df_events["start_date"]
-        end_dates = df_events["end_date"]
-
-        s_ref = difference_in_days(model_dates, start_dates)
-        e_ref = difference_in_days(model_dates, end_dates)
-
-        return np.where(
-            (s_ref >= 0) & (e_ref <= 0),
-            0,
-            np.where(np.abs(s_ref) < np.abs(e_ref), s_ref, e_ref),
-        )
-
-    gaussian = GaussianBasis(
-        priors={
-            "sigma": Prior("Gamma", mu=7, sigma=1, dims="event"),
-        }
-    )
-    effect_size = Prior("Normal", mu=1, sigma=1, dims="event")
-    effect = EventEffect(basis=gaussian, effect_size=effect_size, dims=("event",))
-
-    dates = pd.date_range("2022-12-01", periods=3 * 31, freq="D")
-
-    X = create_basis_matrix(df_events, model_dates=dates)
-
-    coords = {"date": dates, "event": df_events["event"].to_numpy()}
-    with pm.Model(coords=coords) as model:
-        pm.Deterministic("effect", effect.apply(X), dims=("date", "event"))
-
-        idata = pm.sample_prior_predictive()
-
-    fig, axes = idata.prior.effect.pipe(
-        plot_curve,
-        {"date"},
-        subplot_kwargs={"ncols": 1},
-    )
-    fig.suptitle("Gaussian Event Effect")
-    plt.savefig("gaussian-event")
-    plt.close()
+    default_priors = {
+        "sigma": Prior("Gamma", mu=7, sigma=1),
+    }
