@@ -38,12 +38,12 @@ def toy_y(toy_X):
     rng = np.random.default_rng(42)
     y = 5 * toy_X["input"] + 3
     y = y + rng.normal(0, 1, size=len(toy_X))
-    y = pd.Series(y, name="output")
+    y = pd.Series(y, name="different name than output")
     return y
 
 
 @pytest.fixture(scope="module")
-def fitted_model_instance(toy_X):
+def fitted_model_instance(toy_X, mock_pymc_sample):
     sampler_config = {
         "draws": 100,
         "tune": 100,
@@ -237,7 +237,7 @@ def test_fit(fitted_model_instance):
     )
 
 
-def test_fit_no_t(toy_X):
+def test_fit_no_t(toy_X, mock_pymc_sample):
     model_builder = ModelBuilderTest()
     model_builder.idata = model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
     assert model_builder.model is not None
@@ -298,8 +298,8 @@ def test_sample_posterior_predictive(fitted_model_instance, combined):
     pred = fitted_model_instance.sample_posterior_predictive(
         prediction_data, combined=combined, extend_idata=True
     )
-    chains = fitted_model_instance.idata.sample_stats.sizes["chain"]
-    draws = fitted_model_instance.idata.sample_stats.sizes["draw"]
+    chains = fitted_model_instance.idata.posterior.sizes["chain"]
+    draws = fitted_model_instance.idata.posterior.sizes["draw"]
     expected_shape = (n_pred, chains * draws) if combined else (chains, draws, n_pred)
     assert pred[fitted_model_instance.output_var].shape == expected_shape
     assert np.issubdtype(pred[fitted_model_instance.output_var].dtype, np.floating)
@@ -370,7 +370,7 @@ def test_prediction_kwarg(fitted_model_instance, toy_X):
     assert isinstance(result, xr.Dataset)
 
 
-def test_fit_after_prior_keeps_prior(toy_X, toy_y):
+def test_fit_after_prior_keeps_prior(toy_X, toy_y, mock_pymc_sample):
     model = ModelBuilderTest()
     model.sample_prior_predictive(toy_X)
     assert "prior" in model.idata
@@ -381,7 +381,7 @@ def test_fit_after_prior_keeps_prior(toy_X, toy_y):
     assert "prior_predictive" in model.idata
 
 
-def test_second_fit(toy_X, toy_y):
+def test_second_fit(toy_X, toy_y, mock_pymc_sample):
     model = ModelBuilderTest()
 
     model.fit(X=toy_X, y=toy_y, chains=1, draws=100, tune=100)

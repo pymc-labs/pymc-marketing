@@ -314,7 +314,12 @@ def test_calling_prior_predictive_before_fit_raises_error(test_mmm, toy_X, toy_y
         test_mmm.prior_predictive
 
 
-def test_calling_fit_result_before_fit_raises_error(test_mmm, toy_X, toy_y):
+def test_calling_fit_result_before_fit_raises_error(
+    test_mmm,
+    toy_X,
+    toy_y,
+    mock_pymc_sample,
+):
     # Arrange
     test_mmm.idata = None
     with pytest.raises(
