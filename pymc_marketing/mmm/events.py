@@ -92,8 +92,8 @@ register_deserialization(
 class EventEffect(BaseModel):
     """Event effect associated with an event model."""
 
-    basis: Basis
-    effect_size: Prior
+    basis: InstanceOf[Basis]
+    effect_size: InstanceOf[Prior]
     dims: tuple[str, ...]
 
     def apply(self, X: pt.TensorLike, name: str = "event") -> TensorVariable:
