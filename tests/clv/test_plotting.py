@@ -182,11 +182,15 @@ def test_plot_expected_purchases_over_time(
     plt.clf()
 
 
-def test_plot_expected_purchases_ppc_exceptions(fitted_bg, fitted_pnbd):
+@pytest.mark.parametrize(
+    "model",
+    ["fitted_bg", "fitted_mbg", "fitted_pnbd"],
+)
+def test_plot_expected_purchases_ppc_exceptions(model):
     with pytest.raises(
         NameError, match="Specify 'prior' or 'posterior' for 'ppc' parameter."
     ):
-        plot_expected_purchases_ppc(fitted_pnbd, ppc="ppc")
+        plot_expected_purchases_ppc(model, ppc="ppc")
 
 
 @pytest.mark.parametrize(

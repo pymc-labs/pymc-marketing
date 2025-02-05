@@ -14,6 +14,7 @@ dependencies:
 - pip
 - pydantic
 - preliz
+- pyprojroot
 # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
 - pymc>=5.20.0
 - scikit-learn>=1.1.1
