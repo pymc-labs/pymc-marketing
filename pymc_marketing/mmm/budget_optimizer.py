@@ -16,13 +16,14 @@
 
 import warnings
 from collections.abc import Sequence
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Protocol, runtime_checkable
 
 import arviz as az
 import numpy as np
 import pytensor.tensor as pt
 import xarray as xr
-from pydantic import BaseModel, ConfigDict, Field
+from arviz import InferenceData
+from pydantic import BaseModel, ConfigDict, Field, InstanceOf
 from pymc import Model, do
 from pymc.logprob.utils import rvs_in_graph
 from pymc.model.transform.optimization import freeze_dims_and_data
@@ -39,7 +40,6 @@ from pymc_marketing.mmm.constraints import (
     build_default_sum_constraint,
     compile_constraints_for_scipy,
 )
-from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 
 
@@ -83,6 +83,18 @@ class MinimizeException(Exception):
         super().__init__(message)
 
 
+@runtime_checkable
+class OptimizerCompatibleModelWrapper(Protocol):
+    """Protocol for marketing mix model wrappers compatible with the BudgetOptimizer."""
+
+    adstock: Any
+    _channel_scales: Any
+    idata: InferenceData
+
+    def _set_predictors_for_optimization(self, num_periods: int) -> Model:
+        """Set the predictors for optimization."""
+
+
 class BudgetOptimizer(BaseModel):
     """A class for optimizing budget allocation in a marketing mix model.
 
@@ -109,7 +121,7 @@ class BudgetOptimizer(BaseModel):
         description="Number of time units at the desired time granularity to allocate budget for.",
     )
 
-    mmm_model: MMM = Field(
+    mmm_model: InstanceOf[OptimizerCompatibleModelWrapper] = Field(
         ...,
         description="The marketing mix model to optimize.",
         arbitrary_types_allowed=True,
@@ -184,7 +196,8 @@ class BudgetOptimizer(BaseModel):
             self._budgets = self._budgets_flat.reshape(self._budget_shape)
         else:
             # Masked case: fill a zero array, then set only the True positions
-            budgets_zeros = pt.zeros(self._budget_shape, name="budgets_zeros")
+            budgets_zeros = pt.zeros(self._budget_shape)
+            budgets_zeros.name = "budgets_zeros"
             bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
             self._budgets = budgets_zeros[bool_mask].set(self._budgets_flat)
 
@@ -364,6 +377,7 @@ class BudgetOptimizer(BaseModel):
         total_budget: float,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
         minimize_kwargs: dict[str, Any] | None = None,
+        return_if_fail: bool = False,
     ) -> tuple[DataArray, OptimizeResult]:
         """
         Allocate the budget based on `total_budget`, optional `budget_bounds`, and custom constraints.
@@ -383,6 +397,8 @@ class BudgetOptimizer(BaseModel):
         minimize_kwargs : dict, optional
             Extra kwargs for `scipy.optimize.minimize`. Defaults to method "SLSQP",
             ftol=1e-9, maxiter=1_000.
+        return_if_fail : bool, optional
+            Return output even if optimization fails. Default is False.
 
         Returns
         -------
@@ -405,8 +421,9 @@ class BudgetOptimizer(BaseModel):
                 UserWarning,
                 stacklevel=2,
             )
-            budget_bounds_array = np.array(
-                [[0, total_budget]] * np.prod(self._budget_shape)
+            budget_bounds_array = np.broadcast_to(
+                [0, total_budget],
+                (*self._budget_shape, 2),
             )
         elif isinstance(budget_bounds, dict):
             if len(self._budget_dims) > 1:
@@ -473,7 +490,7 @@ class BudgetOptimizer(BaseModel):
         )
 
         # 7. Process results
-        if result.success:
+        if result.success or return_if_fail:
             if self.budgets_to_optimize is None:
                 # Reshape the entire optimized solution
                 optimal_budgets = np.reshape(result.x, self._budget_shape)
