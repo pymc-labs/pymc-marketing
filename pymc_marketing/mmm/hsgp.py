@@ -679,7 +679,7 @@ class HSGP(HSGPBase):
             eta=eta,
             m=m,
             L=L,
-            X=X,
+            X=X,  # store the original reference (even if symbolic)
             X_mid=X_mid,
             cov_func=cov_func,
             dims=dims,
