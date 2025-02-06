@@ -253,3 +253,13 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
     set_model_fit(pnbd_model, fake_fit)
 
     return pnbd_model
+
+
+@pytest.fixture(params=["bg_model", "mbg_model", "pnbd_model"])
+def fitted_model(request, fitted_bg, fitted_mbg, fitted_pnbd):
+    fitted_models = {
+        "bg_model": fitted_bg,
+        "mbg_model": fitted_mbg,
+        "pnbd_model": fitted_pnbd,
+    }
+    return fitted_models[request.param]
