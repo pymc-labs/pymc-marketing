@@ -90,8 +90,7 @@ class MMM(ModelBuilder):
         Whether to apply adstock transformations before saturation.
     """
 
-    _model_name: str = "BaseMMM"
-    _model_type: str = "BaseValidateMMM"
+    _model_type: str = "MMMM (Multi-Dimensional Marketing Mix Model)"
     version: str = "0.0.1"
 
     def __init__(
