@@ -297,12 +297,12 @@ class BetaGeoModel(CLVModel):
                     ].create_variable("kappa_dropout")
 
                     a_scale = pm.Deterministic(
-                        "a_scale", phi_dropout * kappa_dropout, dims="customer_id"
+                        "a_scale",
+                        phi_dropout * kappa_dropout,
                     )
                     b_scale = pm.Deterministic(
                         "b_scale",
                         (1.0 - phi_dropout) * kappa_dropout,
-                        dims="customer_id",
                     )
 
                     a = pm.Deterministic(
