@@ -951,7 +951,7 @@ class MMM(ModelBuilder):
         X: pd.DataFrame,
         y: pd.Series | None = None,
         include_last_observations: bool = False,
-    ):
+    ) -> xr.Dataset:
         """Transform the data for posterior predictive sampling.
 
         Parameters
