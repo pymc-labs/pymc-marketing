@@ -161,12 +161,12 @@ def _find_first_transactions(
     customer_id_col: str,
     datetime_col: str,
     monetary_value_col: str | None = None,
-    purchase_covariate_cols: list | None = None,
-    dropout_covariate_cols: list | None = None,
     datetime_format: str | None = None,
     observation_period_end: str | pandas.Period | datetime | None = None,
     time_unit: str = "D",
     sort_transactions: bool | None = True,
+    purchase_covariate_cols: list | None = None,
+    dropout_covariate_cols: list | None = None,
 ) -> pandas.DataFrame:
     """Return dataframe with first transactions.
 
@@ -225,7 +225,7 @@ def _find_first_transactions(
             [
                 extra_col
                 for extra_col in dropout_covariate_cols
-                if extra_col not in purchase_covariate_cols
+                if extra_col not in purchase_covariate_cols  # type: ignore
             ]
         )
 

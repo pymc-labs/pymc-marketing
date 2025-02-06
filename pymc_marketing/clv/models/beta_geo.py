@@ -36,7 +36,7 @@ class BetaGeoModel(CLVModel):
     r"""Beta-Geometric Negative Binomial Distribution (BG/NBD) model for a non-contractual customer population across continuous time.
 
     First introduced by Fader, Hardie & Lee [1]_, with additional predictive methods
-    and enhancements in [2]_,[3]_ and [4]_.
+    and enhancements in [2]_,[3]_, [4]_ and [5]_
 
     The BG/NBD model assumes dropout probabilities for the customer population are Beta distributed,
     and time between transactions follows a Gamma distribution while the customer is still active.
@@ -214,9 +214,9 @@ class BetaGeoModel(CLVModel):
                 self.model_config[
                     "purchase_coefficient_prior"
                 ].dims = "purchase_covariate"
-                purchase_coefficient_gamma1 = self.model_config[
+                purchase_coefficient_alpha = self.model_config[
                     "purchase_coefficient_prior"
-                ].create_variable("purchase_coefficient_gamma1")
+                ].create_variable("purchase_coefficient_alpha")
 
                 alpha_scale = self.model_config["alpha_prior"].create_variable(
                     "alpha_scale"
@@ -226,7 +226,7 @@ class BetaGeoModel(CLVModel):
                     (
                         alpha_scale
                         * pm.math.exp(
-                            -pm.math.dot(purchase_data, purchase_coefficient_gamma1)
+                            -pm.math.dot(purchase_data, purchase_coefficient_alpha)
                         )
                     ),
                     dims="customer_id",
@@ -246,29 +246,25 @@ class BetaGeoModel(CLVModel):
                     self.model_config[
                         "dropout_coefficient_prior"
                     ].dims = "dropout_covariate"
-                    dropout_coefficient_gamma2 = self.model_config[
+                    dropout_coefficient_a = self.model_config[
                         "dropout_coefficient_prior"
-                    ].create_variable("dropout_coefficient_gamma2")
-                    dropout_coefficient_gamma3 = self.model_config[
+                    ].create_variable("dropout_coefficient_a")
+                    dropout_coefficient_b = self.model_config[
                         "dropout_coefficient_prior"
-                    ].create_variable("dropout_coefficient_gamma3")
+                    ].create_variable("dropout_coefficient_b")
 
                     a_scale = self.model_config["a_prior"].create_variable("a_scale")
                     b_scale = self.model_config["b_prior"].create_variable("b_scale")
                     a = pm.Deterministic(
                         "a",
                         a_scale
-                        * pm.math.exp(
-                            pm.math.dot(dropout_data, dropout_coefficient_gamma2)
-                        ),
+                        * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_a)),
                         dims="customer_id",
                     )
                     b = pm.Deterministic(
                         "b",
                         b_scale
-                        * pm.math.exp(
-                            pm.math.dot(dropout_data, dropout_coefficient_gamma3)
-                        ),
+                        * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_b)),
                         dims="customer_id",
                     )
                 else:
@@ -286,43 +282,40 @@ class BetaGeoModel(CLVModel):
                     self.model_config[
                         "dropout_coefficient_prior"
                     ].dims = "dropout_covariate"
-                    dropout_coefficient_gamma2 = self.model_config[
+                    dropout_coefficient_a = self.model_config[
                         "dropout_coefficient_prior"
-                    ].create_variable("dropout_coefficient_gamma2")
-                    dropout_coefficient_gamma3 = self.model_config[
+                    ].create_variable("dropout_coefficient_a")
+                    dropout_coefficient_b = self.model_config[
                         "dropout_coefficient_prior"
-                    ].create_variable("dropout_coefficient_gamma3")
+                    ].create_variable("dropout_coefficient_b")
 
                     phi_dropout = self.model_config[
                         "phi_dropout_prior"
                     ].create_variable("phi_dropout")
+
                     kappa_dropout = self.model_config[
                         "kappa_dropout_prior"
                     ].create_variable("kappa_dropout")
 
                     a_scale = pm.Deterministic(
-                        "a_scale", phi_dropout * kappa_dropout, dims="customer_id"
+                        "a_scale",
+                        phi_dropout * kappa_dropout,
                     )
                     b_scale = pm.Deterministic(
                         "b_scale",
                         (1.0 - phi_dropout) * kappa_dropout,
-                        dims="customer_id",
                     )
 
                     a = pm.Deterministic(
                         "a",
                         a_scale
-                        * pm.math.exp(
-                            pm.math.dot(dropout_data, dropout_coefficient_gamma2)
-                        ),
+                        * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_a)),
                         dims="customer_id",
                     )
                     b = pm.Deterministic(
                         "b",
                         b_scale
-                        * pm.math.exp(
-                            pm.math.dot(dropout_data, dropout_coefficient_gamma3)
-                        ),
+                        * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_b)),
                         dims="customer_id",
                     )
 
@@ -393,11 +386,11 @@ class BetaGeoModel(CLVModel):
                 coords=[customer_id, list(model_coords["purchase_covariate"])],
             )
             alpha_scale = self.fit_result["alpha_scale"]
-            purchase_coefficient_gamma1 = self.fit_result["purchase_coefficient_gamma1"]
+            purchase_coefficient_alpha = self.fit_result["purchase_coefficient_alpha"]
             alpha = alpha_scale * np.exp(
                 -xarray.dot(
                     purchase_xarray,
-                    purchase_coefficient_gamma1,
+                    purchase_coefficient_alpha,
                     dim="purchase_covariate",
                 )
             )
@@ -412,19 +405,19 @@ class BetaGeoModel(CLVModel):
                 coords=[customer_id, list(model_coords["dropout_covariate"])],
             )
             a_scale = self.fit_result["a_scale"]
-            dropout_coefficient_gamma2 = self.fit_result["dropout_coefficient_gamma2"]
-            dropout_coefficient_gamma3 = self.fit_result["dropout_coefficient_gamma3"]
-
+            dropout_coefficient_a = self.fit_result["dropout_coefficient_a"]
             a = a_scale * np.exp(
                 xarray.dot(
-                    dropout_xarray, dropout_coefficient_gamma2, dim="dropout_covariate"
+                    dropout_xarray, dropout_coefficient_a, dim="dropout_covariate"
                 )
             )
             a.name = "a"
+
+            dropout_coefficient_b = self.fit_result["dropout_coefficient_b"]
             b_scale = self.fit_result["b_scale"]
             b = b_scale * np.exp(
                 xarray.dot(
-                    dropout_xarray, dropout_coefficient_gamma3, dim="dropout_covariate"
+                    dropout_xarray, dropout_coefficient_b, dim="dropout_covariate"
                 )
             )
             b.name = "b"
