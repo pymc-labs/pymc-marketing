@@ -167,10 +167,10 @@ class BudgetOptimizer(BaseModel):
         # 1. Prepare model with time dimension for optimization
         pymc_model = self.mmm_model._set_predictors_for_optimization(self.num_periods)
 
-        # 2. Shared variable for total_budget
+        # 2. Shared variable for total_budget: Use annotation to avoid type checking
         self._total_budget: SharedVariable = shared(
             np.array(0.0, dtype="float64"), name="total_budget"
-        )
+        )  # type: ignore
 
         # 3. Identify budget dimensions and shapes
         self._budget_dims = [
