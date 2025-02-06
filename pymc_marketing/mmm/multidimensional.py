@@ -246,9 +246,7 @@ class MMM(ModelBuilder):
         }
 
     @property
-    def plot(
-        self,
-    ):
+    def plot(self) -> MMMPlotSuite:
         """Use the MMMPlotSuite to plot the results."""
         self._validate_model_was_built()
         self._validate_idata_exists()
