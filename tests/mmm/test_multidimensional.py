@@ -20,7 +20,6 @@ import xarray as xr
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.multidimensional import MMM
-from tests.conftest import mock_sample
 
 
 @pytest.fixture
@@ -65,16 +64,6 @@ def df() -> pd.DataFrame:
         ],
         axis=1,
     ).reset_index()
-
-
-@pytest.fixture
-def mock_pymc_sample() -> None:
-    original_sample = pm.sample
-    pm.sample = mock_sample
-
-    yield
-
-    pm.sample = original_sample
 
 
 @pytest.fixture
