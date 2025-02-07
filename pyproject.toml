@@ -164,6 +164,7 @@ filterwarnings = ["ignore::DeprecationWarning:bokeh.core.property.primitive:37"]
 testpaths = "tests"
 
 [tool.mypy]
+python_version = "3.12"
 files = "pymc_marketing/*.py"
 plugins = "numpy.typing.mypy_plugin"
 exclude = "build|dist|docs|examples|tests|setup.py"
