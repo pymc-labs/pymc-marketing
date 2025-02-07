@@ -258,6 +258,11 @@ class MMM(ModelBuilder):
         This must be called before building the model.
 
         """
+        if not set((prefix, self.dims)).issubset(set(effect.dims)):
+            raise ValueError(
+                f"Event effect dims {effect.dims} must contain {prefix} and {self.dims}"
+            )
+
         event_effect = create_event_mu_effect(df_events, prefix, effect)
         self.mu_effects.append(event_effect)
 

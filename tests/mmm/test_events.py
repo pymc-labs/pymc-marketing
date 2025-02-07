@@ -437,3 +437,22 @@ def test_days_from_reference(dates_constructor, reference_constructor):
     )
 
     np.testing.assert_allclose(result, np.arange(-4, 6))
+
+
+@pytest.mark.parametrize(
+    "sigma_dims, effect_dims",
+    [
+        pytest.param("something else", "event", id="basis_not_subset"),
+        pytest.param("event", "something else", id="effect_not_subset"),
+    ],
+)
+def test_event_effect_dim_validation(sigma_dims, effect_dims) -> None:
+    basis = GaussianBasis(
+        priors={
+            "sigma": Prior("HalfNormal", dims=sigma_dims),
+        }
+    )
+    effect_size = Prior("Normal", dims=effect_dims)
+
+    with pytest.raises(ValueError):
+        EventEffect(basis=basis, effect_size=effect_size, dims="event")

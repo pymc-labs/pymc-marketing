@@ -100,7 +100,7 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
-from pydantic import BaseModel, Field, InstanceOf, validate_call
+from pydantic import BaseModel, Field, InstanceOf, model_validator, validate_call
 from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.deserialize import deserialize, register_deserialization
@@ -179,7 +179,28 @@ class EventEffect(BaseModel):
 
     basis: InstanceOf[Basis]
     effect_size: InstanceOf[Prior]
-    dims: tuple[str, ...]
+    dims: str | tuple[str, ...]
+
+    @model_validator(mode="before")
+    def _dims_to_tuple(self):
+        if isinstance(self["dims"], str):
+            self["dims"] = (self["dims"],)
+
+        return self
+
+    @model_validator(mode="after")
+    def _validate_dims(self):
+        print(self)
+        if not self.dims:
+            raise ValueError("The dims must not be empty.")
+
+        if not set(self.basis.combined_dims).issubset(set(self.dims)):
+            raise ValueError("The dims must contain all dimensions of the basis.")
+
+        if not set(self.effect_size.dims).issubset(set(self.dims)):
+            raise ValueError("The dims must contain all dimensions of the effect size.")
+
+        return self
 
     def apply(self, X: pt.TensorLike, name: str = "event") -> TensorVariable:
         """Apply the event effect to the data."""

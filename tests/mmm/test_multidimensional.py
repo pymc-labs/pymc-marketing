@@ -511,7 +511,11 @@ def mock_mmm():
 
 @pytest.fixture
 def create_event_effect() -> Callable[[str], EventEffect]:
-    def create(prefix: str = "holiday"):
+    def create(
+        prefix: str = "holiday",
+        sigma_dims: str | None = None,
+        effect_size: Prior | None = None,
+    ):
         basis = GaussianBasis()
         return EventEffect(
             basis=basis,
