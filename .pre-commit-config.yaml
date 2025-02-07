@@ -29,6 +29,7 @@ repos:
         language_version: python3.12
         args: [--ignore-missing-imports]
         files: ^pymc_marketing/
+        additional_dependencies: [numpy>=1.20, pandas-stubs]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
