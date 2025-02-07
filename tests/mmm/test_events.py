@@ -15,10 +15,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pytest
 import xarray as xr
 from numpy.testing import assert_array_equal
 
-from pymc_marketing.mmm.events import EventEffect, GaussianBasis, basis_from_dict
+from pymc_marketing.mmm.events import (
+    EventEffect,
+    GaussianBasis,
+    basis_from_dict,
+    days_from_reference,
+)
 from pymc_marketing.plot import plot_curve
 from pymc_marketing.prior import Prior
 
@@ -406,3 +412,28 @@ def test_basis_matrix_edge_dates():
     assert X[0, 0] == 0  # Event day should be 0
     assert X[1, 0] > 0  # Day after should be positive
     assert X[-1, 0] > X[1, 0]  # Effect should increase with distance
+
+
+@pytest.mark.parametrize(
+    "dates_constructor",
+    [pd.Series, pd.to_datetime],
+    ids=["Series", "DatetimeIndex"],
+)
+@pytest.mark.parametrize(
+    "reference_constructor",
+    [str, pd.to_datetime],
+    ids=["str", "Timestamp"],
+)
+def test_days_from_reference(dates_constructor, reference_constructor):
+    dates = pd.date_range("2023-01-01", periods=10, freq="D")
+    dates = dates_constructor(dates)
+
+    reference_date = pd.to_datetime("2023-01-05")
+    reference_date = reference_constructor(reference_date)
+
+    result = days_from_reference(
+        dates=dates,
+        reference_date=reference_date,
+    )
+
+    np.testing.assert_allclose(result, np.arange(-4, 6))

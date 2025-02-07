@@ -92,7 +92,11 @@ This module provides event transformations for use in Marketing Mix Models.
 
 """
 
+from typing import cast
+
 import numpy as np
+import numpy.typing as npt
+import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
@@ -229,3 +233,33 @@ class GaussianBasis(Basis):
     default_priors = {
         "sigma": Prior("Gamma", mu=7, sigma=1),
     }
+
+
+def days_from_reference(
+    dates: pd.Series | pd.DatetimeIndex,
+    reference_date: str | pd.Timestamp,
+) -> npt.NDArray[np.int64]:
+    """Calculate the difference in days between dates and a reference date.
+
+    Parameters
+    ----------
+    dates : pd.Series | pd.DatetimeIndex
+        Dates to calculate the difference from the reference date.
+    reference_date : str | pd.Timestamp
+        Reference date.
+
+    Returns
+    -------
+    np.ndarray
+        Difference in days between dates and the reference date.
+
+    """
+    reference_date = cast(pd.Timestamp, pd.to_datetime(reference_date))
+    dates = pd.to_datetime(dates)
+
+    diff = dates - reference_date
+
+    if isinstance(diff, pd.Series):
+        diff = diff.dt  # type: ignore
+
+    return diff.days.to_numpy()  # type: ignore
