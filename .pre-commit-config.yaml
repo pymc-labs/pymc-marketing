@@ -14,16 +14,19 @@ repos:
     rev: v0.9.4
     hooks:
       - id: ruff
+        language_version: python3.12
         types_or: [python, pyi, jupyter]
         args: ["--fix", "--output-format=full"]
         exclude: ^docs/source/notebooks/clv/dev/
       - id: ruff-format
+        language_version: python3.12
         types_or: [python, pyi, jupyter]
         exclude: ^docs/source/notebooks/clv/dev/
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.14.1
     hooks:
       - id: mypy
+        language_version: python3.12
         args: [--ignore-missing-imports]
         files: ^pymc_marketing/
         additional_dependencies: [numpy>=1.20, pandas-stubs]
