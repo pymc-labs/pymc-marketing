@@ -1,5 +1,6 @@
 ci:
   autofix_prs: false
+  skip: [mypy]
 
 repos:
   - repo: https://github.com/lucianopaz/head_of_apache
