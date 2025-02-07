@@ -26,7 +26,7 @@ repos:
       - id: mypy
         args: [--config-file=pyproject.toml, --ignore-missing-imports]
         files: ^pymc_marketing/
-        additional_dependencies: [numpy>=1.20, pandas-stubs]
+        additional_dependencies: [pandas-stubs]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
