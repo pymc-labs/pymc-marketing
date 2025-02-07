@@ -13,9 +13,11 @@
 #   limitations under the License.
 """Multidimensional Marketing Mix Model class."""
 
+from __future__ import annotations
+
 import json
 import warnings
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 import arviz as az
 import numpy as np
@@ -36,12 +38,13 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     saturation_from_dict,
 )
+from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.tvp import infer_time_index
 from pymc_marketing.model_builder import ModelBuilder, _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
-from pymc_marketing.prior import Prior
+from pymc_marketing.prior import Prior, create_dim_handler
 
 PYMC_MARKETING_ISSUE = "https://github.com/pymc-labs/pymc-marketing/issues/new"
 warning_msg = (
@@ -50,6 +53,90 @@ warning_msg = (
     f"{PYMC_MARKETING_ISSUE}"
 )
 warnings.warn(warning_msg, FutureWarning, stacklevel=1)
+
+
+class MuEffect(Protocol):
+    """Protocol for abitrary additive mu effect."""
+
+    def create_data(self, mmm: MMM) -> None:
+        """Create the required data in the model."""
+
+    def create_effect(self, mmm: MMM) -> pt.TensorVariable:
+        """Create the additive effect in the model."""
+
+
+def create_event_effect(
+    df_events: pd.DataFrame,
+    prefix: str,
+    effect: EventEffect,
+) -> MuEffect:
+    """Create an event effect for the MMM.
+
+    This class has the ability to create data and mean effects for the MMM model.
+
+    """
+    if missing_columns := df_events.columns.difference(
+        ["start_date", "end_date", "name"]
+    ).tolist():
+        raise ValueError(f"Columns {missing_columns} are missing in df_events.")
+
+    class Effect:
+        def create_data(self, mmm: MMM) -> None:
+            model: pm.Model = mmm.model
+
+            model_dates = pd.to_datetime(model.coords["date"])
+
+            start_dates = pd.to_datetime(df_events["start_date"])
+            end_dates = pd.to_datetime(df_events["end_date"])
+
+            reference_date = model_dates.min()
+
+            model.add_coord(prefix, df_events["name"].to_numpy())
+
+            if "days" not in model:
+                pm.Data(
+                    "days",
+                    days_from_reference(model_dates, reference_date),
+                    dims="date",
+                )
+
+            pm.Data(
+                f"{prefix}_start_diff",
+                days_from_reference(start_dates, reference_date),
+                dims=prefix,
+            )
+            pm.Data(
+                f"{prefix}_end_diff",
+                days_from_reference(end_dates, reference_date),
+                dims=prefix,
+            )
+
+        def create_effect(self, mmm: MMM) -> pt.TensorVariable:
+            model: pm.Model = mmm.model
+
+            s_ref = model["days"][:, None] - model[f"{prefix}_start_diff"]
+            e_ref = model["days"][:, None] - model[f"{prefix}_end_diff"]
+
+            def create_basis_matrix(s_ref, e_ref):
+                return pt.where(
+                    (s_ref >= 0) & (e_ref <= 0),
+                    0,
+                    pt.where(pt.abs(s_ref) < pt.abs(e_ref), s_ref, e_ref),
+                )
+
+            X = create_basis_matrix(s_ref, e_ref)
+            event_effect = effect.apply(X, name=prefix)
+
+            total_effect = pm.Deterministic(
+                f"{prefix}_total_effect",
+                event_effect.sum(axis=1),
+                dims="date",
+            )
+
+            dim_handler = create_dim_handler(("date", *mmm.dims))
+            return dim_handler(total_effect, "date")
+
+    return Effect()
 
 
 class MMM(ModelBuilder):
@@ -149,12 +236,28 @@ class MMM(ModelBuilder):
                 variable_name="gamma_fourier",
             )
 
+        self.mu_effects: list[MuEffect] = []
+
     @property
     def default_sampler_config(self) -> dict:
         """Default sampler configuration."""
         return {}
 
     def _data_setter(self, X, y=None): ...
+
+    def add_events(
+        self,
+        df_events: pd.DataFrame,
+        prefix: str,
+        effect: EventEffect,
+    ) -> None:
+        """Add event effects to the model.
+
+        This must be called before building the model.
+
+        """
+        event_effect = create_event_effect(df_events, prefix, effect)
+        self.mu_effects.append(event_effect)
 
     @property
     def _serializable_model_config(self) -> dict[str, Any]:
@@ -822,6 +925,9 @@ class MMM(ModelBuilder):
                 dims=("date", *self.dims),
             )
 
+            for mu_effect in self.mu_effects:
+                mu_effect.create_data(self)
+
             if self.time_varying_intercept | self.time_varying_media:
                 time_index = pm.Data(
                     name="time_index",
@@ -935,6 +1041,9 @@ class MMM(ModelBuilder):
                     dims=("date", *self.dims),
                 )
                 mu_var += yearly_seasonality_contribution
+
+            for mu_effect in self.mu_effects:
+                mu_var += mu_effect.create_effect(self)
 
             mu_var.name = "mu"
             mu_var.dims = ("date", *self.dims)
