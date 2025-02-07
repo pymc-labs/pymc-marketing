@@ -65,7 +65,7 @@ class MuEffect(Protocol):
         """Create the additive effect in the model."""
 
 
-def create_event_effect(
+def create_event_mu_effect(
     df_events: pd.DataFrame,
     prefix: str,
     effect: EventEffect,
@@ -79,6 +79,8 @@ def create_event_effect(
         ["start_date", "end_date", "name"]
     ).tolist():
         raise ValueError(f"Columns {missing_columns} are missing in df_events.")
+
+    effect.basis.prefix = prefix
 
     class Effect:
         def create_data(self, mmm: MMM) -> None:
@@ -256,7 +258,7 @@ class MMM(ModelBuilder):
         This must be called before building the model.
 
         """
-        event_effect = create_event_effect(df_events, prefix, effect)
+        event_effect = create_event_mu_effect(df_events, prefix, effect)
         self.mu_effects.append(event_effect)
 
     @property

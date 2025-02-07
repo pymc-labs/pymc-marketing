@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+from collections.abc import Callable
+
 import arviz as az
 import numpy as np
 import pandas as pd
@@ -21,7 +23,7 @@ from pytensor.tensor.basic import TensorVariable
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis
-from pymc_marketing.mmm.multidimensional import MMM, create_event_effect
+from pymc_marketing.mmm.multidimensional import MMM, create_event_mu_effect
 from pymc_marketing.prior import Prior
 
 
@@ -502,26 +504,35 @@ def mock_mmm():
 
     mmm = MMM()
     mmm.model = model
+    mmm.dims = ()
 
     return mmm
 
 
 @pytest.fixture
-def event_effect() -> EventEffect:
-    basis = GaussianBasis()
-    return EventEffect(
-        basis=basis,
-        effect_size=Prior("Normal"),
-        dims=("holiday",),
-    )
+def create_event_effect() -> Callable[[str], EventEffect]:
+    def create(prefix: str = "holiday"):
+        basis = GaussianBasis()
+        return EventEffect(
+            basis=basis,
+            effect_size=Prior("Normal"),
+            dims=(prefix,),
+        )
+
+    return create
 
 
-def test_create_effect_effect(
+@pytest.fixture
+def event_effect(create_event_effect) -> EventEffect:
+    return create_event_effect()
+
+
+def test_create_effect_mu_effect(
     mock_mmm,
     df_events,
     event_effect,
 ) -> None:
-    effect = create_event_effect(df_events, prefix="holiday", effect=event_effect)
+    effect = create_event_mu_effect(df_events, prefix="holiday", effect=event_effect)
 
     with mock_mmm.model:
         effect.create_data(mock_mmm)
@@ -536,13 +547,30 @@ def test_create_effect_effect(
 
     assert isinstance(mu, TensorVariable)
 
-    for named_vars in ["basis_sigma", "holiday_effect_size", "holiday_total_effect"]:
+    for named_vars in ["holiday_sigma", "holiday_effect_size", "holiday_total_effect"]:
         assert named_vars in mock_mmm.model.named_vars
 
 
-def test_mmm_with_events(df_events, event_effect, mmm, df, mock_pymc_sample) -> None:
-    mmm.add_events(df_events, prefix="holiday", effect=event_effect)
-    assert len(mmm.mu_transforms) == 1
+def test_mmm_with_events(
+    df_events,
+    create_event_effect,
+    mmm,
+    df,
+    mock_pymc_sample,
+) -> None:
+    mmm.add_events(
+        df_events,
+        prefix="holiday",
+        effect=create_event_effect(prefix="holiday"),
+    )
+    assert len(mmm.mu_effects) == 1
+
+    mmm.add_events(
+        df_events,
+        prefix="another_event_type",
+        effect=create_event_effect(prefix="another_event_type"),
+    )
+    assert len(mmm.mu_effects) == 2
 
     X = df.drop(columns=["y"])
     y = df["y"]
@@ -551,3 +579,4 @@ def test_mmm_with_events(df_events, event_effect, mmm, df, mock_pymc_sample) -> 
     mmm.fit(X, y)
 
     assert "holiday_total_effect" in mmm.posterior
+    assert "another_event_type_total_effect" in mmm.posterior
