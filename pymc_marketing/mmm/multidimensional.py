@@ -315,7 +315,7 @@ class MMM(ModelBuilder):
             If the event effect dimensions do not contain the prefix and model dimensions.
 
         """
-        if not set((prefix, self.dims)).issubset(set(effect.dims)):
+        if not set(effect.dims).issubset((prefix, self.dims)):
             raise ValueError(
                 f"Event effect dims {effect.dims} must contain {prefix} and {self.dims}"
             )
