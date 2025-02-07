@@ -56,7 +56,7 @@ warnings.warn(warning_msg, FutureWarning, stacklevel=1)
 
 
 class MuEffect(Protocol):
-    """Protocol for abitrary additive mu effect."""
+    """Protocol for arbitrary additive mu effect."""
 
     def create_data(self, mmm: MMM) -> None:
         """Create the required data in the model."""
@@ -74,6 +74,23 @@ def create_event_mu_effect(
 
     This class has the ability to create data and mean effects for the MMM model.
 
+    Parameters
+    ----------
+    df_events : pd.DataFrame
+        The DataFrame containing the event data.
+            * `name`: name of the event. Used as the model coordinates.
+            * `start_date`: start date of the event
+            * `end_date`: end date of the event
+    prefix : str
+        The prefix to use for the event effect and associated variables.
+    effect : EventEffect
+        The event effect to apply.
+
+    Returns
+    -------
+    MuEffect
+        The event effect which is used in the MMM.
+
     """
     if missing_columns := df_events.columns.difference(
         ["start_date", "end_date", "name"]
@@ -83,7 +100,17 @@ def create_event_mu_effect(
     effect.basis.prefix = prefix
 
     class Effect:
+        """Event effect class for the MMM."""
+
         def create_data(self, mmm: MMM) -> None:
+            """Create the required data in the model.
+
+            Parameters
+            ----------
+            mmm : MMM
+                The MMM model instance.
+
+            """
             model: pm.Model = mmm.model
 
             model_dates = pd.to_datetime(model.coords["date"])
@@ -114,6 +141,19 @@ def create_event_mu_effect(
             )
 
         def create_effect(self, mmm: MMM) -> pt.TensorVariable:
+            """Create the event effect in the model.
+
+            Parameters
+            ----------
+            mmm : MMM
+                The MMM model instance.
+
+            Returns
+            -------
+            pt.TensorVariable
+                The average event effect in the model.
+
+            """
             model: pm.Model = mmm.model
 
             s_ref = model["days"][:, None] - model[f"{prefix}_start_diff"]
@@ -256,6 +296,23 @@ class MMM(ModelBuilder):
         """Add event effects to the model.
 
         This must be called before building the model.
+
+        Parameters
+        ----------
+        df_events : pd.DataFrame
+            The DataFrame containing the event data.
+                * `name`: name of the event. Used as the model coordinates.
+                * `start_date`: start date of the event
+                * `end_date`: end date of the event
+        prefix : str
+            The prefix to use for the event effect and associated variables.
+        effect : EventEffect
+            The event effect to apply.
+
+        Raises
+        ------
+        ValueError
+            If the event effect dimensions do not contain the prefix and model dimensions.
 
         """
         if not set((prefix, self.dims)).issubset(set(effect.dims)):
