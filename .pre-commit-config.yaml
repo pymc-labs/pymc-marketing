@@ -29,9 +29,7 @@ repos:
         language_version: python3.12
         args: [
           --ignore-missing-imports,
-          --cache-dir=.mypy_cache,
           --jobs=4,
-          --no-incremental,
           --no-strict-optional,
           --follow-imports=skip
         ]
