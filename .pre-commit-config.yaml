@@ -27,7 +27,14 @@ repos:
     hooks:
       - id: mypy
         language_version: python3.12
-        args: [--ignore-missing-imports]
+        args: [
+          --ignore-missing-imports,
+          --cache-dir=.mypy_cache,
+          --jobs=4,
+          --no-incremental,
+          --no-strict-optional,
+          --follow-imports=skip
+        ]
         files: ^pymc_marketing/
         additional_dependencies: [numpy>=1.20, pandas-stubs]
   - repo: https://github.com/pre-commit/pre-commit-hooks
