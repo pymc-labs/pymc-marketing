@@ -64,6 +64,9 @@ class MuEffect(Protocol):
     def create_effect(self, mmm: MMM) -> pt.TensorVariable:
         """Create the additive effect in the model."""
 
+    def set_data(self, mmm: MMM, model: pm.Model, X: xr.Dataset) -> None:
+        """Set the data for new predictions."""
+
 
 def create_event_mu_effect(
     df_events: pd.DataFrame,
@@ -99,6 +102,10 @@ def create_event_mu_effect(
 
     effect.basis.prefix = prefix
 
+    reference_date = "2025-01-01"
+    start_dates = pd.to_datetime(df_events["start_date"])
+    end_dates = pd.to_datetime(df_events["end_date"])
+
     class Effect:
         """Event effect class for the MMM."""
 
@@ -114,11 +121,6 @@ def create_event_mu_effect(
             model: pm.Model = mmm.model
 
             model_dates = pd.to_datetime(model.coords["date"])
-
-            start_dates = pd.to_datetime(df_events["start_date"])
-            end_dates = pd.to_datetime(df_events["end_date"])
-
-            reference_date = model_dates.min()
 
             model.add_coord(prefix, df_events["name"].to_numpy())
 
@@ -177,6 +179,15 @@ def create_event_mu_effect(
 
             dim_handler = create_dim_handler(("date", *mmm.dims))
             return dim_handler(total_effect, "date")
+
+        def set_data(self, mmm: MMM, model: pm.Model, X: xr.Dataset) -> None:
+            """Set the data for new predictions."""
+            new_dates = pd.to_datetime(model.coords["date"])
+
+            new_data = {
+                "days": days_from_reference(new_dates, reference_date),
+            }
+            pm.set_data(new_data=new_data, model=model)
 
     return Effect()
 
@@ -1373,13 +1384,17 @@ class MMM(ModelBuilder):
         # Update model data with xarray
         if X is None:
             raise ValueError("X values must be provided")
+        dataset_xarray = self._posterior_predictive_data_transformation(
+            X=X,
+            include_last_observations=include_last_observations,
+        )
         model = self._set_xarray_data(
-            self._posterior_predictive_data_transformation(
-                X=X,
-                include_last_observations=include_last_observations,
-            ),
+            dataset_xarray=dataset_xarray,
             clone_model=clone_model,
         )
+
+        for mu_effect in self.mu_effects:
+            mu_effect.set_data(self, model, dataset_xarray)
 
         with model:
             # Sample from posterior predictive
