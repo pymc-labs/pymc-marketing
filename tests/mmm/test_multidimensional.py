@@ -19,6 +19,7 @@ import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
+from pymc.model_graph import fast_eval
 from pytensor.tensor.basic import TensorVariable
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
@@ -554,6 +555,16 @@ def test_create_effect_mu_effect(
     for named_vars in ["holiday_sigma", "holiday_effect_size", "holiday_total_effect"]:
         assert named_vars in mock_mmm.model.named_vars
 
+    coords = {"date": pd.date_range("2023-01-07", periods=7)}
+    with pm.Model(coords=coords) as new_model:
+        pm.Data("days", np.arange(7), dims="date")
+        effect.set_data(None, new_model, None)  # type: ignore
+
+    np.testing.assert_allclose(
+        fast_eval(new_model["days"]),
+        np.array([-725, -724, -723, -722, -721, -720, -719]),
+    )
+
 
 def test_mmm_with_events(
     df_events,
@@ -580,7 +591,39 @@ def test_mmm_with_events(
     y = df["y"]
     mmm.build_model(X, y)
 
-    mmm.fit(X, y)
+    seed = sum(map(ord, "Adding events"))
+    random_seed = np.random.default_rng(seed)
+
+    mmm.fit(X, y, random_seed=random_seed)
 
     assert "holiday_total_effect" in mmm.posterior
     assert "another_event_type_total_effect" in mmm.posterior
+
+    kwargs = dict(
+        extend_idata=False,
+        var_names=["holiday_total_effect", "another_event_type_total_effect"],
+        random_seed=random_seed,
+    )
+
+    in_sample = mmm.sample_posterior_predictive(X, **kwargs)
+    np.testing.assert_array_equal(
+        in_sample.coords["date"].to_numpy(),
+        X["date"].unique(),
+    )
+
+    X_new = X.copy()
+    diff = (X_new["date"].max() - X_new["date"].min()).days + 7
+    X_new["date"] += pd.Timedelta(days=diff)
+
+    out_of_sample = mmm.sample_posterior_predictive(X_new, **kwargs)
+
+    np.testing.assert_array_equal(
+        out_of_sample.coords["date"].to_numpy(),
+        X_new["date"].unique(),
+    )
+
+    less_effect_for_out_of_sample = np.abs(in_sample.sum()) > np.abs(
+        out_of_sample.sum()
+    )
+
+    assert less_effect_for_out_of_sample.to_pandas().all()
