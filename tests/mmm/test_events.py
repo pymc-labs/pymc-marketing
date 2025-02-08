@@ -439,6 +439,41 @@ def test_days_from_reference(dates_constructor, reference_constructor):
     np.testing.assert_allclose(result, np.arange(-4, 6))
 
 
+@pytest.mark.parametrize("reference_date", ["2000-01-05", "2100-01-10"])
+def test_basis_matrix_date_agnostic(reference_date) -> None:
+    dates = pd.date_range("2023-01-01", periods=4, freq="D")
+
+    start_dates = pd.to_datetime(["2023-01-01", "2023-01-20"])
+    end_dates = pd.to_datetime(["2023-01-02", "2023-01-25"])
+
+    days = days_from_reference(dates, reference_date)
+    s_diff = days_from_reference(
+        dates=start_dates,
+        reference_date=reference_date,
+    )
+    e_diff = days_from_reference(
+        dates=end_dates,
+        reference_date=reference_date,
+    )
+
+    s_ref = days[:, None] - s_diff
+    e_ref = days[:, None] - e_diff
+
+    def create_basis_matrix(s_ref, e_ref):
+        return np.where(
+            (s_ref >= 0) & (e_ref <= 0),
+            0,
+            np.where(np.abs(s_ref) < np.abs(e_ref), s_ref, e_ref),
+        )
+
+    result = create_basis_matrix(s_ref, e_ref)
+
+    np.testing.assert_array_equal(
+        result,
+        np.array([[0, -19], [0, -18], [1, -17], [2, -16]]),
+    )
+
+
 @pytest.mark.parametrize(
     "sigma_dims, effect_dims",
     [
