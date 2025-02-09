@@ -11,15 +11,21 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+from collections.abc import Callable
+
 import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
+from pymc.model_graph import fast_eval
+from pytensor.tensor.basic import TensorVariable
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.events import EventEffect, GaussianBasis
+from pymc_marketing.mmm.multidimensional import MMM, create_event_mu_effect
+from pymc_marketing.prior import Prior
 
 
 @pytest.fixture
@@ -372,3 +378,148 @@ def test_sample_posterior_predictive_same_data(single_dim_data, mock_pymc_sample
         "'channel_contribution' should match exactly (or within floating tolerance) "
         "the values in the 'posterior' group."
     )
+
+
+@pytest.fixture
+def df_events() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "start_date": ["2025-01-01", "2024-12-25"],
+            "end_date": ["2025-01-02", "2024-12-31"],
+            "name": ["New Years", "Christmas Holiday"],
+        }
+    )
+
+
+@pytest.fixture
+def mock_mmm():
+    coords = {"date": pd.date_range("2023-01-01", periods=7)}
+    model = pm.Model(coords=coords)
+
+    class MMM:
+        pass
+
+    mmm = MMM()
+    mmm.model = model
+    mmm.dims = ()
+
+    return mmm
+
+
+@pytest.fixture
+def create_event_effect() -> Callable[[str], EventEffect]:
+    def create(
+        prefix: str = "holiday",
+        sigma_dims: str | None = None,
+        effect_size: Prior | None = None,
+    ):
+        basis = GaussianBasis()
+        return EventEffect(
+            basis=basis,
+            effect_size=Prior("Normal"),
+            dims=(prefix,),
+        )
+
+    return create
+
+
+@pytest.fixture
+def event_effect(create_event_effect) -> EventEffect:
+    return create_event_effect()
+
+
+def test_create_effect_mu_effect(
+    mock_mmm,
+    df_events,
+    event_effect,
+) -> None:
+    effect = create_event_mu_effect(df_events, prefix="holiday", effect=event_effect)
+
+    with mock_mmm.model:
+        effect.create_data(mock_mmm)
+
+    assert mock_mmm.model.coords["holiday"] == ("New Years", "Christmas Holiday")
+
+    for named_var in ["days", "holiday_start_diff", "holiday_end_diff"]:
+        assert named_var in mock_mmm.model.named_vars
+
+    with mock_mmm.model:
+        mu = effect.create_effect(mock_mmm)
+
+    assert isinstance(mu, TensorVariable)
+
+    for named_vars in ["holiday_sigma", "holiday_effect_size", "holiday_total_effect"]:
+        assert named_vars in mock_mmm.model.named_vars
+
+    coords = {"date": pd.date_range("2023-01-07", periods=7)}
+    with pm.Model(coords=coords) as new_model:
+        pm.Data("days", np.arange(7), dims="date")
+        effect.set_data(None, new_model, None)  # type: ignore
+
+    np.testing.assert_allclose(
+        fast_eval(new_model["days"]),
+        np.array([-725, -724, -723, -722, -721, -720, -719]),
+    )
+
+
+def test_mmm_with_events(
+    df_events,
+    create_event_effect,
+    mmm,
+    df,
+    mock_pymc_sample,
+) -> None:
+    mmm.add_events(
+        df_events,
+        prefix="holiday",
+        effect=create_event_effect(prefix="holiday"),
+    )
+    assert len(mmm.mu_effects) == 1
+
+    mmm.add_events(
+        df_events,
+        prefix="another_event_type",
+        effect=create_event_effect(prefix="another_event_type"),
+    )
+    assert len(mmm.mu_effects) == 2
+
+    X = df.drop(columns=["y"])
+    y = df["y"]
+    mmm.build_model(X, y)
+
+    seed = sum(map(ord, "Adding events"))
+    random_seed = np.random.default_rng(seed)
+
+    mmm.fit(X, y, random_seed=random_seed)
+
+    assert "holiday_total_effect" in mmm.posterior
+    assert "another_event_type_total_effect" in mmm.posterior
+
+    kwargs = dict(
+        extend_idata=False,
+        var_names=["holiday_total_effect", "another_event_type_total_effect"],
+        random_seed=random_seed,
+    )
+
+    in_sample = mmm.sample_posterior_predictive(X, **kwargs)
+    np.testing.assert_array_equal(
+        in_sample.coords["date"].to_numpy(),
+        X["date"].unique(),
+    )
+
+    X_new = X.copy()
+    diff = (X_new["date"].max() - X_new["date"].min()).days + 7
+    X_new["date"] += pd.Timedelta(days=diff)
+
+    out_of_sample = mmm.sample_posterior_predictive(X_new, **kwargs)
+
+    np.testing.assert_array_equal(
+        out_of_sample.coords["date"].to_numpy(),
+        X_new["date"].unique(),
+    )
+
+    less_effect_for_out_of_sample = np.abs(in_sample.sum()) > np.abs(
+        out_of_sample.sum()
+    )
+
+    assert less_effect_for_out_of_sample.to_pandas().all()

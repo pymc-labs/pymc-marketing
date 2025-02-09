@@ -15,10 +15,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pytest
 import xarray as xr
 from numpy.testing import assert_array_equal
 
-from pymc_marketing.mmm.events import EventEffect, GaussianBasis, basis_from_dict
+from pymc_marketing.mmm.events import (
+    EventEffect,
+    GaussianBasis,
+    basis_from_dict,
+    days_from_reference,
+)
 from pymc_marketing.plot import plot_curve
 from pymc_marketing.prior import Prior
 
@@ -406,3 +412,82 @@ def test_basis_matrix_edge_dates():
     assert X[0, 0] == 0  # Event day should be 0
     assert X[1, 0] > 0  # Day after should be positive
     assert X[-1, 0] > X[1, 0]  # Effect should increase with distance
+
+
+@pytest.mark.parametrize(
+    "dates_constructor",
+    [pd.Series, pd.to_datetime],
+    ids=["Series", "DatetimeIndex"],
+)
+@pytest.mark.parametrize(
+    "reference_constructor",
+    [str, pd.to_datetime],
+    ids=["str", "Timestamp"],
+)
+def test_days_from_reference(dates_constructor, reference_constructor):
+    dates = pd.date_range("2023-01-01", periods=10, freq="D")
+    dates = dates_constructor(dates)
+
+    reference_date = pd.to_datetime("2023-01-05")
+    reference_date = reference_constructor(reference_date)
+
+    result = days_from_reference(
+        dates=dates,
+        reference_date=reference_date,
+    )
+
+    np.testing.assert_allclose(result, np.arange(-4, 6))
+
+
+@pytest.mark.parametrize("reference_date", ["2000-01-05", "2100-01-10"])
+def test_basis_matrix_date_agnostic(reference_date) -> None:
+    dates = pd.date_range("2023-01-01", periods=4, freq="D")
+
+    start_dates = pd.to_datetime(["2023-01-01", "2023-01-20"])
+    end_dates = pd.to_datetime(["2023-01-02", "2023-01-25"])
+
+    days = days_from_reference(dates, reference_date)
+    s_diff = days_from_reference(
+        dates=start_dates,
+        reference_date=reference_date,
+    )
+    e_diff = days_from_reference(
+        dates=end_dates,
+        reference_date=reference_date,
+    )
+
+    s_ref = days[:, None] - s_diff
+    e_ref = days[:, None] - e_diff
+
+    def create_basis_matrix(s_ref, e_ref):
+        return np.where(
+            (s_ref >= 0) & (e_ref <= 0),
+            0,
+            np.where(np.abs(s_ref) < np.abs(e_ref), s_ref, e_ref),
+        )
+
+    result = create_basis_matrix(s_ref, e_ref)
+
+    np.testing.assert_array_equal(
+        result,
+        np.array([[0, -19], [0, -18], [1, -17], [2, -16]]),
+    )
+
+
+@pytest.mark.parametrize(
+    "sigma_dims, effect_dims",
+    [
+        pytest.param("something else", "event", id="basis_not_subset"),
+        pytest.param("event", "something else", id="effect_not_subset"),
+    ],
+)
+def test_event_effect_dim_validation(sigma_dims, effect_dims) -> None:
+    basis = GaussianBasis(
+        priors={
+            "sigma": Prior("HalfNormal", dims=sigma_dims),
+        }
+    )
+    effect_size = Prior("Normal", dims=effect_dims)
+
+    with pytest.raises(ValueError):
+        EventEffect(basis=basis, effect_size=effect_size, dims="event")
