@@ -155,7 +155,7 @@ class TestCLVModel:
         model = CLVModelTest()
         with pytest.raises(
             ValueError,
-            match=r"Fit method options are \['mcmc', 'map', 'demz', 'advi'\], got: wrong_method",
+            match=r"Fit method options are \['mcmc', 'map', 'demz', 'advi', 'fullrank_advi'\], got: wrong_method",
         ):
             model.fit(fit_method="wrong_method")
 
