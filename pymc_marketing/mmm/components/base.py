@@ -318,6 +318,11 @@ class Transformation:
             for parameter in self.default_priors.keys()
         }
 
+    @property
+    def combined_dims(self) -> tuple[str, ...]:
+        """Get the combined dims for all the parameters."""
+        return tuple(self._infer_output_core_dims())
+
     def _infer_output_core_dims(self) -> tuple[str, ...]:
         parameter_dims = sorted(
             [
