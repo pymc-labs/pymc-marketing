@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -155,8 +155,12 @@ def test_portfolio_entropy(test_data):
 )
 def test_tail_distance(mean1, std1, mean2, std2, expected_order):
     # Generate samples for both distributions
-    samples1 = pm.draw(pm.Normal.dist(mu=mean1, sigma=std1, size=100), random_seed=rng)
-    samples2 = pm.draw(pm.Normal.dist(mu=mean2, sigma=std2, size=100), random_seed=rng)
+    samples1 = pt.as_tensor(
+        pm.draw(pm.Normal.dist(mu=mean1, sigma=std1, size=100), random_seed=rng)
+    )
+    samples2 = pt.as_tensor(
+        pm.draw(pm.Normal.dist(mu=mean2, sigma=std2, size=100), random_seed=rng)
+    )
 
     # Calculate tail distances
     tail_distance_func = tail_distance(confidence_level=0.75)
@@ -199,8 +203,12 @@ def test_compare_mean_tightness_score(
     mean1, std1, mean2, std2, alpha, expected_relation
 ):
     # Generate samples for both distributions
-    samples1 = pm.draw(pm.Normal.dist(mu=mean1, sigma=std1, size=100), random_seed=rng)
-    samples2 = pm.draw(pm.Normal.dist(mu=mean2, sigma=std2, size=100), random_seed=rng)
+    samples1 = pt.as_tensor(
+        pm.draw(pm.Normal.dist(mu=mean1, sigma=std1, size=100), random_seed=rng)
+    )
+    samples2 = pt.as_tensor(
+        pm.draw(pm.Normal.dist(mu=mean2, sigma=std2, size=100), random_seed=rng)
+    )
 
     # Calculate mean tightness scores
     mean_tightness_score_func = mean_tightness_score(alpha=alpha, confidence_level=0.75)

@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -20,8 +20,23 @@ Autologging is supported for PyMC models and PyMC-Marketing models. This includi
 logging of sampler diagnostics, model information, data used in the model, and
 InferenceData objects.
 
-The autologging can be enabled by calling the `autolog` function. This function
-patches the `pymc.sample` and `MMM.fit` calls to log the required information.
+The autologging can be enabled by calling the `autolog` function. The following functions
+are patched:
+
+- `pymc.sample`:
+    - :func:`log_versions`: Log the versions of PyMC-Marketing, PyMC, and ArviZ to MLflow.
+    - :func:`log_model_derived_info`: Log types of parameters, coords, model graph, etc.
+    - :func:`log_sample_diagnostics`: Log information derived from the InferenceData object.
+    - :func:`log_arviz_summary`: Log table of summary statistics about estimated parameters
+    - :func:`log_metadata`: Log the metadata of the data used in the model.
+- `pymc.find_MAP`:
+    - :func:`log_model_derived_info`: Log types of parameters, coords, model graph, etc.
+- `MMM.fit`:
+    - All parameters, metrics, and artifacts from `pymc.sample`
+    - :func:`log_mmm_configuration`: Log the configuration of the MMM model.
+- `CLVModel.fit`:
+    - Information dependent on fit method used (MCMC or MAP)
+    - Model type and fit method
 
 Examples
 --------
@@ -48,7 +63,7 @@ Autologging for a PyMC model:
     with mlflow.start_run():
         idata = pm.sample(model=model)
 
-Autologging for a PyMC-Marketing model:
+Autologging for a PyMC-Marketing MMM:
 
 .. code-block:: python
 
@@ -97,9 +112,33 @@ Autologging for a PyMC-Marketing model:
         fig = mmm.plot_components_contributions()
         mlflow.log_figure(fig, "components.png")
 
+Autologging for a PyMC-Marketing CLV model:
+
+.. code-block:: python
+
+    import pandas as pd
+
+    import mlflow
+
+    from pymc_marketing.clv import BetaGeoModel
+
+    import pymc_marketing.mlflow
+
+    pymc_marketing.mlflow.autolog(log_clv=True)
+
+    mlflow.set_experiment("CLV Experiment")
+
+    data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
+    data = pd.read_csv(data_url)
+    data["customer_id"] = data.index
+
+    model = BetaGeoModel(data=data)
+
+    with mlflow.start_run():
+        model.fit()
+
 """
 
-import json
 import logging
 import os
 import warnings
@@ -109,8 +148,10 @@ from pathlib import Path
 from typing import Any, Literal
 
 import arviz as az
-import numpy as np
+import numpy.typing as npt
+import pandas as pd
 import pymc as pm
+import xarray as xr
 from pymc.model.core import Model
 from pytensor.tensor import TensorVariable
 
@@ -137,6 +178,131 @@ warning_msg = (
     f"{PYMC_MARKETING_ISSUE}"
 )
 warnings.warn(warning_msg, FutureWarning, stacklevel=1)
+
+
+def _exclude_tuning(func):
+    def callback(trace, draw):
+        if draw.tuning:
+            return
+
+        return func(trace, draw)
+
+    return callback
+
+
+def _take_every(n: int):
+    def decorator(func):
+        def callback(trace, draw):
+            if draw.draw_idx % n != 0:
+                return
+
+            return func(trace, draw)
+
+        return callback
+
+    return decorator
+
+
+def create_log_callback(
+    stats: list[str] | None = None,
+    parameters: list[str] | None = None,
+    exclude_tuning: bool = True,
+    take_every: int = 100,
+):
+    """Create callback function to log sample stats and parameter values to MLflow during sampling.
+
+    This callback only works for the "pymc" sampler.
+
+    Parameters
+    ----------
+    stats : list of str, optional
+        List of sample statistics to log from the Draw
+    parameters : list of str, optional
+        List of parameters to log from the Draw
+    exclude_tuning : bool, optional
+        Whether to exclude tuning steps from logging. Defaults to True.
+
+    Returns
+    -------
+    callback : Callable
+        The callback function to log sample stats and parameter values to MLflow during sampling
+
+    Examples
+    --------
+    Create example model:
+
+    .. code-block:: python
+
+        import pymc as pm
+
+        with pm.Model() as model:
+            mu = pm.Normal("mu")
+            sigma = pm.HalfNormal("sigma")
+            obs = pm.Normal("obs", mu=mu, sigma=sigma, observed=[1, 2, 3])
+
+    Log off divergences and logp every 100th draw:
+
+    .. code-block:: python
+
+        import mlflow
+
+        from pymc_marketing.mlflow import create_log_callback
+
+        callback = create_log_callback(
+            stats=["diverging", "model_logp"],
+            take_every=100,
+        )
+
+        mlflow.set_experiment("Live Tracking Stats")
+
+        with mlflow.start_run():
+            idata = pm.sample(model=model, callback=callback)
+
+    Log the parameters `mu` and `sigma_log__` every 100th draw:
+
+    .. code-block:: python
+
+        import mlflow
+
+        from pymc_marketing.mlflow import create_log_callback
+
+        callback = create_log_callback(
+            parameters=["mu", "sigma_log__"],
+            take_every=100,
+        )
+
+        mlflow.set_experiment("Live Tracking Parameters")
+
+        with mlflow.start_run():
+            idata = pm.sample(model=model, callback=callback)
+
+    """
+    if not stats and not parameters:
+        raise ValueError("At least one of `stats` or `parameters` must be provided.")
+
+    def callback(_, draw):
+        prefix = f"chain_{draw.chain}"
+        for stat in stats or []:
+            mlflow.log_metric(
+                key=f"{prefix}/{stat}",
+                value=draw.stats[0][stat],
+                step=draw.draw_idx,
+            )
+
+        for parameter in parameters or []:
+            mlflow.log_metric(
+                key=f"{prefix}/{parameter}",
+                value=draw.point[parameter],
+                step=draw.draw_idx,
+            )
+
+    if exclude_tuning:
+        callback = _exclude_tuning(callback)
+
+    if take_every:
+        callback = _take_every(n=take_every)(callback)
+
+    return callback
 
 
 def _log_and_remove_artifact(path: str | Path) -> None:
@@ -212,11 +378,15 @@ def log_metadata(model: Model, idata: az.InferenceData) -> None:
     """
     data_vars: list[TensorVariable] = model.data_vars
 
-    features = {
-        var.name: idata.constant_data[var.name].to_numpy()
-        for var in data_vars
-        if var.name in idata.constant_data
-    }
+    if "constant_data" in idata:
+        features = {
+            var.name: idata.constant_data[var.name].to_numpy()
+            for var in data_vars
+            if var.name in idata.constant_data
+        }
+    else:
+        features = {}
+
     targets = {
         var.name: idata.observed_data[var.name].to_numpy()
         for var in model.observed_RVs
@@ -286,10 +456,7 @@ def log_types_of_parameters(model: Model) -> None:
     """
     mlflow.log_param("n_free_RVs", len(model.free_RVs))
     mlflow.log_param("n_observed_RVs", len(model.observed_RVs))
-    mlflow.log_param(
-        "n_deterministics",
-        len(model.deterministics),
-    )
+    mlflow.log_param("n_deterministics", len(model.deterministics))
     mlflow.log_param("n_potentials", len(model.potentials))
 
 
@@ -330,10 +497,7 @@ def log_model_derived_info(model: Model) -> None:
     mlflow.log_text(model.str_repr(), "model_repr.txt")
 
     if model.coords:
-        mlflow.log_dict(
-            model.coords,
-            "coords.json",
-        )
+        mlflow.log_dict(model.coords, "coords.json")
 
     log_model_graph(model, "model_graph")
     log_likelihood_type(model)
@@ -406,7 +570,6 @@ def log_sample_diagnostics(
             "inference_library_version",
             posterior.attrs["inference_library_version"],
         )
-    mlflow.log_param("arviz_version", posterior.attrs["arviz_version"])
 
 
 def log_inference_data(
@@ -428,18 +591,19 @@ def log_inference_data(
 
 
 def log_mmm_evaluation_metrics(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
+    y_true: npt.NDArray | pd.Series,
+    y_pred: npt.NDArray | xr.DataArray,
     metrics_to_calculate: list[str] | None = None,
     hdi_prob: float = 0.94,
+    prefix: str = "",
 ) -> None:
     """Log evaluation metrics produced by `pymc_marketing.mmm.evaluation.compute_summary_metrics()` to MLflow.
 
     Parameters
     ----------
-    y_true : np.ndarray
+    y_true : npt.NDArray | pd.Series
         The true values of the target variable.
-    y_pred : np.ndarray
+    y_pred : npt.NDArray | xr.DataArray
         The predicted values of the target variable.
     metrics_to_calculate : list of str or None, optional
         List of metrics to calculate. If None, all available metrics will be calculated.
@@ -452,23 +616,42 @@ def log_mmm_evaluation_metrics(
             * `mape`: Mean Absolute Percentage Error.
     hdi_prob : float, optional
         The probability mass of the highest density interval. Defaults to 0.94.
+    prefix : str, optional
+        Prefix to add to the metric names. Defaults to "".
+
+    Examples
+    --------
+    Log in-sample evaluation metrics for a PyMC-Marketing MMM model:
+
+    .. code-block:: python
+
+        import mlflow
+
+        from pymc_marketing.mmm import MMM
+
+        mmm = MMM(...)
+        mmm.fit(X, y)
+
+        predictions = mmm.sample_posterior_predictive(X)
+
+        with mlflow.start_run():
+            log_mmm_evaluation_metrics(y, predictions["y"])
 
     """
-    # Convert y_true and y_pred to numpy arrays if they're not already
-    y_true_np = y_true.to_numpy() if hasattr(y_true, "to_numpy") else np.array(y_true)
-    y_pred_np = y_pred.to_numpy() if hasattr(y_pred, "to_numpy") else np.array(y_pred)
-
     metric_summaries = compute_summary_metrics(
-        y_true=y_true_np,
-        y_pred=y_pred_np,
+        y_true=y_true,
+        y_pred=y_pred,
         metrics_to_calculate=metrics_to_calculate,
         hdi_prob=hdi_prob,
     )
 
+    if prefix and not prefix.endswith("_"):
+        prefix = f"{prefix}_"
+
     for metric, stats in metric_summaries.items():
         for stat, value in stats.items():
             # mlflow doesn't support % in metric names
-            mlflow.log_metric(f"{metric}_{stat.replace('%', '')}", value)
+            mlflow.log_metric(f"{prefix}{metric}_{stat.replace('%', '')}", value)
 
 
 class MMMWrapper(mlflow.pyfunc.PythonModel):
@@ -490,7 +673,7 @@ class MMMWrapper(mlflow.pyfunc.PythonModel):
         Combine chain and draw dims into sample. Won't work if a dim named sample already exists. Defaults to True.
     include_last_observations : bool, default=False
         Boolean determining whether to include the last observations of the training data in order to carry over
-        costs with the adstock transformation. Assumes that X_pred are the next predictions following the
+        costs with the adstock transformation. Assumes that X are the next predictions following the
         training data. Defaults to False.
     original_scale : bool, default=True
         Boolean determining whether to return the predictions in the original scale of the target variable.
@@ -617,7 +800,7 @@ def log_mmm(
         already exists. Used for posterior/prior predictive sampling. Defaults to True.
     include_last_observations : bool, optional
         Whether to include the last observations of training data for adstock transformation.
-        Assumes X_pred are next predictions following training data. Used for all prediction
+        Assumes X are next predictions following training data. Used for all prediction
         methods. Defaults to False.
     original_scale : bool, optional
         Whether to return predictions in original scale of target variable. Used for all
@@ -777,6 +960,22 @@ def load_mmm(
     return model
 
 
+def log_versions() -> None:
+    """Log the versions of PyMC-Marketing, PyMC, and ArviZ to MLflow."""
+    mlflow.log_param("pymc_marketing_version", __version__)
+    mlflow.log_param("pymc_version", pm.__version__)
+    mlflow.log_param("arviz_version", az.__version__)
+
+
+def log_mmm_configuration(mmm: MMM) -> None:
+    """Log the configuration of the MMM model to MLflow."""
+    attrs = mmm.create_idata_attrs()
+    mlflow.log_params(attrs)
+
+    mlflow.log_param("adstock_name", mmm.adstock.lookup_name)
+    mlflow.log_param("saturation_name", mmm.saturation.lookup_name)
+
+
 @autologging_integration(FLAVOR_NAME)
 def autolog(
     log_sampler_info: bool = True,
@@ -928,11 +1127,16 @@ def autolog(
     def patch_sample(sample: Callable) -> Callable:
         @wraps(sample)
         def new_sample(*args, **kwargs):
+            log_versions()
+
             model = pm.modelcontext(kwargs.get("model"))
-            idata = sample(*args, **kwargs)
+
             mlflow.log_param("nuts_sampler", kwargs.get("nuts_sampler", "pymc"))
-            mlflow.log_param("pymc_marketing_version", __version__)
-            mlflow.log_param("pymc_version", pm.__version__)
+
+            if log_model_info:
+                log_model_derived_info(model)
+
+            idata = sample(*args, **kwargs)
 
             # Align with the default values in pymc.sample
             tune = kwargs.get("tune", 1000)
@@ -946,9 +1150,6 @@ def autolog(
                     **arviz_summary_kwargs,
                 )
 
-            if log_model_info:
-                log_model_derived_info(model)
-
             if log_metadata_info:
                 log_metadata(model=model, idata=idata)
 
@@ -961,14 +1162,12 @@ def autolog(
     def patch_find_MAP(find_MAP):
         @wraps(find_MAP)
         def new_find_MAP(*args, **kwargs):
-            result = find_MAP(*args, **kwargs)
-
             model = pm.modelcontext(kwargs.get("model"))
 
             if log_model_info:
                 log_model_derived_info(model)
 
-            return result
+            return find_MAP(*args, **kwargs)
 
         return new_find_MAP
 
@@ -977,20 +1176,9 @@ def autolog(
     def patch_mmm_fit(fit: Callable) -> Callable:
         @wraps(fit)
         def new_fit(self, *args, **kwargs):
+            log_mmm_configuration(self)
+
             idata = fit(self, *args, **kwargs)
-
-            mlflow.log_params(
-                idata.attrs,
-            )
-
-            mlflow.log_param(
-                "adstock_name",
-                json.loads(idata.attrs["adstock"])["lookup_name"],
-            )
-            mlflow.log_param(
-                "saturation_name",
-                json.loads(idata.attrs["saturation"])["lookup_name"],
-            )
 
             log_inference_data(idata, save_file="idata.nc")
 
@@ -998,27 +1186,8 @@ def autolog(
 
         return new_fit
 
-    def patch_mmm_sample_posterior_predictive(
-        sample_posterior_predictive: Callable,
-    ) -> Callable:
-        @wraps(sample_posterior_predictive)
-        def new_sample_posterior_predictive(self, *args, **kwargs):
-            posterior_preds = sample_posterior_predictive(self, *args, **kwargs)
-
-            log_mmm_evaluation_metrics(
-                y_true=self.y,
-                y_pred=posterior_preds[self.output_var],
-            )
-
-            return posterior_preds
-
-        return new_sample_posterior_predictive
-
     if log_mmm:
         MMM.fit = patch_mmm_fit(MMM.fit)
-        MMM.sample_posterior_predictive = patch_mmm_sample_posterior_predictive(
-            MMM.sample_posterior_predictive
-        )
 
     def patch_clv_fit(fit):
         @wraps(fit)

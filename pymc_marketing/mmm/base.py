@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
 import pymc as pm
+import seaborn as sns
 from numpy.typing import NDArray
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
@@ -1115,16 +1116,29 @@ class MMMModelBuilder(ModelBuilder):
         ax.legend(title="groups", loc="center left", bbox_to_anchor=(1, 0.5))
         return fig
 
-    def _get_channel_contributions_share_samples(self) -> DataArray:
+    def get_channel_contributions_share_samples(self, prior: bool = False) -> DataArray:
+        """Get the share of channel contributions in the original scale of the target variable.
+
+        Parameters
+        ----------
+        prior : bool, optional
+            Whether to use the prior or posterior, by default False (posterior)
+
+        Returns
+        -------
+        DataArray
+            The share of channel contributions in the original scale of the target variable.
+
+        """
         channel_contribution_original_scale_samples: DataArray = (
-            self.compute_channel_contribution_original_scale()
+            self.compute_channel_contribution_original_scale(prior=prior)
         )
         numerator: DataArray = channel_contribution_original_scale_samples.sum(["date"])
         denominator: DataArray = numerator.sum("channel")
         return numerator / denominator
 
     def plot_channel_contribution_share_hdi(
-        self, hdi_prob: float = 0.94, **plot_kwargs: Any
+        self, hdi_prob: float = 0.94, prior: bool = False, **plot_kwargs: Any
     ) -> plt.Figure:
         """Plot the share of channel contributions in a forest plot.
 
@@ -1132,6 +1146,8 @@ class MMMModelBuilder(ModelBuilder):
         ----------
         hdi_prob : float, optional
             HDI value to be displayed, by default 0.94
+        prior : bool, optional
+            Whether to use the prior or posterior, by default False (posterior)
         **plot_kwargs
             Additional keyword arguments to pass to `az.plot_forest`.
 
@@ -1141,7 +1157,7 @@ class MMMModelBuilder(ModelBuilder):
 
         """
         channel_contributions_share: DataArray = (
-            self._get_channel_contributions_share_samples()
+            self.get_channel_contributions_share_samples(prior=prior)
         )
 
         ax, *_ = az.plot_forest(
@@ -1184,6 +1200,152 @@ class MMMModelBuilder(ModelBuilder):
         dataframe["percentage"] = (dataframe["contribution"] / total_contribution) * 100
 
         return dataframe
+
+    def plot_prior_vs_posterior(
+        self,
+        var_name: str,
+        alphabetical_sort: bool = True,
+        figsize: tuple[int, int] | None = None,
+    ) -> plt.Figure:
+        """
+        Plot the prior vs posterior distribution for a specified variable in a 3 columngrid layout.
+
+        This function generates KDE plots for each MMM channel, showing the prior predictive
+        and posterior distributions with their respective means highlighted.
+        It sorts the plots either alphabetically or based on the difference between the
+        posterior and prior means, with the largest difference (posterior - prior) at the top.
+
+        Parameters
+        ----------
+        var_name: str
+            The variable to analyze (e.g., 'adstock_alpha').
+        alphabetical_sort: bool, optional
+            Whether to sort the channels alphabetically (True) or by the difference
+            between the posterior and prior means (False). Default is True.
+        figsize : tuple of int, optional
+            Figure size in inches. If None, it will be calculated based on the number of channels.
+
+        Returns
+        -------
+        fig : plt.Figure
+            The matplotlib figure object
+
+        Raises
+        ------
+        ValueError
+            If the required attributes (prior, posterior) were not found.
+        ValueError
+            If var_name is not a string.
+        """
+        if not hasattr(self, "fit_result") or not hasattr(self, "prior"):
+            raise ValueError(
+                "Required attributes (fit_result, prior) not found. "
+                "Ensure you've called model.fit() and model.sample_prior_predictive()"
+            )
+
+        if not isinstance(var_name, str):
+            raise ValueError(
+                "var_name must be a string. Please provide a single variable name."
+            )
+
+        # Determine the number of channels and set up the grid
+        num_channels = len(self.channel_columns)
+        num_cols = 1
+        num_rows = num_channels
+
+        if figsize is None:
+            figsize = (12, 4 * num_rows)
+
+        # Calculate prior and posterior means for sorting
+        channel_means = []
+        for channel in self.channel_columns:
+            prior_mean = self.prior[var_name].sel(channel=channel).mean().values
+            posterior_mean = (
+                self.fit_result[var_name].sel(channel=channel).mean().values
+            )
+            difference = posterior_mean - prior_mean
+            channel_means.append((channel, prior_mean, posterior_mean, difference))
+
+        # Choose how to sort the channels
+        if alphabetical_sort:
+            sorted_channels = sorted(channel_means, key=lambda x: x[0])
+        else:
+            # Otherwise, sort on difference between posterior and prior means
+            sorted_channels = sorted(channel_means, key=lambda x: x[3], reverse=True)
+
+        fig, axs = plt.subplots(
+            nrows=num_rows,
+            ncols=num_cols,
+            figsize=figsize,
+            sharex=True,
+            sharey=False,
+            layout="constrained",
+        )
+        axs = axs.flatten()  # Flatten the array for easy iteration
+
+        # Plot for each channel
+        for i, (channel, prior_mean, posterior_mean, difference) in enumerate(
+            sorted_channels
+        ):
+            # Extract prior samples for the current channel
+            prior_samples = self.prior[var_name].sel(channel=channel).values.flatten()
+
+            # Plot the prior predictive distribution
+            sns.kdeplot(
+                prior_samples,
+                ax=axs[i],
+                label="Prior Predictive",
+                color="C0",
+                fill=True,
+            )
+
+            # Add a vertical line for the mean of the prior distribution
+            axs[i].axvline(
+                prior_mean,
+                color="C0",
+                linestyle="--",
+                linewidth=2,
+                label=f"Prior Mean: {prior_mean:.2f}",
+            )
+
+            # Extract posterior samples for the current channel
+            posterior_samples = (
+                self.fit_result[var_name].sel(channel=channel).values.flatten()
+            )
+
+            # Plot the prior predictive distribution
+            sns.kdeplot(
+                posterior_samples,
+                ax=axs[i],
+                label="Posterior Predictive",
+                color="C1",
+                fill=True,
+                alpha=0.15,
+            )
+
+            # Add a vertical line for the mean of the posterior distribution
+            axs[i].axvline(
+                posterior_mean,
+                color="C1",
+                linestyle="--",
+                linewidth=2,
+                label=f"Posterior Mean: {posterior_mean:.2f} (Diff: {difference:.2f})",
+            )
+
+            # Set titles and labels
+            axs[i].set_title(channel)  # Subplot title is just the channel name
+            axs[i].set_xlabel(var_name.capitalize())
+            axs[i].set_ylabel("Density")
+            axs[i].legend(loc="upper right")
+
+        # Set the overall figure title
+        fig.suptitle(
+            f"Prior vs Posterior Distributions | {var_name}",
+            fontsize=16,
+            horizontalalignment="center",
+        )
+
+        return fig
 
     def plot_waterfall_components_decomposition(
         self,

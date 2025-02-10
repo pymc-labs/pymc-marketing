@@ -16,6 +16,10 @@ on:
      - "tests/**.py"
      - "pymc_marketing/**"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   # The lower bound from the pyproject.toml file
   OLDEST_PYMC_VERSION: "$(grep -E 'pymc *>' pyproject.toml | sed -n 's/.*>=\\([0-9]*\\.[0-9]*\\.[0-9]*\\).*/\\1/p')"

@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -86,8 +86,7 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
 # TODO: Consolidate this fixture into the tests requiring it?
 @pytest.fixture()
 def df_cum_transactions():
-    url_cdnow = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/cdnow_transactions.csv"
-    cdnow_transactions = pd.read_csv(url_cdnow)
+    cdnow_transactions = pd.read_csv("data/cdnow_transactions.csv")
 
     rfm_data = rfm_summary(
         cdnow_transactions,

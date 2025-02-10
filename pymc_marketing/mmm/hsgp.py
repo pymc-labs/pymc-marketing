@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from enum import Enum
-from typing import cast
+from typing import Literal, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -111,7 +111,7 @@ def approx_hsgp_hyperparams(
     x,
     x_center,
     lengthscale_range: tuple[float, float],
-    cov_func: str,
+    cov_func: Literal["expquad", "matern32", "matern52"],
 ) -> tuple[int, float]:
     """Use heuristics for minimum `m` and `c` values.
 
@@ -130,7 +130,7 @@ def approx_hsgp_hyperparams(
         The center of the data.
     lengthscale_range : tuple[float, float]
         The range of the lengthscales. Should be a list with two elements [lengthscale_min, lengthscale_max].
-    cov_func : str
+    cov_func : Literal["expquad", "matern32", "matern52"]
         The covariance function to use. Supported options are "expquad", "matern52", and "matern32".
 
     Returns
@@ -242,7 +242,7 @@ def create_m_and_L_recommendations(
         X,
         X_mid,
         lengthscale_range=(ls_lower, ls_upper),
-        cov_func=cov_func,
+        cov_func=cast(Literal["expquad", "matern32", "matern52"], cov_func),
     )
     L = c * X_mid
 
@@ -625,7 +625,7 @@ class HSGP(HSGPBase):
     @classmethod
     def parameterize_from_data(
         cls,
-        X: np.ndarray,
+        X: TensorLike | np.ndarray,
         dims: Dims,
         X_mid: float | None = None,
         eta_mass: float = 0.05,
@@ -650,11 +650,24 @@ class HSGP(HSGPBase):
                 upper=ls_upper,
                 mass=ls_mass,
             )
-        X = pt.as_tensor_variable(X).eval()
+
+        numeric_X = None
+        if isinstance(X, np.ndarray):
+            numeric_X = np.asarray(X)
+        elif isinstance(X, TensorVariable):
+            numeric_X = X.get_value(borrow=False)
+        else:
+            raise ValueError(
+                "X must be a NumPy array (or list) or a TensorVariable. "
+                "If it's a plain symbolic tensor, you must manually specify m, L."
+            )
+
+        numeric_X = np.asarray(numeric_X)
         if X_mid is None:
-            X_mid = float(X.mean())
+            X_mid = float(numeric_X.mean())
+
         m, L = create_m_and_L_recommendations(
-            X,
+            numeric_X,
             X_mid,
             ls_lower=ls_lower,
             ls_upper=ls_upper,
@@ -666,7 +679,7 @@ class HSGP(HSGPBase):
             eta=eta,
             m=m,
             L=L,
-            X=X,
+            X=X,  # store the original reference (even if symbolic)
             X_mid=X_mid,
             cov_func=cov_func,
             dims=dims,

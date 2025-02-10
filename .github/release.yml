@@ -11,6 +11,9 @@ changelog:
     - title: Major Changes 🛠
       labels:
         - major
+    - title: Deprecations 🚨
+      labels:
+        - deprecation
     - title: New Features 🎉
       labels:
         - enhancement
