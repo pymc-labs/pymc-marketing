@@ -16,7 +16,6 @@
 import json
 import warnings
 from collections.abc import Sequence
-from pathlib import Path
 from typing import cast
 
 import arviz as az
@@ -29,7 +28,6 @@ from pymc.model.core import Model
 
 from pymc_marketing.model_builder import ModelBuilder
 from pymc_marketing.model_config import ModelConfig, parse_model_config
-from pymc_marketing.utils import from_netcdf
 
 
 class CLVModel(ModelBuilder):
@@ -165,55 +163,13 @@ class CLVModel(ModelBuilder):
             return pm.sample(step=pm.DEMetropolisZ(), **sampler_config)
 
     @classmethod
-    def load(cls, fname: str):
-        """Create a ModelBuilder instance from a file.
-
-        Loads inference data for the model.
-
-        Parameters
-        ----------
-        fname : string
-            This denotes the name with path from where idata should be loaded from.
-
-        Returns
-        -------
-        Returns an instance of ModelBuilder.
-
-        Raises
-        ------
-        ValueError
-            If the inference data that is loaded doesn't match with the model.
-
-        Examples
-        --------
-        >>> class MyModel(ModelBuilder):
-        >>>     ...
-        >>> name = './mymodel.nc'
-        >>> imported_model = MyModel.load(name)
-
-        """
-        filepath = Path(str(fname))
-        idata = from_netcdf(filepath)
-        return cls._build_with_idata(idata)
-
-    @classmethod
-    def _build_with_idata(cls, idata: az.InferenceData):
-        dataset = idata.fit_data.to_dataframe()
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=DeprecationWarning,
-            )
-            model = cls(
-                dataset,
-                model_config=json.loads(idata.attrs["model_config"]),  # type: ignore
-                sampler_config=json.loads(idata.attrs["sampler_config"]),
-            )
-        model.idata = idata
-        model.build_model()  # type: ignore
-        if model.id != idata.attrs["id"]:
-            raise ValueError(f"Inference data not compatible with {cls._model_type}")
-        return model
+    def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict:
+        """Create the initialization kwargs from an InferenceData object."""
+        return {
+            "data": idata.fit_data.to_dataframe(),
+            "model_config": json.loads(idata.attrs["model_config"]),
+            "sampler_config": json.loads(idata.attrs["sampler_config"]),
+        }
 
     def thin_fit_result(self, keep_every: int):
         """Return a copy of the model with a thinned fit result.
@@ -244,7 +200,7 @@ class CLVModel(ModelBuilder):
         self.fit_result  # noqa: B018 (Raise Error if fit didn't happen yet)
         assert self.idata is not None  # noqa: S101
         new_idata = self.idata.isel(draw=slice(None, None, keep_every)).copy()
-        return type(self)._build_with_idata(new_idata)
+        return self.build_from_idata(new_idata)
 
     @property
     def default_sampler_config(self) -> dict:
@@ -267,12 +223,3 @@ class CLVModel(ModelBuilder):
             return res["mean"].rename("value")
         else:
             return az.summary(self.fit_result, **kwargs)
-
-    @property
-    def output_var(self):
-        """Output variable of the model."""
-        pass
-
-    def _data_setter(self):
-        """Set the data for the model."""
-        pass
