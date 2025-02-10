@@ -221,6 +221,8 @@ def create_log_callback(
         List of parameters to log from the Draw
     exclude_tuning : bool, optional
         Whether to exclude tuning steps from logging. Defaults to True.
+    take_every : int, optional
+        Specifies the interval at which to log values. Defaults to 100.
 
     Returns
     -------
