@@ -211,6 +211,7 @@ class TestModifiedBetaGeoModel:
         [
             ("mcmc", 0.075),
             ("map", 0.15),
+            ("advi", 0.175),
         ],
     )
     def test_model_convergence(self, fit_method, rtol, model_config):
