@@ -13,6 +13,8 @@
 #   limitations under the License.
 import matplotlib.pyplot as plt
 import numpy as np
+import pymc as pm
+import pytensor
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
@@ -307,3 +309,41 @@ def test_from_dict_with_non_dictionary_distribution_hspg_periodic() -> None:
     assert hsgp.scale == 1
     assert hsgp.X_mid is None
     assert hsgp.dims == ("time",)
+
+
+def test_hsgp_with_shared_data():
+    """
+    Test that HSGP works with a shared variable (pm.MutableData / pm.Data) and that
+    the computed graph properly includes and depends on the shared data.
+    """
+    n_points = 10
+    X = np.arange(n_points, dtype=float)
+    coords = {"time": X}
+
+    # Create a model and a shared data variable using pm.MutableData
+    with pm.Model(coords=coords) as model:
+        # Create a shared data variable with the name "X_shared"
+        X_shared = pm.Data("X_shared", X, dims="time")
+        # Parameterize the HSGP using the shared data
+        hsgp = HSGP.parameterize_from_data(X_shared, dims="time")
+        # Create the deterministic variable "f" from the HSGP configuration
+        f = hsgp.create_variable("f")
+
+        # Check that "f" is added to the model variables
+        assert "f" in model.named_vars
+
+        # Ensure that the stored X is a shared tensor variable
+        assert isinstance(hsgp.X, pt.TensorVariable)
+
+        # Verify that f depends on X_shared in the computational graph
+        assert any(
+            var.name == "X_shared"
+            for var in pytensor.graph.basic.ancestors([f])
+            if hasattr(var, "name")
+        ), "f is not connected to X_shared in the computational graph"
+
+        # Sample from prior to get initial values
+        prior = pm.sample_prior_predictive(samples=1)
+
+        # prior should have a "f" variable
+        assert "f" in prior.prior

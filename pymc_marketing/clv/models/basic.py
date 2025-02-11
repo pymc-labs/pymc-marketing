@@ -17,7 +17,7 @@ import json
 import warnings
 from collections.abc import Sequence
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 import arviz as az
 import pandas as pd
@@ -107,12 +107,16 @@ class CLVModel(ModelBuilder):
             Method used to fit the model. Options are:
             - "mcmc": Samples from the posterior via `pymc.sample` (default)
             - "map": Finds maximum a posteriori via `pymc.find_MAP`
+            - "demz": Samples from the posterior via `pymc.sample` using DEMetropolisZ
+            - "advi": Samples from the posterior via `pymc.fit(method="advi")` and `pymc.sample`
+            - "fullrank_advi": Samples from the posterior via `pymc.fit(method="fullrank_advi")` and `pymc.sample`
         kwargs:
             Other keyword arguments passed to the underlying PyMC routines
 
         """
         self.build_model()  # type: ignore
 
+        approx = None
         match fit_method:
             case "mcmc":
                 idata = self._fit_mcmc(**kwargs)
@@ -120,12 +124,18 @@ class CLVModel(ModelBuilder):
                 idata = self._fit_MAP(**kwargs)
             case "demz":
                 idata = self._fit_DEMZ(**kwargs)
+            case "advi":
+                approx, idata = self._fit_approx(method="advi", **kwargs)
+            case "fullrank_advi":
+                approx, idata = self._fit_approx(method="fullrank_advi", **kwargs)
             case _:
                 raise ValueError(
-                    f"Fit method options are ['mcmc', 'map', 'demz'], got: {fit_method}"
+                    f"Fit method options are ['mcmc', 'map', 'demz', 'advi', 'fullrank_advi'], got: {fit_method}"
                 )
 
         self.idata = idata
+        if approx:
+            self.approx = approx
         self.set_idata_attrs(self.idata)
         if self.data is not None:
             self._add_fit_data_group(self.data)
@@ -163,6 +173,66 @@ class CLVModel(ModelBuilder):
         sampler_config.update(**kwargs)
         with self.model:
             return pm.sample(step=pm.DEMetropolisZ(), **sampler_config)
+
+    def _fit_approx(
+        self, method: Literal["advi", "fullrank_advi"] = "advi", **kwargs
+    ) -> az.InferenceData:
+        """Fit a model with ADVI."""
+        sampler_config = {}
+        if self.sampler_config is not None:
+            sampler_config = self.sampler_config.copy()
+
+        sampler_config.update(**kwargs)
+        if sampler_config.get("method") is not None:
+            raise ValueError(
+                "The 'method' parameter is set in sampler_config. Cannot be called with 'advi'."
+            )
+
+        if sampler_config.get("chains", 1) > 1:
+            warnings.warn(
+                "The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        with self.model:
+            approx = pm.fit(
+                method=method,
+                callbacks=[pm.callbacks.CheckParametersConvergence(diff="absolute")],
+                **{
+                    k: v
+                    for k, v in sampler_config.items()
+                    if k
+                    in [
+                        "n",
+                        "random_seed",
+                        "inf_kwargs",
+                        "start",
+                        "start_sigma",
+                        "score",
+                        "callbacks",
+                        "progressbar",
+                        "progressbar_theme",
+                        "obj_n_mc",
+                        "tf_n_mc",
+                        "obj_optimizer",
+                        "test_optimizer",
+                        "more_obj_params",
+                        "more_tf_params",
+                        "more_updates",
+                        "total_grad_norm_constraint",
+                        "fn_kwargs",
+                        "more_replacements",
+                    ]
+                },
+            )
+            return approx, approx.sample(
+                **{
+                    k: v
+                    for k, v in sampler_config.items()
+                    if k in ["draws", "random_seed", "return_inferencedata"]
+                }
+            )
 
     @classmethod
     def load(cls, fname: str):
@@ -271,10 +341,6 @@ class CLVModel(ModelBuilder):
     @property
     def output_var(self):
         """Output variable of the model."""
-        pass
-
-    def _generate_and_preprocess_model_data(self, *args, **kwargs):
-        """Generate and preprocess model data."""
         pass
 
     def _data_setter(self):

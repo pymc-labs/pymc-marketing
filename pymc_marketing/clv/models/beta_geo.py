@@ -57,8 +57,8 @@ class BetaGeoModel(CLVModel):
             * `T`: Time between the first purchase and the end of the observation period
     model_config : dict, optional
         Dictionary of model prior parameters:
-            * `alpha_prior`: Scale parameter for time between purchases; defaults to `Prior("HalfFlat")`
-            * `r_prior`: Shape parameter for time between purchases; defaults to `Prior("HalfFlat")`
+            * `alpha_prior`: Scale parameter for time between purchases; defaults to `Prior("Weibull", alpha=2, beta=10)`
+            * `r_prior`: Shape parameter for time between purchases; defaults to `Prior("Weibull", alpha=2, beta=1)`
             * `a_prior`: Shape parameter of dropout process; defaults to `phi_purchase_prior` * `kappa_purchase_prior`
             * `b_prior`: Shape parameter of dropout process; defaults to `1-phi_dropout_prior` * `kappa_dropout_prior`
             * `phi_dropout_prior`: Nested prior for a and b priors; defaults to `Prior("Uniform", lower=0, upper=1)`
@@ -100,10 +100,10 @@ class BetaGeoModel(CLVModel):
         model = BetaGeoModel(
             data=data,
             model_config={
-                "r_prior": Prior("HalfFlat"),
+                "r_prior": Prior("Weibull", alpha=2, beta=1),
                 "alpha_prior": Prior("HalfFlat"),
-                "a_prior": Prior("HalfFlat"),
-                "b_prior": Prior("HalfFlat),
+                "a_prior": Prior("Beta", alpha=2, beta=3),
+                "b_prior": Prior("Beta", alpha=3, beta=2),
             },
             sampler_config={
                 "draws": 1000,
@@ -185,8 +185,8 @@ class BetaGeoModel(CLVModel):
     def default_model_config(self) -> ModelConfig:
         """Default model configuration."""
         return {
-            "alpha_prior": Prior("HalfFlat"),
-            "r_prior": Prior("HalfFlat"),
+            "alpha_prior": Prior("Weibull", alpha=2, beta=10),
+            "r_prior": Prior("Weibull", alpha=2, beta=1),
             "phi_dropout_prior": Prior("Uniform", lower=0, upper=1),
             "kappa_dropout_prior": Prior("Pareto", alpha=1, m=1),
             "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=1),

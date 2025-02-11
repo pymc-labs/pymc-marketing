@@ -12,7 +12,6 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import os
-import warnings
 
 import arviz as az
 import numpy as np
@@ -35,35 +34,6 @@ from pymc_marketing.prior import Prior
 
 seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
-
-
-def mock_fit(model, X: pd.DataFrame, y: np.ndarray, **kwargs):
-    model.build_model(X=X, y=y)
-
-    with model.model:
-        idata = pm.sample_prior_predictive(random_seed=rng, **kwargs)
-
-    model.preprocess("X", X)
-    model.preprocess("y", y)
-
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            category=UserWarning,
-            message="The group fit_data is not defined in the InferenceData scheme",
-        )
-        idata.add_groups(
-            {
-                "posterior": idata.prior,
-                "fit_data": pd.concat(
-                    [X, pd.Series(y, index=X.index, name="y")], axis=1
-                ).to_xarray(),
-            }
-        )
-    model.idata = idata
-    model.set_idata_attrs(idata=idata)
-
-    return model
 
 
 @pytest.fixture(scope="module")
@@ -159,8 +129,14 @@ def mmm_with_fourier_features() -> MMM:
 
 
 @pytest.fixture(scope="module")
-def mmm_fitted(mmm: MMM, toy_X: pd.DataFrame, toy_y: pd.Series) -> MMM:
-    return mock_fit(mmm, toy_X, toy_y)
+def mmm_fitted(
+    mmm: MMM,
+    toy_X: pd.DataFrame,
+    toy_y: pd.Series,
+    mock_pymc_sample,
+) -> MMM:
+    mmm.fit(X=toy_X, y=toy_y)
+    return mmm
 
 
 @pytest.fixture(scope="module")
@@ -173,12 +149,23 @@ def mmm_fitted_with_posterior_predictive(
 
 
 @pytest.fixture(scope="module")
+def mmm_fitted_with_prior_and_posterior_predictive(
+    mmm_fitted_with_posterior_predictive,
+    toy_X,
+):
+    _ = mmm_fitted_with_posterior_predictive.sample_prior_predictive(toy_X)
+    return mmm_fitted_with_posterior_predictive
+
+
+@pytest.fixture(scope="module")
 def mmm_fitted_with_fourier_features(
     mmm_with_fourier_features: MMM,
     toy_X: pd.DataFrame,
     toy_y: pd.Series,
+    mock_pymc_sample,
 ) -> MMM:
-    return mock_fit(mmm_with_fourier_features, toy_X, toy_y)
+    mmm_with_fourier_features.fit(X=toy_X, y=toy_y)
+    return mmm_with_fourier_features
 
 
 @pytest.mark.parametrize("media_transform", ["adstock", "saturation"])
@@ -195,7 +182,11 @@ def test_plotting_media_transform_workflow(mmm_fitted, media_transform) -> None:
 
 class TestMMM:
     def test_save_load_with_not_serializable_model_config(
-        self, model_config_requiring_serialization, toy_X, toy_y
+        self,
+        model_config_requiring_serialization,
+        toy_X,
+        toy_y,
+        mock_pymc_sample,
     ):
         def deep_equal(dict1, dict2):
             for key, value in dict1.items():
@@ -222,7 +213,7 @@ class TestMMM:
             adstock=adstock,
             saturation=saturation,
         )
-        model = mock_fit(model, toy_X, toy_y)
+        model.fit(toy_X, toy_y)
         model.save("test_save_load")
         model2 = MMM.load("test_save_load")
         assert model.date_column == model2.date_column
@@ -371,10 +362,7 @@ class TestMMM:
                 samples,
             )
 
-    def test_fit(self, toy_X: pd.DataFrame, toy_y: pd.Series) -> None:
-        draws: int = 500
-        chains: int = 1
-
+    def test_fit(self, toy_X: pd.DataFrame, toy_y: pd.Series, mock_pymc_sample) -> None:
         mmm = BaseMMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
@@ -389,25 +377,27 @@ class TestMMM:
         assert mmm.model_config is not None
         n_channel: int = len(mmm.channel_columns)
         n_control: int = len(mmm.control_columns)
-        mmm = mock_fit(mmm, toy_X, toy_y)
-        idata: az.InferenceData = mmm.fit_result
+        mmm.fit(X=toy_X, y=toy_y)
+        posterior: az.InferenceData = mmm.fit_result
+        chains = posterior.sizes["chain"]
+        draws = posterior.sizes["draw"]
         assert (
-            az.extract(data=idata, var_names=["intercept"], combined=True)
+            az.extract(data=posterior, var_names=["intercept"], combined=True)
             .to_numpy()
             .size
             == draws * chains
         )
         assert az.extract(
-            data=idata, var_names=["saturation_beta"], combined=True
+            data=posterior, var_names=["saturation_beta"], combined=True
         ).to_numpy().shape == (n_channel, draws * chains)
         assert az.extract(
-            data=idata, var_names=["adstock_alpha"], combined=True
+            data=posterior, var_names=["adstock_alpha"], combined=True
         ).to_numpy().shape == (n_channel, draws * chains)
         assert az.extract(
-            data=idata, var_names=["saturation_lam"], combined=True
+            data=posterior, var_names=["saturation_lam"], combined=True
         ).to_numpy().shape == (n_channel, draws * chains)
         assert az.extract(
-            data=idata, var_names=["gamma_control"], combined=True
+            data=posterior, var_names=["gamma_control"], combined=True
         ).to_numpy().shape == (
             n_channel,
             draws * chains,
@@ -439,7 +429,10 @@ class TestMMM:
         ]
 
     def test_mmm_serializes_and_deserializes_dag_and_nodes(
-        self, toy_X: pd.DataFrame, toy_y: pd.Series
+        self,
+        toy_X: pd.DataFrame,
+        toy_y: pd.Series,
+        mock_pymc_sample,
     ) -> None:
         dag = """
         digraph {
@@ -462,7 +455,7 @@ class TestMMM:
             outcome_node=outcome_node,
         )
 
-        mmm = mock_fit(mmm, toy_X, toy_y)
+        mmm.fit(X=toy_X, y=toy_y)
 
         # Save and reload the model
         mmm.save("test_model")
@@ -595,9 +588,11 @@ class TestMMM:
                 var_contribution=var_contribution, original_scale=original_scale
             )
         )
+        chains = ts_posterior.sizes["chain"]
+        draws = ts_posterior.sizes["draw"]
         assert ts_posterior.dims == ("chain", "draw", "date")
-        assert ts_posterior.chain.size == 1
-        assert ts_posterior.draw.size == 500
+        assert ts_posterior.chain.size == chains
+        assert ts_posterior.draw.size == draws
 
     @pytest.mark.parametrize(
         argnames="original_scale",
@@ -612,8 +607,8 @@ class TestMMM:
         errors = mmm_fitted_with_posterior_predictive.get_errors(
             original_scale=original_scale
         )
-        n_chains = 1
-        n_draws = 500
+        n_chains = errors.sizes["chain"]
+        n_draws = errors.sizes["draw"]
         assert isinstance(errors, xr.DataArray)
         assert errors.name == "errors"
         assert errors.shape == (
@@ -699,12 +694,12 @@ class TestMMM:
     ) -> None:
         n_channels = len(mmm_fitted.channel_columns)
         data_range = mmm_fitted.X.shape[0]
-        draws = 500
-        chains = 1
         grid_size = 2
         contributions = mmm_fitted.get_channel_contributions_forward_pass_grid(
             start=0, stop=1.5, num=grid_size
         )
+        draws = contributions.sizes["draw"]
+        chains = contributions.sizes["chain"]
         assert contributions.shape == (
             grid_size,
             chains,
@@ -750,27 +745,28 @@ class TestMMM:
     )
     def test_get_group_predictive_data(
         self,
-        mmm_fitted_with_posterior_predictive: MMM,
+        mmm_fitted_with_prior_and_posterior_predictive: MMM,
         group: str,
         original_scale: bool,
     ):
-        dataset = mmm_fitted_with_posterior_predictive._get_group_predictive_data(
-            group=group, original_scale=original_scale
+        dataset = (
+            mmm_fitted_with_prior_and_posterior_predictive._get_group_predictive_data(
+                group=group,
+                original_scale=original_scale,
+            )
         )
         assert isinstance(dataset, xr.Dataset)
-        assert dataset.dims["chain"] == 1
-        assert dataset.dims["draw"] == 500
         assert dataset.dims["date"] == 135
         assert dataset["y"].dims == ("chain", "draw", "date")
 
-    def test_data_setter(self, toy_X, toy_y):
+    def test_data_setter(self, toy_X, toy_y, mock_pymc_sample):
         base_delayed_saturated_mmm = BaseMMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
             adstock=GeometricAdstock(l_max=4),
             saturation=LogisticSaturation(),
         )
-        base_delayed_saturated_mmm = mock_fit(base_delayed_saturated_mmm, toy_X, toy_y)
+        base_delayed_saturated_mmm.fit(X=toy_X, y=toy_y)
 
         X_correct_ndarray = np.random.randint(low=0, high=100, size=(135, 2))
         y_correct_ndarray = np.random.randint(low=0, high=100, size=135)
@@ -829,7 +825,7 @@ class TestMMM:
         )
 
         # Check that the property returns the new value
-        DSMMM = mock_fit(DSMMM, toy_X, toy_y)
+        DSMMM.fit(toy_X, toy_y)
         DSMMM.save("test_model")
         # Apply the monkeypatch for the property
         monkeypatch.setattr(MMM, "id", property(mock_property))
@@ -1063,10 +1059,10 @@ def test_new_data_sample_posterior_predictive_method(
 ) -> None:
     """This is the method that is used in all the other methods that generate predictions."""
     mmm = request.getfixturevalue(model_name)
-    X_pred = generate_data(new_dates)
+    X = generate_data(new_dates)
 
     posterior_predictive = mmm.sample_posterior_predictive(
-        X_pred=X_pred,
+        X=X,
         extend_idata=False,
         combined=combined,
         original_scale=original_scale,
@@ -1087,10 +1083,10 @@ def test_sample_posterior_predictive_with_prediction_kwarg(
     predictions: bool,
 ) -> None:
     new_dates = pd.date_range("2022-01-01", "2022-03-01", freq="W-MON")
-    X_pred = generate_data(new_dates)
+    X = generate_data(new_dates)
 
     predictions = mmm_fitted.sample_posterior_predictive(
-        X_pred=X_pred,
+        X=X,
         extend_idata=False,
         combined=True,
         predictions=predictions,
@@ -1115,14 +1111,14 @@ def test_new_data_include_last_observation_same_dims(
     request,
 ) -> None:
     mmm = request.getfixturevalue(model_name)
-    X_pred = generate_data(new_dates)
+    X = generate_data(new_dates)
 
     pp_without = mmm.predict_posterior(
-        X_pred,
+        X,
         include_last_observations=False,
     )
     pp_with = mmm.predict_posterior(
-        X_pred,
+        X,
         include_last_observations=True,
     )
 
@@ -1148,9 +1144,9 @@ def test_new_data_predict_method(
     request,
 ) -> None:
     mmm = request.getfixturevalue(model_name)
-    X_pred = generate_data(new_dates)
+    X = generate_data(new_dates)
 
-    posterior_predictive_mean = mmm.predict(X_pred=X_pred)
+    posterior_predictive_mean = mmm.predict(X=X)
 
     assert isinstance(posterior_predictive_mean, np.ndarray)
     assert posterior_predictive_mean.shape[0] == new_dates.size
@@ -1202,7 +1198,7 @@ def test_new_spend_contributions_prior_error() -> None:
 @pytest.mark.parametrize("original_scale", [True, False])
 def test_new_spend_contributions_prior(original_scale, mmm, toy_X) -> None:
     mmm.sample_prior_predictive(
-        X_pred=toy_X,
+        X=toy_X,
         extend_idata=True,
     )
 
@@ -1374,7 +1370,7 @@ def test_save_load_with_tvp(
         time_varying_intercept=time_varying_intercept,
         time_varying_media=time_varying_media,
     )
-    mmm = mock_fit(mmm, toy_X, toy_y)
+    mmm.fit(toy_X, toy_y)
 
     file = "tmp-model"
     mmm.save(file)
@@ -1416,7 +1412,8 @@ def mmm_with_media_config_fitted(
     toy_X: pd.DataFrame,
     toy_y: pd.Series,
 ) -> MMM:
-    return mock_fit(mmm_with_media_config, toy_X, toy_y)
+    mmm_with_media_config.fit(toy_X, toy_y)
+    return mmm_with_media_config
 
 
 def test_save_load_with_media_transformation(mmm_with_media_config_fitted) -> None:
@@ -1443,7 +1440,7 @@ def test_save_load_with_media_transformation(mmm_with_media_config_fitted) -> No
     os.remove(file)
 
 
-def test_missing_attrs_to_defaults(toy_X, toy_y) -> None:
+def test_missing_attrs_to_defaults(toy_X, toy_y, mock_pymc_sample) -> None:
     mmm = MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
@@ -1454,7 +1451,7 @@ def test_missing_attrs_to_defaults(toy_X, toy_y) -> None:
         time_varying_intercept=False,
         time_varying_media=False,
     )
-    mmm = mock_fit(mmm, toy_X, toy_y)
+    mmm.fit(toy_X, toy_y)
     mmm.idata.attrs.pop("adstock_first")
     mmm.idata.attrs.pop("time_varying_intercept")
     mmm.idata.attrs.pop("time_varying_media")
@@ -1481,7 +1478,11 @@ def test_missing_attrs_to_defaults(toy_X, toy_y) -> None:
     os.remove(file)
 
 
-def test_channel_contributions_forward_pass_time_varying_media(toy_X, toy_y) -> None:
+def test_channel_contributions_forward_pass_time_varying_media(
+    toy_X,
+    toy_y,
+    mock_pymc_sample,
+) -> None:
     mmm = MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
@@ -1490,7 +1491,7 @@ def test_channel_contributions_forward_pass_time_varying_media(toy_X, toy_y) -> 
         saturation=LogisticSaturation(),
         time_varying_media=True,
     )
-    mmm = mock_fit(mmm, toy_X, toy_y)
+    mmm.fit(toy_X, toy_y)
 
     posterior = mmm.fit_result
 

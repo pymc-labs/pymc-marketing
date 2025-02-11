@@ -221,6 +221,8 @@ def create_log_callback(
         List of parameters to log from the Draw
     exclude_tuning : bool, optional
         Whether to exclude tuning steps from logging. Defaults to True.
+    take_every : int, optional
+        Specifies the interval at which to log values. Defaults to 100.
 
     Returns
     -------
@@ -673,7 +675,7 @@ class MMMWrapper(mlflow.pyfunc.PythonModel):
         Combine chain and draw dims into sample. Won't work if a dim named sample already exists. Defaults to True.
     include_last_observations : bool, default=False
         Boolean determining whether to include the last observations of the training data in order to carry over
-        costs with the adstock transformation. Assumes that X_pred are the next predictions following the
+        costs with the adstock transformation. Assumes that X are the next predictions following the
         training data. Defaults to False.
     original_scale : bool, default=True
         Boolean determining whether to return the predictions in the original scale of the target variable.
@@ -800,7 +802,7 @@ def log_mmm(
         already exists. Used for posterior/prior predictive sampling. Defaults to True.
     include_last_observations : bool, optional
         Whether to include the last observations of training data for adstock transformation.
-        Assumes X_pred are next predictions following training data. Used for all prediction
+        Assumes X are next predictions following training data. Used for all prediction
         methods. Defaults to False.
     original_scale : bool, optional
         Whether to return predictions in original scale of target variable. Used for all
