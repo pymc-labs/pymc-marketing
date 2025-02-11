@@ -488,7 +488,7 @@ def plot_expected_purchases_ppc(
 ) -> plt.Axes:
     """Plot a prior or posterior predictive check for the customer purchase frequency distribution.
 
-    At this time only ``ParetoNBDModel`` and ``BetaGeoBetaBinomModel`` are supported.
+    ``ParetoNBDModel``, ``BetaGeoBetaBinomModel``, ``BetaGeoModel`` and ``ModifiedBetaGeoModel`` are supported.
 
     Adapted from legacy ``lifetimes`` library:
     https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/plotting.py#L25
@@ -515,10 +515,6 @@ def plot_expected_purchases_ppc(
     -------
     axes : matplotlib.AxesSubplot
     """
-    # TODO: BetaGeoModel requires its own dist class in distributions.py for this function.
-    if isinstance(model, BetaGeoModel):
-        raise AttributeError("BetaGeoModel is unsupported for this function.")
-
     if ax is None:
         ax = plt.subplot(111)
 
