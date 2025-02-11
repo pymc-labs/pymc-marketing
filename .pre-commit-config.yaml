@@ -33,8 +33,7 @@ repos:
     hooks:
       - id: no-commit-to-branch
         args: [--branch, main]
-        skip:
-        - merge
+        stages: [pre-commit, pre-merge-commit, pre-push, manual]
       - id: debug-statements
       - id: trailing-whitespace
       - id: end-of-file-fixer
