@@ -21,7 +21,12 @@ import pytest
 from arviz import InferenceData
 from xarray import DataArray, Dataset
 
-from pymc_marketing.clv.models import BetaGeoModel, CLVModel, ParetoNBDModel
+from pymc_marketing.clv.models import (
+    BetaGeoModel,
+    CLVModel,
+    ModifiedBetaGeoModel,
+    ParetoNBDModel,
+)
 from pymc_marketing.prior import Prior
 
 
@@ -194,6 +199,32 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
 # TODO: This fixture is used in the plotting and utils test modules.
 #       Consider creating a MockModel class to replace this and other fitted model fixtures.
 @pytest.fixture(scope="module")
+def fitted_mbg(test_summary_data) -> ModifiedBetaGeoModel:
+    rng = np.random.default_rng(13)
+
+    model_config = {
+        # Narrow Gaussian centered at MLE params from lifetimes BetaGeoFitter
+        "a_prior": Prior("DiracDelta", c=1.85034151),
+        "alpha_prior": Prior("DiracDelta", c=1.86428187),
+        "b_prior": Prior("DiracDelta", c=3.18105431),
+        "r_prior": Prior("DiracDelta", c=0.16385072),
+    }
+    model = ModifiedBetaGeoModel(
+        data=test_summary_data,
+        model_config=model_config,
+    )
+    model.build_model()
+    fake_fit = pm.sample_prior_predictive(draws=50, model=model.model, random_seed=rng)
+    # posterior group required to pass L80 assert check
+    fake_fit.add_groups(posterior=fake_fit.prior)
+    set_model_fit(model, fake_fit)
+
+    return model
+
+
+# TODO: This fixture is used in the plotting and utils test modules.
+#       Consider creating a MockModel class to replace this and other fitted model fixtures.
+@pytest.fixture(scope="module")
 def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
     rng = np.random.default_rng(45)
 
@@ -222,3 +253,13 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
     set_model_fit(pnbd_model, fake_fit)
 
     return pnbd_model
+
+
+@pytest.fixture(params=["bg_model", "mbg_model", "pnbd_model"])
+def fitted_model(request, fitted_bg, fitted_mbg, fitted_pnbd):
+    fitted_models = {
+        "bg_model": fitted_bg,
+        "mbg_model": fitted_mbg,
+        "pnbd_model": fitted_pnbd,
+    }
+    return fitted_models[request.param]
