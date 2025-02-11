@@ -17,6 +17,8 @@ dependencies:
 - pyprojroot
 # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
 - pymc>=5.20.0
+- pymc-extras>=0.2.1
+- blackjax>=1.2.4
 - scikit-learn>=1.1.1
 - seaborn>=0.12.2
 - xarray

@@ -11,15 +11,21 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+from collections.abc import Callable
+
 import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
+from pymc.model_graph import fast_eval
+from pytensor.tensor.basic import TensorVariable
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.events import EventEffect, GaussianBasis
+from pymc_marketing.mmm.multidimensional import MMM, create_event_mu_effect
+from pymc_marketing.prior import Prior
 
 
 @pytest.fixture
@@ -76,7 +82,7 @@ def fit_mmm(df, mmm, mock_pymc_sample):
     return mmm
 
 
-def test_fit(fit_mmm):
+def test_simple_fit(fit_mmm):
     assert isinstance(fit_mmm.posterior, xr.Dataset)
     assert isinstance(fit_mmm.idata.constant_data, xr.Dataset)
 
@@ -164,29 +170,34 @@ def multi_dim_data():
 
 
 @pytest.mark.parametrize(
-    "time_varying_intercept, time_varying_media, yearly_seasonality, dims",
+    "fixture_name, dims",
     [
-        (False, False, None, ()),  # no time-varying, no seasonality, no extra dims
-        (False, False, 4, ()),  # no time-varying, has seasonality, no extra dims
-        (
-            True,
-            False,
-            None,
-            (),
-        ),  # time-varying intercept only, no seasonality, no extra dims
-        (False, True, 4, ()),  # time-varying media only, has seasonality, no extra dims
-        (True, True, 4, ()),  # both time-varying, has seasonality, no extra dims
+        pytest.param("single_dim_data", (), id="Marginal model"),
+        pytest.param("multi_dim_data", ("country",), id="County model"),
     ],
 )
-def test_build_model_single_dim(
-    single_dim_data,
+@pytest.mark.parametrize(
+    "time_varying_intercept, time_varying_media, yearly_seasonality",
+    [
+        pytest.param(False, False, None, id="no tvps or fourier"),
+        pytest.param(False, False, 4, id="no tvps with fourier"),
+        pytest.param(True, False, None, id="tvp intercept only, no fourier"),
+        pytest.param(False, True, 4, id="tvp media only with fourier"),
+        pytest.param(True, True, 4, id="tvps and fourier"),
+    ],
+)
+def test_fit(
+    request,
+    fixture_name,
     time_varying_intercept,
     time_varying_media,
     yearly_seasonality,
     dims,
+    mock_pymc_sample,
 ):
     """Test that building the model works with different configurations (single-dim)."""
-    X, y = single_dim_data
+    X, y = request.getfixturevalue(fixture_name)
+
     adstock = GeometricAdstock(l_max=2)
     saturation = LogisticSaturation()
 
@@ -202,11 +213,18 @@ def test_build_model_single_dim(
         time_varying_media=time_varying_media,
     )
 
-    mmm.build_model(X, y)
+    seed = sum(map(ord, "Fitting the MMMM"))
+    random_seed = np.random.default_rng(seed)
+
+    idata = mmm.fit(X, y, random_seed=random_seed)
 
     # Assertions
     assert hasattr(mmm, "model"), "Model attribute should be set after build_model."
     assert isinstance(mmm.model, pm.Model), "mmm.model should be a PyMC Model instance."
+    for dim in dims:
+        assert dim in mmm.model.coords, (
+            f"Extra dimension '{dim}' should be in model coords."
+        )
 
     # Basic checks to confirm presence of key variables
     var_names = mmm.model.named_vars.keys()
@@ -219,89 +237,6 @@ def test_build_model_single_dim(
     if yearly_seasonality is not None:
         assert "fourier_contribution" in var_names
 
-
-@pytest.mark.parametrize(
-    "time_varying_intercept, time_varying_media, yearly_seasonality, dims",
-    [
-        (
-            False,
-            False,
-            None,
-            ("country",),
-        ),  # no time-varying, no seasonality, 1 extra dim
-        (
-            True,
-            False,
-            4,
-            ("country",),
-        ),  # time-varying intercept only, has seasonality, 1 extra dim
-        (
-            False,
-            True,
-            4,
-            ("country",),
-        ),  # time-varying media only, has seasonality, 1 extra dim
-        (
-            True,
-            True,
-            2,
-            ("country",),
-        ),  # both time-varying, has seasonality, 1 extra dim
-    ],
-)
-def test_build_model_multi_dim(
-    multi_dim_data, time_varying_intercept, time_varying_media, yearly_seasonality, dims
-):
-    """Test building the model when extra dimensions (like 'country') are present."""
-    X, y = multi_dim_data
-    adstock = GeometricAdstock(l_max=2)
-    saturation = LogisticSaturation()
-
-    mmm = MMM(
-        date_column="date",
-        target_column="target",
-        channel_columns=["channel_1", "channel_2"],
-        dims=dims,
-        adstock=adstock,
-        saturation=saturation,
-        yearly_seasonality=yearly_seasonality,
-        time_varying_intercept=time_varying_intercept,
-        time_varying_media=time_varying_media,
-    )
-
-    mmm.build_model(X, y)
-
-    assert hasattr(mmm, "model"), "Model attribute should be set after build_model."
-    assert isinstance(mmm.model, pm.Model), "mmm.model should be a PyMC Model instance."
-    assert "country" in mmm.model.coords, (
-        "Extra dimension 'country' should be in model coords."
-    )
-
-
-def test_fit_single_dim(single_dim_data, mock_pymc_sample):
-    """Test fitting the model on a single-dimension dataset."""
-    X, y = single_dim_data
-
-    adstock = GeometricAdstock(l_max=2)
-    saturation = LogisticSaturation()
-
-    mmm = MMM(
-        date_column="date",
-        target_column="target",
-        channel_columns=["channel_1", "channel_2"],
-        dims=(),
-        adstock=adstock,
-        saturation=saturation,
-        yearly_seasonality=None,  # disable yearly seasonality
-        time_varying_intercept=False,
-        time_varying_media=False,
-    )
-
-    # Build and fit
-    mmm.build_model(X, y)
-
-    # To keep tests fast, set small number of draws/tune
-    idata = mmm.fit(X, y, draws=10, tune=10, chains=1)
     assert isinstance(idata, az.InferenceData), (
         "fit should return an InferenceData object."
     )
@@ -314,45 +249,12 @@ def test_fit_single_dim(single_dim_data, mock_pymc_sample):
         "InferenceData should have a posterior group."
     )
 
-
-def test_fit_multi_dim(multi_dim_data, mock_pymc_sample):
-    """Test fitting the model on a multi-dimensional dataset (e.g. with 'country')."""
-    X, y = multi_dim_data
-
-    adstock = GeometricAdstock(l_max=2)
-    saturation = LogisticSaturation()
-
-    mmm = MMM(
-        date_column="date",
-        target_column="target",
-        channel_columns=["channel_1", "channel_2"],
-        dims=("country",),
-        adstock=adstock,
-        saturation=saturation,
-        yearly_seasonality=2,
-        time_varying_intercept=True,
-        time_varying_media=True,
-    )
-
-    # Build and fit
-    mmm.build_model(X, y)
-
-    # Again, keep the sampler small for test speed
-    idata = mmm.fit(X, y, draws=10, tune=10, chains=1)
-    assert isinstance(idata, az.InferenceData), (
-        "fit should return an InferenceData object."
-    )
-    assert hasattr(mmm, "idata"), (
-        "MMM instance should store the inference data as 'idata'."
-    )
-
-    # Check if 'country' is in the posterior dimensions
-    assert "country" in mmm.idata.posterior.dims, (
-        "Posterior should have 'country' dimension."
-    )
+    for dim in dims:
+        assert dim in mmm.idata.posterior.dims, (
+            f"Extra dimension '{dim}' should be in posterior dims."
+        )
 
 
-# @pytest.mark.xfail(reason="Need to work through the new data.")
 def test_sample_posterior_predictive_new_data(single_dim_data, mock_pymc_sample):
     """
     Test that sampling from the posterior predictive with new/unseen data
@@ -476,3 +378,148 @@ def test_sample_posterior_predictive_same_data(single_dim_data, mock_pymc_sample
         "'channel_contribution' should match exactly (or within floating tolerance) "
         "the values in the 'posterior' group."
     )
+
+
+@pytest.fixture
+def df_events() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "start_date": ["2025-01-01", "2024-12-25"],
+            "end_date": ["2025-01-02", "2024-12-31"],
+            "name": ["New Years", "Christmas Holiday"],
+        }
+    )
+
+
+@pytest.fixture
+def mock_mmm():
+    coords = {"date": pd.date_range("2023-01-01", periods=7)}
+    model = pm.Model(coords=coords)
+
+    class MMM:
+        pass
+
+    mmm = MMM()
+    mmm.model = model
+    mmm.dims = ()
+
+    return mmm
+
+
+@pytest.fixture
+def create_event_effect() -> Callable[[str], EventEffect]:
+    def create(
+        prefix: str = "holiday",
+        sigma_dims: str | None = None,
+        effect_size: Prior | None = None,
+    ):
+        basis = GaussianBasis()
+        return EventEffect(
+            basis=basis,
+            effect_size=Prior("Normal"),
+            dims=(prefix,),
+        )
+
+    return create
+
+
+@pytest.fixture
+def event_effect(create_event_effect) -> EventEffect:
+    return create_event_effect()
+
+
+def test_create_effect_mu_effect(
+    mock_mmm,
+    df_events,
+    event_effect,
+) -> None:
+    effect = create_event_mu_effect(df_events, prefix="holiday", effect=event_effect)
+
+    with mock_mmm.model:
+        effect.create_data(mock_mmm)
+
+    assert mock_mmm.model.coords["holiday"] == ("New Years", "Christmas Holiday")
+
+    for named_var in ["days", "holiday_start_diff", "holiday_end_diff"]:
+        assert named_var in mock_mmm.model.named_vars
+
+    with mock_mmm.model:
+        mu = effect.create_effect(mock_mmm)
+
+    assert isinstance(mu, TensorVariable)
+
+    for named_vars in ["holiday_sigma", "holiday_effect_size", "holiday_total_effect"]:
+        assert named_vars in mock_mmm.model.named_vars
+
+    coords = {"date": pd.date_range("2023-01-07", periods=7)}
+    with pm.Model(coords=coords) as new_model:
+        pm.Data("days", np.arange(7), dims="date")
+        effect.set_data(None, new_model, None)  # type: ignore
+
+    np.testing.assert_allclose(
+        fast_eval(new_model["days"]),
+        np.array([-725, -724, -723, -722, -721, -720, -719]),
+    )
+
+
+def test_mmm_with_events(
+    df_events,
+    create_event_effect,
+    mmm,
+    df,
+    mock_pymc_sample,
+) -> None:
+    mmm.add_events(
+        df_events,
+        prefix="holiday",
+        effect=create_event_effect(prefix="holiday"),
+    )
+    assert len(mmm.mu_effects) == 1
+
+    mmm.add_events(
+        df_events,
+        prefix="another_event_type",
+        effect=create_event_effect(prefix="another_event_type"),
+    )
+    assert len(mmm.mu_effects) == 2
+
+    X = df.drop(columns=["y"])
+    y = df["y"]
+    mmm.build_model(X, y)
+
+    seed = sum(map(ord, "Adding events"))
+    random_seed = np.random.default_rng(seed)
+
+    mmm.fit(X, y, random_seed=random_seed)
+
+    assert "holiday_total_effect" in mmm.posterior
+    assert "another_event_type_total_effect" in mmm.posterior
+
+    kwargs = dict(
+        extend_idata=False,
+        var_names=["holiday_total_effect", "another_event_type_total_effect"],
+        random_seed=random_seed,
+    )
+
+    in_sample = mmm.sample_posterior_predictive(X, **kwargs)
+    np.testing.assert_array_equal(
+        in_sample.coords["date"].to_numpy(),
+        X["date"].unique(),
+    )
+
+    X_new = X.copy()
+    diff = (X_new["date"].max() - X_new["date"].min()).days + 7
+    X_new["date"] += pd.Timedelta(days=diff)
+
+    out_of_sample = mmm.sample_posterior_predictive(X_new, **kwargs)
+
+    np.testing.assert_array_equal(
+        out_of_sample.coords["date"].to_numpy(),
+        X_new["date"].unique(),
+    )
+
+    less_effect_for_out_of_sample = np.abs(in_sample.sum()) > np.abs(
+        out_of_sample.sum()
+    )
+
+    assert less_effect_for_out_of_sample.to_pandas().all()
