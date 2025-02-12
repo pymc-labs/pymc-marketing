@@ -182,25 +182,22 @@ def test_plot_expected_purchases_over_time(
     plt.clf()
 
 
-def test_plot_expected_purchases_ppc_exceptions(fitted_bg, fitted_pnbd):
-    with pytest.raises(
-        AttributeError, match="BetaGeoModel is unsupported for this function."
-    ):
-        plot_expected_purchases_ppc(fitted_bg)
-
+def test_plot_expected_purchases_ppc_exceptions(fitted_model):
     with pytest.raises(
         NameError, match="Specify 'prior' or 'posterior' for 'ppc' parameter."
     ):
-        plot_expected_purchases_ppc(fitted_pnbd, ppc="ppc")
+        plot_expected_purchases_ppc(fitted_model, ppc="ppc")
 
 
 @pytest.mark.parametrize(
     "ppc, max_purchases, samples, subplot",
     [("prior", 10, 100, None), ("posterior", 20, 50, plt.subplot())],
 )
-def test_plot_expected_purchases_ppc(fitted_pnbd, ppc, max_purchases, samples, subplot):
+def test_plot_expected_purchases_ppc(
+    fitted_model, ppc, max_purchases, samples, subplot
+):
     ax = plot_expected_purchases_ppc(
-        model=fitted_pnbd,
+        model=fitted_model,
         ppc=ppc,
         max_purchases=max_purchases,
         samples=samples,
