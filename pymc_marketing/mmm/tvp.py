@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -234,10 +234,27 @@ def create_time_varying_gp_multiplier(
 
 
 def infer_time_index(
-    date_series_new: pd.Series, date_series: pd.Series, time_resolution: int
+    date_series_new: pd.Series,
+    date_series: pd.Series,
+    time_resolution: int,
 ) -> npt.NDArray[np.int_]:
     """Infer the time-index given a new dataset.
 
     Infers the time-indices by calculating the number of days since the first date in the dataset.
+
+    Parameters
+    ----------
+    date_series_new : pd.Series
+        New date series.
+    date_series : pd.Series
+        Original date series.
+    time_resolution : int
+        Resolution of time points in days.
+
+    Returns
+    -------
+    np.ndarray
+        Time index.
+
     """
-    return (date_series_new - date_series[0]).dt.days.values // time_resolution
+    return (date_series_new - date_series.iloc[0]).dt.days.values // time_resolution

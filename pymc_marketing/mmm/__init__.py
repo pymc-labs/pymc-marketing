@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ from pymc_marketing.mmm.components.adstock import (
     WeibullCDFAdstock,
     WeibullPDFAdstock,
     adstock_from_dict,
-    register_adstock_transformation,
 )
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
@@ -34,10 +33,9 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     TanhSaturation,
     TanhSaturationBaselined,
-    register_saturation_transformation,
     saturation_from_dict,
 )
-from pymc_marketing.mmm.fourier import MonthlyFourier, YearlyFourier
+from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.hsgp import (
     HSGP,
     CovFunc,
@@ -87,6 +85,7 @@ __all__ = [
     "SaturationTransformation",
     "TanhSaturation",
     "TanhSaturationBaselined",
+    "WeeklyFourier",
     "WeibullCDFAdstock",
     "WeibullPDFAdstock",
     "YearlyFourier",
@@ -101,8 +100,6 @@ __all__ = [
     "preprocessing",
     "preprocessing_method_X",
     "preprocessing_method_y",
-    "register_adstock_transformation",
-    "register_saturation_transformation",
     "saturation_from_dict",
     "validating",
     "validation_method_X",

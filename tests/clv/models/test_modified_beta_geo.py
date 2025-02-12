@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ class TestModifiedBetaGeoModel:
 
         # Instantiate model with CDNOW data for testing
         cls.model = ModifiedBetaGeoModel(cls.data)
+        cls.model.build_model()
 
         # Also instantiate lifetimes model for comparison
         cls.lifetimes_model = ModifiedBetaGeoFitter()
@@ -196,7 +197,7 @@ class TestModifiedBetaGeoModel:
         )
         model.build_model()
         pymc_model = model.model
-        logp = pymc_model.compile_fn(pymc_model.potentiallogp)
+        logp = pymc_model.compile_logp()
 
         np.testing.assert_almost_equal(
             logp({"a": 0.80, "b": 2.50, "r": 0.25, "alpha": 4.00}),
@@ -210,6 +211,7 @@ class TestModifiedBetaGeoModel:
         [
             ("mcmc", 0.075),
             ("map", 0.15),
+            ("advi", 0.175),
         ],
     )
     def test_model_convergence(self, fit_method, rtol, model_config):
@@ -280,7 +282,7 @@ class TestModifiedBetaGeoModel:
 
         with pytest.raises(
             NotImplementedError,
-            match="The MBG/NBD model does not support this feature at the moment.",
+            match="The MBG/NBD model does not support this method.",
         ):
             mbg_model.expected_probability_no_purchase(t=test_t, data=data)
 
@@ -429,13 +431,14 @@ class TestModifiedBetaGeoModel:
             "\nr~HalfFlat()"
             "\na~HalfFlat()"
             "\nb~HalfNormal(0,10)"
-            "\nlikelihood~Potential(f(r,alpha,b,a))"
+            "\nrecency_frequency~ModifiedBetaGeoNBD(a,b,r,alpha,<constant>)"
         )
 
     def test_distribution_new_customer(self) -> None:
         mock_model = ModifiedBetaGeoModel(
             data=self.data,
         )
+        mock_model.build_model()
         mock_model.idata = az.from_dict(
             {
                 "a": [self.a_true],

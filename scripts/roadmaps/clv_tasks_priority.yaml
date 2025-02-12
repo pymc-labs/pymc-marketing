@@ -1,0 +1,22 @@
+task_priority:
+  low:
+    - "EG Model"
+    - "EG Covar"
+    - "sBG Pop"
+    - "sBG Covar"
+    - "BG PurProb"
+    - "BGBB Pred"
+    - "logp property"
+    - "BG Time Covar" # 2026
+  med:
+    - "BG Covar"
+    - "XR Support"
+    - "Input Val"
+    - "BGBB Scan" # v0.12.0
+    - "PNBD Raw Moments"
+    - "GG Dist Block" # Q3 2025
+  high:
+    - "3d plots"
+    - "Spend plots"
+    - "Covariate Causality"
+    - "Causal Campaign Notebook"

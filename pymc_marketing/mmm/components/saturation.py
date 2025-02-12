@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -457,14 +457,6 @@ class RootSaturation(SaturationTransformation):
         "alpha": Prior("Beta", alpha=1, beta=2),
         "beta": Prior("Gamma", mu=1, sigma=1),
     }
-
-
-def register_saturation_transformation(cls: type[SaturationTransformation]) -> None:
-    """Register a new saturation transformation.
-
-    Helper for use in the MMM to register a new saturation function.
-    """
-    SATURATION_TRANSFORMATIONS[cls.lookup_name] = cls
 
 
 def saturation_from_dict(data: dict) -> SaturationTransformation:

@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -327,11 +327,6 @@ class WeibullCDFAdstock(AdstockTransformation):
         "lam": Prior("Gamma", mu=2, sigma=2.5),
         "k": Prior("Gamma", mu=2, sigma=2.5),
     }
-
-
-def register_adstock_transformation(cls: type[AdstockTransformation]) -> None:
-    """Register a new adstock transformation."""
-    ADSTOCK_TRANSFORMATIONS[cls.lookup_name] = cls
 
 
 def adstock_from_dict(data: dict) -> AdstockTransformation:

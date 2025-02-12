@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@ import pytensor
 import pytensor.tensor as pt
 import pytest
 from lifetimes import BetaGeoBetaBinomFitter as BGBBF
+from lifetimes import BetaGeoFitter as BG
+from lifetimes import ModifiedBetaGeoFitter as MBG
 from lifetimes import ParetoNBDFitter as PF
 from lifetimes.generate_data import beta_geometric_beta_binom_model
 from numpy.testing import assert_almost_equal
@@ -24,8 +26,10 @@ from pymc import Model
 
 from pymc_marketing.clv.distributions import (
     BetaGeoBetaBinom,
+    BetaGeoNBD,
     ContContract,
     ContNonContract,
+    ModifiedBetaGeoNBD,
     ParetoNBD,
 )
 
@@ -443,3 +447,326 @@ class TestBetaGeoBetaBinom:
 
         np.testing.assert_allclose(lt_frequency.mean(), recency.mean(), rtol=0.84)
         np.testing.assert_allclose(lt_recency.mean(), frequency.mean(), rtol=0.84)
+
+
+class TestBetaGeoNBD:
+    @pytest.mark.parametrize(
+        "value, r, alpha, a, b, T",
+        [
+            (
+                np.array([1.5, 1]),
+                0.55,
+                10.58,
+                0.61,
+                11.67,
+                12,
+            ),
+            (
+                np.array([1.5, 1]),
+                [0.45, 0.55],
+                10.58,
+                0.61,
+                11.67,
+                12,
+            ),
+            (
+                np.array([1.5, 1]),
+                [0.45, 0.55],
+                10.58,
+                [0.71, 0.61],
+                11.67,
+                12,
+            ),
+            (
+                np.array([[1.5, 1], [5.3, 4], [6, 2]]),
+                0.55,
+                11.67,
+                0.61,
+                10.58,
+                [12, 10, 8],
+            ),
+            (
+                np.array([1.5, 1]),
+                0.55,
+                10.58,
+                0.61,
+                np.full((1), 11.67),
+                12,
+            ),
+        ],
+    )
+    def test_bg_nbd(self, value, r, alpha, a, b, T):
+        def lifetimes_wrapper(
+            r, alpha, a, b, freq, rec, T, weights=np.array(1), penalizer_coef=0.0
+        ):
+            log_r = np.log(r)
+            log_alpha = np.log(alpha)
+            log_a = np.log(a)
+            log_b = np.log(b)
+
+            """Simple wrapper for Vectorizing the lifetimes likelihood function.
+            Lifetimes uses the negative log likelihood, so we need to negate it to match PyMC3's logp.
+            """
+            return -1.0 * BG._negative_log_likelihood(
+                (log_r, log_alpha, log_a, log_b), freq, rec, T, weights, penalizer_coef
+            )
+
+        vectorized_logp = np.vectorize(lifetimes_wrapper)
+
+        with Model():
+            bg_nbd = BetaGeoNBD("bg_nbd", a=a, b=b, r=r, alpha=alpha, T=T)
+        pt = {"bg_nbd": value}
+
+        assert_almost_equal(
+            pm.logp(bg_nbd, value).eval(),
+            vectorized_logp(r, alpha, a, b, value[..., 1], value[..., 0], T),
+            decimal=6,
+            err_msg=str(pt),
+        )
+
+    def test_logp_matches_excel(self):
+        # Expected logp values can be found in excel file in http://brucehardie.com/notes/004/
+        # Spreadsheet: BGNBD Estimation
+        a = 0.793
+        b = 2.426
+        r = 0.243
+        alpha = 4.414
+        T = 38.86
+
+        x = np.array([2, 1, 0, 0, 0, 7, 1, 0, 2, 0, 5, 0, 0, 0, 0, 0, 10, 1])
+        t_x = np.array(
+            [
+                30.43,
+                1.71,
+                0.00,
+                0.00,
+                0.00,
+                29.43,
+                5.00,
+                0.00,
+                35.71,
+                0.00,
+                24.43,
+                0.00,
+                0.00,
+                0.00,
+                0.00,
+                0.00,
+                34.14,
+                4.86,
+            ]
+        )
+        expected_logp = np.array(
+            [
+                -9.4596,
+                -4.4711,
+                -0.5538,
+                -0.5538,
+                -0.5538,
+                -21.8644,
+                -4.8651,
+                -0.5538,
+                -9.5367,
+                -0.5538,
+                -17.3593,
+                -0.5538,
+                -0.5538,
+                -0.5538,
+                -0.5538,
+                -0.5538,
+                -27.3144,
+                -4.8520,
+            ]
+        )
+
+        value = np.concatenate([t_x[:, None], x[:, None]], axis=-1)
+        dist = BetaGeoNBD.dist(
+            a=a,
+            b=b,
+            r=r,
+            alpha=alpha,
+            T=T,
+        )
+        np.testing.assert_allclose(
+            pm.logp(dist, value).eval(),
+            expected_logp,
+            rtol=2e-3,
+        )
+
+    def test_invalid_value_logp(self):
+        bg_nbd = BetaGeoNBD.dist(a=1.20, b=0.75, r=0.66, alpha=2.78, T=6)
+        value = pt.vector("value", shape=(2,))
+        logp = pm.logp(bg_nbd, value)
+
+        logp_fn = pytensor.function([value], logp)
+        assert logp_fn(np.array([3, -1])) == -np.inf
+        assert logp_fn(np.array([-1, 1.5])) == -np.inf
+        assert logp_fn(np.array([11, 1.5])) == -np.inf
+
+    def test_notimplemented_logp(self):
+        dist = BetaGeoNBD.dist(a=1, b=1, r=2, alpha=2, T=10)
+        invalid_value = np.broadcast_to([1, 3], (4, 3, 2))
+
+        with pytest.raises(NotImplementedError):
+            pm.logp(dist, invalid_value)
+
+    @pytest.mark.parametrize(
+        "a_size, b_size, r_size, alpha_size, bg_nbd_size, expected_size",
+        [
+            (None, None, None, None, None, (2,)),
+            ((5,), None, None, None, None, (5, 2)),
+            (None, (5,), None, None, (5,), (5, 2)),
+            (None, None, (5, 1), (1, 3), (5, 3), (5, 3, 2)),
+            (None, None, None, None, (5, 3), (5, 3, 2)),
+        ],
+    )
+    def test_bg_nbd_sample_prior(
+        self, a_size, b_size, r_size, alpha_size, bg_nbd_size, expected_size
+    ):
+        with Model():
+            a = pm.HalfNormal(name="a", sigma=10, size=a_size)
+            b = pm.HalfNormal(name="b", sigma=10, size=b_size)
+            r = pm.HalfNormal(name="r", sigma=10, size=r_size)
+            alpha = pm.HalfNormal(name="alpha", sigma=10, size=alpha_size)
+
+            T = pm.Data(name="T", value=np.array(10))
+
+            BetaGeoNBD(
+                name="bg_nbd",
+                a=a,
+                b=b,
+                r=r,
+                alpha=alpha,
+                T=T,
+                size=bg_nbd_size,
+            )
+            prior = pm.sample_prior_predictive(samples=100)
+
+        assert prior["prior"]["bg_nbd"][0].shape == (100, *expected_size)
+
+
+class TestModifiedBetaGeoNBD:
+    @pytest.mark.parametrize(
+        "value, r, alpha, a, b, T",
+        [
+            (
+                np.array([1.5, 1]),
+                0.55,
+                10.58,
+                0.61,
+                11.67,
+                12,
+            ),
+            (
+                np.array([1.5, 1]),
+                [0.45, 0.55],
+                10.58,
+                0.61,
+                11.67,
+                12,
+            ),
+            (
+                np.array([1.5, 1]),
+                [0.45, 0.55],
+                10.58,
+                [0.71, 0.61],
+                11.67,
+                12,
+            ),
+            (
+                np.array([[1.5, 1], [5.3, 4], [6, 2]]),
+                0.55,
+                11.67,
+                0.61,
+                10.58,
+                [12, 10, 8],
+            ),
+            (
+                np.array([1.5, 1]),
+                0.55,
+                10.58,
+                0.61,
+                np.full((1), 11.67),
+                12,
+            ),
+        ],
+    )
+    def test_mbg_nbd(self, value, r, alpha, a, b, T):
+        def lifetimes_wrapper(
+            r, alpha, a, b, freq, rec, T, weights=np.array(1), penalizer_coef=0.0
+        ):
+            log_r = np.log(r)
+            log_alpha = np.log(alpha)
+            log_a = np.log(a)
+            log_b = np.log(b)
+
+            """Simple wrapper for Vectorizing the lifetimes likelihood function.
+            Lifetimes uses the negative log likelihood, so we need to negate it to match PyMC3's logp.
+            """
+            return -1.0 * MBG._negative_log_likelihood(
+                (log_r, log_alpha, log_a, log_b), freq, rec, T, weights, penalizer_coef
+            )
+
+        vectorized_logp = np.vectorize(lifetimes_wrapper)
+
+        with Model():
+            mbg_nbd = ModifiedBetaGeoNBD("mbg_nbd", a=a, b=b, r=r, alpha=alpha, T=T)
+        pt = {"mbg_nbd": value}
+
+        assert_almost_equal(
+            pm.logp(mbg_nbd, value).eval(),
+            vectorized_logp(r, alpha, a, b, value[..., 1], value[..., 0], T),
+            decimal=6,
+            err_msg=str(pt),
+        )
+
+    @pytest.mark.parametrize(
+        "a_size, b_size, r_size, alpha_size, mbg_nbd_size, expected_size",
+        [
+            (None, None, None, None, None, (2,)),
+            ((5,), None, None, None, None, (5, 2)),
+            (None, (5,), None, None, (5,), (5, 2)),
+            (None, None, (5, 1), (1, 3), (5, 3), (5, 3, 2)),
+            (None, None, None, None, (5, 3), (5, 3, 2)),
+        ],
+    )
+    def test_mbg_nbd_sample_prior(
+        self, a_size, b_size, r_size, alpha_size, mbg_nbd_size, expected_size
+    ):
+        with Model():
+            a = pm.HalfNormal(name="a", sigma=10, size=a_size)
+            b = pm.HalfNormal(name="b", sigma=10, size=b_size)
+            r = pm.HalfNormal(name="r", sigma=10, size=r_size)
+            alpha = pm.HalfNormal(name="alpha", sigma=10, size=alpha_size)
+
+            T = pm.Data(name="T", value=np.array(10))
+
+            ModifiedBetaGeoNBD(
+                name="mbg_nbd",
+                a=a,
+                b=b,
+                r=r,
+                alpha=alpha,
+                T=T,
+                size=mbg_nbd_size,
+            )
+            prior = pm.sample_prior_predictive(samples=100)
+
+        assert prior["prior"]["mbg_nbd"][0].shape == (100, *expected_size)
+
+    def test_invalid_value_logp(self):
+        mbg_nbd = ModifiedBetaGeoNBD.dist(a=1.20, b=0.75, r=0.66, alpha=2.78, T=6)
+        value = pt.vector("value", shape=(2,))
+        logp = pm.logp(mbg_nbd, value)
+
+        logp_fn = pytensor.function([value], logp)
+        assert logp_fn(np.array([3, -1])) == -np.inf
+        assert logp_fn(np.array([-1, 1.5])) == -np.inf
+        assert logp_fn(np.array([11, 1.5])) == -np.inf
+
+    def test_notimplemented_logp(self):
+        dist = ModifiedBetaGeoNBD.dist(a=1, b=1, r=2, alpha=2, T=10)
+        invalid_value = np.broadcast_to([1, 3], (4, 3, 2))
+
+        with pytest.raises(NotImplementedError):
+            pm.logp(dist, invalid_value)

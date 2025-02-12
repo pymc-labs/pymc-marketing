@@ -10,7 +10,7 @@ import pymc_marketing  # isort:skip
 # General information about the project.
 project = "pymc-marketing"
 author = "PyMC Labs"
-copyright = f"2022, {author}"
+copyright = f"2022-%Y, {author}"
 html_title = "Open Source Marketing Analytics Solution"
 
 # The master toctree document.

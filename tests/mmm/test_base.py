@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -314,7 +314,12 @@ def test_calling_prior_predictive_before_fit_raises_error(test_mmm, toy_X, toy_y
         test_mmm.prior_predictive
 
 
-def test_calling_fit_result_before_fit_raises_error(test_mmm, toy_X, toy_y):
+def test_calling_fit_result_before_fit_raises_error(
+    test_mmm,
+    toy_X,
+    toy_y,
+    mock_pymc_sample,
+):
     # Arrange
     test_mmm.idata = None
     with pytest.raises(

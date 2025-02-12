@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -124,11 +124,38 @@ class TestCLVModel:
         assert len(idata.posterior.draw) == 10
         assert model.fit_result is idata.posterior
 
+    def test_fit_advi(self, mocker):
+        model = CLVModelTest()
+        # mocker.patch("pymc.sample", mock_sample)
+        idata = model.fit(
+            fit_method="advi",
+            tune=5,
+            chains=2,
+            draws=10,
+        )
+        assert isinstance(idata, InferenceData)
+        assert len(idata.posterior.chain) == 1
+        assert len(idata.posterior.draw) == 10
+
+    def test_fit_advi_with_wrong_chains_advi_kwargs(self, mocker):
+        model = CLVModelTest()
+
+        with pytest.warns(
+            UserWarning,
+            match="The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",
+        ):
+            model.fit(
+                fit_method="advi",
+                tune=5,
+                chains=2,
+                draws=10,
+            )
+
     def test_wrong_fit_method(self):
         model = CLVModelTest()
         with pytest.raises(
             ValueError,
-            match=r"Fit method options are \['mcmc', 'map', 'demz'\], got: wrong_method",
+            match=r"Fit method options are \['mcmc', 'map', 'demz', 'advi', 'fullrank_advi'\], got: wrong_method",
         ):
             model.fit(fit_method="wrong_method")
 

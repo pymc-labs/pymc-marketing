@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -14,23 +14,35 @@
 """Modified Beta-Geometric Negative Binomial Distribution (MBG/NBD) model for a non-contractual customer population across continuous time."""  # noqa: E501
 
 import warnings
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray
-from pymc.distributions.dist_math import check_parameters
+from pymc.util import RandomState
 from scipy.special import hyp2f1
 
+from pymc_marketing.clv.distributions import ModifiedBetaGeoNBD
 from pymc_marketing.clv.models import BetaGeoModel
 from pymc_marketing.clv.utils import to_xarray
 
 
 class ModifiedBetaGeoModel(BetaGeoModel):
-    r"""Also known as the MBG/NBD model.
+    r"""Modified Beta-Geometric Negative Binomial Distribution (MBG/NBD) model for a non-contractual customer population across continuous time.
 
-    Based on [1]_, [2]_
+    Based on proposed modifications to the BG/NBD model by Battislam, et al. in [1]_, and Wagner & Hoppe in[2]_,
+    which remove the BG/NBD assumption that all non-repeat customers are still active.
+
+    The MBG/NBD model assumes dropout probabilities for the customer population are Beta distributed,
+    and time between transactions follows a Gamma distribution while the customer is still active.
+
+    This model requires data to be summarized by *recency*, *frequency*, and *T* for each customer,
+    using `clv.utils.rfm_summary()` or equivalent. Modeling assumptions require *T >= recency*.
+
+    Predictive methods have been adapted from the *ModifiedBetaGeoFitter* class in the legacy *lifetimes* library
+    (see https://github.com/CamDavidsonPilon/lifetimes/).
 
     Parameters
     ----------
@@ -118,17 +130,21 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     ----------
     .. [1] Batislam, E.P., M. Denizel, A. Filiztekin (2007),
        "Empirical validation and comparison of models for customer base
-       analysis,"
-       International Journal of Research in Marketing, 24 (3), 201-209.
+       analysis." International Journal of Research in Marketing, 24 (3), 201-209.
+       https://works.bepress.com/meltem-denizel/2/download/
     .. [2] Wagner, U. and Hoppe D. (2008), "Erratum on the MBG/NBD Model,"
        International Journal of Research in Marketing, 25 (3), 225-226.
-    """
+        https://www.researchgate.net/profile/Udo-Wagner/publication/274894157_Customer_Base_Analysis_The_Case_for_a_Central_Variant_of_the_BetageometricBND_Model/links/55c3728608aeca747d5f6658/Customer-Base-Analysis-The-Case-for-a-Central-Variant-of-the-Betageometric-BND-Model.pdf
+    """  # noqa: E501
 
     _model_type = "MBG/NBD"
 
     def build_model(self) -> None:  # type: ignore[override]
         """Build the model."""
-        coords = {"customer_id": self.data["customer_id"]}
+        coords = {
+            "customer_id": self.data["customer_id"],
+            "obs_var": ["recency", "frequency"],
+        }
         with pm.Model(coords=coords) as self.model:
             # purchase rate priors
             alpha = self.model_config["alpha_prior"].create_variable("alpha")
@@ -150,44 +166,17 @@ class ModifiedBetaGeoModel(BetaGeoModel):
                 a = pm.Deterministic("a", phi_dropout * kappa_dropout)
                 b = pm.Deterministic("b", (1.0 - phi_dropout) * kappa_dropout)
 
-            def logp(t_x, x, a, b, r, alpha, T):
-                """Compute the log-likelihood of the MBG/NBD model."""
-                a1 = pt.gammaln(r + x) - pt.gammaln(r) + r * pt.log(alpha)
-                a2 = (
-                    pt.gammaln(a + b)
-                    + pt.gammaln(b + x + 1)
-                    - pt.gammaln(b)
-                    - pt.gammaln(a + b + x + 1)
-                )
-                a3 = -(r + x) * pt.log(alpha + T)
-                a4 = (
-                    pt.log(a)
-                    - pt.log(b + x)
-                    + (r + x) * (pt.log(alpha + T) - pt.log(alpha + t_x))
-                )
-
-                logp = a1 + a2 + a3 + pt.logaddexp(a4, 0)
-
-                return check_parameters(
-                    logp,
-                    a > 0,
-                    b > 0,
-                    alpha > 0,
-                    r > 0,
-                    msg="a, b, alpha, r > 0",
-                )
-
-            pm.Potential(
-                "likelihood",
-                logp(
-                    x=self.data["frequency"],
-                    t_x=self.data["recency"],
-                    a=a,
-                    b=b,
-                    alpha=alpha,
-                    r=r,
-                    T=self.data["T"],
+            ModifiedBetaGeoNBD(
+                name="recency_frequency",
+                a=a,
+                b=b,
+                r=r,
+                alpha=alpha,
+                T=self.data["T"],
+                observed=np.stack(
+                    (self.data["recency"], self.data["frequency"]), axis=1
                 ),
+                dims=["customer_id", "obs_var"],
             )
 
     def expected_num_purchases(
@@ -201,7 +190,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         r"""Compute the expected number of purchases for a customer.
 
         This is a deprecated method and will be removed in a future release.
-        Please use `BetaGeoModel.expected_purchases` instead.
+        Please use `ModifiedBetaGeoModel.expected_purchases` instead.
         """
         warnings.warn(
             "Deprecated method. Use 'expected_purchases' instead.",
@@ -217,7 +206,6 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         if T.size != 1:
             T = to_xarray(customer_id, T)
 
-        # print(customer_id)
         x, t_x = to_xarray(customer_id, frequency, recency)
 
         a, b, alpha, r = self._unload_params()
@@ -243,7 +231,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         The *data* parameter is only required for out-of-sample customers.
 
-        Adapted from equation (3) in [1]_, and *lifetimes* package:
+        Adapted from equation (6) in [1]_, and *lifetimes* package:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L151
 
         Parameters
@@ -264,7 +252,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         "Empirical validation and comparison of models for customer base
         analysis,"
         International Journal of Research in Marketing, 24 (3), 201-209.
-
+        https://works.bepress.com/meltem-denizel/2/download/
         """  # noqa: E501
         if data is None:
             data = self.data
@@ -302,7 +290,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     ) -> xarray.DataArray:
         r"""Compute the expected number of purchases for a new customer across *t* time periods.
 
-        Adapted from equation (3) in [1]_, and `lifetimes` library:
+        Adapted from equation (4) in [1]_, and `lifetimes` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L130
 
         Parameters
@@ -314,8 +302,8 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         ----------
         .. [1] Batislam, E.P., M. Denizel, A. Filiztekin (2007),
         "Empirical validation and comparison of models for customer base
-        analysis,"
-
+        analysis." International Journal of Research in Marketing, 24 (3), 201-209.
+        https://works.bepress.com/meltem-denizel/2/download/
         """
         # TODO: This is extraneous now, but needed for future covariate support.
         if data is None:
@@ -347,7 +335,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         The *data* parameter is only required for out-of-sample customers.
 
-        Adapted from *lifetimes* package:
+        Adapted from equation (5) in [1]_, and `lifetimes` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L188
 
         Parameters
@@ -359,6 +347,13 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             * `frequency`: Number of repeat purchases
             * `recency`: Time between the first and the last purchase
             * `T`: Time between first purchase and end of observation period, model assumptions require T >= recency
+
+        References
+        ----------
+        .. [1] Batislam, E.P., M. Denizel, A. Filiztekin (2007),
+        "Empirical validation and comparison of models for customer base
+        analysis." International Journal of Research in Marketing, 24 (3), 201-209.
+        https://works.bepress.com/meltem-denizel/2/download/
         """
         if data is None:
             data = self.data
@@ -386,8 +381,61 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     ) -> xarray.DataArray:
         r"""Probability a customer with frequency, recency, and T will have 0 purchases in the period (T, T+t].
 
-        The MBG/NBD model does not support this feature at the moment.
+        The MBG/NBD model does not support this method.
         """
-        raise NotImplementedError(
-            "The MBG/NBD model does not support this feature at the moment."
-        )
+        raise NotImplementedError("The MBG/NBD model does not support this method.")
+
+    def distribution_new_customer(
+        self,
+        data: pd.DataFrame | None = None,
+        *,
+        T: int | np.ndarray | pd.Series | None = None,
+        random_seed: RandomState | None = None,
+        var_names: Sequence[str] = ("dropout", "purchase_rate"),
+        n_samples: int = 1000,
+    ) -> xarray.Dataset:
+        # TODO: This is extraneous now, until a new distribution block is added.
+        """Compute posterior predictive samples of dropout, purchase rate and frequency/recency of new customers."""
+        if data is None:
+            data = self.data
+
+        if T is not None:
+            dataset = data.assign(T=T)
+
+        dataset = self._extract_predictive_variables(data, customer_varnames=["T"])
+        T = dataset["T"].values  # type: ignore
+        # Delete "T" so we can pass dataset directly to `sample_posterior_predictive`
+        del dataset["T"]
+
+        if dataset.sizes["chain"] == 1 and dataset.sizes["draw"] == 1:
+            # For map fit add a dummy draw dimension
+            dataset = dataset.squeeze("draw").expand_dims(draw=range(n_samples))  # type: ignore
+
+        coords = self.model.coords.copy()  # type: ignore
+        coords["customer_id"] = data["customer_id"]
+
+        with pm.Model(coords=coords):
+            a = pm.HalfFlat("a")
+            b = pm.HalfFlat("b")
+            alpha = pm.HalfFlat("alpha")
+            r = pm.HalfFlat("r")
+
+            pm.Beta("dropout", alpha=a, beta=b)
+            pm.Gamma("purchase_rate", alpha=r, beta=alpha)
+
+            ModifiedBetaGeoNBD(
+                name="recency_frequency",
+                a=a,
+                b=b,
+                r=r,
+                alpha=alpha,
+                T=T,
+                dims=["customer_id", "obs_var"],
+            )
+
+            return pm.sample_posterior_predictive(
+                dataset,
+                var_names=var_names,
+                random_seed=random_seed,
+                predictions=True,
+            ).predictions

@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -317,6 +317,11 @@ class Transformation:
             parameter: f"{self.prefix}_{parameter}"
             for parameter in self.default_priors.keys()
         }
+
+    @property
+    def combined_dims(self) -> tuple[str, ...]:
+        """Get the combined dims for all the parameters."""
+        return tuple(self._infer_output_core_dims())
 
     def _infer_output_core_dims(self) -> tuple[str, ...]:
         parameter_dims = sorted(
