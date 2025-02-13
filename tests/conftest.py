@@ -178,10 +178,10 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
 
     model_config = {
         # Narrow Gaussian centered at MLE params from lifetimes BetaGeoFitter
-        "a_prior": Prior("DiracDelta", c=1.85034151),
-        "alpha_prior": Prior("DiracDelta", c=1.86428187),
-        "b_prior": Prior("DiracDelta", c=3.18105431),
-        "r_prior": Prior("DiracDelta", c=0.16385072),
+        "a": Prior("DiracDelta", c=1.85034151),
+        "alpha": Prior("DiracDelta", c=1.86428187),
+        "b": Prior("DiracDelta", c=3.18105431),
+        "r": Prior("DiracDelta", c=0.16385072),
     }
     model = BetaGeoModel(
         data=test_summary_data,
@@ -204,10 +204,10 @@ def fitted_mbg(test_summary_data) -> ModifiedBetaGeoModel:
 
     model_config = {
         # Narrow Gaussian centered at MLE params from lifetimes BetaGeoFitter
-        "a_prior": Prior("DiracDelta", c=1.85034151),
-        "alpha_prior": Prior("DiracDelta", c=1.86428187),
-        "b_prior": Prior("DiracDelta", c=3.18105431),
-        "r_prior": Prior("DiracDelta", c=0.16385072),
+        "a": Prior("DiracDelta", c=1.85034151),
+        "alpha": Prior("DiracDelta", c=1.86428187),
+        "b": Prior("DiracDelta", c=3.18105431),
+        "r": Prior("DiracDelta", c=0.16385072),
     }
     model = ModifiedBetaGeoModel(
         data=test_summary_data,
@@ -230,10 +230,10 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
 
     model_config = {
         # Narrow Gaussian centered at MLE params from lifetimes ParetoNBDFitter
-        "r_prior": Prior("DiracDelta", c=0.560),
-        "alpha_prior": Prior("DiracDelta", c=10.591),
-        "s_prior": Prior("DiracDelta", c=0.550),
-        "beta_prior": Prior("DiracDelta", c=9.756),
+        "r": Prior("DiracDelta", c=0.560),
+        "alpha": Prior("DiracDelta", c=10.591),
+        "s": Prior("DiracDelta", c=0.550),
+        "beta": Prior("DiracDelta", c=9.756),
     }
     pnbd_model = ParetoNBDModel(
         data=test_summary_data,
