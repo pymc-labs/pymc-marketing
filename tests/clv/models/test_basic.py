@@ -234,3 +234,19 @@ class TestCLVModel:
         assert model.model_config == {
             "x": Prior("StudentT", mu=0, sigma=5, nu=15),
         }
+
+    def test_backward_compatibility_with_old_config(self):
+        old_model_config = {
+            "alpha_prior": Prior("Weibull", alpha=2, beta=10),
+            "r_prior": Prior("Weibull", alpha=2, beta=1),
+        }
+        model = CLVModelTest(model_config=old_model_config)
+        model.fit(tune=0, chains=2, draws=5)
+        model.save("old_model_config_test")
+
+        loaded_model = CLVModelTest.load("old_model_config_test")
+        assert loaded_model.model_config == {
+            "alpha": Prior("Weibull", alpha=2, beta=10),
+            "r": Prior("Weibull", alpha=2, beta=1),
+        }
+        os.remove("old_model_config_test")
