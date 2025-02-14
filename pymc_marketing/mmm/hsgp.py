@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from enum import Enum
-from typing import Literal, cast
+from typing import Literal, Protocol, cast, runtime_checkable
 
 import numpy as np
 import numpy.typing as npt
@@ -34,6 +34,25 @@ from typing_extensions import Self
 
 from pymc_marketing.plot import SelToString, plot_curve
 from pymc_marketing.prior import Prior, create_dim_handler
+
+
+@runtime_checkable
+class HSGPLike(Protocol):
+    """Quacks like a HSGP."""
+
+    dims: tuple[str, ...]
+
+    def create_variable(self, name: str) -> TensorVariable:
+        """Create a variable."""
+        ...
+
+    def register_data(self, X: TensorLike) -> Self:
+        """Register the data."""
+        ...
+
+    def to_dict(self) -> dict:
+        """Convert the object to a dictionary."""
+        ...
 
 
 @validate_call
@@ -154,7 +173,7 @@ def approx_hsgp_hyperparams(
     lengthscale_min, lengthscale_max = lengthscale_range
     if lengthscale_min >= lengthscale_max:
         raise ValueError(
-            "The boundaries are out of order. {lengthscale_min} should be less than {lengthscale_max}"
+            f"The boundaries are out of order. {lengthscale_min} should be less than {lengthscale_max}"
         )
 
     Xs = x - x_center
@@ -1018,3 +1037,14 @@ class HSGPPeriodic(HSGPBase):
                 data[key] = Prior.from_dict(data[key])
 
         return cls(**data)
+
+
+class SoftPlusHSGP(HSGP):
+    """HSGP with softplus transformation."""
+
+    def create_variable(self, name: str) -> TensorVariable:
+        """Create the variable."""
+        f = super().create_variable(f"{name}_raw")
+        f = pt.softplus(f)
+        centered_f = f - f.mean(axis=0) + 1
+        return pm.Deterministic(name, centered_f, dims=self.dims)
