@@ -60,6 +60,7 @@ def create_media_config_list():
                             online_dims
                         ),
                         adstock_first=True,
+                        dims=online_dims,
                     ),
                 ),
                 MediaConfig(
@@ -73,6 +74,7 @@ def create_media_config_list():
                             offline_dims
                         ),
                         adstock_first=False,
+                        dims=offline_dims,
                     ),
                 ),
             ]
@@ -175,3 +177,23 @@ def test_media_config_list_deserialize() -> None:
 
     media_config_list = deserialize(data)
     assert isinstance(media_config_list, MediaConfigList)
+
+
+@pytest.mark.parametrize(
+    "adstock_dims, saturation_dims",
+    [
+        ((), "media"),
+        ("media", ()),
+        ("media", "media"),
+    ],
+)
+def test_incompatible_dims_raise(adstock_dims, saturation_dims) -> None:
+    adstock = GeometricAdstock(l_max=10).set_dims_for_all_priors(adstock_dims)
+    saturation = LogisticSaturation().set_dims_for_all_priors(saturation_dims)
+    with pytest.raises(ValueError):
+        MediaTransformation(
+            adstock=adstock,
+            saturation=saturation,
+            adstock_first=True,
+            dims=(),
+        )
