@@ -16,6 +16,7 @@ import pandas as pd
 import pymc as pm
 import pytest
 
+from pymc_marketing.deserialize import deserialize
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.media_transformation import (
     MediaConfig,
@@ -144,6 +145,38 @@ def test_apply_media_transformation(
     for rv in expected_free_RVs:
         expected_dims = offline_dims if rv.startswith("offline") else online_dims
         assert actual_dims[rv] == expected_dims
+
+
+def test_media_transformation_deserialize() -> None:
+    adstock = GeometricAdstock(l_max=10)
+    saturation = LogisticSaturation()
+    data = {
+        "adstock": adstock.to_dict(),
+        "saturation": saturation.to_dict(),
+        "adstock_first": True,
+    }
+
+    media_transformation = deserialize(data)
+    assert isinstance(media_transformation, MediaTransformation)
+
+
+def test_media_config_list_deserialize() -> None:
+    adstock = GeometricAdstock(l_max=10)
+    saturation = LogisticSaturation()
+    data = [
+        {
+            "name": "online",
+            "columns": ["Facebook", "Instagram", "YouTube", "TikTok"],
+            "media_transformation": {
+                "adstock": adstock.to_dict(),
+                "saturation": saturation.to_dict(),
+                "adstock_first": True,
+            },
+        }
+    ]
+
+    media_config_list = deserialize(data)
+    assert isinstance(media_config_list, MediaConfigList)
 
 
 def test_media_transformation_round_trip() -> None:
