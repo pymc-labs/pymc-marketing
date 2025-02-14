@@ -47,6 +47,19 @@ class CLVModel(ModelBuilder):
         non_distributions: list[str] | None = None,
     ):
         model_config = model_config or {}
+
+        deprecated_keys = [key for key in model_config if key.endswith("_prior")]
+        for key in deprecated_keys:
+            new_key = key.replace("_prior", "")
+            warnings.warn(
+                f"The key '{key}' in model_config is deprecated and will be removed in future versions."
+                f"Use '{new_key}' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+            model_config[new_key] = model_config.pop(key)
+
         model_config = parse_model_config(
             model_config,
             non_distributions=non_distributions,
