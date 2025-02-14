@@ -142,3 +142,23 @@ def test_apply_media_transformation(
     for rv in expected_free_RVs:
         expected_dims = offline_dims if rv.startswith("offline") else online_dims
         assert actual_dims[rv] == expected_dims
+
+
+@pytest.mark.parametrize(
+    "adstock_dims, saturation_dims",
+    [
+        ((), "media"),
+        ("media", ()),
+        ("media", "media"),
+    ],
+)
+def test_incompatible_dims_raise(adstock_dims, saturation_dims) -> None:
+    adstock = GeometricAdstock(l_max=10).set_dims_for_all_priors(adstock_dims)
+    saturation = LogisticSaturation().set_dims_for_all_priors(saturation_dims)
+    with pytest.raises(ValueError):
+        MediaTransformation(
+            adstock=adstock,
+            saturation=saturation,
+            adstock_first=True,
+            dims=(),
+        )
