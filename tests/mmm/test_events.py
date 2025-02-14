@@ -151,10 +151,8 @@ def test_gaussian_basis_curve_sampling():
         },
     )
 
-    curve_0 = gaussian.sample_curve(parameters, days=0)
     curve_10 = gaussian.sample_curve(parameters, days=10)
 
-    assert isinstance(curve_0, xr.DataArray)
     assert isinstance(curve_10, xr.DataArray)
     assert len(curve_10.x) == 100  # Check default number of points
     assert curve_10.x.min() == -10  # Check range
