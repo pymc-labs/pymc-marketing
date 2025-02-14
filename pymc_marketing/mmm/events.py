@@ -123,7 +123,7 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[misc]
         parameters: InstanceOf[xr.Dataset] = Field(
             ..., description="Parameters of the saturation transformation."
         ),
-        days: int = Field(0, ge=0, description="Number of days around basis."),
+        days: int = Field(14, gt=0, description="Number of days around basis."),
     ) -> xr.DataArray:
         """Sample the curve of the saturation transformation given parameters.
 
@@ -132,7 +132,7 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[misc]
         parameters : xr.Dataset
             Dataset with the parameters of the saturation transformation.
         days : int
-            Number of days around basis.
+            Number of days around basis. Default is 14 days or two weeks.
 
         Returns
         -------
