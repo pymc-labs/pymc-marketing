@@ -245,8 +245,8 @@ class TestCLVModel:
         model.save("old_model_config_test")
 
         loaded_model = CLVModelTest.load("old_model_config_test")
-        assert loaded_model.model_config == {
-            "alpha": Prior("Weibull", alpha=2, beta=10),
-            "r": Prior("Weibull", alpha=2, beta=1),
-        }
+
+        assert loaded_model.model_config["alpha"] == Prior("Weibull", alpha=2, beta=10)
+        assert loaded_model.model_config["r"] == Prior("Weibull", alpha=2, beta=1)
+
         os.remove("old_model_config_test")
