@@ -59,6 +59,7 @@ def create_media_config_list():
                             online_dims
                         ),
                         adstock_first=True,
+                        dims=online_dims,
                     ),
                 ),
                 MediaConfig(
@@ -72,6 +73,7 @@ def create_media_config_list():
                             offline_dims
                         ),
                         adstock_first=False,
+                        dims=offline_dims,
                     ),
                 ),
             ]
