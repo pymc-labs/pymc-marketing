@@ -686,13 +686,13 @@ class TestBetaGeoModelWithCovariates:
 
         # parameters
         cls.true_params = dict(
-            a_scale=0.793,
-            b_scale=2.426,
-            alpha_scale=4.414,
-            r=0.243,
+            a_scale=5,
+            b_scale=5,
+            alpha_scale=10,
+            r=5,
             purchase_coefficient_alpha=np.array([1.0, -2.0]),
-            dropout_coefficient_a=np.array([3.0]),
-            dropout_coefficient_b=np.array([3.0]),
+            dropout_coefficient_a=np.array([2.0]),
+            dropout_coefficient_b=np.array([2.0]),
         )
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
@@ -709,8 +709,8 @@ class TestBetaGeoModelWithCovariates:
         purchase_covariate_cols = ["purchase_cov1", "purchase_cov2"]
         dropout_covariate_cols = ["dropout_cov"]
         non_nested_priors = dict(
-            a_prior=Prior("Uniform", lower=0, upper=1),
-            b_prior=Prior("Uniform", lower=0, upper=1),
+            a_prior=Prior("Beta", alpha=20, beta=20),
+            b_prior=Prior("Beta", alpha=20, beta=20),
         )
         covariate_config = dict(
             purchase_covariate_cols=purchase_covariate_cols,
@@ -766,6 +766,12 @@ class TestBetaGeoModelWithCovariates:
             },
         )
         set_model_fit(cls.model_with_covariates, mock_fit_with_covariates)
+
+        cls.model_with_covariates_phi_kappa = BetaGeoModel(
+            cls.data,
+            model_config=covariate_config,
+        )
+        # set_model_fit(cls.model_with_covariates_phi_kappa, mock_fit_with_covariates)
 
         # Create a reference model without covariates
         cls.model_without_covariates = BetaGeoModel(
@@ -972,7 +978,7 @@ class TestBetaGeoModelWithCovariates:
             "customer_id"
         )
 
-    def test_covariate_model_convergence(self):
+    def test_covariate_model_convergence_a_b(self):
         """Test that we can recover the true parameters with MAP fitting"""
         rng = np.random.default_rng(627)
 
@@ -994,8 +1000,8 @@ class TestBetaGeoModelWithCovariates:
             "alpha_prior": Prior("Exponential", scale=10),
             "a_prior": Prior("Exponential", scale=10),
             "b_prior": Prior("Exponential", scale=10),
-            "purchase_coefficient_prior": Prior("Normal", mu=6, sigma=6),
-            "dropout_coefficient_prior": Prior("Normal", mu=3, sigma=3),
+            "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=2),
+            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=2),
         }
         new_model = BetaGeoModel(
             synthetic_data,
@@ -1010,5 +1016,51 @@ class TestBetaGeoModelWithCovariates:
                 result[var_name].squeeze(("chain", "draw")),
                 self.true_params[var_name],
                 err_msg=f"Tolerance exceeded for variable {var_name}",
-                rtol=0.6,
+                rtol=0.25,
             )
+
+    def test_covariate_model_convergence_phi_kappa(self):
+        """Test that we can recover the true parameters with MAP fitting"""
+        rng = np.random.default_rng(627)
+
+        # Create synthetic data from "true" params
+        self.model_with_covariates_phi_kappa.build_model()
+        default_model = self.model_with_covariates_phi_kappa.model
+        with pm.do(default_model, self.true_params):
+            prior_pred = pm.sample_prior_predictive(
+                samples=1, random_seed=rng
+            ).prior_predictive
+        synthetic_obs = prior_pred["recency_frequency"].squeeze()
+
+        synthetic_data = self.data.assign(
+            recency=synthetic_obs.sel(obs_var="recency"),
+            frequency=synthetic_obs.sel(obs_var="frequency"),
+        )
+        # The default parameter priors are very informative. We use something broader here
+        custom_priors = {
+            "r_prior": Prior("Exponential", scale=10),
+            "alpha_prior": Prior("Exponential", scale=10),
+            "phi_dropout_prior": Prior("Uniform", lower=0, upper=1),
+            "kappa_dropout_prior": Prior("Pareto", alpha=1, m=1),
+            "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=5),
+            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=5),
+        }
+        new_model = BetaGeoModel(
+            synthetic_data,
+            model_config=self.model_with_covariates_phi_kappa.model_config
+            | custom_priors,
+        )
+        new_model.fit(fit_method="map")
+
+        result = new_model.fit_result
+        for var in default_model.free_RVs:
+            # We remove the checks on "phi_dropout", "kappa_droput"
+            # because those paramenters are not part of self.true_values in the current setting
+            if var.name not in ["phi_dropout", "kappa_dropout"]:
+                var_name = var.name
+                np.testing.assert_allclose(
+                    result[var_name].squeeze(("chain", "draw")),
+                    self.true_params[var_name],
+                    err_msg=f"Tolerance exceeded for variable {var_name}",
+                    rtol=0.2,
+                )
