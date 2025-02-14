@@ -145,6 +145,9 @@ class MediaTransformation:
             if self.adstock_first
             else (self.saturation, self.adstock)
         )
+        if isinstance(self.dims, str):
+            self.dims = (self.dims,)
+
         self.dims = self.dims or ()
 
         self._check_compatible_dims()
@@ -223,6 +226,7 @@ class MediaTransformation:
             "adstock": self.adstock.to_dict(),
             "saturation": self.saturation.to_dict(),
             "adstock_first": self.adstock_first,
+            "dims": self.dims,
         }
 
     @classmethod
@@ -244,6 +248,7 @@ class MediaTransformation:
             adstock=adstock_from_dict(data["adstock"]),
             saturation=saturation_from_dict(data["saturation"]),
             adstock_first=data["adstock_first"],
+            dims=data.get("dims"),
         )
 
 
