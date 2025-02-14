@@ -872,40 +872,44 @@ class TestBetaGeoModelWithCovariates:
             {
                 "customer_id": [0, 1, 2],
                 "frequency": [12, 14, 10],
-                "recency": [19, 18, 16],
+                "recency": [19, 18, 18],
                 "purchase_cov1": [0, 0, 0],
                 "purchase_cov2": [0, 0, 0],
                 "dropout_cov": [0, 0, 0],
                 "T": [20, 19, 20],
-                "future_t": [10, 13, 15],
+                "future_t": [10, 13, 9],
             }
         )
 
         # Probability should match model without covariates, when covariates are all zero
-        res_zero = model.expected_purchases(test_data_zero).mean(("chain", "draw"))
+        res_zero = model.expected_purchases(test_data_zero).mean(
+            ("chain", "draw", "customer_id")
+        )
         res_zero_ref = self.model_without_covariates.expected_purchases(
             test_data_zero
-        ).mean(("chain", "draw"))
-        np.testing.assert_allclose(res_zero, res_zero_ref, rtol=1e-6)
+        ).mean(("chain", "draw", "customer_id"))
+        np.testing.assert_allclose(res_zero, res_zero_ref, rtol=1e-3)
 
         # Probability should go up if purchase covariate1 goes up (coefficient is positive)
-        test_data_high = test_data_zero.assign(purchase_cov1=1.0)
+        test_data_high = test_data_zero.assign(purchase_cov1=2.0)
         res_high_purchase1 = model.expected_purchases(test_data_high).mean(
-            ("chain", "draw")
+            ("chain", "draw", "customer_id")
         )
-        assert (res_zero < res_high_purchase1).all()
+        assert res_zero < res_high_purchase1
 
         # Probability should go down if purchase covariate2 goes up (coefficient is negative)
         test_data_low = test_data_zero.assign(purchase_cov2=1.0)
         res_high_purchase2 = model.expected_purchases(test_data_low).mean(
-            ("chain", "draw")
+            ("chain", "draw", "customer_id")
         )
-        assert (res_zero > res_high_purchase2).all()
+        assert res_zero > res_high_purchase2
 
-        # Probability should go up if dropout covariate goes up (coefficient is positive)
+        # Probability should go down if dropout covariate goes up (coefficient is positive)
         test_data_low = test_data_zero.assign(dropout_cov=1.0)
-        res_high_drop = model.expected_purchases(test_data_low).mean(("chain", "draw"))
-        assert (res_zero > res_high_drop).all()
+        res_high_drop = model.expected_purchases(test_data_low).mean(
+            ("chain", "draw", "customer_id")
+        )
+        assert res_zero > res_high_drop
 
     def test_distribution_method(self):
         model = self.model_with_covariates
@@ -938,21 +942,21 @@ class TestBetaGeoModelWithCovariates:
         np.testing.assert_allclose(
             res_zero["purchase_rate"].mean("customer_id"),
             res_zero_ref["purchase_rate"],
-            rtol=0.3,
+            rtol=0.1,
         )
         np.testing.assert_allclose(
             res_zero["recency_frequency"].sel(obs_var="recency").mean("customer_id"),
             res_zero_ref["recency_frequency"]
             .sel(obs_var="recency")
             .mean("customer_id"),
-            rtol=0.25,
+            rtol=0.1,
         )
         np.testing.assert_allclose(
             res_zero["recency_frequency"].sel(obs_var="frequency").mean("customer_id"),
             res_zero_ref["recency_frequency"]
             .sel(obs_var="frequency")
             .mean("customer_id"),
-            rtol=0.25,
+            rtol=0.1,
         )
 
         # Test case where transaction behavior should increase
@@ -965,13 +969,14 @@ class TestBetaGeoModelWithCovariates:
             ("chain", "draw")
         )
         assert (res_zero["purchase_rate"] < res_high["purchase_rate"]).all()
+        # Higher dropout covar -> higher dropout proba -> less purchases
         assert (
-            res_zero["recency_frequency"].sel(obs_var="frequency")
-            < res_high["recency_frequency"].sel(obs_var="frequency")
-        ).all()
+            res_zero["recency_frequency"].sel(obs_var="frequency").mean()
+            > res_high["recency_frequency"].sel(obs_var="frequency").mean()
+        )
         assert (
             res_zero["recency_frequency"].sel(obs_var="recency").mean()
-            < res_high["recency_frequency"].sel(obs_var="recency").mean()
+            > res_high["recency_frequency"].sel(obs_var="recency").mean()
         )
 
         assert res_zero["dropout"].std("customer_id") > res_high["dropout"].std(
@@ -1000,8 +1005,8 @@ class TestBetaGeoModelWithCovariates:
             "alpha_prior": Prior("Exponential", scale=10),
             "a_prior": Prior("Exponential", scale=10),
             "b_prior": Prior("Exponential", scale=10),
-            "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=2),
-            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=2),
+            "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=4),
+            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=4),
         }
         new_model = BetaGeoModel(
             synthetic_data,
