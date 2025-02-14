@@ -97,6 +97,7 @@ import pymc as pm
 import pytensor.tensor as pt
 from pymc.distributions.shape_utils import Dims
 
+from pymc_marketing.deserialize import register_deserialization
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     adstock_from_dict,
@@ -230,6 +231,21 @@ class MediaTransformation:
         )
 
 
+def _is_media_transformation(data):
+    return (
+        isinstance(data, dict)
+        and "adstock" in data
+        and "saturation" in data
+        and "adstock_first" in data
+    )
+
+
+register_deserialization(
+    is_type=_is_media_transformation,
+    deserialize=MediaTransformation.from_dict,
+)
+
+
 @dataclass
 class MediaConfig:
     """Configuration for a media transformation to certain media channels.
@@ -286,6 +302,16 @@ class MediaConfig:
                 data["media_transformation"]
             ),
         )
+
+
+def _is_media_config(data):
+    return (
+        isinstance(data, dict)
+        and "name" in data
+        and "columns" in data
+        and "media_transformation" in data
+        and _is_media_transformation(data["media_transformation"])
+    )
 
 
 class MediaConfigList:
@@ -392,7 +418,7 @@ class MediaConfigList:
 
         Returns
         -------
-        dict
+        list[dict]
             The media configuration list as a dictionary.
 
         """
@@ -457,3 +483,13 @@ class MediaConfigList:
             start_idx = end_idx
 
         return pt.concatenate(transformed_data, axis=1)
+
+
+def _is_media_config_list(data):
+    return isinstance(data, list) and all(_is_media_config(config) for config in data)
+
+
+register_deserialization(
+    is_type=_is_media_config_list,
+    deserialize=MediaConfigList.from_dict,
+)
