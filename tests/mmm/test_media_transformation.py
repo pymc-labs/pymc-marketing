@@ -142,3 +142,25 @@ def test_apply_media_transformation(
     for rv in expected_free_RVs:
         expected_dims = offline_dims if rv.startswith("offline") else online_dims
         assert actual_dims[rv] == expected_dims
+
+
+def test_media_transformation_round_trip() -> None:
+    adstock = GeometricAdstock(l_max=10)
+    saturation = LogisticSaturation()
+    media_transformation = MediaTransformation(
+        adstock=adstock,
+        saturation=saturation,
+        adstock_first=True,
+        dims="media",
+    )
+
+    data = media_transformation.to_dict()
+
+    assert data == {
+        "adstock": adstock.to_dict(),
+        "saturation": saturation.to_dict(),
+        "adstock_first": True,
+        "dims": ("media",),
+    }
+    recovered = MediaTransformation.from_dict(data)
+    assert recovered.dims == ("media",)
