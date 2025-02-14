@@ -388,7 +388,7 @@ def df_events() -> pd.DataFrame:
             "end_date": ["2025-01-02", "2024-12-31"],
             "name": ["New Years", "Christmas Holiday"],
         }
-    )
+    ).assign(random_column="random_value", another_extra_column="extra_value")
 
 
 @pytest.fixture

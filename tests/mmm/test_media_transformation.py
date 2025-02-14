@@ -16,6 +16,7 @@ import pandas as pd
 import pymc as pm
 import pytest
 
+from pymc_marketing.deserialize import deserialize
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.media_transformation import (
     MediaConfig,
@@ -59,6 +60,7 @@ def create_media_config_list():
                             online_dims
                         ),
                         adstock_first=True,
+                        dims=online_dims,
                     ),
                 ),
                 MediaConfig(
@@ -72,6 +74,7 @@ def create_media_config_list():
                             offline_dims
                         ),
                         adstock_first=False,
+                        dims=offline_dims,
                     ),
                 ),
             ]
@@ -142,3 +145,77 @@ def test_apply_media_transformation(
     for rv in expected_free_RVs:
         expected_dims = offline_dims if rv.startswith("offline") else online_dims
         assert actual_dims[rv] == expected_dims
+
+
+def test_media_transformation_deserialize() -> None:
+    adstock = GeometricAdstock(l_max=10)
+    saturation = LogisticSaturation()
+    data = {
+        "adstock": adstock.to_dict(),
+        "saturation": saturation.to_dict(),
+        "adstock_first": True,
+    }
+
+    media_transformation = deserialize(data)
+    assert isinstance(media_transformation, MediaTransformation)
+
+
+def test_media_config_list_deserialize() -> None:
+    adstock = GeometricAdstock(l_max=10)
+    saturation = LogisticSaturation()
+    data = [
+        {
+            "name": "online",
+            "columns": ["Facebook", "Instagram", "YouTube", "TikTok"],
+            "media_transformation": {
+                "adstock": adstock.to_dict(),
+                "saturation": saturation.to_dict(),
+                "adstock_first": True,
+            },
+        }
+    ]
+
+    media_config_list = deserialize(data)
+    assert isinstance(media_config_list, MediaConfigList)
+
+
+def test_media_transformation_round_trip() -> None:
+    adstock = GeometricAdstock(l_max=10)
+    saturation = LogisticSaturation()
+    media_transformation = MediaTransformation(
+        adstock=adstock,
+        saturation=saturation,
+        adstock_first=True,
+        dims="media",
+    )
+
+    data = media_transformation.to_dict()
+
+    assert data == {
+        "adstock": adstock.to_dict(),
+        "saturation": saturation.to_dict(),
+        "adstock_first": True,
+        "dims": ("media",),
+    }
+    recovered = MediaTransformation.from_dict(data)
+    assert recovered.dims == ("media",)
+
+
+@pytest.mark.parametrize(
+    "adstock_dims, saturation_dims",
+    [
+        ((), "media"),
+        ("media", ()),
+        ("media", "media"),
+    ],
+)
+def test_incompatible_dims_raise(adstock_dims, saturation_dims) -> None:
+    adstock = GeometricAdstock(l_max=10).set_dims_for_all_priors(adstock_dims)
+    saturation = LogisticSaturation().set_dims_for_all_priors(saturation_dims)
+    with pytest.raises(ValueError):
+        MediaTransformation(
+            adstock=adstock,
+            saturation=saturation,
+            adstock_first=True,
+            dims=(),
+        )
