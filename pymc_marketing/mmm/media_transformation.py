@@ -92,6 +92,7 @@ Apply the media transformation to media data in PyMC model:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 import pymc as pm
 import pytensor.tensor as pt
@@ -147,6 +148,21 @@ class MediaTransformation:
             self.dims = (self.dims,)
 
         self.dims = self.dims or ()
+
+        self._check_compatible_dims()
+
+    def _check_compatible_dims(self):
+        self.dims = cast(Dims, self.dims)
+
+        if not set(self.adstock.combined_dims).issubset(self.dims):
+            raise ValueError(
+                f"Adstock dimensions {self.adstock.combined_dims} are not a subset of {self.dims}"
+            )
+
+        if not set(self.saturation.combined_dims).issubset(self.dims):
+            raise ValueError(
+                f"Saturation dimensions {self.saturation.combined_dims} are not a subset of {self.dims}"
+            )
 
     def __call__(self, x):
         """Apply adstock and saturation transformation to media data.
