@@ -68,7 +68,7 @@ def posterior():
 
 
 class TestCLVModel:
-    def test_repr(self):
+    def testandpr(self):
         model = CLVModelTest()
         assert model.__repr__() == "CLVModelTest"
 
@@ -235,18 +235,31 @@ class TestCLVModel:
             "x": Prior("StudentT", mu=0, sigma=5, nu=15),
         }
 
-    def test_backward_compatibility_with_old_config(self):
+    def test_backwards_compatibility_with_old_config(self):
+        model = CLVModelTest()
+        model.build_model()
+
+        old_posterior = from_dict(posterior={"alpha_prior": np.random.randn(2, 100)})
+        set_model_fit(model, old_posterior)
+        assert "alpha_prior" in model.idata.posterior
+
+        save_path = "test_model"
+        model.save(save_path)
+
+        loaded_model = CLVModelTest.load(save_path)
+
+        assert "alpha" in loaded_model.idata.posterior
+        assert "alpha_prior" not in loaded_model.idata.posterior
+
+        os.remove("test_model")
+
+    def test_deprecation_warning_on_old_config(self):
         old_model_config = {
-            "alpha_prior": Prior("Weibull", alpha=2, beta=10),
-            "r_prior": Prior("Weibull", alpha=2, beta=1),
+            "x_prior": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}}
         }
-        model = CLVModelTest(model_config=old_model_config)
-        model.fit(tune=0, chains=2, draws=5)
-        model.save("old_model_config_test")
+        with pytest.warns(
+            DeprecationWarning, match="The key 'x_prior' in model_config is deprecated"
+        ):
+            model = CLVModelTest(model_config=old_model_config)
 
-        loaded_model = CLVModelTest.load("old_model_config_test")
-
-        assert loaded_model.model_config["alpha"] == Prior("Weibull", alpha=2, beta=10)
-        assert loaded_model.model_config["r"] == Prior("Weibull", alpha=2, beta=1)
-
-        os.remove("old_model_config_test")
+        assert model.model_config == {"x": Prior("Normal", mu=0, sigma=1)}

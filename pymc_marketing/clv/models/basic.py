@@ -292,11 +292,27 @@ class CLVModel(ModelBuilder):
                 model_config=json.loads(idata.attrs["model_config"]),  # type: ignore
                 sampler_config=json.loads(idata.attrs["sampler_config"]),
             )
+
         model.idata = idata
+        model._rename_posterior_variables()
+
         model.build_model()  # type: ignore
         if model.id != idata.attrs["id"]:
             raise ValueError(f"Inference data not compatible with {cls._model_type}")
         return model
+
+    def _rename_posterior_variables(self):
+        """Rename variables in the posterior group to remove the _prior suffix.
+
+        This is used to support the old model configuration format, which used
+        to include a _prior suffix for each parameter.
+        """
+        prior_vars = [
+            var for var in self.idata.posterior.data_vars if var.endswith("_prior")
+        ]
+        rename_dict = {var: var.replace("_prior", "") for var in prior_vars}
+        self.idata.posterior = self.idata.posterior.rename(rename_dict)
+        return self.idata.posterior
 
     def thin_fit_result(self, keep_every: int):
         """Return a copy of the model with a thinned fit result.
