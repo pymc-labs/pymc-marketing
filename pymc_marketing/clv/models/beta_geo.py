@@ -292,7 +292,6 @@ class BetaGeoModel(CLVModel):
                     phi_dropout = self.model_config[
                         "phi_dropout_prior"
                     ].create_variable("phi_dropout")
-
                     kappa_dropout = self.model_config[
                         "kappa_dropout_prior"
                     ].create_variable("kappa_dropout")

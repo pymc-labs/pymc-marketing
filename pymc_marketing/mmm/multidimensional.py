@@ -95,9 +95,9 @@ def create_event_mu_effect(
         The event effect which is used in the MMM.
 
     """
-    if missing_columns := df_events.columns.difference(
-        ["start_date", "end_date", "name"]
-    ).tolist():
+    if missing_columns := set(["start_date", "end_date", "name"]).difference(
+        df_events.columns,
+    ):
         raise ValueError(f"Columns {missing_columns} are missing in df_events.")
 
     effect.basis.prefix = prefix

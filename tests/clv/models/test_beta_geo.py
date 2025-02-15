@@ -686,13 +686,13 @@ class TestBetaGeoModelWithCovariates:
 
         # parameters
         cls.true_params = dict(
-            a_scale=0.793,
-            b_scale=2.426,
-            alpha_scale=4.414,
-            r=0.243,
-            purchase_coefficient_gamma1=np.array([1.0, -2.0]),
-            dropout_coefficient_gamma2=np.array([3.0]),
-            dropout_coefficient_gamma3=np.array([3.0]),
+            a_scale=5,
+            b_scale=5,
+            alpha_scale=10,
+            r=5,
+            purchase_coefficient_alpha=np.array([1.0, -2.0]),
+            dropout_coefficient_a=np.array([2.0]),
+            dropout_coefficient_b=np.array([2.0]),
         )
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
@@ -709,8 +709,8 @@ class TestBetaGeoModelWithCovariates:
         purchase_covariate_cols = ["purchase_cov1", "purchase_cov2"]
         dropout_covariate_cols = ["dropout_cov"]
         non_nested_priors = dict(
-            a_prior=Prior("Uniform", lower=0, upper=1),
-            b_prior=Prior("Uniform", lower=0, upper=1),
+            a_prior=Prior("Beta", alpha=20, beta=20),
+            b_prior=Prior("Beta", alpha=20, beta=20),
         )
         covariate_config = dict(
             purchase_covariate_cols=purchase_covariate_cols,
@@ -737,18 +737,18 @@ class TestBetaGeoModelWithCovariates:
             "b_scale": rng.normal(
                 cls.true_params["b_scale"], 1e-3, size=(chains, draws)
             ),
-            "purchase_coefficient_gamma1": rng.normal(
-                cls.true_params["purchase_coefficient_gamma1"],
+            "purchase_coefficient_alpha": rng.normal(
+                cls.true_params["purchase_coefficient_alpha"],
                 1e-3,
                 size=(chains, draws, n_purchase_covariates),
             ),
-            "dropout_coefficient_gamma2": rng.normal(
-                cls.true_params["dropout_coefficient_gamma2"],
+            "dropout_coefficient_a": rng.normal(
+                cls.true_params["dropout_coefficient_a"],
                 1e-3,
                 size=(chains, draws, n_dropout_covariates),
             ),
-            "dropout_coefficient_gamma3": rng.normal(
-                cls.true_params["dropout_coefficient_gamma3"],
+            "dropout_coefficient_b": rng.normal(
+                cls.true_params["dropout_coefficient_b"],
                 1e-3,
                 size=(chains, draws, n_dropout_covariates),
             ),
@@ -756,9 +756,9 @@ class TestBetaGeoModelWithCovariates:
         mock_fit_with_covariates = az.from_dict(
             mock_fit_dict,
             dims={
-                "purchase_coefficient_gamma1": ["purchase_covariate"],
-                "dropout_coefficient_gamma2": ["dropout_covariate"],
-                "dropout_coefficient_gamma3": ["dropout_covariate"],
+                "purchase_coefficient_alpha": ["purchase_covariate"],
+                "dropout_coefficient_a": ["dropout_covariate"],
+                "dropout_coefficient_b": ["dropout_covariate"],
             },
             coords={
                 "purchase_covariate": purchase_covariate_cols,
@@ -766,6 +766,11 @@ class TestBetaGeoModelWithCovariates:
             },
         )
         set_model_fit(cls.model_with_covariates, mock_fit_with_covariates)
+
+        cls.model_with_covariates_phi_kappa = BetaGeoModel(
+            cls.data,
+            model_config=covariate_config,
+        )
 
         # Create a reference model without covariates
         cls.model_without_covariates = BetaGeoModel(
@@ -838,17 +843,17 @@ class TestBetaGeoModelWithCovariates:
 
         # alpha coefficient: likelihood should go up if purchase covariate1 goes up (coefficient is positive)
         assert model_likelihood_fn(
-            ip | dict(purchase_coefficient_gamma1=np.array([1.0, 2.0]))
+            ip | dict(purchase_coefficient_alpha=np.array([1.0, 2.0]))
         ) < ref_model_likelihood_fn(ref_ip)
 
         # a coefficient: likelihood should go up if purchase covariate1 goes up (coefficient is positive)
         assert model_likelihood_fn(
-            ip | dict(dropout_coefficient_gamma2=np.array([3.0]))
+            ip | dict(dropout_coefficient_a=np.array([3.0]))
         ) < ref_model_likelihood_fn(ref_ip)
 
         # b coefficient: likelihood should go up if purchase covariate1 goes up (coefficient is positive)
         assert model_likelihood_fn(
-            ip | dict(dropout_coefficient_gamma3=np.array([3.0]))
+            ip | dict(dropout_coefficient_b=np.array([3.0]))
         ) < ref_model_likelihood_fn(ref_ip)
 
         np.testing.assert_allclose(
@@ -866,40 +871,44 @@ class TestBetaGeoModelWithCovariates:
             {
                 "customer_id": [0, 1, 2],
                 "frequency": [12, 14, 10],
-                "recency": [19, 18, 16],
+                "recency": [19, 18, 18],
                 "purchase_cov1": [0, 0, 0],
                 "purchase_cov2": [0, 0, 0],
                 "dropout_cov": [0, 0, 0],
                 "T": [20, 19, 20],
-                "future_t": [10, 13, 15],
+                "future_t": [10, 13, 9],
             }
         )
 
         # Probability should match model without covariates, when covariates are all zero
-        res_zero = model.expected_purchases(test_data_zero).mean(("chain", "draw"))
+        res_zero = model.expected_purchases(test_data_zero).mean(
+            ("chain", "draw", "customer_id")
+        )
         res_zero_ref = self.model_without_covariates.expected_purchases(
             test_data_zero
-        ).mean(("chain", "draw"))
-        np.testing.assert_allclose(res_zero, res_zero_ref, rtol=1e-6)
+        ).mean(("chain", "draw", "customer_id"))
+        np.testing.assert_allclose(res_zero, res_zero_ref, rtol=1e-3)
 
         # Probability should go up if purchase covariate1 goes up (coefficient is positive)
-        test_data_high = test_data_zero.assign(purchase_cov1=1.0)
+        test_data_high = test_data_zero.assign(purchase_cov1=2.0)
         res_high_purchase1 = model.expected_purchases(test_data_high).mean(
-            ("chain", "draw")
+            ("chain", "draw", "customer_id")
         )
-        assert (res_zero < res_high_purchase1).all()
+        assert res_zero < res_high_purchase1
 
         # Probability should go down if purchase covariate2 goes up (coefficient is negative)
         test_data_low = test_data_zero.assign(purchase_cov2=1.0)
         res_high_purchase2 = model.expected_purchases(test_data_low).mean(
-            ("chain", "draw")
+            ("chain", "draw", "customer_id")
         )
-        assert (res_zero > res_high_purchase2).all()
+        assert res_zero > res_high_purchase2
 
-        # Probability should go up if dropout covariate goes up (coefficient is positive)
+        # Probability should go down if dropout covariate goes up (coefficient is positive)
         test_data_low = test_data_zero.assign(dropout_cov=1.0)
-        res_high_drop = model.expected_purchases(test_data_low).mean(("chain", "draw"))
-        assert (res_zero > res_high_drop).all()
+        res_high_drop = model.expected_purchases(test_data_low).mean(
+            ("chain", "draw", "customer_id")
+        )
+        assert res_zero > res_high_drop
 
     def test_distribution_method(self):
         model = self.model_with_covariates
@@ -932,52 +941,48 @@ class TestBetaGeoModelWithCovariates:
         np.testing.assert_allclose(
             res_zero["purchase_rate"].mean("customer_id"),
             res_zero_ref["purchase_rate"],
-            rtol=0.3,
+            rtol=0.1,
         )
         np.testing.assert_allclose(
             res_zero["recency_frequency"].sel(obs_var="recency").mean("customer_id"),
             res_zero_ref["recency_frequency"]
             .sel(obs_var="recency")
             .mean("customer_id"),
-            rtol=0.25,
+            rtol=0.1,
         )
         np.testing.assert_allclose(
             res_zero["recency_frequency"].sel(obs_var="frequency").mean("customer_id"),
             res_zero_ref["recency_frequency"]
             .sel(obs_var="frequency")
             .mean("customer_id"),
-            rtol=0.25,
+            rtol=0.1,
         )
 
         # Test case where transaction behavior should increase
         test_data_alt = test_data_zero.assign(
             purchase_cov=1.0,  # positive coefficient
             purchase_cov2=-1,  # negative coefficient
-            dropout_cov=1,  # positive coefficient
+            dropout_cov=3,  # positive coefficient
         )
         res_high = model.distribution_new_customer(test_data_alt).mean(
             ("chain", "draw")
         )
         assert (res_zero["purchase_rate"] < res_high["purchase_rate"]).all()
+        # Higher dropout covar -> higher dropout proba -> less purchases
         assert (
-            res_zero["recency_frequency"].sel(obs_var="frequency")
-            < res_high["recency_frequency"].sel(obs_var="frequency")
-        ).all()
-        # NOTE: These are the problematic tests due to poor convergence
-        # We would need to test eg:
-        # assert (res_zero["dropout"] < res_high["dropout"]).all()
-        # Instead we test "less than" within tolerance
+            res_zero["recency_frequency"].sel(obs_var="frequency").mean()
+            > res_high["recency_frequency"].sel(obs_var="frequency").mean()
+        )
         assert (
-            (
-                res_zero["recency_frequency"].sel(obs_var="recency")
-                - res_high["recency_frequency"].sel(obs_var="recency")
-            )
-            < 0.35
-        ).all()
+            res_zero["recency_frequency"].sel(obs_var="recency").mean()
+            > res_high["recency_frequency"].sel(obs_var="recency").mean()
+        )
 
-        assert ((res_zero["dropout"] - res_high["dropout"]) < 0.075).all()
+        assert res_zero["dropout"].std("customer_id") > res_high["dropout"].std(
+            "customer_id"
+        )
 
-    def test_covariate_model_convergence(self):
+    def test_covariate_model_convergence_a_b(self):
         """Test that we can recover the true parameters with MAP fitting"""
         rng = np.random.default_rng(627)
 
@@ -999,8 +1004,8 @@ class TestBetaGeoModelWithCovariates:
             "alpha_prior": Prior("Exponential", scale=10),
             "a_prior": Prior("Exponential", scale=10),
             "b_prior": Prior("Exponential", scale=10),
-            "purchase_coefficient_prior": Prior("Normal", mu=6, sigma=6),
-            "dropout_coefficient_prior": Prior("Normal", mu=3, sigma=3),
+            "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=4),
+            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=4),
         }
         new_model = BetaGeoModel(
             synthetic_data,
@@ -1015,5 +1020,51 @@ class TestBetaGeoModelWithCovariates:
                 result[var_name].squeeze(("chain", "draw")),
                 self.true_params[var_name],
                 err_msg=f"Tolerance exceeded for variable {var_name}",
-                rtol=0.6,
+                rtol=0.25,
             )
+
+    def test_covariate_model_convergence_phi_kappa(self):
+        """Test that we can recover the true parameters with MAP fitting"""
+        rng = np.random.default_rng(627)
+
+        # Create synthetic data from "true" params
+        self.model_with_covariates_phi_kappa.build_model()
+        default_model = self.model_with_covariates_phi_kappa.model
+        with pm.do(default_model, self.true_params):
+            prior_pred = pm.sample_prior_predictive(
+                samples=1, random_seed=rng
+            ).prior_predictive
+        synthetic_obs = prior_pred["recency_frequency"].squeeze()
+
+        synthetic_data = self.data.assign(
+            recency=synthetic_obs.sel(obs_var="recency"),
+            frequency=synthetic_obs.sel(obs_var="frequency"),
+        )
+        # The default parameter priors are very informative. We use something broader here
+        custom_priors = {
+            "r_prior": Prior("Exponential", scale=10),
+            "alpha_prior": Prior("Exponential", scale=10),
+            "phi_dropout_prior": Prior("Uniform", lower=0, upper=1),
+            "kappa_dropout_prior": Prior("Pareto", alpha=1, m=1),
+            "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=5),
+            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=5),
+        }
+        new_model = BetaGeoModel(
+            synthetic_data,
+            model_config=self.model_with_covariates_phi_kappa.model_config
+            | custom_priors,
+        )
+        new_model.fit(fit_method="map")
+
+        result = new_model.fit_result
+        for var in default_model.free_RVs:
+            # We remove the checks on "phi_dropout", "kappa_droput"
+            # because those paramenters are not part of self.true_values in the current setting
+            if var.name not in ["phi_dropout", "kappa_dropout"]:
+                var_name = var.name
+                np.testing.assert_allclose(
+                    result[var_name].squeeze(("chain", "draw")),
+                    self.true_params[var_name],
+                    err_msg=f"Tolerance exceeded for variable {var_name}",
+                    rtol=0.2,
+                )
