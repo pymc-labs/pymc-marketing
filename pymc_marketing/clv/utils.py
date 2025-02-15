@@ -915,13 +915,18 @@ def _expected_cumulative_transactions(
     # First Transactions on Each Day/Freq
     if not distinct_covariates_cols:
         first_trans_size = first_transactions.groupby(datetime_col).size()
+        first_trans_size.index = first_trans_size.index.rename("date")
     else:
         # get the sizes for each covariate
         first_trans_size = first_transactions.groupby(
             [datetime_col, *distinct_covariates_cols]
         ).size()
 
-    time_index = first_trans_size.index.get_level_values("date").unique()
+    if isinstance(first_trans_size.index, pandas.MultiIndex):
+        time_index = first_trans_size.index.get_level_values("date").unique()
+    else:
+        time_index = first_trans_size.index
+        time_index = time_index.rename("date")
 
     # In the loop below, we calculate the expected number of purchases for customers
     # who have made their first purchases on a date before the one being evaluated.
