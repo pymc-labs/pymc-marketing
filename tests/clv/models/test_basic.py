@@ -68,7 +68,7 @@ def posterior():
 
 
 class TestCLVModel:
-    def testandpr(self):
+    def test_repr(self):
         model = CLVModelTest()
         assert model.__repr__() == "CLVModelTest"
 
