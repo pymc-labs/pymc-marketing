@@ -274,6 +274,8 @@ class MMM(ModelBuilder):
             self.adstock.update_priors({**self.default_model_config, **model_config})
             self.saturation.update_priors({**self.default_model_config, **model_config})
 
+        self._check_compatible_media_dims()
+
         self.date_column = date_column
         self.target_column = target_column
         self.channel_columns = channel_columns
@@ -290,6 +292,19 @@ class MMM(ModelBuilder):
             )
 
         self.mu_effects: list[MuEffect] = []
+
+    def _check_compatible_media_dims(self) -> None:
+        allowed_dims = set(self.dims).union({"channel"})
+
+        if not set(self.adstock.combined_dims).issubset(allowed_dims):
+            raise ValueError(
+                f"Adstock effect dims {self.adstock.combined_dims} must contain {allowed_dims}"
+            )
+
+        if not set(self.saturation.combined_dims).issubset(allowed_dims):
+            raise ValueError(
+                f"Saturation effect dims {self.saturation.combined_dims} must contain {allowed_dims}"
+            )
 
     @property
     def default_sampler_config(self) -> dict:
