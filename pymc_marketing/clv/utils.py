@@ -903,12 +903,15 @@ def _expected_cumulative_transactions(
     date_range = pandas.date_range(start_date, periods=t + 1, freq=time_unit)
     date_periods = date_range.to_period(time_unit)
 
-    distinct_covariates_cols = list(
-        set(model.purchase_covariate_cols).intersection(
-            set(model.dropout_covariate_cols)
+    if model.purchase_covariate_cols or model.dropout_covariate_cols:
+        distinct_covariates_cols = list(
+            set(model.purchase_covariate_cols).intersection(
+                set(model.dropout_covariate_cols)
+            )
         )
-    )
-    distinct_covariates = transactions[distinct_covariates_cols].drop_duplicates()
+        distinct_covariates = transactions[distinct_covariates_cols].drop_duplicates()
+    else:
+        distinct_covariates_cols = None
 
     pred_cum_transactions = []
 
