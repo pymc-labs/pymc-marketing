@@ -97,12 +97,12 @@ class ParetoNBDModel(CLVModel):
     model_config : dict, optional
         Dictionary containing model parameters and covariate column names:
 
-        * `r_prior`: Shape parameter of time between purchases; defaults to `Weibull(alpha=2, beta=1)`
-        * `alpha_prior`: Scale parameter of time between purchases; defaults to `Weibull(alpha=2, beta=10)`
-        * `s_prior`: Shape parameter of time until dropout; defaults to `Weibull(alpha=2, beta=1)`
-        * `beta_prior`: Scale parameter of time until dropout; defaults to `Weibull(alpha=2, beta=10)`
-        * `purchase_covariates_prior`: Coefficients for purchase rate covariates; defaults to `Normal(0, 3)`
-        * `dropout_covariates_prior`: Coefficients for dropout covariates; defaults to `Normal.dist(0, 3)`
+        * `r`: Shape parameter of time between purchases; defaults to `Weibull(alpha=2, beta=1)`
+        * `alpha`: Scale parameter of time between purchases; defaults to `Weibull(alpha=2, beta=10)`
+        * `s`: Shape parameter of time until dropout; defaults to `Weibull(alpha=2, beta=1)`
+        * `beta`: Scale parameter of time until dropout; defaults to `Weibull(alpha=2, beta=10)`
+        * `purchase_covariates`: Coefficients for purchase rate covariates; defaults to `Normal(0, 3)`
+        * `dropout_covariates`: Coefficients for dropout covariates; defaults to `Normal.dist(0, 3)`
         * `purchase_covariate_cols`: List containing column names of covariates for customer purchase rates.
         * `dropout_covariate_cols`: List containing column names of covariates for customer dropouts.
 
@@ -126,10 +126,10 @@ class ParetoNBDModel(CLVModel):
         model = ParetoNBDModel(
             data=rfm_df,
             model_config={
-                "r_prior": Prior("Weibull", alpha=2, beta=1),
-                "alpha_prior: Prior("Weibull", alpha=2, beta=10),
-                "s_prior": Prior("Weibull", alpha=2, beta=1),
-                "beta_prior": Prior("Weibull", alpha=2, beta=10),
+                "r": Prior("Weibull", alpha=2, beta=1),
+                "alpha: Prior("Weibull", alpha=2, beta=10),
+                "s": Prior("Weibull", alpha=2, beta=1),
+                "beta": Prior("Weibull", alpha=2, beta=10),
             },
         )
 
@@ -230,12 +230,12 @@ class ParetoNBDModel(CLVModel):
     def default_model_config(self) -> ModelConfig:
         """Default model configuration."""
         return {
-            "r_prior": Prior("Weibull", alpha=2, beta=1),
-            "alpha_prior": Prior("Weibull", alpha=2, beta=10),
-            "s_prior": Prior("Weibull", alpha=2, beta=1),
-            "beta_prior": Prior("Weibull", alpha=2, beta=10),
-            "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=1),
-            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=1),
+            "r": Prior("Weibull", alpha=2, beta=1),
+            "alpha": Prior("Weibull", alpha=2, beta=10),
+            "s": Prior("Weibull", alpha=2, beta=1),
+            "beta": Prior("Weibull", alpha=2, beta=10),
+            "purchase_coefficient": Prior("Normal", mu=0, sigma=1),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=1),
             "purchase_covariate_cols": [],
             "dropout_covariate_cols": [],
         }
@@ -256,16 +256,12 @@ class ParetoNBDModel(CLVModel):
                     dims=["customer_id", "purchase_covariate"],
                 )
 
-                self.model_config[
-                    "purchase_coefficient_prior"
-                ].dims = "purchase_covariate"
+                self.model_config["purchase_coefficient"].dims = "purchase_covariate"
                 purchase_coefficient = self.model_config[
-                    "purchase_coefficient_prior"
+                    "purchase_coefficient"
                 ].create_variable("purchase_coefficient")
 
-                alpha_scale = self.model_config["alpha_prior"].create_variable(
-                    "alpha_scale"
-                )
+                alpha_scale = self.model_config["alpha"].create_variable("alpha_scale")
                 alpha = pm.Deterministic(
                     "alpha",
                     (
@@ -275,7 +271,7 @@ class ParetoNBDModel(CLVModel):
                     dims="customer_id",
                 )
             else:
-                alpha = self.model_config["alpha_prior"].create_variable("alpha")
+                alpha = self.model_config["alpha"].create_variable("alpha")
 
             # churn priors
             if self.dropout_covariate_cols:
@@ -285,18 +281,14 @@ class ParetoNBDModel(CLVModel):
                     dims=["customer_id", "dropout_covariate"],
                 )
 
-                self.model_config[
-                    "dropout_coefficient_prior"
-                ].dims = "dropout_covariate"
+                self.model_config["dropout_coefficient"].dims = "dropout_covariate"
                 dropout_coefficient = self.model_config[
-                    "dropout_coefficient_prior"
+                    "dropout_coefficient"
                 ].create_variable(
                     "dropout_coefficient",
                 )
 
-                beta_scale = self.model_config["beta_prior"].create_variable(
-                    "beta_scale"
-                )
+                beta_scale = self.model_config["beta"].create_variable("beta_scale")
                 beta = pm.Deterministic(
                     "beta",
                     (
@@ -306,10 +298,10 @@ class ParetoNBDModel(CLVModel):
                     dims="customer_id",
                 )
             else:
-                beta = self.model_config["beta_prior"].create_variable("beta")
+                beta = self.model_config["beta"].create_variable("beta")
 
-            r = self.model_config["r_prior"].create_variable("r")
-            s = self.model_config["s_prior"].create_variable("s")
+            r = self.model_config["r"].create_variable("r")
+            s = self.model_config["s"].create_variable("s")
 
             ParetoNBD(
                 name="recency_frequency",
