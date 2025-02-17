@@ -57,7 +57,6 @@ class BetaGeoModel(CLVModel):
             * `T`: Time between the first purchase and the end of the observation period
     model_config : dict, optional
         Dictionary of model prior parameters:
-
             * `alpha`: Scale parameter for time between purchases; defaults to `Prior("Weibull", alpha=2, beta=10)`
             * `r`: Shape parameter for time between purchases; defaults to `Prior("Weibull", alpha=2, beta=1)`
             * `a`: Shape parameter of dropout process; defaults to `phi_purchase` * `kappa_purchase`
@@ -68,7 +67,6 @@ class BetaGeoModel(CLVModel):
             * `dropout_covariates`: Coefficients for dropout covariates; defaults to `Normal.dist(0, 3)`
             * `purchase_covariate_cols`: List containing column names of covariates for customer purchase rates.
             * `dropout_covariate_cols`: List containing column names of covariates for customer dropouts.
-
     sampler_config : dict, optional
         Dictionary of sampler parameters. Defaults to *None*.
 
@@ -213,16 +211,12 @@ class BetaGeoModel(CLVModel):
                     self.data[self.purchase_covariate_cols],
                     dims=["customer_id", "purchase_covariate"],
                 )
-                self.model_config[
-                    "purchase_coefficient"
-                ].dims = "purchase_covariate"
+                self.model_config["purchase_coefficient"].dims = "purchase_covariate"
                 purchase_coefficient_alpha = self.model_config[
                     "purchase_coefficient"
                 ].create_variable("purchase_coefficient_alpha")
 
-                alpha_scale = self.model_config["alpha"].create_variable(
-                    "alpha_scale"
-                )
+                alpha_scale = self.model_config["alpha"].create_variable("alpha_scale")
                 alpha = pm.Deterministic(
                     "alpha",
                     (
@@ -245,9 +239,7 @@ class BetaGeoModel(CLVModel):
                         dims=["customer_id", "dropout_covariate"],
                     )
 
-                    self.model_config[
-                        "dropout_coefficient"
-                    ].dims = "dropout_covariate"
+                    self.model_config["dropout_coefficient"].dims = "dropout_covariate"
                     dropout_coefficient_a = self.model_config[
                         "dropout_coefficient"
                     ].create_variable("dropout_coefficient_a")
@@ -281,9 +273,7 @@ class BetaGeoModel(CLVModel):
                         dims=["customer_id", "dropout_covariate"],
                     )
 
-                    self.model_config[
-                        "dropout_coefficient"
-                    ].dims = "dropout_covariate"
+                    self.model_config["dropout_coefficient"].dims = "dropout_covariate"
                     dropout_coefficient_a = self.model_config[
                         "dropout_coefficient"
                     ].create_variable("dropout_coefficient_a")
@@ -291,12 +281,12 @@ class BetaGeoModel(CLVModel):
                         "dropout_coefficient"
                     ].create_variable("dropout_coefficient_b")
 
-                    phi_dropout = self.model_config[
+                    phi_dropout = self.model_config["phi_dropout"].create_variable(
                         "phi_dropout"
-                    ].create_variable("phi_dropout")
-                    kappa_dropout = self.model_config[
+                    )
+                    kappa_dropout = self.model_config["kappa_dropout"].create_variable(
                         "kappa_dropout"
-                    ].create_variable("kappa_dropout")
+                    )
 
                     a_scale = pm.Deterministic(
                         "a_scale",
@@ -321,12 +311,12 @@ class BetaGeoModel(CLVModel):
                     )
 
                 else:
-                    phi_dropout = self.model_config[
+                    phi_dropout = self.model_config["phi_dropout"].create_variable(
                         "phi_dropout"
-                    ].create_variable("phi_dropout")
-                    kappa_dropout = self.model_config[
+                    )
+                    kappa_dropout = self.model_config["kappa_dropout"].create_variable(
                         "kappa_dropout"
-                    ].create_variable("kappa_dropout")
+                    )
 
                     a = pm.Deterministic("a", phi_dropout * kappa_dropout)
                     b = pm.Deterministic("b", (1.0 - phi_dropout) * kappa_dropout)
