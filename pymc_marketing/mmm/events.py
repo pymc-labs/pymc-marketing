@@ -195,7 +195,6 @@ class EventEffect(BaseModel):
 
     @model_validator(mode="after")
     def _validate_dims(self):
-        print(self)
         if not self.dims:
             raise ValueError("The dims must not be empty.")
 
