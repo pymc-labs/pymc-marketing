@@ -388,7 +388,7 @@ def df_events() -> pd.DataFrame:
             "end_date": ["2025-01-02", "2024-12-31"],
             "name": ["New Years", "Christmas Holiday"],
         }
-    )
+    ).assign(random_column="random_value", another_extra_column="extra_value")
 
 
 @pytest.fixture
@@ -523,3 +523,53 @@ def test_mmm_with_events(
     )
 
     assert less_effect_for_out_of_sample.to_pandas().all()
+
+
+@pytest.mark.parametrize(
+    "adstock, saturation, dims",
+    [
+        pytest.param(
+            GeometricAdstock(l_max=2).set_dims_for_all_priors("country"),
+            LogisticSaturation(),
+            (),
+            id="adstock",
+        ),
+        pytest.param(
+            GeometricAdstock(l_max=2),
+            LogisticSaturation().set_dims_for_all_priors("country"),
+            (),
+            id="saturation",
+        ),
+        pytest.param(
+            GeometricAdstock(l_max=2).set_dims_for_all_priors("media"),
+            LogisticSaturation(),
+            (),
+            id="adstock-wrong-media",
+        ),
+        pytest.param(
+            GeometricAdstock(l_max=2),
+            LogisticSaturation().set_dims_for_all_priors("media"),
+            (),
+            id="saturation-wrong-media",
+        ),
+        pytest.param(
+            GeometricAdstock(l_max=2),
+            LogisticSaturation().set_dims_for_all_priors(("media", "product")),
+            ("country",),
+            id="wrong-extra-dim",
+        ),
+    ],
+)
+def test_check_for_incompatible_dims(adstock, saturation, dims) -> None:
+    kwargs = dict(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+    )
+    with pytest.raises(ValueError):
+        MMM(
+            adstock=adstock,
+            saturation=saturation,
+            dims=dims,
+            **kwargs,  # type: ignore
+        )
