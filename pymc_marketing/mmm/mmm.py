@@ -2165,7 +2165,7 @@ class MMM(
         if controls is not None:
             _controls: list[str] = controls
         else:
-            controls = []
+            _controls = []
 
         last_date = pd.to_datetime(df[date_column]).max()
         new_dates = []
