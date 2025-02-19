@@ -29,7 +29,7 @@ import xarray as xr
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
 
-from pymc_marketing.mmm import HSGP
+from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     adstock_from_dict,
@@ -1031,7 +1031,7 @@ class MMM(ModelBuilder):
                     "baseline_intercept"
                 )
 
-                intercept_latent_process = HSGP.parameterize_from_data(
+                intercept_latent_process = SoftPlusHSGP.parameterize_from_data(
                     X=time_index,  # this is
                     dims=("date", *self.dims),
                     **self.model_config["intercept_tvp_config"],
@@ -1057,7 +1057,7 @@ class MMM(ModelBuilder):
                     dims=("date", *self.dims, "channel"),
                 )
 
-                media_latent_process = HSGP.parameterize_from_data(
+                media_latent_process = SoftPlusHSGP.parameterize_from_data(
                     X=time_index,
                     dims=("date", *self.dims),
                     **self.model_config["media_tvp_config"],

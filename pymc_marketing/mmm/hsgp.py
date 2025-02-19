@@ -799,7 +799,7 @@ class HSGPPeriodic(HSGPBase):
 
     Examples
     --------
-    HSGP with default configuration:
+    HSGPPeriodic with default configuration:
 
     .. plot::
         :include-source: True
@@ -845,7 +845,7 @@ class HSGPPeriodic(HSGPBase):
         ax.set(xlabel="Date", ylabel="f", title="HSGP with period of 52 days")
         plt.show()
 
-    Higher dimensional HSGP with periodic data
+    Higher dimensional HSGPPeriodic with periodic data
 
     .. plot::
         :include-source: True
@@ -1018,3 +1018,126 @@ class HSGPPeriodic(HSGPBase):
                 data[key] = Prior.from_dict(data[key])
 
         return cls(**data)
+
+
+class SoftPlusHSGP(HSGP):
+    """HSGP with softplus transformation.
+
+    The use of the softplus transformation centers the data
+    around 1 and keeps the values positive.
+
+    Examples
+    --------
+    Literature recommended SoftPlusHSGP configuration:
+
+    .. plot::
+        :include-source: True
+        :context: reset
+
+        import numpy as np
+        import pandas as pd
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm import SoftPlusHSGP
+
+        seed = sum(map(ord, "Out of the box GP"))
+        rng = np.random.default_rng(seed)
+
+        n = 52
+        X = np.arange(n)
+
+        hsgp = SoftPlusHSGP.parameterize_from_data(
+            X=X,
+            dims="time",
+        )
+
+        dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
+        coords = {
+            "time": dates,
+        }
+        prior = hsgp.sample_prior(coords=coords, random_seed=rng)
+        curve = prior["f"]
+        hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
+
+    New data predictions with HSGP
+
+    .. plot::
+        :include-source: True
+        :context: reset
+
+        import numpy as np
+        import pandas as pd
+
+        import pymc as pm
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm import SoftPlusHSGP
+        from pymc_marketing.prior import Prior
+
+        seed = sum(map(ord, "New data predictions"))
+        rng = np.random.default_rng(seed)
+
+        eta = Prior("Exponential", lam=1)
+        ls = Prior("InverseGamma", alpha=2, beta=1)
+        hsgp = SoftPlusHSGP(
+            eta=eta,
+            ls=ls,
+            m=20,
+            L=150,
+            dims=("time", "channel"),
+        )
+
+        n = 52
+        X = np.arange(n)
+
+        dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
+        coords = {"time": dates, "channel": ["A", "B"]}
+        with pm.Model(coords=coords) as model:
+            data = pm.Data("data", X, dims="time")
+            hsgp.register_data(data).create_variable("f")
+            idata = pm.sample_prior_predictive(random_seed=rng)
+
+        prior = idata.prior
+
+        n_new = 10
+        X_new = np.arange(n, n + n_new)
+        new_dates = pd.date_range("2023-01-01", periods=n_new, freq="W-MON")
+
+        with model:
+            pm.set_data(
+                new_data={
+                    "data": X_new,
+                },
+                coords={"time": new_dates},
+            )
+            post = pm.sample_posterior_predictive(
+                prior,
+                var_names=["f"],
+                random_seed=rng,
+            )
+
+        chain, draw = 0, 50
+        colors = ["C0", "C1"]
+
+
+        def get_sample(curve):
+            return curve.loc[chain, draw].to_series().unstack()
+
+
+        ax = prior["f"].pipe(get_sample).plot(color=colors)
+        post.posterior_predictive["f"].pipe(get_sample).plot(
+            ax=ax, color=colors, linestyle="--", legend=False
+        )
+        ax.set(xlabel="time", ylabel="f", title="New data predictions")
+        plt.show()
+    """
+
+    def create_variable(self, name: str) -> TensorVariable:
+        """Create the variable."""
+        f = super().create_variable(f"{name}_raw")
+        f = pt.softplus(f)
+        centered_f = f - f.mean(axis=0).eval() + 1
+        return pm.Deterministic(name, centered_f, dims=self.dims)
