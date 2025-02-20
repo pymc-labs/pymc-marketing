@@ -2162,10 +2162,24 @@ class MMM(
                 "Unsupported time granularity. Choose from 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'."
             )
 
-        if controls is not None:
+        mmm_has_controls = (
+            self.control_columns is not None
+            and len(self.control_columns) > 0
+            and all(
+                column in self.preprocessed_data["X"].columns
+                for column in self.control_columns
+            )
+        )
+
+        if controls is not None and mmm_has_controls:
             _controls: list[str] = controls
+        elif controls is not None and not mmm_has_controls:
+            raise ValueError(
+                """The model was built without controls and cannot translate the provided controls to contributions.
+                Remove the controls from the function call and try again."""
+            )
         else:
-            controls = []
+            _controls = []
 
         last_date = pd.to_datetime(df[date_column]).max()
         new_dates = []
