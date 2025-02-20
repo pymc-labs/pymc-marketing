@@ -92,19 +92,19 @@ class TestParetoNBDModel:
     @pytest.fixture(scope="class")
     def model_config(self):
         return {
-            "r_prior": Prior("HalfNormal"),
-            "alpha_prior": Prior("HalfStudentT", nu=4),
-            "s_prior": Prior("HalfCauchy", beta=2),
-            "beta_prior": Prior("Gamma", alpha=1, beta=1),
+            "r": Prior("HalfNormal"),
+            "alpha": Prior("HalfStudentT", nu=4),
+            "s": Prior("HalfCauchy", beta=2),
+            "beta": Prior("Gamma", alpha=1, beta=1),
         }
 
     @pytest.fixture(scope="class")
     def default_model_config(self):
         return {
-            "r_prior": Prior("Weibull", alpha=2, beta=1),
-            "alpha_prior": Prior("Weibull", alpha=2, beta=10),
-            "s_prior": Prior("Weibull", alpha=2, beta=1),
-            "beta_prior": Prior("Weibull", alpha=2, beta=10),
+            "r": Prior("Weibull", alpha=2, beta=1),
+            "alpha": Prior("Weibull", alpha=2, beta=10),
+            "s": Prior("Weibull", alpha=2, beta=1),
+            "beta": Prior("Weibull", alpha=2, beta=10),
         }
 
     def test_model(self, model_config, default_model_config):
@@ -117,26 +117,26 @@ class TestParetoNBDModel:
             assert isinstance(
                 model.model["r"].owner.op,
                 pm.Weibull
-                if config["r_prior"].distribution == "Weibull"
-                else config["r_prior"].pymc_distribution,
+                if config["r"].distribution == "Weibull"
+                else config["r"].pymc_distribution,
             )
             assert isinstance(
                 model.model["alpha"].owner.op,
                 pm.Weibull
-                if config["alpha_prior"].distribution == "Weibull"
-                else config["alpha_prior"].pymc_distribution,
+                if config["alpha"].distribution == "Weibull"
+                else config["alpha"].pymc_distribution,
             )
             assert isinstance(
                 model.model["s"].owner.op,
                 pm.Weibull
-                if config["s_prior"].distribution == "Weibull"
-                else config["s_prior"].pymc_distribution,
+                if config["s"].distribution == "Weibull"
+                else config["s"].pymc_distribution,
             )
             assert isinstance(
                 model.model["beta"].owner.op,
                 pm.Weibull
-                if config["beta_prior"].distribution == "Weibull"
-                else config["beta_prior"].pymc_distribution,
+                if config["beta"].distribution == "Weibull"
+                else config["beta"].pymc_distribution,
             )
 
             assert model.model.eval_rv_shapes() == {
@@ -671,12 +671,12 @@ class TestParetoNBDModelWithCovariates:
         )
         # The default parameter priors are very informative. We use something more broad here
         custom_priors = {
-            "r_prior": Prior("Exponential", scale=10),
-            "alpha_prior": Prior("Exponential", scale=10),
-            "s_prior": Prior("Exponential", scale=10),
-            "beta_prior": Prior("Exponential", scale=10),
-            "purchase_coefficient_prior": Prior("Normal", mu=6, sigma=6),
-            "dropout_coefficient_prior": Prior("Normal", mu=3, sigma=3),
+            "r": Prior("Exponential", scale=10),
+            "alpha": Prior("Exponential", scale=10),
+            "s": Prior("Exponential", scale=10),
+            "beta": Prior("Exponential", scale=10),
+            "purchase_coefficient": Prior("Normal", mu=6, sigma=6),
+            "dropout_coefficient": Prior("Normal", mu=3, sigma=3),
         }
         new_model = ParetoNBDModel(
             synthetic_data,
