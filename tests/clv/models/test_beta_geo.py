@@ -81,19 +81,19 @@ class TestBetaGeoModel:
     @pytest.fixture(scope="class")
     def model_config(self):
         return {
-            "a_prior": Prior("HalfNormal"),
-            "b_prior": Prior("HalfStudentT", nu=4),
-            "alpha_prior": Prior("HalfCauchy", beta=2),
-            "r_prior": Prior("Gamma", alpha=1, beta=1),
+            "a": Prior("HalfNormal"),
+            "b": Prior("HalfStudentT", nu=4),
+            "alpha": Prior("HalfCauchy", beta=2),
+            "r": Prior("Gamma", alpha=1, beta=1),
         }
 
     @pytest.fixture(scope="class")
     def default_model_config(self):
         return {
-            "a_prior": Prior("HalfFlat"),
-            "b_prior": Prior("HalfFlat"),
-            "alpha_prior": Prior("HalfFlat"),
-            "r_prior": Prior("HalfFlat"),
+            "a": Prior("HalfFlat"),
+            "b": Prior("HalfFlat"),
+            "alpha": Prior("HalfFlat"),
+            "r": Prior("HalfFlat"),
         }
 
     def test_model(self, model_config, default_model_config):
@@ -106,26 +106,26 @@ class TestBetaGeoModel:
             assert isinstance(
                 model.model["a"].owner.op,
                 pm.HalfFlat
-                if config["a_prior"].distribution == "HalfFlat"
-                else config["a_prior"].pymc_distribution,
+                if config["a"].distribution == "HalfFlat"
+                else config["a"].pymc_distribution,
             )
             assert isinstance(
                 model.model["b"].owner.op,
                 pm.HalfFlat
-                if config["b_prior"].distribution == "HalfFlat"
-                else config["b_prior"].pymc_distribution,
+                if config["b"].distribution == "HalfFlat"
+                else config["b"].pymc_distribution,
             )
             assert isinstance(
                 model.model["alpha"].owner.op,
                 pm.HalfFlat
-                if config["alpha_prior"].distribution == "HalfFlat"
-                else config["alpha_prior"].pymc_distribution,
+                if config["alpha"].distribution == "HalfFlat"
+                else config["alpha"].pymc_distribution,
             )
             assert isinstance(
                 model.model["r"].owner.op,
                 pm.HalfFlat
-                if config["r_prior"].distribution == "HalfFlat"
-                else config["r_prior"].pymc_distribution,
+                if config["r"].distribution == "HalfFlat"
+                else config["r"].pymc_distribution,
             )
             assert model.model.eval_rv_shapes() == {
                 "a": (),
@@ -188,10 +188,10 @@ class TestBetaGeoModel:
     ):
         """See Solution #2 on pages 3 and 4 of http://brucehardie.com/notes/027/bgnbd_num_error.pdf"""
         model_config = {
-            "a_prior": Prior("Flat"),
-            "b_prior": Prior("Flat"),
-            "alpha_prior": Prior("Flat"),
-            "r_prior": Prior("Flat"),
+            "a": Prior("Flat"),
+            "b": Prior("Flat"),
+            "alpha": Prior("Flat"),
+            "r": Prior("Flat"),
         }
         data = pd.DataFrame(
             {
@@ -596,10 +596,10 @@ class TestBetaGeoModel:
 
     def test_model_repr(self):
         model_config = {
-            "alpha_prior": Prior("HalfFlat"),
-            "r_prior": Prior("HalfFlat"),
-            "a_prior": Prior("HalfFlat"),
-            "b_prior": Prior("HalfNormal", sigma=10),
+            "alpha": Prior("HalfFlat"),
+            "r": Prior("HalfFlat"),
+            "a": Prior("HalfFlat"),
+            "b": Prior("HalfNormal", sigma=10),
         }
         model = BetaGeoModel(
             data=self.data,
