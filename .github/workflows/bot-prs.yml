@@ -2,6 +2,7 @@ name: Bot PRs
 
 on:
   pull_request:
+    types: [opened]
 
 jobs:
   label-no-releasenotes:
