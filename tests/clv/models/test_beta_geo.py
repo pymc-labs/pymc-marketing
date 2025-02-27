@@ -991,7 +991,7 @@ class TestBetaGeoModelWithCovariates:
         default_model = self.model_with_covariates.model
         with pm.do(default_model, self.true_params):
             prior_pred = pm.sample_prior_predictive(
-                samples=1, random_seed=rng
+                draws=1, random_seed=rng
             ).prior_predictive
         synthetic_obs = prior_pred["recency_frequency"].squeeze()
 
@@ -1033,7 +1033,7 @@ class TestBetaGeoModelWithCovariates:
         default_model = self.model_with_covariates_phi_kappa.model
         with pm.do(default_model, self.true_params):
             prior_pred = pm.sample_prior_predictive(
-                samples=1, random_seed=rng
+                draws=1, random_seed=rng
             ).prior_predictive
         synthetic_obs = prior_pred["recency_frequency"].squeeze()
 

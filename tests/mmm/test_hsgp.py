@@ -344,7 +344,7 @@ def test_hsgp_with_shared_data():
         ), "f is not connected to X_shared in the computational graph"
 
         # Sample from prior to get initial values
-        prior = pm.sample_prior_predictive(samples=1)
+        prior = pm.sample_prior_predictive(draws=1)
 
         # prior should have a "f" variable
         assert "f" in prior.prior

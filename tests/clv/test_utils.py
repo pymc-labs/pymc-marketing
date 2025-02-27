@@ -76,7 +76,7 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
     )
     model.build_model()
     fake_fit = pm.sample_prior_predictive(
-        samples=50, model=model.model, random_seed=rng
+        draws=50, model=model.model, random_seed=rng
     ).prior
     set_model_fit(model, fake_fit)
 
