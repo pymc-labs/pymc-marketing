@@ -524,7 +524,7 @@ def plot_expected_purchases_ppc(
             model.build_model()
 
             prior_idata = pm.sample_prior_predictive(
-                samples=samples,
+                draws=samples,
                 model=model.model,
                 random_seed=random_seed,
             )
