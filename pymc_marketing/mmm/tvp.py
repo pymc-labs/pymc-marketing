@@ -87,17 +87,21 @@ Create a basic PyMC model using the time-varying GP multiplier:
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import pymc as pm
 import pytensor.tensor as pt
 from pymc.distributions.shape_utils import Dims
 
 from pymc_marketing.constants import DAYS_IN_YEAR
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
-from pymc_marketing.mmm.hsgp import HSGP, CovFunc
+from pymc_marketing.mmm.hsgp import CovFunc, SoftPlusHSGP
 from pymc_marketing.prior import Prior
 
 
-def _create_hsgp_instance(X, X_mid, dims: Dims, hsgp_kwargs: HSGPKwargs) -> HSGP:
+def _create_hsgp_instance(
+    X,
+    X_mid,
+    dims: Dims,
+    hsgp_kwargs: HSGPKwargs,
+) -> SoftPlusHSGP:
     X = pt.as_tensor_variable(X)
     eta = Prior("Exponential", lam=hsgp_kwargs.eta_lam)
     ls = Prior("InverseGamma", mu=hsgp_kwargs.ls_mu, sigma=hsgp_kwargs.ls_sigma)
@@ -115,7 +119,7 @@ def _create_hsgp_instance(X, X_mid, dims: Dims, hsgp_kwargs: HSGPKwargs) -> HSGP
     else:
         L = hsgp_kwargs.L
 
-    return HSGP(
+    return SoftPlusHSGP(
         eta=eta,
         ls=ls,
         m=hsgp_kwargs.m,
@@ -180,10 +184,7 @@ def time_varying_prior(
         dims=dims,
         hsgp_kwargs=hsgp_kwargs,
     )
-    f = hsgp.create_variable(f"{name}_raw")
-    f = pt.softplus(f)
-    centered_f = f - f.mean(axis=0) + 1
-    return pm.Deterministic(name, centered_f, dims=dims)
+    return hsgp.create_variable(name)
 
 
 def create_time_varying_gp_multiplier(
