@@ -46,11 +46,9 @@ jobs:
           git commit -m "Update UML Diagrams"
           gh pr create \
             --base main \
-            --head update-uml-diagrams \
             --title "Update UML Diagrams" \
             --body "This PR updates the UML Diagrams" \
             --label "no releasenotes" \
-            --reviewer wd60622 \
-            --reviewer juanitorduz
+            --reviewer "wd60622,juanitorduz"
         env:
           GH_TOKEN: ${{ github.token }}
