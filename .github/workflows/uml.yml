@@ -48,7 +48,11 @@ jobs:
           gh pr create \
             --base main \
             --title "Update UML Diagrams" \
-            --body "This PR updates the UML Diagrams" \
+            --body "This PR updates the UML diagrams
+
+            This PR was created automatically by the [UML workflow](https://github.com/pymc-labs/pymc-marketing/blob/main/.github/workflows/uml.yml).
+
+            See the logs [here](https://github.com/pymc-labs/pymc-marketing/actions/workflows/uml.yml) for more details." \
             --label "no releasenotes" \
             --reviewer "wd60622,juanitorduz"
         env:
