@@ -44,6 +44,7 @@ jobs:
         run: |
           git checkout -b update-uml-diagrams
           git commit -m "Update UML Diagrams"
+          git push -u origin update-uml-diagrams
           gh pr create \
             --base main \
             --title "Update UML Diagrams" \
