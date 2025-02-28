@@ -7,7 +7,6 @@ on:
 
 jobs:
   build:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
@@ -42,7 +41,6 @@ jobs:
           fi
 
       - name: Create PR for changes
-        if: steps.detect_changes.outputs.changes_exist == "true"
         run: |
           git checkout -b update-uml-diagrams
           git commit -m "Update UML Diagrams"
