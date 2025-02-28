@@ -1027,8 +1027,8 @@ class MMM(ModelBuilder):
 
             # Add intercept logic
             if self.time_varying_intercept:
-                baseline_intercept = self.model_config["intercept"].create_variable(
-                    "baseline_intercept"
+                intercept_baseline = self.model_config["intercept"].create_variable(
+                    "intercept_baseline"
                 )
 
                 intercept_latent_process = SoftPlusHSGP.parameterize_from_data(
@@ -1039,7 +1039,7 @@ class MMM(ModelBuilder):
 
                 intercept = pm.Deterministic(
                     name="intercept_contribution",
-                    var=baseline_intercept[None, ...] * intercept_latent_process,
+                    var=intercept_baseline[None, ...] * intercept_latent_process,
                     dims=("date", *self.dims),
                 )
             else:
