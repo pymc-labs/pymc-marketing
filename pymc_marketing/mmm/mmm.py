@@ -144,7 +144,7 @@ class BaseMMM(BaseValidateMMM):
         time_varying_intercept : bool, optional
             Whether to consider time-varying intercept, by default False.
             Because the `time-varying` variable is centered around 1 and acts as a multiplier,
-            the variable `baseline_intercept` now represents the mean of the time-varying intercept.
+            the variable `intercept_baseline` now represents the mean of the time-varying intercept.
         time_varying_media : bool, optional
             Whether to consider time-varying media contributions, by default False.
             The `time-varying-media` creates a time media variable centered around 1,
@@ -479,8 +479,8 @@ class BaseMMM(BaseValidateMMM):
                 )
 
             if self.time_varying_intercept:
-                baseline_intercept = self.model_config["intercept"].create_variable(
-                    "baseline_intercept"
+                intercept_baseline = self.model_config["intercept"].create_variable(
+                    "intercept_baseline"
                 )
 
                 intercept_latent_process = create_time_varying_gp_multiplier(
@@ -493,7 +493,7 @@ class BaseMMM(BaseValidateMMM):
                 )
                 intercept = pm.Deterministic(
                     name="intercept",
-                    var=baseline_intercept * intercept_latent_process,
+                    var=intercept_baseline * intercept_latent_process,
                     dims="date",
                 )
             else:
