@@ -371,7 +371,3 @@ class CLVModel(ModelBuilder):
     def output_var(self):
         """Output variable of the model."""
         pass
-
-    def _data_setter(self):
-        """Set the data for the model."""
-        pass
