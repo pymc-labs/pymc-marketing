@@ -11,6 +11,33 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+"""Prior distributions for PyMC Marketing models."""
+
+from __future__ import annotations
+
+import copy
+import warnings
+from collections.abc import Callable
+from functools import partial
+from inspect import signature
+from typing import Any, Protocol, runtime_checkable
+
+import numpy as np
+import pymc as pm
+import xarray as xr
+from pydantic import InstanceOf, validate_call
+from pydantic.dataclasses import dataclass
+from pymc.distributions.shape_utils import Dims
+from pytensor import tensor as pt
+
+from pymc_marketing.deserialize import deserialize, register_deserialization
+
+# Define __all__ to explicitly list what should be exposed in the documentation
+__all__ = [
+    "Censored",
+    "Prior",
+]
+
 """Class that represents a prior distribution.
 
 The `Prior` class is a wrapper around PyMC distributions that allows the user
@@ -93,25 +120,6 @@ Create a prior with a custom transform function by registering it with
     custom_distribution = Prior("Normal", transform="square")
 
 """
-
-from __future__ import annotations
-
-import copy
-import warnings
-from collections.abc import Callable
-from functools import partial
-from inspect import signature
-from typing import Any, Protocol, runtime_checkable
-
-import numpy as np
-import pymc as pm
-import pytensor.tensor as pt
-import xarray as xr
-from pydantic import InstanceOf, validate_call
-from pydantic.dataclasses import dataclass
-from pymc.distributions.shape_utils import Dims
-
-from pymc_marketing.deserialize import deserialize, register_deserialization
 
 
 class UnsupportedShapeError(Exception):
@@ -1369,5 +1377,12 @@ def __getattr__(name: str):
         samples = dist.sample_prior(coords={"channel": ["C1", "C2", "C3"]})
 
     """
+    # Special handling for Sphinx documentation
+    if name.startswith("__") and name.endswith("__"):
+        raise AttributeError(f"module 'pymc_marketing.prior' has no attribute '{name}'")
+
+    # Check if the distribution exists in PyMC
     _get_pymc_distribution(name)
+
+    # Return a partial function of Prior with the specified distribution
     return partial(Prior, distribution=name)
