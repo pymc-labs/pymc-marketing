@@ -267,7 +267,7 @@ class TestBetaGeoBetaBinomModel:
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
-        "fit_method, rtol",
+        "method, rtol",
         [
             (
                 "mcmc",
@@ -276,17 +276,15 @@ class TestBetaGeoBetaBinomModel:
             ("map", 0.2),
         ],
     )
-    def test_model_convergence(self, fit_method, rtol, model_config):
+    def test_model_convergence(self, method, rtol, model_config):
         model = BetaGeoBetaBinomModel(
             data=self.sample_data,
             model_config=model_config,
         )
         model.build_model()
 
-        sample_kwargs = (
-            dict(random_seed=self.rng, chains=2) if fit_method == "mcmc" else {}
-        )
-        model.fit(fit_method=fit_method, progressbar=False, **sample_kwargs)
+        sample_kwargs = dict(random_seed=self.rng, chains=2) if method == "mcmc" else {}
+        model.fit(method=method, progressbar=False, **sample_kwargs)
 
         fit = model.idata.posterior
         np.testing.assert_allclose(
