@@ -109,14 +109,15 @@ class CLVModel(ModelBuilder):
 
     def fit(  # type: ignore
         self,
-        fit_method: str = "mcmc",
+        method: str = "mcmc",
+        fit_method: str | None = None,
         **kwargs,
     ) -> az.InferenceData:
         """Infer model posterior.
 
         Parameters
         ----------
-        fit_method: str
+        method: str
             Method used to fit the model. Options are:
             - "mcmc": Samples from the posterior via `pymc.sample` (default)
             - "map": Finds maximum a posteriori via `pymc.find_MAP`
@@ -129,8 +130,17 @@ class CLVModel(ModelBuilder):
         """
         self.build_model()  # type: ignore
 
+        if fit_method:
+            warnings.warn(
+                "'fit_method' is deprecated and will be removed in a future release. "
+                "Use 'method' instead.",
+                DeprecationWarning,
+                stacklevel=1,
+            )
+            method = fit_method
+
         approx = None
-        match fit_method:
+        match method:
             case "mcmc":
                 idata = self._fit_mcmc(**kwargs)
             case "map":
@@ -143,7 +153,7 @@ class CLVModel(ModelBuilder):
                 approx, idata = self._fit_approx(method="fullrank_advi", **kwargs)
             case _:
                 raise ValueError(
-                    f"Fit method options are ['mcmc', 'map', 'demz', 'advi', 'fullrank_advi'], got: {fit_method}"
+                    f"Fit method options are ['mcmc', 'map', 'demz', 'advi', 'fullrank_advi'], got: {method}"
                 )
 
         self.idata = idata
