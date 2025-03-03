@@ -1351,7 +1351,7 @@ register_deserialization(is_type=_is_prior_type, deserialize=Prior.from_dict)
 register_deserialization(is_type=_is_censored_type, deserialize=Censored.from_dict)
 
 
-class _IterablePartial:  # pragma: no cover
+class _SphinxIterablePartial:  # pragma: no cover
     """A wrapper around functools.partial that makes it iterable for Sphinx documentation.
 
     .. private-class:: This class is not part of the public API.
@@ -1408,4 +1408,4 @@ def __getattr__(name: str):
     # Check if the distribution exists in PyMC
     _get_pymc_distribution(name)
     # Return an iterable wrapper around the partial function
-    return _IterablePartial(partial(Prior, distribution=name))
+    return _SphinxIterablePartial(partial(Prior, distribution=name))
