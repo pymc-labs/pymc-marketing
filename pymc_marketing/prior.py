@@ -1376,7 +1376,16 @@ def __getattr__(name: str):
 
     """
     # Special handling for Sphinx documentation
-    if name.startswith("__") and name.endswith("__"):
+    # Allow certain safe dunder attributes to pass through
+    safe_dunder_attrs = {
+        "__version__",
+        "__path__",
+        "__package__",
+        "__spec__",
+        "__loader__",
+        "__name__",
+    }
+    if name.startswith("__") and name.endswith("__") and name not in safe_dunder_attrs:
         raise AttributeError(f"module 'pymc_marketing.prior' has no attribute '{name}'")
 
     # Check if the distribution exists in PyMC
