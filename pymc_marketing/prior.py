@@ -1404,7 +1404,7 @@ def __getattr__(name: str):
 
     try:
         # Check if the distribution exists in PyMC
-        dist = _get_pymc_distribution(name)
+        _ = _get_pymc_distribution(name)
         # Return an iterable wrapper around the partial function
         return IterablePartial(partial(Prior, distribution=name))
     except UnsupportedDistributionError:
