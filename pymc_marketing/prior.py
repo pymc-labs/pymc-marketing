@@ -1351,6 +1351,20 @@ register_deserialization(is_type=_is_prior_type, deserialize=Prior.from_dict)
 register_deserialization(is_type=_is_censored_type, deserialize=Censored.from_dict)
 
 
+class IterablePartial:
+    """A wrapper around functools.partial that makes it iterable for Sphinx documentation."""
+
+    def __init__(self, partial_func):
+        self.partial_func = partial_func
+
+    def __call__(self, *args, **kwargs):
+        return self.partial_func(*args, **kwargs)
+
+    def __iter__(self):
+        # Make this object iterable for Sphinx
+        return iter([])
+
+
 def __getattr__(name: str):
     """Get Prior class through the module.
 
@@ -1388,8 +1402,11 @@ def __getattr__(name: str):
     if name.startswith("__") and name.endswith("__") and name not in safe_dunder_attrs:
         raise AttributeError(f"module 'pymc_marketing.prior' has no attribute '{name}'")
 
-    # Check if the distribution exists in PyMC
-    _get_pymc_distribution(name)
-
-    # Return a partial function of Prior with the specified distribution
-    return partial(Prior, distribution=name)
+    try:
+        # Check if the distribution exists in PyMC
+        dist = _get_pymc_distribution(name)
+        # Return an iterable wrapper around the partial function
+        return IterablePartial(partial(Prior, distribution=name))
+    except UnsupportedDistributionError:
+        # If the distribution doesn't exist, raise AttributeError
+        raise AttributeError(f"module 'pymc_marketing.prior' has no attribute '{name}'")
