@@ -113,6 +113,17 @@ from pymc.distributions.shape_utils import Dims
 
 from pymc_marketing.deserialize import deserialize, register_deserialization
 
+__all__ = [
+    "Censored",
+    "MuAlreadyExistsError",
+    "Prior",
+    "UnknownTransformError",
+    "UnsupportedDistributionError",
+    "UnsupportedParameterizationError",
+    "UnsupportedShapeError",
+    "register_tensor_transform",
+]
+
 
 class UnsupportedShapeError(Exception):
     """Error for when the shapes from variables are not compatible."""
