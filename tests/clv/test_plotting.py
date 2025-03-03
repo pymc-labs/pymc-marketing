@@ -183,8 +183,8 @@ def test_plot_expected_purchases_over_time(
 
 
 def test_plot_expected_purchases_over_time_exceptions(mock_model, cdnow_trans):
-    with pytest.raises(
-        UserWarning,
+    with pytest.warns(
+        DeprecationWarning,
         match="t_unobserved is deprecated and will be removed in a future release. "
         "Use t_start_eval instead.",
     ):

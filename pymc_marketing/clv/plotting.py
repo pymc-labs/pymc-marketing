@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Plotting functions for the CLV module."""
 
+import warnings
 from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
@@ -468,9 +469,11 @@ def plot_expected_purchases_over_time(
     ax = df_cum_purchases.plot(ax=ax, title=title, **kwargs)
 
     if t_unobserved:
-        raise UserWarning(
+        warnings.warn(
             "t_unobserved is deprecated and will be removed in a future release. "
-            "Use t_start_eval instead."
+            "Use t_start_eval instead.",
+            DeprecationWarning,
+            stacklevel=1,
         )
         t_start_eval = t_unobserved
 
