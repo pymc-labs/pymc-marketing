@@ -131,11 +131,13 @@ class CLVModel(ModelBuilder):
         self.build_model()  # type: ignore
 
         if fit_method:
-            method = fit_method
-            raise UserWarning(
+            warnings.warn(
                 "'fit_method' is deprecated and will be removed in a future release. "
-                "Use 'method' instead."
+                "Use 'method' instead.",
+                DeprecationWarning,
+                stacklevel=1,
             )
+            method = fit_method
 
         approx = None
         match method:

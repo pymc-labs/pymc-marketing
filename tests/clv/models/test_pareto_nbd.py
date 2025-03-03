@@ -393,8 +393,8 @@ class TestParetoNBDModel:
         os.remove("test_model")
 
     def test_fit_exception(self):
-        with pytest.raises(
-            UserWarning,
+        with pytest.warns(
+            DeprecationWarning,
             match=(
                 "'fit_method' is deprecated and will be removed in a future release. "
                 "Use 'method' instead."

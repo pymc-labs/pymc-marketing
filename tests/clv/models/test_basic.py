@@ -161,8 +161,8 @@ class TestCLVModel:
 
     def test_fit_exception(self):
         model = CLVModelTest()
-        with pytest.raises(
-            UserWarning,
+        with pytest.warns(
+            DeprecationWarning,
             match=(
                 "'fit_method' is deprecated and will be removed in a future release. "
                 "Use 'method' instead."
