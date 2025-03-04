@@ -99,7 +99,6 @@ from __future__ import annotations
 import copy
 import warnings
 from collections.abc import Callable
-from functools import partial
 from inspect import signature
 from typing import Any, Protocol, runtime_checkable
 
@@ -1343,31 +1342,3 @@ def _is_censored_type(data: dict) -> bool:
 
 register_deserialization(is_type=_is_prior_type, deserialize=Prior.from_dict)
 register_deserialization(is_type=_is_censored_type, deserialize=Censored.from_dict)
-
-
-def __getattr__(name: str):
-    """Get Prior class through the module.
-
-    Examples
-    --------
-    Create a normal distribution.
-
-    .. code-block:: python
-
-        from pymc_marketing.prior import Normal
-
-        dist = Normal(mu=1, sigma=2)
-
-    Create a hierarchical normal distribution.
-
-    .. code-block:: python
-
-        from pymc_marketing import prior as pr
-
-        dist = pr.Normal(mu=pr.Normal(), sigma=pr.HalfNormal(), dims="channel")
-
-        samples = dist.sample_prior(coords={"channel": ["C1", "C2", "C3"]})
-
-    """
-    _get_pymc_distribution(name)
-    return partial(Prior, distribution=name)
