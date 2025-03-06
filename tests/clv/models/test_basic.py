@@ -95,7 +95,7 @@ class TestCLVModel:
         model = CLVModelTest()
 
         mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
-        idata = model.fit(fit_method="map")
+        idata = model.fit(method="map")
 
         assert isinstance(idata, InferenceData)
         assert len(idata.posterior.chain) == 1
@@ -112,7 +112,7 @@ class TestCLVModel:
         mocker.patch("pymc.sample", mock_sample)
 
         idata = model.fit(
-            fit_method="demz",
+            method="demz",
             tune=5,
             chains=2,
             draws=10,
@@ -128,7 +128,7 @@ class TestCLVModel:
         model = CLVModelTest()
         # mocker.patch("pymc.sample", mock_sample)
         idata = model.fit(
-            fit_method="advi",
+            method="advi",
             tune=5,
             chains=2,
             draws=10,
@@ -145,19 +145,30 @@ class TestCLVModel:
             match="The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",
         ):
             model.fit(
-                fit_method="advi",
+                method="advi",
                 tune=5,
                 chains=2,
                 draws=10,
             )
 
-    def test_wrong_fit_method(self):
+    def test_wrong_method(self):
         model = CLVModelTest()
         with pytest.raises(
             ValueError,
             match=r"Fit method options are \['mcmc', 'map', 'demz', 'advi', 'fullrank_advi'\], got: wrong_method",
         ):
-            model.fit(fit_method="wrong_method")
+            model.fit(method="wrong_method")
+
+    def test_fit_exception(self):
+        model = CLVModelTest()
+        with pytest.warns(
+            DeprecationWarning,
+            match=(
+                "'fit_method' is deprecated and will be removed in a future release. "
+                "Use 'method' instead."
+            ),
+        ):
+            model.fit(fit_method="mcmc")
 
     def test_load(self, mocker):
         model = CLVModelTest()

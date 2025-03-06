@@ -207,14 +207,14 @@ class TestModifiedBetaGeoModel:
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
-        "fit_method, rtol",
+        "method, rtol",
         [
             ("mcmc", 0.075),
             ("map", 0.15),
             ("advi", 0.175),
         ],
     )
-    def test_model_convergence(self, fit_method, rtol, model_config):
+    def test_model_convergence(self, method, rtol, model_config):
         # b parameter has the largest mismatch of the four parameters
         model = ModifiedBetaGeoModel(
             data=self.data,
@@ -224,10 +224,10 @@ class TestModifiedBetaGeoModel:
 
         sample_kwargs = (
             dict(random_seed=self.rng, chains=2, target_accept=0.90)
-            if fit_method == "mcmc"
+            if method == "mcmc"
             else {}
         )
-        model.fit(fit_method=fit_method, progressbar=False, **sample_kwargs)
+        model.fit(method=method, progressbar=False, **sample_kwargs)
 
         fit = model.idata.posterior
         np.testing.assert_allclose(
