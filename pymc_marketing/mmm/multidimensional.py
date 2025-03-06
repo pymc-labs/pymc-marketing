@@ -874,7 +874,7 @@ class MMM(ModelBuilder):
     def add_original_scale_contribution_variable(self, var: list[str]) -> None:
         """Add a pm.Deterministic variable to the model that multiplies by the scaler.
 
-        Restricted to the model parameters. Only make it possible for "_contirbution" variables.
+        Restricted to the model parameters. Only make it possible for "_contribution" variables.
 
         Parameters
         ----------
