@@ -1237,6 +1237,8 @@ class MMM(ModelBuilder):
         ----------
         dataset_xarray : xr.Dataset
             Input data for channels and other variables.
+        clone_model : bool, optional
+            Whether to clone the model. Defaults to True.
 
         Returns
         -------
@@ -1387,6 +1389,8 @@ class MMM(ModelBuilder):
         include_last_observations : bool, optional
             Whether to include the last observations of the training data for continuity
             (useful for adstock transformations). Defaults to False.
+        clone_model : bool, optional
+            Whether to clone the model. Defaults to True.
         **sample_posterior_predictive_kwargs
             Additional arguments for `pm.sample_posterior_predictive`.
 
