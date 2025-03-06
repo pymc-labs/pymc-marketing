@@ -325,7 +325,7 @@ class TestMMM:
         samples: int = 3
         with mmm.model:
             prior_predictive: az.InferenceData = pm.sample_prior_predictive(
-                samples=samples, random_seed=rng
+                draws=samples, random_seed=rng
             )
 
         assert az.extract(

@@ -27,6 +27,7 @@ from pymc_marketing.mmm.hsgp import (
     CovFunc,
     HSGPPeriodic,
     PeriodicCovFunc,
+    SoftPlusHSGP,
     approx_hsgp_hyperparams,
     create_complexity_penalizing_prior,
 )
@@ -343,7 +344,59 @@ def test_hsgp_with_shared_data():
         ), "f is not connected to X_shared in the computational graph"
 
         # Sample from prior to get initial values
-        prior = pm.sample_prior_predictive(samples=1)
+        prior = pm.sample_prior_predictive(draws=1)
 
         # prior should have a "f" variable
         assert "f" in prior.prior
+
+
+def test_soft_plus_hsgp_continous_with_new_data() -> None:
+    seed = sum(map(ord, "No jump from in-sample to out-of-sample"))
+    rng = np.random.default_rng(seed)
+    hsgp = SoftPlusHSGP(
+        m=10,
+        L=5,
+        dims="date",
+        ls=Prior("Exponential", lam=1),
+        eta=Prior("Exponential", lam=1),
+    )
+
+    n_points = 100
+    data = np.linspace(0, 10, n_points)
+
+    n_out_of_sample = 1
+    insample = data[: n_points - n_out_of_sample]
+    outsample = data[n_points - n_out_of_sample :]
+
+    prior_samples = 50
+
+    coords = {"date": insample}
+    with pm.Model(coords=coords) as model:
+        X = pm.Data("X", insample, dims="date")
+        hsgp.register_data(X).create_variable("f")
+
+        idata = pm.sample_prior_predictive(prior_samples, random_seed=rng)
+
+    # set posterior as prior for out of sample
+    idata["posterior"] = idata.prior
+
+    with model:
+        pm.set_data({"X": outsample}, coords={"date": outsample})
+
+        idata.extend(
+            pm.sample_posterior_predictive(
+                idata,
+                var_names=["f"],
+                random_seed=rng,
+            )
+        )
+
+    jump = idata.posterior_predictive["f"].isel(date=0) - idata.prior["f"].isel(date=-1)
+    diffs = idata.prior["f"].diff(dim="date")
+
+    q = 0.95
+    threshold = abs(diffs).quantile(q, dim="date")
+    stat = abs(jump) < threshold
+
+    # Approx 95% of the differences should be below the threshold
+    assert stat.mean().item() >= (q - 0.05)

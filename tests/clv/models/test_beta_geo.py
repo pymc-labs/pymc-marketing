@@ -294,14 +294,14 @@ class TestBetaGeoModel:
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
-        "fit_method, rtol",
+        "method, rtol",
         [
             ("mcmc", 0.1),
             ("map", 0.2),
             ("advi", 0.25),
         ],
     )
-    def test_model_convergence(self, fit_method, rtol, model_config):
+    def test_model_convergence(self, method, rtol, model_config):
         # b parameter has the largest mismatch of the four parameters
         model = BetaGeoModel(
             data=self.data,
@@ -309,10 +309,8 @@ class TestBetaGeoModel:
         )
         model.build_model()
 
-        sample_kwargs = (
-            dict(random_seed=self.rng, chains=2) if fit_method == "mcmc" else {}
-        )
-        model.fit(fit_method=fit_method, progressbar=False, **sample_kwargs)
+        sample_kwargs = dict(random_seed=self.rng, chains=2) if method == "mcmc" else {}
+        model.fit(method=method, progressbar=False, **sample_kwargs)
 
         fit = model.idata.posterior
         np.testing.assert_allclose(
@@ -991,7 +989,7 @@ class TestBetaGeoModelWithCovariates:
         default_model = self.model_with_covariates.model
         with pm.do(default_model, self.true_params):
             prior_pred = pm.sample_prior_predictive(
-                samples=1, random_seed=rng
+                draws=1, random_seed=rng
             ).prior_predictive
         synthetic_obs = prior_pred["recency_frequency"].squeeze()
 
@@ -1033,7 +1031,7 @@ class TestBetaGeoModelWithCovariates:
         default_model = self.model_with_covariates_phi_kappa.model
         with pm.do(default_model, self.true_params):
             prior_pred = pm.sample_prior_predictive(
-                samples=1, random_seed=rng
+                draws=1, random_seed=rng
             ).prior_predictive
         synthetic_obs = prior_pred["recency_frequency"].squeeze()
 
@@ -1055,7 +1053,7 @@ class TestBetaGeoModelWithCovariates:
             model_config=self.model_with_covariates_phi_kappa.model_config
             | custom_priors,
         )
-        new_model.fit(fit_method="map")
+        new_model.fit(method="map")
 
         result = new_model.fit_result
         for var in default_model.free_RVs:

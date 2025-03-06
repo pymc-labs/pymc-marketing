@@ -242,7 +242,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         )
         model.build_model()
         fake_fit = pm.sample_prior_predictive(
-            samples=1000, model=model.model, random_seed=self.rng
+            draws=1000, model=model.model, random_seed=self.rng
         )
         set_model_fit(model, fake_fit.prior)
         # Closed formula solution for the mean and var of the population spend (eqs 3, 4 from [1])
