@@ -642,6 +642,10 @@ class ModelBuilder(ABC):
 
         return xr.merge([X, y])
 
+    def post_sample_model_transformation(self) -> None:
+        """Perform transformation on the model after sampling."""
+        return
+
     def fit(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -706,6 +710,8 @@ class ModelBuilder(ABC):
         )
         with self.model:
             idata = pm.sample(**sampler_kwargs)
+
+        self.post_sample_model_transformation()
 
         if self.idata:
             self.idata = self.idata.copy()
