@@ -31,6 +31,7 @@ from pymc_marketing.mmm.hsgp import (
     approx_hsgp_hyperparams,
     create_complexity_penalizing_prior,
 )
+from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.prior import Prior
 
 
@@ -380,7 +381,7 @@ def test_soft_plus_hsgp_continous_with_new_data() -> None:
     # set posterior as prior for out of sample
     idata["posterior"] = idata.prior
 
-    with model:
+    with deterministics_to_flat(model, names=hsgp.deterministics_to_replace("f")):
         pm.set_data({"X": outsample}, coords={"date": outsample})
 
         idata.extend(
