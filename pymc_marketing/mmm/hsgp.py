@@ -261,7 +261,8 @@ class HSGPBase(BaseModel):
     X_mid: float | None = Field(None, description="The mean of the training data")
     dims: Dims = Field(..., description="The dimensions of the variable")
 
-    def deterministics_to_replace(self, name: str) -> list[str]:
+    @staticmethod
+    def deterministics_to_replace(name: str) -> list[str]:
         """Name of the deterministics variables that will have to be replaced in the pm.Model."""
         return []
 
@@ -1144,7 +1145,8 @@ class SoftPlusHSGP(HSGP):
         plt.show()
     """
 
-    def deterministics_to_replace(self, name: str) -> list[str]:
+    @staticmethod
+    def deterministics_to_replace(name: str) -> list[str]:
         """Name of the deterministics variables that will have to be replaced in the pm.Model."""
         return [f"{name}_f_mean"]
 
