@@ -261,6 +261,10 @@ class HSGPBase(BaseModel):
     X_mid: float | None = Field(None, description="The mean of the training data")
     dims: Dims = Field(..., description="The dimensions of the variable")
 
+    def deterministics_to_replace(self, name: str) -> list[str]:
+        """Name of the deterministics variables that will have to be replaced in the pm.Model."""
+        return []
+
     def register_data(self, X: TensorLike) -> Self:
         """Register the data to be used in the model.
 
@@ -1061,7 +1065,11 @@ class SoftPlusHSGP(HSGP):
         hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
         plt.show()
 
-    New data predictions with HSGP
+    New data predictions with SoftPlusHSGP
+
+    .. note::
+
+        The softplus transformation requires a clone of the model to correctly sample from the posterior.
 
     .. plot::
         :include-source: True
@@ -1075,6 +1083,7 @@ class SoftPlusHSGP(HSGP):
         import matplotlib.pyplot as plt
 
         from pymc_marketing.mmm import SoftPlusHSGP
+        from pymc_marketing.model_graph import deterministics_to_flat
         from pymc_marketing.prior import Prior
 
         seed = sum(map(ord, "New data predictions"))
@@ -1106,7 +1115,7 @@ class SoftPlusHSGP(HSGP):
         X_new = np.arange(n, n + n_new)
         new_dates = pd.date_range("2023-01-01", periods=n_new, freq="W-MON")
 
-        with model:
+        with deterministics_to_flat(model, hsgp.deterministics_to_replace("f")):
             pm.set_data(
                 new_data={
                     "data": X_new,
@@ -1135,9 +1144,18 @@ class SoftPlusHSGP(HSGP):
         plt.show()
     """
 
+    def deterministics_to_replace(self, name: str) -> list[str]:
+        """Name of the deterministics variables that will have to be replaced in the pm.Model."""
+        return [f"{name}_f_mean"]
+
     def create_variable(self, name: str) -> TensorVariable:
         """Create the variable."""
         f = super().create_variable(f"{name}_raw")
         f = pt.softplus(f)
-        centered_f = f - f.mean(axis=0).eval() + 1
+
+        _, *f_mean_dims = self.dims
+        f_mean_name = f"{name}_f_mean"
+        f_mean = pm.Deterministic(f_mean_name, f.mean(axis=0), dims=f_mean_dims)
+
+        centered_f = f - f_mean + 1
         return pm.Deterministic(name, centered_f, dims=self.dims)
