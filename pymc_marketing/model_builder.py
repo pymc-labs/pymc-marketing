@@ -561,6 +561,7 @@ class ModelBuilder(ABC):
 
         model.idata = idata
         model.build_from_idata(idata)
+        model.post_sample_model_transformation()
 
         if model.id != idata.attrs["id"]:
             msg = (
