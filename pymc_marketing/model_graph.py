@@ -26,7 +26,7 @@ from pytensor.tensor.basic import infer_shape_db
 
 
 def deterministics_to_flat(model, names):
-    """Replace all Deterministics in a model with Flat.
+    """Replace all specified Deterministic nodes in a pm.Model with Flat.
 
     Parameters
     ----------
@@ -39,6 +39,40 @@ def deterministics_to_flat(model, names):
     -------
     new_model : pm.Model
         New model with all priors replaced by flat priors
+
+    Examples
+    --------
+    Use on a toy model:
+
+    .. code-block:: python
+
+        import pymc as pm
+        import numpy as np
+        import xarray as xr
+        from pymc_marketing.model_graph import deterministics_to_flat
+
+        with pm.Model() as model:
+            x = pm.Normal("x", mu=0, sigma=1)
+            y = pm.Deterministic("y", x ** 2)
+            z = pm.Deterministic("z", x + y)
+
+        new_model = deterministics_to_flat(model, ["y"])
+
+        chains, draws = 2, 100
+        mock_posterior = xr.Dataset({
+            "y": (("chain", "draw"), np.zeros((chains, draws))),
+        }, coords={"chain": np.arange(chains), "draw": np.arange(draws)})
+
+        x_z_given_y = pm.sample_posterior_predictive(
+            mock_posterior,
+            model=new_model,
+            var_names=["x", "z"],
+        ).posterior_predictive
+        np.testing.assert_allclose(
+            x_z_given_y["x"],
+            x_z_given_y["z"],
+        )
+
     """
     fg, memo = fgraph_from_model(model, inlined_views=True)
 
