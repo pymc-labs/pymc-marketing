@@ -1070,7 +1070,12 @@ class SoftPlusHSGP(HSGP):
 
     .. note::
 
-        The softplus transformation requires a clone of the model to correctly sample from the posterior.
+        In making the predictions, the model needs to be transformed in order to
+        keep the data centered around 1. There is a helper function
+        :func:`pymc_marketing.model_graph.deterministics_to_flat` that can be used
+        to transform the model upon out of sample predictions.
+
+        This transformation is automatically handled in the provided MMMs.
 
     .. plot::
         :include-source: True
@@ -1087,7 +1092,7 @@ class SoftPlusHSGP(HSGP):
         from pymc_marketing.model_graph import deterministics_to_flat
         from pymc_marketing.prior import Prior
 
-        seed = sum(map(ord, "New data predictions"))
+        seed = sum(map(ord, "New data predictions with SoftPlusHSGP"))
         rng = np.random.default_rng(seed)
 
         eta = Prior("Exponential", lam=1)
@@ -1103,8 +1108,9 @@ class SoftPlusHSGP(HSGP):
         n = 52
         X = np.arange(n)
 
+        channels = ["A", "B", "C"]
         dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
-        coords = {"time": dates, "channel": ["A", "B"]}
+        coords = {"time": dates, "channel": channels}
         with pm.Model(coords=coords) as model:
             data = pm.Data("data", X, dims="time")
             hsgp.register_data(data).create_variable("f")
@@ -1113,8 +1119,9 @@ class SoftPlusHSGP(HSGP):
         prior = idata.prior
 
         n_new = 10
-        X_new = np.arange(n, n + n_new)
-        new_dates = pd.date_range("2023-01-01", periods=n_new, freq="W-MON")
+        X_new = np.arange(n - 1 , n + n_new)
+        last_date = dates[-1]
+        new_dates = pd.date_range(last_date, periods=n_new + 1, freq="W-MON")
 
         with deterministics_to_flat(model, hsgp.deterministics_to_replace("f")):
             pm.set_data(
@@ -1129,8 +1136,8 @@ class SoftPlusHSGP(HSGP):
                 random_seed=rng,
             )
 
-        chain, draw = 0, 50
-        colors = ["C0", "C1"]
+        chain, draw = 0, rng.choice(prior.sizes["draw"])
+        colors = [f"C{i}" for i in range(len(channels))]
 
 
         def get_sample(curve):
