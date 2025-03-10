@@ -25,8 +25,16 @@ from pytensor.graph import rewrite_graph
 from pytensor.tensor.basic import infer_shape_db
 
 
-def deterministics_to_flat(model, names):
+def deterministics_to_flat(model: pm.Model, names: list[str]) -> pm.Model:
     """Replace all specified Deterministic nodes in a pm.Model with Flat.
+
+    This is useful to capture some state from a model and to then sample from
+    the model using that state. For example, capturing the mean of a distribution
+    or a value of a deterministic variable.
+
+    See :class:`pymc_marketing.mmm.hsgp.SoftPlusHSGP` for an example of how this
+    is used to keep a variable centered around 1.0 during sampling but stay continuous
+    with new values.
 
     Parameters
     ----------
@@ -42,7 +50,7 @@ def deterministics_to_flat(model, names):
 
     Examples
     --------
-    Use on a toy model:
+    Replace single Deterministic with Flat and sample as if it were zeros.
 
     .. code-block:: python
 
@@ -68,6 +76,7 @@ def deterministics_to_flat(model, names):
             model=new_model,
             var_names=["x", "z"],
         ).posterior_predictive
+
         np.testing.assert_allclose(
             x_z_given_y["x"],
             x_z_given_y["z"],
