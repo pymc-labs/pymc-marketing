@@ -263,7 +263,12 @@ class HSGPBase(BaseModel):
 
     @staticmethod
     def deterministics_to_replace(name: str) -> list[str]:
-        """Name of the deterministics variables that will have to be replaced in the pm.Model."""
+        """Name of the Deterministic variables that are replaced with pm.Flat for out-of-sample.
+
+        This is required for out-of-sample predictions for some HSGP variables. Replacing with
+        pm.Flat will sample from the values learned in the training data.
+
+        """
         return []
 
     def register_data(self, X: TensorLike) -> Self:
@@ -1154,7 +1159,13 @@ class SoftPlusHSGP(HSGP):
 
     @staticmethod
     def deterministics_to_replace(name: str) -> list[str]:
-        """Name of the deterministics variables that will have to be replaced in the pm.Model."""
+        """Name of the Deterministic variables that are replaced with pm.Flat for out-of-sample.
+
+        This is required for in order to keep out-of-sample predictions use mean of 1.0
+        from the training set. Without this, the training and test data will not be
+        continuous, showing a jump from the training data to the test data.
+
+        """
         return [f"{name}_f_mean"]
 
     def create_variable(self, name: str) -> TensorVariable:
