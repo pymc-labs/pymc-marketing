@@ -886,8 +886,8 @@ class MMM(ModelBuilder):
 
     def _validate_contribution_variable(self, var: str) -> None:
         """Validate that the variable ends with "_contribution" and is in the model."""
-        if not var.endswith("_contribution"):
-            raise ValueError(f"Variable {var} must end with '_contribution'")
+        if not (var.endswith("_contribution") or var == "y"):
+            raise ValueError(f"Variable {var} must end with '_contribution' or be 'y'")
 
         if var not in self.model.named_vars:
             raise ValueError(f"Variable {var} is not in the model")
@@ -895,7 +895,7 @@ class MMM(ModelBuilder):
     def add_original_scale_contribution_variable(self, var: list[str]) -> None:
         """Add a pm.Deterministic variable to the model that multiplies by the scaler.
 
-        Restricted to the model parameters. Only make it possible for "_contirbution" variables.
+        Restricted to the model parameters. Only make it possible for "_contribution" variables.
 
         Parameters
         ----------
@@ -1026,13 +1026,9 @@ class MMM(ModelBuilder):
             channel_data_.dims = ("date", *self.dims, "channel")
 
             ## Hot fix for target data meanwhile pymc allows for internal scaling `https://github.com/pymc-devs/pymc/pull/7656`
-            target_data_scaled = _target / _target_scale
-            target_data_scaled.name = "target_scaled"
-            target_data_scaled.dims = ("date", *self.dims)
-
-            target_data_ = pm.Data(
-                name="target",
-                value=target_data_scaled.eval(),
+            target_data_scaled = pm.Deterministic(
+                name="target_scaled",
+                var=_target / _target_scale,
                 dims=("date", *self.dims),
             )
 
@@ -1163,7 +1159,7 @@ class MMM(ModelBuilder):
             self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,
                 mu=mu_var,
-                observed=target_data_,
+                observed=target_data_scaled,
             )
 
     def _posterior_predictive_data_transformation(
@@ -1245,7 +1241,7 @@ class MMM(ModelBuilder):
         self.dataarrays = dataarrays
         self._new_internal_xarray = xr.merge(dataarrays).fillna(0)
 
-        return xr.merge(dataarrays).fillna(0).astype(np.int32)
+        return xr.merge(dataarrays).fillna(0)
 
     def _set_xarray_data(
         self,
@@ -1258,6 +1254,8 @@ class MMM(ModelBuilder):
         ----------
         dataset_xarray : xr.Dataset
             Input data for channels and other variables.
+        clone_model : bool, optional
+            Whether to clone the model. Defaults to True.
 
         Returns
         -------
@@ -1288,9 +1286,6 @@ class MMM(ModelBuilder):
             )
 
         if "target" in dataset_xarray:
-            data["target"] = dataset_xarray._target.sum(dim="target").transpose(
-                "date", *self.dims
-            )
 
             data["target_data"] = dataset_xarray._target.sum(dim="target").transpose(
                 "date", *self.dims
@@ -1408,6 +1403,8 @@ class MMM(ModelBuilder):
         include_last_observations : bool, optional
             Whether to include the last observations of the training data for continuity
             (useful for adstock transformations). Defaults to False.
+        clone_model : bool, optional
+            Whether to clone the model. Defaults to True.
         **sample_posterior_predictive_kwargs
             Additional arguments for `pm.sample_posterior_predictive`.
 
