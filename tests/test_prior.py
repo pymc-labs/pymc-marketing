@@ -24,7 +24,6 @@ from preliz.distributions.distributions import Distribution
 from pydantic import ValidationError
 from pymc.model_graph import fast_eval
 
-from pymc_marketing import prior as pr
 from pymc_marketing.deserialize import (
     DESERIALIZERS,
     deserialize,
@@ -456,7 +455,7 @@ def test_sample_prior() -> None:
     )
 
     coords = {"channel": ["A", "B", "C"]}
-    prior = var.sample_prior(coords=coords, draws=25)
+    prior = var.sample_prior(coords=coords, samples=25)
 
     assert isinstance(prior, xr.Dataset)
     assert prior.sizes == {"chain": 1, "draw": 25, "channel": 3}
@@ -630,7 +629,7 @@ def test_custom_transform() -> None:
     register_tensor_transform(new_transform_name, lambda x: x**2)
 
     dist = Prior("Normal", transform=new_transform_name)
-    prior = dist.sample_prior(draws=10)
+    prior = dist.sample_prior(samples=10)
     df_prior = prior.to_dataframe()
 
     np.testing.assert_array_equal(
@@ -643,7 +642,7 @@ def test_custom_transform_comes_first() -> None:
     register_tensor_transform("square", lambda x: 2 * x)
 
     dist = Prior("Normal", transform="square")
-    prior = dist.sample_prior(draws=10)
+    prior = dist.sample_prior(samples=10)
     df_prior = prior.to_dataframe()
 
     np.testing.assert_array_equal(
@@ -783,7 +782,7 @@ def test_censored_sample_prior() -> None:
     censored_normal = Censored(normal, lower=0)
 
     coords = {"channel": ["A", "B", "C"]}
-    prior = censored_normal.sample_prior(coords=coords, draws=25)
+    prior = censored_normal.sample_prior(coords=coords, samples=25)
 
     assert isinstance(prior, xr.Dataset)
     assert prior.sizes == {"chain": 1, "draw": 25, "channel": 3}
@@ -1065,20 +1064,3 @@ def test_from_json_deprecation() -> None:
     match = "The `from_json` method is deprecated"
     with pytest.warns(DeprecationWarning, match=match):
         Prior.from_json(data)
-
-
-def test_getattr() -> None:
-    dist = pr.Normal(mu=0, sigma=1)
-
-    assert dist == Prior("Normal", mu=0, sigma=1)
-
-
-def test_import_distribution() -> None:
-    from pymc_marketing.prior import Normal
-
-    assert Normal() == Prior("Normal")
-
-
-def test_import_distribution_error() -> None:
-    with pytest.raises(UnsupportedDistributionError):
-        from pymc_marketing.prior import Invalid  # noqa: F401
