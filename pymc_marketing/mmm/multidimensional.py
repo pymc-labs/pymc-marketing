@@ -1286,7 +1286,6 @@ class MMM(ModelBuilder):
             )
 
         if "target" in dataset_xarray:
-
             data["target_data"] = dataset_xarray._target.sum(dim="target").transpose(
                 "date", *self.dims
             )
