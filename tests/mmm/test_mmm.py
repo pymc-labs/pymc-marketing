@@ -117,6 +117,16 @@ def mmm() -> MMM:
 
 
 @pytest.fixture(scope="module")
+def mmm_no_controls() -> MMM:
+    return MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+    )
+
+
+@pytest.fixture(scope="module")
 def mmm_with_fourier_features() -> MMM:
     return MMM(
         date_column="date",
@@ -137,6 +147,17 @@ def mmm_fitted(
 ) -> MMM:
     mmm.fit(X=toy_X, y=toy_y)
     return mmm
+
+
+@pytest.fixture(scope="module")
+def mmm_fitted_no_controls(
+    mmm_no_controls: MMM,
+    toy_X: pd.DataFrame,
+    toy_y: pd.Series,
+    mock_pymc_sample,
+) -> MMM:
+    mmm_no_controls.fit(X=toy_X, y=toy_y)
+    return mmm_no_controls
 
 
 @pytest.fixture(scope="module")
@@ -304,7 +325,7 @@ class TestMMM:
         samples: int = 3
         with mmm.model:
             prior_predictive: az.InferenceData = pm.sample_prior_predictive(
-                samples=samples, random_seed=rng
+                draws=samples, random_seed=rng
             )
 
         assert az.extract(
@@ -1358,7 +1379,11 @@ def test_initialize_defaults_channel_media_dims() -> None:
     ],
 )
 def test_save_load_with_tvp(
-    time_varying_intercept, time_varying_media, toy_X, toy_y
+    time_varying_intercept,
+    time_varying_media,
+    toy_X,
+    toy_y,
+    mock_pymc_sample,
 ) -> None:
     adstock = GeometricAdstock(l_max=5)
     saturation = LogisticSaturation()
@@ -1382,6 +1407,19 @@ def test_save_load_with_tvp(
 
     # clean up
     os.remove(file)
+
+    expected_flats = []
+    if time_varying_intercept:
+        expected_flats.append("intercept_temporal_latent_multiplier_f_mean")
+    if time_varying_media:
+        expected_flats.append("media_temporal_latent_multiplier_f_mean")
+
+    def get_random_variable_name(var):
+        return var.owner.op.__class__.__name__
+
+    for free_RV in loaded_mmm.model.free_RVs:
+        if free_RV.name in expected_flats:
+            assert get_random_variable_name(free_RV) == "FlatRV"
 
 
 class CustomSaturation(SaturationTransformation):
@@ -1596,6 +1634,83 @@ def test_create_synth_dataset(
 
     # Check channel values are non-negative (since they represent spend)
     for channel in mmm_fitted.channel_columns:
+        assert (synth_df[channel] >= 0).all()
+
+    # Check target variable exists and has reasonable values
+    assert "y" in synth_df.columns
+    assert not synth_df["y"].isna().any()
+
+
+@pytest.mark.parametrize(
+    argnames="noise_level", argvalues=[0.01, 0.05], ids=["low_noise", "high_noise"]
+)
+@pytest.mark.parametrize(
+    argnames="granularity",
+    argvalues=["weekly", "monthly", "quarterly", "yearly"],
+    ids=["weekly", "monthly", "quarterly", "yearly"],
+)
+@pytest.mark.parametrize(
+    argnames="time_length",
+    argvalues=[8, 12, 16, 20],
+    ids=["time_length_8", "time_length_12", "time_length_16", "time_length_20"],
+)
+@pytest.mark.parametrize(
+    argnames="lag", argvalues=[2, 4, 6, 8], ids=["lag_2", "lag_4", "lag_6", "lag_8"]
+)
+def test_create_synth_dataset_no_controls(
+    mmm_fitted_no_controls: MMM,
+    toy_X: pd.DataFrame,
+    noise_level: float,
+    granularity: str,
+    time_length: int,
+    lag: int,
+) -> None:
+    """Test the _create_synth_dataset method of MMM class."""
+
+    # Create a simple allocation strategy
+    channels = mmm_fitted_no_controls.channel_columns
+    allocation_strategy = xr.DataArray(
+        data=np.ones(len(channels)),
+        dims=["channel"],
+        coords={"channel": channels},
+    )
+
+    # Generate synthetic dataset
+    synth_df = mmm_fitted_no_controls._create_synth_dataset(
+        df=toy_X,
+        date_column=mmm_fitted_no_controls.date_column,
+        channels=mmm_fitted_no_controls.channel_columns,
+        controls=mmm_fitted_no_controls.control_columns,
+        target_col="y",
+        allocation_strategy=allocation_strategy,
+        time_granularity=granularity,
+        time_length=time_length,
+        lag=lag,
+        noise_level=noise_level,
+    )
+
+    # Test output properties
+    assert isinstance(synth_df, pd.DataFrame)
+    assert len(synth_df) == time_length
+
+    # Check required columns exist
+    required_columns = {
+        mmm_fitted_no_controls.date_column,
+        *mmm_fitted_no_controls.channel_columns,
+        "y",
+    }
+    if mmm_fitted_no_controls.control_columns:
+        required_columns.update(mmm_fitted_no_controls.control_columns)
+    assert all(col in synth_df.columns for col in required_columns)
+
+    # Check date properties
+    assert pd.api.types.is_datetime64_any_dtype(
+        synth_df[mmm_fitted_no_controls.date_column]
+    )
+    assert len(synth_df[mmm_fitted_no_controls.date_column].unique()) == time_length
+
+    # Check channel values are non-negative (since they represent spend)
+    for channel in mmm_fitted_no_controls.channel_columns:
         assert (synth_df[channel] >= 0).all()
 
     # Check target variable exists and has reasonable values

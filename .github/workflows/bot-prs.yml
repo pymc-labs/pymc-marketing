@@ -1,0 +1,23 @@
+name: Bot PRs
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  label-no-releasenotes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Label no releasenotes
+        run: |
+          number=${{ github.event.pull_request.number }}
+          is_bot=$(gh pr view $number --json author --jq '.author.is_bot')
+          if [[ $is_bot == "true" ]]; then
+            gh pr edit $number --add-label "no releasenotes"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}

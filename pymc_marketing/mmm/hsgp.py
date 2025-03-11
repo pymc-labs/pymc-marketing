@@ -261,6 +261,16 @@ class HSGPBase(BaseModel):
     X_mid: float | None = Field(None, description="The mean of the training data")
     dims: Dims = Field(..., description="The dimensions of the variable")
 
+    @staticmethod
+    def deterministics_to_replace(name: str) -> list[str]:
+        """Name of the Deterministic variables that are replaced with pm.Flat for out-of-sample.
+
+        This is required for out-of-sample predictions for some HSGP variables. Replacing with
+        pm.Flat will sample from the values learned in the training data.
+
+        """
+        return []
+
     def register_data(self, X: TensorLike) -> Self:
         """Register the data to be used in the model.
 
@@ -799,7 +809,7 @@ class HSGPPeriodic(HSGPBase):
 
     Examples
     --------
-    HSGP with default configuration:
+    HSGPPeriodic with default configuration:
 
     .. plot::
         :include-source: True
@@ -845,7 +855,7 @@ class HSGPPeriodic(HSGPBase):
         ax.set(xlabel="Date", ylabel="f", title="HSGP with period of 52 days")
         plt.show()
 
-    Higher dimensional HSGP with periodic data
+    Higher dimensional HSGPPeriodic with periodic data
 
     .. plot::
         :include-source: True
@@ -1018,3 +1028,154 @@ class HSGPPeriodic(HSGPBase):
                 data[key] = Prior.from_dict(data[key])
 
         return cls(**data)
+
+
+class SoftPlusHSGP(HSGP):
+    """HSGP with softplus transformation.
+
+    The use of the softplus transformation centers the data
+    around 1 and keeps the values positive.
+
+    Examples
+    --------
+    Literature recommended SoftPlusHSGP configuration:
+
+    .. plot::
+        :include-source: True
+        :context: reset
+
+        import numpy as np
+        import pandas as pd
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm import SoftPlusHSGP
+
+        seed = sum(map(ord, "Out of the box GP"))
+        rng = np.random.default_rng(seed)
+
+        n = 52
+        X = np.arange(n)
+
+        hsgp = SoftPlusHSGP.parameterize_from_data(
+            X=X,
+            dims="time",
+        )
+
+        dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
+        coords = {
+            "time": dates,
+        }
+        prior = hsgp.sample_prior(coords=coords, random_seed=rng)
+        curve = prior["f"]
+        hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
+
+    New data predictions with SoftPlusHSGP
+
+    .. note::
+
+        In making the predictions, the model needs to be transformed in order to
+        keep the data centered around 1. There is a helper function
+        :func:`pymc_marketing.model_graph.deterministics_to_flat` that can be used
+        to transform the model upon out of sample predictions.
+
+        This transformation is automatically handled in the provided MMMs.
+
+    .. plot::
+        :include-source: True
+        :context: reset
+
+        import numpy as np
+        import pandas as pd
+
+        import pymc as pm
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm import SoftPlusHSGP
+        from pymc_marketing.model_graph import deterministics_to_flat
+        from pymc_marketing.prior import Prior
+
+        seed = sum(map(ord, "New data predictions with SoftPlusHSGP"))
+        rng = np.random.default_rng(seed)
+
+        eta = Prior("Exponential", lam=1)
+        ls = Prior("InverseGamma", alpha=2, beta=1)
+        hsgp = SoftPlusHSGP(
+            eta=eta,
+            ls=ls,
+            m=20,
+            L=150,
+            dims=("time", "channel"),
+        )
+
+        n = 52
+        X = np.arange(n)
+
+        channels = ["A", "B", "C"]
+        dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
+        coords = {"time": dates, "channel": channels}
+        with pm.Model(coords=coords) as model:
+            data = pm.Data("data", X, dims="time")
+            hsgp.register_data(data).create_variable("f")
+            idata = pm.sample_prior_predictive(random_seed=rng)
+
+        prior = idata.prior
+
+        n_new = 10
+        X_new = np.arange(n - 1 , n + n_new)
+        last_date = dates[-1]
+        new_dates = pd.date_range(last_date, periods=n_new + 1, freq="W-MON")
+
+        with deterministics_to_flat(model, hsgp.deterministics_to_replace("f")):
+            pm.set_data(
+                new_data={
+                    "data": X_new,
+                },
+                coords={"time": new_dates},
+            )
+            post = pm.sample_posterior_predictive(
+                prior,
+                var_names=["f"],
+                random_seed=rng,
+            )
+
+        chain, draw = 0, rng.choice(prior.sizes["draw"])
+        colors = [f"C{i}" for i in range(len(channels))]
+
+
+        def get_sample(curve):
+            return curve.loc[chain, draw].to_series().unstack()
+
+
+        ax = prior["f"].pipe(get_sample).plot(color=colors)
+        post.posterior_predictive["f"].pipe(get_sample).plot(
+            ax=ax, color=colors, linestyle="--", legend=False
+        )
+        ax.set(xlabel="time", ylabel="f", title="New data predictions")
+        plt.show()
+    """
+
+    @staticmethod
+    def deterministics_to_replace(name: str) -> list[str]:
+        """Name of the Deterministic variables that are replaced with pm.Flat for out-of-sample.
+
+        This is required for in order to keep out-of-sample predictions use mean of 1.0
+        from the training set. Without this, the training and test data will not be
+        continuous, showing a jump from the training data to the test data.
+
+        """
+        return [f"{name}_f_mean"]
+
+    def create_variable(self, name: str) -> TensorVariable:
+        """Create the variable."""
+        f = super().create_variable(f"{name}_raw")
+        f = pt.softplus(f)
+
+        _, *f_mean_dims = self.dims
+        f_mean_name = f"{name}_f_mean"
+        f_mean = pm.Deterministic(f_mean_name, f.mean(axis=0), dims=f_mean_dims)
+
+        centered_f = f - f_mean + 1
+        return pm.Deterministic(name, centered_f, dims=self.dims)

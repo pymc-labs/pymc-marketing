@@ -66,9 +66,9 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
 
     model_config = {
         # Params used in lifetimes test
-        "p_prior": Prior("DiracDelta", c=6.25),
-        "q_prior": Prior("DiracDelta", c=3.74),
-        "v_prior": Prior("DiracDelta", c=15.44),
+        "p": Prior("DiracDelta", c=6.25),
+        "q": Prior("DiracDelta", c=3.74),
+        "v": Prior("DiracDelta", c=15.44),
     }
     model = GammaGammaModel(
         data=test_summary_data,
@@ -76,7 +76,7 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
     )
     model.build_model()
     fake_fit = pm.sample_prior_predictive(
-        samples=50, model=model.model, random_seed=rng
+        draws=50, model=model.model, random_seed=rng
     ).prior
     set_model_fit(model, fake_fit)
 
@@ -99,10 +99,10 @@ def df_cum_transactions():
     )
 
     model_config = {
-        "r_prior": Prior("HalfFlat"),
-        "alpha_prior": Prior("HalfFlat"),
-        "s_prior": Prior("HalfFlat"),
-        "beta_prior": Prior("HalfFlat"),
+        "r": Prior("HalfFlat"),
+        "alpha": Prior("HalfFlat"),
+        "s": Prior("HalfFlat"),
+        "beta": Prior("HalfFlat"),
     }
 
     pnbd = ParetoNBDModel(data=rfm_data, model_config=model_config)

@@ -29,7 +29,7 @@ import xarray as xr
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
 
-from pymc_marketing.mmm import HSGP
+from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     adstock_from_dict,
@@ -44,6 +44,7 @@ from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.tvp import infer_time_index
 from pymc_marketing.model_builder import ModelBuilder, _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.prior import Prior, create_dim_handler
 
 PYMC_MARKETING_ISSUE = "https://github.com/pymc-labs/pymc-marketing/issues/new"
@@ -274,6 +275,8 @@ class MMM(ModelBuilder):
             self.adstock.update_priors({**self.default_model_config, **model_config})
             self.saturation.update_priors({**self.default_model_config, **model_config})
 
+        self._check_compatible_media_dims()
+
         self.date_column = date_column
         self.target_column = target_column
         self.channel_columns = channel_columns
@@ -290,6 +293,19 @@ class MMM(ModelBuilder):
             )
 
         self.mu_effects: list[MuEffect] = []
+
+    def _check_compatible_media_dims(self) -> None:
+        allowed_dims = set(self.dims).union({"channel"})
+
+        if not set(self.adstock.combined_dims).issubset(allowed_dims):
+            raise ValueError(
+                f"Adstock effect dims {self.adstock.combined_dims} must contain {allowed_dims}"
+            )
+
+        if not set(self.saturation.combined_dims).issubset(allowed_dims):
+            raise ValueError(
+                f"Saturation effect dims {self.saturation.combined_dims} must contain {allowed_dims}"
+            )
 
     @property
     def default_sampler_config(self) -> dict:
@@ -467,6 +483,26 @@ class MMM(ModelBuilder):
             The target variable for the model.
         """
         return "y"
+
+    def post_sample_model_transformation(self) -> None:
+        """Post-sample model transformation in order to store the HSGP state from fit."""
+        names = []
+        if self.time_varying_intercept:
+            names.extend(
+                SoftPlusHSGP.deterministics_to_replace(
+                    "intercept_temporal_latent_multiplier"
+                )
+            )
+        if self.time_varying_media:
+            names.extend(
+                SoftPlusHSGP.deterministics_to_replace(
+                    "media_temporal_latent_multiplier"
+                )
+            )
+        if not names:
+            return
+
+        self.model = deterministics_to_flat(self.model, names=names)
 
     def _validate_idata_exists(self) -> None:
         """Validate that the idata exists."""
@@ -1016,7 +1052,7 @@ class MMM(ModelBuilder):
                     "baseline_intercept"
                 )
 
-                intercept_latent_process = HSGP.parameterize_from_data(
+                intercept_latent_process = SoftPlusHSGP.parameterize_from_data(
                     X=time_index,  # this is
                     dims=("date", *self.dims),
                     **self.model_config["intercept_tvp_config"],
@@ -1042,7 +1078,7 @@ class MMM(ModelBuilder):
                     dims=("date", *self.dims, "channel"),
                 )
 
-                media_latent_process = HSGP.parameterize_from_data(
+                media_latent_process = SoftPlusHSGP.parameterize_from_data(
                     X=time_index,
                     dims=("date", *self.dims),
                     **self.model_config["media_tvp_config"],

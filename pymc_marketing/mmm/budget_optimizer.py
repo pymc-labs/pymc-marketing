@@ -360,16 +360,13 @@ class BudgetOptimizer(BaseModel):
         )
         objective_grad = pt.grad(rewrite_pregrad(objective), budgets_flat)
 
-        objective_func = function([budgets_flat], objective)
-        grad_func = function([budgets_flat], objective_grad)
+        objective_and_grad_func = function([budgets_flat], [objective, objective_grad])
 
         # Avoid repeated input validation for performance
-        objective_func.trust_input = True
-        grad_func.trust_input = True
+        objective_and_grad_func.trust_input = True
 
         self._compiled_functions[self.utility_function] = {
-            "objective": objective_func,
-            "gradient": grad_func,
+            "objective_and_grad": objective_and_grad_func,
         }
 
     def allocate_budget(
@@ -481,8 +478,8 @@ class BudgetOptimizer(BaseModel):
 
         # 6. Run the SciPy optimizer
         result = minimize(
-            fun=self._compiled_functions[self.utility_function]["objective"],
-            jac=self._compiled_functions[self.utility_function]["gradient"],
+            fun=self._compiled_functions[self.utility_function]["objective_and_grad"],
+            jac=True,
             x0=initial_guess,
             bounds=bounds,
             constraints=self._compiled_constraints,
