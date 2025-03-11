@@ -1438,6 +1438,9 @@ class PartialPrior:
     def __call__(self, **parameters):
         return Prior(self.name, **parameters)
 
+    def __iter__(self):
+        return iter([])
+
 
 def __getattr__(name: str):
     _get_pymc_distribution(name)
