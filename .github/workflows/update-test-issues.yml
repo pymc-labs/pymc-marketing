@@ -1,5 +1,5 @@
 ---
-name: Slow Tests Issue Body
+name: Slow Tests & Test Warnings Issue Body
 
 on:
   workflow_dispatch:
@@ -21,9 +21,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Trigger the script
+      - name: Slow tests
         working-directory: scripts/slowest_tests
         shell: zsh {0}
         run: source update-slowest-times-issue.sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Test warnings
+        working-directory: scripts/warnings_in_tests
+        shell: zsh {0}
+        run: source update-warnings-issue.sh
         env:
           GITHUB_TOKEN: ${{ github.token }}
