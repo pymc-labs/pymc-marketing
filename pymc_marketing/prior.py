@@ -1429,3 +1429,16 @@ def _is_censored_type(data: dict) -> bool:
 
 register_deserialization(is_type=_is_prior_type, deserialize=Prior.from_dict)
 register_deserialization(is_type=_is_censored_type, deserialize=Censored.from_dict)
+
+
+class PartialPrior:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def __call__(self, **parameters):
+        return Prior(self.name, **parameters)
+
+
+def __getattr__(name: str):
+    _get_pymc_distribution(name)
+    return PartialPrior(name)
