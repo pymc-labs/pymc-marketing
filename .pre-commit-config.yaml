@@ -12,7 +12,7 @@ repos:
           - --exclude=docs/
           - --exclude=scripts/
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.7
+    rev: v0.9.10
     hooks:
       - id: ruff
         types_or: [python, pyi, jupyter]

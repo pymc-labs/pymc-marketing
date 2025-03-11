@@ -187,15 +187,15 @@ class TestParetoNBDModel:
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
-        "fit_method, rtol",
+        "method, rtol",
         [("mcmc", 0.1), ("map", 0.2), ("demz", 0.2)],
     )
-    def test_model_convergence(self, fit_method, rtol):
+    def test_model_convergence(self, method, rtol):
         model = ParetoNBDModel(
             data=self.data,
         )
 
-        model.fit(fit_method=fit_method, progressbar=False)
+        model.fit(method=method, progressbar=False)
 
         fit = model.idata.posterior
         np.testing.assert_allclose(
@@ -391,6 +391,16 @@ class TestParetoNBDModel:
         assert self.model.sampler_config == loaded_model.sampler_config
         assert self.model.idata == loaded_model.idata
         os.remove("test_model")
+
+    def test_fit_exception(self):
+        with pytest.warns(
+            DeprecationWarning,
+            match=(
+                "'fit_method' is deprecated and will be removed in a future release. "
+                "Use 'method' instead."
+            ),
+        ):
+            self.model.fit(fit_method="mcmc")
 
 
 class TestParetoNBDModelWithCovariates:
@@ -682,7 +692,7 @@ class TestParetoNBDModelWithCovariates:
             synthetic_data,
             model_config=self.model_with_covariates.model_config | custom_priors,
         )
-        new_model.fit(fit_method="map")
+        new_model.fit(method="map")
 
         result = new_model.fit_result
         for var in default_model.free_RVs:

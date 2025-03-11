@@ -134,11 +134,11 @@ class ParetoNBDModel(CLVModel):
         )
 
         # Fit model quickly to large datasets via the default Maximum a Posteriori method
-        model.fit(fit_method='map')
+        model.fit(method='map')
         print(model.fit_summary())
 
         # Use 'demz' for more informative predictions and reliable performance on smaller datasets
-        model.fit(fit_method='demz')
+        model.fit(method='demz')
         print(model.fit_summary())
 
         # Predict number of purchases for customers over the next 10 time periods
@@ -316,12 +316,12 @@ class ParetoNBDModel(CLVModel):
                 dims=["customer_id", "obs_var"],
             )
 
-    def fit(self, fit_method: str = "map", **kwargs):  # type: ignore
+    def fit(self, method: str = "map", fit_method: str | None = None, **kwargs):  # type: ignore
         """Infer posteriors of model parameters to run predictions.
 
         Parameters
         ----------
-        fit_method : str
+        method : str
             Method used to fit the model. Options are:
 
             * "map": Posterior point estimates via Maximum a Posteriori (default).
@@ -333,7 +333,17 @@ class ParetoNBDModel(CLVModel):
 
         """
         mode = get_default_mode()
-        if fit_method == "mcmc":
+
+        if fit_method:
+            warnings.warn(
+                "'fit_method' is deprecated and will be removed in a future release. "
+                "Use 'method' instead.",
+                DeprecationWarning,
+                stacklevel=1,
+            )
+            method = fit_method
+
+        if method == "mcmc":
             # Include rewrite in mode
             opt_qry = mode.provided_optimizer.including(
                 "local_reduce_max_num_iters_hyp2f1_grad"
@@ -347,7 +357,7 @@ class ParetoNBDModel(CLVModel):
                     action="ignore",
                     category=UserWarning,
                 )
-                return super().fit(fit_method, **kwargs)
+                return super().fit(method, **kwargs)
 
     @staticmethod
     def _logp(

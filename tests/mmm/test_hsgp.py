@@ -31,6 +31,7 @@ from pymc_marketing.mmm.hsgp import (
     approx_hsgp_hyperparams,
     create_complexity_penalizing_prior,
 )
+from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.prior import Prior
 
 
@@ -350,6 +351,37 @@ def test_hsgp_with_shared_data():
         assert "f" in prior.prior
 
 
+def test_soft_plus_hsgp_is_centered_around_1() -> None:
+    seed = sum(map(ord, "Is centered around 1"))
+    rng = np.random.default_rng(seed)
+    hsgp = SoftPlusHSGP(
+        m=10,
+        L=5,
+        dims="date",
+        ls=Prior("Exponential", lam=1),
+        eta=Prior("Exponential", lam=1),
+    )
+
+    n_points = 100
+    data = np.linspace(0, 10, n_points)
+
+    n_out_of_sample = 1
+    insample = data[: n_points - n_out_of_sample]
+
+    prior_samples = 50
+
+    coords = {"date": insample}
+    with pm.Model(coords=coords):
+        X = pm.Data("X", insample, dims="date")
+        hsgp.register_data(X).create_variable("f")
+
+        idata = pm.sample_prior_predictive(prior_samples, random_seed=rng)
+
+    f_mean = idata.prior["f"].mean("date")
+
+    np.testing.assert_allclose(f_mean, 1.0)
+
+
 def test_soft_plus_hsgp_continous_with_new_data() -> None:
     seed = sum(map(ord, "No jump from in-sample to out-of-sample"))
     rng = np.random.default_rng(seed)
@@ -380,7 +412,7 @@ def test_soft_plus_hsgp_continous_with_new_data() -> None:
     # set posterior as prior for out of sample
     idata["posterior"] = idata.prior
 
-    with model:
+    with deterministics_to_flat(model, names=hsgp.deterministics_to_replace("f")):
         pm.set_data({"X": outsample}, coords={"date": outsample})
 
         idata.extend(
