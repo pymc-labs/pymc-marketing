@@ -4,29 +4,14 @@ DRY_RUN=false
 
 owner=pymc-labs
 repo=pymc-marketing
-issue_number=1158
-title="Speed up test times :rocket:"
+issue_number=1556
+title="Remove warnings in tests :warning:"
 workflow=Test
 latest_id=$(gh run list --workflow $workflow --status success --limit 1 --json databaseId --jq '.[0].databaseId')
 jobs=$(gh api /repos/$owner/$repo/actions/runs/$latest_id/jobs --jq '.jobs | map({name: .name, run_id: .run_id, id: .id, started_at: .started_at, completed_at: .completed_at})')
 
-function human_readable_time() {
-    started_at=$1
-    completed_at=$2
 
-    start_seconds=$(date -d "$started_at" +%s)
-    end_seconds=$(date -d "$completed_at" +%s)
-
-    seconds=$(($end_seconds - $start_seconds))
-
-    if [ $seconds -lt 60 ]; then
-        echo "$seconds seconds"
-    else
-        echo "$(date -u -d @$seconds +'%-M minutes %-S seconds')"
-    fi
-}
-
-all_times=""
+all_warnings=""
 echo "$jobs" | jq -c '.[]' | while read -r job; do
     id=$(echo $job | jq -r '.id')
     name=$(echo $job | jq -r '.name')
@@ -35,30 +20,32 @@ echo "$jobs" | jq -c '.[]' | while read -r job; do
     completed_at=$(echo $job | jq -r '.completed_at')
 
     echo "Processing job: $name (ID: $id, Run ID: $run_id)"
-    times=$(gh run view --job $id --log | python extract-slow-tests.py)
-    echo $times
+    times=$(gh run view --job $id --log | python extract-warnings.py)
+    echo $warnings
 
-    human_readable=$(human_readable_time $started_at $completed_at)
-
-    top="<details><summary>($human_readable) $name</summary>\n\n\n\`\`\`"
+    top="<details><summary>$name</summary>\n\n\n\`\`\`"
     bottom="\`\`\`\n\n</details>"
 
-    formatted_times="$top\n$times\n$bottom"
+    formatted_warnings="$top\n$warnings\n$bottom"
 
     if [ -n "$all_times" ]; then
-        all_times="$all_times\n$formatted_times"
+        all_warnings="$all_warnings\n$formatted_warnings"
     else
-        all_times="$formatted_times"
+        all_warnings="$formatted_warnings"
     fi
 done
 
 run_date=$(date +"%Y-%m-%d")
 body=$(cat << EOF
-If you are motivated to help speed up some tests, we would appreciate it!
+If you are motivated to remove warnings from tests, we would appreciate it!
 
-Here are some of the slowest test times:
+Here are warnings:
 
 $all_times
+
+> [!NOTE]
+>
+> Some warnings are out of our control, maybe they can be suppressed or ignored.
 
 You can find more information on how to contribute [here](https://www.pymc-marketing.io/en/stable/contributing/index.html).
 
@@ -72,5 +59,6 @@ if [ "$DRY_RUN" = true ]; then
     echo $body
     exit
 fi
+echo $body
 echo $body | gh issue edit $issue_number --body-file - --title "$title"
-echo "Updated issue $issue_number with all times"
+echo "Updated issue $issue_number with all warnings"

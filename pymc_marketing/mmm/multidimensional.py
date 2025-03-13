@@ -44,6 +44,7 @@ from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.tvp import infer_time_index
 from pymc_marketing.model_builder import ModelBuilder, _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.prior import Prior, create_dim_handler
 
 PYMC_MARKETING_ISSUE = "https://github.com/pymc-labs/pymc-marketing/issues/new"
@@ -483,6 +484,26 @@ class MMM(ModelBuilder):
         """
         return "y"
 
+    def post_sample_model_transformation(self) -> None:
+        """Post-sample model transformation in order to store the HSGP state from fit."""
+        names = []
+        if self.time_varying_intercept:
+            names.extend(
+                SoftPlusHSGP.deterministics_to_replace(
+                    "intercept_temporal_latent_multiplier"
+                )
+            )
+        if self.time_varying_media:
+            names.extend(
+                SoftPlusHSGP.deterministics_to_replace(
+                    "media_temporal_latent_multiplier"
+                )
+            )
+        if not names:
+            return
+
+        self.model = deterministics_to_flat(self.model, names=names)
+
     def _validate_idata_exists(self) -> None:
         """Validate that the idata exists."""
         if not hasattr(self, "idata"):
@@ -865,8 +886,8 @@ class MMM(ModelBuilder):
 
     def _validate_contribution_variable(self, var: str) -> None:
         """Validate that the variable ends with "_contribution" and is in the model."""
-        if not var.endswith("_contribution"):
-            raise ValueError(f"Variable {var} must end with '_contribution'")
+        if not (var.endswith("_contribution") or var == "y"):
+            raise ValueError(f"Variable {var} must end with '_contribution' or be 'y'")
 
         if var not in self.model.named_vars:
             raise ValueError(f"Variable {var} is not in the model")
@@ -1005,13 +1026,9 @@ class MMM(ModelBuilder):
             channel_data_.dims = ("date", *self.dims, "channel")
 
             ## Hot fix for target data meanwhile pymc allows for internal scaling `https://github.com/pymc-devs/pymc/pull/7656`
-            target_data_scaled = _target / _target_scale
-            target_data_scaled.name = "target_scaled"
-            target_data_scaled.dims = ("date", *self.dims)
-
-            target_data_ = pm.Data(
-                name="target",
-                value=target_data_scaled.eval(),
+            target_data_scaled = pm.Deterministic(
+                name="target_scaled",
+                var=_target / _target_scale,
                 dims=("date", *self.dims),
             )
 
@@ -1142,7 +1159,7 @@ class MMM(ModelBuilder):
             self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,
                 mu=mu_var,
-                observed=target_data_,
+                observed=target_data_scaled,
             )
 
     def _posterior_predictive_data_transformation(
@@ -1224,7 +1241,7 @@ class MMM(ModelBuilder):
         self.dataarrays = dataarrays
         self._new_internal_xarray = xr.merge(dataarrays).fillna(0)
 
-        return xr.merge(dataarrays).fillna(0).astype(np.int32)
+        return xr.merge(dataarrays).fillna(0)
 
     def _set_xarray_data(
         self,
@@ -1269,10 +1286,6 @@ class MMM(ModelBuilder):
             )
 
         if "target" in dataset_xarray:
-            data["target"] = dataset_xarray._target.sum(dim="target").transpose(
-                "date", *self.dims
-            )
-
             data["target_data"] = dataset_xarray._target.sum(dim="target").transpose(
                 "date", *self.dims
             )
