@@ -229,7 +229,7 @@ def test_fit(
     # Basic checks to confirm presence of key variables
     var_names = mmm.model.named_vars.keys()
     assert "channel_data" in var_names
-    assert "target" in var_names
+    assert "target_data" in var_names
     if time_varying_intercept:
         assert "intercept_latent_process" in var_names
     if time_varying_media:
