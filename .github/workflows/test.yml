@@ -32,10 +32,16 @@ jobs:
       matrix:
         config: [ {python-version: "3.10", oldest-pymc: false}, {python-version: "3.12", oldest-pymc: true}]
         split:
+          - "--ignore tests/mmm --ignore tests/clv"
           - "tests/mmm --ignore tests/mmm/test_tvp.py --ignore tests/mmm/test_budget_optimizer.py --ignore tests/mmm/test_hsgp.py --ignore tests/mmm/test_transformers.py"
           - "tests/mmm/test_tvp.py tests/mmm/test_budget_optimizer.py tests/mmm/test_hsgp.py tests/mmm/test_transformers.py"
-          - "tests/clv"
-          - "--ignore tests/mmm --ignore tests/clv"
+          - "tests/clv/models/test_pareto_nbd.py"
+          - "tests/clv/models/test_beta_geo_beta_binom.py"
+          - "tests/clv/models/test_beta_geo.py"
+          - "tests/clv/models/test_shifted_beta_geo.py"
+          - "tests/clv/models/test_basic.py"
+          - "tests/clv/test_distributions.py"
+          - "tests/clv/ --ignore=tests/clv/models/test_pareto_nbd.py --ignore=tests/clv/models/test_beta_geo_beta_binom.py --ignore=tests/clv/models/test_beta_geo.py --ignore=tests/clv/models/test_shifted_beta_geo.py --ignore=tests/clv/models/test_basic.py --ignore=tests/clv/test_distributions.py"
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
