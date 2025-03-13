@@ -392,7 +392,7 @@ class TestParetoNBDModel:
         assert self.model.idata == loaded_model.idata
         os.remove("test_model")
 
-    def test_fit_exception(self):
+    def test_fit_exception(self, mock_pymc_sample):
         with pytest.warns(
             DeprecationWarning,
             match=(

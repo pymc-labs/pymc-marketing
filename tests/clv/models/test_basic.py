@@ -159,7 +159,7 @@ class TestCLVModel:
         ):
             model.fit(method="wrong_method")
 
-    def test_fit_exception(self):
+    def test_fit_exception(self, mock_pymc_sample):
         model = CLVModelTest()
         with pytest.warns(
             DeprecationWarning,
