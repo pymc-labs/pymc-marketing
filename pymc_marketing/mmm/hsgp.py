@@ -476,7 +476,7 @@ class HSGP(HSGPBase):
         hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
         plt.show()
 
-    Using a centered basis to remove "intercept" effect:
+    Using a demeaned basis to remove "intercept" effect of first basis:
 
     .. plot::
         :include-source: True
