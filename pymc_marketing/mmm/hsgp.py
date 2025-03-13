@@ -262,7 +262,7 @@ class HSGPBase(BaseModel):
     dims: Dims = Field(..., description="The dimensions of the variable")
     transform: str | None = Field(
         None,
-        description="Optional transformation for the variable",
+        description="Optional transformation for the variable. Must be registered or from pytensor.tensor namespace.",
     )
 
     @model_validator(mode="after")
