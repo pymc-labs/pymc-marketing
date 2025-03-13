@@ -268,6 +268,7 @@ class HSGPBase(BaseModel):
             "or pymc.math namespaces."
         ),
     )
+    centered_basis: bool = Field(False, description="Whether the basis is centered")
 
     @model_validator(mode="after")
     def _transform_is_valid(self) -> Self:
@@ -471,6 +472,52 @@ class HSGP(HSGPBase):
         curve = prior["f"]
         hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
         plt.show()
+
+    Using a centered basis to remove "intercept" effect:
+
+    .. plot::
+        :include-source: True
+        :context: reset
+
+        import numpy as np
+        import pandas as pd
+        import xarray as xr
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm import HSGP
+        from pymc_marketing.plot import plot_curve
+
+        seed = sum(map(ord, "Out of the box GP"))
+        rng = np.random.default_rng(seed)
+
+        n = 52
+        X = np.arange(n)
+
+        hsgp_with = HSGP.parameterize_from_data(
+            X=X,
+            dims="time",
+            drop_first=False,
+            centered_basis=False,
+        )
+        hsgp_wo = HSGP.parameterize_from_data(
+            X=X,
+            dims="time",
+            drop_first=True,
+            centered_basis=False,
+        )
+
+        dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
+        coords = {
+            "time": dates,
+        }
+        uncentered = hsgp.sample_prior(coords=coords, random_seed=rng)["f"]
+        centered = hsgp.sample_prior(coords=coords, random_seed=rng)["f"]
+
+        combined = xr.merge([uncentered.rename("uncentered"), centered.rename("centered")]).to_array()
+        combined.pipe(plot_curve, {"time"}, same_axes=True)
+        plt.show()
+
 
     HSGP with different covariance function
 
@@ -703,6 +750,7 @@ class HSGP(HSGPBase):
         centered: bool = False,
         drop_first: bool = True,
         transform: str | None = None,
+        centered_basis: bool = False,
     ) -> HSGP:
         """Create a HSGP informed by the data with literature-based recommendations."""
         eta = create_eta_prior(mass=eta_mass, upper=eta_upper)
@@ -753,6 +801,7 @@ class HSGP(HSGPBase):
             centered=centered,
             drop_first=drop_first,
             transform=transform,
+            centered_basis=centered_basis,
         )
 
     def create_variable(self, name: str) -> TensorVariable:
@@ -816,6 +865,8 @@ class HSGP(HSGPBase):
         phi, sqrt_psd = gp.prior_linearized(
             self.X[:, None] - self.X_mid,
         )
+        if self.centered_basis:
+            phi = phi - phi.mean(axis=0).eval()
 
         first_dim, *rest_dims = self.dims
         hsgp_dims: Dims = (*rest_dims, coord_name)
@@ -1107,6 +1158,9 @@ class HSGPPeriodic(HSGPBase):
         (phi_cos, phi_sin), psd = gp.prior_linearized(
             self.X[:, None] - self.X_mid,
         )
+        if self.centered_basis:
+            phi_cos = phi_cos - phi_cos.mean(axis=0).eval()
+            phi_sin = phi_sin - phi_sin.mean(axis=0).eval()
 
         model = pm.modelcontext(None)
         coord_name: str = add_suffix("m")
