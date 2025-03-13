@@ -268,7 +268,10 @@ class HSGPBase(BaseModel):
             "or pymc.math namespaces."
         ),
     )
-    centered_basis: bool = Field(False, description="Whether the basis is centered")
+    demeaned_basis: bool = Field(
+        False,
+        description="Whether each basis has its mean subtracted from it.",
+    )
 
     @model_validator(mode="after")
     def _transform_is_valid(self) -> Self:
@@ -494,28 +497,25 @@ class HSGP(HSGPBase):
         n = 52
         X = np.arange(n)
 
-        hsgp_with = HSGP.parameterize_from_data(
-            X=X,
-            dims="time",
-            drop_first=False,
-            centered_basis=False,
-        )
-        hsgp_wo = HSGP.parameterize_from_data(
-            X=X,
-            dims="time",
-            drop_first=True,
-            centered_basis=False,
-        )
+        kwargs = dict(X=X, ls=25, eta=1, dims="time", m=200, L=150, drop_first=False)
+
+        hsgp = HSGP(demeaned_basis=False, **kwargs)
+        hsgp_demeaned = HSGP(demeaned_basis=True, **kwargs)
 
         dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
-        coords = {
-            "time": dates,
-        }
-        uncentered = hsgp.sample_prior(coords=coords, random_seed=rng)["f"]
-        centered = hsgp.sample_prior(coords=coords, random_seed=rng)["f"]
+        coords = {"time": dates}
 
-        combined = xr.merge([uncentered.rename("uncentered"), centered.rename("centered")]).to_array()
-        combined.pipe(plot_curve, {"time"}, same_axes=True)
+
+        def sample_curve(hsgp):
+            return hsgp.sample_prior(coords=coords, random_seed=rng)["f"]
+
+
+        non_demeaned = sample_curve(hsgp).rename("False")
+        demeaned = sample_curve(hsgp_demeaned).rename("True")
+
+        combined = xr.merge([non_demeaned, demeaned]).to_array("demeaned")
+        _, axes = combined.pipe(plot_curve, {"time"}, same_axes=True)
+        axes[0].set(title="Demeaned the intercepty first basis")
         plt.show()
 
 
@@ -750,7 +750,7 @@ class HSGP(HSGPBase):
         centered: bool = False,
         drop_first: bool = True,
         transform: str | None = None,
-        centered_basis: bool = False,
+        demeaned_basis: bool = False,
     ) -> HSGP:
         """Create a HSGP informed by the data with literature-based recommendations."""
         eta = create_eta_prior(mass=eta_mass, upper=eta_upper)
@@ -801,7 +801,7 @@ class HSGP(HSGPBase):
             centered=centered,
             drop_first=drop_first,
             transform=transform,
-            centered_basis=centered_basis,
+            demeaned_basis=demeaned_basis,
         )
 
     def create_variable(self, name: str) -> TensorVariable:
@@ -865,7 +865,7 @@ class HSGP(HSGPBase):
         phi, sqrt_psd = gp.prior_linearized(
             self.X[:, None] - self.X_mid,
         )
-        if self.centered_basis:
+        if self.demeaned_basis:
             phi = phi - phi.mean(axis=0).eval()
 
         first_dim, *rest_dims = self.dims
@@ -1158,7 +1158,7 @@ class HSGPPeriodic(HSGPBase):
         (phi_cos, phi_sin), psd = gp.prior_linearized(
             self.X[:, None] - self.X_mid,
         )
-        if self.centered_basis:
+        if self.demeaned_basis:
             phi_cos = phi_cos - phi_cos.mean(axis=0).eval()
             phi_sin = phi_sin - phi_sin.mean(axis=0).eval()
 
