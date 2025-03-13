@@ -32,7 +32,7 @@ from pymc_marketing.mmm.hsgp import (
     create_complexity_penalizing_prior,
 )
 from pymc_marketing.model_graph import deterministics_to_flat
-from pymc_marketing.prior import Prior
+from pymc_marketing.prior import Prior, UnknownTransformError
 
 
 @pytest.mark.parametrize(
@@ -148,7 +148,7 @@ def periodic_hsgp(data) -> HSGP:
 def test_curve_workflow(request, hsgp_fixture_name, data) -> None:
     hsgp = request.getfixturevalue(hsgp_fixture_name)
     coords = {hsgp.dims[0]: data}
-    prior = hsgp.sample_prior(coords=coords, samples=25)
+    prior = hsgp.sample_prior(coords=coords, draws=25)
     assert isinstance(prior, xr.Dataset)
     curve = prior["f"]
     fig, axes = hsgp.plot_curve(curve)
@@ -195,6 +195,7 @@ def test_hsgp_to_dict() -> None:
         "dims": ("time",),
         "drop_first": True,
         "cov_func": CovFunc.ExpQuad,
+        "transform": None,
     }
 
 
@@ -233,6 +234,7 @@ def test_hsgp_periodic_to_dict() -> None:
         },
         "X_mid": None,
         "dims": ("time",),
+        "transform": None,
     }
 
 
@@ -251,6 +253,7 @@ def test_non_prior_parameters_still_serialize() -> None:
         "dims": ("time",),
         "drop_first": True,
         "cov_func": CovFunc.ExpQuad,
+        "transform": None,
     }
 
 
@@ -261,7 +264,7 @@ def test_higher_dimension_hsgp(data) -> None:
         "channel": np.arange(5),
         "product": np.arange(3),
     }
-    prior = hsgp.sample_prior(samples=25, coords=coords)
+    prior = hsgp.sample_prior(draws=25, coords=coords)
     assert isinstance(prior, xr.Dataset)
     curve = prior["f"]
     assert curve.shape == (1, 25, 10, 5, 3)
@@ -290,6 +293,7 @@ def test_from_dict_with_non_dictionary_distributions_hsgp() -> None:
     assert hsgp.dims == ("time",)
     assert hsgp.drop_first is True
     assert hsgp.cov_func == CovFunc.ExpQuad
+    assert hsgp.transform is None
 
 
 def test_from_dict_with_non_dictionary_distribution_hspg_periodic() -> None:
@@ -311,6 +315,7 @@ def test_from_dict_with_non_dictionary_distribution_hspg_periodic() -> None:
     assert hsgp.scale == 1
     assert hsgp.X_mid is None
     assert hsgp.dims == ("time",)
+    assert hsgp.transform is None
 
 
 def test_hsgp_with_shared_data():
@@ -432,3 +437,42 @@ def test_soft_plus_hsgp_continous_with_new_data() -> None:
 
     # Approx 95% of the differences should be below the threshold
     assert stat.mean().item() >= (q - 0.05)
+
+
+def test_hsgp_with_unknown_transform_errors() -> None:
+    X = np.arange(10)
+    match = "Neither pytensor.tensor nor pymc.math"
+    with pytest.raises(UnknownTransformError, match=match):
+        HSGP.parameterize_from_data(X, dims="time", transform="unknown")
+
+
+def test_hsgp_with_transform() -> None:
+    X = np.arange(10)
+    hsgp = HSGP.parameterize_from_data(X, dims="time", transform="sigmoid")
+
+    coords = {"time": X}
+    prior = hsgp.sample_prior(draws=25, coords=coords)
+    assert "f_raw" in prior
+    assert "f" in prior
+
+    assert ((prior["f"] >= 0) & (prior["f"] <= 1)).all()
+
+
+def test_hsgp_periodic_with_transform() -> None:
+    X = np.arange(10)
+
+    hsgp = HSGPPeriodic(
+        m=20,
+        dims="time",
+        ls=Prior("Exponential", lam=1),
+        scale=Prior("Exponential", lam=1),
+        period=60,
+        transform="sigmoid",
+    ).register_data(X)
+
+    coords = {"time": X}
+    prior = hsgp.sample_prior(draws=25, coords=coords)
+    assert "f_raw" in prior
+    assert "f" in prior
+
+    assert ((prior["f"] >= 0) & (prior["f"] <= 1)).all()
