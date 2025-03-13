@@ -262,7 +262,11 @@ class HSGPBase(BaseModel):
     dims: Dims = Field(..., description="The dimensions of the variable")
     transform: str | None = Field(
         None,
-        description="Optional transformation for the variable. Must be registered or from pytensor.tensor namespace.",
+        description=(
+            "Optional transformation for the variable. "
+            "Must be registered or from either pytensor.tensor "
+            "or pymc.math namespaces."
+        ),
     )
 
     @model_validator(mode="after")
@@ -503,6 +507,11 @@ class HSGP(HSGPBase):
         plt.show()
 
     HSGP with different link function via `transform` argument
+
+    .. note::
+
+        The `transform` parameter must be registered or from either `pytensor.tensor`
+        or `pymc.math` namespaces. See the :func:`pymc_marketing.prior.register_tensor_transform`
 
     .. plot::
         :include-source: True
@@ -922,6 +931,11 @@ class HSGPPeriodic(HSGPBase):
         plt.show()
 
     HSGPPeriodic with link function via `transform` argument
+
+    .. note::
+
+        The `transform` parameter must be registered or from either `pytensor.tensor`
+        or `pymc.math` namespaces. See the :func:`pymc_marketing.prior.register_tensor_transform`
 
     .. plot::
         :include-source: True
