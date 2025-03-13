@@ -20,7 +20,7 @@ echo "$jobs" | jq -c '.[]' | while read -r job; do
     completed_at=$(echo $job | jq -r '.completed_at')
 
     echo "Processing job: $name (ID: $id, Run ID: $run_id)"
-    times=$(gh run view --job $id --log | python extract-warnings.py)
+    warnings=$(gh run view --job $id --log | python extract-warnings.py)
     echo $warnings
 
     top="<details><summary>$name</summary>\n\n\n\`\`\`"
@@ -28,7 +28,7 @@ echo "$jobs" | jq -c '.[]' | while read -r job; do
 
     formatted_warnings="$top\n$warnings\n$bottom"
 
-    if [ -n "$all_times" ]; then
+    if [ -n "$all_warnings" ]; then
         all_warnings="$all_warnings\n$formatted_warnings"
     else
         all_warnings="$formatted_warnings"
@@ -41,7 +41,7 @@ If you are motivated to remove warnings from tests, we would appreciate it!
 
 Here are warnings:
 
-$all_times
+$all_warnings
 
 > [!NOTE]
 >
