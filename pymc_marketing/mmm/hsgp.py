@@ -33,7 +33,7 @@ from pytensor.tensor.variable import TensorVariable
 from typing_extensions import Self
 
 from pymc_marketing.plot import SelToString, plot_curve
-from pymc_marketing.prior import Prior, create_dim_handler
+from pymc_marketing.prior import Prior, _get_transform, create_dim_handler
 
 
 @validate_call
@@ -260,6 +260,23 @@ class HSGPBase(BaseModel):
     )
     X_mid: float | None = Field(None, description="The mean of the training data")
     dims: Dims = Field(..., description="The dimensions of the variable")
+    transform: str | None = Field(
+        None,
+        description=(
+            "Optional transformation for the variable. "
+            "Must be registered or from either pytensor.tensor "
+            "or pymc.math namespaces."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _transform_is_valid(self) -> Self:
+        if self.transform is None:
+            return self
+
+        # Not storing but will get again later
+        _get_transform(self.transform)
+        return self
 
     @staticmethod
     def deterministics_to_replace(name: str) -> list[str]:
@@ -489,6 +506,45 @@ class HSGP(HSGPBase):
         hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
         plt.show()
 
+    HSGP with different link function via `transform` argument
+
+    .. note::
+
+        The `transform` parameter must be registered or from either `pytensor.tensor`
+        or `pymc.math` namespaces. See the :func:`pymc_marketing.prior.register_tensor_transform`
+
+    .. plot::
+        :include-source: True
+        :context: reset
+
+        import numpy as np
+        import pandas as pd
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm import HSGP
+
+        seed = sum(map(ord, "Change of covariance function"))
+        rng = np.random.default_rng(seed)
+
+        n = 52
+        X = np.arange(n)
+
+        hsgp = HSGP.parameterize_from_data(
+            X=X,
+            dims="time",
+            transform="sigmoid",
+        )
+
+        dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
+        coords = {
+            "time": dates,
+        }
+        prior = hsgp.sample_prior(coords=coords, random_seed=rng)
+        curve = prior["f"]
+        hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
+
     New data predictions with HSGP
 
     .. plot::
@@ -646,6 +702,7 @@ class HSGP(HSGPBase):
         cov_func: CovFunc = CovFunc.ExpQuad,
         centered: bool = False,
         drop_first: bool = True,
+        transform: str | None = None,
     ) -> HSGP:
         """Create a HSGP informed by the data with literature-based recommendations."""
         eta = create_eta_prior(mass=eta_mass, upper=eta_upper)
@@ -695,6 +752,7 @@ class HSGP(HSGPBase):
             dims=dims,
             centered=centered,
             drop_first=drop_first,
+            transform=transform,
         )
 
     def create_variable(self, name: str) -> TensorVariable:
@@ -711,6 +769,13 @@ class HSGP(HSGPBase):
             The variable created from the HSGP configuration.
 
         """
+
+        def add_suffix(suffix: str) -> str:
+            if self.transform is None:
+                return f"{name}_{suffix}"
+
+            return f"{name}_raw_{suffix}"
+
         if self.X is None:
             raise ValueError("The data must be registered before creating a variable.")
 
@@ -718,7 +783,7 @@ class HSGP(HSGPBase):
             self.X_mid = float(self.X.mean().eval())
 
         model = pm.modelcontext(None)
-        coord_name: str = f"{name}_m"
+        coord_name: str = add_suffix("m")
         model.add_coord(
             coord_name,
             np.arange(self.m - 1 if self.drop_first else self.m),
@@ -732,12 +797,12 @@ class HSGP(HSGPBase):
         eta = (
             self.eta
             if not hasattr(self.eta, "create_variable")
-            else self.eta.create_variable(f"{name}_eta")
+            else self.eta.create_variable(add_suffix("eta"))
         )
         ls = (
             self.ls
             if not hasattr(self.ls, "create_variable")
-            else self.ls.create_variable(f"{name}_ls")
+            else self.ls.create_variable(add_suffix("ls"))
         )
 
         cov_func = eta**2 * cov_funcs[self.cov_func.lower()](input_dim=1, ls=ls)
@@ -760,7 +825,7 @@ class HSGP(HSGPBase):
             sigma=sqrt_psd,
             dims=hsgp_dims,
             centered=self.centered,
-        ).create_variable(f"{name}_hsgp_coefs")
+        ).create_variable(add_suffix("hsgp_coefs"))
         # (date, m-1) and (*rest_dims, m-1) -> (date, *rest_dims)
         if len(rest_dims) <= 1:
             f = phi @ hsgp_coefs.T
@@ -774,7 +839,17 @@ class HSGP(HSGPBase):
                     hsgp_dims,
                 )
             ).sum(axis=1)
-        return pm.Deterministic(name, f, dims=self.dims)
+
+        if self.transform is not None:
+            raw_name = f"{name}_raw"
+            f = pm.Deterministic(raw_name, f, dims=self.dims)
+
+            transform = _get_transform(self.transform)
+            f = pm.Deterministic(name, transform(f), dims=self.dims)
+        else:
+            f = pm.Deterministic(name, f, dims=self.dims)
+
+        return f
 
     @classmethod
     def from_dict(cls, data) -> HSGP:
@@ -852,7 +927,59 @@ class HSGPPeriodic(HSGPBase):
             sample_kwargs={"n": 3, "rng": rng},
         )
         ax = axes[0]
-        ax.set(xlabel="Date", ylabel="f", title="HSGP with period of 52 days")
+        ax.set(xlabel="Date", ylabel="f", title="HSGP with period of 52 weeks")
+        plt.show()
+
+    HSGPPeriodic with link function via `transform` argument
+
+    .. note::
+
+        The `transform` parameter must be registered or from either `pytensor.tensor`
+        or `pymc.math` namespaces. See the :func:`pymc_marketing.prior.register_tensor_transform`
+
+    .. plot::
+        :include-source: True
+        :context: reset
+
+        import numpy as np
+        import pandas as pd
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm import HSGPPeriodic
+        from pymc_marketing.prior import Prior
+
+        seed = sum(map(ord, "Periodic GP"))
+        rng = np.random.default_rng(seed)
+
+        n = 52 * 3
+        dates = pd.date_range("2023-01-01", periods=n, freq="W-MON")
+        X = np.arange(n)
+        coords = {
+            "time": dates,
+        }
+        scale = Prior("Gamma", mu=0.25, sigma=0.1)
+        ls = Prior("InverseGamma", alpha=2, beta=1)
+
+        hsgp = HSGPPeriodic(
+            scale=scale,
+            m=20,
+            cov_func="periodic",
+            ls=ls,
+            period=52,
+            dims="time",
+            transform="exp",
+        )
+        hsgp.register_data(X)
+
+        prior = hsgp.sample_prior(coords=coords, random_seed=rng)
+        curve = prior["f"]
+        fig, axes = hsgp.plot_curve(
+            curve,
+            sample_kwargs={"n": 3, "rng": rng},
+        )
+        ax = axes[0]
+        ax.set(xlabel="Date", ylabel="f", title="HSGP with period of 52 weeks")
         plt.show()
 
     Higher dimensional HSGPPeriodic with periodic data
@@ -949,6 +1076,13 @@ class HSGPPeriodic(HSGPBase):
             The variable created from the HSGP configuration.
 
         """
+
+        def add_suffix(suffix: str) -> str:
+            if self.transform is None:
+                return f"{name}_{suffix}"
+
+            return f"{name}_raw_{suffix}"
+
         if self.X is None:
             raise ValueError("The data must be registered before creating a variable.")
 
@@ -958,13 +1092,13 @@ class HSGPPeriodic(HSGPBase):
         scale = (
             self.scale
             if not hasattr(self.scale, "create_variable")
-            else self.scale.create_variable(f"{name}_scale")
+            else self.scale.create_variable(add_suffix("scale"))
         )
 
         ls = (
             self.ls
             if not hasattr(self.ls, "create_variable")
-            else self.ls.create_variable(f"{name}_ls")
+            else self.ls.create_variable(add_suffix("ls"))
         )
         cov_func = pm.gp.cov.Periodic(1, period=self.period, ls=ls)
 
@@ -975,7 +1109,7 @@ class HSGPPeriodic(HSGPBase):
         )
 
         model = pm.modelcontext(None)
-        coord_name: str = f"{name}_m"
+        coord_name: str = add_suffix("m")
         model.add_coord(coord_name, np.arange((self.m * 2) - 1))
         first_dim, *rest_dims = self.dims
         hsgp_dims: Dims = (*rest_dims, coord_name)
@@ -986,7 +1120,7 @@ class HSGPPeriodic(HSGPBase):
             sigma=sigma,
             dims=hsgp_dims,
             centered=False,
-        ).create_variable(f"{name}_hsgp_coefs")
+        ).create_variable(add_suffix("hsgp_coefs"))
         phi = pt.concatenate([phi_cos, phi_sin[..., 1:]], axis=1)
 
         if len(rest_dims) <= 1:
@@ -1002,11 +1136,16 @@ class HSGPPeriodic(HSGPBase):
                 )
             ).sum(axis=1)
 
-        return pm.Deterministic(
-            name,
-            f,
-            dims=self.dims,
-        )
+        if self.transform is not None:
+            raw_name = f"{name}_raw"
+            f = pm.Deterministic(raw_name, f, dims=self.dims)
+
+            transform = _get_transform(self.transform)
+            f = pm.Deterministic(name, transform(f), dims=self.dims)
+        else:
+            f = pm.Deterministic(name, f, dims=self.dims)
+
+        return f
 
     @classmethod
     def from_dict(cls, data) -> HSGPPeriodic:
