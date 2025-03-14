@@ -17,6 +17,7 @@ import itertools
 
 import arviz as az
 import matplotlib.pyplot as plt
+import numpy as np
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -317,15 +318,19 @@ class MMMPlotSuite:
             # Plot each var
             for v in var:
                 data = self.idata.posterior[v].sel(**indexers)  # type: ignore
-                data = self._reduce_and_stack(data, {"date", "chain", "draw", "sample"})
+                data = self._reduce_and_stack(
+                    data, dims_to_ignore={"date", "chain", "draw", "sample"}
+                )
 
                 # Compute median and credible intervals
                 median, lower, upper = self._compute_ci(data, ci=ci)
 
                 # Extract dates
-                dates = data.coords["date"].values
-                ax.plot(dates, median, label=f"{v}", alpha=0.9)
-                ax.fill_between(dates, lower, upper, alpha=0.2)
+                dates = data["date"].values
+                ax.plot(dates, np.atleast_1d(median), label=f"{v}", alpha=0.9)
+                ax.fill_between(
+                    dates, np.atleast_1d(lower), np.atleast_1d(upper), alpha=0.2
+                )
 
             title = self._build_subplot_title(
                 dims=additional_dims, combo=combo, fallback_title="Time Series"
@@ -337,7 +342,7 @@ class MMMPlotSuite:
 
         return fig, axes
 
-    def saturation_curves_scatter(self) -> tuple[Figure, NDArray[Axes]]:
+    def saturation_curves_scatter(self, **kwargs) -> tuple[Figure, NDArray[Axes]]:
         """Plot the saturation curves for each channel.
 
         Creates one subplot per combination of non-(date/channel) dimensions
@@ -368,9 +373,7 @@ class MMMPlotSuite:
         n_columns = len(additional_combinations)
 
         # Create subplots
-        fig, axes = self._init_subplots(
-            n_subplots=n_rows, ncols=n_columns, width_per_col=5, height_per_row=4
-        )
+        fig, axes = self._init_subplots(n_subplots=n_rows, ncols=n_columns, **kwargs)
 
         # Loop channels & combos
         for row_idx, channel in enumerate(channels):
