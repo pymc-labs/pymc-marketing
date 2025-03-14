@@ -573,3 +573,34 @@ def test_check_for_incompatible_dims(adstock, saturation, dims) -> None:
             dims=dims,
             **kwargs,  # type: ignore
         )
+
+
+def test_different_target_scaling(multi_dim_data, mock_pymc_sample) -> None:
+    X, y = multi_dim_data
+    target_scaling = {"method": "mean", "dims": ()}
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        target_scaling=target_scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        dims=("country",),
+    )
+    mmm.fit(X, y)
+    assert mmm.xarray_dataset._target.dims == ("date", "country")
+    assert mmm.scalers._target.dims == ("country",)
+
+
+def test_target_scaling_raises() -> None:
+    target_scaling = {"method": "mean", "dims": ("country",)}
+    match = "target_scaling dims"
+    with pytest.raises(ValueError, match=match):
+        MMM(
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            target_scaling=target_scaling,
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2"],
+        )
