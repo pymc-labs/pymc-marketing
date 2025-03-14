@@ -195,8 +195,8 @@ def create_event_mu_effect(
     return Effect()
 
 
-class TargetScaling(BaseModel):
-    """How to scale the target variable."""
+class VariableScaling(BaseModel):
+    """How to scale a variable."""
 
     method: Literal["max", "mean"] = Field(..., description="The scaling method.")
     dims: str | tuple[str, ...] = Field(
@@ -216,6 +216,15 @@ class TargetScaling(BaseModel):
             raise ValueError("dims must be unique.")
 
         return self
+
+
+class Scaling(BaseModel):
+    """Scaling configuration for the MMM."""
+
+    target: VariableScaling = Field(
+        ...,
+        description="The scaling for the target variable.",
+    )
 
 
 class MMM(ModelBuilder):
@@ -269,7 +278,7 @@ class MMM(ModelBuilder):
         time_varying_intercept: bool = False,
         time_varying_media: bool = False,
         dims: tuple | None = None,
-        target_scaling: TargetScaling | dict | None = None,
+        scaling: Scaling | dict | None = None,
         model_config: dict | None = None,  # Ensure model_config is a dictionary
         sampler_config: dict | None = None,
         control_columns: list[str] | None = None,
@@ -290,17 +299,16 @@ class MMM(ModelBuilder):
         dims = dims if dims is not None else ()
         self.dims = dims
 
-        if isinstance(target_scaling, dict):
-            target_scaling = TargetScaling(**target_scaling)
+        if isinstance(scaling, dict):
+            scaling = Scaling(**scaling)
 
-        self.target_scaling = target_scaling or TargetScaling(
-            method="max",
-            dims=self.dims,
+        self.scaling = scaling or Scaling(
+            target=VariableScaling(method="max", dims=self.dims)
         )
 
-        if set(self.target_scaling.dims).difference([*self.dims, "date"]):
+        if set(self.scaling.target.dims).difference([*self.dims, "date"]):
             raise ValueError(
-                f"target_scaling dims {self.target_scaling.dims} must contain {self.dims} and 'date'"
+                f"Target scaling dims {self.scaling.target.dims} must contain {self.dims} and 'date'"
             )
 
         model_config = model_config if model_config is not None else {}
@@ -417,9 +425,7 @@ class MMM(ModelBuilder):
         attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
         attrs["time_varying_media"] = json.dumps(self.time_varying_media)
         attrs["target_column"] = self.target_column
-        attrs["target_scaling"] = json.dumps(
-            self.target_scaling.model_dump(mode="json")
-        )
+        attrs["scaling"] = json.dumps(self.scaling.model_dump(mode="json"))
 
         return attrs
 
@@ -479,7 +485,7 @@ class MMM(ModelBuilder):
             "time_varying_media": json.loads(attrs.get("time_varying_media", "false")),
             "sampler_config": json.loads(attrs["sampler_config"]),
             "dims": tuple(json.loads(attrs.get("dims", "[]"))),
-            "target_scaling": json.loads(attrs.get("target_scaling", "null")),
+            "scaling": json.loads(attrs.get("scaling", "null")),
         }
 
     @property
@@ -891,9 +897,9 @@ class MMM(ModelBuilder):
 
     def _compute_scales(self) -> None:
         """Compute and save scaling factors for channels and target."""
-        method = getattr(self.xarray_dataset, self.target_scaling.method)
+        method = getattr(self.xarray_dataset, self.scaling.target.method)
         self.scalers = method(dim=("date", *self.dims))
-        self.scalers["_target"] = method(dim=("date", *self.target_scaling.dims))[
+        self.scalers["_target"] = method(dim=("date", *self.scaling.target.dims))[
             "_target"
         ]
 
