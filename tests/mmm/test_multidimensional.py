@@ -579,9 +579,10 @@ def test_check_for_incompatible_dims(adstock, saturation, dims) -> None:
         )
 
 
-def test_different_target_scaling(multi_dim_data, mock_pymc_sample) -> None:
+@pytest.mark.parametrize("method", ["mean", "max"])
+def test_different_target_scaling(method, multi_dim_data, mock_pymc_sample) -> None:
     X, y = multi_dim_data
-    scaling = {"target": {"method": "mean", "dims": ()}}
+    scaling = {"target": {"method": method, "dims": ()}}
     mmm = MMM(
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
@@ -591,10 +592,28 @@ def test_different_target_scaling(multi_dim_data, mock_pymc_sample) -> None:
         channel_columns=["channel_1", "channel_2"],
         dims=("country",),
     )
-    assert mmm.scaling.target == VariableScaling(method="mean", dims=())
+    assert mmm.scaling.target == VariableScaling(method=method, dims=())
     mmm.fit(X, y)
     assert mmm.xarray_dataset._target.dims == ("date", "country")
     assert mmm.scalers._target.dims == ("country",)
+
+    def max_abs(df: pd.DataFrame) -> pd.DataFrame:
+        return df.div(df.max())
+
+    def mean(df: pd.DataFrame) -> pd.DataFrame:
+        return df.div(df.mean())
+
+    normalization = {"mean": mean, "max": max_abs}[method]
+
+    actual = mmm.model["target_scaled"].eval()
+    expected = (
+        mmm.xarray_dataset._target.to_series()
+        .unstack("country")
+        .pipe(normalization)
+        .values
+    )
+
+    np.testing.assert_allclose(actual, expected)
 
 
 def test_target_scaling_raises() -> None:
