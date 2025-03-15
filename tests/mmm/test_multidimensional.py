@@ -24,7 +24,11 @@ from pytensor.tensor.basic import TensorVariable
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis
-from pymc_marketing.mmm.multidimensional import MMM, create_event_mu_effect
+from pymc_marketing.mmm.multidimensional import (
+    MMM,
+    VariableScaling,
+    create_event_mu_effect,
+)
 from pymc_marketing.prior import Prior
 
 
@@ -587,6 +591,7 @@ def test_different_target_scaling(multi_dim_data, mock_pymc_sample) -> None:
         channel_columns=["channel_1", "channel_2"],
         dims=("country",),
     )
+    assert mmm.scaling.target == VariableScaling(method="mean", dims=())
     mmm.fit(X, y)
     assert mmm.xarray_dataset._target.dims == ("date", "country")
     assert mmm.scalers._target.dims == ("country",)
