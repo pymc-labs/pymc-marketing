@@ -196,7 +196,11 @@ def create_event_mu_effect(
 
 
 class VariableScaling(BaseModel):
-    """How to scale a variable."""
+    """How to scale a variable.
+
+    The scaling through the dimension of 'date' is assumed and doesn't need to be specified.
+
+    """
 
     method: Literal["max", "mean"] = Field(..., description="The scaling method.")
     dims: str | tuple[str, ...] = Field(
@@ -219,7 +223,25 @@ class VariableScaling(BaseModel):
 
 
 class Scaling(BaseModel):
-    """Scaling configuration for the MMM."""
+    """Scaling configuration for the MMM.
+
+    Examples
+    --------
+    Scale the target variable by max value by group of 'DMA'
+
+    .. code-block:: python
+
+        from pymc_marketing.mmm.multidimensional import Scaling
+
+        scaling = Scaling(**{
+            "target": {
+                "method": "max",
+                # Exclude 'DMA' from dims here.
+                "dims": (),
+            },
+        })
+
+    """
 
     target: VariableScaling = Field(
         ...,
