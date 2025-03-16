@@ -409,7 +409,15 @@ class BudgetOptimizer(BaseModel):
         MinimizeException
             If the optimization fails for any reason, the exception message will contain the details.
         """
+        # set total budget
         self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))
+
+        # coordinate user-provided and default minimize_kwargs
+        if minimize_kwargs is None:
+            minimize_kwargs = self.DEFAULT_MINIMIZE_KWARGS.copy()
+        else:
+            # Merge with defaults (preferring user-supplied keys)
+            minimize_kwargs = {**self.DEFAULT_MINIMIZE_KWARGS, **minimize_kwargs}
 
         # 1. Process budget bounds
         if budget_bounds is None:
@@ -466,21 +474,19 @@ class BudgetOptimizer(BaseModel):
         else:
             budgets_size = self.budgets_to_optimize.sum().item()
 
-        # 5. Create an initial guess
-        initial_guess = np.ones(budgets_size) * (total_budget / budgets_size)
-        initial_guess = initial_guess.astype(self._budgets_flat.type.dtype)
-
-        if minimize_kwargs is None:
-            minimize_kwargs = self.DEFAULT_MINIMIZE_KWARGS.copy()
-        else:
-            # Merge with defaults (preferring user-supplied keys)
-            minimize_kwargs = {**self.DEFAULT_MINIMIZE_KWARGS, **minimize_kwargs}
+        # 5. Construct the initial guess (x0) if not provided
+        if "x0" not in minimize_kwargs:
+            minimize_kwargs["x0"] = np.ones(budgets_size) * (
+                total_budget / budgets_size
+            )
+            minimize_kwargs["x0"] = minimize_kwargs["x0"].astype(
+                self._budgets_flat.type.dtype
+            )
 
         # 6. Run the SciPy optimizer
         result = minimize(
             fun=self._compiled_functions[self.utility_function]["objective_and_grad"],
             jac=True,
-            x0=initial_guess,
             bounds=bounds,
             constraints=self._compiled_constraints,
             **minimize_kwargs,
