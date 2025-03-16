@@ -17,7 +17,6 @@ import itertools
 
 import arviz as az
 import matplotlib.pyplot as plt
-import numpy as np
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -326,11 +325,9 @@ class MMMPlotSuite:
                 median, lower, upper = self._compute_ci(data, ci=ci)
 
                 # Extract dates
-                dates = data["date"].values
-                ax.plot(dates, np.atleast_1d(median), label=f"{v}", alpha=0.9)
-                ax.fill_between(
-                    dates, np.atleast_1d(lower), np.atleast_1d(upper), alpha=0.2
-                )
+                dates = data.coords["date"].values
+                ax.plot(dates, median, label=f"{v}", alpha=0.9)
+                ax.fill_between(dates, lower, upper, alpha=0.2)
 
             title = self._build_subplot_title(
                 dims=additional_dims, combo=combo, fallback_title="Time Series"
