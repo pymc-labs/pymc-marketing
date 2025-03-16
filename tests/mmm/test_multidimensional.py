@@ -222,6 +222,25 @@ def test_fit(
 
     idata = mmm.fit(X, y, random_seed=random_seed)
 
+    def normalization(data):
+        return data.div(data.max())
+
+    def unstack(data, name):
+        if not name:
+            return data
+
+        return data.unstack(name)
+
+    actual = mmm.model["target_scaled"].eval()
+    expected = (
+        mmm.xarray_dataset._target.to_series()
+        .pipe(normalization)
+        .pipe(unstack, name=None if not dims else dims[0])
+        .values
+    )
+
+    np.testing.assert_allclose(actual, expected)
+
     # Assertions
     assert hasattr(mmm, "model"), "Model attribute should be set after build_model."
     assert isinstance(mmm.model, pm.Model), "mmm.model should be a PyMC Model instance."
