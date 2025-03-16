@@ -1268,13 +1268,14 @@ class MMM(ModelBuilder):
                 "date", *self.dims, "channel"
             )
         }
-        coords = {"date": dataset_xarray["date"].to_numpy()}
+        coords = self.model.coords.copy()
+        coords["date"] = dataset_xarray["date"].to_numpy()
 
-        if "control_data" in dataset_xarray:
-            data["control_data"] = dataset_xarray["control_data"].transpose(
+        if "_control" in dataset_xarray:
+            data["control_data"] = dataset_xarray["_control"].transpose(
                 "date", *self.dims, "control"
             )
-
+            coords["control"] = dataset_xarray["control"].to_numpy()
         if self.yearly_seasonality is not None:
             data["dayofyear"] = dataset_xarray["date"].dt.dayofyear.to_numpy()
 
