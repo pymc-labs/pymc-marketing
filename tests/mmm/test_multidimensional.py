@@ -28,7 +28,7 @@ from pymc_marketing.mmm.multidimensional import (
     MMM,
     create_event_mu_effect,
 )
-from pymc_marketing.mmm.scaling import VariableScaling
+from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.prior import Prior
 
 
@@ -680,3 +680,42 @@ def test_target_scaling_and_contributions(
         mmm.fit(X, y)
     except Exception as e:
         pytest.fail(f"Unexpected error: {e}")
+
+
+def test_channel_scaling(multi_dim_data, mock_pymc_sample) -> None:
+    X, y = multi_dim_data
+
+    scaling = {"channel": {"method": "mean", "dims": ()}}
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        dims=("country",),
+    )
+
+    mmm.fit(X, y)
+
+    assert mmm.scalers._channel.dims == ("country", "channel")
+
+
+def test_scaling_dict_doesnt_mutate() -> None:
+    scaling = {}
+    dims = ("country",)
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        dims=dims,
+    )
+
+    assert scaling == {}
+    assert mmm.scaling == Scaling(
+        target=VariableScaling(method="max", dims=dims),
+        channel=VariableScaling(method="max", dims=dims),
+    )
