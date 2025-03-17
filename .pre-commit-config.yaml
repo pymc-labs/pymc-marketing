@@ -11,6 +11,7 @@ repos:
           - --author=The PyMC Labs Developers
           - --exclude=docs/
           - --exclude=scripts/
+          - --start-year=2022
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.11.0
     hooks:
