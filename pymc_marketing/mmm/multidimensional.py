@@ -933,10 +933,17 @@ class MMM(ModelBuilder):
         with self.model:
             for v in var:
                 self._validate_contribution_variable(v)
+                dims = self.model.named_vars_to_dims[v]
+                dim_handler = create_dim_handler(dims)
+
                 pm.Deterministic(
                     name=v + "_original_scale",
-                    var=self.model[v] * self.model["target_scale"],
-                    dims=self.model.named_vars_to_dims[v],
+                    var=self.model[v]
+                    * dim_handler(
+                        self.model["target_scale"],
+                        self.scalers._target.dims,
+                    ),
+                    dims=dims,
                 )
 
     def build_model(
