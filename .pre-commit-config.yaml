@@ -4,7 +4,7 @@ ci:
 
 repos:
   - repo: https://github.com/lucianopaz/head_of_apache
-    rev: "0.1.0"
+    rev: "0.1.1"
     hooks:
       - id: head_of_apache
         args:
@@ -12,7 +12,7 @@ repos:
           - --exclude=docs/
           - --exclude=scripts/
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.10
+    rev: v0.11.0
     hooks:
       - id: ruff
         types_or: [python, pyi, jupyter]
