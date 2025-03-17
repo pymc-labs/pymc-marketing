@@ -24,7 +24,11 @@ from pytensor.tensor.basic import TensorVariable
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis
-from pymc_marketing.mmm.multidimensional import MMM, create_event_mu_effect
+from pymc_marketing.mmm.multidimensional import (
+    MMM,
+    create_event_mu_effect,
+)
+from pymc_marketing.mmm.scaling import VariableScaling
 from pymc_marketing.prior import Prior
 
 
@@ -217,6 +221,25 @@ def test_fit(
     random_seed = np.random.default_rng(seed)
 
     idata = mmm.fit(X, y, random_seed=random_seed)
+
+    def normalization(data):
+        return data.div(data.max())
+
+    def unstack(data, name):
+        if not name:
+            return data
+
+        return data.unstack(name)
+
+    actual = mmm.model["target_scaled"].eval()
+    expected = (
+        mmm.xarray_dataset._target.to_series()
+        .pipe(normalization)
+        .pipe(unstack, name=None if not dims else dims[0])
+        .values
+    )
+
+    np.testing.assert_allclose(actual, expected)
 
     # Assertions
     assert hasattr(mmm, "model"), "Model attribute should be set after build_model."
@@ -572,4 +595,55 @@ def test_check_for_incompatible_dims(adstock, saturation, dims) -> None:
             saturation=saturation,
             dims=dims,
             **kwargs,  # type: ignore
+        )
+
+
+@pytest.mark.parametrize("method", ["mean", "max"])
+def test_different_target_scaling(method, multi_dim_data, mock_pymc_sample) -> None:
+    X, y = multi_dim_data
+    scaling = {"target": {"method": method, "dims": ()}}
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        dims=("country",),
+    )
+    assert mmm.scaling.target == VariableScaling(method=method, dims=())
+    mmm.fit(X, y)
+    assert mmm.xarray_dataset._target.dims == ("date", "country")
+    assert mmm.scalers._target.dims == ("country",)
+
+    def max_abs(df: pd.DataFrame) -> pd.DataFrame:
+        return df.div(df.max())
+
+    def mean(df: pd.DataFrame) -> pd.DataFrame:
+        return df.div(df.mean())
+
+    normalization = {"mean": mean, "max": max_abs}[method]
+
+    actual = mmm.model["target_scaled"].eval()
+    expected = (
+        mmm.xarray_dataset._target.to_series()
+        .unstack("country")
+        .pipe(normalization)
+        .values
+    )
+
+    np.testing.assert_allclose(actual, expected)
+
+
+def test_target_scaling_raises() -> None:
+    scaling = {"target": {"method": "mean", "dims": ("country",)}}
+    match = "Target scaling dims"
+    with pytest.raises(ValueError, match=match):
+        MMM(
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            scaling=scaling,
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2"],
         )
