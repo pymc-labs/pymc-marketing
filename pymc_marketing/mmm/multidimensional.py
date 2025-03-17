@@ -287,9 +287,9 @@ class MMM(ModelBuilder):
                 f"Target scaling dims {self.scaling.target.dims} must contain {self.dims} and 'date'"
             )
 
-        if set(self.scaling.channel.dims).difference([*self.dims, "date"]):
+        if set(self.scaling.channel.dims).difference([*self.dims, "channel", "date"]):
             raise ValueError(
-                f"Channel scaling dims {self.scaling.channel.dims} must contain {self.dims} and 'date'"
+                f"Channel scaling dims {self.scaling.channel.dims} must contain {self.dims}, 'channel', and 'date'"
             )
 
         model_config = model_config if model_config is not None else {}

@@ -682,10 +682,19 @@ def test_target_scaling_and_contributions(
         pytest.fail(f"Unexpected error: {e}")
 
 
-def test_channel_scaling(multi_dim_data, mock_pymc_sample) -> None:
+@pytest.mark.parametrize(
+    "dims, expected_dims",
+    [
+        ((), ("country", "channel")),
+        (("country",), ("channel",)),
+        (("channel",), ("country",)),
+    ],
+    ids=["country-channel", "country", "channel"],
+)
+def test_channel_scaling(multi_dim_data, dims, expected_dims, mock_pymc_sample) -> None:
     X, y = multi_dim_data
 
-    scaling = {"channel": {"method": "mean", "dims": ()}}
+    scaling = {"channel": {"method": "mean", "dims": dims}}
     mmm = MMM(
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
@@ -698,7 +707,7 @@ def test_channel_scaling(multi_dim_data, mock_pymc_sample) -> None:
 
     mmm.fit(X, y)
 
-    assert mmm.scalers._channel.dims == ("country", "channel")
+    assert mmm.scalers._channel.dims == expected_dims
 
 
 def test_scaling_dict_doesnt_mutate() -> None:
