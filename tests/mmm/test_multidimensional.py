@@ -647,3 +647,36 @@ def test_target_scaling_raises() -> None:
             target_column="target",
             channel_columns=["channel_1", "channel_2"],
         )
+
+
+@pytest.mark.parametrize("dims", [(), ("country",)], ids=["country-level", "global"])
+def test_target_scaling_and_contributions(
+    multi_dim_data,
+    dims,
+    mock_pymc_sample,
+) -> None:
+    X, y = multi_dim_data
+
+    scaling = {"target": {"method": "mean", "dims": dims}}
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        dims=("country",),
+    )
+
+    var_names = ["channel_contribution", "intercept_contribution", "y"]
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=var_names)
+
+    for var in var_names:
+        new_var_name = f"{var}_original_scale"
+        assert new_var_name in mmm.model.named_vars
+
+    try:
+        mmm.fit(X, y)
+    except Exception as e:
+        pytest.fail(f"Unexpected error: {e}")
