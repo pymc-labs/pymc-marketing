@@ -26,9 +26,9 @@ from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis
 from pymc_marketing.mmm.multidimensional import (
     MMM,
-    VariableScaling,
     create_event_mu_effect,
 )
+from pymc_marketing.mmm.scaling import VariableScaling
 from pymc_marketing.prior import Prior
 
 
