@@ -649,7 +649,7 @@ def test_target_scaling_raises() -> None:
         )
 
 
-@pytest.mark.parametrize("dims", [(), ("country",)], ids=["global", "country-level"])
+@pytest.mark.parametrize("dims", [(), ("country",)], ids=["country-level", "global"])
 def test_target_scaling_and_contributions(
     multi_dim_data,
     dims,
