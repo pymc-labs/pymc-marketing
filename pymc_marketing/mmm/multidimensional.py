@@ -26,10 +26,8 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
-from pydantic import BaseModel, Field, model_validator
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
-from typing_extensions import Self
 
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.components.adstock import (
@@ -43,6 +41,7 @@ from pymc_marketing.mmm.components.saturation import (
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.plot import MMMPlotSuite
+from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.tvp import infer_time_index
 from pymc_marketing.model_builder import ModelBuilder, _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
@@ -195,60 +194,6 @@ def create_event_mu_effect(
     return Effect()
 
 
-class VariableScaling(BaseModel):
-    """How to scale a variable.
-
-    The scaling through the dimension of 'date' is assumed and doesn't need to be specified.
-
-    """
-
-    method: Literal["max", "mean"] = Field(..., description="The scaling method.")
-    dims: str | tuple[str, ...] = Field(
-        ...,
-        description="The dimensions to perform operation through.",
-    )
-
-    @model_validator(mode="after")
-    def _validate_dims(self) -> Self:
-        if isinstance(self.dims, str):
-            self.dims = (self.dims,)
-
-        if "date" in self.dims:
-            raise ValueError("dim of 'date' of is already assumed in the model.")
-
-        if len(set(self.dims)) != len(self.dims):
-            raise ValueError("dims must be unique.")
-
-        return self
-
-
-class Scaling(BaseModel):
-    """Scaling configuration for the MMM.
-
-    Examples
-    --------
-    Scale the target variable by max value by group of 'DMA'
-
-    .. code-block:: python
-
-        from pymc_marketing.mmm.multidimensional import Scaling
-
-        scaling = Scaling(**{
-            "target": {
-                "method": "max",
-                # Exclude 'DMA' from dims here.
-                "dims": (),
-            },
-        })
-
-    """
-
-    target: VariableScaling = Field(
-        ...,
-        description="The scaling for the target variable.",
-    )
-
-
 class MMM(ModelBuilder):
     """Marketing Mix Model class for estimating the impact of marketing channels on a target variable.
 
@@ -324,7 +269,7 @@ class MMM(ModelBuilder):
         if isinstance(scaling, dict):
             scaling = Scaling(**scaling)
 
-        self.scaling = scaling or Scaling(
+        self.scaling: Scaling = scaling or Scaling(
             target=VariableScaling(method="max", dims=self.dims)
         )
 
