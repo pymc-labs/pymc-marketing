@@ -71,3 +71,7 @@ class Scaling(BaseModel):
         ...,
         description="The scaling for the target variable.",
     )
+    channel: VariableScaling = Field(
+        ...,
+        description="The scaling for the channel variable.",
+    )
