@@ -1077,6 +1077,7 @@ class MMM(ModelBuilder):
                 _channel_scale,
                 self.scalers._channel.dims,
             )
+            channel_data_ = pt.switch(pt.isnan(channel_data_), 0.0, channel_data_)
             channel_data_.name = "channel_data_scaled"
             channel_data_.dims = ("date", *self.dims, "channel")
 
