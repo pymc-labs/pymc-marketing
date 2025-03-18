@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import warnings
+from copy import deepcopy
 from typing import Any, Literal, Protocol
 
 import arviz as az
@@ -267,15 +268,28 @@ class MMM(ModelBuilder):
         self.dims = dims
 
         if isinstance(scaling, dict):
+            scaling = deepcopy(scaling)
+
+            if "channel" not in scaling:
+                scaling["channel"] = VariableScaling(method="max", dims=self.dims)
+            if "target" not in scaling:
+                scaling["target"] = VariableScaling(method="max", dims=self.dims)
+
             scaling = Scaling(**scaling)
 
         self.scaling: Scaling = scaling or Scaling(
-            target=VariableScaling(method="max", dims=self.dims)
+            target=VariableScaling(method="max", dims=self.dims),
+            channel=VariableScaling(method="max", dims=self.dims),
         )
 
         if set(self.scaling.target.dims).difference([*self.dims, "date"]):
             raise ValueError(
                 f"Target scaling dims {self.scaling.target.dims} must contain {self.dims} and 'date'"
+            )
+
+        if set(self.scaling.channel.dims).difference([*self.dims, "channel", "date"]):
+            raise ValueError(
+                f"Channel scaling dims {self.scaling.channel.dims} must contain {self.dims}, 'channel', and 'date'"
             )
 
         model_config = model_config if model_config is not None else {}
@@ -864,11 +878,21 @@ class MMM(ModelBuilder):
 
     def _compute_scales(self) -> None:
         """Compute and save scaling factors for channels and target."""
-        method = getattr(self.xarray_dataset, self.scaling.target.method)
-        self.scalers = method(dim=("date", *self.dims))
-        self.scalers["_target"] = method(dim=("date", *self.scaling.target.dims))[
-            "_target"
-        ]
+        self.scalers = xr.Dataset()
+
+        channel_method = getattr(
+            self.xarray_dataset["_channel"],
+            self.scaling.channel.method,
+        )
+        self.scalers["_channel"] = channel_method(
+            dim=("date", *self.scaling.channel.dims)
+        )
+
+        target_method = getattr(
+            self.xarray_dataset["_target"],
+            self.scaling.target.method,
+        )
+        self.scalers["_target"] = target_method(dim=("date", *self.scaling.target.dims))
 
     def get_scales_as_xarray(self) -> dict[str, xr.DataArray]:
         """Return the saved scaling factors as xarray DataArrays.
@@ -933,10 +957,17 @@ class MMM(ModelBuilder):
         with self.model:
             for v in var:
                 self._validate_contribution_variable(v)
+                dims = self.model.named_vars_to_dims[v]
+                dim_handler = create_dim_handler(dims)
+
                 pm.Deterministic(
                     name=v + "_original_scale",
-                    var=self.model[v] * self.model["target_scale"],
-                    dims=self.model.named_vars_to_dims[v],
+                    var=self.model[v]
+                    * dim_handler(
+                        self.model["target_scale"],
+                        self.scalers._target.dims,
+                    ),
+                    dims=dims,
                 )
 
     def build_model(
@@ -1016,7 +1047,7 @@ class MMM(ModelBuilder):
             _channel_scale = pm.Data(
                 "channel_scale",
                 self.scalers._channel.values,
-                dims="channel",
+                dims=self.scalers._channel.dims,
             )
             _target_scale = pm.Data(
                 "target_scale",
@@ -1041,7 +1072,12 @@ class MMM(ModelBuilder):
             )
 
             # Scale `channel_data` and `target`
-            channel_data_ = _channel_data / _channel_scale
+            channel_dim_handler = create_dim_handler(("date", *self.dims, "channel"))
+            channel_data_ = _channel_data / channel_dim_handler(
+                _channel_scale,
+                self.scalers._channel.dims,
+            )
+            channel_data_ = pt.switch(pt.isnan(channel_data_), 0.0, channel_data_)
             channel_data_.name = "channel_data_scaled"
             channel_data_.dims = ("date", *self.dims, "channel")
 
