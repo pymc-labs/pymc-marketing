@@ -373,6 +373,7 @@ class BudgetOptimizer(BaseModel):
         self,
         total_budget: float,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
+        x0: DataArray | None = None,
         minimize_kwargs: dict[str, Any] | None = None,
         return_if_fail: bool = False,
     ) -> tuple[DataArray, OptimizeResult]:
@@ -391,8 +392,11 @@ class BudgetOptimizer(BaseModel):
             - If None, default bounds of [0, total_budget] per channel are assumed.
             - If a dict, must map each channel to (low, high) budget pairs (only valid if there's one dimension).
             - If an xarray.DataArray, must have dims (*budget_dims, "bound"), specifying [low, high] per channel cell.
+        x0 : DataArray, optional
+            Initial guess. Array of real elements of size (n,), where n is the number of driver budgets to optimize. If
+            None, the total budget is spread uniformly across all drivers to be optimized.
         minimize_kwargs : dict, optional
-            Extra kwargs for `scipy.optimize.minimize`. Defaults to method "SLSQP",
+            Extra kwargs for `scipy.optimize.minimize`. Defaults to method="SLSQP",
             ftol=1e-9, maxiter=1_000.
         return_if_fail : bool, optional
             Return output even if optimization fails. Default is False.
@@ -475,12 +479,14 @@ class BudgetOptimizer(BaseModel):
             budgets_size = self.budgets_to_optimize.sum().item()
 
         # 5. Construct the initial guess (x0) if not provided
-        if "x0" not in minimize_kwargs:
-            minimize_kwargs["x0"] = np.ones(budgets_size) * (
-                total_budget / budgets_size
-            )
-            minimize_kwargs["x0"] = minimize_kwargs["x0"].astype(
+        if x0 is None:
+            x0 = np.ones(budgets_size) * (total_budget / budgets_size).astype(
                 self._budgets_flat.type.dtype
+            )
+        # if x0 arg is provided, validate shape
+        elif x0.shape != (budgets_size,):
+            raise ValueError(
+                f"""The shape of 'x0' {x0.shape} does not match the expected shape {(budgets_size,)}."""
             )
 
         # 6. Run the SciPy optimizer
