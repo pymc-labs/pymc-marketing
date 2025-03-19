@@ -56,6 +56,6 @@ jobs:
 
             See the logs [here](https://github.com/pymc-labs/pymc-marketing/actions/workflows/uml.yml) for more details." \
             --label "no releasenotes" \
-            --reviewer "wd60622,juanitorduz"
+            --reviewer "williambdean,juanitorduz"
         env:
           GH_TOKEN: ${{ github.token }}
