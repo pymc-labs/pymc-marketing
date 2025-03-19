@@ -373,7 +373,7 @@ class BudgetOptimizer(BaseModel):
         self,
         total_budget: float,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
-        x0: DataArray | None = None,
+        x0: np.ndarray | None = None,
         minimize_kwargs: dict[str, Any] | None = None,
         return_if_fail: bool = False,
     ) -> tuple[DataArray, OptimizeResult]:
@@ -418,7 +418,7 @@ class BudgetOptimizer(BaseModel):
 
         # coordinate user-provided and default minimize_kwargs
         if minimize_kwargs is None:
-            minimize_kwargs = self.DEFAULT_MINIMIZE_KWARGS.copy()
+            minimize_kwargs = self.DEFAULT_MINIMIZE_KWARGS
         else:
             # Merge with defaults (preferring user-supplied keys)
             minimize_kwargs = {**self.DEFAULT_MINIMIZE_KWARGS, **minimize_kwargs}
@@ -487,6 +487,11 @@ class BudgetOptimizer(BaseModel):
         elif x0.shape != (budgets_size,):
             raise ValueError(
                 f"""The shape of 'x0' {x0.shape} does not match the expected shape {(budgets_size,)}."""
+            )
+        # if x0 arg is provided, validate dtype
+        elif np.issubdtype(x0.dtype, np.number):
+            raise ValueError(
+                f"""The dtype of 'x0' must be numeric but was instead {x0.dtype}."""
             )
 
         # 6. Run the SciPy optimizer
