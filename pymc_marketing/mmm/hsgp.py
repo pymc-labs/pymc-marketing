@@ -268,6 +268,10 @@ class HSGPBase(BaseModel):
             "or pymc.math namespaces."
         ),
     )
+    demeaned_basis: bool = Field(
+        False,
+        description="Whether each basis has its mean subtracted from it.",
+    )
 
     @model_validator(mode="after")
     def _transform_is_valid(self) -> Self:
@@ -471,6 +475,49 @@ class HSGP(HSGPBase):
         curve = prior["f"]
         hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
         plt.show()
+
+    Using a demeaned basis to remove "intercept" effect of first basis:
+
+    .. plot::
+        :include-source: True
+        :context: reset
+
+        import numpy as np
+        import pandas as pd
+        import xarray as xr
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm import HSGP
+        from pymc_marketing.plot import plot_curve
+
+        seed = sum(map(ord, "Out of the box GP"))
+        rng = np.random.default_rng(seed)
+
+        n = 52
+        X = np.arange(n)
+
+        kwargs = dict(X=X, ls=25, eta=1, dims="time", m=200, L=150, drop_first=False)
+
+        hsgp = HSGP(demeaned_basis=False, **kwargs)
+        hsgp_demeaned = HSGP(demeaned_basis=True, **kwargs)
+
+        dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
+        coords = {"time": dates}
+
+
+        def sample_curve(hsgp):
+            return hsgp.sample_prior(coords=coords, random_seed=rng)["f"]
+
+
+        non_demeaned = sample_curve(hsgp).rename("False")
+        demeaned = sample_curve(hsgp_demeaned).rename("True")
+
+        combined = xr.merge([non_demeaned, demeaned]).to_array("demeaned")
+        _, axes = combined.pipe(plot_curve, {"time"}, same_axes=True)
+        axes[0].set(title="Demeaned the intercepty first basis")
+        plt.show()
+
 
     HSGP with different covariance function
 
@@ -703,6 +750,7 @@ class HSGP(HSGPBase):
         centered: bool = False,
         drop_first: bool = True,
         transform: str | None = None,
+        demeaned_basis: bool = False,
     ) -> HSGP:
         """Create a HSGP informed by the data with literature-based recommendations."""
         eta = create_eta_prior(mass=eta_mass, upper=eta_upper)
@@ -753,6 +801,7 @@ class HSGP(HSGPBase):
             centered=centered,
             drop_first=drop_first,
             transform=transform,
+            demeaned_basis=demeaned_basis,
         )
 
     def create_variable(self, name: str) -> TensorVariable:
@@ -816,6 +865,8 @@ class HSGP(HSGPBase):
         phi, sqrt_psd = gp.prior_linearized(
             self.X[:, None] - self.X_mid,
         )
+        if self.demeaned_basis:
+            phi = phi - phi.mean(axis=0).eval()
 
         first_dim, *rest_dims = self.dims
         hsgp_dims: Dims = (*rest_dims, coord_name)
@@ -982,6 +1033,49 @@ class HSGPPeriodic(HSGPBase):
         ax.set(xlabel="Date", ylabel="f", title="HSGP with period of 52 weeks")
         plt.show()
 
+    Demeaned basis for HSGPPeriodic
+
+    .. plot::
+        :include-source: True
+        :context: reset
+
+        import numpy as np
+        import pandas as pd
+        import xarray as xr
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm import HSGPPeriodic
+        from pymc_marketing.plot import plot_curve
+
+        seed = sum(map(ord, "Periodic GP"))
+        rng = np.random.default_rng(seed)
+
+        scale = 0.25
+        ls = 1
+        kwargs = dict(ls=ls, scale=scale, period=52, cov_func="periodic", dims="time", m=20)
+
+        n = 52 * 3
+        dates = pd.date_range("2023-01-01", periods=n, freq="W-MON")
+        X = np.arange(n)
+        coords = {"time": dates}
+
+        hsgp = HSGPPeriodic(demeaned_basis=False, **kwargs).register_data(X)
+        hsgp_demeaned = HSGPPeriodic(demeaned_basis=True, **kwargs).register_data(X)
+
+
+        def sample_curve(hsgp):
+            return hsgp.sample_prior(coords=coords, random_seed=rng)["f"]
+
+
+        non_demeaned = sample_curve(hsgp).rename("False")
+        demeaned = sample_curve(hsgp_demeaned).rename("True")
+
+        combined = xr.merge([non_demeaned, demeaned]).to_array("demeaned")
+        _, axes = combined.pipe(plot_curve, {"time"}, same_axes=True)
+        axes[0].set(title="Demeaned the intercepty first basis")
+        plt.show()
+
     Higher dimensional HSGPPeriodic with periodic data
 
     .. plot::
@@ -1107,6 +1201,9 @@ class HSGPPeriodic(HSGPBase):
         (phi_cos, phi_sin), psd = gp.prior_linearized(
             self.X[:, None] - self.X_mid,
         )
+        if self.demeaned_basis:
+            phi_cos = phi_cos - phi_cos.mean(axis=0).eval()
+            phi_sin = phi_sin - phi_sin.mean(axis=0).eval()
 
         model = pm.modelcontext(None)
         coord_name: str = add_suffix("m")

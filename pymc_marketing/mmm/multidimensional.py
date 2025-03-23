@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import warnings
+from copy import deepcopy
 from typing import Any, Literal, Protocol
 
 import arviz as az
@@ -41,6 +42,7 @@ from pymc_marketing.mmm.components.saturation import (
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.plot import MMMPlotSuite
+from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.tvp import infer_time_index
 from pymc_marketing.model_builder import ModelBuilder, _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
@@ -244,6 +246,7 @@ class MMM(ModelBuilder):
         time_varying_intercept: bool = False,
         time_varying_media: bool = False,
         dims: tuple | None = None,
+        scaling: Scaling | dict | None = None,
         model_config: dict | None = None,  # Ensure model_config is a dictionary
         sampler_config: dict | None = None,
         control_columns: list[str] | None = None,
@@ -263,6 +266,31 @@ class MMM(ModelBuilder):
 
         dims = dims if dims is not None else ()
         self.dims = dims
+
+        if isinstance(scaling, dict):
+            scaling = deepcopy(scaling)
+
+            if "channel" not in scaling:
+                scaling["channel"] = VariableScaling(method="max", dims=self.dims)
+            if "target" not in scaling:
+                scaling["target"] = VariableScaling(method="max", dims=self.dims)
+
+            scaling = Scaling(**scaling)
+
+        self.scaling: Scaling = scaling or Scaling(
+            target=VariableScaling(method="max", dims=self.dims),
+            channel=VariableScaling(method="max", dims=self.dims),
+        )
+
+        if set(self.scaling.target.dims).difference([*self.dims, "date"]):
+            raise ValueError(
+                f"Target scaling dims {self.scaling.target.dims} must contain {self.dims} and 'date'"
+            )
+
+        if set(self.scaling.channel.dims).difference([*self.dims, "channel", "date"]):
+            raise ValueError(
+                f"Channel scaling dims {self.scaling.channel.dims} must contain {self.dims}, 'channel', and 'date'"
+            )
 
         model_config = model_config if model_config is not None else {}
         sampler_config = sampler_config
@@ -378,6 +406,7 @@ class MMM(ModelBuilder):
         attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
         attrs["time_varying_media"] = json.dumps(self.time_varying_media)
         attrs["target_column"] = self.target_column
+        attrs["scaling"] = json.dumps(self.scaling.model_dump(mode="json"))
 
         return attrs
 
@@ -437,6 +466,7 @@ class MMM(ModelBuilder):
             "time_varying_media": json.loads(attrs.get("time_varying_media", "false")),
             "sampler_config": json.loads(attrs["sampler_config"]),
             "dims": tuple(json.loads(attrs.get("dims", "[]"))),
+            "scaling": json.loads(attrs.get("scaling", "null")),
         }
 
     @property
@@ -780,7 +810,7 @@ class MMM(ModelBuilder):
             dims=self.dims,
             metric_list=[self.target_column],
             metric_coordinate_name="target",
-        )
+        ).sum("target")
         dataarrays.append(y_dataarray)
 
         if self.control_columns is not None:
@@ -794,6 +824,7 @@ class MMM(ModelBuilder):
             dataarrays.append(control_dataarray)
 
         self.xarray_dataset = xr.merge(dataarrays).fillna(0)
+
         self.model_coords = {
             dim: self.xarray_dataset.coords[dim].values
             for dim in self.xarray_dataset.coords.dims
@@ -847,7 +878,21 @@ class MMM(ModelBuilder):
 
     def _compute_scales(self) -> None:
         """Compute and save scaling factors for channels and target."""
-        self.scalers = self.xarray_dataset.max(dim=["date", *self.dims])
+        self.scalers = xr.Dataset()
+
+        channel_method = getattr(
+            self.xarray_dataset["_channel"],
+            self.scaling.channel.method,
+        )
+        self.scalers["_channel"] = channel_method(
+            dim=("date", *self.scaling.channel.dims)
+        )
+
+        target_method = getattr(
+            self.xarray_dataset["_target"],
+            self.scaling.target.method,
+        )
+        self.scalers["_target"] = target_method(dim=("date", *self.scaling.target.dims))
 
     def get_scales_as_xarray(self) -> dict[str, xr.DataArray]:
         """Return the saved scaling factors as xarray DataArrays.
@@ -912,10 +957,17 @@ class MMM(ModelBuilder):
         with self.model:
             for v in var:
                 self._validate_contribution_variable(v)
+                dims = self.model.named_vars_to_dims[v]
+                dim_handler = create_dim_handler(dims)
+
                 pm.Deterministic(
                     name=v + "_original_scale",
-                    var=self.model[v] * self.model["target_scale"],
-                    dims=self.model.named_vars_to_dims[v],
+                    var=self.model[v]
+                    * dim_handler(
+                        self.model["target_scale"],
+                        self.scalers._target.dims,
+                    ),
+                    dims=dims,
                 )
 
     def build_model(
@@ -995,11 +1047,12 @@ class MMM(ModelBuilder):
             _channel_scale = pm.Data(
                 "channel_scale",
                 self.scalers._channel.values,
-                dims="channel",
+                dims=self.scalers._channel.dims,
             )
             _target_scale = pm.Data(
                 "target_scale",
-                self.scalers._target.item(),
+                self.scalers._target,
+                dims=self.scalers._target.dims,
             )
 
             _channel_data = pm.Data(
@@ -1013,22 +1066,27 @@ class MMM(ModelBuilder):
             _target = pm.Data(
                 name="target_data",
                 value=(
-                    self.xarray_dataset._target.sum(dim="target")
-                    .transpose("date", *self.dims)
-                    .values
+                    self.xarray_dataset._target.transpose("date", *self.dims).values
                 ),
                 dims=("date", *self.dims),
             )
 
             # Scale `channel_data` and `target`
-            channel_data_ = _channel_data / _channel_scale
+            channel_dim_handler = create_dim_handler(("date", *self.dims, "channel"))
+            channel_data_ = _channel_data / channel_dim_handler(
+                _channel_scale,
+                self.scalers._channel.dims,
+            )
+            channel_data_ = pt.switch(pt.isnan(channel_data_), 0.0, channel_data_)
             channel_data_.name = "channel_data_scaled"
             channel_data_.dims = ("date", *self.dims, "channel")
 
             ## Hot fix for target data meanwhile pymc allows for internal scaling `https://github.com/pymc-devs/pymc/pull/7656`
+            target_dim_handler = create_dim_handler(("date", *self.dims))
             target_data_scaled = pm.Deterministic(
                 name="target_scaled",
-                var=_target / _target_scale,
+                var=_target
+                / target_dim_handler(_target_scale, self.scalers._target.dims),
                 dims=("date", *self.dims),
             )
 
@@ -1094,9 +1152,13 @@ class MMM(ModelBuilder):
                     dims=("date", *self.dims, "channel"),
                 )
 
+            dim_handler = create_dim_handler(("date", *self.dims))
             pm.Deterministic(
                 name="total_media_contribution_original_scale",
-                var=channel_contribution.sum() * _target_scale,
+                var=(
+                    channel_contribution.sum(axis=-1)
+                    * dim_handler(_target_scale, self.scalers._target.dims)
+                ).sum(),
                 dims=(),
             )
 
@@ -1210,13 +1272,17 @@ class MMM(ModelBuilder):
             dataarrays.append(control_dataarray)
 
         if y is not None:
-            y_xarray = self._create_xarray_from_pandas(
-                data=y,
-                date_column=self.date_column,
-                dims=self.dims,
-                metric_list=[self.target_column],
-                metric_coordinate_name="target",
-            ).transpose("date", *self.dims, "target")
+            y_xarray = (
+                self._create_xarray_from_pandas(
+                    data=y,
+                    date_column=self.date_column,
+                    dims=self.dims,
+                    metric_list=[self.target_column],
+                    metric_coordinate_name="target",
+                )
+                .sum("target")
+                .transpose("date", *self.dims)
+            )
         else:
             # Return empty xarray with same dimensions as the target but full of zeros
             y_xarray = xr.DataArray(
@@ -1224,15 +1290,13 @@ class MMM(ModelBuilder):
                     (
                         X[self.date_column].nunique(),
                         *[len(self.xarray_dataset.coords[dim]) for dim in self.dims],
-                        1,
                     ),
                     dtype=np.int32,
                 ),
-                dims=("date", *self.dims, "target"),
+                dims=("date", *self.dims),
                 coords={
                     "date": X[self.date_column].unique(),
                     **{dim: self.xarray_dataset.coords[dim] for dim in self.dims},
-                    "target": self.xarray_dataset.coords["target"],
                 },
                 name="_target",
             ).to_dataset()
@@ -1268,13 +1332,14 @@ class MMM(ModelBuilder):
                 "date", *self.dims, "channel"
             )
         }
-        coords = {"date": dataset_xarray["date"].to_numpy()}
+        coords = self.model.coords.copy()
+        coords["date"] = dataset_xarray["date"].to_numpy()
 
-        if "control_data" in dataset_xarray:
-            data["control_data"] = dataset_xarray["control_data"].transpose(
+        if "_control" in dataset_xarray:
+            data["control_data"] = dataset_xarray["_control"].transpose(
                 "date", *self.dims, "control"
             )
-
+            coords["control"] = dataset_xarray["control"].to_numpy()
         if self.yearly_seasonality is not None:
             data["dayofyear"] = dataset_xarray["date"].dt.dayofyear.to_numpy()
 
@@ -1285,10 +1350,8 @@ class MMM(ModelBuilder):
                 self._time_resolution,
             )
 
-        if "target" in dataset_xarray:
-            data["target_data"] = dataset_xarray._target.sum(dim="target").transpose(
-                "date", *self.dims
-            )
+        if "_target" in dataset_xarray:
+            data["target_data"] = dataset_xarray._target.transpose("date", *self.dims)
 
         self.new_updated_data = data
         self.new_updated_coords = coords
