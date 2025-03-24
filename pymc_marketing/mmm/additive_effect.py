@@ -154,10 +154,16 @@ class LinearTrendEffect:
 
     Examples
     --------
-    Out of sample predictions
+    Out of sample predictions:
 
+    .. note::
 
-    .. code-block:: python
+        No new changepoints are used for the out of sample predictions. The trend
+        effect is linearly extrapolated from the last changepoint.
+
+    .. plot::
+        :include-source: True
+        :context: reset
 
         import pandas as pd
         import numpy as np
@@ -169,8 +175,13 @@ class LinearTrendEffect:
         from pymc_marketing.mmm.linear_trend import LinearTrend
         from pymc_marketing.mmm.additive_effect import LinearTrendEffect
 
+        seed = sum(map(ord, "LinearTrend out of sample"))
+        rng = np.random.default_rng(seed)
+
+
         class MockMMM:
-           pass
+            pass
+
 
         dates = pd.date_range("2025-01-01", periods=52, freq="W")
         coords = {"date": dates}
@@ -180,9 +191,10 @@ class LinearTrendEffect:
         mock_mmm.dims = ()
         mock_mmm.model = model
 
-
-        effect = LinearTrendEffect(LinearTrend(n_changepoints=8), prefix="trend")
-
+        effect = LinearTrendEffect(
+            trend=LinearTrend(n_changepoints=8),
+            prefix="trend",
+        )
 
         with mock_mmm.model:
             effect.create_data(mock_mmm)
@@ -192,13 +204,13 @@ class LinearTrendEffect:
                 dims="date",
             )
 
-            idata = pm.sample_prior_predictive()
+            idata = pm.sample_prior_predictive(random_seed=rng)
 
         idata["posterior"] = idata.prior
 
-        n_new = 10
+        n_new = 10 + 1
         new_dates = pd.date_range(
-            dates.max() + pd.Timedelta(1, "W"),
+            dates.max(),
             periods=n_new,
             freq="W",
         )
@@ -209,11 +221,15 @@ class LinearTrendEffect:
 
             effect.set_data(mock_mmm, mock_mmm.model, None)
 
-            pm.sample_posterior_predictive(idata, var_names=["effect"],
-                extend_inferencedata=True,)
+            pm.sample_posterior_predictive(
+                idata,
+                var_names=["effect"],
+                random_seed=rng,
+                extend_inferencedata=True,
+            )
 
-
-        sel = dict(chain=0, draw=0)
+        draw = rng.choice(range(idata.posterior.sizes["draw"]))
+        sel = dict(chain=0, draw=draw)
 
         before = idata.posterior.effect.sel(sel).to_series()
         after = idata.posterior_predictive.effect.sel(sel).to_series()
@@ -227,6 +243,7 @@ class LinearTrendEffect:
     def __init__(self, trend: LinearTrend, prefix: str):
         self.trend = trend
         self.prefix = prefix
+        self.linear_trend_first_date: pd.Timestamp
 
     def create_data(self, mmm: MMM) -> None:
         """Create the required data in the model.
@@ -240,8 +257,8 @@ class LinearTrendEffect:
 
         # Create time index data (normalized between 0 and 1)
         dates = pd.to_datetime(model.coords["date"])
-        t = (dates - dates[0]).days.astype(float)
-        t = t / t.max() if t.max() > 0 else t
+        self.linear_trend_first_date = dates[0]
+        t = (dates - self.linear_trend_first_date).days.astype(float)
 
         pm.Data(f"{self.prefix}_t", t, dims="date")
 
@@ -262,6 +279,8 @@ class LinearTrendEffect:
 
         # Get the time data
         t = model[f"{self.prefix}_t"]
+        t_max = t.max().eval()
+        t = t / t_max if t_max > 0 else t
 
         # Apply the trend
         trend_effect = self.trend.apply(t)
@@ -292,8 +311,7 @@ class LinearTrendEffect:
         """
         # Create normalized time index for new data
         new_dates = pd.to_datetime(model.coords["date"])
-        t = (new_dates - new_dates[0]).days.astype(float)
-        t = t / t.max() if t.max() > 0 else t
+        t = (new_dates - self.linear_trend_first_date).days.astype(float)
 
         # Update the data
         pm.set_data({f"{self.prefix}_t": t}, model=model)
