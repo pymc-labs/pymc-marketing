@@ -305,7 +305,7 @@ class LinearTrend(BaseModel):
         dim_handler = create_dim_handler(desired_dims=out_dims)
 
         # (changepoints, )
-        s = pt.linspace(0, pt.max(t), self.n_changepoints)
+        s = pt.linspace(0, pt.max(t).eval(), self.n_changepoints)
         s.type.shape = (self.n_changepoints,)
         s = dim_handler(
             s,
