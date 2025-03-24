@@ -137,6 +137,7 @@ def test_linear_trend_effect(create_mock_mmm, new_dates, linear_trend_model) -> 
 
     assert set(mmm.model.named_vars) == {f"{prefix}_t"}
     assert set(mmm.model.coords) == {"date"}
+    assert effect.linear_trend_first_date == mmm.model.coords["date"][0]
 
     with mmm.model:
         pm.Deterministic("effect", effect.create_effect(mmm), dims=("date", *mmm.dims))
