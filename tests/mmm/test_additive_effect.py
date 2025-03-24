@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
@@ -38,14 +39,19 @@ def create_mock_mmm():
 
 @pytest.fixture(scope="function")
 def dates() -> pd.DatetimeIndex:
-    return pd.date_range("2025-01-01", periods=52, freq="W-MON")
+    return pd.date_range("2025-01-01", periods=52, freq="W-MON", name="date")
 
 
 @pytest.fixture(scope="function")
 def new_dates(dates) -> pd.DatetimeIndex:
     last_date = dates.max()
 
-    return pd.date_range(last_date + pd.Timedelta(days=7), periods=26, freq="W-MON")
+    return pd.date_range(
+        last_date + pd.Timedelta(days=7),
+        periods=26,
+        freq="W-MON",
+        name="date",
+    )
 
 
 def set_new_model_dates(dates):
@@ -81,16 +87,37 @@ def test_fourier_effect(create_mock_mmm, new_dates, fourier_model, fourier) -> N
     assert set(mmm.model.coords) == {"date"}
 
     with mmm.model:
-        effect.create_effect(mmm)
+        pm.Deterministic(
+            "effect",
+            effect.create_effect(mmm),
+            dims=("date", *mmm.dims),
+        )
 
     assert set(mmm.model.named_vars) == set(
-        [f"{fourier.prefix}_day", f"{fourier.prefix}_beta", f"{fourier.prefix}_effect"]
+        [
+            f"{fourier.prefix}_day",
+            "effect",
+            f"{fourier.prefix}_beta",
+            f"{fourier.prefix}_effect",
+        ]
     )
     assert set(mmm.model.coords) == {"date", fourier.prefix}
 
     with mmm.model:
+        idata = pm.sample_prior_predictive()
         set_new_model_dates(new_dates)
         effect.set_data(mmm, mmm.model, None)
+
+        idata.extend(
+            pm.sample_posterior_predictive(
+                idata.prior,
+                var_names=["effect"],
+            )
+        )
+
+    effect_predictions = idata.posterior_predictive.effect
+    np.testing.assert_allclose(effect_predictions.notnull().mean().item(), 1.0)
+    pd.testing.assert_index_equal(effect_predictions.date.to_index(), new_dates)
 
 
 @pytest.fixture(scope="function")
@@ -112,11 +139,28 @@ def test_linear_trend_effect(create_mock_mmm, new_dates, linear_trend_model) -> 
     assert set(mmm.model.coords) == {"date"}
 
     with mmm.model:
-        effect.create_effect(mmm)
+        pm.Deterministic("effect", effect.create_effect(mmm), dims=("date", *mmm.dims))
 
-    assert set(mmm.model.named_vars) == {"delta", f"{prefix}_effect", f"{prefix}_t"}
+    assert set(mmm.model.named_vars) == {
+        "delta",
+        "effect",
+        f"{prefix}_effect",
+        f"{prefix}_t",
+    }
     assert set(mmm.model.coords) == {"date", "changepoint"}
 
     with mmm.model:
+        idata = pm.sample_prior_predictive()
         set_new_model_dates(new_dates)
         effect.set_data(mmm, mmm.model, None)
+
+        idata.extend(
+            pm.sample_posterior_predictive(
+                idata.prior,
+                var_names=["effect"],
+            )
+        )
+
+    effect_predictions = idata.posterior_predictive.effect
+    np.testing.assert_allclose(effect_predictions.notnull().mean().item(), 1.0)
+    pd.testing.assert_index_equal(effect_predictions.date.to_index(), new_dates)
