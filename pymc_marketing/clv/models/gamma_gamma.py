@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -254,9 +254,9 @@ class GammaGammaModel(BaseGammaGammaModel):
                 "frequency": [6, 8, 2, 1, ...],
             }),
             model_config={
-                "p_prior": {'dist': 'HalfNormal', kwargs: {}},
-                "q_prior": {'dist': 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
-                "v_prior": {'dist': 'HalfCauchy', kwargs: {"beta":1}},
+                "p": {'dist': 'HalfNormal', kwargs: {}},
+                "q": {'dist': 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
+                "v": {'dist': 'HalfCauchy', kwargs: {"beta":1}},
             },
             sampler_config={
                 "draws": 1000,
@@ -318,9 +318,9 @@ class GammaGammaModel(BaseGammaGammaModel):
     def default_model_config(self) -> ModelConfig:
         """Default model configuration."""
         return {
-            "p_prior": Prior("HalfFlat"),
-            "q_prior": Prior("HalfFlat"),
-            "v_prior": Prior("HalfFlat"),
+            "p": Prior("HalfFlat"),
+            "q": Prior("HalfFlat"),
+            "v": Prior("HalfFlat"),
         }
 
     def build_model(self) -> None:  # type: ignore[override]
@@ -330,9 +330,9 @@ class GammaGammaModel(BaseGammaGammaModel):
 
         coords = {"customer_id": self.data["customer_id"]}
         with pm.Model(coords=coords) as self.model:
-            p = self.model_config["p_prior"].create_variable("p")
-            q = self.model_config["q_prior"].create_variable("q")
-            v = self.model_config["v_prior"].create_variable("v")
+            p = self.model_config["p"].create_variable("p")
+            q = self.model_config["q"].create_variable("q")
+            v = self.model_config["v"].create_variable("v")
 
             # Likelihood for mean_spend, marginalizing over nu
             # Eq 1a from [1], p.2
@@ -393,9 +393,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
                 }
             ),
             model_config={
-                "p_prior": {dist: 'HalfNorm', kwargs: {}},
-                "q_prior": {dist: 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
-                "v_prior": {dist: 'HalfCauchy', kwargs: {}},
+                "p": {dist: 'HalfNorm', kwargs: {}},
+                "q": {dist: 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
+                "v": {dist: 'HalfCauchy', kwargs: {}},
             },
             sampler_config={
                 "draws": 1000,
@@ -455,9 +455,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     def default_model_config(self) -> dict:
         """Default model configuration."""
         return {
-            "p_prior": Prior("HalfFlat"),
-            "q_prior": Prior("HalfFlat"),
-            "v_prior": Prior("HalfFlat"),
+            "p": Prior("HalfFlat"),
+            "q": Prior("HalfFlat"),
+            "v": Prior("HalfFlat"),
         }
 
     def build_model(self) -> None:  # type: ignore[override]
@@ -469,9 +469,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             "obs": range(self.data.shape[0]),
         }
         with pm.Model(coords=coords) as self.model:
-            p = self.model_config["p_prior"].create_variable("p")
-            q = self.model_config["q_prior"].create_variable("q")
-            v = self.model_config["v_prior"].create_variable("v")
+            p = self.model_config["p"].create_variable("p")
+            q = self.model_config["q"].create_variable("q")
+            v = self.model_config["v"].create_variable("v")
 
             nu = pm.Gamma("nu", q, v, dims=("customer_id",))
             pm.Gamma(

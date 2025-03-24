@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -474,9 +474,14 @@ def test_scale_lift_measurements(df_lift_test_with_numerics) -> None:
         delta_x=lambda row: row["delta_x"] * 2.0,
         delta_y=lambda row: row["delta_y"] / 2,
         sigma=lambda row: row["sigma"] / 2,
-    ).loc[:, ["channel", "x", "delta_x", "delta_y", "sigma"]]
+    ).loc[
+        :,
+        ["channel", "x", "delta_x", "delta_y", "sigma"]
+        + (["date"] if "date" in df_lift_test_with_numerics.columns else []),
+    ]
 
     pd.testing.assert_frame_equal(
         result,
         expected,
+        check_like=True,
     )

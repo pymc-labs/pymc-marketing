@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Base class for Marketing Mix Models (MMM)."""
 
+import warnings
 from collections.abc import Callable
 from inspect import (
     getattr_static,
@@ -21,7 +22,7 @@ from inspect import (
     ismemberdescriptor,
     ismethoddescriptor,
 )
-from typing import Any
+from typing import Any, Literal
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -29,6 +30,7 @@ import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
 import pymc as pm
+import seaborn as sns
 from numpy.typing import NDArray
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
@@ -45,7 +47,7 @@ from pymc_marketing.mmm.validating import (
 )
 from pymc_marketing.model_builder import ModelBuilder
 
-__all__ = ["MMMModelBuilder", "BaseValidateMMM"]
+__all__ = ["BaseValidateMMM", "MMMModelBuilder"]
 
 from pydantic import Field, validate_call
 
@@ -270,95 +272,350 @@ class MMMModelBuilder(ModelBuilder):
             identity_transformer = FunctionTransformer()
             return Pipeline(steps=[("scaler", identity_transformer)])
 
-    @property
-    def prior(self) -> Dataset:
-        """Get the prior data."""
-        if self.idata is None or "prior" not in self.idata:
+    def _get_group_predictive_data(
+        self,
+        group: Literal["prior_predictive", "posterior_predictive"],
+        original_scale: bool = False,
+    ) -> Dataset:
+        """Get the prior or posterior predictive data."""
+        try:
+            group_data: Dataset = getattr(self, group)
+
+        except Exception as e:
             raise RuntimeError(
-                "The model hasn't been sampled yet, call .sample_prior_predictive() first"
+                f"Make sure the model has been fitted and the {group} has been sampled!"
+            ) from e
+
+        if original_scale:
+            group_data = apply_sklearn_transformer_across_dim(
+                data=group_data,
+                func=self.get_target_transformer().inverse_transform,
+                dim_name="date",
             )
-        return self.idata["prior"]
+        return group_data
 
-    @property
-    def prior_predictive(self) -> Dataset:
-        """Get the prior predictive data."""
-        if self.idata is None or "prior_predictive" not in self.idata:
-            raise RuntimeError(
-                "The model hasn't been sampled yet, call .sample_prior_predictive() first"
-            )
-        return self.idata["prior_predictive"]
+    def _get_prior_predictive_data(self, original_scale: bool = False) -> Dataset:
+        return self._get_group_predictive_data(
+            group="prior_predictive", original_scale=original_scale
+        )
 
-    @property
-    def fit_result(self) -> Dataset:
-        """Get the posterior data."""
-        if self.idata is None or "posterior" not in self.idata:
-            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        return self.idata["posterior"]
+    def _get_posterior_predictive_data(self, original_scale: bool = False) -> Dataset:
+        return self._get_group_predictive_data(
+            group="posterior_predictive", original_scale=original_scale
+        )
 
-    @property
-    def posterior_predictive(self) -> Dataset:
-        """Get the posterior predictive data."""
-        if self.idata is None or "posterior_predictive" not in self.idata:
-            raise RuntimeError(
-                "The model hasn't been fit yet, call .sample_posterior_predictive() first"
-            )
-        return self.idata["posterior_predictive"]
+    def _add_mean_to_plot(
+        self,
+        ax: plt.Axes,
+        group: Literal["prior_predictive", "posterior_predictive"],
+        original_scale: bool = False,
+        color="blue",
+        linestyle="-",
+        **kwargs,
+    ) -> plt.Axes:
+        """Add mean prediction to existing plot."""
+        group_data: Dataset = self._get_group_predictive_data(
+            group=group, original_scale=original_scale
+        )
 
-    def plot_prior_predictive(self, **plt_kwargs: Any) -> plt.Figure:
-        """Plot the prior predictive data.
+        mean_prediction = group_data[self.output_var].mean(dim=["chain", "draw"])
+
+        ax.plot(
+            np.asarray(group_data.date),
+            mean_prediction,
+            color=color,
+            linestyle=linestyle,
+            label="Mean Prediction",
+        )
+        return ax
+
+    def _add_hdi_to_plot(
+        self,
+        ax: plt.Axes,
+        group: Literal["prior_predictive", "posterior_predictive"],
+        original_scale: bool = False,
+        hdi_prob: float = 0.94,
+        color: str = "C0",
+        alpha: float = 0.2,
+        **kwargs,
+    ) -> plt.Axes:
+        """Add HDI to existing plot."""
+        group_data: Dataset = self._get_group_predictive_data(
+            group=group, original_scale=original_scale
+        )
+
+        likelihood_hdi: DataArray = az.hdi(ary=group_data, hdi_prob=hdi_prob)[
+            self.output_var
+        ]
+
+        ax.fill_between(
+            x=group_data.date,
+            y1=likelihood_hdi[:, 0],
+            y2=likelihood_hdi[:, 1],
+            color=color,
+            alpha=alpha,
+            label=f"{hdi_prob:.0%} HDI",
+            **kwargs,
+        )
+        return ax
+
+    def _add_gradient_to_plot(
+        self,
+        ax: plt.Axes,
+        group: Literal["prior_predictive", "posterior_predictive"],
+        original_scale: bool = False,
+        n_percentiles: int = 30,
+        palette: str = "Blues",
+        **kwargs,
+    ) -> plt.Axes:
+        """
+        Add a gradient representation of the prior or posterior predictive distribution to an existing plot.
+
+        This method creates a shaded area plot where the color intensity represents
+        the density of the posterior predictive distribution.
 
         Parameters
         ----------
-        **plt_kwargs
-            Keyword arguments passed to `plt.subplots`.
+        ax : plt.Axes
+            The matplotlib axes object to add the gradient to.
+        group : Literal["prior_predictive", "posterior_predictive"]
+            The group of data to plot.
+        original_scale : bool, optional
+            If True, use the original scale of the data. Default is False.
+        n_percentiles : int, optional
+            Number of percentile ranges to use for the gradient. Default is 30.
+        palette : str, optional
+            Color palette to use for the gradient. Default is "Blues".
+        **kwargs
+            Additional keyword arguments passed to ax.fill_between().
+
+        Returns
+        -------
+        plt.Axes
+            The matplotlib axes object with the gradient added.
+        """
+        # Get posterior predictive data and flatten it
+        group_data: Dataset = self._get_group_predictive_data(
+            group=group, original_scale=original_scale
+        )
+        group_data_flattened = group_data.stack(sample=("chain", "draw")).to_dataarray()
+        dates = group_data.date.values
+
+        # Set up color map and ranges
+        cmap = plt.get_cmap(palette)
+        color_range = np.linspace(0.3, 1.0, n_percentiles // 2)
+        percentile_ranges = np.linspace(3, 97, n_percentiles)
+
+        # Create gradient by filling between percentile ranges
+        for i in range(len(percentile_ranges) - 1):
+            lower_percentile = np.percentile(
+                group_data_flattened, percentile_ranges[i], axis=2
+            ).squeeze()
+            upper_percentile = np.percentile(
+                group_data_flattened, percentile_ranges[i + 1], axis=2
+            ).squeeze()
+            if i < n_percentiles // 2:
+                color_val = color_range[i]
+            else:
+                color_val = color_range[n_percentiles - i - 2]
+            alpha_val = 0.2 + 0.8 * (
+                1 - abs(2 * i / n_percentiles - 1)
+            )  # Higher alpha in the middle
+            ax.fill_between(
+                x=dates,
+                y1=lower_percentile,
+                y2=upper_percentile,
+                color=cmap(color_val),
+                alpha=alpha_val,
+                **kwargs,
+            )
+
+        return ax
+
+    def _plot_group_predictive(
+        self,
+        group: Literal["prior_predictive", "posterior_predictive"],
+        original_scale: bool = False,
+        hdi_list: list[float] | None = None,
+        add_mean: bool = True,
+        add_gradient: bool = False,
+        ax: plt.Axes = None,
+        **plt_kwargs: Any,
+    ) -> plt.Figure:
+        """
+        Plot the prior or posterior predictive distribution from the model fit.
+
+        This function creates a visualization of the model's prior or posterior predictive distribution,
+        allowing for comparison with observed data. It can include highest density intervals (HDI),
+        mean predictions, and a gradient representation of the full distribution.
+
+        Parameters
+        ----------
+        group : Literal["prior_predictive", "posterior_predictive"]
+            The group of data to plot.
+        original_scale : bool, optional
+            If True, plot in the original scale of the target variable.
+            If False, plot in the transformed scale used for modeling. Default is False.
+        hdi_list : list of float, optional
+            List of HDI levels to plot. Default is [0.94] Provide an empty list to omit plotting the HDI.
+        add_mean : bool, optional
+            If True, add the mean prediction to the plot. Default is True.
+        add_gradient : bool, optional
+            If True, add a gradient representation of the full posterior distribution. Default is False.
+        ax : plt.Axes, optional
+            A matplotlib Axes object to plot on. If None, a new figure and axes will be created.
+        **plt_kwargs : dict
+            Additional keyword arguments to pass to plt.subplots() when creating a new figure.
 
         Returns
         -------
         plt.Figure
+            The matplotlib Figure object containing the plot.
 
+        Raises
+        ------
+        ValueError
+            If the length of the target variable doesn't match the length
+            of the date column in the posterior predictive data.
+
+        Notes
+        -----
+        This function visualizes the model's predictions against the observed data.
+        The observed data is always plotted as a black line.
+        Depending on the parameters, it can also show:
+        - HDI (Highest Density Intervals) at 94% and 50% levels
+        - Mean prediction line
+        - Gradient representation of the full posterior distribution
+
+        If predicting out-of-sample, ensure that `self.y` is overwritten with the
+        corresponding non-transformed target variable.
         """
-        prior_predictive_data: az.InferenceData = self.prior_predictive
+        group_data: Dataset = self._get_group_predictive_data(
+            group=group, original_scale=original_scale
+        )
 
-        likelihood_hdi_94: DataArray = az.hdi(ary=prior_predictive_data, hdi_prob=0.94)[
-            self.output_var
-        ]
-        likelihood_hdi_50: DataArray = az.hdi(ary=prior_predictive_data, hdi_prob=0.50)[
-            self.output_var
-        ]
+        target_to_plot = np.asarray(
+            self.y
+            if original_scale
+            else transform_1d_array(self.get_target_transformer().transform, self.y)
+        )
 
-        fig, ax = plt.subplots(**plt_kwargs)
-        if self.X is not None and self.y is not None:
-            ax.fill_between(
-                x=np.asarray(self.X[self.date_column]),
-                y1=likelihood_hdi_94[:, 0],
-                y2=likelihood_hdi_94[:, 1],
-                color="C0",
-                alpha=0.2,
-                label=r"$94\%$ HDI",
+        if len(target_to_plot) != len(group_data.date):
+            raise ValueError(
+                "The length of the target variable doesn't match the length of the date column. "
+                "If you are predicting out-of-sample, please overwrite `self.y` with the "
+                "corresponding (non-transformed) target variable."
             )
 
-            ax.fill_between(
-                x=np.asarray(self.X[self.date_column]),
-                y1=likelihood_hdi_50[:, 0],
-                y2=likelihood_hdi_50[:, 1],
-                color="C0",
-                alpha=0.3,
-                label=r"$50\%$ HDI",
-            )
-
-            ax.plot(
-                np.asarray(self.X[self.date_column]),
-                np.asarray(self.preprocessed_data["y"]),  # type: ignore
-                color="black",
-            )
-            ax.set(
-                title="Prior Predictive Check", xlabel="date", ylabel=self.output_var
-            )
+        if ax is None:
+            fig, ax = plt.subplots(**plt_kwargs)
         else:
-            raise RuntimeError(
-                "The model hasn't been fit yet, call .fit() first with X and y data."
+            fig = ax.figure
+
+        if hdi_list is None:
+            hdi_list = [0.94, 0.5]
+
+        if hdi_list and not add_gradient:
+            alpha_list = np.linspace(0.2, 0.4, len(hdi_list), dtype=float)
+            for hdi_prob, alpha in zip(hdi_list, alpha_list, strict=True):
+                ax = self._add_hdi_to_plot(
+                    ax=ax,
+                    group=group,
+                    original_scale=original_scale,
+                    hdi_prob=hdi_prob,
+                    alpha=alpha,
+                )
+
+        if add_mean:
+            ax = self._add_mean_to_plot(
+                ax=ax, group=group, original_scale=original_scale, color="blue"
             )
+
+        if add_gradient:
+            ax = self._add_gradient_to_plot(
+                ax=ax,
+                group=group,
+                original_scale=original_scale,
+                n_percentiles=30,
+                palette="Blues",
+            )
+
+        ax.plot(
+            np.asarray(group_data.date),
+            target_to_plot,
+            color="black",
+            label="Observed",
+        )
+        ax.legend()
+        ax.set(
+            title=f"{group} predictive check",
+            xlabel="date",
+            ylabel=self.output_var,
+        )
+
         return fig
+
+    def plot_prior_predictive(
+        self,
+        original_scale: bool = False,
+        hdi_list: list[float] | None = None,
+        add_mean: bool = True,
+        add_gradient: bool = False,
+        ax: plt.Axes = None,
+        **plt_kwargs: Any,
+    ) -> plt.Figure:
+        """
+        Plot the prior predictive distribution from the model fit.
+
+        This function creates a visualization of the model's prior predictive distribution,
+        allowing for comparison with observed data. It can include highest density intervals (HDI),
+        mean predictions, and a gradient representation of the full distribution.
+
+        Parameters
+        ----------
+        original_scale : bool, optional
+            If True, plot in the original scale of the target variable.
+            If False, plot in the transformed scale used for modeling. Default is False.
+        hdi_list : list of float, optional
+            List of HDI levels to plot. Default is [0.94] Provide an empty list to omit plotting the HDI.
+        add_mean : bool, optional
+            If True, add the mean prediction to the plot. Default is True.
+        add_gradient : bool, optional
+            If True, add a gradient representation of the full posterior distribution. Default is False.
+        ax : plt.Axes, optional
+            A matplotlib Axes object to plot on. If None, a new figure and axes will be created.
+        **plt_kwargs : dict
+            Additional keyword arguments to pass to plt.subplots() when creating a new figure.
+
+        Returns
+        -------
+        plt.Figure
+            The matplotlib Figure object containing the plot.
+
+        Raises
+        ------
+        ValueError
+            If the length of the target variable doesn't match the length
+            of the date column in the posterior predictive data.
+
+        Notes
+        -----
+        This function visualizes the model's predictions against the observed data.
+        The observed data is always plotted as a black line.
+        Depending on the parameters, it can also show:
+        - HDI (Highest Density Intervals) at 94% and 50% levels
+        - Mean prediction line
+        - Gradient representation of the full posterior distribution
+        """
+        return self._plot_group_predictive(
+            group="prior_predictive",
+            original_scale=original_scale,
+            hdi_list=hdi_list,
+            add_mean=add_mean,
+            add_gradient=add_gradient,
+            ax=ax,
+            **plt_kwargs,
+        )
 
     def plot_posterior_predictive(
         self,
@@ -415,202 +672,15 @@ class MMMModelBuilder(ModelBuilder):
         If predicting out-of-sample, ensure that `self.y` is overwritten with the
         corresponding non-transformed target variable.
         """
-        posterior_predictive_data: Dataset = self._get_posterior_predictive_data(
-            original_scale=original_scale
+        return self._plot_group_predictive(
+            group="posterior_predictive",
+            original_scale=original_scale,
+            hdi_list=hdi_list,
+            add_mean=add_mean,
+            add_gradient=add_gradient,
+            ax=ax,
+            **plt_kwargs,
         )
-
-        target_to_plot = np.asarray(
-            self.y
-            if original_scale
-            else transform_1d_array(self.get_target_transformer().transform, self.y)
-        )
-
-        if len(target_to_plot) != len(posterior_predictive_data.date):
-            raise ValueError(
-                "The length of the target variable doesn't match the length of the date column. "
-                "If you are predicting out-of-sample, please overwrite `self.y` with the "
-                "corresponding (non-transformed) target variable."
-            )
-
-        if ax is None:
-            fig, ax = plt.subplots(**plt_kwargs)
-        else:
-            fig = ax.figure
-
-        if hdi_list is None:
-            hdi_list = [0.94, 0.5]
-
-        if hdi_list:
-            alpha_list = np.linspace(0.2, 0.4, len(hdi_list))
-            for hdi_prob, alpha in zip(hdi_list, alpha_list, strict=True):
-                ax = self._add_hdi_to_plot(
-                    ax=ax, original_scale=original_scale, hdi_prob=hdi_prob, alpha=alpha
-                )
-
-        if add_mean:
-            ax = self._add_mean_to_plot(
-                ax=ax, original_scale=original_scale, color="blue"
-            )
-
-        if add_gradient:
-            ax = self._add_gradient_to_plot(
-                ax=ax, original_scale=original_scale, n_percentiles=30, palette="Blues"
-            )
-
-        ax.plot(
-            np.asarray(posterior_predictive_data.date),
-            target_to_plot,
-            color="black",
-            label="Observed",
-        )
-        ax.legend()
-        ax.set(
-            title="Posterior Predictive Check",
-            xlabel="date",
-            ylabel=self.output_var,
-        )
-
-        return fig
-
-    def _get_posterior_predictive_data(self, original_scale: bool = False) -> Dataset:
-        """Get the posterior predictive data."""
-        try:
-            posterior_predictive_data: Dataset = self.posterior_predictive
-
-        except Exception as e:
-            raise RuntimeError(
-                "Make sure the model has bin fitted and the posterior predictive has been sampled!"
-            ) from e
-
-        if original_scale:
-            posterior_predictive_data = apply_sklearn_transformer_across_dim(
-                data=posterior_predictive_data,
-                func=self.get_target_transformer().inverse_transform,
-                dim_name="date",
-            )
-        return posterior_predictive_data
-
-    def _add_mean_to_plot(
-        self, ax, original_scale: bool = False, color="blue", linestyle="-", **kwargs
-    ) -> plt.Axes:
-        """Add mean prediction to existing plot."""
-        posterior_predictive_data: Dataset = self._get_posterior_predictive_data(
-            original_scale=original_scale
-        )
-
-        mean_prediction = posterior_predictive_data[self.output_var].mean(
-            dim=["chain", "draw"]
-        )
-
-        ax.plot(
-            np.asarray(posterior_predictive_data.date),
-            mean_prediction,
-            color=color,
-            linestyle=linestyle,
-            label="Mean Prediction",
-        )
-        return ax
-
-    def _add_hdi_to_plot(
-        self,
-        ax: plt.Axes,
-        original_scale: bool = False,
-        hdi_prob: float = 0.94,
-        color: str = "C0",
-        alpha: float = 0.2,
-        **kwargs,
-    ) -> plt.Axes:
-        """Add HDI to existing plot."""
-        posterior_predictive_data: Dataset = self._get_posterior_predictive_data(
-            original_scale=original_scale
-        )
-
-        likelihood_hdi: DataArray = az.hdi(
-            ary=posterior_predictive_data, hdi_prob=hdi_prob
-        )[self.output_var]
-
-        ax.fill_between(
-            x=posterior_predictive_data.date,
-            y1=likelihood_hdi[:, 0],
-            y2=likelihood_hdi[:, 1],
-            color=color,
-            alpha=alpha,
-            label=f"{hdi_prob:.0%} HDI",
-            **kwargs,
-        )
-        return ax
-
-    def _add_gradient_to_plot(
-        self,
-        ax: plt.Axes,
-        original_scale: bool = False,
-        n_percentiles: int = 30,
-        palette: str = "Blues",
-        **kwargs,
-    ) -> plt.Axes:
-        """
-        Add a gradient representation of the posterior predictive distribution to an existing plot.
-
-        This method creates a shaded area plot where the color intensity represents
-        the density of the posterior predictive distribution.
-
-        Parameters
-        ----------
-        ax : plt.Axes
-            The matplotlib axes object to add the gradient to.
-        original_scale : bool, optional
-            If True, use the original scale of the data. Default is False.
-        n_percentiles : int, optional
-            Number of percentile ranges to use for the gradient. Default is 30.
-        palette : str, optional
-            Color palette to use for the gradient. Default is "Blues".
-        **kwargs
-            Additional keyword arguments passed to ax.fill_between().
-
-        Returns
-        -------
-        plt.Axes
-            The matplotlib axes object with the gradient added.
-        """
-        # Get posterior predictive data and flatten it
-        posterior_predictive = self._get_posterior_predictive_data(
-            original_scale=original_scale
-        )
-        posterior_predictive_flattened = posterior_predictive.stack(
-            sample=("chain", "draw")
-        ).to_dataarray()
-        dates = posterior_predictive.date.values
-
-        # Set up color map and ranges
-        cmap = plt.get_cmap(palette)
-        color_range = np.linspace(0.3, 1.0, n_percentiles // 2)
-        percentile_ranges = np.linspace(3, 97, n_percentiles)
-
-        # Create gradient by filling between percentile ranges
-        for i in range(len(percentile_ranges) - 1):
-            lower_percentile = np.percentile(
-                posterior_predictive_flattened, percentile_ranges[i], axis=2
-            ).squeeze()
-            upper_percentile = np.percentile(
-                posterior_predictive_flattened, percentile_ranges[i + 1], axis=2
-            ).squeeze()
-            if i < n_percentiles // 2:
-                color_val = color_range[i]
-            else:
-                color_val = color_range[n_percentiles - i - 2]
-            alpha_val = 0.2 + 0.8 * (
-                1 - abs(2 * i / n_percentiles - 1)
-            )  # Higher alpha in the middle
-            ax.fill_between(
-                x=dates,
-                y1=lower_percentile,
-                y2=upper_percentile,
-                color=cmap(color_val),
-                alpha=alpha_val,
-                **kwargs,
-            )
-
-        return ax
 
     def get_errors(self, original_scale: bool = False) -> DataArray:
         """Get model errors posterior distribution.
@@ -632,7 +702,7 @@ class MMMModelBuilder(ModelBuilder):
 
         except Exception as e:
             raise RuntimeError(
-                "Make sure the model has bin fitted and the posterior predictive has been sampled!"
+                "Make sure the model has been fitted and the posterior_predictive has been sampled!"
             ) from e
 
         target_array = np.asarray(
@@ -841,16 +911,24 @@ class MMMModelBuilder(ModelBuilder):
             )
         return fig
 
-    def compute_channel_contribution_original_scale(self) -> DataArray:
+    def compute_channel_contribution_original_scale(
+        self, prior: bool = False
+    ) -> DataArray:
         """Compute the channel contributions in the original scale of the target variable.
+
+        Parameters
+        ----------
+        prior : bool, optional
+            Whether to use the prior or posterior, by default False (posterior)
 
         Returns
         -------
         DataArray
 
         """
+        _data = self.prior if prior else self.fit_result
         channel_contribution = az.extract(
-            data=self.fit_result, var_names=["channel_contributions"], combined=False
+            data=_data, var_names=["channel_contributions"], combined=False
         )
 
         # sklearn preprocessers expect 2-D arrays of (obs, features)
@@ -1024,20 +1102,43 @@ class MMMModelBuilder(ModelBuilder):
         area_params = dict(stacked=True, ax=ax)
         if area_kwargs is not None:
             area_params.update(area_kwargs)
-        all_contributions_over_time.plot.area(**area_params)
+        try:
+            all_contributions_over_time.plot.area(**area_params)
+        except ValueError:
+            warnings.warn(
+                """
+                Each contribution value must be either all positive or all negative.
+                Try deselecting variables with negative contributions.
+                """,
+                stacklevel=2,
+            )
+            return fig
         ax.legend(title="groups", loc="center left", bbox_to_anchor=(1, 0.5))
         return fig
 
-    def _get_channel_contributions_share_samples(self) -> DataArray:
+    def get_channel_contributions_share_samples(self, prior: bool = False) -> DataArray:
+        """Get the share of channel contributions in the original scale of the target variable.
+
+        Parameters
+        ----------
+        prior : bool, optional
+            Whether to use the prior or posterior, by default False (posterior)
+
+        Returns
+        -------
+        DataArray
+            The share of channel contributions in the original scale of the target variable.
+
+        """
         channel_contribution_original_scale_samples: DataArray = (
-            self.compute_channel_contribution_original_scale()
+            self.compute_channel_contribution_original_scale(prior=prior)
         )
         numerator: DataArray = channel_contribution_original_scale_samples.sum(["date"])
         denominator: DataArray = numerator.sum("channel")
         return numerator / denominator
 
     def plot_channel_contribution_share_hdi(
-        self, hdi_prob: float = 0.94, **plot_kwargs: Any
+        self, hdi_prob: float = 0.94, prior: bool = False, **plot_kwargs: Any
     ) -> plt.Figure:
         """Plot the share of channel contributions in a forest plot.
 
@@ -1045,6 +1146,8 @@ class MMMModelBuilder(ModelBuilder):
         ----------
         hdi_prob : float, optional
             HDI value to be displayed, by default 0.94
+        prior : bool, optional
+            Whether to use the prior or posterior, by default False (posterior)
         **plot_kwargs
             Additional keyword arguments to pass to `az.plot_forest`.
 
@@ -1054,7 +1157,7 @@ class MMMModelBuilder(ModelBuilder):
 
         """
         channel_contributions_share: DataArray = (
-            self._get_channel_contributions_share_samples()
+            self.get_channel_contributions_share_samples(prior=prior)
         )
 
         ax, *_ = az.plot_forest(
@@ -1067,21 +1170,6 @@ class MMMModelBuilder(ModelBuilder):
         fig: plt.Figure = plt.gcf()
         fig.suptitle("channel Contribution Share", fontsize=16, y=1.05)
         return fig
-
-    def graphviz(self, **kwargs):
-        """Get the graphviz representation of the model.
-
-        Parameters
-        ----------
-        **kwargs
-            Keyword arguments for the `pm.model_to_graphviz` function
-
-        Returns
-        -------
-        graphviz.Digraph
-
-        """
-        return pm.model_to_graphviz(self.model, **kwargs)
 
     def _process_decomposition_components(self, data: pd.DataFrame) -> pd.DataFrame:
         """Process data to compute the sum of contributions by component and calculate their percentages.
@@ -1112,6 +1200,152 @@ class MMMModelBuilder(ModelBuilder):
         dataframe["percentage"] = (dataframe["contribution"] / total_contribution) * 100
 
         return dataframe
+
+    def plot_prior_vs_posterior(
+        self,
+        var_name: str,
+        alphabetical_sort: bool = True,
+        figsize: tuple[int, int] | None = None,
+    ) -> plt.Figure:
+        """
+        Plot the prior vs posterior distribution for a specified variable in a 3 columngrid layout.
+
+        This function generates KDE plots for each MMM channel, showing the prior predictive
+        and posterior distributions with their respective means highlighted.
+        It sorts the plots either alphabetically or based on the difference between the
+        posterior and prior means, with the largest difference (posterior - prior) at the top.
+
+        Parameters
+        ----------
+        var_name: str
+            The variable to analyze (e.g., 'adstock_alpha').
+        alphabetical_sort: bool, optional
+            Whether to sort the channels alphabetically (True) or by the difference
+            between the posterior and prior means (False). Default is True.
+        figsize : tuple of int, optional
+            Figure size in inches. If None, it will be calculated based on the number of channels.
+
+        Returns
+        -------
+        fig : plt.Figure
+            The matplotlib figure object
+
+        Raises
+        ------
+        ValueError
+            If the required attributes (prior, posterior) were not found.
+        ValueError
+            If var_name is not a string.
+        """
+        if not hasattr(self, "fit_result") or not hasattr(self, "prior"):
+            raise ValueError(
+                "Required attributes (fit_result, prior) not found. "
+                "Ensure you've called model.fit() and model.sample_prior_predictive()"
+            )
+
+        if not isinstance(var_name, str):
+            raise ValueError(
+                "var_name must be a string. Please provide a single variable name."
+            )
+
+        # Determine the number of channels and set up the grid
+        num_channels = len(self.channel_columns)
+        num_cols = 1
+        num_rows = num_channels
+
+        if figsize is None:
+            figsize = (12, 4 * num_rows)
+
+        # Calculate prior and posterior means for sorting
+        channel_means = []
+        for channel in self.channel_columns:
+            prior_mean = self.prior[var_name].sel(channel=channel).mean().values
+            posterior_mean = (
+                self.fit_result[var_name].sel(channel=channel).mean().values
+            )
+            difference = posterior_mean - prior_mean
+            channel_means.append((channel, prior_mean, posterior_mean, difference))
+
+        # Choose how to sort the channels
+        if alphabetical_sort:
+            sorted_channels = sorted(channel_means, key=lambda x: x[0])
+        else:
+            # Otherwise, sort on difference between posterior and prior means
+            sorted_channels = sorted(channel_means, key=lambda x: x[3], reverse=True)
+
+        fig, axs = plt.subplots(
+            nrows=num_rows,
+            ncols=num_cols,
+            figsize=figsize,
+            sharex=True,
+            sharey=False,
+            layout="constrained",
+        )
+        axs = axs.flatten()  # Flatten the array for easy iteration
+
+        # Plot for each channel
+        for i, (channel, prior_mean, posterior_mean, difference) in enumerate(
+            sorted_channels
+        ):
+            # Extract prior samples for the current channel
+            prior_samples = self.prior[var_name].sel(channel=channel).values.flatten()
+
+            # Plot the prior predictive distribution
+            sns.kdeplot(
+                prior_samples,
+                ax=axs[i],
+                label="Prior Predictive",
+                color="C0",
+                fill=True,
+            )
+
+            # Add a vertical line for the mean of the prior distribution
+            axs[i].axvline(
+                prior_mean,
+                color="C0",
+                linestyle="--",
+                linewidth=2,
+                label=f"Prior Mean: {prior_mean:.2f}",
+            )
+
+            # Extract posterior samples for the current channel
+            posterior_samples = (
+                self.fit_result[var_name].sel(channel=channel).values.flatten()
+            )
+
+            # Plot the prior predictive distribution
+            sns.kdeplot(
+                posterior_samples,
+                ax=axs[i],
+                label="Posterior Predictive",
+                color="C1",
+                fill=True,
+                alpha=0.15,
+            )
+
+            # Add a vertical line for the mean of the posterior distribution
+            axs[i].axvline(
+                posterior_mean,
+                color="C1",
+                linestyle="--",
+                linewidth=2,
+                label=f"Posterior Mean: {posterior_mean:.2f} (Diff: {difference:.2f})",
+            )
+
+            # Set titles and labels
+            axs[i].set_title(channel)  # Subplot title is just the channel name
+            axs[i].set_xlabel(var_name.capitalize())
+            axs[i].set_ylabel("Density")
+            axs[i].legend(loc="upper right")
+
+        # Set the overall figure title
+        fig.suptitle(
+            f"Prior vs Posterior Distributions | {var_name}",
+            fontsize=16,
+            horizontalalignment="center",
+        )
+
+        return fig
 
     def plot_waterfall_components_decomposition(
         self,
@@ -1188,7 +1422,7 @@ class MMMModelBuilder(ModelBuilder):
         ax.set_ylabel("Components")
 
         xticks = np.linspace(0, total_contribution, num=11)
-        xticklabels = [f"{(x/total_contribution)*100:.0f}%" for x in xticks]
+        xticklabels = [f"{(x / total_contribution) * 100:.0f}%" for x in xticks]
         ax.set_xticks(xticks)
         ax.set_xticklabels(xticklabels)
 

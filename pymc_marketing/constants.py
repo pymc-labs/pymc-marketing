@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -15,3 +15,4 @@
 
 DAYS_IN_YEAR: float = 365.25
 DAYS_IN_MONTH: float = DAYS_IN_YEAR / 12
+DAYS_IN_WEEK: int = 7

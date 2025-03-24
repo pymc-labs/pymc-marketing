@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -13,11 +13,13 @@
 #   limitations under the License.
 """Plotting functions for the CLV module."""
 
+import warnings
 from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pymc as pm
 from matplotlib.lines import Line2D
 
 from pymc_marketing.clv import BetaGeoModel, ParetoNBDModel
@@ -25,9 +27,10 @@ from pymc_marketing.clv.utils import _expected_cumulative_transactions
 
 __all__ = [
     "plot_customer_exposure",
+    "plot_expected_purchases_over_time",
+    "plot_expected_purchases_ppc",
     "plot_frequency_recency_matrix",
     "plot_probability_alive_matrix",
-    "plot_expected_purchases",
 ]
 
 
@@ -185,7 +188,7 @@ def plot_frequency_recency_matrix(
     ax: plt.Axes | None = None,
     **kwargs,
 ) -> plt.Axes:
-    """Plot expected transactions in *future_t* time periods as a heatmap based on customer population *frequency* and *recency*.
+    """Plot expected purchases in *future_t* time periods as a heatmap based on customer population *frequency* and *recency*.
 
     Parameters
     ----------
@@ -354,33 +357,34 @@ def plot_probability_alive_matrix(
     return ax
 
 
-def plot_expected_purchases(
+def plot_expected_purchases_over_time(
     model,
     purchase_history: pd.DataFrame,
     customer_id_col: str,
     datetime_col: str,
     t: int,
     plot_cumulative: bool = True,
-    t_unobserved: int | None = None,
+    t_start_eval: int | None = None,
     datetime_format: str | None = None,
     time_unit: str = "D",
     time_scaler: float | None = 1,
-    sort_transactions: bool | None = True,
+    sort_purchases: bool | None = True,
     set_index_date: bool | None = False,
     title: str | None = None,
     xlabel: str = "Time Periods",
     ylabel: str = "Purchases",
     ax: plt.Axes | None = None,
+    t_unobserved: int | None = None,
     **kwargs,
 ) -> plt.Axes:
     """Plot actual and expected purchases over time for a fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
 
     This function is based on the formulation on page 8 of [1]_. Specifically, we take only customers who have made
-    their first transaction before the specified number of ``t`` time periods, and run
+    their first purchase before the specified number of ``t`` time periods, and run
     ``expected_purchases_new_customer()`` for all remaining time periods. Results can be either cumulative or
     incremental.
 
-    Adapted from legacy ``lifetimes`` library:
+    Adapted from the legacy ``lifetimes`` library:
     https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/plotting.py#L392
 
     Parameters
@@ -390,15 +394,15 @@ def plot_expected_purchases(
     purchase_history : ~pandas.DataFrame
         A Pandas DataFrame containing *customer_id_col* and *datetime_col*.
     customer_id_col : string
-        Column in the *transactions* DataFrame denoting the *customer_id*.
+        Column in the *purchases* DataFrame denoting the *customer_id*.
     datetime_col :  string
-        Column in the *transactions* DataFrame denoting datetimes purchase were made.
+        Column in the *purchases* DataFrame denoting datetimes purchase were made.
     t : int
         Number of time units since earliest purchase to include in plot.
     plot_cumulative : bool
         Default: *True*
         Plot cumulative purchases over time. Set to *False* to plot incremental purchases.
-    t_unobserved : int, optional
+    t_start_eval : int, optional
         If testing model on unobserved data, specify number of time units in training data to add an indicator for
         the start of the testing period.
     datetime_format : string, optional
@@ -410,10 +414,10 @@ def plot_expected_purchases(
     time_scaler : int, optional
         Default: 1. Scales *recency* & *T* to a different time granularity.
         This is useful for datasets spanning many years, and running predictions in different time scales.
-    sort_transactions : bool, optional
+    sort_purchases : bool, optional
         Default: *True*
-        If *transactions* DataFrame is already sorted in chronological order, set to *False* to improve computational
-        efficiency.
+        If *purchase_history* DataFrame is already sorted in chronological order,
+        set to *False* to improve computational efficiency.
     set_index_date : bool, optional
         Set to True to return a dataframe with a datetime index.
     title : str, optional
@@ -422,8 +426,8 @@ def plot_expected_purchases(
         Figure xlabel
     ylabel : str, optional
         Figure ylabel
-    ax : matplotlib.AxesSubplot, optional
-        Using user axes
+    ax : matplotlib.Axes, optional
+        A matplotlib Axes instance. Creates new axes instance by default.
     kwargs
         Additional arguments to pass into the pandas.DataFrame.plot command.
 
@@ -440,7 +444,7 @@ def plot_expected_purchases(
     if ax is None:
         ax = plt.subplot(111)
 
-    df_cum_transactions = _expected_cumulative_transactions(
+    df_cum_purchases = _expected_cumulative_transactions(
         model=model,
         transactions=purchase_history,
         customer_id_col=customer_id_col,
@@ -449,28 +453,133 @@ def plot_expected_purchases(
         datetime_format=datetime_format,
         time_unit=time_unit,
         time_scaler=time_scaler,
-        sort_transactions=sort_transactions,
+        sort_transactions=sort_purchases,
         set_index_date=set_index_date,
     )
 
     if not plot_cumulative:
-        df_cum_transactions = df_cum_transactions.diff()
+        df_cum_purchases = df_cum_purchases.diff()
         if title is None:
             title = "Tracking Incremental Transactions"
     else:
         if title is None:
             title = "Tracking Cumulative Transactions"
 
-    ax = df_cum_transactions.plot(ax=ax, title=title, **kwargs)
+    # TODO: After utility func supports xarrays, refactor this for matplotlib API.
+    ax = df_cum_purchases.plot(ax=ax, title=title, **kwargs)
 
     if t_unobserved:
+        warnings.warn(
+            "t_unobserved is deprecated and will be removed in a future release. "
+            "Use t_start_eval instead.",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        t_start_eval = t_unobserved
+
+    if t_start_eval:
         if set_index_date:
-            x_vline = df_cum_transactions.index[int(t_unobserved)]
+            x_vline = df_cum_purchases.index[int(t_start_eval)]
         else:
-            x_vline = t_unobserved
+            x_vline = t_start_eval
         ax.axvline(x=x_vline, color="r", linestyle="--")
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
+    return ax
+
+
+def plot_expected_purchases_ppc(
+    model,
+    ppc: str = "posterior",
+    max_purchases: int = 10,
+    samples: int = 1000,
+    random_seed: int = 45,
+    ax: plt.Axes | None = None,
+    **kwargs,
+) -> plt.Axes:
+    """Plot a prior or posterior predictive check for the customer purchase frequency distribution.
+
+    ``ParetoNBDModel``, ``BetaGeoBetaBinomModel``, ``BetaGeoModel`` and ``ModifiedBetaGeoModel`` are supported.
+
+    Adapted from legacy ``lifetimes`` library:
+    https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/plotting.py#L25
+
+    Parameters
+    ----------
+    model : CLVModel
+        Prior predictive checks can be performed before or after a model is fit.
+        Posterior predictive checks require a fitted model.
+    ppc : string, optional
+        Type of predictive check to perform. Options are 'prior' or 'posterior'; defaults to 'posterior'.
+    max_purchases : int, optional
+        Cutoff for bars of purchase counts to plot. Default is 10.
+    samples : int, optional
+        Number of samples to draw for prior predictive checks. This is not used for posterior predictive checks.
+    random_seed : int, optional
+        Random seed to fix sampling results
+    ax : matplotlib.Axes, optional
+        A matplotlib Axes instance. Creates new axes instance by default.
+    **kwargs
+        Additional arguments to pass into the pandas.DataFrame.plot command.
+
+    Returns
+    -------
+    axes : matplotlib.AxesSubplot
+    """
+    if ax is None:
+        ax = plt.subplot(111)
+
+    match ppc:
+        case "prior":
+            # build model if it has not been fit yet
+            model.build_model()
+
+            prior_idata = pm.sample_prior_predictive(
+                draws=samples,
+                model=model.model,
+                random_seed=random_seed,
+            )
+
+            # obs_var must be retrieved from prior_idata if model has not been fit
+            obs_freq = prior_idata.observed_data["recency_frequency"].sel(
+                obs_var="frequency"
+            )
+            ppc_freq = prior_idata.prior_predictive["recency_frequency"].sel(
+                obs_var="frequency"
+            )
+            title = "Prior Predictive Check for Customer Frequency"
+        case "posterior":
+            obs_freq = model.idata.observed_data["recency_frequency"].sel(
+                obs_var="frequency"
+            )
+            # Keep samples at 1 here because (chain * draw * customer) samples are already being drawn
+            ppc_freq = model.distribution_new_customer_recency_frequency(
+                random_seed=random_seed,
+                n_samples=1,
+            ).sel(obs_var="frequency")
+            title = "Posterior Predictive Check for Customer Frequency"
+        case _:
+            raise NameError("Specify 'prior' or 'posterior' for 'ppc' parameter.")
+
+    # convert estimated and observed xarrays into dataframes for plotting
+    estimated = ppc_freq.to_dataframe().value_counts(normalize=True).sort_index()
+    observed = obs_freq.to_dataframe().value_counts(normalize=True).sort_index()
+
+    # PPC histogram plot
+    ax = pd.DataFrame(
+        {
+            "Estimated": estimated.reset_index()["proportion"].head(max_purchases),
+            "Observed": observed.reset_index()["proportion"].head(max_purchases),
+        },
+    ).plot(
+        kind="bar",
+        ax=ax,
+        title=title,
+        xlabel="Repeat Purchases",
+        ylabel="% of Customer Population",
+        rot=0.0,
+        **kwargs,
+    )
     return ax
 
 

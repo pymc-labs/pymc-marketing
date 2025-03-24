@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -19,58 +19,150 @@ import pymc as pm
 import pytest
 import xarray as xr
 
+from pymc_marketing.deserialize import (
+    DESERIALIZERS,
+    deserialize,
+    register_deserialization,
+)
 from pymc_marketing.mmm.fourier import (
     FourierBase,
     MonthlyFourier,
+    WeeklyFourier,
     YearlyFourier,
     generate_fourier_modes,
 )
 from pymc_marketing.prior import Prior
 
 
-def test_prior_without_dims() -> None:
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_prior_without_dims(seasonality) -> None:
     prior = Prior("Normal")
-    yearly = YearlyFourier(n_order=2, prior=prior)
+    periodicity = seasonality(n_order=2, prior=prior)
 
-    assert yearly.prior.dims == (yearly.prefix,)
+    assert periodicity.prior.dims == (periodicity.prefix,)
     assert prior.dims == ()
 
 
-def test_prior_doesnt_have_prefix() -> None:
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_prior_doesnt_have_prefix(seasonality) -> None:
     prior = Prior("Normal", dims="hierarchy")
     with pytest.raises(ValueError, match="Prior distribution must have"):
-        YearlyFourier(n_order=2, prior=prior)
+        seasonality(n_order=2, prior=prior)
 
 
-def test_nodes() -> None:
-    yearly = YearlyFourier(n_order=2)
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_nodes(seasonality) -> None:
+    periodicity = seasonality(n_order=2)
 
-    assert yearly.nodes == ["sin_1", "sin_2", "cos_1", "cos_2"]
+    assert periodicity.nodes == ["sin_1", "sin_2", "cos_1", "cos_2"]
 
 
-def test_sample_prior() -> None:
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_sample_prior(seasonality) -> None:
     n_order = 2
-    yearly = YearlyFourier(n_order=n_order)
-    prior = yearly.sample_prior(samples=10)
+    periodicity = seasonality(n_order=n_order)
+    prior = periodicity.sample_prior(samples=10)
 
     assert prior.sizes == {
         "chain": 1,
         "draw": 10,
-        yearly.prefix: n_order * 2,
+        periodicity.prefix: n_order * 2,
     }
 
 
-def test_sample_curve() -> None:
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_sample_curve(seasonality) -> None:
     n_order = 2
-    yearly = YearlyFourier(n_order=n_order)
-    prior = yearly.sample_prior(samples=10)
-    curve = yearly.sample_curve(prior)
+    periodicity = seasonality(n_order=n_order)
+    prior = periodicity.sample_prior(samples=10)
+    curve = periodicity.sample_curve(prior)
 
     assert curve.sizes == {
         "chain": 1,
         "draw": 10,
-        "day": 367,
+        "day": np.ceil(periodicity.days_in_period) + 1,
     }
+
+
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_sample_curve_use_dates(seasonality) -> None:
+    n_order = 2
+    periodicity = seasonality(n_order=n_order)
+    prior = periodicity.sample_prior(samples=10)
+    curve = periodicity.sample_curve(prior, use_dates=True)
+
+    assert curve.sizes == {
+        "chain": 1,
+        "draw": 10,
+        "date": np.ceil(periodicity.days_in_period) + 1,
+    }
+
+
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_sample_curve_same_size(seasonality) -> None:
+    n_order = 2
+    periodicity = seasonality(n_order=n_order)
+    prior = periodicity.sample_prior(samples=10)
+    curve_without_dates = periodicity.sample_curve(prior, use_dates=False)
+    curve_with_dates = periodicity.sample_curve(prior, use_dates=True)
+
+    assert curve_without_dates.shape == curve_with_dates.shape
 
 
 def create_mock_variable(coords):
@@ -107,59 +199,95 @@ def mock_parameters() -> xr.Dataset:
     )
 
 
-def test_sample_curve_additional_dims(mock_parameters) -> None:
-    yearly = YearlyFourier(n_order=2)
-    curve = yearly.sample_curve(mock_parameters)
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_sample_curve_additional_dims(mock_parameters, seasonality) -> None:
+    periodicity = seasonality(n_order=2)
+    curve = periodicity.sample_curve(mock_parameters)
 
     assert curve.sizes == {
         "chain": 1,
         "draw": 250,
-        "day": 367,
+        "day": np.ceil(periodicity.days_in_period) + 1,
     }
 
 
-def test_additional_dimension() -> None:
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_additional_dimension(seasonality) -> None:
     prior = Prior("Normal", dims=("fourier", "additional_dim", "yet_another_dim"))
-    yearly = YearlyFourier(n_order=2, prior=prior)
+    periodicity = YearlyFourier(n_order=2, prior=prior)
 
     coords = {
         "additional_dim": range(2),
         "yet_another_dim": range(3),
     }
-    prior = yearly.sample_prior(samples=10, coords=coords)
-    curve = yearly.sample_curve(prior)
+    prior = periodicity.sample_prior(samples=10, coords=coords)
+    curve = periodicity.sample_curve(prior)
 
     assert curve.sizes == {
         "chain": 1,
         "draw": 10,
         "additional_dim": 2,
         "yet_another_dim": 3,
-        "day": 367,
+        "day": np.ceil(periodicity.days_in_period) + 1,
     }
 
 
-def test_plot_curve() -> None:
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_plot_curve(seasonality) -> None:
     prior = Prior("Normal", dims=("fourier", "additional_dim"))
-    yearly = YearlyFourier(n_order=2, prior=prior)
+    periodicity = seasonality(n_order=2, prior=prior)
 
     coords = {"additional_dim": range(4)}
-    prior = yearly.sample_prior(samples=10, coords=coords)
-    curve = yearly.sample_curve(prior)
+    prior = periodicity.sample_prior(samples=10, coords=coords)
+    curve = periodicity.sample_curve(prior)
 
     subplot_kwargs = {"ncols": 2}
-    fig, axes = yearly.plot_curve(curve, subplot_kwargs=subplot_kwargs)
+    fig, axes = periodicity.plot_curve(curve, subplot_kwargs=subplot_kwargs)
 
     assert isinstance(fig, plt.Figure)
     assert axes.shape == (2, 2)
 
 
 @pytest.mark.parametrize("n_order", [0, -1, -100])
-def test_bad_negative_order(n_order) -> None:
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_bad_negative_order(n_order, seasonality) -> None:
     with pytest.raises(
         ValueError,
-        match="1 validation error for YearlyFourier\\nn_order\\n  Input should be greater than 0",
+        match=f"1 validation error for {seasonality.__name__}\\nn_order\\n  Input should be greater than 0",
     ):
-        YearlyFourier(n_order=n_order)
+        seasonality(n_order=n_order)
 
 
 @pytest.mark.parametrize(
@@ -167,12 +295,21 @@ def test_bad_negative_order(n_order) -> None:
     argvalues=[2.5, 100.001, "m", None],
     ids=["neg_float", "neg_float_2", "str", "None"],
 )
-def test_bad_non_integer_order(n_order) -> None:
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_bad_non_integer_order(n_order, seasonality) -> None:
     with pytest.raises(
         ValueError,
-        match="1 validation error for YearlyFourier\nn_order\n  Input should be a valid integer",
+        match=f"1 validation error for {seasonality.__name__}\nn_order\n  Input should be a valid integer",
     ):
-        YearlyFourier(n_order=n_order)
+        seasonality(n_order=n_order)
 
 
 @pytest.mark.parametrize(
@@ -183,7 +320,16 @@ def test_bad_non_integer_order(n_order) -> None:
         (np.ones(shape=1), 1, (1, 1 * 2)),
     ],
 )
-def test_fourier_modes_shape(periods, n_order, expected_shape) -> None:
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_fourier_modes_shape(periods, n_order, expected_shape, seasonality) -> None:
     result = generate_fourier_modes(periods, n_order)
     assert result.eval().shape == expected_shape
 
@@ -241,9 +387,18 @@ def test_fourier_modes_pythagoras(periods, n_order):
     assert (abs(norm - 1) < 1e-10).all()
 
 
-def test_apply_result_callback() -> None:
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_apply_result_callback(seasonality) -> None:
     n_order = 3
-    fourier = YearlyFourier(n_order=n_order)
+    fourier = seasonality(n_order=n_order)
 
     def result_callback(x):
         pm.Deterministic(
@@ -263,21 +418,48 @@ def test_apply_result_callback() -> None:
     assert model["components"].eval().shape == (365, n_order * 2)
 
 
-def test_error_with_prefix_and_variable_name() -> None:
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_error_with_prefix_and_variable_name(seasonality) -> None:
     name = "variable_name"
     with pytest.raises(ValueError, match="Variable name cannot"):
-        YearlyFourier(n_order=2, prefix=name, variable_name=name)
+        seasonality(n_order=2, prefix=name, variable_name=name)
 
 
-def test_change_name() -> None:
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_change_name(seasonality) -> None:
     variable_name = "variable_name"
-    fourier = YearlyFourier(n_order=2, variable_name=variable_name)
+    fourier = seasonality(n_order=2, variable_name=variable_name)
     prior = fourier.sample_prior(samples=10)
     assert variable_name in prior
 
 
-def test_serialization_to_json() -> None:
-    fourier = YearlyFourier(n_order=2)
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_serialization_to_json(seasonality) -> None:
+    fourier = seasonality(n_order=2)
     fourier.model_dump_json()
 
 
@@ -293,6 +475,12 @@ def monthly_fourier() -> MonthlyFourier:
     return MonthlyFourier(n_order=2, prior=prior)
 
 
+@pytest.fixture
+def weekly_fourier() -> WeeklyFourier:
+    prior = Prior("Laplace", mu=0, b=1, dims="fourier")
+    return WeeklyFourier(n_order=2, prior=prior)
+
+
 def test_get_default_start_date_none_yearly(yearly_fourier: YearlyFourier):
     current_year = datetime.datetime.now().year
     expected_start_date = datetime.datetime(year=current_year, month=1, day=1)
@@ -304,6 +492,15 @@ def test_get_default_start_date_none_monthly(monthly_fourier: MonthlyFourier):
     now = datetime.datetime.now()
     expected_start_date = datetime.datetime(year=now.year, month=now.month, day=1)
     actual_start_date = monthly_fourier.get_default_start_date()
+    assert actual_start_date == expected_start_date
+
+
+def test_get_default_start_date_none_weekly(weekly_fourier: WeeklyFourier):
+    now = datetime.datetime.now()
+    expected_start_date = datetime.datetime.fromisocalendar(
+        year=now.year, week=now.isocalendar().week, day=1
+    )
+    actual_start_date = weekly_fourier.get_default_start_date()
     assert actual_start_date == expected_start_date
 
 
@@ -351,6 +548,27 @@ def test_get_default_start_date_invalid_type_monthly(monthly_fourier: MonthlyFou
     )
 
 
+def test_get_default_start_date_str_weekly(weekly_fourier: WeeklyFourier):
+    start_date_str = "2023-06-15"
+    actual_start_date = weekly_fourier.get_default_start_date(start_date=start_date_str)
+    assert actual_start_date == start_date_str
+
+
+def test_get_default_start_date_datetime_weekly(weekly_fourier: WeeklyFourier):
+    start_date_dt = datetime.datetime(2023, 7, 1)
+    actual_start_date = weekly_fourier.get_default_start_date(start_date=start_date_dt)
+    assert actual_start_date == start_date_dt
+
+
+def test_get_default_start_date_invalid_type_weekly(weekly_fourier: WeeklyFourier):
+    invalid_start_date = [2023, 1, 1]
+    with pytest.raises(TypeError) as exc_info:
+        weekly_fourier.get_default_start_date(start_date=invalid_start_date)
+    assert "start_date must be a datetime.datetime object, a string, or None" in str(
+        exc_info.value
+    )
+
+
 def test_fourier_base_instantiation():
     with pytest.raises(TypeError) as exc_info:
         FourierBase(
@@ -358,3 +576,129 @@ def test_fourier_base_instantiation():
             prior=Prior("Laplace", mu=0, b=1, dims="fourier"),
         )
     assert "Can't instantiate abstract class FourierBase" in str(exc_info.value)
+
+
+class ArbitraryCode:
+    def __init__(self, dims: tuple[str, ...]) -> None:
+        self.dims = dims
+
+    def create_variable(self, name: str):
+        return pm.Normal(name, dims=self.dims)
+
+
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_fourier_arbitrary_prior(seasonality) -> None:
+    prior = ArbitraryCode(dims=("fourier",))
+    fourier = seasonality(n_order=4, prior=prior)
+
+    x = np.arange(10)
+    with pm.Model():
+        y = fourier.apply(x)
+
+    assert y.eval().shape == (10,)
+
+
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
+def test_fourier_dims_modified(seasonality) -> None:
+    prior = ArbitraryCode(dims=())
+    YearlyFourier(n_order=4, prior=prior)
+    assert prior.dims == "fourier"
+
+
+class SerializableArbitraryCode(ArbitraryCode):
+    def to_dict(self):
+        return {"dims": self.dims, "msg": "Hello, World!"}
+
+
+def test_fourier_serializable_arbitrary_prior() -> None:
+    prior = SerializableArbitraryCode(dims=("fourier",))
+    fourier = YearlyFourier(n_order=4, prior=prior)
+
+    assert fourier.model_dump(mode="json") == {
+        "n_order": 4,
+        "days_in_period": 365.25,
+        "prefix": "fourier",
+        "prior": {"dims": ["fourier"], "msg": "Hello, World!"},
+        "variable_name": "fourier_beta",
+    }
+
+
+@pytest.mark.parametrize(
+    "name, cls, days_in_period",
+    [
+        ("YearlyFourier", YearlyFourier, 365.25),
+        ("MonthlyFourier", MonthlyFourier, 30.4375),
+        ("WeeklyFourier", WeeklyFourier, 7),
+    ],
+    ids=["YearlyFourier", "MonthlyFourier", "WeeklyFourier"],
+)
+def test_fourier_to_dict(name, cls, days_in_period) -> None:
+    fourier = cls(n_order=4)
+    assert fourier.to_dict() == {
+        "class": name,
+        "data": {
+            "n_order": 4,
+            "days_in_period": days_in_period,
+            "prefix": "fourier",
+            "prior": {
+                "dist": "Laplace",
+                "kwargs": {"b": 1, "mu": 0},
+                "dims": ["fourier"],
+            },
+            "variable_name": "fourier_beta",
+        },
+    }
+
+
+@pytest.fixture
+def serialization() -> None:
+    register_deserialization(
+        is_type=lambda data: data.keys() == {"dims", "msg"},
+        deserialize=lambda data: SerializableArbitraryCode(dims=data["dims"]),
+    )
+
+    yield
+
+    DESERIALIZERS.pop()
+
+
+@pytest.mark.parametrize(
+    "name, cls",
+    [
+        ("YearlyFourier", YearlyFourier),
+        ("MonthlyFourier", MonthlyFourier),
+        ("WeeklyFourier", WeeklyFourier),
+    ],
+    ids=["YearlyFourier", "MonthlyFourier", "WeeklyFourier"],
+)
+def test_fourier_deserialization(serialization, name, cls) -> None:
+    data = {
+        "class": name,
+        "data": {
+            "n_order": 4,
+            "prior": {"dims": ["fourier"], "msg": "Hello, World!"},
+        },
+    }
+    fourier = deserialize(data)
+
+    assert isinstance(fourier, cls)
+    assert fourier.n_order == 4
+    assert fourier.prefix == "fourier"
+    assert fourier.variable_name == "fourier_beta"
+    assert isinstance(fourier.prior, SerializableArbitraryCode)

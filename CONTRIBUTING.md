@@ -172,6 +172,23 @@ Classes
 
 ![](docs/source/uml/classes_clv.png)
 
+## Overview of the customer choice codebase
+
+Packages
+
+![](docs/source/uml/packages_customer_choice.png)
+
+Classes
+
+![](docs/source/uml/classes_customer_choice.png)
+
+## 2025 CLV Roadmap
+
+![](docs/source/_static/clv_roadmap_2025.png)
+
+Review [task prioritization YAML](scripts/roadmaps/clv_tasks_priority.yaml) and open repo
+[issues](https://github.com/pymc-labs/pymc-marketing/issues?q=is%3Aissue%20state%3Aopen%20label%3ACLV) to work on.
+
 ---
 
 This guide takes some inspiration from the [Bambi guide to contributing](https://github.com/bambinos/bambi/blob/main/CONTRIBUTING.md)

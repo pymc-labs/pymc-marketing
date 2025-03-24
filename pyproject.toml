@@ -30,15 +30,21 @@ dependencies = [
     "numpy>=1.17",
     "pandas",
     "pydantic>=2.1.0",
-    # NOTE: Used as minimum pymc version with ci.yml `OLDEST_PYMC_VERSION`
-    "pymc>=5.13.0,<5.16.0",
+    # NOTE: Used as minimum pymc version with test.yml `OLDEST_PYMC_VERSION`
+    "pymc>=5.21.1",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "xarray>=2024.1.0",
     "xarray-einstats>=0.5.1",
+    "pyprojroot",
+    "preliz>=0.8.0",
 ]
 
 [project.optional-dependencies]
+dag = [
+    "dowhy",
+    "networkx",
+]
 docs = [
     "blackjax",
     "fastprogress",
@@ -54,7 +60,6 @@ docs = [
     "numpyro",
     "nutpie",
     "pylint",
-    "pyprojroot",
     "sphinx-autodoc-typehints",
     "sphinx-copybutton",
     "sphinx-design",
@@ -63,6 +68,8 @@ docs = [
     "sphinxext-opengraph",
     "watermark",
     "mlflow>=2.0.0",
+    "networkx",
+    "dowhy",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
@@ -72,17 +79,17 @@ test = [
     "graphviz>=0.20.1",
     "lifetimes==0.11.3",
     "papermill",
-    "preliz>=0.8.0",
+    "pyprojroot",
     "pytest-cov>=3.0.0",
     "pytest-mock>=3.14.0",
     "pytest>=7.0.1",
     "mlflow>=2.0.0",
+    "networkx",
+    "dowhy",
 ]
 
 [tool.hatch.build.targets.sdist]
-exclude = [
-    "docs",
-]
+exclude = ["docs"]
 
 [tool.hatch.version]
 path = "pymc_marketing/version.py"

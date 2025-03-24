@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ class TestCLVModel:
         model = CLVModelTest()
 
         mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
-        idata = model.fit(fit_method="map")
+        idata = model.fit(method="map")
 
         assert isinstance(idata, InferenceData)
         assert len(idata.posterior.chain) == 1
@@ -106,18 +106,69 @@ class TestCLVModel:
         assert isinstance(summ, pd.Series)
         assert summ.name == "value"
 
-    def test_wrong_fit_method(self):
+    def test_fit_demz(self, mocker):
+        model = CLVModelTest()
+
+        mocker.patch("pymc.sample", mock_sample)
+
+        idata = model.fit(
+            method="demz",
+            tune=5,
+            chains=2,
+            draws=10,
+            compute_convergence_checks=False,
+        )
+
+        assert isinstance(idata, InferenceData)
+        assert len(idata.posterior.chain) == 2
+        assert len(idata.posterior.draw) == 10
+        assert model.fit_result is idata.posterior
+
+    def test_fit_advi(self, mocker):
+        model = CLVModelTest()
+        # mocker.patch("pymc.sample", mock_sample)
+        idata = model.fit(
+            method="advi",
+            tune=5,
+            chains=2,
+            draws=10,
+        )
+        assert isinstance(idata, InferenceData)
+        assert len(idata.posterior.chain) == 1
+        assert len(idata.posterior.draw) == 10
+
+    def test_fit_advi_with_wrong_chains_advi_kwargs(self, mocker):
+        model = CLVModelTest()
+
+        with pytest.warns(
+            UserWarning,
+            match="The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",
+        ):
+            model.fit(
+                method="advi",
+                tune=5,
+                chains=2,
+                draws=10,
+            )
+
+    def test_wrong_method(self):
         model = CLVModelTest()
         with pytest.raises(
             ValueError,
-            match=r"Fit method options are \['mcmc', 'map'\], got: wrong_method",
+            match=r"Fit method options are \['mcmc', 'map', 'demz', 'advi', 'fullrank_advi'\], got: wrong_method",
         ):
-            model.fit(fit_method="wrong_method")
+            model.fit(method="wrong_method")
 
-    def test_fit_result_error(self):
+    def test_fit_exception(self, mock_pymc_sample):
         model = CLVModelTest()
-        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
-            model.fit_result
+        with pytest.warns(
+            DeprecationWarning,
+            match=(
+                "'fit_method' is deprecated and will be removed in a future release. "
+                "Use 'method' instead."
+            ),
+        ):
+            model.fit(fit_method="mcmc")
 
     def test_load(self, mocker):
         model = CLVModelTest()
@@ -134,20 +185,6 @@ class TestCLVModel:
     def test_default_sampler_config(self):
         model = CLVModelTest()
         assert model.sampler_config == {}
-
-    def test_set_fit_result(self):
-        model = CLVModelTest()
-        model.build_model()
-        model.idata = None
-        fake_fit = pm.sample_prior_predictive(
-            samples=50, model=model.model, random_seed=1234
-        )
-        fake_fit.add_groups(dict(posterior=fake_fit.prior))
-        model.fit_result = fake_fit
-        with pytest.warns(UserWarning, match="Overriding pre-existing fit_result"):
-            model.fit_result = fake_fit
-        model.idata = None
-        model.fit_result = fake_fit
 
     def test_fit_summary_for_mcmc(self, mocker):
         model = CLVModelTest()
@@ -208,3 +245,32 @@ class TestCLVModel:
         assert model.model_config == {
             "x": Prior("StudentT", mu=0, sigma=5, nu=15),
         }
+
+    def test_backwards_compatibility_with_old_config(self):
+        model = CLVModelTest()
+        model.build_model()
+
+        old_posterior = from_dict(posterior={"alpha_prior": np.random.randn(2, 100)})
+        set_model_fit(model, old_posterior)
+        assert "alpha_prior" in model.idata.posterior
+
+        save_path = "test_model"
+        model.save(save_path)
+
+        loaded_model = CLVModelTest.load(save_path)
+
+        assert "alpha" in loaded_model.idata.posterior
+        assert "alpha_prior" not in loaded_model.idata.posterior
+
+        os.remove("test_model")
+
+    def test_deprecation_warning_on_old_config(self):
+        old_model_config = {
+            "x_prior": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}}
+        }
+        with pytest.warns(
+            DeprecationWarning, match="The key 'x_prior' in model_config is deprecated"
+        ):
+            model = CLVModelTest(model_config=old_model_config)
+
+        assert model.model_config == {"x": Prior("Normal", mu=0, sigma=1)}

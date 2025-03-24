@@ -14,8 +14,11 @@ dependencies:
 - pip
 - pydantic
 - preliz
+- pyprojroot
 # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
-- pymc>=5.12.0,<5.16.0
+- pymc>=5.21.1
+- pymc-extras>=0.2.1
+- blackjax>=1.2.4
 - scikit-learn>=1.1.1
 - seaborn>=0.12.2
 - xarray
@@ -34,6 +37,8 @@ dependencies:
 - sphinx-design
 - watermark
 - typing
+- networkx
+- dowhy
 # lint
 - mypy
 - pandas-stubs
@@ -44,4 +49,9 @@ dependencies:
 - pytest==7.0.1
 - pytest-cov==3.0.0
 - pytest-mock
+- blas
 - mlflow
+- hatch
+- pyprojroot
+- pip:
+  - roadmapper

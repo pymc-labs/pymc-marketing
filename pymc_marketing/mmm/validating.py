@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -19,12 +19,12 @@ from warnings import warn
 import pandas as pd
 
 __all__ = [
+    "ValidateChannelColumns",
+    "ValidateControlColumns",
+    "ValidateDateColumn",
+    "ValidateTargetColumn",
     "validation_method_X",
     "validation_method_y",
-    "ValidateControlColumns",
-    "ValidateTargetColumn",
-    "ValidateDateColumn",
-    "ValidateChannelColumns",
 ]
 
 

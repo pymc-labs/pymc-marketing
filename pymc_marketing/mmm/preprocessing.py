@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -22,11 +22,11 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler, StandardScaler
 
 __all__ = [
+    "MaxAbsScaleChannels",
+    "MaxAbsScaleTarget",
+    "StandardizeControls",
     "preprocessing_method_X",
     "preprocessing_method_y",
-    "MaxAbsScaleTarget",
-    "MaxAbsScaleChannels",
-    "StandardizeControls",
 ]
 
 

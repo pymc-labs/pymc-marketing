@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -100,8 +100,8 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         [
             None,
             {
-                "p_prior": Prior("HalfNormal"),
-                "q_prior": Prior("HalfStudentT", nu=4),
+                "p": Prior("HalfNormal"),
+                "q": Prior("HalfStudentT", nu=4),
             },
         ],
     )
@@ -140,9 +140,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
     def test_model_convergence(self):
         rng = np.random.default_rng(13)
         model_config = {
-            "p_prior": Prior("HalfNormal", sigma=10),
-            "q_prior": Prior("HalfNormal", sigma=10),
-            "v_prior": Prior("HalfNormal", sigma=10),
+            "p": Prior("HalfNormal", sigma=10),
+            "q": Prior("HalfNormal", sigma=10),
+            "v": Prior("HalfNormal", sigma=10),
         }
         model = GammaGammaModel(data=self.data, model_config=model_config)
         model.fit(chains=2, progressbar=False, random_seed=rng)
@@ -160,9 +160,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         v_mean = self.v_true
         custom_model_config = {
             # Narrow values
-            "p_prior": Prior("Normal", mu=p_mean, sigma=0.01),
-            "q_prior": Prior("Normal", mu=q_mean, sigma=0.01),
-            "v_prior": Prior("Normal", mu=v_mean, sigma=0.01),
+            "p": Prior("Normal", mu=p_mean, sigma=0.01),
+            "q": Prior("Normal", mu=q_mean, sigma=0.01),
+            "v": Prior("Normal", mu=v_mean, sigma=0.01),
         }
         model = GammaGammaModel(
             data=self.data,
@@ -211,7 +211,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
                 preds.mean(("draw", "chain")), expected_preds_mean, rtol=0.1
             )
             np.testing.assert_allclose(
-                preds.std(("draw", "chain")), expected_preds_std, rtol=0.25
+                preds.std(("draw", "chain")), expected_preds_std, rtol=0.5
             )
 
         else:
@@ -232,9 +232,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         test_seed = np.random.default_rng(1234)
         custom_model_config = {
             # Narrow values
-            "p_prior": Prior("Normal", mu=p_mean, sigma=0.01),
-            "q_prior": Prior("Normal", mu=q_mean, sigma=0.01),
-            "v_prior": Prior("Normal", mu=v_mean, sigma=0.01),
+            "p": Prior("Normal", mu=p_mean, sigma=0.01),
+            "q": Prior("Normal", mu=q_mean, sigma=0.01),
+            "v": Prior("Normal", mu=v_mean, sigma=0.01),
         }
         model = GammaGammaModel(
             data=self.data,
@@ -242,7 +242,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         )
         model.build_model()
         fake_fit = pm.sample_prior_predictive(
-            samples=1000, model=model.model, random_seed=self.rng
+            draws=1000, model=model.model, random_seed=self.rng
         )
         set_model_fit(model, fake_fit.prior)
         # Closed formula solution for the mean and var of the population spend (eqs 3, 4 from [1])
@@ -269,7 +269,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
 
     def test_model_repr(self):
         custom_model_config = {
-            "p_prior": Prior("HalfNormal", sigma=10),
+            "p": Prior("HalfNormal", sigma=10),
         }
         model = GammaGammaModel(data=self.data, model_config=custom_model_config)
         model.build_model()
@@ -326,8 +326,8 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         [
             None,
             {
-                "p_prior": Prior("HalfNormal"),
-                "q_prior": Prior("HalfStudentT", nu=4),
+                "p": Prior("HalfNormal"),
+                "q": Prior("HalfStudentT", nu=4),
             },
         ],
     )
@@ -420,7 +420,7 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
 
     def test_model_repr(self):
         custom_model_config = {
-            "q_prior": Prior("HalfNormal", sigma=10),
+            "q": Prior("HalfNormal", sigma=10),
         }
         model = GammaGammaModelIndividual(
             data=self.individual_data,

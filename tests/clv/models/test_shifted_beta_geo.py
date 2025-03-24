@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -58,15 +58,15 @@ class TestShiftedBetaGeoModel:
     @pytest.fixture(scope="class")
     def model_config(self):
         return {
-            "alpha_prior": Prior("HalfNormal", sigma=10),
-            "beta_prior": Prior("HalfStudentT", nu=4, sigma=10),
+            "alpha": Prior("HalfNormal", sigma=10),
+            "beta": Prior("HalfStudentT", nu=4, sigma=10),
         }
 
     @pytest.fixture(scope="class")
     def default_model_config(self):
         return {
-            "alpha_prior": Prior("HalfFlat"),
-            "beta_prior": Prior("HalfFlat"),
+            "alpha": Prior("HalfFlat"),
+            "beta": Prior("HalfFlat"),
         }
 
     @pytest.fixture(scope="class")
@@ -98,7 +98,7 @@ class TestShiftedBetaGeoModel:
 
     def test_model_repr(self, default_model_config):
         custom_model_config = default_model_config.copy()
-        custom_model_config["alpha_prior"] = Prior("HalfNormal", sigma=10)
+        custom_model_config["alpha"] = Prior("HalfNormal", sigma=10)
         dataset = pd.DataFrame(
             {"customer_id": self.customer_id, "t_churn": self.churn_time, "T": self.T}
         )
@@ -125,14 +125,14 @@ class TestShiftedBetaGeoModel:
             assert isinstance(
                 model.model["alpha"].owner.op,
                 pm.HalfFlat
-                if config["alpha_prior"].distribution == "HalfFlat"
-                else config["alpha_prior"].pymc_distribution,
+                if config["alpha"].distribution == "HalfFlat"
+                else config["alpha"].pymc_distribution,
             )
             assert isinstance(
                 model.model["beta"].owner.op,
                 pm.HalfFlat
-                if config["beta_prior"].distribution == "HalfFlat"
-                else config["beta_prior"].pymc_distribution,
+                if config["beta"].distribution == "HalfFlat"
+                else config["beta"].pymc_distribution,
             )
             assert isinstance(model.model["theta"].owner.op, pm.Beta)
             assert isinstance(model.model["churn_censored"].owner.op, CensoredRV)
@@ -203,7 +203,7 @@ class TestShiftedBetaGeoModel:
             data=dataset,
         )
         model.build_model()
-        model.fit(fit_method="map")
+        model.fit(method="map")
         customer_thetas = np.array([0.1, 0.5, 0.9])
         model.idata = az.from_dict(
             posterior={
@@ -236,7 +236,7 @@ class TestShiftedBetaGeoModel:
             data=dataset,
         )
         model.build_model()
-        model.fit(fit_method="map")
+        model.fit(method="map")
         # theta ~ beta(7000, 3000) ~ 0.7
         model.idata = az.from_dict(
             {

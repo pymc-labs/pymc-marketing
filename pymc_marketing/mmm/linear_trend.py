@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ from pymc.distributions.shape_utils import Dims
 from pytensor.tensor.variable import TensorVariable
 from typing_extensions import Self
 
-from pymc_marketing.mmm.plot import SelToString, plot_curve
+from pymc_marketing.plot import SelToString, plot_curve
 from pymc_marketing.prior import Prior, create_dim_handler
 
 
@@ -186,6 +186,8 @@ class LinearTrend(BaseModel):
 
     Plot the curve HDI and samples:
 
+    .. code-block:: python
+
         sample_kwargs = {"n": 3, "rng": rng}
         fig, axes = hierarchical_trend.plot_curve(
             curve,
@@ -303,7 +305,7 @@ class LinearTrend(BaseModel):
         dim_handler = create_dim_handler(desired_dims=out_dims)
 
         # (changepoints, )
-        s = pt.linspace(0, pt.max(t), self.n_changepoints)
+        s = pt.linspace(0, pt.max(t).eval(), self.n_changepoints)
         s.type.shape = (self.n_changepoints,)
         s = dim_handler(
             s,

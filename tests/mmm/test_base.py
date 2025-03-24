@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -314,7 +314,12 @@ def test_calling_prior_predictive_before_fit_raises_error(test_mmm, toy_X, toy_y
         test_mmm.prior_predictive
 
 
-def test_calling_fit_result_before_fit_raises_error(test_mmm, toy_X, toy_y):
+def test_calling_fit_result_before_fit_raises_error(
+    test_mmm,
+    toy_X,
+    toy_y,
+    mock_pymc_sample,
+):
     # Arrange
     test_mmm.idata = None
     with pytest.raises(
@@ -342,10 +347,18 @@ def test_calling_prior_before_sample_prior_predictive_raises_error(
         test_mmm.prior
 
 
+def test_plot_prior_predictive_no_fitted(test_mmm) -> None:
+    with pytest.raises(
+        RuntimeError,
+        match="Make sure the model has been fitted and the prior_predictive has been sampled!",
+    ):
+        test_mmm.plot_prior_predictive()
+
+
 def test_plot_posterior_predictive_no_fitted(test_mmm) -> None:
     with pytest.raises(
         RuntimeError,
-        match="Make sure the model has bin fitted and the posterior predictive has been sampled!",
+        match="Make sure the model has been fitted and the posterior_predictive has been sampled!",
     ):
         test_mmm.plot_posterior_predictive()
 
@@ -353,6 +366,6 @@ def test_plot_posterior_predictive_no_fitted(test_mmm) -> None:
 def test_get_errors_raises_not_fitted(test_mmm) -> None:
     with pytest.raises(
         RuntimeError,
-        match="Make sure the model has bin fitted and the posterior predictive has been sampled!",
+        match="Make sure the model has been fitted and the posterior_predictive has been sampled!",
     ):
         test_mmm.get_errors()

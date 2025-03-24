@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -18,9 +18,10 @@ import pytest
 import xarray as xr
 from pytensor.tensor import TensorVariable
 
-from pymc_marketing.clv.plotting import (
+from pymc_marketing.clv import (
     plot_customer_exposure,
-    plot_expected_purchases,
+    plot_expected_purchases_over_time,
+    plot_expected_purchases_ppc,
     plot_frequency_recency_matrix,
     plot_probability_alive_matrix,
 )
@@ -29,6 +30,7 @@ from pymc_marketing.clv.plotting import (
 class MockModel:
     def __init__(self, data: pd.DataFrame):
         self.data = data
+        self._model_type = None
 
     def _mock_posterior(self, data: pd.DataFrame) -> xr.DataArray:
         n_customers = len(data)
@@ -157,10 +159,10 @@ def test_plot_probability_alive_matrix_with_ax(mock_model) -> None:
     "plot_cumulative, set_index_date, subplot",
     [(True, False, None), (False, True, plt.subplot())],
 )
-def test_plot_expected_purchases(
+def test_plot_expected_purchases_over_time(
     mock_model, cdnow_trans, plot_cumulative, set_index_date, subplot
 ) -> None:
-    ax = plot_expected_purchases(
+    ax = plot_expected_purchases_over_time(
         model=mock_model,
         purchase_history=cdnow_trans,
         customer_id_col="id",
@@ -170,7 +172,56 @@ def test_plot_expected_purchases(
         plot_cumulative=plot_cumulative,
         set_index_date=set_index_date,
         t=10,
-        t_unobserved=8,
+        t_start_eval=8,
+        ax=subplot,
+    )
+
+    assert isinstance(ax, plt.Axes)
+
+    # clear any existing pyplot figures
+    plt.clf()
+
+
+def test_plot_expected_purchases_over_time_exceptions(mock_model, cdnow_trans):
+    with pytest.warns(
+        DeprecationWarning,
+        match="t_unobserved is deprecated and will be removed in a future release. "
+        "Use t_start_eval instead.",
+    ):
+        plot_expected_purchases_over_time(
+            model=mock_model,
+            purchase_history=cdnow_trans,
+            customer_id_col="id",
+            datetime_col="date",
+            datetime_format="%Y%m%d",
+            time_unit="D",
+            t=10,
+            t_unobserved=8,
+        )
+
+    # clear any existing pyplot figures
+    plt.clf()
+
+
+def test_plot_expected_purchases_ppc_exceptions(fitted_model):
+    with pytest.raises(
+        NameError, match="Specify 'prior' or 'posterior' for 'ppc' parameter."
+    ):
+        plot_expected_purchases_ppc(fitted_model, ppc="ppc")
+
+
+@pytest.mark.parametrize(
+    "ppc, max_purchases, samples, subplot",
+    [("prior", 10, 100, None), ("posterior", 20, 50, plt.subplot())],
+)
+def test_plot_expected_purchases_ppc(
+    fitted_model, ppc, max_purchases, samples, subplot
+):
+    ax = plot_expected_purchases_ppc(
+        model=fitted_model,
+        ppc=ppc,
+        max_purchases=max_purchases,
+        samples=samples,
         ax=subplot,
     )
 

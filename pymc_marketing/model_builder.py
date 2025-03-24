@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import xarray as xr
 from pymc.util import RandomState
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
-from pymc_marketing.prior import Prior
 from pymc_marketing.utils import from_netcdf
 
 # If scikit-learn is available, use its data validator
@@ -45,6 +44,62 @@ except ImportError:
     def check_array(X, **kwargs):
         """Check if the input data is valid for the model."""
         return X
+
+
+def _handle_deprecate_pred_argument(
+    value,
+    name: str,
+    kwargs: dict,
+    none_allowed: bool = False,
+):
+    name_pred = f"{name}_pred"
+    if name_pred in kwargs and value is not None:
+        raise ValueError(f"Both {name} and {name_pred} cannot be provided.")
+
+    if name_pred not in kwargs and value is None and none_allowed:
+        return value
+
+    if name_pred not in kwargs and value is None:
+        raise ValueError(f"Please provide {name}.")
+
+    if name_pred in kwargs:
+        warnings.warn(
+            f"{name_pred} is deprecated, use {name} instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return kwargs.pop(name_pred)
+
+    return value
+
+
+def create_idata_accessor(value: str, message: str):
+    """Create a property accessor for an InferenceData object.
+
+    Underlying object must have an InferenceData object attribute named 'idata'.
+
+    Parameters
+    ----------
+    value : str
+        The value to access in the InferenceData object.
+    message : str
+        The error message to raise if the value is not found in the InferenceData object.
+
+    Returns
+    -------
+    property
+        The property accessor for the InferenceData object.
+
+    """
+
+    def accessor(self) -> xr.Dataset:
+        __doc__ = f"""Access the '{value}' attribute of the InferenceData object."""  # noqa: F841
+        if self.idata is None or value not in self.idata:
+            raise RuntimeError(message)
+
+        return self.idata[value]
+
+    return property(accessor)
 
 
 def create_sample_kwargs(
@@ -85,6 +140,10 @@ def create_sample_kwargs(
     sampler_config.update(**kwargs)
 
     return sampler_config
+
+
+class DifferentModelError(Exception):
+    """Error raised when a model loaded is different than one saved."""
 
 
 class ModelBuilder(ABC):
@@ -145,11 +204,10 @@ class ModelBuilder(ABC):
         else:
             return check_array(X, accept_sparse=False)
 
-    @abstractmethod
     def _data_setter(
         self,
-        X: np.ndarray | pd.DataFrame,
-        y: np.ndarray | pd.Series | None = None,
+        X: np.ndarray | pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: np.ndarray | pd.Series | xr.DataArray | None = None,
     ) -> None:
         """Set new data in the model.
 
@@ -160,21 +218,25 @@ class ModelBuilder(ABC):
         y : array, shape (n_obs,)
             The target values (real numbers).
 
-        Returns
-        -------
-        None
-
         Examples
         --------
-        >>> def _data_setter(self, data : pd.DataFrame):
-        >>>     with self.model:
-        >>>         pm.set_data({'x': X['x'].values})
-        >>>         try: # if y values in new data
-        >>>             pm.set_data({'y_data': y.values})
-        >>>         except: # dummies otherwise
-        >>>             pm.set_data({'y_data': np.zeros(len(data))})
+        Example logic of data_setter method
+
+        .. code-block:: python
+
+            def _data_setter(self, X, y=None):
+
+                data = {"X": X}
+                if y is None:
+                    y = np.zeros(len(X))
+                data["y"] = y
+
+                with self.model:
+                    pm.set_data(data)
 
         """
+        msg = "This model doesn't support setting new data, posterior_predictive, or out of sample methods."
+        raise NotImplementedError(msg)
 
     @property
     @abstractmethod
@@ -246,43 +308,10 @@ class ModelBuilder(ABC):
         """
 
     @abstractmethod
-    def _generate_and_preprocess_model_data(
-        self, X: pd.DataFrame | pd.Series, y: np.ndarray
-    ) -> None:
-        """Apply preprocessing to the data before fitting the model.
-
-        if validate is True, it will check if the data is valid for the model.
-        sets self.model_coords based on provided dataset
-
-        In case of optional parameters being passed into the model, this method should implement the conditional
-        logic responsible for correct handling of the optional parameters, and including them into the dataset.
-
-        Parameters
-        ----------
-        X : array, shape (n_obs, n_features)
-        y : array, shape (n_obs,)
-
-        Examples
-        --------
-        >>>     @classmethod
-        >>>     def _generate_and_preprocess_model_data(self, X, y):
-                    coords = {
-                        'x_dim': X.dim_variable,
-                    } #only include if applicable for your model
-        >>>         self.X = X
-        >>>         self.y = y
-
-        Returns
-        -------
-        None
-
-        """
-
-    @abstractmethod
     def build_model(
         self,
-        X: pd.DataFrame,
-        y: pd.Series | np.ndarray,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | np.ndarray | xr.DataArray,
         **kwargs,
     ) -> None:
         """Create an instance of `pm.Model` based on provided data and model_config.
@@ -324,8 +353,8 @@ class ModelBuilder(ABC):
         """
 
         def default(x):
-            if isinstance(x, Prior):
-                return x.to_json()
+            if hasattr(x, "to_dict"):
+                return x.to_dict()
             elif isinstance(x, HSGPKwargs):
                 return x.model_dump(mode="json")
             return x.__dict__
@@ -480,11 +509,86 @@ class ModelBuilder(ABC):
             "sampler_config": json.loads(attrs["sampler_config"]),
         }
 
+    def build_from_idata(self, idata: az.InferenceData) -> None:
+        """Build model from the InferenceData object.
+
+        This is part of the :func:`load` method. See :func:`load` for more larger context.
+
+        Usually a wrapper around the :func:`build_model` method unless the model
+        has some additional steps to be built.
+
+        Parameters
+        ----------
+        idata : az.InferenceData
+            The InferenceData object to build the model from.
+
+        """
+        dataset = idata.fit_data.to_dataframe()  # type: ignore
+        X = dataset.drop(columns=[self.output_var])
+        y = dataset[self.output_var]
+
+        self.build_model(X, y)
+
+    @classmethod
+    def load_from_idata(cls, idata: az.InferenceData) -> "ModelBuilder":
+        """Create a ModelBuilder instance from an InferenceData object.
+
+        This class method has a few steps:
+
+        - Construct a new instance of the model using the InferenceData attrs
+        - Build the model from the InferenceData
+        - Check if the model id matches the id in the InferenceData loaded.
+
+        Parameters
+        ----------
+        idata : az.InferenceData
+            The InferenceData object to load the model from.
+
+        Returns
+        -------
+        ModelBuilder
+            An instance of the ModelBuilder class.
+
+        Raises
+        ------
+        DifferentModelError
+            If the model id in the InferenceData does not match the model id built.
+
+        """
+        # needs to be converted, because json.loads was changing tuple to list
+        init_kwargs = cls.attrs_to_init_kwargs(idata.attrs)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=DeprecationWarning)
+            model = cls(**init_kwargs)
+
+        model.idata = idata
+        model.build_from_idata(idata)
+        model.post_sample_model_transformation()
+
+        if model.id != idata.attrs["id"]:
+            msg = (
+                "The model id in the InferenceData does not match the model id. "
+                "There was no error loading the inference data, but the model may "
+                "be different. "
+                "Investigate if the model structure or configuration has changed."
+            )
+            raise DifferentModelError(msg)
+
+        return model
+
     @classmethod
     def load(cls, fname: str):
         """Create a ModelBuilder instance from a file.
 
         Loads inference data for the model.
+
+        This class method has a few steps:
+
+        - Load the InferenceData from the file.
+        - Construct a new instance of the model using the InferenceData attrs
+        - Build the model from the InferenceData
+        - Check if the model id matches the id in the InferenceData loaded.
 
         Parameters
         ----------
@@ -497,7 +601,7 @@ class ModelBuilder(ABC):
 
         Raises
         ------
-        ValueError
+        DifferentModelError
             If the inference data that is loaded doesn't match with the model.
 
         Examples
@@ -513,36 +617,44 @@ class ModelBuilder(ABC):
         filepath = Path(str(fname))
         idata = from_netcdf(filepath)
 
-        # needs to be converted, because json.loads was changing tuple to list
-        init_kwargs = cls.attrs_to_init_kwargs(idata.attrs)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
-            model = cls(**init_kwargs)
-
-        model.idata = idata
-        dataset = idata.fit_data.to_dataframe()
-        X = dataset.drop(columns=[model.output_var])
-        y = dataset[model.output_var]
-        model.build_model(X, y)
-        # All previously used data is in idata.
-
-        if model.id != idata.attrs["id"]:
+        try:
+            return cls.load_from_idata(idata)
+        except DifferentModelError as e:
             error_msg = (
                 f"The file '{fname}' does not contain "
-                "an inference data of the same model "
+                "an InferenceData of the same model "
                 f"or configuration as '{cls._model_type}'"
             )
-            raise ValueError(error_msg)
+            raise DifferentModelError(error_msg) from e
 
-        return model
+    def create_fit_data(
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: np.ndarray | pd.Series | xr.DataArray,
+    ) -> xr.Dataset:
+        """Create the fit_data group based on the input data."""
+        if isinstance(y, np.ndarray):
+            y = pd.Series(y, index=X.index, name=self.output_var)
+
+        y.name = self.output_var
+
+        if isinstance(X, pd.DataFrame):
+            X = X.to_xarray()
+
+        if isinstance(y, pd.Series):
+            y = y.to_xarray()
+
+        return xr.merge([X, y])
+
+    def post_sample_model_transformation(self) -> None:
+        """Perform transformation on the model after sampling."""
+        return
 
     def fit(
         self,
-        X: pd.DataFrame,
-        y: pd.Series | np.ndarray | None = None,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | xr.DataArray | np.ndarray | None = None,
         progressbar: bool | None = None,
-        predictor_names: list[str] | None = None,
         random_seed: RandomState | None = None,
         **kwargs: Any,
     ) -> az.InferenceData:
@@ -558,10 +670,6 @@ class ModelBuilder(ABC):
             The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
         progressbar : bool, optional
             Specifies whether the fit progress bar should be displayed. Defaults to True.
-        predictor_names : Optional[List[str]] = None,
-            Allows for custom naming of predictors when given in a form of a 2D array.
-            Allows for naming of predictors when given in a form of np.ndarray, if not provided
-            the predictors will be named like predictor1, predictor2...
         random_seed : Optional[RandomState]
             Provides sampler with initial random seed for obtaining reproducible samples.
         **kwargs : Any
@@ -580,21 +688,23 @@ class ModelBuilder(ABC):
         Initializing NUTS using jitter+adapt_diag...
 
         """
-        if predictor_names is None:
-            predictor_names = []
+        if (
+            isinstance(y, pd.Series)
+            and isinstance(X, pd.DataFrame)
+            and not X.index.equals(y.index)
+        ):
+            raise ValueError("Index of X and y must match.")
+
         if y is None:
             y = np.zeros(X.shape[0])
-        y_df = pd.DataFrame({self.output_var: y})
-        self._generate_and_preprocess_model_data(X, y_df.values.flatten())
-        if self.X is None or self.y is None:
-            raise ValueError("X and y must be set before calling build_model!")
-        if self.output_var in X.columns:
+
+        if self.output_var in X:
             raise ValueError(
                 f"X includes a column named '{self.output_var}', which conflicts with the target variable."
             )
 
         if not hasattr(self, "model"):
-            self.build_model(self.X, self.y)
+            self.build_model(X, y)
 
         sampler_kwargs = create_sample_kwargs(
             self.sampler_config,
@@ -605,19 +715,18 @@ class ModelBuilder(ABC):
         with self.model:
             idata = pm.sample(**sampler_kwargs)
 
+        self.post_sample_model_transformation()
+
         if self.idata:
             self.idata = self.idata.copy()
             self.idata.extend(idata, join="right")
         else:
             self.idata = idata
 
-        X_df = pd.DataFrame(X, columns=X.columns)
-        combined_data = pd.concat([X_df, y_df], axis=1)
-        if not all(combined_data.columns):
-            raise ValueError("All columns must have non-empty names")
-
         if "fit_data" in self.idata:
             del self.idata.fit_data
+
+        fit_data = self.create_fit_data(X, y)
 
         with warnings.catch_warnings():
             warnings.filterwarnings(
@@ -625,13 +734,49 @@ class ModelBuilder(ABC):
                 category=UserWarning,
                 message="The group fit_data is not defined in the InferenceData scheme",
             )
-            self.idata.add_groups(fit_data=combined_data.to_xarray())  # type: ignore
+            self.idata.add_groups(fit_data=fit_data)
         self.set_idata_attrs(self.idata)
         return self.idata  # type: ignore
 
+    @property
+    def fit_result(self) -> xr.Dataset:
+        """Get the posterior fit_result.
+
+        Returns
+        -------
+        InferenceData object.
+
+        """
+        return create_idata_accessor(
+            "posterior", "The model hasn't been fit yet, call .fit() first"
+        ).__get__(self)
+
+    @fit_result.setter
+    def fit_result(self, res: az.InferenceData) -> None:
+        """Create a setter method to overwrite the pre-existing fit_result.
+
+        Parameters
+        ----------
+        res : az.InferenceData
+            The inferencedata object to be set
+
+        Returns
+        -------
+        property
+            The property setter for the InferenceData object.
+
+        """
+        if self.idata is None:
+            self.idata = res
+        elif "posterior" in self.idata:
+            warnings.warn("Overriding pre-existing fit_result", stacklevel=1)
+            self.idata.posterior = res
+        else:
+            self.idata.posterior = res
+
     def predict(
         self,
-        X_pred: np.ndarray | pd.DataFrame | pd.Series,
+        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
         extend_idata: bool = True,
         **kwargs,
     ) -> np.ndarray:
@@ -641,7 +786,7 @@ class ModelBuilder(ABC):
 
         Parameters
         ----------
-        X_pred : array-like | array, shape (n_pred, n_features)
+        X : array-like | array, shape (n_pred, n_features)
             The input data used for prediction. If scikit-learn is available, array-like, otherwise array.
         extend_idata : Boolean
             Determine whether the predictions should be added to inference data object.
@@ -650,8 +795,8 @@ class ModelBuilder(ABC):
 
         Returns
         -------
-        y_pred : ndarray, shape (n_pred,)
-            Predicted output corresponding to input X_pred.
+        ndarray, shape (n_pred,)
+            Predicted output corresponding to input X.
 
         Examples
         --------
@@ -663,7 +808,10 @@ class ModelBuilder(ABC):
 
         """
         posterior_predictive_samples = self.sample_posterior_predictive(
-            X_pred, extend_idata, combined=False, **kwargs
+            X,
+            extend_idata=extend_idata,
+            combined=False,
+            **kwargs,
         )
 
         if self.output_var not in posterior_predictive_samples:
@@ -678,8 +826,8 @@ class ModelBuilder(ABC):
 
     def sample_prior_predictive(
         self,
-        X_pred,
-        y_pred=None,
+        X=None,
+        y=None,
         samples: int | None = None,
         extend_idata: bool = True,
         combined: bool = True,
@@ -689,8 +837,11 @@ class ModelBuilder(ABC):
 
         Parameters
         ----------
-        X_pred : array, shape (n_pred, n_features)
+        X : array, shape (n_pred, n_features)
             The input data used for prediction using prior distribution.
+        y : array, shape (n_pred,), optional
+            The target values (real numbers) used for prediction using prior distribution.
+            If not set, defaults to an array of zeros.
         samples : int
             Number of samples from the prior parameter distributions to generate.
             If not set, uses sampler_config['draws'] if that is available, otherwise defaults to 500.
@@ -705,16 +856,19 @@ class ModelBuilder(ABC):
         Returns
         -------
         prior_predictive_samples : DataArray, shape (n_pred, samples)
-            Prior predictive samples for each input X_pred
+            Prior predictive samples for each input X
 
         """
-        if y_pred is None:
-            y_pred = np.zeros(len(X_pred))
+        X = _handle_deprecate_pred_argument(X, "X", kwargs)
+        y = _handle_deprecate_pred_argument(y, "y", kwargs, none_allowed=True)
+
+        if y is None:
+            y = np.zeros(len(X))
         if samples is None:
             samples = self.sampler_config.get("draws", 500)
 
         if not hasattr(self, "model"):
-            self.build_model(X_pred, y_pred)
+            self.build_model(X, y)
 
         with self.model:  # sample with new input data
             prior_pred: az.InferenceData = pm.sample_prior_predictive(samples, **kwargs)
@@ -734,7 +888,7 @@ class ModelBuilder(ABC):
 
     def sample_posterior_predictive(
         self,
-        X_pred,
+        X=None,
         extend_idata: bool = True,
         combined: bool = True,
         **sample_posterior_predictive_kwargs,
@@ -743,7 +897,7 @@ class ModelBuilder(ABC):
 
         Parameters
         ----------
-        X_pred : array, shape (n_pred, n_features)
+        X : array, shape (n_pred, n_features)
             The input data used for prediction using prior distribution..
         extend_idata : Boolean
             Determine whether the predictions should be added to inference data object.
@@ -756,10 +910,12 @@ class ModelBuilder(ABC):
         Returns
         -------
         posterior_predictive_samples : DataArray, shape (n_pred, samples)
-            Posterior predictive samples for each input X_pred
+            Posterior predictive samples for each input X
 
         """
-        self._data_setter(X_pred)
+        X = _handle_deprecate_pred_argument(X, "X", sample_posterior_predictive_kwargs)
+
+        self._data_setter(X)
 
         with self.model:
             post_pred = pm.sample_posterior_predictive(
@@ -777,18 +933,6 @@ class ModelBuilder(ABC):
 
         return az.extract(post_pred, variable_name, combined=combined)
 
-    def get_params(self, deep=True):
-        """Get all the model parameters needed to instantiate a copy of the model, not including training data."""
-        return {
-            "model_config": self.model_config,
-            "sampler_config": self.sampler_config,
-        }
-
-    def set_params(self, **params):
-        """Set all the model parameters needed to instantiate the model, not including training data."""
-        self.model_config = params["model_config"]
-        self.sampler_config = params["sampler_config"]
-
     @property
     @abstractmethod
     def _serializable_model_config(self) -> dict[str, int | float | dict]:
@@ -805,17 +949,17 @@ class ModelBuilder(ABC):
 
     def predict_proba(
         self,
-        X_pred: np.ndarray | pd.DataFrame | pd.Series,
+        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
         extend_idata: bool = True,
         combined: bool = False,
         **kwargs,
     ) -> xr.DataArray:
         """Alias for `predict_posterior`, for consistency with scikit-learn probabilistic estimators."""
-        return self.predict_posterior(X_pred, extend_idata, combined, **kwargs)
+        return self.predict_posterior(X, extend_idata, combined, **kwargs)
 
     def predict_posterior(
         self,
-        X_pred: np.ndarray | pd.DataFrame | pd.Series,
+        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
         extend_idata: bool = True,
         combined: bool = True,
         **kwargs,
@@ -824,7 +968,7 @@ class ModelBuilder(ABC):
 
         Parameters
         ----------
-        X_pred : array-like | array, shape (n_pred, n_features)
+        X : array-like | array, shape (n_pred, n_features)
             The input data used for prediction. If scikit-learn is available, array-like, otherwise array.
         extend_idata : Boolean
             Determine whether the predictions should be added to inference data object.
@@ -837,13 +981,14 @@ class ModelBuilder(ABC):
         Returns
         -------
         y_pred : DataArray
-            Posterior predictive samples for each input X_pred.
+            Posterior predictive samples for each input X.
             Shape is (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred).
 
         """
-        X_pred = self._validate_data(X_pred)
+        X = _handle_deprecate_pred_argument(X, "X", kwargs)
+        X = self._validate_data(X)
         posterior_predictive_samples = self.sample_posterior_predictive(
-            X_pred, extend_idata, combined, **kwargs
+            X, extend_idata, combined, **kwargs
         )
 
         if self.output_var not in posterior_predictive_samples:
@@ -877,3 +1022,39 @@ class ModelBuilder(ABC):
         hasher.update(self.version.encode())
         hasher.update(self._model_type.encode())
         return hasher.hexdigest()[:16]
+
+    def graphviz(self, **kwargs):
+        """Get the graphviz representation of the model.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments for the `pm.model_to_graphviz` function
+
+        Returns
+        -------
+        graphviz.Digraph
+
+        """
+        return pm.model_to_graphviz(self.model, **kwargs)
+
+    prior = create_idata_accessor(
+        "prior",
+        "The model hasn't been sampled yet, call .sample_prior_predictive() first",
+    )
+    prior_predictive = create_idata_accessor(
+        "prior_predictive",
+        "The model hasn't been sampled yet, call .sample_prior_predictive() first",
+    )
+    posterior = create_idata_accessor(
+        "posterior", "The model hasn't been fit yet, call .fit() first"
+    )
+
+    posterior_predictive = create_idata_accessor(
+        "posterior_predictive",
+        "The model hasn't been fit yet, call .sample_posterior_predictive() first",
+    )
+    predictions = create_idata_accessor(
+        "predictions",
+        "Call the 'sample_posterior_predictive' method with predictions=True first.",
+    )

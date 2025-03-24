@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import pytest
 import xarray
 from pandas.testing import assert_frame_equal
 
-from pymc_marketing.clv import BetaGeoModel, GammaGammaModel, ParetoNBDModel
+from pymc_marketing.clv import GammaGammaModel, ParetoNBDModel
 from pymc_marketing.clv.utils import (
     _expected_cumulative_transactions,
     _find_first_transactions,
@@ -60,66 +60,15 @@ def test_to_xarray():
 
 
 @pytest.fixture(scope="module")
-def fitted_bg(test_summary_data) -> BetaGeoModel:
-    rng = np.random.default_rng(13)
-
-    model_config = {
-        # Narrow Gaussian centered at MLE params from lifetimes BetaGeoFitter
-        "a_prior": Prior("DiracDelta", c=1.85034151),
-        "alpha_prior": Prior("DiracDelta", c=1.86428187),
-        "b_prior": Prior("DiracDelta", c=3.18105431),
-        "r_prior": Prior("DiracDelta", c=0.16385072),
-    }
-    model = BetaGeoModel(
-        data=test_summary_data,
-        model_config=model_config,
-    )
-    model.build_model()
-    fake_fit = pm.sample_prior_predictive(
-        samples=50, model=model.model, random_seed=rng
-    ).prior
-    set_model_fit(model, fake_fit)
-
-    return model
-
-
-@pytest.fixture(scope="module")
-def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
-    rng = np.random.default_rng(45)
-
-    model_config = {
-        # Narrow Gaussian centered at MLE params from lifetimes ParetoNBDFitter
-        "r_prior": Prior("DiracDelta", c=0.560),
-        "alpha_prior": Prior("DiracDelta", c=10.591),
-        "s_prior": Prior("DiracDelta", c=0.550),
-        "beta_prior": Prior("DiracDelta", c=9.756),
-    }
-    pnbd_model = ParetoNBDModel(
-        data=test_summary_data,
-        model_config=model_config,
-    )
-    pnbd_model.build_model()
-
-    # Mock an idata object for tests requiring a fitted model
-    # TODO: This is quite slow. Check similar fixtures in the model tests to speed this up.
-    fake_fit = pm.sample_prior_predictive(
-        samples=50, model=pnbd_model.model, random_seed=rng
-    ).prior
-    set_model_fit(pnbd_model, fake_fit)
-
-    return pnbd_model
-
-
-@pytest.fixture(scope="module")
 def fitted_gg(test_summary_data) -> GammaGammaModel:
     rng = np.random.default_rng(40)
     pd.Series({"p": 6.25, "q": 3.74, "v": 15.44})
 
     model_config = {
         # Params used in lifetimes test
-        "p_prior": Prior("DiracDelta", c=6.25),
-        "q_prior": Prior("DiracDelta", c=3.74),
-        "v_prior": Prior("DiracDelta", c=15.44),
+        "p": Prior("DiracDelta", c=6.25),
+        "q": Prior("DiracDelta", c=3.74),
+        "v": Prior("DiracDelta", c=15.44),
     }
     model = GammaGammaModel(
         data=test_summary_data,
@@ -127,7 +76,7 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
     )
     model.build_model()
     fake_fit = pm.sample_prior_predictive(
-        samples=50, model=model.model, random_seed=rng
+        draws=50, model=model.model, random_seed=rng
     ).prior
     set_model_fit(model, fake_fit)
 
@@ -137,8 +86,7 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
 # TODO: Consolidate this fixture into the tests requiring it?
 @pytest.fixture()
 def df_cum_transactions():
-    url_cdnow = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/cdnow_transactions.csv"
-    cdnow_transactions = pd.read_csv(url_cdnow)
+    cdnow_transactions = pd.read_csv("data/cdnow_transactions.csv")
 
     rfm_data = rfm_summary(
         cdnow_transactions,
@@ -151,10 +99,10 @@ def df_cum_transactions():
     )
 
     model_config = {
-        "r_prior": Prior("HalfFlat"),
-        "alpha_prior": Prior("HalfFlat"),
-        "s_prior": Prior("HalfFlat"),
-        "beta_prior": Prior("HalfFlat"),
+        "r": Prior("HalfFlat"),
+        "alpha": Prior("HalfFlat"),
+        "s": Prior("HalfFlat"),
+        "beta": Prior("HalfFlat"),
     }
 
     pnbd = ParetoNBDModel(data=rfm_data, model_config=model_config)

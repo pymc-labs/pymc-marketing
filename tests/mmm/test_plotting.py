@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -31,8 +31,9 @@ seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
 
 
-@pytest.fixture(scope="module")
-def toy_X() -> pd.DataFrame:
+@pytest.fixture(scope="module", params=[0, 42], ids=["seed_0", "seed_42"])
+def toy_X(request) -> pd.DataFrame:
+    local_rng: np.random.Generator = np.random.default_rng(seed=request.param)
     date_data: pd.DatetimeIndex = pd.date_range(
         start="2019-06-01", end="2021-12-31", freq="W-MON"
     )
@@ -42,12 +43,12 @@ def toy_X() -> pd.DataFrame:
     return pd.DataFrame(
         data={
             "date": date_data,
-            "channel_1": rng.integers(low=0, high=400, size=n),
-            "channel_2": rng.integers(low=0, high=50, size=n),
-            "control_1": rng.gamma(shape=1000, scale=500, size=n),
-            "control_2": rng.gamma(shape=100, scale=5, size=n),
-            "other_column_1": rng.integers(low=0, high=100, size=n),
-            "other_column_2": rng.normal(loc=0, scale=1, size=n),
+            "channel_1": local_rng.integers(low=0, high=400, size=n),
+            "channel_2": local_rng.integers(low=0, high=50, size=n),
+            "control_1": local_rng.gamma(shape=1000, scale=500, size=n),
+            "control_2": local_rng.normal(loc=0, scale=2, size=n),
+            "other_column_1": local_rng.integers(low=0, high=100, size=n),
+            "other_column_2": local_rng.normal(loc=0, scale=1, size=n),
         }
     )
 
@@ -140,7 +141,68 @@ class TestBasePlotting:
     @pytest.mark.parametrize(
         argnames="func_plot_name, kwargs_plot",
         argvalues=[
+            ("_plot_group_predictive", {"group": "prior_predictive"}),
+            ("_plot_group_predictive", {"group": "posterior_predictive"}),
+            # Prior predictive
             ("plot_prior_predictive", {}),
+            ("plot_prior_predictive", {"original_scale": True}),
+            ("plot_prior_predictive", {"ax": plt.subplots()[1]}),
+            (
+                "plot_prior_predictive",
+                {
+                    "add_mean": True,
+                    "original_scale": False,
+                },
+            ),
+            (
+                "plot_prior_predictive",
+                {
+                    "add_gradient": True,
+                    "original_scale": True,
+                },
+            ),
+            (
+                "plot_prior_predictive",
+                {
+                    "original_scale": False,
+                },
+            ),
+            (
+                "plot_prior_predictive",
+                {
+                    "add_mean": True,
+                    "original_scale": True,
+                },
+            ),
+            (
+                "plot_prior_predictive",
+                {
+                    "add_mean": True,
+                    "add_gradient": True,
+                    "original_scale": False,
+                },
+            ),
+            (
+                "plot_prior_predictive",
+                {
+                    "add_mean": True,
+                    "add_gradient": True,
+                    "original_scale": True,
+                },
+            ),
+            (
+                "plot_prior_predictive",
+                {
+                    "add_mean": False,
+                    "add_gradient": True,
+                    "original_scale": False,
+                },
+            ),
+            ("plot_prior_predictive", {"hdi_list": None}),
+            ("plot_prior_predictive", {"hdi_list": []}),
+            ("plot_prior_predictive", {"hdi_list": [0.94]}),
+            ("plot_prior_predictive", {"hdi_list": [0.94, 0.5]}),
+            # Posterior predictive
             ("plot_posterior_predictive", {}),
             ("plot_posterior_predictive", {"original_scale": True}),
             ("plot_posterior_predictive", {"ax": plt.subplots()[1]}),
@@ -199,6 +261,7 @@ class TestBasePlotting:
             ("plot_posterior_predictive", {"hdi_list": []}),
             ("plot_posterior_predictive", {"hdi_list": [0.94]}),
             ("plot_posterior_predictive", {"hdi_list": [0.94, 0.5]}),
+            # Other plots
             ("plot_errors", {}),
             ("plot_errors", {"original_scale": True}),
             ("plot_errors", {"ax": plt.subplots()[1]}),
@@ -214,6 +277,7 @@ class TestBasePlotting:
                 },
             ),
             ("plot_components_contributions", {}),
+            ("plot_prior_vs_posterior", {"var_name": "adstock_alpha"}),
         ],
     )
     def test_plots(self, plotting_mmm, func_plot_name, kwargs_plot) -> None:

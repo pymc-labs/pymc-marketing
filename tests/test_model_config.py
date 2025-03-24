@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -17,6 +17,10 @@ import warnings
 import numpy as np
 import pytest
 
+from pymc_marketing.deserialize import (
+    DESERIALIZERS,
+    register_deserialization,
+)
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.model_config import ModelConfigError, parse_model_config
 from pymc_marketing.prior import Prior
@@ -256,3 +260,43 @@ def test_parse_model_config_catches_errors() -> None:
     msg = "3 errors"
     with pytest.raises(ModelConfigError, match=msg):
         parse_model_config(model_config)
+
+
+class AribraryPriorClass:
+    def __init__(self, msg: str, value: int):
+        self.msg = msg
+        self.value = value
+        self.dims = ()
+
+    def create_variable(self, name: str):
+        return 1
+
+    def __eq__(self, other):
+        return self.msg == other.msg and self.value == other.value
+
+
+@pytest.fixture
+def register_arbitrary_prior_class():
+    register_deserialization(
+        is_type=lambda data: data.keys() == {"msg", "value"},
+        deserialize=lambda data: AribraryPriorClass(
+            msg=data["msg"], value=data["value"]
+        ),
+    )
+
+    yield
+
+    DESERIALIZERS.pop()
+
+
+def test_parse_model_config_custom_class(register_arbitrary_prior_class) -> None:
+    model_config = {
+        "alpha": {"msg": "Hello", "value": 42},
+    }
+
+    with pytest.warns(DeprecationWarning, match="alpha is automatically"):
+        result = parse_model_config(model_config)
+
+    assert result == {
+        "alpha": AribraryPriorClass(msg="Hello", value=42),
+    }

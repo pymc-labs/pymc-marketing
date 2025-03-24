@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -107,10 +107,10 @@ class TestBetaGeoBetaBinomModel:
     @pytest.fixture(scope="class")
     def model_config(self):
         return {
-            "alpha_prior": Prior("HalfNormal"),
-            "beta_prior": Prior("HalfStudentT", nu=4),
-            "delta_prior": Prior("HalfCauchy", beta=2),
-            "gamma_prior": Prior("Gamma", alpha=1, beta=1),
+            "alpha": Prior("HalfNormal"),
+            "beta": Prior("HalfStudentT", nu=4),
+            "delta": Prior("HalfCauchy", beta=2),
+            "gamma": Prior("Gamma", alpha=1, beta=1),
         }
 
     def test_model(self, model_config):
@@ -129,26 +129,26 @@ class TestBetaGeoBetaBinomModel:
             assert isinstance(
                 model.model["alpha"].owner.op,
                 pt.tensor.elemwise.Elemwise
-                if "alpha_prior" not in model.model_config
-                else model.model_config["alpha_prior"].pymc_distribution,
+                if "alpha" not in model.model_config
+                else model.model_config["alpha"].pymc_distribution,
             )
             assert isinstance(
                 model.model["beta"].owner.op,
                 pt.tensor.elemwise.Elemwise
-                if "beta_prior" not in model.model_config
-                else model.model_config["beta_prior"].pymc_distribution,
+                if "beta" not in model.model_config
+                else model.model_config["beta"].pymc_distribution,
             )
             assert isinstance(
                 model.model["delta"].owner.op,
                 pt.tensor.elemwise.Elemwise
-                if "delta_prior" not in model.model_config
-                else model.model_config["delta_prior"].pymc_distribution,
+                if "delta" not in model.model_config
+                else model.model_config["delta"].pymc_distribution,
             )
             assert isinstance(
                 model.model["gamma"].owner.op,
                 pt.tensor.elemwise.Elemwise
-                if "gamma_prior" not in model.model_config
-                else model.model_config["gamma_prior"].pymc_distribution,
+                if "gamma" not in model.model_config
+                else model.model_config["gamma"].pymc_distribution,
             )
 
         assert default_model.model.eval_rv_shapes() == {
@@ -230,10 +230,10 @@ class TestBetaGeoBetaBinomModel:
     def test_model_repr(self, custom_config):
         if custom_config:
             model_config = {
-                "alpha_prior": Prior("HalfFlat"),
-                "beta_prior": Prior("HalfFlat"),
-                "delta_prior": Prior("HalfFlat"),
-                "gamma_prior": Prior("HalfNormal", sigma=10),
+                "alpha": Prior("HalfFlat"),
+                "beta": Prior("HalfFlat"),
+                "delta": Prior("HalfFlat"),
+                "gamma": Prior("HalfNormal", sigma=10),
             }
             repr = (
                 "BG/BB"
@@ -267,7 +267,7 @@ class TestBetaGeoBetaBinomModel:
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
-        "fit_method, rtol",
+        "method, rtol",
         [
             (
                 "mcmc",
@@ -276,17 +276,15 @@ class TestBetaGeoBetaBinomModel:
             ("map", 0.2),
         ],
     )
-    def test_model_convergence(self, fit_method, rtol, model_config):
+    def test_model_convergence(self, method, rtol, model_config):
         model = BetaGeoBetaBinomModel(
             data=self.sample_data,
             model_config=model_config,
         )
         model.build_model()
 
-        sample_kwargs = (
-            dict(random_seed=self.rng, chains=2) if fit_method == "mcmc" else {}
-        )
-        model.fit(fit_method=fit_method, progressbar=False, **sample_kwargs)
+        sample_kwargs = dict(random_seed=self.rng, chains=2) if method == "mcmc" else {}
+        model.fit(method=method, progressbar=False, **sample_kwargs)
 
         fit = model.idata.posterior
         np.testing.assert_allclose(

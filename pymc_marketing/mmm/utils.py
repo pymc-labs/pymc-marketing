@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -90,9 +90,9 @@ def transform_1d_array(
 
 
 def sigmoid_saturation(
-    x: float | np.ndarray | npt.NDArray[np.float64],
-    alpha: float | np.ndarray | npt.NDArray[np.float64],
-    lam: float | np.ndarray | npt.NDArray[np.float64],
+    x: float | np.ndarray | npt.NDArray,
+    alpha: float | np.ndarray | npt.NDArray,
+    lam: float | np.ndarray | npt.NDArray,
 ) -> float | Any:
     """Sigmoid saturation function.
 
@@ -200,30 +200,3 @@ def create_new_spend_data(
             spend,
         ]
     )
-
-
-def drop_scalar_coords(curve: xr.DataArray) -> xr.DataArray:
-    """Remove scalar coordinates from an xarray DataArray.
-
-    This function identifies and removes scalar coordinates from the given
-    DataArray. Scalar coordinates are those with a single value that are
-    not part of the DataArray's indexes. The function returns a new DataArray
-    with the scalar coordinates removed.
-
-    Parameters
-    ----------
-    curve : xr.DataArray
-        The input DataArray from which scalar coordinates will be removed.
-
-    Returns
-    -------
-    xr.DataArray
-        A new DataArray with the identified scalar coordinates removed.
-
-    """
-    scalar_coords_to_drop = []
-    for coord, values in curve.coords.items():
-        if values.size == 1 and coord not in curve.indexes:
-            scalar_coords_to_drop.append(coord)
-
-    return curve.reset_coords(scalar_coords_to_drop, drop=True)

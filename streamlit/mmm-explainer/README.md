@@ -22,7 +22,6 @@ In this case, you would just need to install the requirements.txt within the str
 
 The app can be found [here](https://pymc-marketing-app.streamlit.app/)
 
-
 ## Contributing & Adding New Functions
 
 We welcome contributions from the community! Whether it's adding new features, improving documentation, or reporting bugs, please feel free to make a pull request or open an issue.

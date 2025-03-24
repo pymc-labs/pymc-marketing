@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -97,20 +97,24 @@ Create a prior with a custom transform function by registering it with
 from __future__ import annotations
 
 import copy
+import warnings
 from collections.abc import Callable
 from inspect import signature
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
-from pydantic import validate_call
+from pydantic import InstanceOf, validate_call
+from pydantic.dataclasses import dataclass
 from pymc.distributions.shape_utils import Dims
+
+from pymc_marketing.deserialize import deserialize, register_deserialization
 
 
 class UnsupportedShapeError(Exception):
-    """Error for when the shape of the hierarchical variable is not supported."""
+    """Error for when the shapes from variables are not compatible."""
 
 
 class UnsupportedDistributionError(Exception):
@@ -168,6 +172,12 @@ def handle_dims(x: pt.TensorLike, dims: Dims, desired_dims: Dims) -> pt.TensorVa
 
     dims = dims if isinstance(dims, tuple) else (dims,)
     desired_dims = desired_dims if isinstance(desired_dims, tuple) else (desired_dims,)
+
+    if difference := set(dims).difference(desired_dims):
+        raise UnsupportedShapeError(
+            f"Dims {dims} of data are not a subset of the desired dims {desired_dims}. "
+            f"{difference} is missing from the desired dims."
+        )
 
     aligned_dims = np.array(dims)[:, None] == np.array(desired_dims)
 
@@ -276,6 +286,95 @@ def _get_pymc_parameters(distribution: pm.Distribution) -> set[str]:
     return set(signature(distribution.dist).parameters.keys()) - {"kwargs", "args"}
 
 
+@runtime_checkable
+class VariableFactory(Protocol):
+    """Protocol for something that works like a Prior class."""
+
+    dims: tuple[str, ...]
+
+    def create_variable(self, name: str) -> pt.TensorVariable:
+        """Create a TensorVariable."""
+
+
+def sample_prior(
+    factory: VariableFactory,
+    coords=None,
+    name: str = "var",
+    wrap: bool = False,
+    **sample_prior_predictive_kwargs,
+) -> xr.Dataset:
+    """Sample the prior for an arbitrary VariableFactory.
+
+    Parameters
+    ----------
+    factory : VariableFactory
+        The factory to sample from.
+    coords : dict[str, list[str]], optional
+        The coordinates for the variable, by default None.
+        Only required if the dims are specified.
+    name : str, optional
+        The name of the variable, by default "var".
+    wrap : bool, optional
+        Whether to wrap the variable in a `pm.Deterministic` node, by default False.
+    sample_prior_predictive_kwargs : dict
+        Additional arguments to pass to `pm.sample_prior_predictive`.
+
+    Returns
+    -------
+    xr.Dataset
+        The dataset of the prior samples.
+
+    Example
+    -------
+    Sample from an arbitrary variable factory.
+
+    .. code-block:: python
+
+        import pymc as pm
+
+        import pytensor.tensor as pt
+
+        from pymc_marketing.prior import sample_prior
+
+        class CustomVariableDefinition:
+            def __init__(self, dims, n: int):
+                self.dims = dims
+                self.n = n
+
+            def create_variable(self, name: str) -> "TensorVariable":
+                x = pm.Normal(f"{name}_x", mu=0, sigma=1, dims=self.dims)
+                return pt.sum([x ** n for n in range(1, self.n + 1)], axis=0)
+
+        cubic = CustomVariableDefinition(dims=("channel",), n=3)
+        coords = {"channel": ["C1", "C2", "C3"]}
+        # Doesn't include the return value
+        prior = sample_prior(cubic, coords=coords)
+
+        prior_with = sample_prior(cubic, coords=coords, wrap=True)
+
+    """
+    coords = coords or {}
+
+    if isinstance(factory.dims, str):
+        dims = (factory.dims,)
+    else:
+        dims = factory.dims
+
+    if missing_keys := set(dims) - set(coords.keys()):
+        raise KeyError(f"Coords are missing the following dims: {missing_keys}")
+
+    with pm.Model(coords=coords) as model:
+        if wrap:
+            pm.Deterministic(name, factory.create_variable(name), dims=factory.dims)
+        else:
+            factory.create_variable(name)
+
+    return pm.sample_prior_predictive(
+        model=model,
+        **sample_prior_predictive_kwargs,
+    ).prior
+
+
 class Prior:
     """A class to represent a prior distribution.
 
@@ -311,6 +410,7 @@ class Prior:
     non_centered_distributions: dict[str, dict[str, float]] = {
         "Normal": {"mu": 0, "sigma": 1},
         "StudentT": {"mu": 0, "sigma": 1},
+        "ZeroSumNormal": {"sigma": 1},
     }
 
     pymc_distribution: type[pm.Distribution]
@@ -406,7 +506,14 @@ class Prior:
         }
 
     def _parameters_are_correct_type(self) -> None:
-        supported_types = (int, float, np.ndarray, Prior, pt.TensorVariable)
+        supported_types = (
+            int,
+            float,
+            np.ndarray,
+            Prior,
+            pt.TensorVariable,
+            VariableFactory,
+        )
 
         incorrect_types = {
             param: type(value)
@@ -430,13 +537,15 @@ class Prior:
                 f"Choose from {list(self.non_centered_distributions.keys())}"
             )
 
-        if set(self.parameters.keys()) < {"mu", "sigma"}:
-            raise ValueError(
-                "Must have at least 'mu' and 'sigma' parameter for non-centered"
-            )
+        required_parameters = set(
+            self.non_centered_distributions[self.distribution].keys()
+        )
 
-        if not any(isinstance(value, Prior) for value in self.parameters.values()):
-            raise ValueError("Non-centered must have a Prior for 'mu' or 'sigma'")
+        if set(self.parameters.keys()) < required_parameters:
+            msg = " and ".join([f"{param!r}" for param in required_parameters])
+            raise ValueError(
+                f"Must have at least {msg} parameter for non-centered for {self.distribution!r}"
+            )
 
     def _unique_dims(self) -> None:
         if not self.dims:
@@ -448,7 +557,7 @@ class Prior:
     def _param_dims_work(self) -> None:
         other_dims = set()
         for value in self.parameters.values():
-            if isinstance(value, Prior):
+            if hasattr(value, "dims"):
                 other_dims.update(value.dims)
 
         if not other_dims.issubset(self.dims):
@@ -473,7 +582,7 @@ class Prior:
         return f"{self}"
 
     def _create_parameter(self, param, value, name):
-        if not isinstance(value, Prior):
+        if not hasattr(value, "create_variable"):
             return value
 
         child_name = f"{name}_{param}"
@@ -489,8 +598,12 @@ class Prior:
     def _create_non_centered_variable(self, name: str) -> pt.TensorVariable:
         def handle_variable(var_name: str):
             parameter = self.parameters[var_name]
+            if not hasattr(parameter, "create_variable"):
+                return parameter
+
             return self.dim_handler(
-                parameter.create_variable(f"{name}_{var_name}"), parameter.dims
+                parameter.create_variable(f"{name}_{var_name}"),
+                parameter.dims,
             )
 
         defaults = self.non_centered_distributions[self.distribution]
@@ -505,11 +618,15 @@ class Prior:
             **other_parameters,
             dims=self.dims,
         )
-        mu = (
-            handle_variable("mu")
-            if isinstance(self.parameters["mu"], Prior)
-            else self.parameters["mu"]
-        )
+        if "mu" in self.parameters:
+            mu = (
+                handle_variable("mu")
+                if isinstance(self.parameters["mu"], Prior)
+                else self.parameters["mu"]
+            )
+        else:
+            mu = 0
+
         sigma = (
             handle_variable("sigma")
             if isinstance(self.parameters["sigma"], Prior)
@@ -604,8 +721,10 @@ class Prior:
 
         return getattr(pz, self.distribution)(**self.parameters)
 
-    def to_json(self) -> dict[str, Any]:
-        """Convert the prior to the previous dictionary format.
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the prior to dictionary format.
+
+        This is equivalent to the older PyMC-Marketing dictionary format.
 
         Returns
         -------
@@ -622,7 +741,7 @@ class Prior:
 
             dist = Prior("Normal", mu=0, sigma=1)
 
-            dist.to_json()
+            dist.to_dict()
             # {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}}
 
         Convert a hierarchical prior to the dictionary format.
@@ -636,7 +755,7 @@ class Prior:
                 dims="channel",
             )
 
-            dist.to_json()
+            dist.to_dict()
             # {
             #     "dist": "Normal",
             #     "kwargs": {
@@ -647,41 +766,65 @@ class Prior:
             # }
 
         """
-        json: dict[str, Any] = {
+        data: dict[str, Any] = {
             "dist": self.distribution,
         }
         if self.parameters:
 
             def handle_value(value):
                 if isinstance(value, Prior):
-                    return value.to_json()
+                    return value.to_dict()
+
+                if isinstance(value, pt.TensorVariable):
+                    value = value.eval()
 
                 if isinstance(value, np.ndarray):
                     return value.tolist()
 
+                if hasattr(value, "to_dict"):
+                    return value.to_dict()
+
                 return value
 
-            json["kwargs"] = {
+            data["kwargs"] = {
                 param: handle_value(value) for param, value in self.parameters.items()
             }
         if not self.centered:
-            json["centered"] = False
+            data["centered"] = False
 
         if self.dims:
-            json["dims"] = self.dims
+            data["dims"] = self.dims
 
         if self.transform:
-            json["transform"] = self.transform
+            data["transform"] = self.transform
 
-        return json
+        return data
+
+    def to_json(self) -> dict[str, Any]:
+        """Convert the prior to dictionary format.
+
+        Deprecated in favor of :function:`pymc_marketing.prior.Prior.to_dict`.
+
+        Returns
+        -------
+        dict[str, Any]
+            The dictionary format of the prior.
+
+        """
+        warnings.warn(
+            "The `to_json` method is deprecated in favor of `to_dict`",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.to_dict()
 
     @classmethod
-    def from_json(cls, json) -> Prior:
+    def from_dict(cls, data) -> Prior:
         """Create a Prior from the dictionary format.
 
         Parameters
         ----------
-        json : dict[str, Any]
+        data : dict[str, Any]
             The dictionary format of the prior.
 
         Returns
@@ -697,29 +840,29 @@ class Prior:
 
             from pymc_marketing.prior import Prior
 
-            json = {
+            data = {
                 "dist": "Normal",
                 "kwargs": {"mu": 0, "sigma": 1},
             }
 
-            dist = Prior.from_json(json)
+            dist = Prior.from_dict(data)
             dist
             # Prior("Normal", mu=0, sigma=1)
 
         """
-        if not isinstance(json, dict):
+        if not isinstance(data, dict):
             msg = (
                 "Must be a dictionary representation of a prior distribution. "
-                f"Not of type: {type(json)}"
+                f"Not of type: {type(data)}"
             )
             raise ValueError(msg)
 
-        dist = json["dist"]
-        kwargs = json.get("kwargs", {})
+        dist = data["dist"]
+        kwargs = data.get("kwargs", {})
 
         def handle_value(value):
             if isinstance(value, dict):
-                return cls.from_json(value)
+                return deserialize(value)
 
             if isinstance(value, list):
                 return np.array(value)
@@ -727,13 +870,37 @@ class Prior:
             return value
 
         kwargs = {param: handle_value(value) for param, value in kwargs.items()}
-        centered = json.get("centered", True)
-        dims = json.get("dims")
+        centered = data.get("centered", True)
+        dims = data.get("dims")
         if isinstance(dims, list):
             dims = tuple(dims)
-        transform = json.get("transform")
+        transform = data.get("transform")
 
         return cls(dist, dims=dims, centered=centered, transform=transform, **kwargs)
+
+    @classmethod
+    def from_json(cls, json) -> Prior:
+        """Create a Prior from the dictionary format.
+
+        Deprecated in favor of :function:`pymc_marketing.prior.Prior.from_dict`.
+
+        Parameters
+        ----------
+        json : dict[str, Any]
+            The dictionary format of the prior.
+
+        Returns
+        -------
+        Prior
+            The prior distribution.
+
+        """
+        warnings.warn(
+            "The `from_json` method is deprecated in favor of `from_dict`",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return cls.from_dict(json)
 
     def constrain(
         self, lower: float, upper: float, mass: float = 0.95, kwargs=None
@@ -824,7 +991,10 @@ class Prior:
         )
 
     def sample_prior(
-        self, coords=None, name: str = "var", **sample_prior_predictive_kwargs
+        self,
+        coords=None,
+        name: str = "var",
+        **sample_prior_predictive_kwargs,
     ) -> xr.Dataset:
         """Sample the prior distribution for the variable.
 
@@ -860,15 +1030,12 @@ class Prior:
             prior = dist.sample_prior(coords=coords)
 
         """
-        coords = coords or {}
-
-        if missing_keys := set(self.dims) - set(coords.keys()):
-            raise KeyError(f"Coords are missing the following dims: {missing_keys}")
-
-        with pm.Model(coords=coords):
-            self.create_variable(name)
-
-            return pm.sample_prior_predictive(**sample_prior_predictive_kwargs).prior
+        return sample_prior(
+            factory=self,
+            coords=coords,
+            name=name,
+            **sample_prior_predictive_kwargs,
+        )
 
     def __deepcopy__(self, memo) -> Prior:
         """Return a deep copy of the prior."""
@@ -981,3 +1148,273 @@ class Prior:
         distribution.parameters["mu"] = mu
         distribution.parameters["observed"] = observed
         return distribution.create_variable(name)
+
+
+class VariableNotFound(Exception):
+    """Variable is not found."""
+
+
+def _remove_random_variable(var: pt.TensorVariable) -> None:
+    if var.name is None:
+        raise ValueError("This isn't removable")
+
+    name: str = var.name
+
+    model = pm.modelcontext(None)
+    for idx, free_rv in enumerate(model.free_RVs):
+        if var == free_rv:
+            index_to_remove = idx
+            break
+    else:
+        raise VariableNotFound(f"Variable {var.name!r} not found")
+
+    var.name = None
+    model.free_RVs.pop(index_to_remove)
+    model.named_vars.pop(name)
+
+
+@dataclass
+class Censored:
+    """Create censored random variable.
+
+    Examples
+    --------
+    Create a censored Normal distribution:
+
+    .. code-block:: python
+
+        from pymc_marketing.prior import Prior, Censored
+
+        normal = Prior("Normal")
+        censored_normal = Censored(normal, lower=0)
+
+    Create hierarchical censored Normal distribution:
+
+    .. code-block:: python
+
+        from pymc_marketing.prior import Prior, Censored
+
+        normal = Prior(
+            "Normal",
+            mu=Prior("Normal"),
+            sigma=Prior("HalfNormal"),
+            dims="channel",
+        )
+        censored_normal = Censored(normal, lower=0)
+
+        coords = {"channel": range(3)}
+        samples = censored_normal.sample_prior(coords=coords)
+
+    """
+
+    distribution: InstanceOf[Prior]
+    lower: float | InstanceOf[pt.TensorVariable] = -np.inf
+    upper: float | InstanceOf[pt.TensorVariable] = np.inf
+
+    def __post_init__(self) -> None:
+        """Check validity at initialization."""
+        if not self.distribution.centered:
+            raise ValueError(
+                "Censored distribution must be centered so that .dist() API can be used on distribution."
+            )
+
+        if self.distribution.transform is not None:
+            raise ValueError(
+                "Censored distribution can't have a transform so that .dist() API can be used on distribution."
+            )
+
+    @property
+    def dims(self) -> tuple[str, ...]:
+        """The dims from the distribution to censor."""
+        return self.distribution.dims
+
+    @dims.setter
+    def dims(self, dims) -> None:
+        self.distribution.dims = dims
+
+    def create_variable(self, name: str) -> pt.TensorVariable:
+        """Create censored random variable."""
+        dist = self.distribution.create_variable(name)
+        _remove_random_variable(var=dist)
+
+        return pm.Censored(
+            name,
+            dist,
+            lower=self.lower,
+            upper=self.upper,
+            dims=self.dims,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the censored distribution to a dictionary."""
+
+        def handle_value(value):
+            if isinstance(value, pt.TensorVariable):
+                return value.eval().tolist()
+
+            return value
+
+        return {
+            "class": "Censored",
+            "data": {
+                "dist": self.distribution.to_dict(),
+                "lower": handle_value(self.lower),
+                "upper": handle_value(self.upper),
+            },
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Censored:
+        """Create a censored distribution from a dictionary."""
+        data = data["data"]
+        return cls(  # type: ignore
+            distribution=Prior.from_dict(data["dist"]),
+            lower=data["lower"],
+            upper=data["upper"],
+        )
+
+    def sample_prior(
+        self,
+        coords=None,
+        name: str = "variable",
+        **sample_prior_predictive_kwargs,
+    ) -> xr.Dataset:
+        """Sample the prior distribution for the variable.
+
+        Parameters
+        ----------
+        coords : dict[str, list[str]], optional
+            The coordinates for the variable, by default None.
+            Only required if the dims are specified.
+        name : str, optional
+            The name of the variable, by default "var".
+        sample_prior_predictive_kwargs : dict
+            Additional arguments to pass to `pm.sample_prior_predictive`.
+
+        Returns
+        -------
+        xr.Dataset
+            The dataset of the prior samples.
+
+        Example
+        -------
+        Sample from a censored Gamma distribution.
+
+        .. code-block:: python
+
+            gamma = Prior("Gamma", mu=1, sigma=1, dims="channel")
+            dist = Censored(gamma, lower=0.5)
+
+            coords = {"channel": ["C1", "C2", "C3"]}
+            prior = dist.sample_prior(coords=coords)
+
+        """
+        return sample_prior(
+            factory=self,
+            coords=coords,
+            name=name,
+            **sample_prior_predictive_kwargs,
+        )
+
+    def to_graph(self):
+        """Generate a graph of the variables.
+
+        Examples
+        --------
+        Create graph for a censored Normal distribution
+
+        .. code-block:: python
+
+            from pymc_marketing.prior import Prior, Censored
+
+            normal = Prior("Normal")
+            censored_normal = Censored(normal, lower=0)
+
+            censored_normal.to_graph()
+
+        """
+        coords = {name: ["DUMMY"] for name in self.dims}
+        with pm.Model(coords=coords) as model:
+            self.create_variable("var")
+
+        return pm.model_to_graphviz(model)
+
+    def create_likelihood_variable(
+        self,
+        name: str,
+        mu: pt.TensorLike,
+        observed: pt.TensorLike,
+    ) -> pt.TensorVariable:
+        """Create observed censored variable.
+
+        Will require that the distribution has a `mu` parameter
+        and that it has not been set in the parameters.
+
+        Parameters
+        ----------
+        name : str
+            The name of the variable.
+        mu : pt.TensorLike
+            The mu parameter for the likelihood.
+        observed : pt.TensorLike
+            The observed data.
+
+        Returns
+        -------
+        pt.TensorVariable
+            The PyMC variable.
+
+        Examples
+        --------
+        Create a censored likelihood variable in a larger PyMC model.
+
+        .. code-block:: python
+
+            import pymc as pm
+            from pymc_marketing.prior import Prior, Censored
+
+            normal = Prior("Normal", sigma=Prior("HalfNormal"))
+            dist = Censored(normal, lower=0)
+
+            observed = 1
+
+            with pm.Model():
+                # Create the likelihood variable
+                mu = pm.HalfNormal("mu", sigma=1)
+                dist.create_likelihood_variable("y", mu=mu, observed=observed)
+
+        """
+        if "mu" not in _get_pymc_parameters(self.distribution.pymc_distribution):
+            raise UnsupportedDistributionError(
+                f"Likelihood distribution {self.distribution.distribution!r} is not supported."
+            )
+
+        if "mu" in self.distribution.parameters:
+            raise MuAlreadyExistsError(self.distribution)
+
+        distribution = self.distribution.deepcopy()
+        distribution.parameters["mu"] = mu
+
+        dist = distribution.create_variable(name)
+        _remove_random_variable(var=dist)
+
+        return pm.Censored(
+            name,
+            dist,
+            observed=observed,
+            lower=self.lower,
+            upper=self.upper,
+            dims=self.dims,
+        )
+
+
+def _is_prior_type(data: dict) -> bool:
+    return "dist" in data
+
+
+def _is_censored_type(data: dict) -> bool:
+    return data.keys() == {"class", "data"} and data["class"] == "Censored"
+
+
+register_deserialization(is_type=_is_prior_type, deserialize=Prior.from_dict)
+register_deserialization(is_type=_is_censored_type, deserialize=Censored.from_dict)

@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -20,6 +20,11 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 
+from pymc_marketing.deserialize import (
+    DESERIALIZERS,
+    deserialize,
+    register_deserialization,
+)
 from pymc_marketing.mmm import (
     HillSaturation,
     HillSaturationSigmoid,
@@ -27,6 +32,7 @@ from pymc_marketing.mmm import (
     LogisticSaturation,
     MichaelisMentenSaturation,
     RootSaturation,
+    SaturationTransformation,
     TanhSaturation,
     TanhSaturationBaselined,
     saturation_from_dict,
@@ -41,7 +47,7 @@ def model() -> pm.Model:
 
 
 def saturation_functions():
-    return [
+    transformations = [
         LogisticSaturation(),
         InverseScaledLogisticSaturation(),
         TanhSaturation(),
@@ -50,6 +56,10 @@ def saturation_functions():
         HillSaturation(),
         HillSaturationSigmoid(),
         RootSaturation(),
+    ]
+    return [
+        pytest.param(transformation, id=transformation.lookup_name)
+        for transformation in transformations
     ]
 
 
@@ -233,5 +243,65 @@ def test_saturation_from_dict_without_priors(saturation) -> None:
 
     saturation = saturation_from_dict(data)
     assert saturation.default_priors == {
-        k: Prior.from_json(v) for k, v in saturation.to_dict()["priors"].items()
+        k: Prior.from_dict(v) for k, v in saturation.to_dict()["priors"].items()
     }
+
+
+class ArbitraryObject:
+    def __init__(self, msg: str, value: int) -> None:
+        self.msg = msg
+        self.value = value
+        self.dims = ()
+
+    def create_variable(self, name: str):
+        return pm.Normal(name, mu=0, sigma=1)
+
+
+@pytest.fixture
+def register_arbitrary_deserialization():
+    register_deserialization(
+        lambda data: isinstance(data, dict) and data.keys() == {"msg", "value"},
+        lambda data: ArbitraryObject(**data),
+    )
+
+    yield
+
+    DESERIALIZERS.pop()
+
+
+def test_deserialization(
+    register_arbitrary_deserialization,
+) -> None:
+    data = {
+        "lookup_name": "logistic",
+        "prefix": "new",
+        "priors": {
+            "alpha": {"msg": "hello", "value": 1},
+        },
+    }
+
+    instance = deserialize(data)
+    assert isinstance(instance, LogisticSaturation)
+    assert instance.prefix == "new"
+
+    alpha = instance.function_priors["alpha"]
+    assert isinstance(alpha, ArbitraryObject)
+    assert alpha.msg == "hello"
+    assert alpha.value == 1
+
+
+def test_deserialize_new_transformation() -> None:
+    class NewSaturation(SaturationTransformation):
+        lookup_name = "new_saturation"
+
+        def function(self, x):
+            return x
+
+        default_priors = {}
+
+    data = {
+        "lookup_name": "new_saturation",
+    }
+
+    instance = deserialize(data)
+    assert isinstance(instance, NewSaturation)

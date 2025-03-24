@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -11,681 +11,401 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Plot distributions stored in xarray.DataArray across coordinates.
+"""MMM related plotting class."""
 
-Used to plot the prior and posterior of the various MMM components.
-
-See the :func:`plot_curve` function for more information.
-
-"""
-
-import warnings
-from collections.abc import Callable, Generator, Iterable, MutableMapping, Sequence
-from itertools import product, repeat
-from typing import Any, Concatenate, ParamSpec, cast
+import itertools
 
 import arviz as az
 import matplotlib.pyplot as plt
-import numpy as np
-import numpy.typing as npt
-import pandas as pd
 import xarray as xr
 from matplotlib.axes import Axes
-from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
+from matplotlib.figure import Figure
+from numpy.typing import NDArray
 
-from pymc_marketing.mmm.utils import drop_scalar_coords
-
-Values = Sequence[Any] | npt.NDArray[Any]
-Coords = dict[str, Values]
+__all__ = ["MMMPlotSuite"]
 
 
-def get_plot_coords(coords: Coords, non_grid_names: set[str]) -> Coords:
-    """Get the plot coordinates.
+class MMMPlotSuite:
+    """Media Mix Model Plot Suite.
 
-    Parameters
-    ----------
-    coords : Coords
-        The coordinates to get the plot coordinates from.
-    non_grid_names : set[str]
-        The names to exclude from the grid.
-
-    Returns
-    -------
-    Coords
-        The plot coordinates.
-
+    Provides methods for visualizing the posterior predictive distribution,
+    contributions over time, and saturation curves for a Media Mix Model.
     """
-    plot_coord_names = list(key for key in coords.keys() if key not in non_grid_names)
-    return {name: np.array(coords[name]) for name in plot_coord_names}
 
-
-def get_total_coord_size(coords: Coords) -> int:
-    """Get the total size of the coordinates.
-
-    Parameters
-    ----------
-    coords : Coords
-        The coordinates to get the total size of.
-
-    Returns
-    -------
-    int
-        The total size of the coordinates.
-
-    """
-    total_size: int = (
-        1 if coords == {} else np.prod([len(values) for values in coords.values()])  # type: ignore
-    )
-    if total_size >= 12:
-        warnings.warn("Large number of coordinates!", stacklevel=2)
-
-    return total_size
-
-
-def create_legend_handles(
-    colors: Iterable[str],
-    alpha: float = 0.5,
-    line: bool = True,
-    patch: bool = True,
-) -> list[Line2D | Patch | tuple[Line2D, Patch]]:
-    """Create the legend handles for the given colors.
-
-    Parameters
-    ----------
-    colors : Iterable[str]
-        The colors to create the legend handles.
-    alpha : float, optional
-        The alpha value for the patches, by default 0.5.
-    line : bool, optional
-        Whether to include the line, by default True.
-    patch : bool, optional
-        Whether to include the patch, by default True.
-
-    Returns
-    -------
-    list[Line2D | Patch | tuple[Line2D, Patch]]
-        The legend handles.
-
-    """
-    if not line and not patch:
-        raise ValueError("At least one of line or patch must be True")
-
-    def create_handle(
-        color: str, alpha: float
-    ) -> Line2D | Patch | tuple[Line2D, Patch]:
-        if line and patch:
-            return Line2D([0], [0], color=color), Patch(color=color, alpha=alpha)
-
-        if line:
-            return Line2D([0], [0], color=color)
-
-        return Patch(color=color, alpha=alpha)
-
-    return [create_handle(color, alpha) for color in colors]
-
-
-def set_subplot_kwargs_defaults(
-    subplot_kwargs: MutableMapping[str, Any],
-    total_size: int,
-) -> None:
-    """Set the defaults for the subplot kwargs.
-
-    Parameters
-    ----------
-    subplot_kwargs : MutableMapping[str, Any]
-        The subplot kwargs to set the defaults for.
-    total_size : int
-        The total size of the coordinates.
-
-    Raises
-    ------
-    ValueError
-        If both `ncols` and `nrows` are specified.
-
-    """
-    if "ncols" in subplot_kwargs and "nrows" in subplot_kwargs:
-        raise ValueError("Only specify one")
-
-    if "ncols" not in subplot_kwargs and "nrows" not in subplot_kwargs:
-        subplot_kwargs["ncols"] = total_size
-
-    if "ncols" in subplot_kwargs:
-        subplot_kwargs["nrows"] = total_size // subplot_kwargs["ncols"]
-    elif "nrows" in subplot_kwargs:
-        subplot_kwargs["ncols"] = total_size // subplot_kwargs["nrows"]
-
-
-Selection = dict[str, Any]
-
-
-def selections(
-    coords: Coords,
-) -> Generator[Selection, None, None]:
-    """Create generator of selections.
-
-    Parameters
-    ----------
-    coords : Coords
-        The coordinates to create the selections from.
-
-    Yields
-    ------
-    dict[str, Any]
-        The selections.
-
-    """
-    coord_names = coords.keys()
-    for values in product(*coords.values()):
-        yield {name: value for name, value in zip(coord_names, values, strict=True)}
-
-
-P = ParamSpec("P")
-GetPlotData = Callable[[xr.DataArray], xr.DataArray]
-MakeSelection = Callable[[xr.DataArray, Selection], pd.DataFrame]
-PlotSelection = Callable[Concatenate[pd.DataFrame, Axes, str, P], Axes]
-
-
-def _get_sample_plot_data(data):
-    return data
-
-
-def _create_make_sample_selection(
-    rng,
-    n: int,
-    n_chains: int,
-    n_draws: int,
-) -> MakeSelection:
-    rng = rng or np.random.default_rng()
-    idx = random_samples(
-        rng,
-        n=n,
-        n_chains=n_chains,
-        n_draws=n_draws,
-    )
-
-    def make_sample_selection(data, sel):
-        return data.sel(sel).to_series().unstack().loc[idx, :].T
-
-    return make_sample_selection
-
-
-def _plot_sample_selection(df, ax: Axes, color: str, **plot_kwargs) -> Axes:
-    return df.plot(ax=ax, color=color, **plot_kwargs)
-
-
-def _create_get_hdi_plot_data(hdi_kwargs) -> GetPlotData:
-    def get_plot_data(data: xr.DataArray) -> xr.DataArray:
-        hdi: xr.Dataset = az.hdi(data, **hdi_kwargs)
-        return hdi[data.name]
-
-    return get_plot_data
-
-
-def _make_hdi_selection(data: xr.DataArray, sel: dict[str, Any]) -> pd.DataFrame:
-    return data.sel(sel).to_series().unstack()
-
-
-def _plot_hdi_selection(
-    df: pd.DataFrame,
-    ax: Axes,
-    color: str,
-    **plot_kwargs,
-) -> Axes:
-    ax.fill_between(
-        x=df.index,
-        y1=df["lower"],
-        y2=df["higher"],
-        color=color,
-        **plot_kwargs,
-    )
-    return ax
-
-
-SelToString = Callable[[Selection], str]
-
-
-def random_samples(
-    rng: np.random.Generator,
-    n: int,
-    n_chains: int,
-    n_draws: int,
-) -> list[tuple[int, int]]:
-    """Generate random samples from the chains and draws.
-
-    Parameters
-    ----------
-    rng : np.random.Generator
-        Random number generator
-    n : int
-        Number of samples to generate
-    n_chains : int
-        Number of chains
-    n_draws : int
-        Number of draws
-
-    Returns
-    -------
-    list[tuple[int, int]]
-        The random samples
-
-    """
-    combinations = list(product(range(n_chains), range(n_draws)))
-
-    return [
-        tuple(pair) for pair in rng.choice(combinations, size=n, replace=False).tolist()
-    ]
-
-
-def generate_colors(n: int, start: int = 0) -> list[str]:
-    """Generate list of colors.
-
-    Parameters
-    ----------
-    n : int
-        Number of colors to generate
-    start : int, optional
-        Starting index, by default 0
-
-    Returns
-    -------
-    list[str]
-        List of colors
-
-    Examples
-    --------
-    Generate 5 colors starting from index 1
-
-    .. code-block:: python
-
-        colors = generate_colors(5, start=1)
-        print(colors)
-        # ['C1', 'C2', 'C3', 'C4', 'C5']
-
-    """
-    return [f"C{i}" for i in range(start, start + n)]
-
-
-def _plot_across_coord(
-    curve: xr.DataArray,
-    non_grid_names: set[str],
-    get_plot_data: GetPlotData,
-    make_selection: MakeSelection,
-    plot_selection: PlotSelection,
-    subplot_kwargs: dict | None = None,
-    axes: npt.NDArray[Axes] | None = None,
-    same_axes: bool = False,
-    colors: Iterable[str] | None = None,
-    legend: bool = False,
-    plot_kwargs: dict[str, Any] | None = None,
-    patch: bool = True,
-    line: bool = True,
-    sel_to_string: SelToString | None = None,
-) -> tuple[plt.Figure, npt.NDArray[Axes]]:
-    """Plot data array across coords.
-
-    Commonality used for the `plot_samples` and `plot_hdi` functions.
-    Differences depending on the `get_plot_data`, `make_selection` and
-    `plot_selection` functions passed.
-
-    Allows for plotting each coordinate combination on a separate axis
-    or on the same axis.
-
-    """
-    if sel_to_string is None:
-
-        def sel_to_string(sel):
-            return ", ".join(f"{key}={value}" for key, value in sel.items())
-
-    curve = drop_scalar_coords(curve)
-
-    data = get_plot_data(curve)
-
-    plot_coords = get_plot_coords(
-        data.coords,
-        non_grid_names=non_grid_names.union({"chain", "draw", "hdi"}),
-    )
-    total_size = get_total_coord_size(plot_coords)
-
-    if axes is None and not same_axes:
-        subplot_kwargs = subplot_kwargs or {}
-        subplot_kwargs = {**{"sharey": True, "sharex": True}, **subplot_kwargs}
-        set_subplot_kwargs_defaults(subplot_kwargs, total_size)
-        fig, axes = plt.subplots(**subplot_kwargs)
-        axes_iter = np.ravel(axes)
-        return_axes = axes
-
-        create_title = sel_to_string
-
-        create_legend_label = None
-    elif axes is not None and same_axes:
-        fig = plt.gcf()
-        axes_iter = repeat(axes[0], total_size)  # type: ignore
-        return_axes = np.array([axes]) if not isinstance(axes, np.ndarray) else axes
-
-        def create_title(sel):
-            return ""
-
-        create_legend_label = sel_to_string
-
-    elif axes is None and same_axes:
-        fig, ax = plt.subplots(ncols=1, nrows=1)
-        axes_iter = repeat(ax, total_size)  # type: ignore
-        return_axes = np.array([ax])
-
-        def create_title(sel):
-            return ""
-
-        create_legend_label = sel_to_string
-    else:
-        fig = plt.gcf()
-        axes_iter = np.ravel(axes)  # type: ignore
-        return_axes = np.array([axes]) if not isinstance(axes, np.ndarray) else axes
-
-        create_title = sel_to_string  # type: ignore
-
-        create_legend_label = None
-
-    colors = cast(Iterable[str], colors or generate_colors(n=total_size, start=0))
-
-    for color, ax, sel in zip(colors, axes_iter, selections(plot_coords), strict=False):
-        ax = data.pipe(make_selection, sel=sel).pipe(
-            plot_selection,
-            ax=ax,
-            color=color,
-            **plot_kwargs,
+    def __init__(self, idata: xr.Dataset | az.InferenceData):
+        self.idata = idata
+
+    def _init_subplots(
+        self,
+        n_subplots: int,
+        ncols: int = 1,
+        width_per_col: float = 10.0,
+        height_per_row: float = 4.0,
+    ) -> tuple[Figure, NDArray[Axes]]:
+        """Initialize a grid of subplots.
+
+        Parameters
+        ----------
+        n_subplots : int
+            Number of rows (if ncols=1) or total subplots.
+        ncols : int
+            Number of columns in the subplot grid.
+        width_per_col : float
+            Width (in inches) for each column of subplots.
+        height_per_row : float
+            Height (in inches) for each row of subplots.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The created Figure object.
+        axes : np.ndarray of matplotlib.axes.Axes
+            2D array of axes of shape (n_subplots, ncols).
+        """
+        fig, axes = plt.subplots(
+            nrows=n_subplots,
+            ncols=ncols,
+            figsize=(width_per_col * ncols, height_per_row * n_subplots),
+            squeeze=False,
         )
-        title = create_title(sel)
-        ax.set_title(title)
+        return fig, axes
 
-    if same_axes and legend and create_legend_label is not None:
-        handles = create_legend_handles(colors, patch=patch, line=line)
-        labels = [create_legend_label(sel) for sel in selections(plot_coords)]
-        ax.legend(handles=handles, labels=labels)
+    def _build_subplot_title(
+        self,
+        dims: list[str],
+        combo: tuple,
+        fallback_title: str = "Time Series",
+    ) -> str:
+        """Build a subplot title string from dimension names and their values."""
+        if dims:
+            title_parts = [f"{d}={v}" for d, v in zip(dims, combo, strict=False)]
+            return ", ".join(title_parts)
+        return fallback_title
 
-    return fig, return_axes
+    def _get_additional_dim_combinations(
+        self,
+        data: xr.Dataset,
+        variable: str,
+        ignored_dims: set[str],
+    ) -> tuple[list[str], list[tuple]]:
+        """Identify dimensions to plot over and get their coordinate combinations."""
+        if variable not in data:
+            raise ValueError(f"Variable '{variable}' not found in the dataset.")
 
+        all_dims = list(data[variable].dims)
+        additional_dims = [d for d in all_dims if d not in ignored_dims]
 
-def plot_hdi(
-    curve: xr.DataArray,
-    non_grid_names: set[str],
-    hdi_kwargs: dict | None = None,
-    subplot_kwargs: dict[str, Any] | None = None,
-    plot_kwargs: dict[str, Any] | None = None,
-    axes: npt.NDArray[Axes] | None = None,
-    same_axes: bool = False,
-    colors: Iterable[str] | None = None,
-    legend: bool = False,
-    sel_to_string: SelToString | None = None,
-) -> tuple[plt.Figure, npt.NDArray[Axes]]:
-    """Plot hdi of the curve across coords.
+        if additional_dims:
+            additional_coords = [data.coords[d].values for d in additional_dims]
+            dim_combinations = list(itertools.product(*additional_coords))
+        else:
+            # If no extra dims, just treat as a single combination
+            dim_combinations = [()]
 
-    Parameters
-    ----------
-    curve : xr.DataArray
-        Curve to plot
-    non_grid_names : set[str]
-        The names to exclude from the grid. chain and draw are
-        excluded automatically
-    n : int, optional
-        Number of samples to plot
-    rng : np.random.Generator, optional
-        Random number generator
-    axes : npt.NDArray[plt.Axes], optional
-        Axes to plot on
-    subplot_kwargs : dict, optional
-        Additional kwargs to while creating the fig and axes
-    plot_kwargs : dict, optional
-        Kwargs for the plot function
+        return additional_dims, dim_combinations
 
-    Returns
-    -------
-    tuple[plt.Figure, npt.NDArray[plt.Axes]]
-        Figure and the axes
+    def _reduce_and_stack(
+        self, data: xr.DataArray, dims_to_ignore: set[str] | None = None
+    ) -> xr.DataArray:
+        """Sum over leftover dims and stack chain+draw into sample if present."""
+        if dims_to_ignore is None:
+            dims_to_ignore = {"date", "chain", "draw", "sample"}
 
-    """
-    get_plot_data = _create_get_hdi_plot_data(hdi_kwargs or {})
-    make_selection = _make_hdi_selection
-    plot_selection = _plot_hdi_selection
+        leftover_dims = [d for d in data.dims if d not in dims_to_ignore]
+        if leftover_dims:
+            data = data.sum(dim=leftover_dims)
 
-    plot_kwargs = plot_kwargs or {}
-    plot_kwargs = {**{"alpha": 0.25}, **plot_kwargs}
+        # Combine chain+draw into 'sample' if both exist
+        if "chain" in data.dims and "draw" in data.dims:
+            data = data.stack(sample=("chain", "draw"))
 
-    return _plot_across_coord(
-        curve=curve,
-        non_grid_names=non_grid_names,
-        get_plot_data=get_plot_data,
-        make_selection=make_selection,
-        plot_selection=plot_selection,
-        subplot_kwargs=subplot_kwargs,
-        same_axes=same_axes,
-        axes=axes,
-        colors=colors,
-        legend=legend,
-        plot_kwargs=plot_kwargs,
-        patch=True,
-        line=False,
-        sel_to_string=sel_to_string,
-    )
+        return data
 
+    def _compute_ci(
+        self, data: xr.DataArray, ci: float = 0.85, sample_dim: str = "sample"
+    ) -> tuple[xr.DataArray, xr.DataArray, xr.DataArray]:
+        """Compute median and lower/upper credible intervals over given sample_dim."""
+        lower_q = 0.5 - ci / 2
+        upper_q = 0.5 + ci / 2
+        data_median = data.quantile(0.5, dim=sample_dim)
+        data_lower = data.quantile(lower_q, dim=sample_dim)
+        data_upper = data.quantile(upper_q, dim=sample_dim)
+        return data_median, data_lower, data_upper
 
-def plot_samples(
-    curve: xr.DataArray,
-    non_grid_names: set[str],
-    n: int = 10,
-    rng: np.random.Generator | None = None,
-    axes: npt.NDArray[Axes] | None = None,
-    subplot_kwargs: dict[str, Any] | None = None,
-    plot_kwargs: dict[str, Any] | None = None,
-    same_axes: bool = False,
-    colors: Iterable[str] | None = None,
-    legend: bool = False,
-    sel_to_string: SelToString | None = None,
-) -> tuple[plt.Figure, npt.NDArray[Axes]]:
-    """Plot n samples of the curve across coords.
+    def _get_posterior_predictive_data(
+        self,
+        idata: xr.Dataset | None,
+    ) -> xr.Dataset:
+        """Retrieve the posterior_predictive group from either provided or self.idata."""
+        if idata is not None:
+            return idata
 
-    Parameters
-    ----------
-    curve : xr.DataArray
-        Curve to plot
-    non_grid_names : set[str]
-        The names to exclude from the grid. chain and draw are
-        excluded automatically
-    n : int, optional
-        Number of samples to plot
-    rng : np.random.Generator, optional
-        Random number generator
-    axes : npt.NDArray[plt.Axes], optional
-        Axes to plot on
-    subplot_kwargs : dict, optional
-        Additional kwargs to while creating the fig and axes
-    plot_kwargs : dict, optional
-        Kwargs for the plot function
-    same_axes : bool
-        All of the plots in the same axis
-
-    Returns
-    -------
-    tuple[plt.Figure, npt.NDArray[plt.Axes]]
-        Figure and the axes
-
-    """
-    get_plot_data = _get_sample_plot_data
-
-    n_chains = curve.sizes["chain"]
-    n_draws = curve.sizes["draw"]
-    make_selection = _create_make_sample_selection(
-        rng=rng,
-        n=n,
-        n_chains=n_chains,
-        n_draws=n_draws,
-    )
-    plot_selection = _plot_sample_selection
-
-    plot_kwargs = plot_kwargs or {}
-    plot_kwargs = {
-        **{"alpha": 0.3, "legend": False},
-        **plot_kwargs,
-    }
-
-    return _plot_across_coord(
-        curve=curve,
-        non_grid_names=non_grid_names,
-        get_plot_data=get_plot_data,
-        make_selection=make_selection,
-        plot_selection=plot_selection,
-        subplot_kwargs=subplot_kwargs,
-        plot_kwargs=plot_kwargs,
-        same_axes=same_axes,
-        axes=axes,
-        colors=colors,
-        legend=legend,
-        patch=False,
-        line=True,
-        sel_to_string=sel_to_string,
-    )
-
-
-def plot_curve(
-    curve: xr.DataArray,
-    non_grid_names: set[str],
-    subplot_kwargs: dict | None = None,
-    sample_kwargs: dict | None = None,
-    hdi_kwargs: dict | None = None,
-    axes: npt.NDArray[Axes] | None = None,
-    same_axes: bool = False,
-    colors: Iterable[str] | None = None,
-    legend: bool | None = None,
-    sel_to_string: SelToString | None = None,
-) -> tuple[plt.Figure, npt.NDArray[Axes]]:
-    """Plot HDI with samples of the curve across coords.
-
-    Parameters
-    ----------
-    curve : xr.DataArray
-        Curve to plot
-    non_grid_names : set[str]
-        The names to exclude from the grid. HDI and samples both
-        have defaults of hdi and chain, draw, respectively
-    subplot_kwargs : dict, optional
-        Addtional kwargs to while creating the fig and axes
-    sample_kwargs : dict, optional
-        Kwargs for the :func:`plot_samples` function
-    hdi_kwargs : dict, optional
-        Kwargs for the :func:`plot_hdi` function
-    same_axes : bool
-        If all of the plots are on the same axis
-    colors : Iterable[str], optional
-        Colors for the plots
-    legend : bool, optional
-        If to include a legend. Defaults to True if same_axes
-    sel_to_string : Callable[[Selection], str], optional
-        Function to convert selection to a string. Defaults to
-        ", ".join(f"{key}={value}" for key, value in sel.items())
-
-    Returns
-    -------
-    tuple[plt.Figure, npt.NDArray[plt.Axes]]
-        Figure and the axes
-
-    Examples
-    --------
-    Plot prior for arbitrary Deterministic in PyMC model
-
-    .. plot::
-        :include-source: True
-        :context: reset
-
-        import numpy as np
-        import pandas as pd
-
-        import pymc as pm
-
-        import matplotlib.pyplot as plt
-
-        from pymc_marketing.mmm.plot import plot_curve
-
-        seed = sum(map(ord, "Arbitrary curve"))
-        rng = np.random.default_rng(seed)
-
-        dates = pd.date_range("2024-01-01", periods=52, freq="W")
-
-        coords = {"date": dates, "product": ["A", "B"]}
-        with pm.Model(coords=coords) as model:
-            data = pm.Normal(
-                "data",
-                mu=[-0.5, 0.5],
-                sigma=1,
-                dims=("date", "product"),
+        # Otherwise, check if self.idata has posterior_predictive
+        if (
+            not hasattr(self.idata, "posterior_predictive")  # type: ignore
+            or self.idata.posterior_predictive is None  # type: ignore
+        ):
+            raise ValueError(
+                "No posterior_predictive data found in 'self.idata'. "
+                "Please run 'MMM.sample_posterior_predictive()' or provide "
+                "an external 'idata' argument."
             )
-            cumsum = pm.Deterministic(
-                "cumsum",
-                data.cumsum(axis=0),
-                dims=("date", "product"),
+        return self.idata.posterior_predictive  # type: ignore
+
+    # ------------------------------------------------------------------------
+    #                          Main Plotting Methods
+    # ------------------------------------------------------------------------
+
+    def posterior_predictive(
+        self,
+        var: list[str] | None = None,
+        idata: xr.Dataset | None = None,
+    ) -> tuple[Figure, NDArray[Axes]]:
+        """Plot time series from the posterior predictive distribution.
+
+        By default, if both `var` and `idata` are not provided, uses
+        `self.idata.posterior_predictive` and defaults the variable to `["y"]`.
+
+        Parameters
+        ----------
+        var : list of str, optional
+            A list of variable names to plot. Default is ["y"] if not provided.
+        idata : xarray.Dataset, optional
+            The posterior predictive dataset to plot. If not provided, tries to
+            use `self.idata.posterior_predictive`.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the subplots.
+        axes : np.ndarray of matplotlib.axes.Axes
+            Array of Axes objects corresponding to each subplot row.
+
+        Raises
+        ------
+        ValueError
+            If no `idata` is provided and `self.idata.posterior_predictive` does
+            not exist, instructing the user to run `MMM.sample_posterior_predictive()`.
+        """
+        # 1. Retrieve or validate posterior_predictive data
+        pp_data = self._get_posterior_predictive_data(idata)
+
+        # 2. Determine variables to plot
+        if var is None:
+            var = ["y"]
+        main_var = var[0]
+
+        # 3. Identify additional dims & get all combos
+        ignored_dims = {"chain", "draw", "date", "sample"}
+        additional_dims, dim_combinations = self._get_additional_dim_combinations(
+            data=pp_data, variable=main_var, ignored_dims=ignored_dims
+        )
+
+        # 4. Prepare subplots
+        fig, axes = self._init_subplots(n_subplots=len(dim_combinations), ncols=1)
+
+        # 5. Loop over dimension combinations
+        for row_idx, combo in enumerate(dim_combinations):
+            ax = axes[row_idx][0]
+
+            # Build indexers
+            indexers = (
+                dict(zip(additional_dims, combo, strict=False))
+                if additional_dims
+                else {}
             )
-            idata = pm.sample_prior_predictive(random_seed=rng)
 
-        curve = idata.prior["cumsum"]
+            # 6. Plot each requested variable
+            for v in var:
+                if v not in pp_data:
+                    raise ValueError(
+                        f"Variable '{v}' not in the posterior_predictive dataset."
+                    )
 
-        fig, axes = plot_curve(
-            curve,
-            non_grid_names={"date"},
-            subplot_kwargs={"figsize": (15, 5)},
-        )
-        plt.show()
+                data = pp_data[v].sel(**indexers)
+                # Sum leftover dims, stack chain+draw if needed
+                data = self._reduce_and_stack(data, ignored_dims)
+                # Compute median & 85% intervals
+                median, lower, upper = self._compute_ci(data, ci=0.85)
 
-    Plot same curve on same axes with custom colors
+                # Extract date coordinate
+                if "date" not in data.dims:
+                    raise ValueError(
+                        f"Expected 'date' dimension in {v}, but none found."
+                    )
+                dates = data.coords["date"].values
 
-    .. plot::
-        :include-source: True
-        :context: close-figs
+                # Plot
+                ax.plot(dates, median, label=v, alpha=0.9)
+                ax.fill_between(dates, lower, upper, alpha=0.2)
 
-        colors = ["red", "blue"]
-        fig, axes = plot_curve(
-            curve,
-            non_grid_names={"date"},
-            same_axes=True,
-            colors=colors,
-        )
-        axes[0].set(title="Same data but on same axes and custom colors")
-        plt.show()
+            # 7. Subplot title & labels
+            title = self._build_subplot_title(
+                dims=additional_dims,
+                combo=combo,
+                fallback_title="Posterior Predictive Time Series",
+            )
+            ax.set_title(title)
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Posterior Predictive")
+            ax.legend(loc="best")
 
-    """
-    curve = drop_scalar_coords(curve)
+        return fig, axes
 
-    hdi_kwargs = hdi_kwargs or {}
-    sample_kwargs = sample_kwargs or {}
+    def contributions_over_time(
+        self,
+        var: list[str],
+        ci: float = 0.85,
+    ) -> tuple[Figure, NDArray[Axes]]:
+        """Plot the time-series contributions for each variable in `var`.
 
-    if "subplot_kwargs" not in sample_kwargs:
-        sample_kwargs["subplot_kwargs"] = subplot_kwargs
+        showing the median and the credible interval (default 85%).
+        Creates one subplot per combination of non-(chain/draw/date) dimensions
+        and places all variables on the same subplot.
 
-    if "axes" not in sample_kwargs:
-        sample_kwargs["axes"] = axes
+        Parameters
+        ----------
+        var : list of str
+            A list of variable names to plot from the posterior.
+        ci : float, optional
+            Credible interval width. For instance, 0.85 will show the
+            7.5th to 92.5th percentile range. The default is 0.85.
 
-    if same_axes:
-        sample_kwargs["same_axes"] = True
-        sample_kwargs["legend"] = False
-        hdi_kwargs["same_axes"] = True
-        hdi_kwargs["legend"] = legend if isinstance(legend, bool) else True
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the subplots.
+        axes : np.ndarray of matplotlib.axes.Axes
+            Array of Axes objects corresponding to each subplot row.
+        """
+        if not 0 < ci < 1:
+            raise ValueError("Credible interval must be between 0 and 1.")
 
-    if colors is not None:
-        sample_kwargs["colors"] = colors
-        hdi_kwargs["colors"] = colors
+        if not hasattr(self.idata, "posterior"):
+            raise ValueError(
+                "No posterior data found in 'self.idata'. "
+                "Please ensure 'self.idata' contains a 'posterior' group."
+            )
 
-    if sel_to_string is not None:
-        sample_kwargs["sel_to_string"] = sel_to_string
-        hdi_kwargs["sel_to_string"] = sel_to_string
+        main_var = var[0]
+        all_dims = list(self.idata.posterior[main_var].dims)  # type: ignore
+        ignored_dims = {"chain", "draw", "date"}
+        additional_dims = [d for d in all_dims if d not in ignored_dims]
 
-    fig, axes = plot_samples(
-        curve,
-        non_grid_names=non_grid_names,
-        **sample_kwargs,
-    )
-    fig, axes = plot_hdi(
-        curve,
-        non_grid_names=non_grid_names,
-        axes=axes,
-        **hdi_kwargs,
-    )
+        # Identify combos
+        if additional_dims:
+            additional_coords = [
+                self.idata.posterior.coords[dim].values  # type: ignore
+                for dim in additional_dims  # type: ignore
+            ]
+            dim_combinations = list(itertools.product(*additional_coords))
+        else:
+            dim_combinations = [()]
 
-    return fig, axes
+        # Prepare subplots
+        fig, axes = self._init_subplots(len(dim_combinations), ncols=1)
+
+        # Loop combos
+        for row_idx, combo in enumerate(dim_combinations):
+            ax = axes[row_idx][0]
+            indexers = (
+                dict(zip(additional_dims, combo, strict=False))
+                if additional_dims
+                else {}
+            )
+
+            # Plot each var
+            for v in var:
+                data = self.idata.posterior[v].sel(**indexers)  # type: ignore
+                data = self._reduce_and_stack(
+                    data, dims_to_ignore={"date", "chain", "draw", "sample"}
+                )
+
+                # Compute median and credible intervals
+                median, lower, upper = self._compute_ci(data, ci=ci)
+
+                # Extract dates
+                dates = data.coords["date"].values
+                ax.plot(dates, median, label=f"{v}", alpha=0.9)
+                ax.fill_between(dates, lower, upper, alpha=0.2)
+
+            title = self._build_subplot_title(
+                dims=additional_dims, combo=combo, fallback_title="Time Series"
+            )
+            ax.set_title(title)
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Posterior Value")
+            ax.legend(loc="best")
+
+        return fig, axes
+
+    def saturation_curves_scatter(self, **kwargs) -> tuple[Figure, NDArray[Axes]]:
+        """Plot the saturation curves for each channel.
+
+        Creates one subplot per combination of non-(date/channel) dimensions
+        and places all channels on the same subplot.
+        """
+        if not hasattr(self.idata, "constant_data"):
+            raise ValueError(
+                "No 'constant_data' found in 'self.idata'. "
+                "Please ensure 'self.idata' contains the constant_data group."
+            )
+
+        # Identify additional dimensions beyond 'date' and 'channel'
+        cdims = self.idata.constant_data.channel_data.dims
+        additional_dims = [dim for dim in cdims if dim not in ("date", "channel")]
+
+        # Get all possible combinations
+        if additional_dims:
+            additional_coords = [
+                self.idata.constant_data.coords[d].values for d in additional_dims
+            ]
+            additional_combinations = list(itertools.product(*additional_coords))
+        else:
+            additional_combinations = [()]
+
+        # Rows = channels, Columns = additional_combinations
+        channels = self.idata.constant_data.coords["channel"].values
+        n_rows = len(channels)
+        n_columns = len(additional_combinations)
+
+        # Create subplots
+        fig, axes = self._init_subplots(n_subplots=n_rows, ncols=n_columns, **kwargs)
+
+        # Loop channels & combos
+        for row_idx, channel in enumerate(channels):
+            for col_idx, combo in enumerate(additional_combinations):
+                ax = axes[row_idx][col_idx] if n_columns > 1 else axes[row_idx][0]
+                indexers = dict(zip(additional_dims, combo, strict=False))
+                indexers["channel"] = channel
+
+                # Select X data (constant_data)
+                x_data = self.idata.constant_data.channel_data.sel(**indexers)
+                # Select Y data (posterior contributions)
+                y_data = self.idata.posterior.channel_contribution.sel(**indexers)
+
+                # Flatten chain & draw by taking mean (or sum, up to design)
+                y_data = y_data.mean(dim=["chain", "draw"])
+
+                # Ensure X and Y have matching date coords
+                x_data = x_data.broadcast_like(y_data)
+                y_data = y_data.broadcast_like(x_data)
+
+                # Scatter
+                ax.scatter(
+                    x_data.values.flatten(),
+                    y_data.values.flatten(),
+                    alpha=0.8,
+                    color=f"C{row_idx}",
+                )
+
+                title = self._build_subplot_title(
+                    dims=["channel", *additional_dims],
+                    combo=(channel, *combo),
+                    fallback_title="Channel Saturation Curves",
+                )
+                ax.set_title(title)
+                ax.set_xlabel("Channel Data (X)")
+                ax.set_ylabel("Channel Contributions (Y)")
+
+        return fig, axes

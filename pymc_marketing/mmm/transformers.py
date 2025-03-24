@@ -1,4 +1,4 @@
-#   Copyright 2024 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -448,7 +448,7 @@ def weibull_adstock(
     return batched_convolution(x, w, axis=axis, mode=mode)
 
 
-def logistic_saturation(x, lam: npt.NDArray[np.float64] | float = 0.5):
+def logistic_saturation(x, lam: npt.NDArray | float = 0.5):
     r"""Logistic saturation transformation.
 
     .. math::
@@ -492,7 +492,7 @@ def logistic_saturation(x, lam: npt.NDArray[np.float64] | float = 0.5):
 
 
 def inverse_scaled_logistic_saturation(
-    x, lam: npt.NDArray[np.float64] | float = 0.5, eps: float = np.log(3)
+    x, lam: npt.NDArray | float = 0.5, eps: float = np.log(3)
 ):
     r"""Inverse scaled logistic saturation transformation.
 
@@ -501,7 +501,7 @@ def inverse_scaled_logistic_saturation(
     when using default value for eps.
 
     .. math::
-        f(x) = \\frac{1 - e^{-x*\epsilon/\lambda}}{1 + e^{-x*\epsilon/\lambda}}
+        f(x) = \frac{1 - e^{-x*\epsilon/\lambda}}{1 + e^{-x*\epsilon/\lambda}}
 
     .. plot::
         :context: close-figs
@@ -827,9 +827,9 @@ def tanh_saturation_baselined(
 
 
 def michaelis_menten(
-    x: float | np.ndarray | npt.NDArray[np.float64],
-    alpha: float | np.ndarray | npt.NDArray[np.float64],
-    lam: float | np.ndarray | npt.NDArray[np.float64],
+    x: float | np.ndarray | npt.NDArray,
+    alpha: float | np.ndarray | npt.NDArray,
+    lam: float | np.ndarray | npt.NDArray,
 ) -> float | Any:
     r"""Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
 
