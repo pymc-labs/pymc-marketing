@@ -922,7 +922,7 @@ class MMM(ModelBuilder):
             "target_scale": self.scalers._target,
         }
 
-    def get_scales_as_dataset(self) -> dict[str, xr.DataArray]:
+    def get_scales_as_dataset(self) -> xr.Dataset:
         """Return the saved scaling factors as xarray DataArrays.
 
         Returns
