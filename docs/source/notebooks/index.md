@@ -16,6 +16,7 @@ mmm/mmm_counterfactuals
 mmm/mmm_evaluation
 mmm/mmm_example
 mmm/mmm_lift_test
+mmm/mmm_multidimensional_example
 mmm/mmm_roas
 mmm/mmm_time_slice_cross_validation
 mmm/mmm_time_varying_media_example

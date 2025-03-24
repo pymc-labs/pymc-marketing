@@ -7,7 +7,6 @@ on:
 
 jobs:
   build:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
@@ -23,8 +22,8 @@ jobs:
 
       - name: Configure Git Identity
         run: |
-          git config user.name "$(git log -n 1 --pretty=format:%an)"
-          git config user.email "$(git log -n 1 --pretty=format:%ae)"
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
 
       - name: Update the UML Diagrams
         run: |
@@ -32,27 +31,31 @@ jobs:
           make uml
 
       - name: Detect UML changes
+        id: changes
         run: |
           git add docs/source/uml/*.png
           if git diff --staged --exit-code; then
             echo "No changes to commit"
             echo "changes_exist=false" >> $GITHUB_OUTPUT
           else
-            echo "changes_exist=true" >> $GITHUB_ENV
+            echo "changes_exist=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Create PR for changes
-        if: steps.detect_changes.outputs.changes_exist == "true"
+        if: steps.changes.outputs.changes_exist == 'true'
         run: |
           git checkout -b update-uml-diagrams
           git commit -m "Update UML Diagrams"
+          git push -u origin update-uml-diagrams
           gh pr create \
             --base main \
-            --head update-uml-diagrams \
             --title "Update UML Diagrams" \
-            --body "This PR updates the UML Diagrams" \
+            --body "This PR updates the UML diagrams
+
+            This PR was created automatically by the [UML workflow](https://github.com/pymc-labs/pymc-marketing/blob/main/.github/workflows/uml.yml).
+
+            See the logs [here](https://github.com/pymc-labs/pymc-marketing/actions/workflows/uml.yml) for more details." \
             --label "no releasenotes" \
-            --reviewer wd60622 \
-            --reviewer juanitorduz
+            --reviewer "williambdean,juanitorduz"
         env:
           GH_TOKEN: ${{ github.token }}

@@ -204,7 +204,6 @@ class ModelBuilder(ABC):
         else:
             return check_array(X, accept_sparse=False)
 
-    @abstractmethod
     def _data_setter(
         self,
         X: np.ndarray | pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -219,21 +218,25 @@ class ModelBuilder(ABC):
         y : array, shape (n_obs,)
             The target values (real numbers).
 
-        Returns
-        -------
-        None
-
         Examples
         --------
-        >>> def _data_setter(self, data : pd.DataFrame):
-        >>>     with self.model:
-        >>>         pm.set_data({'x': X['x'].values})
-        >>>         try: # if y values in new data
-        >>>             pm.set_data({'y_data': y.values})
-        >>>         except: # dummies otherwise
-        >>>             pm.set_data({'y_data': np.zeros(len(data))})
+        Example logic of data_setter method
+
+        .. code-block:: python
+
+            def _data_setter(self, X, y=None):
+
+                data = {"X": X}
+                if y is None:
+                    y = np.zeros(len(X))
+                data["y"] = y
+
+                with self.model:
+                    pm.set_data(data)
 
         """
+        msg = "This model doesn't support setting new data, posterior_predictive, or out of sample methods."
+        raise NotImplementedError(msg)
 
     @property
     @abstractmethod
@@ -561,6 +564,7 @@ class ModelBuilder(ABC):
 
         model.idata = idata
         model.build_from_idata(idata)
+        model.post_sample_model_transformation()
 
         if model.id != idata.attrs["id"]:
             msg = (
@@ -642,6 +646,10 @@ class ModelBuilder(ABC):
 
         return xr.merge([X, y])
 
+    def post_sample_model_transformation(self) -> None:
+        """Perform transformation on the model after sampling."""
+        return
+
     def fit(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -706,6 +714,8 @@ class ModelBuilder(ABC):
         )
         with self.model:
             idata = pm.sample(**sampler_kwargs)
+
+        self.post_sample_model_transformation()
 
         if self.idata:
             self.idata = self.idata.copy()

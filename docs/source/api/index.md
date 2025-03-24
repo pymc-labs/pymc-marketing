@@ -16,5 +16,6 @@
   mmm
   model_builder
   model_config
+  model_graph
   prior
 ```

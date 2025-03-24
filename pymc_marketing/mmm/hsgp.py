@@ -33,7 +33,7 @@ from pytensor.tensor.variable import TensorVariable
 from typing_extensions import Self
 
 from pymc_marketing.plot import SelToString, plot_curve
-from pymc_marketing.prior import Prior, create_dim_handler
+from pymc_marketing.prior import Prior, _get_transform, create_dim_handler
 
 
 @validate_call
@@ -260,6 +260,37 @@ class HSGPBase(BaseModel):
     )
     X_mid: float | None = Field(None, description="The mean of the training data")
     dims: Dims = Field(..., description="The dimensions of the variable")
+    transform: str | None = Field(
+        None,
+        description=(
+            "Optional transformation for the variable. "
+            "Must be registered or from either pytensor.tensor "
+            "or pymc.math namespaces."
+        ),
+    )
+    demeaned_basis: bool = Field(
+        False,
+        description="Whether each basis has its mean subtracted from it.",
+    )
+
+    @model_validator(mode="after")
+    def _transform_is_valid(self) -> Self:
+        if self.transform is None:
+            return self
+
+        # Not storing but will get again later
+        _get_transform(self.transform)
+        return self
+
+    @staticmethod
+    def deterministics_to_replace(name: str) -> list[str]:
+        """Name of the Deterministic variables that are replaced with pm.Flat for out-of-sample.
+
+        This is required for out-of-sample predictions for some HSGP variables. Replacing with
+        pm.Flat will sample from the values learned in the training data.
+
+        """
+        return []
 
     def register_data(self, X: TensorLike) -> Self:
         """Register the data to be used in the model.
@@ -445,6 +476,49 @@ class HSGP(HSGPBase):
         hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
         plt.show()
 
+    Using a demeaned basis to remove "intercept" effect of first basis:
+
+    .. plot::
+        :include-source: True
+        :context: reset
+
+        import numpy as np
+        import pandas as pd
+        import xarray as xr
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm import HSGP
+        from pymc_marketing.plot import plot_curve
+
+        seed = sum(map(ord, "Out of the box GP"))
+        rng = np.random.default_rng(seed)
+
+        n = 52
+        X = np.arange(n)
+
+        kwargs = dict(X=X, ls=25, eta=1, dims="time", m=200, L=150, drop_first=False)
+
+        hsgp = HSGP(demeaned_basis=False, **kwargs)
+        hsgp_demeaned = HSGP(demeaned_basis=True, **kwargs)
+
+        dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
+        coords = {"time": dates}
+
+
+        def sample_curve(hsgp):
+            return hsgp.sample_prior(coords=coords, random_seed=rng)["f"]
+
+
+        non_demeaned = sample_curve(hsgp).rename("False")
+        demeaned = sample_curve(hsgp_demeaned).rename("True")
+
+        combined = xr.merge([non_demeaned, demeaned]).to_array("demeaned")
+        _, axes = combined.pipe(plot_curve, {"time"}, same_axes=True)
+        axes[0].set(title="Demeaned the intercepty first basis")
+        plt.show()
+
+
     HSGP with different covariance function
 
     .. plot::
@@ -468,6 +542,45 @@ class HSGP(HSGPBase):
             X=X,
             cov_func="matern32",
             dims="time",
+        )
+
+        dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
+        coords = {
+            "time": dates,
+        }
+        prior = hsgp.sample_prior(coords=coords, random_seed=rng)
+        curve = prior["f"]
+        hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
+        plt.show()
+
+    HSGP with different link function via `transform` argument
+
+    .. note::
+
+        The `transform` parameter must be registered or from either `pytensor.tensor`
+        or `pymc.math` namespaces. See the :func:`pymc_marketing.prior.register_tensor_transform`
+
+    .. plot::
+        :include-source: True
+        :context: reset
+
+        import numpy as np
+        import pandas as pd
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm import HSGP
+
+        seed = sum(map(ord, "Change of covariance function"))
+        rng = np.random.default_rng(seed)
+
+        n = 52
+        X = np.arange(n)
+
+        hsgp = HSGP.parameterize_from_data(
+            X=X,
+            dims="time",
+            transform="sigmoid",
         )
 
         dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
@@ -636,6 +749,8 @@ class HSGP(HSGPBase):
         cov_func: CovFunc = CovFunc.ExpQuad,
         centered: bool = False,
         drop_first: bool = True,
+        transform: str | None = None,
+        demeaned_basis: bool = False,
     ) -> HSGP:
         """Create a HSGP informed by the data with literature-based recommendations."""
         eta = create_eta_prior(mass=eta_mass, upper=eta_upper)
@@ -685,6 +800,8 @@ class HSGP(HSGPBase):
             dims=dims,
             centered=centered,
             drop_first=drop_first,
+            transform=transform,
+            demeaned_basis=demeaned_basis,
         )
 
     def create_variable(self, name: str) -> TensorVariable:
@@ -701,6 +818,13 @@ class HSGP(HSGPBase):
             The variable created from the HSGP configuration.
 
         """
+
+        def add_suffix(suffix: str) -> str:
+            if self.transform is None:
+                return f"{name}_{suffix}"
+
+            return f"{name}_raw_{suffix}"
+
         if self.X is None:
             raise ValueError("The data must be registered before creating a variable.")
 
@@ -708,7 +832,7 @@ class HSGP(HSGPBase):
             self.X_mid = float(self.X.mean().eval())
 
         model = pm.modelcontext(None)
-        coord_name: str = f"{name}_m"
+        coord_name: str = add_suffix("m")
         model.add_coord(
             coord_name,
             np.arange(self.m - 1 if self.drop_first else self.m),
@@ -722,12 +846,12 @@ class HSGP(HSGPBase):
         eta = (
             self.eta
             if not hasattr(self.eta, "create_variable")
-            else self.eta.create_variable(f"{name}_eta")
+            else self.eta.create_variable(add_suffix("eta"))
         )
         ls = (
             self.ls
             if not hasattr(self.ls, "create_variable")
-            else self.ls.create_variable(f"{name}_ls")
+            else self.ls.create_variable(add_suffix("ls"))
         )
 
         cov_func = eta**2 * cov_funcs[self.cov_func.lower()](input_dim=1, ls=ls)
@@ -741,6 +865,8 @@ class HSGP(HSGPBase):
         phi, sqrt_psd = gp.prior_linearized(
             self.X[:, None] - self.X_mid,
         )
+        if self.demeaned_basis:
+            phi = phi - phi.mean(axis=0).eval()
 
         first_dim, *rest_dims = self.dims
         hsgp_dims: Dims = (*rest_dims, coord_name)
@@ -750,7 +876,7 @@ class HSGP(HSGPBase):
             sigma=sqrt_psd,
             dims=hsgp_dims,
             centered=self.centered,
-        ).create_variable(f"{name}_hsgp_coefs")
+        ).create_variable(add_suffix("hsgp_coefs"))
         # (date, m-1) and (*rest_dims, m-1) -> (date, *rest_dims)
         if len(rest_dims) <= 1:
             f = phi @ hsgp_coefs.T
@@ -764,7 +890,17 @@ class HSGP(HSGPBase):
                     hsgp_dims,
                 )
             ).sum(axis=1)
-        return pm.Deterministic(name, f, dims=self.dims)
+
+        if self.transform is not None:
+            raw_name = f"{name}_raw"
+            f = pm.Deterministic(raw_name, f, dims=self.dims)
+
+            transform = _get_transform(self.transform)
+            f = pm.Deterministic(name, transform(f), dims=self.dims)
+        else:
+            f = pm.Deterministic(name, f, dims=self.dims)
+
+        return f
 
     @classmethod
     def from_dict(cls, data) -> HSGP:
@@ -842,7 +978,102 @@ class HSGPPeriodic(HSGPBase):
             sample_kwargs={"n": 3, "rng": rng},
         )
         ax = axes[0]
-        ax.set(xlabel="Date", ylabel="f", title="HSGP with period of 52 days")
+        ax.set(xlabel="Date", ylabel="f", title="HSGP with period of 52 weeks")
+        plt.show()
+
+    HSGPPeriodic with link function via `transform` argument
+
+    .. note::
+
+        The `transform` parameter must be registered or from either `pytensor.tensor`
+        or `pymc.math` namespaces. See the :func:`pymc_marketing.prior.register_tensor_transform`
+
+    .. plot::
+        :include-source: True
+        :context: reset
+
+        import numpy as np
+        import pandas as pd
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm import HSGPPeriodic
+        from pymc_marketing.prior import Prior
+
+        seed = sum(map(ord, "Periodic GP"))
+        rng = np.random.default_rng(seed)
+
+        n = 52 * 3
+        dates = pd.date_range("2023-01-01", periods=n, freq="W-MON")
+        X = np.arange(n)
+        coords = {
+            "time": dates,
+        }
+        scale = Prior("Gamma", mu=0.25, sigma=0.1)
+        ls = Prior("InverseGamma", alpha=2, beta=1)
+
+        hsgp = HSGPPeriodic(
+            scale=scale,
+            m=20,
+            cov_func="periodic",
+            ls=ls,
+            period=52,
+            dims="time",
+            transform="exp",
+        )
+        hsgp.register_data(X)
+
+        prior = hsgp.sample_prior(coords=coords, random_seed=rng)
+        curve = prior["f"]
+        fig, axes = hsgp.plot_curve(
+            curve,
+            sample_kwargs={"n": 3, "rng": rng},
+        )
+        ax = axes[0]
+        ax.set(xlabel="Date", ylabel="f", title="HSGP with period of 52 weeks")
+        plt.show()
+
+    Demeaned basis for HSGPPeriodic
+
+    .. plot::
+        :include-source: True
+        :context: reset
+
+        import numpy as np
+        import pandas as pd
+        import xarray as xr
+
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm import HSGPPeriodic
+        from pymc_marketing.plot import plot_curve
+
+        seed = sum(map(ord, "Periodic GP"))
+        rng = np.random.default_rng(seed)
+
+        scale = 0.25
+        ls = 1
+        kwargs = dict(ls=ls, scale=scale, period=52, cov_func="periodic", dims="time", m=20)
+
+        n = 52 * 3
+        dates = pd.date_range("2023-01-01", periods=n, freq="W-MON")
+        X = np.arange(n)
+        coords = {"time": dates}
+
+        hsgp = HSGPPeriodic(demeaned_basis=False, **kwargs).register_data(X)
+        hsgp_demeaned = HSGPPeriodic(demeaned_basis=True, **kwargs).register_data(X)
+
+
+        def sample_curve(hsgp):
+            return hsgp.sample_prior(coords=coords, random_seed=rng)["f"]
+
+
+        non_demeaned = sample_curve(hsgp).rename("False")
+        demeaned = sample_curve(hsgp_demeaned).rename("True")
+
+        combined = xr.merge([non_demeaned, demeaned]).to_array("demeaned")
+        _, axes = combined.pipe(plot_curve, {"time"}, same_axes=True)
+        axes[0].set(title="Demeaned the intercepty first basis")
         plt.show()
 
     Higher dimensional HSGPPeriodic with periodic data
@@ -939,6 +1170,13 @@ class HSGPPeriodic(HSGPBase):
             The variable created from the HSGP configuration.
 
         """
+
+        def add_suffix(suffix: str) -> str:
+            if self.transform is None:
+                return f"{name}_{suffix}"
+
+            return f"{name}_raw_{suffix}"
+
         if self.X is None:
             raise ValueError("The data must be registered before creating a variable.")
 
@@ -948,13 +1186,13 @@ class HSGPPeriodic(HSGPBase):
         scale = (
             self.scale
             if not hasattr(self.scale, "create_variable")
-            else self.scale.create_variable(f"{name}_scale")
+            else self.scale.create_variable(add_suffix("scale"))
         )
 
         ls = (
             self.ls
             if not hasattr(self.ls, "create_variable")
-            else self.ls.create_variable(f"{name}_ls")
+            else self.ls.create_variable(add_suffix("ls"))
         )
         cov_func = pm.gp.cov.Periodic(1, period=self.period, ls=ls)
 
@@ -963,9 +1201,12 @@ class HSGPPeriodic(HSGPBase):
         (phi_cos, phi_sin), psd = gp.prior_linearized(
             self.X[:, None] - self.X_mid,
         )
+        if self.demeaned_basis:
+            phi_cos = phi_cos - phi_cos.mean(axis=0).eval()
+            phi_sin = phi_sin - phi_sin.mean(axis=0).eval()
 
         model = pm.modelcontext(None)
-        coord_name: str = f"{name}_m"
+        coord_name: str = add_suffix("m")
         model.add_coord(coord_name, np.arange((self.m * 2) - 1))
         first_dim, *rest_dims = self.dims
         hsgp_dims: Dims = (*rest_dims, coord_name)
@@ -976,7 +1217,7 @@ class HSGPPeriodic(HSGPBase):
             sigma=sigma,
             dims=hsgp_dims,
             centered=False,
-        ).create_variable(f"{name}_hsgp_coefs")
+        ).create_variable(add_suffix("hsgp_coefs"))
         phi = pt.concatenate([phi_cos, phi_sin[..., 1:]], axis=1)
 
         if len(rest_dims) <= 1:
@@ -992,11 +1233,16 @@ class HSGPPeriodic(HSGPBase):
                 )
             ).sum(axis=1)
 
-        return pm.Deterministic(
-            name,
-            f,
-            dims=self.dims,
-        )
+        if self.transform is not None:
+            raw_name = f"{name}_raw"
+            f = pm.Deterministic(raw_name, f, dims=self.dims)
+
+            transform = _get_transform(self.transform)
+            f = pm.Deterministic(name, transform(f), dims=self.dims)
+        else:
+            f = pm.Deterministic(name, f, dims=self.dims)
+
+        return f
 
     @classmethod
     def from_dict(cls, data) -> HSGPPeriodic:
@@ -1061,7 +1307,16 @@ class SoftPlusHSGP(HSGP):
         hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
         plt.show()
 
-    New data predictions with HSGP
+    New data predictions with SoftPlusHSGP
+
+    .. note::
+
+        In making the predictions, the model needs to be transformed in order to
+        keep the data centered around 1. There is a helper function
+        :func:`pymc_marketing.model_graph.deterministics_to_flat` that can be used
+        to transform the model upon out of sample predictions.
+
+        This transformation is automatically handled in the provided MMMs.
 
     .. plot::
         :include-source: True
@@ -1075,9 +1330,10 @@ class SoftPlusHSGP(HSGP):
         import matplotlib.pyplot as plt
 
         from pymc_marketing.mmm import SoftPlusHSGP
+        from pymc_marketing.model_graph import deterministics_to_flat
         from pymc_marketing.prior import Prior
 
-        seed = sum(map(ord, "New data predictions"))
+        seed = sum(map(ord, "New data predictions with SoftPlusHSGP"))
         rng = np.random.default_rng(seed)
 
         eta = Prior("Exponential", lam=1)
@@ -1093,8 +1349,9 @@ class SoftPlusHSGP(HSGP):
         n = 52
         X = np.arange(n)
 
+        channels = ["A", "B", "C"]
         dates = pd.date_range("2022-01-01", periods=n, freq="W-MON")
-        coords = {"time": dates, "channel": ["A", "B"]}
+        coords = {"time": dates, "channel": channels}
         with pm.Model(coords=coords) as model:
             data = pm.Data("data", X, dims="time")
             hsgp.register_data(data).create_variable("f")
@@ -1103,10 +1360,11 @@ class SoftPlusHSGP(HSGP):
         prior = idata.prior
 
         n_new = 10
-        X_new = np.arange(n, n + n_new)
-        new_dates = pd.date_range("2023-01-01", periods=n_new, freq="W-MON")
+        X_new = np.arange(n - 1 , n + n_new)
+        last_date = dates[-1]
+        new_dates = pd.date_range(last_date, periods=n_new + 1, freq="W-MON")
 
-        with model:
+        with deterministics_to_flat(model, hsgp.deterministics_to_replace("f")):
             pm.set_data(
                 new_data={
                     "data": X_new,
@@ -1119,8 +1377,8 @@ class SoftPlusHSGP(HSGP):
                 random_seed=rng,
             )
 
-        chain, draw = 0, 50
-        colors = ["C0", "C1"]
+        chain, draw = 0, rng.choice(prior.sizes["draw"])
+        colors = [f"C{i}" for i in range(len(channels))]
 
 
         def get_sample(curve):
@@ -1135,9 +1393,25 @@ class SoftPlusHSGP(HSGP):
         plt.show()
     """
 
+    @staticmethod
+    def deterministics_to_replace(name: str) -> list[str]:
+        """Name of the Deterministic variables that are replaced with pm.Flat for out-of-sample.
+
+        This is required for in order to keep out-of-sample predictions use mean of 1.0
+        from the training set. Without this, the training and test data will not be
+        continuous, showing a jump from the training data to the test data.
+
+        """
+        return [f"{name}_f_mean"]
+
     def create_variable(self, name: str) -> TensorVariable:
         """Create the variable."""
         f = super().create_variable(f"{name}_raw")
         f = pt.softplus(f)
-        centered_f = f - f.mean(axis=0).eval() + 1
+
+        _, *f_mean_dims = self.dims
+        f_mean_name = f"{name}_f_mean"
+        f_mean = pm.Deterministic(f_mean_name, f.mean(axis=0), dims=f_mean_dims)
+
+        centered_f = f - f_mean + 1
         return pm.Deterministic(name, centered_f, dims=self.dims)

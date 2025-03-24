@@ -296,6 +296,85 @@ class VariableFactory(Protocol):
         """Create a TensorVariable."""
 
 
+def sample_prior(
+    factory: VariableFactory,
+    coords=None,
+    name: str = "var",
+    wrap: bool = False,
+    **sample_prior_predictive_kwargs,
+) -> xr.Dataset:
+    """Sample the prior for an arbitrary VariableFactory.
+
+    Parameters
+    ----------
+    factory : VariableFactory
+        The factory to sample from.
+    coords : dict[str, list[str]], optional
+        The coordinates for the variable, by default None.
+        Only required if the dims are specified.
+    name : str, optional
+        The name of the variable, by default "var".
+    wrap : bool, optional
+        Whether to wrap the variable in a `pm.Deterministic` node, by default False.
+    sample_prior_predictive_kwargs : dict
+        Additional arguments to pass to `pm.sample_prior_predictive`.
+
+    Returns
+    -------
+    xr.Dataset
+        The dataset of the prior samples.
+
+    Example
+    -------
+    Sample from an arbitrary variable factory.
+
+    .. code-block:: python
+
+        import pymc as pm
+
+        import pytensor.tensor as pt
+
+        from pymc_marketing.prior import sample_prior
+
+        class CustomVariableDefinition:
+            def __init__(self, dims, n: int):
+                self.dims = dims
+                self.n = n
+
+            def create_variable(self, name: str) -> "TensorVariable":
+                x = pm.Normal(f"{name}_x", mu=0, sigma=1, dims=self.dims)
+                return pt.sum([x ** n for n in range(1, self.n + 1)], axis=0)
+
+        cubic = CustomVariableDefinition(dims=("channel",), n=3)
+        coords = {"channel": ["C1", "C2", "C3"]}
+        # Doesn't include the return value
+        prior = sample_prior(cubic, coords=coords)
+
+        prior_with = sample_prior(cubic, coords=coords, wrap=True)
+
+    """
+    coords = coords or {}
+
+    if isinstance(factory.dims, str):
+        dims = (factory.dims,)
+    else:
+        dims = factory.dims
+
+    if missing_keys := set(dims) - set(coords.keys()):
+        raise KeyError(f"Coords are missing the following dims: {missing_keys}")
+
+    with pm.Model(coords=coords) as model:
+        if wrap:
+            pm.Deterministic(name, factory.create_variable(name), dims=factory.dims)
+        else:
+            factory.create_variable(name)
+
+    return pm.sample_prior_predictive(
+        model=model,
+        **sample_prior_predictive_kwargs,
+    ).prior
+
+
 class Prior:
     """A class to represent a prior distribution.
 
@@ -912,7 +991,10 @@ class Prior:
         )
 
     def sample_prior(
-        self, coords=None, name: str = "var", **sample_prior_predictive_kwargs
+        self,
+        coords=None,
+        name: str = "var",
+        **sample_prior_predictive_kwargs,
     ) -> xr.Dataset:
         """Sample the prior distribution for the variable.
 
@@ -948,15 +1030,12 @@ class Prior:
             prior = dist.sample_prior(coords=coords)
 
         """
-        coords = coords or {}
-
-        if missing_keys := set(self.dims) - set(coords.keys()):
-            raise KeyError(f"Coords are missing the following dims: {missing_keys}")
-
-        with pm.Model(coords=coords):
-            self.create_variable(name)
-
-            return pm.sample_prior_predictive(**sample_prior_predictive_kwargs).prior
+        return sample_prior(
+            factory=self,
+            coords=coords,
+            name=name,
+            **sample_prior_predictive_kwargs,
+        )
 
     def __deepcopy__(self, memo) -> Prior:
         """Return a deep copy of the prior."""
@@ -1230,15 +1309,12 @@ class Censored:
             prior = dist.sample_prior(coords=coords)
 
         """
-        coords = coords or {}
-
-        if missing_keys := set(self.dims) - set(coords.keys()):
-            raise KeyError(f"Coords are missing the following dims: {missing_keys}")
-
-        with pm.Model(coords=coords):
-            self.create_variable(name)
-
-            return pm.sample_prior_predictive(**sample_prior_predictive_kwargs).prior
+        return sample_prior(
+            factory=self,
+            coords=coords,
+            name=name,
+            **sample_prior_predictive_kwargs,
+        )
 
     def to_graph(self):
         """Generate a graph of the variables.

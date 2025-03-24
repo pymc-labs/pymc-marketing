@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Plotting functions for the CLV module."""
 
+import warnings
 from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
@@ -363,7 +364,7 @@ def plot_expected_purchases_over_time(
     datetime_col: str,
     t: int,
     plot_cumulative: bool = True,
-    t_unobserved: int | None = None,
+    t_start_eval: int | None = None,
     datetime_format: str | None = None,
     time_unit: str = "D",
     time_scaler: float | None = 1,
@@ -373,6 +374,7 @@ def plot_expected_purchases_over_time(
     xlabel: str = "Time Periods",
     ylabel: str = "Purchases",
     ax: plt.Axes | None = None,
+    t_unobserved: int | None = None,
     **kwargs,
 ) -> plt.Axes:
     """Plot actual and expected purchases over time for a fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
@@ -400,7 +402,7 @@ def plot_expected_purchases_over_time(
     plot_cumulative : bool
         Default: *True*
         Plot cumulative purchases over time. Set to *False* to plot incremental purchases.
-    t_unobserved : int, optional
+    t_start_eval : int, optional
         If testing model on unobserved data, specify number of time units in training data to add an indicator for
         the start of the testing period.
     datetime_format : string, optional
@@ -467,10 +469,19 @@ def plot_expected_purchases_over_time(
     ax = df_cum_purchases.plot(ax=ax, title=title, **kwargs)
 
     if t_unobserved:
+        warnings.warn(
+            "t_unobserved is deprecated and will be removed in a future release. "
+            "Use t_start_eval instead.",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        t_start_eval = t_unobserved
+
+    if t_start_eval:
         if set_index_date:
-            x_vline = df_cum_purchases.index[int(t_unobserved)]
+            x_vline = df_cum_purchases.index[int(t_start_eval)]
         else:
-            x_vline = t_unobserved
+            x_vline = t_start_eval
         ax.axvline(x=x_vline, color="r", linestyle="--")
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)

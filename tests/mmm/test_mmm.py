@@ -1379,7 +1379,11 @@ def test_initialize_defaults_channel_media_dims() -> None:
     ],
 )
 def test_save_load_with_tvp(
-    time_varying_intercept, time_varying_media, toy_X, toy_y
+    time_varying_intercept,
+    time_varying_media,
+    toy_X,
+    toy_y,
+    mock_pymc_sample,
 ) -> None:
     adstock = GeometricAdstock(l_max=5)
     saturation = LogisticSaturation()
@@ -1403,6 +1407,19 @@ def test_save_load_with_tvp(
 
     # clean up
     os.remove(file)
+
+    expected_flats = []
+    if time_varying_intercept:
+        expected_flats.append("intercept_temporal_latent_multiplier_f_mean")
+    if time_varying_media:
+        expected_flats.append("media_temporal_latent_multiplier_f_mean")
+
+    def get_random_variable_name(var):
+        return var.owner.op.__class__.__name__
+
+    for free_RV in loaded_mmm.model.free_RVs:
+        if free_RV.name in expected_flats:
+            assert get_random_variable_name(free_RV) == "FlatRV"
 
 
 class CustomSaturation(SaturationTransformation):

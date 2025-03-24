@@ -40,6 +40,7 @@ from pymc_marketing.prior import (
     VariableFactory,
     handle_dims,
     register_tensor_transform,
+    sample_prior,
 )
 
 
@@ -672,11 +673,50 @@ def test_zsn_non_centered() -> None:
 
 
 class Arbitrary:
-    def __init__(self, dims: tuple[str, ...]) -> None:
+    def __init__(self, dims: str | tuple[str, ...]) -> None:
         self.dims = dims
 
     def create_variable(self, name: str):
         return pm.Normal(name, dims=self.dims)
+
+
+class ArbitraryWithoutName:
+    def __init__(self, dims: str | tuple[str, ...]) -> None:
+        self.dims = dims
+
+    def create_variable(self, name: str):
+        with pm.Model(name=name):
+            location = pm.Normal("location", dims=self.dims)
+            scale = pm.HalfNormal("scale", dims=self.dims)
+
+            return pm.Normal("standard_normal") * scale + location
+
+
+def test_sample_prior_arbitrary() -> None:
+    var = Arbitrary(dims="channel")
+
+    prior = sample_prior(var, coords={"channel": ["A", "B", "C"]}, draws=25)
+
+    assert isinstance(prior, xr.Dataset)
+
+
+def test_sample_prior_arbitrary_no_name() -> None:
+    var = ArbitraryWithoutName(dims="channel")
+
+    prior = sample_prior(var, coords={"channel": ["A", "B", "C"]}, draws=25)
+
+    assert isinstance(prior, xr.Dataset)
+    assert "var" not in prior
+
+    prior_with = sample_prior(
+        var,
+        coords={"channel": ["A", "B", "C"]},
+        draws=25,
+        wrap=True,
+    )
+
+    assert isinstance(prior_with, xr.Dataset)
+    assert "var" in prior_with
 
 
 def test_create_prior_with_arbitrary() -> None:

@@ -203,7 +203,7 @@ class TestShiftedBetaGeoModel:
             data=dataset,
         )
         model.build_model()
-        model.fit(fit_method="map")
+        model.fit(method="map")
         customer_thetas = np.array([0.1, 0.5, 0.9])
         model.idata = az.from_dict(
             posterior={
@@ -236,7 +236,7 @@ class TestShiftedBetaGeoModel:
             data=dataset,
         )
         model.build_model()
-        model.fit(fit_method="map")
+        model.fit(method="map")
         # theta ~ beta(7000, 3000) ~ 0.7
         model.idata = az.from_dict(
             {

@@ -27,29 +27,30 @@ Create a basic PyMC model using the time-varying GP multiplier:
     import numpy as np
     import pymc as pm
     import pandas as pd
+
+    from pymc_marketing.hsgp_kwargs import HSGPKwargs
     from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
 
     # Generate example data
     np.random.seed(0)
-    dates = pd.date_range(start="2020-01-01", periods=365)
+    dates = pd.Series(pd.date_range(start="2020-01-01", periods=365))
     sales = np.random.normal(100, 10, size=len(dates))
 
     # Infer time index
     time_index = infer_time_index(dates, dates, time_resolution=5)
 
     # Define model configuration
-    model_config = {
-        "sales_tvp_config": {
-            "m": 200,
-            "L": None,
-            "eta_lam": 1,
-            "ls_mu": None,
-            "ls_sigma": 5,
-            "cov_func": None,
-        }
-    }
+    hsgp_kwargs = HSGPKwargs(
+        m=200,
+        L=None,
+        eta_lam=1,
+        ls_mu=10,
+        ls_sigma=5,
+        cov_func=None,
+    )
 
-    with pm.Model() as model:
+    coords = {"time": dates}
+    with pm.Model(coords=coords) as model:
         # Shared time index variable
         time_index_shared = pm.Data("time_index", time_index)
 
@@ -63,7 +64,7 @@ Create a basic PyMC model using the time-varying GP multiplier:
             time_index=time_index_shared,
             time_index_mid=int(len(dates) / 2),
             time_resolution=5,
-            model_config=model_config,
+            hsgp_kwargs=hsgp_kwargs,
         )
 
         # Final sales parameter

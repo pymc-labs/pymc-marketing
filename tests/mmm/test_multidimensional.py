@@ -24,7 +24,11 @@ from pytensor.tensor.basic import TensorVariable
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis
-from pymc_marketing.mmm.multidimensional import MMM, create_event_mu_effect
+from pymc_marketing.mmm.multidimensional import (
+    MMM,
+    create_event_mu_effect,
+)
+from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.prior import Prior
 
 
@@ -119,12 +123,14 @@ def single_dim_data():
     # Generate random channel data
     channel_1 = np.random.randint(100, 500, size=len(date_range))
     channel_2 = np.random.randint(100, 500, size=len(date_range))
+    channel_3 = np.nan
 
     df = pd.DataFrame(
         {
             "date": date_range,
             "channel_1": channel_1,
             "channel_2": channel_2,
+            "channel_3": channel_3,
         }
     )
     # Target is sum of channels with noise
@@ -133,7 +139,7 @@ def single_dim_data():
         + df["channel_2"]
         + np.random.randint(100, 300, size=len(date_range))
     )
-    X = df[["date", "channel_1", "channel_2"]].copy()
+    X = df[["date", "channel_1", "channel_2", "channel_3"]].copy()
 
     return X, df.set_index(["date"])["target"].copy()
 
@@ -157,14 +163,16 @@ def multi_dim_data():
         for date in date_range:
             channel_1 = np.random.randint(100, 500)
             channel_2 = np.random.randint(100, 500)
+            channel_3 = np.nan
             target = channel_1 + channel_2 + np.random.randint(50, 150)
-            records.append((date, country, channel_1, channel_2, target))
+            records.append((date, country, channel_1, channel_2, channel_3, target))
 
     df = pd.DataFrame(
-        records, columns=["date", "country", "channel_1", "channel_2", "target"]
+        records,
+        columns=["date", "country", "channel_1", "channel_2", "channel_3", "target"],
     )
 
-    X = df[["date", "country", "channel_1", "channel_2"]].copy()
+    X = df[["date", "country", "channel_1", "channel_2", "channel_3"]].copy()
 
     return X, df["target"].copy()
 
@@ -204,7 +212,7 @@ def test_fit(
     mmm = MMM(
         date_column="date",
         target_column="target",
-        channel_columns=["channel_1", "channel_2"],
+        channel_columns=["channel_1", "channel_2", "channel_3"],
         dims=dims,
         adstock=adstock,
         saturation=saturation,
@@ -218,6 +226,25 @@ def test_fit(
 
     idata = mmm.fit(X, y, random_seed=random_seed)
 
+    def normalization(data):
+        return data.div(data.max())
+
+    def unstack(data, name):
+        if not name:
+            return data
+
+        return data.unstack(name)
+
+    actual = mmm.model["target_scaled"].eval()
+    expected = (
+        mmm.xarray_dataset._target.to_series()
+        .pipe(normalization)
+        .pipe(unstack, name=None if not dims else dims[0])
+        .values
+    )
+
+    np.testing.assert_allclose(actual, expected)
+
     # Assertions
     assert hasattr(mmm, "model"), "Model attribute should be set after build_model."
     assert isinstance(mmm.model, pm.Model), "mmm.model should be a PyMC Model instance."
@@ -229,7 +256,7 @@ def test_fit(
     # Basic checks to confirm presence of key variables
     var_names = mmm.model.named_vars.keys()
     assert "channel_data" in var_names
-    assert "target" in var_names
+    assert "target_data" in var_names
     if time_varying_intercept:
         assert "intercept_latent_process" in var_names
     if time_varying_media:
@@ -273,7 +300,7 @@ def test_sample_posterior_predictive_new_data(single_dim_data, mock_pymc_sample)
     mmm = MMM(
         date_column="date",
         target_column="target",
-        channel_columns=["channel_1", "channel_2"],
+        channel_columns=["channel_1", "channel_2", "channel_3"],
         adstock=adstock,
         saturation=saturation,
     )
@@ -283,6 +310,11 @@ def test_sample_posterior_predictive_new_data(single_dim_data, mock_pymc_sample)
     mmm.fit(X_train, y_train, draws=200, tune=100, chains=1, random_seed=42)
 
     mmm.sample_posterior_predictive(X_train, extend_idata=True, random_seed=42)
+
+    def no_null_values(ds):
+        return ds.y.isnull().mean()
+
+    np.testing.assert_allclose(no_null_values(mmm.idata.posterior_predictive), 0)
 
     # Sample posterior predictive on new data
     out_of_sample_idata = mmm.sample_posterior_predictive(
@@ -294,6 +326,8 @@ def test_sample_posterior_predictive_new_data(single_dim_data, mock_pymc_sample)
         "After calling sample_posterior_predictive with new data, "
         "there should be a 'posterior_predictive' group in the inference data."
     )
+
+    np.testing.assert_allclose(no_null_values(out_of_sample_idata), 0)
 
     # Check the shape of that group. We expect the new date dimension to match X_new length
     # plus no addition if we didn't set include_last_observations (which is False by default).
@@ -326,7 +360,7 @@ def test_sample_posterior_predictive_same_data(single_dim_data, mock_pymc_sample
     mmm = MMM(
         date_column="date",
         target_column="target",
-        channel_columns=["channel_1", "channel_2"],
+        channel_columns=["channel_1", "channel_2", "channel_3"],
         adstock=adstock,
         saturation=saturation,
     )
@@ -564,7 +598,7 @@ def test_check_for_incompatible_dims(adstock, saturation, dims) -> None:
     kwargs = dict(
         date_column="date",
         target_column="target",
-        channel_columns=["channel_1", "channel_2"],
+        channel_columns=["channel_1", "channel_2", "channel_3"],
     )
     with pytest.raises(ValueError):
         MMM(
@@ -573,3 +607,135 @@ def test_check_for_incompatible_dims(adstock, saturation, dims) -> None:
             dims=dims,
             **kwargs,  # type: ignore
         )
+
+
+@pytest.mark.parametrize("method", ["mean", "max"])
+def test_different_target_scaling(method, multi_dim_data, mock_pymc_sample) -> None:
+    X, y = multi_dim_data
+    scaling = {"target": {"method": method, "dims": ()}}
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    assert mmm.scaling.target == VariableScaling(method=method, dims=())
+    mmm.fit(X, y)
+    assert mmm.xarray_dataset._target.dims == ("date", "country")
+    assert mmm.scalers._target.dims == ("country",)
+
+    def max_abs(df: pd.DataFrame) -> pd.DataFrame:
+        return df.div(df.max())
+
+    def mean(df: pd.DataFrame) -> pd.DataFrame:
+        return df.div(df.mean())
+
+    normalization = {"mean": mean, "max": max_abs}[method]
+
+    actual = mmm.model["target_scaled"].eval()
+    expected = (
+        mmm.xarray_dataset._target.to_series()
+        .unstack("country")
+        .pipe(normalization)
+        .values
+    )
+
+    np.testing.assert_allclose(actual, expected)
+
+
+def test_target_scaling_raises() -> None:
+    scaling = {"target": {"method": "mean", "dims": ("country",)}}
+    match = "Target scaling dims"
+    with pytest.raises(ValueError, match=match):
+        MMM(
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            scaling=scaling,
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+        )
+
+
+@pytest.mark.parametrize("dims", [(), ("country",)], ids=["country-level", "global"])
+def test_target_scaling_and_contributions(
+    multi_dim_data,
+    dims,
+    mock_pymc_sample,
+) -> None:
+    X, y = multi_dim_data
+
+    scaling = {"target": {"method": "mean", "dims": dims}}
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+
+    var_names = ["channel_contribution", "intercept_contribution", "y"]
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=var_names)
+
+    for var in var_names:
+        new_var_name = f"{var}_original_scale"
+        assert new_var_name in mmm.model.named_vars
+
+    try:
+        mmm.fit(X, y)
+    except Exception as e:
+        pytest.fail(f"Unexpected error: {e}")
+
+
+@pytest.mark.parametrize(
+    "dims, expected_dims",
+    [
+        ((), ("country", "channel")),
+        (("country",), ("channel",)),
+        (("channel",), ("country",)),
+    ],
+    ids=["country-channel", "country", "channel"],
+)
+def test_channel_scaling(multi_dim_data, dims, expected_dims, mock_pymc_sample) -> None:
+    X, y = multi_dim_data
+
+    scaling = {"channel": {"method": "mean", "dims": dims}}
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+
+    mmm.fit(X, y)
+
+    assert mmm.scalers._channel.dims == expected_dims
+
+
+def test_scaling_dict_doesnt_mutate() -> None:
+    scaling = {}
+    dims = ("country",)
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=dims,
+    )
+
+    assert scaling == {}
+    assert mmm.scaling == Scaling(
+        target=VariableScaling(method="max", dims=dims),
+        channel=VariableScaling(method="max", dims=dims),
+    )
