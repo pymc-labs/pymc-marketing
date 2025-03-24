@@ -340,7 +340,7 @@ class MMM(ModelBuilder):
         self._validate_idata_exists()
         return MMMPlotSuite(
             idata=self.idata,
-            scales=self.scalers.rename(
+            scalers=self.scalers.rename(
                 {"_channel": "channel_scale", "_target": "target_scale"}
             ),
         )

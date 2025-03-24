@@ -35,10 +35,10 @@ class MMMPlotSuite:
     def __init__(
         self,
         idata: xr.Dataset | az.InferenceData,
-        scales: xr.Dataset | None = None,
+        scalers: xr.Dataset | None = None,
     ):
         self.idata = idata
-        self.scales = scales
+        self.scalers = scalers
 
     def _init_subplots(
         self,
@@ -390,13 +390,13 @@ class MMMPlotSuite:
                 x_data = self.idata.constant_data.channel_data.sel(**indexers)
                 # Select Y data (posterior contributions) and scale if needed
                 if original_scale:
-                    if self.scales is None:
+                    if self.scalers is None:
                         raise ValueError(
                             "Original scales requested but no scalers provided."
                         )
                     y_data = (
                         self.idata.posterior.channel_contribution.sel(**indexers)
-                        * self.scales.sel(**indexers).target_scale
+                        * self.scalers.sel(**indexers).target_scale
                     )
                 else:
                     y_data = self.idata.posterior.channel_contribution.sel(**indexers)
