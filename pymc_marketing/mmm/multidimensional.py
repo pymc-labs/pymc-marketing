@@ -474,7 +474,12 @@ class MMM(ModelBuilder):
         """Use the MMMPlotSuite to plot the results."""
         self._validate_model_was_built()
         self._validate_idata_exists()
-        return MMMPlotSuite(idata=self.idata, scales=self.get_scales_as_dataset())
+        return MMMPlotSuite(
+            idata=self.idata,
+            scales=self.scalers.rename(
+                {"_channel": "channel_scale", "_target": "target_scale"}
+            ),
+        )
 
     @property
     def default_model_config(self) -> dict:
@@ -921,31 +926,6 @@ class MMM(ModelBuilder):
             "channel_scale": self.scalers._channel,
             "target_scale": self.scalers._target,
         }
-
-    def get_scales_as_dataset(self) -> xr.Dataset:
-        """Return the saved scaling factors as xarray DataArrays.
-
-        Returns
-        -------
-        xr.Dataset
-            An xarray.Dataset containing the scaling factors for channels and target.
-
-        Examples
-        --------
-        >>> mmm = MMM(
-            date_column="date",
-            channel_columns=["channel_1", "channel_2"],
-            target_column="target",
-        )
-        >>> mmm.build_model(X, y)
-        >>> mmm.get_scales_as_dataset()
-        """
-        if not hasattr(self, "scalers"):
-            raise ValueError(
-                "Scales have not been computed yet. Build the model first."
-            )
-
-        return xr.Dataset(self.get_scales_as_xarray())
 
     def _validate_model_was_built(self) -> None:
         """Validate that the model was built."""
