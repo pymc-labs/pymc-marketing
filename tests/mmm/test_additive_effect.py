@@ -37,9 +37,25 @@ def create_mock_mmm():
 
 
 @pytest.fixture(scope="function")
-def fourier_model() -> pm.Model:
-    dates = pd.date_range("2025-01-01", periods=52, freq="W-MON")
+def dates() -> pd.DatetimeIndex:
+    return pd.date_range("2025-01-01", periods=52, freq="W-MON")
 
+
+@pytest.fixture(scope="function")
+def new_dates(dates) -> pd.DatetimeIndex:
+    last_date = dates.max()
+
+    return pd.date_range(last_date + pd.Timedelta(days=7), periods=26, freq="W-MON")
+
+
+def set_new_model_dates(dates):
+    # Just changing the coordinates of the model
+    model = pm.modelcontext(None)
+    model.set_dim("date", len(dates), coord_values=dates)
+
+
+@pytest.fixture(scope="function")
+def fourier_model(dates) -> pm.Model:
     coords = {"date": dates}
     return pm.Model(coords=coords)
 
@@ -53,7 +69,7 @@ def fourier_model() -> pm.Model:
     ],
     ids=["weekly", "monthly", "yearly"],
 )
-def test_fourier_effect(create_mock_mmm, fourier_model, fourier) -> None:
+def test_fourier_effect(create_mock_mmm, new_dates, fourier_model, fourier) -> None:
     effect = FourierEffect(fourier)
 
     mmm = create_mock_mmm(dims=(), model=fourier_model)
@@ -72,16 +88,18 @@ def test_fourier_effect(create_mock_mmm, fourier_model, fourier) -> None:
     )
     assert set(mmm.model.coords) == {"date", fourier.prefix}
 
+    with mmm.model:
+        set_new_model_dates(new_dates)
+        effect.set_data(mmm, mmm.model, None)
+
 
 @pytest.fixture(scope="function")
-def linear_trend_model() -> pm.Model:
-    dates = pd.date_range("2025-01-01", periods=52, freq="W-MON")
-
+def linear_trend_model(dates) -> pm.Model:
     coords = {"date": dates}
     return pm.Model(coords=coords)
 
 
-def test_linear_trend_effect(create_mock_mmm, linear_trend_model) -> None:
+def test_linear_trend_effect(create_mock_mmm, new_dates, linear_trend_model) -> None:
     prefix = "linear_trend"
     effect = LinearTrendEffect(LinearTrend(), prefix=prefix)
 
@@ -98,3 +116,7 @@ def test_linear_trend_effect(create_mock_mmm, linear_trend_model) -> None:
 
     assert set(mmm.model.named_vars) == {"delta", f"{prefix}_effect", f"{prefix}_t"}
     assert set(mmm.model.coords) == {"date", "changepoint"}
+
+    with mmm.model:
+        set_new_model_dates(new_dates)
+        effect.set_data(mmm, mmm.model, None)
