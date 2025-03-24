@@ -151,6 +151,77 @@ class LinearTrendEffect:
         The LinearTrend instance to wrap.
     prefix : str
         The prefix to use for variables in the model.
+
+    Examples
+    --------
+    Out of sample predictions
+
+
+    .. code-block:: python
+
+        import pandas as pd
+        import numpy as np
+
+        import matplotlib.pyplot as plt
+
+        import pymc as pm
+
+        from pymc_marketing.mmm.linear_trend import LinearTrend
+        from pymc_marketing.mmm.additive_effect import LinearTrendEffect
+
+        class MockMMM:
+           pass
+
+        dates = pd.date_range("2025-01-01", periods=52, freq="W")
+        coords = {"date": dates}
+        model = pm.Model(coords=coords)
+
+        mock_mmm = MockMMM()
+        mock_mmm.dims = ()
+        mock_mmm.model = model
+
+
+        effect = LinearTrendEffect(LinearTrend(n_changepoints=8), prefix="trend")
+
+
+        with mock_mmm.model:
+            effect.create_data(mock_mmm)
+            pm.Deterministic(
+                "effect",
+                effect.create_effect(mock_mmm),
+                dims="date",
+            )
+
+            idata = pm.sample_prior_predictive()
+
+        idata["posterior"] = idata.prior
+
+        n_new = 10
+        new_dates = pd.date_range(
+            dates.max() + pd.Timedelta(1, "W"),
+            periods=n_new,
+            freq="W",
+        )
+
+
+        with mock_mmm.model:
+            mock_mmm.model.set_dim("date", n_new, new_dates)
+
+            effect.set_data(mock_mmm, mock_mmm.model, None)
+
+            pm.sample_posterior_predictive(idata, var_names=["effect"],
+                extend_inferencedata=True,)
+
+
+        sel = dict(chain=0, draw=0)
+
+        before = idata.posterior.effect.sel(sel).to_series()
+        after = idata.posterior_predictive.effect.sel(sel).to_series()
+
+        ax = before.plot(color="C0")
+        after.plot(color="C0", linestyle="dashed", ax=ax)
+        plt.show()
+
     """
 
     def __init__(self, trend: LinearTrend, prefix: str):
