@@ -82,7 +82,7 @@ class LinearTrend(BaseModel):
 
     where:
 
-    - :math:`k` is the base trend,
+    - :math:`k` is the base intercept,
     - :math:`\delta_m` is the change in the trend at change point :math:`m`,
     - :math:`I` is the indicator function,
     - :math:`s_m` is the change point.
