@@ -310,8 +310,6 @@ class TestBetaGeoModel:
         )
         model.build_model()
 
-        sample_kwargs = dict(random_seed=self.seed)
-
         if method == "advi":
             sample_kwargs = dict(random_seed=self.seed)
         if method == "mcmc":
