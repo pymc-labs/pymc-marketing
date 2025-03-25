@@ -62,7 +62,7 @@ import pytensor.tensor as pt
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from pydantic import BaseModel, Field, InstanceOf, model_validator
+from pydantic import BaseModel, ConfigDict, Field, InstanceOf, model_validator
 from pymc.distributions.shape_utils import Dims
 from pytensor.tensor.variable import TensorVariable
 from typing_extensions import Self
@@ -224,6 +224,7 @@ class LinearTrend(BaseModel):
         False,
         description="Include an intercept in the trend.",
     )
+    model_config = ConfigDict(extra="forbid")
 
     @model_validator(mode="after")
     def _dims_is_tuple(self) -> Self:
