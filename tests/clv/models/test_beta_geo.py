@@ -311,9 +311,14 @@ class TestBetaGeoModel:
         model.build_model()
 
         sample_kwargs = dict(random_seed=self.seed)
-        sample_kwargs = (
-            {**sample_kwargs, "chains": 2} if method == "mcmc" else sample_kwargs
-        )
+
+        if method == "advi":
+            sample_kwargs = dict(random_seed=self.seed)
+        if method == "mcmc":
+            sample_kwargs = dict(random_seed=self.seed, chains=2)
+        elif method == "map":
+            sample_kwargs = dict(seed=self.seed)
+
         model.fit(method=method, progressbar=False, **sample_kwargs)
 
         fit = model.idata.posterior
