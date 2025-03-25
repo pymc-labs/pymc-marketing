@@ -392,7 +392,7 @@ class BudgetOptimizer(BaseModel):
             - If None, default bounds of [0, total_budget] per channel are assumed.
             - If a dict, must map each channel to (low, high) budget pairs (only valid if there's one dimension).
             - If an xarray.DataArray, must have dims (*budget_dims, "bound"), specifying [low, high] per channel cell.
-        x0 : DataArray, optional
+        x0 : np.ndarray, optional
             Initial guess. Array of real elements of size (n,), where n is the number of driver budgets to optimize. If
             None, the total budget is spread uniformly across all drivers to be optimized.
         minimize_kwargs : dict, optional
@@ -483,20 +483,15 @@ class BudgetOptimizer(BaseModel):
             x0 = np.ones(budgets_size) * (total_budget / budgets_size).astype(
                 self._budgets_flat.type.dtype
             )
-        # if x0 arg is provided, validate shape
-        elif x0.shape != (budgets_size,):
-            raise ValueError(
-                f"""The shape of 'x0' {x0.shape} does not match the expected shape {(budgets_size,)}."""
-            )
-        # if x0 arg is provided, validate dtype
-        elif np.issubdtype(x0.dtype, np.number):
-            raise ValueError(
-                f"""The dtype of 'x0' must be numeric but was instead {x0.dtype}."""
-            )
+
+        # filter x0 based on shape/type of self._budgets_flat
+        # will raise a TypeError if x0 does not have acceptable shape and/or type
+        x0 = self._budgets_flat.type.filter(x0)
 
         # 6. Run the SciPy optimizer
         result = minimize(
             fun=self._compiled_functions[self.utility_function]["objective_and_grad"],
+            x0=x0,
             jac=True,
             bounds=bounds,
             constraints=self._compiled_constraints,
