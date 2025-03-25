@@ -338,12 +338,7 @@ class MMM(ModelBuilder):
         """Use the MMMPlotSuite to plot the results."""
         self._validate_model_was_built()
         self._validate_idata_exists()
-        return MMMPlotSuite(
-            idata=self.idata,
-            scalers=self.scalers.rename(
-                {"_channel": "channel_scale", "_target": "target_scale"}
-            ),
-        )
+        return MMMPlotSuite(idata=self.idata)
 
     @property
     def default_model_config(self) -> dict:

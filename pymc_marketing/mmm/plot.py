@@ -35,10 +35,8 @@ class MMMPlotSuite:
     def __init__(
         self,
         idata: xr.Dataset | az.InferenceData,
-        scalers: xr.Dataset | None = None,
     ):
         self.idata = idata
-        self.scalers = scalers
 
     def _init_subplots(
         self,
@@ -379,6 +377,13 @@ class MMMPlotSuite:
         # Create subplots
         fig, axes = self._init_subplots(n_subplots=n_rows, ncols=n_columns, **kwargs)
 
+        # Channel in original_scale if selected
+        channel_contribution = (
+            "channel_contribution_original_scale"
+            if original_scale
+            else "channel_contribution"
+        )
+
         # Loop channels & combos
         for row_idx, channel in enumerate(channels):
             for col_idx, combo in enumerate(additional_combinations):
@@ -389,17 +394,7 @@ class MMMPlotSuite:
                 # Select X data (constant_data)
                 x_data = self.idata.constant_data.channel_data.sel(**indexers)
                 # Select Y data (posterior contributions) and scale if needed
-                if original_scale:
-                    if self.scalers is None:
-                        raise ValueError(
-                            "Original scales requested but no scalers provided."
-                        )
-                    y_data = (
-                        self.idata.posterior.channel_contribution.sel(**indexers)
-                        * self.scalers.sel(**indexers).target_scale
-                    )
-                else:
-                    y_data = self.idata.posterior.channel_contribution.sel(**indexers)
+                y_data = self.idata.posterior[channel_contribution].sel(**indexers)
 
                 # Flatten chain & draw by taking mean (or sum, up to design)
                 y_data = y_data.mean(dim=["chain", "draw"])
