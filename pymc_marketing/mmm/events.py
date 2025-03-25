@@ -100,7 +100,14 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
-from pydantic import BaseModel, Field, InstanceOf, model_validator, validate_call
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    InstanceOf,
+    model_validator,
+    validate_call,
+)
 from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.deserialize import deserialize, register_deserialization
@@ -123,7 +130,11 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[misc]
         parameters: InstanceOf[xr.Dataset] = Field(
             ..., description="Parameters of the saturation transformation."
         ),
-        days: int = Field(0, ge=0, description="Number of days around basis."),
+        days: int = Field(
+            14,
+            gt=0,
+            description="Number of days before and after the basis.",
+        ),
     ) -> xr.DataArray:
         """Sample the curve of the saturation transformation given parameters.
 
@@ -132,7 +143,8 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[misc]
         parameters : xr.Dataset
             Dataset with the parameters of the saturation transformation.
         days : int
-            Number of days around basis.
+            Number of days around basis. Default is 14 days or two weeks before and
+            after the basis for a total of 28 days.
 
         Returns
         -------
@@ -180,6 +192,7 @@ class EventEffect(BaseModel):
     basis: InstanceOf[Basis]
     effect_size: InstanceOf[Prior]
     dims: str | tuple[str, ...]
+    model_config = ConfigDict(extra="forbid")
 
     @model_validator(mode="before")
     def _dims_to_tuple(self):
@@ -190,7 +203,6 @@ class EventEffect(BaseModel):
 
     @model_validator(mode="after")
     def _validate_dims(self):
-        print(self)
         if not self.dims:
             raise ValueError("The dims must not be empty.")
 

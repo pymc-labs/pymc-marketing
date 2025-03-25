@@ -219,7 +219,14 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
-from pydantic import BaseModel, Field, InstanceOf, field_serializer, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    InstanceOf,
+    field_serializer,
+    model_validator,
+)
 from typing_extensions import Self
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK, DAYS_IN_YEAR
@@ -292,6 +299,7 @@ class FourierBase(BaseModel):
         Prior("Laplace", mu=0, b=1)
     )
     variable_name: str | None = Field(None)
+    model_config = ConfigDict(extra="forbid")
 
     def model_post_init(self, __context: Any) -> None:
         """Model post initialization for a Pydantic model."""
