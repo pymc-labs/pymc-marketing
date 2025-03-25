@@ -369,6 +369,26 @@ class MMMPlotSuite:
         else:
             additional_combinations = [()]
 
+        # Channel in original_scale if selected
+        channel_contribution = (
+            "channel_contribution_original_scale"
+            if original_scale
+            else "channel_contribution"
+        )
+
+        if original_scale and not hasattr(self.idata.posterior, channel_contribution):
+            raise ValueError(
+                f"""No posterior.{channel_contribution} data found in 'self.idata'.
+                Add a original scale deterministic:
+                    mmm.add_original_scale_contribution_variable(
+                        var=[
+                            "channel_contribution",
+                            ...
+                        ]
+                    )
+                """
+            )
+
         # Rows = channels, Columns = additional_combinations
         channels = self.idata.constant_data.coords["channel"].values
         n_rows = len(channels)
@@ -376,13 +396,6 @@ class MMMPlotSuite:
 
         # Create subplots
         fig, axes = self._init_subplots(n_subplots=n_rows, ncols=n_columns, **kwargs)
-
-        # Channel in original_scale if selected
-        channel_contribution = (
-            "channel_contribution_original_scale"
-            if original_scale
-            else "channel_contribution"
-        )
 
         # Loop channels & combos
         for row_idx, channel in enumerate(channels):
