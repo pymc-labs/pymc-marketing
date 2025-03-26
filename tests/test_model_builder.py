@@ -16,7 +16,6 @@ import json
 import sys
 import tempfile
 
-import arviz as az
 import graphviz
 import numpy as np
 import pandas as pd
@@ -211,7 +210,7 @@ def test_save_without_fit_raises_runtime_error():
         model_builder.save("saved_model")
 
 
-def test_empty_sampler_config_fit(toy_X, toy_y):
+def test_empty_sampler_config_fit(toy_X, toy_y, mock_pymc_sample):
     sampler_config = {}
     model_builder = ModelBuilderTest(sampler_config=sampler_config)
     model_builder.idata = model_builder.fit(
@@ -562,12 +561,7 @@ def test_fit_sampler_config_seed_reproducibility(toy_X, toy_y) -> None:
     assert idata.posterior.equals(idata2.posterior)
 
 
-def test_fit_sampler_config_with_rng_fails(mocker, toy_X, toy_y) -> None:
-    def mock_sample(*args, **kwargs):
-        idata = pm.sample_prior_predictive(10)
-        return az.InferenceData(posterior=idata.prior)
-
-    mocker.patch("pymc.sample", mock_sample)
+def test_fit_sampler_config_with_rng_fails(toy_X, toy_y, mock_pymc_sample) -> None:
     sampler_config = {
         "chains": 1,
         "draws": 10,
