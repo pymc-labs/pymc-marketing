@@ -30,6 +30,7 @@ from pymc.util import RandomState
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.utils import from_netcdf
+from pymc_marketing.version import __version__
 
 # If scikit-learn is available, use its data validator
 try:
@@ -723,6 +724,8 @@ class ModelBuilder(ABC):
         else:
             self.idata = idata
 
+        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
+
         if "fit_data" in self.idata:
             del self.idata.fit_data
 
@@ -872,6 +875,8 @@ class ModelBuilder(ABC):
 
         with self.model:  # sample with new input data
             prior_pred: az.InferenceData = pm.sample_prior_predictive(samples, **kwargs)
+            prior_pred["prior"].attrs["pymc_marketing_version"] = __version__
+            prior_pred["prior_predictive"].attrs["pymc_marketing_version"] = __version__
             self.set_idata_attrs(prior_pred)
 
         if extend_idata:
