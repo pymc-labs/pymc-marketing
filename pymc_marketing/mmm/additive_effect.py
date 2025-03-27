@@ -113,7 +113,7 @@ class FourierEffect:
 
         # Handle dimensions for the MMM model
         dim_handler = create_dim_handler(("date", *mmm.dims))
-        return dim_handler(fourier_effect_det, "date")
+        return dim_handler(fourier_effect_det, ("date", *dims))
 
     def set_data(self, mmm: MMM, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions.
