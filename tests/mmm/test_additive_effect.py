@@ -110,7 +110,9 @@ def test_fourier_effect(
     with mmm.model:
         # Should just be broadcastable with target.
         # Not necessarily the same shape
-        effect.create_effect(mmm)
+        created_variable = effect.create_effect(mmm)
+
+    assert created_variable.ndim == len(mmm.dims) + 1
 
     assert set(mmm.model.named_vars) == set(
         [
