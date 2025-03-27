@@ -19,6 +19,7 @@ import pytest
 from pymc_marketing.mmm.additive_effect import FourierEffect, LinearTrendEffect
 from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.linear_trend import LinearTrend
+from pymc_marketing.prior import Prior
 
 
 @pytest.fixture(scope="function")
@@ -62,11 +63,11 @@ def set_new_model_dates(dates):
 
 @pytest.fixture(scope="function")
 def create_fourier_model(dates):
-    def model(coords):
+    def create_model(coords) -> pm.Model:
         coords = coords | {"date": dates}
         return pm.Model(coords=coords)
 
-    return model
+    return create_model
 
 
 @pytest.mark.parametrize(
@@ -138,6 +139,25 @@ def test_fourier_effect(
     effect_predictions = idata.posterior_predictive[f"{fourier.prefix}_effect"]
     np.testing.assert_allclose(effect_predictions.notnull().mean().item(), 1.0)
     pd.testing.assert_index_equal(effect_predictions.date.to_index(), new_dates)
+
+
+def test_fourier_effect_multidimensional(create_mock_mmm, create_fourier_model) -> None:
+    mmm = create_mock_mmm(
+        dims=("geo",),
+        model=create_fourier_model(coords={"geo": ["A", "B"]}),
+    )
+
+    prefix = "weekly"
+    prior = Prior("Laplace", mu=0, b=0.1, dims=(prefix, "geo"))
+    fourier = WeeklyFourier(n_order=10, prefix=prefix, prior=prior)
+    fourier_effect = FourierEffect(fourier)
+
+    with mmm.model:
+        fourier_effect.create_data(mmm)
+        effect = fourier_effect.create_effect(mmm)
+        pm.sample_prior_predictive()
+
+    assert effect.ndim == 2
 
 
 @pytest.fixture(scope="function")
