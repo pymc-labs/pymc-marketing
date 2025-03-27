@@ -141,14 +141,28 @@ def test_fourier_effect(
     pd.testing.assert_index_equal(effect_predictions.date.to_index(), new_dates)
 
 
-def test_fourier_effect_multidimensional(create_mock_mmm, create_fourier_model) -> None:
+@pytest.mark.parametrize(
+    "prior_dims",
+    [
+        (),
+        ("weekly",),
+        ("weekly", "geo"),
+        ("geo", "weekly"),
+    ],
+    ids=["no-dims", "exclude", "include", "include_reverse"],
+)
+def test_fourier_effect_multidimensional(
+    create_mock_mmm,
+    create_fourier_model,
+    prior_dims,
+) -> None:
     mmm = create_mock_mmm(
         dims=("geo",),
         model=create_fourier_model(coords={"geo": ["A", "B"]}),
     )
 
     prefix = "weekly"
-    prior = Prior("Laplace", mu=0, b=0.1, dims=(prefix, "geo"))
+    prior = Prior("Laplace", mu=0, b=0.1, dims=prior_dims)
     fourier = WeeklyFourier(n_order=10, prefix=prefix, prior=prior)
     fourier_effect = FourierEffect(fourier)
 
