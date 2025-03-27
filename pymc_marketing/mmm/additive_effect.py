@@ -105,15 +105,16 @@ class FourierEffect:
 
         # Create a deterministic variable for the effect
         dims = (dim for dim in mmm.dims if dim in self.fourier.prior.dims)
+        fourier_dims = ("date", *dims)
         fourier_effect_det = pm.Deterministic(
             f"{self.fourier.prefix}_effect",
             fourier_effect,
-            dims=("date", *dims),
+            dims=fourier_dims,
         )
 
         # Handle dimensions for the MMM model
         dim_handler = create_dim_handler(("date", *mmm.dims))
-        return dim_handler(fourier_effect_det, ("date", *dims))
+        return dim_handler(fourier_effect_det, fourier_dims)
 
     def set_data(self, mmm: MMM, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions.
