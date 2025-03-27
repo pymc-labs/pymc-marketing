@@ -1064,3 +1064,31 @@ def test_from_json_deprecation() -> None:
     match = "The `from_json` method is deprecated"
     with pytest.warns(DeprecationWarning, match=match):
         Prior.from_json(data)
+
+
+def test_gettattr() -> None:
+    import pymc_marketing.prior as pr
+
+    assert pr.Normal(mu=1, sigma=1) == Prior("Normal", mu=1, sigma=1)
+    assert pr.Censored(pr.Normal(mu=1, sigma=1), lower=0) == Censored(
+        Prior("Normal", mu=1, sigma=1),
+        lower=0,
+    )
+
+
+def test_using_import() -> None:
+    from pymc_marketing.prior import Normal
+
+    assert Normal() == Prior("Normal")
+
+
+def test_invalid_distribution_1() -> None:
+    with pytest.raises(UnsupportedDistributionError):
+        from pymc_marketing.prior import Invalid  # noqa: F401
+
+
+def test_invalid_distribution_2() -> None:
+    import pymc_marketing.prior as pr
+
+    with pytest.raises(UnsupportedDistributionError):
+        pr.Invalid
