@@ -526,7 +526,7 @@ class FourierBase(BaseModel):
             start_date = self.get_default_start_date(start_date=start_date)
             date_range = pd.date_range(
                 start=start_date,
-                periods=np.ceil(self.days_in_period) + 1,
+                periods=int(np.ceil(self.days_in_period) + 1),
                 freq="D",
             )
             coords["date"] = date_range.to_numpy()
