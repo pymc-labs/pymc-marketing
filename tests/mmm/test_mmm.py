@@ -19,6 +19,7 @@ import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
+import warnings
 from matplotlib import pyplot as plt
 
 from pymc_marketing.mmm.budget_optimizer import optimizer_xarray_builder
@@ -580,13 +581,15 @@ class TestMMM:
         noise_level = "bad_noise_level"
 
         with pytest.raises(ValueError, match="noise_level must be a float"):
-            mmm_fitted.allocate_budget_to_maximize_response(
-                budget=budget,
-                time_granularity=time_granularity,
-                num_periods=num_periods,
-                budget_bounds=budget_bounds,
-                noise_level=noise_level,
-            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                mmm_fitted.allocate_budget_to_maximize_response(
+                    budget=budget,
+                    time_granularity=time_granularity,
+                    num_periods=num_periods,
+                    budget_bounds=budget_bounds,
+                    noise_level=noise_level,
+                )
 
     @pytest.mark.parametrize(
         argnames="original_scale",
