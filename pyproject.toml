@@ -69,6 +69,7 @@ docs = [
     "dowhy",
 ]
 rtd = [
+    "labs-sphinx-theme",
     "myst-nb<=1.0.0",
     "myst-parser",
     "numpydoc",
