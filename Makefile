@@ -8,15 +8,10 @@ PACKAGE_DIR = pymc_marketing
 # COMMANDS                                                                      #
 #################################################################################
 
-.PHONY: init lint check_lint format check_format test html cleandocs run_notebooks uml help clean-install
+.PHONY: init lint check_lint format check_format test html cleandocs run_notebooks uml help
 
 init: ## Install the package in editable mode
 	python3 -m pip install -e .
-
-clean-install: ## Clean pip cache and install dependencies with force-reinstall
-	python3 -m pip cache purge
-	python3 -m pip install --upgrade pip setuptools wheel
-	python3 -m pip install -e . --force-reinstall --no-cache-dir
 
 lint: ## Install linting dependencies and run linter (ruff and mypy)
 	pip install .[lint]
@@ -41,8 +36,6 @@ test:  ## Install test dependencies and run tests
 	pytest
 
 html: ## Install documentation dependencies and build HTML docs
-	pip install --upgrade pip setuptools wheel
-	pip install osqp --no-binary osqp
 	pip install .[docs]
 	python scripts/generate_gallery.py
 	sphinx-build docs/source docs/build -b html
