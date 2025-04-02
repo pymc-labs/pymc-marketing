@@ -141,6 +141,7 @@ Autologging for a PyMC-Marketing CLV model:
 
 import logging
 import os
+import tempfile
 import warnings
 from collections.abc import Callable
 from functools import wraps
@@ -978,11 +979,61 @@ def log_mmm_configuration(mmm: MMM) -> None:
     mlflow.log_param("saturation_name", mmm.saturation.lookup_name)
 
 
+def log_error(func: Callable, file_name: str):
+    """Log arbitrary caught error of function to MLflow.
+
+    .. note::
+
+        The error will still be raised with the program. It is just logged
+        to MLflow
+
+    Parameters
+    ----------
+    func : Callable
+        Arbitrary function
+    file_name : str
+        The name of the MLflow artifact
+
+    Examples
+    --------
+
+    .. code-block:: python
+
+        import mlflow
+
+        from pymc_marketing.mlflow import log_error
+
+        def raising_function():
+            raise NotImplementedError("Sorry. Not implemented")
+
+        func = log_error(raising_function, file_name="raising-function")
+
+        with mlflow.start_run():
+            func()
+
+    """
+
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                path = Path(tmp_dir) / file_name
+                path.write_text(str(e))
+
+                mlflow.log_artifact(str(path))
+            raise e
+
+    return wrapped
+
+
 @autologging_integration(FLAVOR_NAME)
 def autolog(
     log_sampler_info: bool = True,
     log_metadata_info: bool = True,
     log_model_info: bool = True,
+    sample_error_file: str | None = "sample-error.txt",
     summary_var_names: list[str] | None = None,
     arviz_summary_kwargs: dict | None = None,
     log_mmm: bool = True,
@@ -1156,6 +1207,9 @@ def autolog(
                 log_metadata(model=model, idata=idata)
 
             return idata
+
+        if sample_error_file:
+            new_sample = log_error(new_sample, sample_error_file)
 
         return new_sample
 

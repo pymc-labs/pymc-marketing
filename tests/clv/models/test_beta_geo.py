@@ -31,7 +31,8 @@ class TestBetaGeoModel:
     @classmethod
     def setup_class(cls):
         # Set random seed
-        cls.rng = np.random.default_rng(34)
+        cls.seed = 42
+        cls.rng = np.random.default_rng(cls.seed)
 
         # parameters
         cls.a_true = 0.793
@@ -309,7 +310,13 @@ class TestBetaGeoModel:
         )
         model.build_model()
 
-        sample_kwargs = dict(random_seed=self.rng, chains=2) if method == "mcmc" else {}
+        if method == "advi":
+            sample_kwargs = dict(random_seed=self.seed)
+        if method == "mcmc":
+            sample_kwargs = dict(random_seed=self.seed, chains=2)
+        elif method == "map":
+            sample_kwargs = dict(seed=self.seed)
+
         model.fit(method=method, progressbar=False, **sample_kwargs)
 
         fit = model.idata.posterior
