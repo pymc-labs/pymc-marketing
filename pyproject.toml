@@ -71,6 +71,7 @@ docs = [
 rtd = [
     "myst-nb<=1.0.0",
     "myst-parser",
+    "numpydoc",
     "sphinx-autodoc-typehints",
     "sphinx-copybutton",
     "sphinx-design",
