@@ -17,7 +17,7 @@ build:
 
 python:
   install:
-    - requirements: rtd-requirements.txt
     - method: pip
       path: .
-      extra_requirements: []
+      extra_requirements:
+      - docs
