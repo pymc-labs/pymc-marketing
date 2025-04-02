@@ -41,11 +41,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dag = [
-    "dowhy",
-    "networkx",
-    "osqp<1.0.0,>=0.6.2",
-]
+dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2"]
 docs = [
     "blackjax",
     "fastprogress",
@@ -72,18 +68,6 @@ docs = [
     "networkx",
     "dowhy",
     "osqp<1.0.0,>=0.6.2",
-]
-rtd = [
-    "labs-sphinx-theme",
-    "myst-nb<=1.0.0",
-    "myst-parser",
-    "numpydoc",
-    "sphinx-autodoc-typehints",
-    "sphinx-copybutton",
-    "sphinx-design",
-    "sphinx-notfound-page",
-    "sphinx",
-    "sphinxext-opengraph",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
