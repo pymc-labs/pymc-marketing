@@ -41,7 +41,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dag = ["dowhy", "networkx"]
+dag = [
+    "dowhy",
+    "networkx",
+    "osqp<1.0.0,>=0.6.2",
+]
 docs = [
     "blackjax",
     "fastprogress",
@@ -67,6 +71,7 @@ docs = [
     "mlflow>=2.0.0",
     "networkx",
     "dowhy",
+    "osqp<1.0.0,>=0.6.2",
 ]
 rtd = [
     "labs-sphinx-theme",
@@ -95,6 +100,7 @@ test = [
     "mlflow>=2.0.0",
     "networkx",
     "dowhy",
+    "osqp<1.0.0,>=0.6.2",
 ]
 
 [tool.hatch.build.targets.sdist]
