@@ -982,7 +982,10 @@ def log_mmm_configuration(mmm: MMM) -> None:
 def log_error(func: Callable, file_name: str):
     """Log arbitrary caught error of function to MLflow.
 
-    NOTE: The error is still raised with the program.
+    .. note::
+
+        The error will still be raised with the program. It is just logged
+        to MLflow
 
     Parameters
     ----------
