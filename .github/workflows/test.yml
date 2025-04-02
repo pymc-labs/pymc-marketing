@@ -50,8 +50,6 @@ jobs:
           python-version: ${{ matrix.config.python-version }}
           cache: "pip"
           cache-dependency-path: "pyproject.toml"
-      - name: Upgrade pip
-        run: pip install --upgrade pip
       - name: Install oldest version of PyMC
         if: ${{ matrix.config.oldest-pymc }}
         run: pip install pymc==${{ env.OLDEST_PYMC_VERSION }}
