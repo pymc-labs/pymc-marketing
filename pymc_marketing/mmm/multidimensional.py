@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import warnings
 from copy import deepcopy
-from typing import Any, Literal, Protocol
+from typing import Any, Literal
 
 import arviz as az
 import numpy as np
@@ -31,6 +31,7 @@ from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
 
 from pymc_marketing.mmm import SoftPlusHSGP
+from pymc_marketing.mmm.additive_effect import MuEffect, create_event_mu_effect
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     adstock_from_dict,
@@ -39,7 +40,7 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     saturation_from_dict,
 )
-from pymc_marketing.mmm.events import EventEffect, days_from_reference
+from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
@@ -56,143 +57,6 @@ warning_msg = (
     f"{PYMC_MARKETING_ISSUE}"
 )
 warnings.warn(warning_msg, FutureWarning, stacklevel=1)
-
-
-class MuEffect(Protocol):
-    """Protocol for arbitrary additive mu effect."""
-
-    def create_data(self, mmm: MMM) -> None:
-        """Create the required data in the model."""
-
-    def create_effect(self, mmm: MMM) -> pt.TensorVariable:
-        """Create the additive effect in the model."""
-
-    def set_data(self, mmm: MMM, model: pm.Model, X: xr.Dataset) -> None:
-        """Set the data for new predictions."""
-
-
-def create_event_mu_effect(
-    df_events: pd.DataFrame,
-    prefix: str,
-    effect: EventEffect,
-) -> MuEffect:
-    """Create an event effect for the MMM.
-
-    This class has the ability to create data and mean effects for the MMM model.
-
-    Parameters
-    ----------
-    df_events : pd.DataFrame
-        The DataFrame containing the event data.
-            * `name`: name of the event. Used as the model coordinates.
-            * `start_date`: start date of the event
-            * `end_date`: end date of the event
-    prefix : str
-        The prefix to use for the event effect and associated variables.
-    effect : EventEffect
-        The event effect to apply.
-
-    Returns
-    -------
-    MuEffect
-        The event effect which is used in the MMM.
-
-    """
-    if missing_columns := set(["start_date", "end_date", "name"]).difference(
-        df_events.columns,
-    ):
-        raise ValueError(f"Columns {missing_columns} are missing in df_events.")
-
-    effect.basis.prefix = prefix
-
-    reference_date = "2025-01-01"
-    start_dates = pd.to_datetime(df_events["start_date"])
-    end_dates = pd.to_datetime(df_events["end_date"])
-
-    class Effect:
-        """Event effect class for the MMM."""
-
-        def create_data(self, mmm: MMM) -> None:
-            """Create the required data in the model.
-
-            Parameters
-            ----------
-            mmm : MMM
-                The MMM model instance.
-
-            """
-            model: pm.Model = mmm.model
-
-            model_dates = pd.to_datetime(model.coords["date"])
-
-            model.add_coord(prefix, df_events["name"].to_numpy())
-
-            if "days" not in model:
-                pm.Data(
-                    "days",
-                    days_from_reference(model_dates, reference_date),
-                    dims="date",
-                )
-
-            pm.Data(
-                f"{prefix}_start_diff",
-                days_from_reference(start_dates, reference_date),
-                dims=prefix,
-            )
-            pm.Data(
-                f"{prefix}_end_diff",
-                days_from_reference(end_dates, reference_date),
-                dims=prefix,
-            )
-
-        def create_effect(self, mmm: MMM) -> pt.TensorVariable:
-            """Create the event effect in the model.
-
-            Parameters
-            ----------
-            mmm : MMM
-                The MMM model instance.
-
-            Returns
-            -------
-            pt.TensorVariable
-                The average event effect in the model.
-
-            """
-            model: pm.Model = mmm.model
-
-            s_ref = model["days"][:, None] - model[f"{prefix}_start_diff"]
-            e_ref = model["days"][:, None] - model[f"{prefix}_end_diff"]
-
-            def create_basis_matrix(s_ref, e_ref):
-                return pt.where(
-                    (s_ref >= 0) & (e_ref <= 0),
-                    0,
-                    pt.where(pt.abs(s_ref) < pt.abs(e_ref), s_ref, e_ref),
-                )
-
-            X = create_basis_matrix(s_ref, e_ref)
-            event_effect = effect.apply(X, name=prefix)
-
-            total_effect = pm.Deterministic(
-                f"{prefix}_total_effect",
-                event_effect.sum(axis=1),
-                dims="date",
-            )
-
-            dim_handler = create_dim_handler(("date", *mmm.dims))
-            return dim_handler(total_effect, "date")
-
-        def set_data(self, mmm: MMM, model: pm.Model, X: xr.Dataset) -> None:
-            """Set the data for new predictions."""
-            new_dates = pd.to_datetime(model.coords["date"])
-
-            new_data = {
-                "days": days_from_reference(new_dates, reference_date),
-            }
-            pm.set_data(new_data=new_data, model=model)
-
-    return Effect()
 
 
 class MMM(ModelBuilder):

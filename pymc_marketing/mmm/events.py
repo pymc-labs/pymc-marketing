@@ -100,7 +100,14 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
-from pydantic import BaseModel, Field, InstanceOf, model_validator, validate_call
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    InstanceOf,
+    model_validator,
+    validate_call,
+)
 from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.deserialize import deserialize, register_deserialization
@@ -185,6 +192,7 @@ class EventEffect(BaseModel):
     basis: InstanceOf[Basis]
     effect_size: InstanceOf[Prior]
     dims: str | tuple[str, ...]
+    model_config = ConfigDict(extra="forbid")
 
     @model_validator(mode="before")
     def _dims_to_tuple(self):

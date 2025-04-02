@@ -62,7 +62,7 @@ import pytensor.tensor as pt
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from pydantic import BaseModel, Field, InstanceOf, model_validator
+from pydantic import BaseModel, ConfigDict, Field, InstanceOf, model_validator
 from pymc.distributions.shape_utils import Dims
 from pytensor.tensor.variable import TensorVariable
 from typing_extensions import Self
@@ -82,7 +82,7 @@ class LinearTrend(BaseModel):
 
     where:
 
-    - :math:`k` is the base trend,
+    - :math:`k` is the base intercept,
     - :math:`\delta_m` is the change in the trend at change point :math:`m`,
     - :math:`I` is the indicator function,
     - :math:`s_m` is the change point.
@@ -224,6 +224,7 @@ class LinearTrend(BaseModel):
         False,
         description="Include an intercept in the trend.",
     )
+    model_config = ConfigDict(extra="forbid")
 
     @model_validator(mode="after")
     def _dims_is_tuple(self) -> Self:
@@ -305,7 +306,7 @@ class LinearTrend(BaseModel):
         dim_handler = create_dim_handler(desired_dims=out_dims)
 
         # (changepoints, )
-        s = pt.linspace(0, pt.max(t), self.n_changepoints)
+        s = pt.linspace(0, pt.max(t).eval(), self.n_changepoints)
         s.type.shape = (self.n_changepoints,)
         s = dim_handler(
             s,
