@@ -13,11 +13,17 @@ import shutil
 import tempfile
 from pathlib import Path
 
-import matplotlib
+try:
+    import matplotlib
 
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-from matplotlib import image
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib import image
+
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    print("WARNING: Matplotlib not available. Using fallback for gallery generation.")
+    MATPLOTLIB_AVAILABLE = False
 
 # Define directories
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -57,6 +63,11 @@ def create_thumbnail(infile, outfile, width=275, height=275, cx=0.5, cy=0.5, bor
     border : int
         The size of the border in pixels
     """
+    if not MATPLOTLIB_AVAILABLE:
+        # If matplotlib is not available, just copy the default image
+        shutil.copy(DEFAULT_IMG_LOC, outfile)
+        return
+
     if not os.path.exists(infile):
         print(f"Warning: Input file {infile} does not exist")
         # Copy default image
@@ -126,6 +137,14 @@ class NotebookProcessor:
         """
         Extract the first image from the notebook
         """
+        if not MATPLOTLIB_AVAILABLE:
+            # If matplotlib is not available, just copy the default image
+            shutil.copy(DEFAULT_IMG_LOC, self.gallery_img_path)
+            print(
+                f"Using default image for {self.notebook_path.name} (matplotlib not available)"
+            )
+            return False
+
         temp_img_path = Path(self.temp_dir) / f"{self.name}_temp.png"
 
         try:
@@ -179,28 +198,62 @@ def find_notebooks(notebook_dir=NOTEBOOK_DIR):
     """
     notebooks_by_category = {}
 
+    # Check if notebook directory exists
+    if not notebook_dir.exists():
+        print(f"Warning: Notebook directory {notebook_dir} does not exist.")
+        return notebooks_by_category
+
     # Find all notebook categories (directories in notebook_dir)
-    categories = [
-        d
-        for d in os.listdir(notebook_dir)
-        if os.path.isdir(os.path.join(notebook_dir, d)) and not d.startswith(".")
-    ]
+    try:
+        categories = [
+            d
+            for d in os.listdir(notebook_dir)
+            if os.path.isdir(os.path.join(notebook_dir, d)) and not d.startswith(".")
+        ]
+    except Exception as e:
+        print(f"Error listing directory {notebook_dir}: {e}")
+        return notebooks_by_category
 
     for category in categories:
         category_path = os.path.join(notebook_dir, category)
-        # Get all .ipynb files in the category directory
-        notebook_paths = [
-            Path(os.path.join(category_path, nb))
-            for nb in os.listdir(category_path)
-            if nb.endswith(".ipynb") and not nb.startswith(".")
-        ]
-        notebooks_by_category[category] = notebook_paths
+        try:
+            # Get all .ipynb files in the category directory
+            notebook_paths = [
+                Path(os.path.join(category_path, nb))
+                for nb in os.listdir(category_path)
+                if nb.endswith(".ipynb") and not nb.startswith(".")
+            ]
+            notebooks_by_category[category] = notebook_paths
+        except Exception as e:
+            print(f"Error listing notebooks in {category_path}: {e}")
+            notebooks_by_category[category] = []
 
     return notebooks_by_category
 
 
 def main():
     """Main function to process notebooks and create thumbnails"""
+    print("Starting gallery generation...")
+
+    # Check if default image exists
+    if not os.path.exists(DEFAULT_IMG_LOC):
+        print(f"Warning: Default image {DEFAULT_IMG_LOC} does not exist.")
+        try:
+            # Create a simple default image if matplotlib is available
+            if MATPLOTLIB_AVAILABLE:
+                print("Creating a default image...")
+                os.makedirs(os.path.dirname(DEFAULT_IMG_LOC), exist_ok=True)
+                plt.figure(figsize=(4, 3))
+                plt.text(
+                    0.5, 0.5, "PyMC Marketing", ha="center", va="center", fontsize=14
+                )
+                plt.savefig(DEFAULT_IMG_LOC)
+                plt.close()
+            else:
+                print("Cannot create default image (matplotlib not available)")
+        except Exception as e:
+            print(f"Error creating default image: {e}")
+
     # Create a temporary directory for thumbnails
     with tempfile.TemporaryDirectory() as temp_dir:
         print(f"Created temporary directory for thumbnails: {temp_dir}")
