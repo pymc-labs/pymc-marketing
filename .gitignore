@@ -142,6 +142,3 @@ dmypy.json
 
 # PyCharm .idea files
 .idea/
-
-# Gallery images
-docs/source/Gallery/images/
