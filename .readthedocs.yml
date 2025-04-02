@@ -13,7 +13,7 @@ build:
     pre_build:
       # Install core dependencies first
       - pip install --upgrade pip setuptools wheel
-      - python -c "import sys; print(sys.path)"
+      - python scripts/generate_gallery.py
 
 python:
   install:
