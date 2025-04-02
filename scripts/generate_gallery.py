@@ -10,6 +10,7 @@ import base64
 import json
 import os
 import shutil
+import tempfile
 from pathlib import Path
 
 import matplotlib
@@ -23,11 +24,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 NOTEBOOK_DIR = PROJECT_ROOT / "docs" / "source" / "notebooks"
 GALLERY_DIR = PROJECT_ROOT / "docs" / "source" / "gallery"
 GALLERY_IMG_DIR = GALLERY_DIR / "images"
-THUMBNAIL_DIR = PROJECT_ROOT / "docs" / "source" / "_thumbnails"
 
-# Create directories if they don't exist
+# Create gallery images directory if it doesn't exist
 GALLERY_IMG_DIR.mkdir(exist_ok=True, parents=True)
-THUMBNAIL_DIR.mkdir(exist_ok=True, parents=True)
 
 # Default image in case we can't extract one from a notebook
 DEFAULT_IMG_LOC = PROJECT_ROOT / "docs" / "source" / "_static" / "flat_logo.png"
@@ -109,13 +108,14 @@ class NotebookProcessor:
     Process a notebook to extract images and create thumbnails
     """
 
-    def __init__(self, notebook_path, category):
+    def __init__(self, notebook_path, category, temp_dir):
         self.notebook_path = Path(notebook_path)
         self.category = category
         self.name = self.notebook_path.stem
+        self.temp_dir = temp_dir
 
-        # Create category thumbnail directory
-        self.thumb_dir = THUMBNAIL_DIR / category
+        # Create category thumbnail directory in temp dir
+        self.thumb_dir = Path(temp_dir) / category
         self.thumb_dir.mkdir(exist_ok=True)
 
         # Define thumbnail and gallery image paths
@@ -126,7 +126,7 @@ class NotebookProcessor:
         """
         Extract the first image from the notebook
         """
-        temp_img_path = THUMBNAIL_DIR / f"{self.name}_temp.png"
+        temp_img_path = Path(self.temp_dir) / f"{self.name}_temp.png"
 
         try:
             with open(self.notebook_path, encoding="utf-8") as f:
@@ -201,26 +201,38 @@ def find_notebooks(notebook_dir=NOTEBOOK_DIR):
 
 def main():
     """Main function to process notebooks and create thumbnails"""
-    # Find all notebooks
-    notebooks_by_category = find_notebooks()
+    # Create a temporary directory for thumbnails
+    with tempfile.TemporaryDirectory() as temp_dir:
+        print(f"Created temporary directory for thumbnails: {temp_dir}")
 
-    # Process each notebook
-    success_count = 0
-    total_count = 0
+        # Find all notebooks
+        notebooks_by_category = find_notebooks()
 
-    for category, notebook_list in notebooks_by_category.items():
-        print(f"Processing category: {category}")
-        for notebook_path in notebook_list:
-            processor = NotebookProcessor(notebook_path, category)
-            if processor.extract_first_image():
-                success_count += 1
-            total_count += 1
+        # Process each notebook
+        success_count = 0
+        total_count = 0
 
-    print(
-        f"\nSuccessfully extracted images from {success_count} out of {total_count} notebooks."
-    )
-    print(f"Thumbnails are stored in {THUMBNAIL_DIR}")
-    print(f"Gallery images are stored in {GALLERY_IMG_DIR}")
+        for category, notebook_list in notebooks_by_category.items():
+            print(f"Processing category: {category}")
+            for notebook_path in notebook_list:
+                processor = NotebookProcessor(notebook_path, category, temp_dir)
+                if processor.extract_first_image():
+                    success_count += 1
+                total_count += 1
+
+        print(
+            f"\nSuccessfully extracted images from {success_count} out of {total_count} notebooks."
+        )
+        print(f"Gallery images are stored in {GALLERY_IMG_DIR}")
+
+    # The temporary directory is automatically deleted when the context manager exits
+    print("Temporary thumbnail directory has been cleaned up")
+
+    # Check if _thumbnails directory exists and remove it if it does
+    thumbnails_dir = PROJECT_ROOT / "docs" / "source" / "_thumbnails"
+    if thumbnails_dir.exists():
+        print(f"Removing old _thumbnails directory: {thumbnails_dir}")
+        shutil.rmtree(thumbnails_dir)
 
 
 if __name__ == "__main__":
