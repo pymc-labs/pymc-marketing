@@ -25,7 +25,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_components.html
 :::
 
-:::{grid-item-card} MMM Multidimensional Example Notebook
+:::{grid-item-card} MMM Multidimensional Example Notebook (e.g. Geo-MMM)
 :img-top: ../gallery/images/mmm_multidimensional_example.png
 :link: ../notebooks/mmm/mmm_multidimensional_example.html
 :::
