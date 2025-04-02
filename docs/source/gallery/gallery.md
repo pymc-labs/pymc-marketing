@@ -1,3 +1,4 @@
+(gallery)=
 # Example Gallery
 
 ```{toctree}
