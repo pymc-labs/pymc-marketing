@@ -373,6 +373,7 @@ class BudgetOptimizer(BaseModel):
         self,
         total_budget: float,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
+        x0: np.ndarray | None = None,
         minimize_kwargs: dict[str, Any] | None = None,
         return_if_fail: bool = False,
     ) -> tuple[DataArray, OptimizeResult]:
@@ -391,8 +392,11 @@ class BudgetOptimizer(BaseModel):
             - If None, default bounds of [0, total_budget] per channel are assumed.
             - If a dict, must map each channel to (low, high) budget pairs (only valid if there's one dimension).
             - If an xarray.DataArray, must have dims (*budget_dims, "bound"), specifying [low, high] per channel cell.
+        x0 : np.ndarray, optional
+            Initial guess. Array of real elements of size (n,), where n is the number of driver budgets to optimize. If
+            None, the total budget is spread uniformly across all drivers to be optimized.
         minimize_kwargs : dict, optional
-            Extra kwargs for `scipy.optimize.minimize`. Defaults to method "SLSQP",
+            Extra kwargs for `scipy.optimize.minimize`. Defaults to method="SLSQP",
             ftol=1e-9, maxiter=1_000.
         return_if_fail : bool, optional
             Return output even if optimization fails. Default is False.
@@ -409,7 +413,15 @@ class BudgetOptimizer(BaseModel):
         MinimizeException
             If the optimization fails for any reason, the exception message will contain the details.
         """
+        # set total budget
         self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))
+
+        # coordinate user-provided and default minimize_kwargs
+        if minimize_kwargs is None:
+            minimize_kwargs = self.DEFAULT_MINIMIZE_KWARGS
+        else:
+            # Merge with defaults (preferring user-supplied keys)
+            minimize_kwargs = {**self.DEFAULT_MINIMIZE_KWARGS, **minimize_kwargs}
 
         # 1. Process budget bounds
         if budget_bounds is None:
@@ -466,21 +478,21 @@ class BudgetOptimizer(BaseModel):
         else:
             budgets_size = self.budgets_to_optimize.sum().item()
 
-        # 5. Create an initial guess
-        initial_guess = np.ones(budgets_size) * (total_budget / budgets_size)
-        initial_guess = initial_guess.astype(self._budgets_flat.type.dtype)
+        # 5. Construct the initial guess (x0) if not provided
+        if x0 is None:
+            x0 = np.ones(budgets_size) * (total_budget / budgets_size).astype(
+                self._budgets_flat.type.dtype
+            )
 
-        if minimize_kwargs is None:
-            minimize_kwargs = self.DEFAULT_MINIMIZE_KWARGS.copy()
-        else:
-            # Merge with defaults (preferring user-supplied keys)
-            minimize_kwargs = {**self.DEFAULT_MINIMIZE_KWARGS, **minimize_kwargs}
+        # filter x0 based on shape/type of self._budgets_flat
+        # will raise a TypeError if x0 does not have acceptable shape and/or type
+        x0 = self._budgets_flat.type.filter(x0)
 
         # 6. Run the SciPy optimizer
         result = minimize(
             fun=self._compiled_functions[self.utility_function]["objective_and_grad"],
+            x0=x0,
             jac=True,
-            x0=initial_guess,
             bounds=bounds,
             constraints=self._compiled_constraints,
             **minimize_kwargs,
