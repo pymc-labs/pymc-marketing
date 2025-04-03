@@ -13,6 +13,7 @@
 #   limitations under the License.
 import json
 import logging
+import warnings
 from collections import namedtuple
 from pathlib import Path
 
@@ -24,16 +25,20 @@ import pymc as pm
 import pytest
 import xarray as xr
 from mlflow.client import MlflowClient
+from pymc.exceptions import SamplingError
 
 from pymc_marketing.clv import BetaGeoModel
-from pymc_marketing.mlflow import (
-    autolog,
-    create_log_callback,
-    log_likelihood_type,
-    log_mmm_evaluation_metrics,
-    log_model_graph,
-    log_sample_diagnostics,
-)
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", FutureWarning)
+    from pymc_marketing.mlflow import (
+        autolog,
+        create_log_callback,
+        log_likelihood_type,
+        log_mmm_evaluation_metrics,
+        log_model_graph,
+        log_sample_diagnostics,
+    )
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
 from pymc_marketing.version import __version__
 
@@ -362,6 +367,55 @@ def test_autolog_pymc_model(model_with_likelihood, nuts_sampler) -> None:
     ]
 
     assert len(inputs) == 1
+
+
+@pytest.fixture(scope="module")
+def bad_starting_point_model() -> pm.Model:
+    data = [-5, -3, -1, 0, 1]
+
+    coords = {"idx": range(len(data))}
+    with pm.Model(coords=coords) as model:
+        alpha = pm.HalfNormal("alpha")
+        beta = pm.HalfNormal("beta")
+
+        pm.Gamma("obs", alpha=alpha, beta=beta, observed=data, dims="idx")
+
+    return model
+
+
+@pytest.mark.parametrize(
+    "nuts_sampler",
+    [
+        "pymc",
+        "numpyro",
+        "nutpie",
+        "blackjax",
+    ],
+)
+def test_sample_error_logged(bad_starting_point_model, nuts_sampler: str) -> None:
+    mlflow.set_experiment("pymc-marketing-test-suite-error-model")
+    with mlflow.start_run() as run:
+        draws = 30
+        tune = 25
+        chains = 2
+        try:
+            pm.sample(
+                draws=draws,
+                tune=tune,
+                chains=chains,
+                model=bad_starting_point_model,
+                nuts_sampler=nuts_sampler,
+            )
+        except Exception as e:
+            error = RuntimeError if nuts_sampler == "nutpie" else SamplingError
+            assert isinstance(e, error)
+
+    assert mlflow.active_run() is None
+
+    run_id = run.info.run_id
+    *_, artifacts = get_run_data(run_id)
+
+    assert "sample-error.txt" in artifacts
 
 
 @pytest.fixture(scope="module")
