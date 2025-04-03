@@ -55,8 +55,32 @@ We provide the following professional services:
 
 ## Quick links
 
-:::::{grid} 1 1 2 2
+:::::{grid} 1 1 2 3
 :gutter: 2
+
+::::{grid-item-card} Example Gallery
+:class-header: sd-text-center no-border
+:class-title: sd-text-center
+:class-footer: no-border
+
+{material-outlined}`photo_library;5em`
+^^^^^^^^^^^^^^^
+
+Browse our visual gallery of example notebooks to quickly
+find the techniques and models relevant to your
+marketing analytics needs.
+
++++
+
+:::{button-ref} gallery/gallery
+:expand:
+:color: secondary
+:click-parent:
+:ref-type: doc
+
+To the example gallery
+:::
+::::
 
 ::::{grid-item-card} Example notebooks
 :class-header: sd-text-center no-border
@@ -110,7 +134,7 @@ To the reference guide
 
 ## Bayesian Marketing Mix Modeling (MMM) in PyMC
 
-Leverage our Bayesian MMM API to tailor your marketing strategies effectively. Leveraging on top of the research article [Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017)](https://research.google/pubs/pub46001/),  and extending it by integrating the expertise from core PyMC developers, our API provides:
+Leverage our Bayesian MMM API to tailor your marketing strategies effectively. Leveraging on top of the research article [Jin, Yuxue, et al. "Bayesian methods for media mix modeling with carryover and shape effects." (2017)](https://research.google/pubs/pub46001/),  and extending it by integrating the expertise from core PyMC developers, our API provides:
 
 | Feature                                    | Benefit                                                                                                                                                                                                                                                                                                                                                                                 |
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -207,5 +231,6 @@ getting_started/index
 contributing/index
 guide/index
 api/index
+gallery/gallery
 notebooks/index
 :::

@@ -38,4 +38,4 @@ model.sample(data[["competitor", "own"]], data["new"])
 model.plot_fit();
 ```
 
-See the {ref}`howto` section for more information about using the customer choice module.
+See the {ref}`gallery` section for more information about using the customer choice module.

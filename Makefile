@@ -37,6 +37,7 @@ test:  ## Install test dependencies and run tests
 
 html: ## Install documentation dependencies and build HTML docs
 	pip install .[docs]
+	python scripts/generate_gallery.py
 	sphinx-build docs/source docs/build -b html
 
 cleandocs: ## Clean the documentation build directories
