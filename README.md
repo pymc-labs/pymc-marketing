@@ -106,10 +106,10 @@ mmm = MMM(
 Initiate fitting and get insightful plots and summaries. For example, we can plot the components contributions:
 
 ```python
-X = data.drop("y",axis=1)
+X = data.drop("y", axis=1)
 y = data["y"]
-mmm.fit(X,y)
-mmm.plot_components_contributions();
+mmm.fit(X, y)
+mmm.plot_components_contributions()
 ```
 
 ![](docs/source/_static/mmm_plot_components_contributions.png)
@@ -209,7 +209,7 @@ existing_products = ["competitor", "own"]
 # Create MVITS model
 mvits = MVITS(
     existing_sales=existing_products,
-    saturated_market=True  # Set False for unsaturated markets
+    saturated_market=True, # Set False for unsaturated markets
 )
 
 # Fit model
