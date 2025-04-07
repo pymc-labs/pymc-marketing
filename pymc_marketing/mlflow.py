@@ -29,6 +29,7 @@ are patched:
     - :func:`log_sample_diagnostics`: Log information derived from the InferenceData object.
     - :func:`log_arviz_summary`: Log table of summary statistics about estimated parameters
     - :func:`log_metadata`: Log the metadata of the data used in the model.
+    - :func:`log_error`: Log the exception if an error occurs during sampling.
 - `pymc.find_MAP`:
     - :func:`log_model_derived_info`: Log types of parameters, coords, model graph, etc.
 - `MMM.fit`:
@@ -1057,6 +1058,9 @@ def autolog(
         Whether to log the metadata of inputs used in the model. Default is True.
     log_model_info : bool, optional
         Whether to log model information. Default is True.
+    sample_error_file : str, optional
+        The name of the file to log the error if an error occurs during sampling. If
+        None, the error will not be logged. Default is "sample-error.txt".
     summary_var_names : list[str], optional
         The names of the variables to include in the ArviZ summary. Default is
         all the variables in the InferenceData object.
