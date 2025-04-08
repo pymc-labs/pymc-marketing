@@ -15,6 +15,12 @@ CLV:
       - docs/source/notebooks/clv/*
       - pymc_marketing/clv/**
 
+"Bass model":
+  - changed-files:
+    - any-glob-to-any-file:
+      - docs/source/notebooks/bass/*
+      - pymc_marketing/bass/**
+
 "customer choice":
   - changed-files:
     - any-glob-to-any-file:
