@@ -136,7 +136,11 @@ from pymc.model import Model
 from pymc_marketing.prior import Censored, Prior, VariableFactory, create_dim_handler
 
 
-def F(p, q, t):
+def F(
+    p: float | pt.TensorVariable,
+    q: float | pt.TensorVariable,
+    t: float | pt.TensorVariable,
+) -> pt.TensorVariable:
     r"""Installed base fraction (cumulative adoption proportion).
 
     This function calculates the cumulative proportion of adopters at time t,
@@ -169,7 +173,11 @@ def F(p, q, t):
     return (1 - pt.exp(-(p + q) * t)) / (1 + (q / p) * pt.exp(-(p + q) * t))
 
 
-def f(p, q, t):
+def f(
+    p: float | pt.TensorVariable,
+    q: float | pt.TensorVariable,
+    t: float | pt.TensorVariable,
+) -> pt.TensorVariable:
     r"""Installed base fraction rate of change (adoption rate).
 
     This function calculates the rate of new adoptions at time t as a
