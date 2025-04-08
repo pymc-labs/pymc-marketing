@@ -175,6 +175,7 @@ class TestBassModel:
         priors = bass_model_components.priors
         coords = bass_model_components.coords
 
+        # Create the main model to test its structure
         model = create_bass_model(
             t=t,
             observed=observed,
@@ -182,40 +183,85 @@ class TestBassModel:
             coords=coords,
         )
 
+        # Define the fixed parameter values for testing
+        m_val = 1000.0
+        p_val = 0.03
+        q_val = 0.38
+
+        # Calculate expected values using the formulas directly
+        expected_adopters = m_val * f(p_val, q_val, t).eval()
+        expected_innovators = m_val * p_val * (1 - F(p_val, q_val, t)).eval()
+        expected_imitators = (
+            m_val * q_val * F(p_val, q_val, t).eval() * (1 - F(p_val, q_val, t).eval())
+        )
+        expected_peak = (np.log(q_val) - np.log(p_val)) / (p_val + q_val)
+
+        # Check model structure
         with model:
-            # Use pm.sampling.draw_values to compute deterministic values with specific parameter values
-            point = {"m_": 1000, "p_": 0.03, "q_": 0.38}
+            # Generate samples from the prior to check model structure
+            prior_samples = pm.sample_prior_predictive(
+                draws=5,
+                var_names=["adopters", "innovators", "imitators", "peak"],
+                random_seed=42,
+            )
 
-            # Create evaluation functions for each variable of interest using eval_in_model directly
-            m = model.named_vars["m"]
-            p = model.named_vars["p"]
-            q = model.named_vars["q"]
+            # Verify basic model structure through dimensions and shapes
+            # Check that adopters are calculated for each time point
+            assert prior_samples.prior["adopters"].shape[2] == len(t)
 
-            # Function to compute adopters with fixed values
-            def compute_adopters():
-                return (1000 * f(0.03, 0.38, t)).eval()
+            # Check that innovators are calculated for each time point
+            assert prior_samples.prior["innovators"].shape[2] == len(t)
 
-            # Function to compute innovators with fixed values
-            def compute_innovators():
-                return (1000 * 0.03 * (1 - F(0.03, 0.38, t))).eval()
+            # Check that imitators are calculated for each time point
+            assert prior_samples.prior["imitators"].shape[2] == len(t)
 
-            # Function to compute imitators with fixed values
-            def compute_imitators():
-                return (1000 * 0.38 * F(0.03, 0.38, t) * (1 - F(0.03, 0.38, t))).eval()
+            # Verify that peak is a scalar (no time dimension)
+            assert (
+                len(prior_samples.prior["peak"].shape) == 2
+            )  # just chain and draw dims
 
-            # Function to compute peak with fixed values
-            def compute_peak():
-                return (np.log(0.38) - np.log(0.03)) / (0.03 + 0.38)
+        # Test formula correctness by direct calculation using numpy
+        # instead of pytensor for verification
+        F_values = (1 - np.exp(-(p_val + q_val) * t)) / (
+            1 + (q_val / p_val) * np.exp(-(p_val + q_val) * t)
+        )
+        f_values = (
+            (p_val + q_val)
+            * np.exp(-(p_val + q_val) * t)
+            / (1 + (q_val / p_val) * np.exp(-(p_val + q_val) * t)) ** 2
+        )
 
-            # Compute expected values
-            expected_adopters = compute_adopters()
-            expected_innovators = compute_innovators()
-            expected_imitators = compute_imitators()
-            expected_peak = compute_peak()
+        # Calculate the outputs with numpy
+        adopters_np = m_val * f_values
+        innovators_np = m_val * p_val * (1 - F_values)
+        imitators_np = m_val * q_val * F_values * (1 - F_values)
+        peak_np = (np.log(q_val) - np.log(p_val)) / (p_val + q_val)
 
-            # Skip complex assertions if computation is difficult
-            # The fact that the model can be created and basic manipulations work is sufficient
-            assert True
+        # Compare expected values with numpy-calculated values
+        np.testing.assert_allclose(
+            expected_adopters,
+            adopters_np,
+            rtol=1e-5,
+            err_msg="Adopters calculation is incorrect",
+        )
+
+        np.testing.assert_allclose(
+            expected_innovators,
+            innovators_np,
+            rtol=1e-5,
+            err_msg="Innovators calculation is incorrect",
+        )
+
+        np.testing.assert_allclose(
+            expected_imitators,
+            imitators_np,
+            rtol=1e-5,
+            err_msg="Imitators calculation is incorrect",
+        )
+
+        np.testing.assert_allclose(
+            expected_peak, peak_np, rtol=1e-5, err_msg="Peak calculation is incorrect"
+        )
 
     def test_bass_model_with_different_dims(
         self,
@@ -258,9 +304,6 @@ class TestBassModel:
             "y",
         ]:
             assert var_name in model.named_vars
-
-        # The fact that the model is created successfully with multiple dimensions is sufficient
-        assert True
 
     def test_sample_from_model(
         self,
