@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 Adapted from Wiki: https://en.wikipedia.org/wiki/Bass_diffusion_model
 
 """
+
+from typing import Any
 
 import pymc as pm
 import pytensor.tensor as pt
@@ -38,7 +40,7 @@ def create_bass_model(
     t: pt.TensorLike,
     observed: pt.TensorLike | None,
     priors: dict[str, Prior | Censored | VariableFactory],
-    coords,
+    coords: dict[str, Any],
 ) -> Model:
     """Define a Bass diffusion model."""
     with pm.Model(coords=coords) as model:
@@ -81,35 +83,3 @@ def create_bass_model(
         )
 
     return model
-
-
-if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-    import numpy as np
-    import pandas as pd
-
-    from pymc_marketing.plot import plot_curve
-
-    n_dates = 12 * 3
-    dates = pd.date_range(start="2020-01-01", periods=n_dates, freq="MS")
-    t = np.arange(n_dates)
-
-    coords = {"date": dates, "product": ["A", "B", "C"]}
-
-    priors = {
-        "m": Prior("DiracDelta", c=5000),
-        "p": Prior("Beta", alpha=13.85, beta=692.43, dims="product"),
-        "q": Prior("Beta", alpha=36.2, beta=54.4),
-        # "p": Prior("DiracDelta", c=0.01),
-        # "q": Prior("DiracDelta", c=0.15),
-        "likelihood": Prior(
-            "Poisson",
-            dims="date",
-        ),
-    }
-    model = create_bass_model(t, observed=None, priors=priors, coords=coords)
-    with model:
-        idata = pm.sample_prior_predictive()
-
-    idata.prior["y"].pipe(plot_curve, {"date"})
-    plt.show()
