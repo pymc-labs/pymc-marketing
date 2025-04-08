@@ -121,7 +121,7 @@ Create a basic Bass model for multiple products:
 
     # Plot the adoption curves
     fig, ax = plt.subplots(figsize=(10, 6))
-    idata.prior["y"].pipe(plot_curve, {"date"}, ax=ax)
+    idata.prior["y"].pipe(plot_curve, {"date"}, axes=ax)
     plt.title("Bass Model Prior Predictive Adoption Curves")
     plt.tight_layout()
 
@@ -223,6 +223,7 @@ def create_bass_model(
     effects in the adoption process.
 
     The model includes the following components:
+
     - Market potential 'm': Total number of eventual adopters
     - Innovation coefficient 'p': Measures external influence
     - Imitation coefficient 'q': Measures internal influence
