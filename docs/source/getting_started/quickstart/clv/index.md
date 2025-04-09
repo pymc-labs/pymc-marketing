@@ -19,4 +19,4 @@ beta_geo_model.fit()
 
 Once fitted, we can use the model to predict the number of future purchases for known customers, the probability that they are still alive, and get various visualizations plotted.
 
-See the {ref}`howto` section for more on this.
+See the {ref}`gallery` section for more on this.

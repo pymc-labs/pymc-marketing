@@ -16,7 +16,7 @@ dependencies:
 - preliz
 - pyprojroot
 # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
-- pymc>=5.20.0
+- pymc>=5.21.1
 - pymc-extras>=0.2.1
 - blackjax>=1.2.4
 - scikit-learn>=1.1.1
@@ -30,7 +30,6 @@ dependencies:
 - myst-parser
 - myst-nb
 - pydata-sphinx-theme>=0.12.0.dev0
-- roadmapper
 - sphinx-copybutton
 - sphinx-autodoc-typehints
 - sphinxext-opengraph
@@ -54,3 +53,5 @@ dependencies:
 - mlflow
 - hatch
 - pyprojroot
+- pip:
+  - roadmapper

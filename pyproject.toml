@@ -31,7 +31,7 @@ dependencies = [
     "pandas",
     "pydantic>=2.1.0",
     # NOTE: Used as minimum pymc version with test.yml `OLDEST_PYMC_VERSION`
-    "pymc>=5.20.0",
+    "pymc>=5.21.1",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "xarray>=2024.1.0",
@@ -41,10 +41,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dag = [
-    "dowhy",
-    "networkx",
-]
+dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2"]
 docs = [
     "blackjax",
     "fastprogress",
@@ -70,6 +67,7 @@ docs = [
     "mlflow>=2.0.0",
     "networkx",
     "dowhy",
+    "osqp<1.0.0,>=0.6.2",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
@@ -86,6 +84,7 @@ test = [
     "mlflow>=2.0.0",
     "networkx",
     "dowhy",
+    "osqp<1.0.0,>=0.6.2",
 ]
 
 [tool.hatch.build.targets.sdist]

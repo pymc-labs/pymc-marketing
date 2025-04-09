@@ -31,7 +31,8 @@ class TestBetaGeoModel:
     @classmethod
     def setup_class(cls):
         # Set random seed
-        cls.rng = np.random.default_rng(34)
+        cls.seed = 42
+        cls.rng = np.random.default_rng(cls.seed)
 
         # parameters
         cls.a_true = 0.793
@@ -294,14 +295,14 @@ class TestBetaGeoModel:
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
-        "fit_method, rtol",
+        "method, rtol",
         [
             ("mcmc", 0.1),
             ("map", 0.2),
             ("advi", 0.25),
         ],
     )
-    def test_model_convergence(self, fit_method, rtol, model_config):
+    def test_model_convergence(self, method, rtol, model_config):
         # b parameter has the largest mismatch of the four parameters
         model = BetaGeoModel(
             data=self.data,
@@ -309,10 +310,14 @@ class TestBetaGeoModel:
         )
         model.build_model()
 
-        sample_kwargs = (
-            dict(random_seed=self.rng, chains=2) if fit_method == "mcmc" else {}
-        )
-        model.fit(fit_method=fit_method, progressbar=False, **sample_kwargs)
+        if method == "advi":
+            sample_kwargs = dict(random_seed=self.seed)
+        if method == "mcmc":
+            sample_kwargs = dict(random_seed=self.seed, chains=2)
+        elif method == "map":
+            sample_kwargs = dict(seed=self.seed)
+
+        model.fit(method=method, progressbar=False, **sample_kwargs)
 
         fit = model.idata.posterior
         np.testing.assert_allclose(
@@ -1055,7 +1060,7 @@ class TestBetaGeoModelWithCovariates:
             model_config=self.model_with_covariates_phi_kappa.model_config
             | custom_priors,
         )
-        new_model.fit(fit_method="map")
+        new_model.fit(method="map")
 
         result = new_model.fit_result
         for var in default_model.free_RVs:

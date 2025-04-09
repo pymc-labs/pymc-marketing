@@ -30,6 +30,7 @@ from pymc.util import RandomState
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.utils import from_netcdf
+from pymc_marketing.version import __version__
 
 # If scikit-learn is available, use its data validator
 try:
@@ -204,7 +205,6 @@ class ModelBuilder(ABC):
         else:
             return check_array(X, accept_sparse=False)
 
-    @abstractmethod
     def _data_setter(
         self,
         X: np.ndarray | pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -219,21 +219,25 @@ class ModelBuilder(ABC):
         y : array, shape (n_obs,)
             The target values (real numbers).
 
-        Returns
-        -------
-        None
-
         Examples
         --------
-        >>> def _data_setter(self, data : pd.DataFrame):
-        >>>     with self.model:
-        >>>         pm.set_data({'x': X['x'].values})
-        >>>         try: # if y values in new data
-        >>>             pm.set_data({'y_data': y.values})
-        >>>         except: # dummies otherwise
-        >>>             pm.set_data({'y_data': np.zeros(len(data))})
+        Example logic of data_setter method
+
+        .. code-block:: python
+
+            def _data_setter(self, X, y=None):
+
+                data = {"X": X}
+                if y is None:
+                    y = np.zeros(len(X))
+                data["y"] = y
+
+                with self.model:
+                    pm.set_data(data)
 
         """
+        msg = "This model doesn't support setting new data, posterior_predictive, or out of sample methods."
+        raise NotImplementedError(msg)
 
     @property
     @abstractmethod
@@ -561,6 +565,7 @@ class ModelBuilder(ABC):
 
         model.idata = idata
         model.build_from_idata(idata)
+        model.post_sample_model_transformation()
 
         if model.id != idata.attrs["id"]:
             msg = (
@@ -642,6 +647,10 @@ class ModelBuilder(ABC):
 
         return xr.merge([X, y])
 
+    def post_sample_model_transformation(self) -> None:
+        """Perform transformation on the model after sampling."""
+        return
+
     def fit(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -707,11 +716,15 @@ class ModelBuilder(ABC):
         with self.model:
             idata = pm.sample(**sampler_kwargs)
 
+        self.post_sample_model_transformation()
+
         if self.idata:
             self.idata = self.idata.copy()
             self.idata.extend(idata, join="right")
         else:
             self.idata = idata
+
+        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
 
         if "fit_data" in self.idata:
             del self.idata.fit_data
@@ -862,6 +875,8 @@ class ModelBuilder(ABC):
 
         with self.model:  # sample with new input data
             prior_pred: az.InferenceData = pm.sample_prior_predictive(samples, **kwargs)
+            prior_pred["prior"].attrs["pymc_marketing_version"] = __version__
+            prior_pred["prior_predictive"].attrs["pymc_marketing_version"] = __version__
             self.set_idata_attrs(prior_pred)
 
         if extend_idata:
