@@ -196,6 +196,7 @@ def test_hsgp_to_dict() -> None:
         "drop_first": True,
         "cov_func": CovFunc.ExpQuad,
         "transform": None,
+        "demeaned_basis": False,
     }
 
 
@@ -235,6 +236,7 @@ def test_hsgp_periodic_to_dict() -> None:
         "X_mid": None,
         "dims": ("time",),
         "transform": None,
+        "demeaned_basis": False,
     }
 
 
@@ -254,6 +256,7 @@ def test_non_prior_parameters_still_serialize() -> None:
         "drop_first": True,
         "cov_func": CovFunc.ExpQuad,
         "transform": None,
+        "demeaned_basis": False,
     }
 
 

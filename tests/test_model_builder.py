@@ -16,7 +16,6 @@ import json
 import sys
 import tempfile
 
-import arviz as az
 import graphviz
 import numpy as np
 import pandas as pd
@@ -179,6 +178,10 @@ def test_save_input_params(fitted_model_instance):
     assert fitted_model_instance.idata.attrs["test_parameter"] == '"test_parameter"'
 
 
+def test_has_pymc_marketing_version(fitted_model_instance):
+    assert "pymc_marketing_version" in fitted_model_instance.posterior.attrs
+
+
 def test_save_load(fitted_model_instance):
     rng = np.random.default_rng(42)
     temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
@@ -211,7 +214,7 @@ def test_save_without_fit_raises_runtime_error():
         model_builder.save("saved_model")
 
 
-def test_empty_sampler_config_fit(toy_X, toy_y):
+def test_empty_sampler_config_fit(toy_X, toy_y, mock_pymc_sample):
     sampler_config = {}
     model_builder = ModelBuilderTest(sampler_config=sampler_config)
     model_builder.idata = model_builder.fit(
@@ -371,15 +374,36 @@ def test_prediction_kwarg(fitted_model_instance, toy_X):
     assert isinstance(result, xr.Dataset)
 
 
-def test_fit_after_prior_keeps_prior(toy_X, toy_y, mock_pymc_sample):
+@pytest.fixture(scope="module")
+def model_with_prior_predictive(toy_X) -> ModelBuilderTest:
     model = ModelBuilderTest()
     model.sample_prior_predictive(toy_X)
-    assert "prior" in model.idata
-    assert "prior_predictive" in model.idata
+    return model
 
-    model.fit(X=toy_X, y=toy_y, chains=1, draws=100, tune=100)
-    assert "prior" in model.idata
-    assert "prior_predictive" in model.idata
+
+def test_sample_prior_predictive_groups(model_with_prior_predictive):
+    assert "prior" in model_with_prior_predictive.idata
+    assert "prior_predictive" in model_with_prior_predictive.idata
+
+
+def test_sample_prior_predictive_has_pymc_marketing_version(
+    model_with_prior_predictive,
+):
+    assert "pymc_marketing_version" in model_with_prior_predictive.prior.attrs
+    assert (
+        "pymc_marketing_version" in model_with_prior_predictive.prior_predictive.attrs
+    )
+
+
+def test_fit_after_prior_keeps_prior(
+    model_with_prior_predictive,
+    toy_X,
+    toy_y,
+    mock_pymc_sample,
+):
+    model_with_prior_predictive.fit(X=toy_X, y=toy_y, chains=1, draws=100, tune=100)
+    assert "prior" in model_with_prior_predictive.idata
+    assert "prior_predictive" in model_with_prior_predictive.idata
 
 
 def test_second_fit(toy_X, toy_y, mock_pymc_sample):
@@ -402,9 +426,6 @@ class InsufficientModel(ModelBuilder):
     ) -> None:
         super().__init__(model_config=model_config, sampler_config=sampler_config)
         self.new_parameter = new_parameter
-
-    def _data_setter(self, X: pd.DataFrame, y: pd.Series = None) -> None:
-        pass
 
     def build_model(self, X: pd.DataFrame, y: pd.Series, model_config=None) -> None:
         with pm.Model() as self.model:
@@ -565,12 +586,7 @@ def test_fit_sampler_config_seed_reproducibility(toy_X, toy_y) -> None:
     assert idata.posterior.equals(idata2.posterior)
 
 
-def test_fit_sampler_config_with_rng_fails(mocker, toy_X, toy_y) -> None:
-    def mock_sample(*args, **kwargs):
-        idata = pm.sample_prior_predictive(10)
-        return az.InferenceData(posterior=idata.prior)
-
-    mocker.patch("pymc.sample", mock_sample)
+def test_fit_sampler_config_with_rng_fails(toy_X, toy_y, mock_pymc_sample) -> None:
     sampler_config = {
         "chains": 1,
         "draws": 10,
