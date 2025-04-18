@@ -108,7 +108,7 @@ class MNLogit(ModelBuilder):
 
         """
         alphas = Prior("Normal", mu=0, sigma=5, dims='alts')
-        betas = Prior("Normal", mu=0, sigma=1, dims='covariates')
+        betas = Prior("Normal", mu=0, sigma=1, dims='alt_covariates')
 
         return {
             "alphas_": alphas,
@@ -141,8 +141,11 @@ class MNLogit(ModelBuilder):
         return result
     
     @staticmethod
-    def _prepare_X_matrix(df, utility_formulas, depvar):
+    def prepare_X_matrix(df, utility_formulas, depvar):
         """ Helper function to prepare a X matrix for utility equations
+
+                alt1 ~ alt1_X1 + alt1_X2 | income 
+            
             The Dimensions of the X matrix should return a tensor
             with N observations x Alt x Covariates. Assumes utility
             formulas have an equal number of covariates per alternative. 
@@ -154,25 +157,40 @@ class MNLogit(ModelBuilder):
             The RHS of each formula needs to relate to a value of the dependent choice 
             variable and the LHS needs to express an additive relation of the available
             covariates
+
+            We also allow for the incorporation of fixed covariates which do not vary
+            across the alternatives.
         """
         n_obs = len(df)
         n_alts = len(utility_formulas)
-        n_covariates = len(utility_formulas[0].split('+'))
+        n_covariates = len(utility_formulas[0].split('|')[0].split('+'))
 
         alts = []
-        stack = []
+        alt_covariates = []
+        fixed_covariates = []
         for f in utility_formulas:
             split = f.split('~')
-            f = split[1]
-            f = '0 +' + f
-            stack.append(np.asarray(patsy.dmatrix(f, df)).T)
+            covariates_split = split[1]
+            fixed_covariates_split = covariates_split.split('|')
+            f = '0 +' + fixed_covariates_split[0]
+            alt_covariates.append(np.asarray(patsy.dmatrix(f, df)).T)
             alts.append(split[0].strip())
+            if len(fixed_covariates_split) > 1:
+                fixed_covariates.append(fixed_covariates_split[1])
 
-        X = np.stack(stack, axis=1).T
+        if fixed_covariates:  
+            F = '+'.join(np.unique(fixed_covariates))
+            F = '0 + ' + F
+            F = np.asarray(patsy.dmatrix(F, df))
+        else:
+            F = []
+        
+        X = np.stack(alt_covariates, axis=1).T
         assert X.shape == (n_obs, n_alts, n_covariates)
         for a in alts: 
             assert a in df[depvar].values
-        return X, alts
+
+        return X, F, alts, np.unique(fixed_covariates)
     
     @staticmethod
     def _prepare_y_outcome(df, alternatives, depvar):
@@ -188,21 +206,21 @@ class MNLogit(ModelBuilder):
         return y
     
     @staticmethod
-    def _prepare_coords(df, alternatives, covariates):
+    def _prepare_coords(df, alternatives, covariates, f_covariates):
         coords = {
             "alts": alternatives,
-            # the alternatives without the reference alt
             "alts_probs": alternatives[:-1],
-            "covariates": covariates,
-            "obs": list(range(len(df))),
-        }
+            "alt_covariates": covariates,
+            'fixed_covariates': [s.strip() for s in [s.split('+') for s in f_covariates][0]],
+            "obs": range(len(df)),
+    }
         return coords
     
     def preprocess_model_data(
         self,
     ) -> None:
 
-        self.X, self.alternatives = self._prepare_X_matrix(self.choice_df, 
+        self.X, self.F, self.alternatives, self.fixed_covar = self.prepare_X_matrix(self.choice_df, 
                                                            self.utility_equations, 
                                                            self.depvar)
         self.y = self._prepare_y_outcome(self.choice_df, self.alternatives, self.depvar)
@@ -210,13 +228,14 @@ class MNLogit(ModelBuilder):
         # note: type hints for coords required for mypy to not get confused
         self.coords: dict[str, list[str]] = self._prepare_coords(self.choice_df, 
                                                                  self.alternatives, 
-                                                                 self.covariates)
+                                                                 self.covariates, 
+                                                                 self.fixed_covar)
         
     def build_model(
         self
         ) -> None:
         self.preprocess_model_data()  # type: ignore
-
+        
         with pm.Model(coords=self.coords) as model:
             # Intercept Parameters
             alphas = self.model_config["alphas_"].create_variable(name="alphas_")
@@ -224,16 +243,24 @@ class MNLogit(ModelBuilder):
             betas = self.model_config["betas"].create_variable("betas")
 
             # Instantiate covariate data for each Utility function
-            X_data = pm.Data('X', self.X, dims=('obs', 'alts', 'covariates'))
+            X_data = pm.Data('X', self.X, dims=('obs', 'alts', 'alt_covariates'))
             # Instantiate outcome data
             observed = pm.Data('y', self.y, dims='obs')
+            if self.F is not None:
+                betas_fixed_ = pm.Normal('betas_fixed_', 0, 1, dims=('alts','fixed_covariates'))
+                betas_fixed = pm.Deterministic('betas_fixed', pt.set_subtensor(betas_fixed_[-1, :], 0), 
+                dims=('alts','fixed_covariates'))
+                F_data = pm.Data('F', self.F)
+                F = pm.Deterministic('F_interaction', pm.math.dot(F_data, betas_fixed.T))
+            else: 
+                F = pt.zeros(observed.shape[0])
 
             # Compute utility as a dot product
             U = pm.math.dot(X_data, betas)  # (N, alts)
             # Zero out reference alternative intercept
             alphas = pm.Deterministic('alphas', pt.set_subtensor(alphas[-1], 0), 
             dims='alts')
-            U = pm.Deterministic("U", U + alphas, dims=("obs", "alts"))
+            U = pm.Deterministic("U", F + U + alphas, dims=("obs", "alts"))
             ## Apply Softmax Transform
             p_ = pm.Deterministic("p", pm.math.softmax(U, axis=1), 
             dims=("obs", "alts"))
@@ -276,7 +303,7 @@ class MNLogit(ModelBuilder):
         with self.model:  # sample with new input data
             prior_pred: az.InferenceData = pm.sample_prior_predictive(500, **kwargs)
             self.set_idata_attrs(prior_pred)
-        
+
         if extend_idata:
             if self.idata is not None:
                 self.idata.extend(prior_pred)
@@ -339,7 +366,7 @@ class MNLogit(ModelBuilder):
         sample_posterior_predictive_kwargs = sample_posterior_predictive_kwargs or {}
         self.build_model()
 
-        self.sample_prior_predictive(extend_idata=False, kwargs=sample_prior_predictive_kwargs)
+        self.sample_prior_predictive(extend_idata=True, kwargs=sample_prior_predictive_kwargs)
         self.fit(extend_idata=True, kwargs=fit_kwargs)
         self.sample_posterior_predictive(extend_idata=True, kwargs=sample_posterior_predictive_kwargs)
         return self
