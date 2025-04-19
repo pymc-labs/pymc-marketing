@@ -7,6 +7,7 @@
   :recursive:
   :toctree: generated/
 
+  bass
   clv
   customer_choice
   deserialize
