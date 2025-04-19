@@ -112,6 +112,17 @@ from pymc.distributions.shape_utils import Dims
 
 from pymc_marketing.deserialize import deserialize, register_deserialization
 
+__all__ = [
+    "Censored",
+    "MuAlreadyExistsError",
+    "Prior",
+    "UnknownTransformError",
+    "UnsupportedDistributionError",
+    "UnsupportedParameterizationError",
+    "UnsupportedShapeError",
+    "register_tensor_transform",
+]
+
 
 class UnsupportedShapeError(Exception):
     """Error for when the shapes from variables are not compatible."""
@@ -1418,3 +1429,19 @@ def _is_censored_type(data: dict) -> bool:
 
 register_deserialization(is_type=_is_prior_type, deserialize=Prior.from_dict)
 register_deserialization(is_type=_is_censored_type, deserialize=Censored.from_dict)
+
+
+class PartialPrior:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def __call__(self, **parameters):
+        return Prior(self.name, **parameters)
+
+    def __iter__(self):
+        return iter([])
+
+
+def __getattr__(name: str):
+    _get_pymc_distribution(name)
+    return PartialPrior(name)
