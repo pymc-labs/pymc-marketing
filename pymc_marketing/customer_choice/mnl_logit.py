@@ -36,7 +36,8 @@ from pymc_marketing.prior import Prior
 HDI_ALPHA = 0.5
 
 class MNLogit(ModelBuilder):
-    """Multinomial Logit class.
+    """
+    Multinomial Logit class.
 
     Class to perform a multinomial logit analysis with the
     specific intent of determining the product attribute
@@ -44,31 +45,53 @@ class MNLogit(ModelBuilder):
 
     Parameters
     ----------
-    choice_df: pd.DataFrame
-        A wide data frame with each row denoting a choice scenario. 
-        We record product specific attributes in columns to be used as covariates
-        and the dependent variable of the chosen product in that choice scenario.
-        +------------+-----------------------------+
-        | Depvar     | 'X1_alt1'                   |
-        +============+=============================+
-        | 'alt_1'    | 3.4                         |
-        +------------+-----------------------------+
-        | 'alt_2'    | Description of parameter  |
-        +------------+-----------------------------+
+    choice_df : pd.DataFrame
+        A wide DataFrame where each row is a choice scenario. Product-specific
+        attributes are stored in columns, and the dependent variable identifies
+        the chosen product.
+
     utility_equations : list of formula strings
         A list of formulas specifying how to model the utility of
-        each product alternative. For example 
-            ['alt_1 ~ X1_alt1 + X2_alt2', 
-             'alt_2 ~ X1_alt2 + X2_alt2',
-             'alt_3 ~ X1_alt3 + X2_alt3']
-    depvar: str
-        The name of the dependent variable in the choice_df
-    covariates: list of covariate names
-        For example ['X1', 'X2']
+        each product alternative. The formulas should be in Wilkinson
+        style notation and allow the target product to be specified as
+        as a function of the alternative specific attributes and the individual
+        specific attributes: 
+        target_product ~ target_attribute1 + target_attribute2 | individual_attribute
+
+    depvar : str
+        The name of the dependent variable in the choice_df.
+
+    covariates : list of str
+        Covariate names (e.g., ['X1', 'X2']).
+
     model_config : dict, optional
-        The model configuration. If None, the default model configuration will be used.
+        Model configuration. If None, the default config is used.
+
     sampler_config : dict, optional
-        The sampler configuration. If None, the default sampler configuration will be used.
+        Sampler configuration. If None, the default config is used.
+
+    Notes
+    -----
+
+    Example:
+    -------
+    The format of `choice_df`:
+
+        +------------+------------+------------+------------+------------+
+        | Depvar     | alt_1_X1   | alt_1_X2   | alt_2_X1   | alt_2_X2   |
+        +============+============+============+============+============+
+        | alt_1      | 2.4        | 4.5        | 5.4        | 6.7        |
+        +------------+------------+------------+------------+------------+
+        | alt_2      | 3.5        | 6.7        | 2.3        | 8.9        |
+        +------------+------------+------------+------------+------------+
+
+    Example `utility_equations` list:
+
+    >>> utility_equations = [
+    ...     'alt_1 ~ X1_alt1 + X2_alt1 | income',
+    ...     'alt_2 ~ X1_alt2 + X2_alt2 | income',
+    ...     'alt_3 ~ X1_alt3 + X2_alt3 | income'
+    ... ]
 
     """
 
@@ -140,8 +163,23 @@ class MNLogit(ModelBuilder):
 
         return result
     
-    @staticmethod
-    def prepare_X_matrix(df, utility_formulas, depvar):
+    def parse_formula(self, df, formula, depvar):
+        """ Helper function to parse the three part
+            structure of the formula specification
+        """
+        target, covariates = formula.split('~')
+        target = target.strip()
+        alt_covariates, fixed_covariates = covariates.split('|')
+        alt_covariates = alt_covariates.strip()
+        fixed_covariates = fixed_covariates.strip()
+        assert target in df[depvar].unique()
+        for f in fixed_covariates.split('+'): 
+            assert f.strip() in df.columns
+        for a in alt_covariates.split('+'):
+            assert a.strip() in df.columns
+        return target, alt_covariates, fixed_covariates
+    
+    def prepare_X_matrix(self, df, utility_formulas, depvar):
         """ Helper function to prepare a X matrix for utility equations
 
                 alt1 ~ alt1_X1 + alt1_X2 | income 
@@ -154,12 +192,13 @@ class MNLogit(ModelBuilder):
             The utility formulas should express the driver relationship
             between the choice value in the dependent variable and the attributes
             of the alternative that would incentivise that choice. 
-            The RHS of each formula needs to relate to a value of the dependent choice 
-            variable and the LHS needs to express an additive relation of the available
+            The LHS of each formula needs to relate to a value of the dependent choice 
+            variable and the RHS needs to express an additive relation of the available
             covariates
 
             We also allow for the incorporation of fixed covariates which do not vary
-            across the alternatives.
+            across the alternatives. For the fixed covariates we need an alternative specific
+            parameter to identify the contribution to utility varies.
         """
         n_obs = len(df)
         n_alts = len(utility_formulas)
@@ -169,17 +208,15 @@ class MNLogit(ModelBuilder):
         alt_covariates = []
         fixed_covariates = []
         for f in utility_formulas:
-            split = f.split('~')
-            covariates_split = split[1]
-            fixed_covariates_split = covariates_split.split('|')
-            f = '0 +' + fixed_covariates_split[0]
+            target, alt_covar, fixed_covar = self.parse_formula(df, f, depvar)
+            f = '0 + ' + alt_covar
             alt_covariates.append(np.asarray(patsy.dmatrix(f, df)).T)
-            alts.append(split[0].strip())
-            if len(fixed_covariates_split) > 1:
-                fixed_covariates.append(fixed_covariates_split[1])
+            alts.append(target)
+            if fixed_covar:
+                fixed_covariates.append(fixed_covar)
 
         if fixed_covariates:  
-            F = '+'.join(np.unique(fixed_covariates))
+            F = np.unique(fixed_covariates)[0]
             F = '0 + ' + F
             F = np.asarray(patsy.dmatrix(F, df))
         else:
@@ -187,9 +224,6 @@ class MNLogit(ModelBuilder):
         
         X = np.stack(alt_covariates, axis=1).T
         assert X.shape == (n_obs, n_alts, n_covariates)
-        for a in alts: 
-            assert a in df[depvar].values
-
         return X, F, alts, np.unique(fixed_covariates)
     
     @staticmethod
