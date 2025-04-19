@@ -571,21 +571,17 @@ class TestMMM:
     ) -> None:
         budget = 2.0
         num_periods = 8
-        time_granularity = "weekly"
         budget_bounds = optimizer_xarray_builder(
             value=[[0.5, 1.2], [0.5, 1.5]],
             channel=["channel_1", "channel_2"],
             bound=["lower", "upper"],
         )
-        noise_level = "bad_noise_level"
 
         with pytest.raises(ValueError, match="noise_level must be a float"):
-            mmm_fitted.allocate_budget_to_maximize_response(
+            mmm_fitted.optimize_budget(
                 budget=budget,
-                time_granularity=time_granularity,
                 num_periods=num_periods,
                 budget_bounds=budget_bounds,
-                noise_level=noise_level,
             )
 
     @pytest.mark.parametrize(
