@@ -173,6 +173,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mv_its_unsaturated.png
 :link: ../notebooks/customer_choice/mv_its_unsaturated.html
 :::
+
+:::{grid-item-card} Multinomial Logit Discrete Choice
+:img-top: ../gallery/images/mnl_logit.png
+:link: ../notebooks/customer_choice/mnl_logit.html
+:::
 ::::
 
 ## General Tutorials
