@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Multinomial Logit for Product Preference Analysis."""
+"""Nested Logit for Product Preference Analysis."""
 
 import json
 from typing import Any, cast
@@ -35,11 +35,11 @@ from pymc_marketing.prior import Prior
 
 HDI_ALPHA = 0.5
 
-class MNLogit(ModelBuilder):
+class NestedLogit(ModelBuilder):
     """
-    Multinomial Logit class.
+    Nested Logit class.
 
-    Class to perform a multinomial logit analysis with the
+    Class to perform a nested logit analysis with the
     specific intent of determining the product attribute
     effects on consumer preference.
 
@@ -62,7 +62,10 @@ class MNLogit(ModelBuilder):
         The name of the dependent variable in the choice_df.
 
     covariates : list of str
-        Covariate names (e.g., ['X1', 'X2']).
+        Covariate names (e.g., ['X1', 'X2'])
+
+    nested_structure: dict
+        Dictionary to specify how to nest the choices between products
 
     model_config : dict, optional
         Model configuration. If None, the default config is used.
@@ -95,7 +98,7 @@ class MNLogit(ModelBuilder):
 
     """
 
-    _model_type = "Multinomial Logit Model"
+    _model_type = "Nested Logit Model"
     version = "0.1.0"
 
     def __init__(
@@ -104,6 +107,7 @@ class MNLogit(ModelBuilder):
         utility_equations: list[str],
         depvar: str,
         covariates: list[str],
+        nesting_structure: dict,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
@@ -111,6 +115,7 @@ class MNLogit(ModelBuilder):
         self.utility_equations = utility_equations
         self.depvar = depvar
         self.covariates = covariates
+        self.nesting_structure = nesting_structure
 
         model_config = model_config or {}
         model_config = parse_model_config(model_config)
