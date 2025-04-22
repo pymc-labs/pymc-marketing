@@ -1051,12 +1051,6 @@ def test_censored_logp(mu) -> None:
     np.testing.assert_allclose(logp(point), expected_logp(point))
 
 
-def test_to_json_deprecation() -> None:
-    match = "The `to_json` method is deprecated"
-    with pytest.warns(DeprecationWarning, match=match):
-        Prior("Normal").to_json()
-
-
 def test_from_json_deprecation() -> None:
     data = {
         "dist": "Normal",

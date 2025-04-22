@@ -800,24 +800,6 @@ class Prior:
 
         return data
 
-    def to_json(self) -> dict[str, Any]:
-        """Convert the prior to dictionary format.
-
-        Deprecated in favor of :function:`pymc_marketing.prior.Prior.to_dict`.
-
-        Returns
-        -------
-        dict[str, Any]
-            The dictionary format of the prior.
-
-        """
-        warnings.warn(
-            "The `to_json` method is deprecated in favor of `to_dict`",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.to_dict()
-
     @classmethod
     def from_dict(cls, data) -> Prior:
         """Create a Prior from the dictionary format.
