@@ -1049,12 +1049,3 @@ def test_censored_logp(mu) -> None:
 
     point = {}
     np.testing.assert_allclose(logp(point), expected_logp(point))
-
-
-def test_from_json_deprecation() -> None:
-    data = {
-        "dist": "Normal",
-    }
-    match = "The `from_json` method is deprecated"
-    with pytest.warns(DeprecationWarning, match=match):
-        Prior.from_json(data)
