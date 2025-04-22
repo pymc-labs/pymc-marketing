@@ -20,6 +20,7 @@ from typing import Any, ClassVar, Protocol, runtime_checkable
 
 import arviz as az
 import numpy as np
+import pytensor
 import pytensor.tensor as pt
 import xarray as xr
 from arviz import InferenceData
@@ -189,7 +190,11 @@ class BudgetOptimizer(BaseModel):
         else:
             size_budgets = self.budgets_to_optimize.sum().item()
 
-        self._budgets_flat = pt.tensor("budgets_flat", shape=(size_budgets,))
+        self._budgets_flat = pt.tensor(
+            "budgets_flat",
+            shape=(size_budgets,),
+            dtype=pytensor.config.floatX,
+        )
 
         if self.budgets_to_optimize is None:
             # No mask case: reshape entire vector
