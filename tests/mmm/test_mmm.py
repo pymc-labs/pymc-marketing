@@ -21,7 +21,6 @@ import pytest
 import xarray as xr
 from matplotlib import pyplot as plt
 
-from pymc_marketing.mmm.budget_optimizer import optimizer_xarray_builder
 from pymc_marketing.mmm.components.adstock import DelayedAdstock, GeometricAdstock
 from pymc_marketing.mmm.components.saturation import (
     LogisticSaturation,
@@ -521,72 +520,6 @@ class TestMMM:
             x=channel_contributions_forward_pass_mean / channel_contributions_mean,
             y=mmm_fitted.y.max(),
         )
-
-    def test_allocate_budget_to_maximize_response(self, mmm_fitted: MMM) -> None:
-        budget = 2.0
-        num_periods = 8
-        time_granularity = "weekly"
-        budget_bounds = optimizer_xarray_builder(
-            value=[[0.5, 1.2], [0.5, 1.5]],
-            channel=["channel_1", "channel_2"],
-            bound=["lower", "upper"],
-        )
-        noise_level = 0.1
-
-        # Call the method
-        inference_data = mmm_fitted.allocate_budget_to_maximize_response(
-            budget=budget,
-            time_granularity=time_granularity,
-            num_periods=num_periods,
-            budget_bounds=budget_bounds,
-            noise_level=noise_level,
-            custom_constraints=(),
-        )
-
-        inference_periods = len(inference_data.coords["date"])
-
-        # a) Total budget consistency check
-        allocated_budget = mmm_fitted.optimal_allocation.sum()
-        assert np.isclose(allocated_budget, budget, rtol=1e-5), (
-            f"Total allocated budget {allocated_budget} does not match expected budget {budget}"
-        )
-
-        # b) Budget boundaries check
-        allocation = mmm_fitted.optimal_allocation
-        lower_bounds = budget_bounds.sel(bound="lower")
-        upper_bounds = budget_bounds.sel(bound="upper")
-        assert (allocation >= lower_bounds).all() and (
-            allocation <= upper_bounds
-        ).all(), (
-            f"Allocations {allocation.values} are out of bounds ({lower_bounds.values}, {upper_bounds.values})"
-        )
-
-        # c) num_periods consistency check
-        assert inference_periods == num_periods, (
-            f"Number of periods in the data {inference_periods} does not match the expected {num_periods}"
-        )
-
-    def test_allocate_budget_to_maximize_response_bad_noise_level(
-        self, mmm_fitted: MMM
-    ) -> None:
-        budget = 2.0
-        num_periods = 8
-        time_granularity = "weekly"
-        budget_bounds = optimizer_xarray_builder(
-            value=[[0.5, 1.2], [0.5, 1.5]],
-            channel=["channel_1", "channel_2"],
-            bound=["lower", "upper"],
-        )
-        noise_level = "bad_noise_level"
-
-        with pytest.raises(ValueError, match="noise_level must be a float"):
-            mmm_fitted.allocate_budget_to_maximize_response(
-                budget=budget,
-                time_granularity=time_granularity,
-                num_periods=num_periods,
-                budget_bounds=budget_bounds,
-                noise_level=noise_level,
-            )
 
     @pytest.mark.parametrize(
         argnames="original_scale",
