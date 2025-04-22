@@ -662,19 +662,6 @@ class BetaGeoModel(CLVModel):
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
 
-    def expected_num_purchases_new_customer(self, *args, **kwargs) -> xarray.DataArray:
-        """Compute the expected number of purchases for a new customer.
-
-        This is a deprecated method and will be removed in a future release.
-        Please use `BetaGeoModel.expected_purchases_new_customer` instead.
-        """
-        warnings.warn(
-            "Deprecated method. Use 'expected_purchases_new_customer' instead.",
-            FutureWarning,
-            stacklevel=1,
-        )
-        self.expected_purchases_new_customer(*args, **kwargs)
-
     def expected_purchases_new_customer(
         self,
         data: pd.DataFrame | None = None,

@@ -575,13 +575,6 @@ class TestBetaGeoModel:
             rtol=0.001,
         )
 
-    def test_expected_num_purchases_new_customer_warning(self):
-        with pytest.warns(
-            FutureWarning,
-            match="Deprecated method. Use 'expected_purchases_new_customer' instead.",
-        ):
-            self.model.expected_num_purchases_new_customer(t=10)
-
     def test_expected_probability_alive(self):
         true_prob_alive = self.lifetimes_model.conditional_probability_alive(
             frequency=self.frequency,
