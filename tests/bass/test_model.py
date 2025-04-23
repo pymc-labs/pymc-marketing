@@ -62,7 +62,7 @@ def bass_model_components() -> tuple[
         "likelihood": Prior("Poisson"),
     }
 
-    coords = {"date": np.arange(len(t))}
+    coords = {"T": np.arange(len(t))}
 
     return BassModelComponents(t=t, observed=observed, priors=priors, coords=coords)
 
@@ -334,7 +334,7 @@ class TestBassModel:
             assert "y" in prior_samples.prior_predictive
 
             # Check that dimensions are correct
-            assert prior_samples.prior["adopters"].dims == ("chain", "draw", "date")
+            assert prior_samples.prior["adopters"].dims == ("chain", "draw", "T")
 
     def test_bass_model_with_likelihood_having_additional_dims(
         self,
@@ -416,22 +416,19 @@ class TestBassModel:
             prior_samples = pm.sample_prior_predictive(draws=1, random_seed=42)
 
             # Check dimensions of all variables
-            assert set(prior_samples.prior["adopters"].dims[2:]) == {"date", "product"}
+            assert set(prior_samples.prior["adopters"].dims[2:]) == {"T", "product"}
             assert set(prior_samples.prior["innovators"].dims[2:]) == {
-                "date",
+                "T",
                 "product",
             }
-            assert set(prior_samples.prior["imitators"].dims[2:]) == {"date", "product"}
+            assert set(prior_samples.prior["imitators"].dims[2:]) == {"T", "product"}
 
             # Peak should have product dimension since p and q have it
             assert "product" in prior_samples.prior["peak"].dims
-            assert "date" not in prior_samples.prior["peak"].dims
+            assert "T" not in prior_samples.prior["peak"].dims
 
             # Check that y has both date and product dimensions
-            assert set(prior_samples.prior_predictive["y"].dims[2:]) == {
-                "date",
-                "product",
-            }
+            assert set(prior_samples.prior_predictive["y"].dims[2:]) == {"T", "product"}
 
     def test_bass_model_with_no_dimensions(
         self,
@@ -469,7 +466,7 @@ class TestBassModel:
             assert (
                 len(prior_samples.prior["peak"].dims) == 2
             )  # Only chain and draw dimensions
-            assert "date" in prior_samples.prior["adopters"].dims
+            assert "T" in prior_samples.prior["adopters"].dims
 
     def test_bass_model_with_different_param_dimensions(
         self,
@@ -551,10 +548,10 @@ class TestBassModel:
 
             # Check that custom dimension is included
             dims = set(prior_samples.prior["adopters"].dims[2:])
-            assert "date" in dims
+            assert "T" in dims
             assert "channel" in dims
 
             # Peak should have custom dimension but not date
             peak_dims = set(prior_samples.prior["peak"].dims[2:])
-            assert "date" not in peak_dims
+            assert "T" not in peak_dims
             assert "channel" in peak_dims

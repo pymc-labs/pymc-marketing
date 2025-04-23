@@ -285,14 +285,14 @@ def create_bass_model(
         )
         likelihood_dims = set(getattr(priors["likelihood"], "dims", ()) or ())
 
-        combined_dims = ("date", *tuple(parameter_dims.union(likelihood_dims)))
+        combined_dims = ("T", *tuple(parameter_dims.union(likelihood_dims)))
         dim_handler = create_dim_handler(combined_dims)
 
         m = dim_handler(priors["m"].create_variable("m"), priors["m"].dims)
         p = dim_handler(priors["p"].create_variable("p"), priors["p"].dims)
         q = dim_handler(priors["q"].create_variable("q"), priors["q"].dims)
 
-        time = dim_handler(t, "date")
+        time = dim_handler(t, "T")
 
         adopters = pm.Deterministic("adopters", m * f(p, q, time), dims=combined_dims)
 
