@@ -1806,7 +1806,6 @@ class MMM(
         channels: list[str] | None = None,
         quantile_lower: float = 0.05,
         quantile_upper: float = 0.95,
-        method: str | None = None,
     ) -> plt.Figure:
         """Plot the direct contribution curves for each marketing channel.
 
@@ -1816,15 +1815,13 @@ class MMM(
         Parameters
         ----------
         show_fit : bool, optional
-            If True, the function will also plot the curve fit based on the specified method. Defaults to False.
+            If True, the function will also plot the curve fit. Defaults to False.
         xlim_max : int, optional
             The maximum value to be plot on the X-axis. If not provided, the maximum value in the data will be used.
         channels : List[str], optional
             A list of channels to plot. If not provided, all channels will be plotted.
         same_axes : bool, optional
             If True, all channels will be plotted on the same axes. Defaults to False.
-        method : str | None, optional
-            Deprecated.
 
         Returns
         -------
@@ -1833,13 +1830,6 @@ class MMM(
 
         """
         channels_to_plot = self.channel_columns if channels is None else channels
-
-        if method is not None:
-            warnings.warn(
-                "The 'method' keyword is deprecated and will be removed in a future version.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
 
         if not all(channel in self.channel_columns for channel in channels_to_plot):
             unknown_channels = set(channels_to_plot) - set(self.channel_columns)
@@ -2400,102 +2390,6 @@ class MMM(
             total_budget=budget,
             budget_bounds=budget_bounds,
             **minimize_kwargs,
-        )
-
-    def allocate_budget_to_maximize_response(
-        self,
-        budget: float | int,
-        time_granularity: Literal["daily", "weekly", "monthly", "quarterly", "yearly"],
-        num_periods: int,
-        budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
-        custom_constraints: Sequence[dict[str, Any]] | None = None,
-        noise_level: float = 0.01,
-        utility_function: UtilityFunctionType = average_response,
-        **minimize_kwargs,
-    ) -> az.InferenceData:
-        """Allocate the given budget to maximize the response over a specified time period.
-
-        .. deprecated:: 0.1.0
-            This method is deprecated and will be removed in a future version.
-            Use :meth:`optimize_budget` instead.
-
-        This function optimizes the allocation of a given budget across different channels
-        to maximize the response, considering adstock and saturation effects. It scales the
-        budget and budget bounds, performs the optimization, and generates a synthetic dataset
-        for posterior predictive sampling.
-
-        The function first scales the budget and budget bounds using the maximum scale
-        of the channel transformer. It then uses the `BudgetOptimizer` to allocate the
-        budget, and creates a synthetic dataset based on the optimal allocation. Finally,
-        it performs posterior predictive sampling on the synthetic dataset.
-
-        **Important**: When generating the posterior predicive distribution for the target with the optimized budget,
-        we are setting the control variables to zero! This is done because in many situations we do not have all the
-        control variables in the future (e.g. outlier control, special events).
-
-        Parameters
-        ----------
-        budget : float or int
-            The total budget to be allocated.
-        time_granularity : str
-            The granularity of the time units (num_periods) (e.g., 'daily', 'weekly', 'monthly').
-        num_periods : float
-            The number of time units over which the budget is to be allocated.
-        budget_bounds : DatArray or dict[str, list[Any]], optional
-            An xarray DataArray or a dictionary specifying the lower and upper bounds for the budget allocation
-            for each channel. If None, no bounds are applied.
-        custom_constraints : Sequence[dict[str, Any]], optional
-            Custom constraints for the optimization. If None, no custom constraints are applied.
-        noise_level : float, optional
-            The level of noise added to the allocation strategy (by default 1%).
-        utility_function : UtilityFunctionType, optional
-            The utility function to maximize. Default is the mean of the response distribution.
-        **minimize_kwargs
-            Additional arguments to pass to the `BudgetOptimizer`.
-
-        Returns
-        -------
-        az.InferenceData
-            The posterior predictive samples generated from the synthetic dataset.
-
-        Raises
-        ------
-        ValueError
-            If the time granularity is not supported.
-
-        ValueError
-            If the noise level is not a float.
-        """
-        from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
-
-        warnings.warn(
-            "This method is deprecated and will be removed in a future version. "
-            "Use optimize_budget() instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        if not isinstance(noise_level, float):
-            raise ValueError("noise_level must be a float")
-
-        allocator = BudgetOptimizer(
-            model=self,
-            num_periods=num_periods,
-            utility_function=utility_function,
-            custom_constraints=custom_constraints,
-            default_constraints=True,
-        )
-        self.optimal_allocation, _ = allocator.allocate_budget(
-            total_budget=budget,
-            budget_bounds=budget_bounds,
-            **minimize_kwargs,
-        )
-
-        return self.sample_response_distribution(
-            allocation_strategy=self.optimal_allocation,
-            time_granularity=time_granularity,
-            num_periods=num_periods,
-            noise_level=noise_level,
         )
 
     def plot_budget_allocation(

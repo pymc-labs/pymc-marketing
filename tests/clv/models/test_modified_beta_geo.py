@@ -286,69 +286,6 @@ class TestModifiedBetaGeoModel:
         ):
             mbg_model.expected_probability_no_purchase(t=test_t, data=data)
 
-    def test_expected_num_purchases(self):
-        customer_id = np.arange(10)
-        test_t = np.linspace(20, 38, 10)
-        test_frequency = np.tile([1, 3, 5, 7, 9], 2)
-        test_recency = np.tile([20, 30], 5)
-        test_T = np.tile([25, 35], 5)
-        data = pd.DataFrame(
-            {
-                "customer_id": customer_id,
-                "frequency": test_frequency,
-                "recency": test_recency,
-                "T": test_T,
-            }
-        )
-
-        mbg_model = ModifiedBetaGeoModel(data=data)
-        mbg_model.build_model()
-        mbg_model.idata = az.from_dict(
-            {
-                "a": np.full((2, 5), self.a_true),
-                "b": np.full((2, 5), self.b_true),
-                "alpha": np.full((2, 5), self.alpha_true),
-                "r": np.full((2, 5), self.r_true),
-            }
-        )
-
-        # TODO: Give this its own test after API revisions completed.
-        with pytest.warns(
-            FutureWarning,
-            match="Deprecated method. Use 'expected_purchases' instead.",
-        ):
-            res_num_purchases = mbg_model.expected_num_purchases(
-                customer_id,
-                test_t,
-                test_frequency,
-                test_recency,
-                test_T,
-            )
-        assert res_num_purchases.shape == (2, 5, 10)
-        assert res_num_purchases.dims == ("chain", "draw", "customer_id")
-
-        # Compare with lifetimes
-        lifetimes_mbg_model = ModifiedBetaGeoFitter()
-        lifetimes_mbg_model.params_ = {
-            "a": self.a_true,
-            "b": self.b_true,
-            "alpha": self.alpha_true,
-            "r": self.r_true,
-        }
-        lifetimes_res_num_purchases = (
-            lifetimes_mbg_model.conditional_expected_number_of_purchases_up_to_time(
-                t=test_t,
-                frequency=test_frequency,
-                recency=test_recency,
-                T=test_T,
-            )
-        )
-        np.testing.assert_allclose(
-            res_num_purchases.mean(("chain", "draw")),
-            lifetimes_res_num_purchases,
-            rtol=0.1,
-        )
-
     @pytest.mark.parametrize("test_t", [1, 3, 6])
     def test_expected_purchases(self, test_t):
         true_purchases = (
@@ -388,13 +325,6 @@ class TestModifiedBetaGeoModel:
             est_purchases_new.mean(("chain", "draw", "customer_id")),
             rtol=0.001,
         )
-
-    def test_expected_num_purchases_new_customer_warning(self):
-        with pytest.warns(
-            FutureWarning,
-            match="Deprecated method. Use 'expected_purchases_new_customer' instead.",
-        ):
-            self.model.expected_num_purchases_new_customer(t=10)
 
     def test_expected_probability_alive(self):
         true_prob_alive = self.lifetimes_model.conditional_probability_alive(

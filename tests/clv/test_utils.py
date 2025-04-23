@@ -25,7 +25,6 @@ from pymc_marketing.clv.utils import (
     _expected_cumulative_transactions,
     _find_first_transactions,
     _rfm_quartile_labels,
-    clv_summary,
     customer_lifetime_value,
     rfm_segments,
     rfm_summary,
@@ -687,10 +686,6 @@ class TestRFM:
         )
         actual = rfm_summary(transactions, "identifier", "t", time_unit="W")
         assert actual.loc[0]["frequency"] == 1.0 - 1.0
-
-    def test_clv_summary_warning(self, transaction_data):
-        with pytest.warns(UserWarning, match="clv_summary was renamed to rfm_summary"):
-            clv_summary(transaction_data, "identifier", "date")
 
     def test_rfm_train_test_split(self, transaction_data):
         # Test adapted from
