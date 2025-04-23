@@ -47,6 +47,19 @@ class CLVModel(ModelBuilder):
         non_distributions: list[str] | None = None,
     ):
         model_config = model_config or {}
+
+        deprecated_keys = [key for key in model_config if key.endswith("_prior")]
+        for key in deprecated_keys:
+            new_key = key.replace("_prior", "")
+            warnings.warn(
+                f"The key '{key}' in model_config is deprecated and will be removed in future versions."
+                f"Use '{new_key}' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+            model_config[new_key] = model_config.pop(key)
+
         model_config = parse_model_config(
             model_config,
             non_distributions=non_distributions,
@@ -96,14 +109,15 @@ class CLVModel(ModelBuilder):
 
     def fit(  # type: ignore
         self,
-        fit_method: str = "mcmc",
+        method: str = "mcmc",
+        fit_method: str | None = None,
         **kwargs,
     ) -> az.InferenceData:
         """Infer model posterior.
 
         Parameters
         ----------
-        fit_method: str
+        method: str
             Method used to fit the model. Options are:
             - "mcmc": Samples from the posterior via `pymc.sample` (default)
             - "map": Finds maximum a posteriori via `pymc.find_MAP`
@@ -116,8 +130,17 @@ class CLVModel(ModelBuilder):
         """
         self.build_model()  # type: ignore
 
+        if fit_method:
+            warnings.warn(
+                "'fit_method' is deprecated and will be removed in a future release. "
+                "Use 'method' instead.",
+                DeprecationWarning,
+                stacklevel=1,
+            )
+            method = fit_method
+
         approx = None
-        match fit_method:
+        match method:
             case "mcmc":
                 idata = self._fit_mcmc(**kwargs)
             case "map":
@@ -130,7 +153,7 @@ class CLVModel(ModelBuilder):
                 approx, idata = self._fit_approx(method="fullrank_advi", **kwargs)
             case _:
                 raise ValueError(
-                    f"Fit method options are ['mcmc', 'map', 'demz', 'advi', 'fullrank_advi'], got: {fit_method}"
+                    f"Fit method options are ['mcmc', 'map', 'demz', 'advi', 'fullrank_advi'], got: {method}"
                 )
 
         self.idata = idata
@@ -182,7 +205,7 @@ class CLVModel(ModelBuilder):
         if self.sampler_config is not None:
             sampler_config = self.sampler_config.copy()
 
-        sampler_config.update(**kwargs)
+        sampler_config = {**sampler_config, **kwargs}
         if sampler_config.get("method") is not None:
             raise ValueError(
                 "The 'method' parameter is set in sampler_config. Cannot be called with 'advi'."
@@ -279,11 +302,27 @@ class CLVModel(ModelBuilder):
                 model_config=json.loads(idata.attrs["model_config"]),  # type: ignore
                 sampler_config=json.loads(idata.attrs["sampler_config"]),
             )
+
         model.idata = idata
+        model._rename_posterior_variables()
+
         model.build_model()  # type: ignore
         if model.id != idata.attrs["id"]:
             raise ValueError(f"Inference data not compatible with {cls._model_type}")
         return model
+
+    def _rename_posterior_variables(self):
+        """Rename variables in the posterior group to remove the _prior suffix.
+
+        This is used to support the old model configuration format, which used
+        to include a _prior suffix for each parameter.
+        """
+        prior_vars = [
+            var for var in self.idata.posterior.data_vars if var.endswith("_prior")
+        ]
+        rename_dict = {var: var.replace("_prior", "") for var in prior_vars}
+        self.idata.posterior = self.idata.posterior.rename(rename_dict)
+        return self.idata.posterior
 
     def thin_fit_result(self, keep_every: int):
         """Return a copy of the model with a thinned fit result.
@@ -341,8 +380,4 @@ class CLVModel(ModelBuilder):
     @property
     def output_var(self):
         """Output variable of the model."""
-        pass
-
-    def _data_setter(self):
-        """Set the data for the model."""
         pass

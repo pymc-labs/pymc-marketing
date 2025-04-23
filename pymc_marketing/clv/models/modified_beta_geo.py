@@ -54,12 +54,12 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             * `T`: Time between the first purchase and the end of the observation period
     model_config : dict, optional
         Dictionary of model prior parameters:
-            * `alpha_prior`: Scale parameter for time between purchases; defaults to `Prior("HalfFlat")`
-            * `r_prior`: Shape parameter for time between purchases; defaults to `Prior("HalfFlat")`
-            * `a_prior`: Shape parameter of dropout process; defaults to `phi_purchase_prior` * `kappa_purchase_prior`
-            * `b_prior`: Shape parameter of dropout process; defaults to `1-phi_dropout_prior` * `kappa_dropout_prior`
-            * `phi_dropout_prior`: Nested prior for a and b priors; defaults to `Prior("Uniform", lower=0, upper=1)`
-            * `kappa_dropout_prior`: Nested prior for a and b priors; defaults to `Prior("Pareto", alpha=1, m=1)`
+            * `alpha`: Scale parameter for time between purchases; defaults to `Prior("HalfFlat")`
+            * `r`: Shape parameter for time between purchases; defaults to `Prior("HalfFlat")`
+            * `a`: Shape parameter of dropout process; defaults to `phi_purchase` * `kappa_purchase`
+            * `b`: Shape parameter of dropout process; defaults to `1-phi_dropout` * `kappa_dropout`
+            * `phi_dropout`: Nested prior for a and b priors; defaults to `Prior("Uniform", lower=0, upper=1)`
+            * `kappa_dropout`: Nested prior for a and b priors; defaults to `Prior("Pareto", alpha=1, m=1)`
     sampler_config : dict, optional
         Dictionary of sampler parameters. Defaults to *None*.
 
@@ -93,10 +93,10 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         model = ModifiedBetaGeoModel(
             data=data,
             model_config={
-                "r_prior": Prior("HalfFlat"),
-                "alpha_prior": Prior("HalfFlat"),
-                "a_prior": Prior("HalfFlat"),
-                "b_prior": Prior("HalfFlat),
+                "r": Prior("HalfFlat"),
+                "alpha": Prior("HalfFlat"),
+                "a": Prior("HalfFlat"),
+                "b": Prior("HalfFlat),
             },
             sampler_config={
                 "draws": 1000,
@@ -147,21 +147,21 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         }
         with pm.Model(coords=coords) as self.model:
             # purchase rate priors
-            alpha = self.model_config["alpha_prior"].create_variable("alpha")
-            r = self.model_config["r_prior"].create_variable("r")
+            alpha = self.model_config["alpha"].create_variable("alpha")
+            r = self.model_config["r"].create_variable("r")
 
             # dropout priors
-            if "a_prior" in self.model_config and "b_prior" in self.model_config:
-                a = self.model_config["a_prior"].create_variable("a")
-                b = self.model_config["b_prior"].create_variable("b")
+            if "a" in self.model_config and "b" in self.model_config:
+                a = self.model_config["a"].create_variable("a")
+                b = self.model_config["b"].create_variable("b")
             else:
                 # hierarchical pooling of dropout rate priors
-                phi_dropout = self.model_config["phi_dropout_prior"].create_variable(
+                phi_dropout = self.model_config["phi_dropout"].create_variable(
                     "phi_dropout"
                 )
-                kappa_dropout = self.model_config[
-                    "kappa_dropout_prior"
-                ].create_variable("kappa_dropout")
+                kappa_dropout = self.model_config["kappa_dropout"].create_variable(
+                    "kappa_dropout"
+                )
 
                 a = pm.Deterministic("a", phi_dropout * kappa_dropout)
                 b = pm.Deterministic("b", (1.0 - phi_dropout) * kappa_dropout)

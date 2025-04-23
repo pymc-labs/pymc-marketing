@@ -99,7 +99,7 @@ class TestContNonContract:
             lam = pm.Gamma(name="lam", alpha=1, beta=1, size=lam_size)
             p = pm.Beta(name="p", alpha=1.0, beta=1.0, size=p_size)
             ContNonContract(name="cnc", lam=lam, p=p, T=10, size=cnc_size)
-            prior = pm.sample_prior_predictive(samples=100)
+            prior = pm.sample_prior_predictive(draws=100)
 
         assert prior["prior"]["cnc"][0].shape == (100,) + expected_size  # noqa: RUF005
 
@@ -171,7 +171,7 @@ class TestContContract:
             lam = pm.Gamma(name="lam", alpha=1, beta=1, size=lam_size)
             p = pm.Beta(name="p", alpha=1.0, beta=1.0, size=p_size)
             ContContract(name="cc", lam=lam, p=p, T=10, size=cc_size)
-            prior = pm.sample_prior_predictive(samples=100)
+            prior = pm.sample_prior_predictive(draws=100)
 
         assert prior["prior"]["cc"][0].shape == (100,) + expected_size  # noqa: RUF005
 
@@ -276,7 +276,7 @@ class TestParetoNBD:
                 T=T,
                 size=pareto_nbd_size,
             )
-            prior = pm.sample_prior_predictive(samples=100)
+            prior = pm.sample_prior_predictive(draws=100)
 
         assert prior["prior"]["pareto_nbd"][0].shape == (100, *expected_size)
 
@@ -438,7 +438,7 @@ class TestBetaGeoBetaBinom:
                 T=T,
                 size=beta_geo_beta_binom_size,
             )
-            prior = pm.sample_prior_predictive(samples=1000)
+            prior = pm.sample_prior_predictive(draws=1000)
             prior = prior["prior"]["beta_geo_beta_binom"][0]
             recency = prior[:, 0]
             frequency = prior[:, 1]
@@ -640,7 +640,7 @@ class TestBetaGeoNBD:
                 T=T,
                 size=bg_nbd_size,
             )
-            prior = pm.sample_prior_predictive(samples=100)
+            prior = pm.sample_prior_predictive(draws=100)
 
         assert prior["prior"]["bg_nbd"][0].shape == (100, *expected_size)
 
@@ -750,7 +750,7 @@ class TestModifiedBetaGeoNBD:
                 T=T,
                 size=mbg_nbd_size,
             )
-            prior = pm.sample_prior_predictive(samples=100)
+            prior = pm.sample_prior_predictive(draws=100)
 
         assert prior["prior"]["mbg_nbd"][0].shape == (100, *expected_size)
 

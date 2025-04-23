@@ -12,7 +12,7 @@ def mock_sample(*args, **kwargs):
     idata = pm.sample_prior_predictive(
         model=model,
         random_seed=random_seed,
-        samples=samples,
+        draws=samples,
     )
     idata.add_groups(posterior=idata.prior)
 

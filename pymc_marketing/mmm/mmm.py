@@ -43,6 +43,7 @@ from pymc_marketing.mmm.components.saturation import (
     saturation_from_dict,
 )
 from pymc_marketing.mmm.fourier import YearlyFourier
+from pymc_marketing.mmm.hsgp import SoftPlusHSGP
 from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
@@ -57,6 +58,7 @@ from pymc_marketing.mmm.utils import (
 from pymc_marketing.mmm.validating import ValidateControlColumns
 from pymc_marketing.model_builder import _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.prior import Prior
 
 __all__ = ["MMM", "BaseMMM"]
@@ -144,7 +146,7 @@ class BaseMMM(BaseValidateMMM):
         time_varying_intercept : bool, optional
             Whether to consider time-varying intercept, by default False.
             Because the `time-varying` variable is centered around 1 and acts as a multiplier,
-            the variable `baseline_intercept` now represents the mean of the time-varying intercept.
+            the variable `intercept_baseline` now represents the mean of the time-varying intercept.
         time_varying_media : bool, optional
             Whether to consider time-varying media contributions, by default False.
             The `time-varying-media` creates a time media variable centered around 1,
@@ -237,6 +239,26 @@ class BaseMMM(BaseValidateMMM):
                 prior=self.model_config["gamma_fourier"],
                 variable_name="gamma_fourier",
             )
+
+    def post_sample_model_transformation(self) -> None:
+        """Post-sample model transformation in order to store the HSGP state from fit."""
+        names = []
+        if self.time_varying_intercept:
+            names.extend(
+                SoftPlusHSGP.deterministics_to_replace(
+                    "intercept_temporal_latent_multiplier"
+                )
+            )
+        if self.time_varying_media:
+            names.extend(
+                SoftPlusHSGP.deterministics_to_replace(
+                    "media_temporal_latent_multiplier"
+                )
+            )
+        if not names:
+            return
+
+        self.model = deterministics_to_flat(self.model, names=names)
 
     @property
     def default_sampler_config(self) -> dict:
@@ -479,8 +501,8 @@ class BaseMMM(BaseValidateMMM):
                 )
 
             if self.time_varying_intercept:
-                baseline_intercept = self.model_config["intercept"].create_variable(
-                    "baseline_intercept"
+                intercept_baseline = self.model_config["intercept"].create_variable(
+                    "intercept_baseline"
                 )
 
                 intercept_latent_process = create_time_varying_gp_multiplier(
@@ -493,7 +515,7 @@ class BaseMMM(BaseValidateMMM):
                 )
                 intercept = pm.Deterministic(
                     name="intercept",
-                    var=baseline_intercept * intercept_latent_process,
+                    var=intercept_baseline * intercept_latent_process,
                     dims="date",
                 )
             else:
@@ -2162,10 +2184,24 @@ class MMM(
                 "Unsupported time granularity. Choose from 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'."
             )
 
-        if controls is not None:
+        mmm_has_controls = (
+            self.control_columns is not None
+            and len(self.control_columns) > 0
+            and all(
+                column in self.preprocessed_data["X"].columns
+                for column in self.control_columns
+            )
+        )
+
+        if controls is not None and mmm_has_controls:
             _controls: list[str] = controls
+        elif controls is not None and not mmm_has_controls:
+            raise ValueError(
+                """The model was built without controls and cannot translate the provided controls to contributions.
+                Remove the controls from the function call and try again."""
+            )
         else:
-            controls = []
+            _controls = []
 
         last_date = pd.to_datetime(df[date_column]).max()
         new_dates = []
