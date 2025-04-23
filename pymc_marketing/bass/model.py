@@ -280,7 +280,6 @@ def create_bass_model(
         \text{peak} &= \frac{\ln(q) - \ln(p)}{p + q}
     """
     with pm.Model(coords=coords) as model:
-        # Get all dimensions from parameters, and include likelihood dimensions if any
         parameter_dims = (
             set(priors["p"].dims).union(priors["q"].dims).union(priors["m"].dims)
         )
