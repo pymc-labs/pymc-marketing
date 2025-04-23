@@ -285,6 +285,7 @@ def create_bass_model(
             set(priors["p"].dims).union(priors["q"].dims).union(priors["m"].dims)
         )
         likelihood_dims = set(getattr(priors["likelihood"], "dims", ()) or ())
+
         combined_dims = ("date", *tuple(parameter_dims.union(likelihood_dims)))
         dim_handler = create_dim_handler(combined_dims)
 
@@ -306,6 +307,13 @@ def create_bass_model(
             m * q * F(p, q, time) * (1 - F(p, q, time)),
             dims=combined_dims,
         )
+
+        peak = (pt.log(q) - pt.log(p)) / (p + q)
+        if parameter_dims:
+            peak_dims = tuple(parameter_dims)
+            pm.Deterministic("peak", peak, dims=peak_dims)
+        else:
+            pm.Deterministic("peak", peak)
 
         priors["likelihood"].dims = combined_dims
         priors["likelihood"].create_likelihood_variable(  # type: ignore

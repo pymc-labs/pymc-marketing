@@ -159,6 +159,7 @@ class TestBassModel:
             "adopters",
             "innovators",
             "imitators",
+            "peak",
             "y",
         ]
         for var in expected_vars:
@@ -193,13 +194,14 @@ class TestBassModel:
         expected_imitators = (
             m_val * q_val * F(p_val, q_val, t).eval() * (1 - F(p_val, q_val, t).eval())
         )
+        expected_peak = (np.log(q_val) - np.log(p_val)) / (p_val + q_val)
 
         # Check model structure
         with model:
             # Generate samples from the prior to check model structure
             prior_samples = pm.sample_prior_predictive(
                 draws=5,
-                var_names=["adopters", "innovators", "imitators"],
+                var_names=["adopters", "innovators", "imitators", "peak"],
                 random_seed=42,
             )
 
@@ -212,6 +214,11 @@ class TestBassModel:
 
             # Check that imitators are calculated for each time point
             assert prior_samples.prior["imitators"].shape[2] == len(t)
+
+            # Verify that peak is a scalar (no time dimension)
+            assert (
+                len(prior_samples.prior["peak"].shape) == 2
+            )  # just chain and draw dims
 
         # Test formula correctness by direct calculation using numpy
         # instead of pytensor for verification
@@ -228,6 +235,7 @@ class TestBassModel:
         adopters_np = m_val * f_values
         innovators_np = m_val * p_val * (1 - F_values)
         imitators_np = m_val * q_val * F_values * (1 - F_values)
+        peak_np = (np.log(q_val) - np.log(p_val)) / (p_val + q_val)
 
         # Compare expected values with numpy-calculated values
         np.testing.assert_allclose(
@@ -249,6 +257,10 @@ class TestBassModel:
             imitators_np,
             rtol=1e-5,
             err_msg="Imitators calculation is incorrect",
+        )
+
+        np.testing.assert_allclose(
+            expected_peak, peak_np, rtol=1e-5, err_msg="Peak calculation is incorrect"
         )
 
     def test_bass_model_with_different_dims(
@@ -289,6 +301,7 @@ class TestBassModel:
             "adopters",
             "innovators",
             "imitators",
+            "peak",
             "y",
         ]:
             assert var_name in model.named_vars
@@ -361,6 +374,7 @@ class TestBassModel:
         assert "adopters" in model.named_vars
         assert "innovators" in model.named_vars
         assert "imitators" in model.named_vars
+        assert "peak" in model.named_vars
         assert "y" in model.named_vars
 
     def test_bass_model_with_likelihood_and_params_having_dimensions(
@@ -408,6 +422,10 @@ class TestBassModel:
                 "product",
             }
             assert set(prior_samples.prior["imitators"].dims[2:]) == {"date", "product"}
+
+            # Peak should have product dimension since p and q have it
+            assert "product" in prior_samples.prior["peak"].dims
+            assert "date" not in prior_samples.prior["peak"].dims
 
             # Check that y has both date and product dimensions
             assert set(prior_samples.prior_predictive["y"].dims[2:]) == {
