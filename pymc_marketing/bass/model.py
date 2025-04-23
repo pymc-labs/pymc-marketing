@@ -280,10 +280,12 @@ def create_bass_model(
         \text{peak} &= \frac{\ln(q) - \ln(p)}{p + q}
     """
     with pm.Model(coords=coords) as model:
-        combined_dims = (
-            "date",
-            *set(priors["p"].dims).union(priors["q"].dims).union(priors["m"].dims),
+        # Get all dimensions from parameters, and include likelihood dimensions if any
+        parameter_dims = (
+            set(priors["p"].dims).union(priors["q"].dims).union(priors["m"].dims)
         )
+        likelihood_dims = set(getattr(priors["likelihood"], "dims", ()) or ())
+        combined_dims = ("date", *tuple(parameter_dims.union(likelihood_dims)))
         dim_handler = create_dim_handler(combined_dims)
 
         m = dim_handler(priors["m"].create_variable("m"), priors["m"].dims)
@@ -303,12 +305,6 @@ def create_bass_model(
             "imitators",
             m * q * F(p, q, time) * (1 - F(p, q, time)),
             dims=combined_dims,
-        )
-
-        pm.Deterministic(
-            "peak",
-            (pt.log(q) - pt.log(p)) / (p + q),
-            dims=combined_dims[1:],
         )
 
         priors["likelihood"].dims = combined_dims
