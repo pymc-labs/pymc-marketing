@@ -309,11 +309,8 @@ def create_bass_model(
         )
 
         peak = (pt.log(q) - pt.log(p)) / (p + q)
-        if parameter_dims:
-            peak_dims = tuple(parameter_dims)
-            pm.Deterministic("peak", peak, dims=peak_dims)
-        else:
-            pm.Deterministic("peak", peak)
+        peak_dims = tuple(parameter_dims) if parameter_dims else None
+        pm.Deterministic("peak", peak, dims=peak_dims)
 
         priors["likelihood"].dims = combined_dims
         priors["likelihood"].create_likelihood_variable(  # type: ignore
