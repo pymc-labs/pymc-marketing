@@ -13,14 +13,17 @@
 #   limitations under the License.
 """Tests for the Bass diffusion model."""
 
+from typing import Any
+
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 import pymc as pm
 import pytest
 from pydantic import BaseModel, ConfigDict
 
 from pymc_marketing.bass.model import F, create_bass_model, f
-from pymc_marketing.prior import Prior
+from pymc_marketing.prior import Prior, Scaled
 
 
 class BassModelComponents(BaseModel):
@@ -30,6 +33,41 @@ class BassModelComponents(BaseModel):
     coords: dict[str, npt.NDArray[np.int_]]
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+def setup_simulation_parameters(
+    n_weeks: int = 52,
+    n_products: int = 15,
+    start_date: str = "2023-01-01",
+    cutoff_start_date: str = "2023-12-01",
+) -> tuple[
+    npt.NDArray[np.int_],
+    pd.DatetimeIndex,
+    pd.DatetimeIndex,
+    list[str],
+    pd.Series,
+    dict[str, Any],
+]:
+    """Set up initial parameters for the Bass diffusion model simulation."""
+    seed = sum(map(ord, "Bass Model"))
+    rng = np.random.default_rng(seed)
+
+    # Create time array and date range
+    T = np.arange(n_weeks)
+    possible_dates = pd.date_range(start_date, freq="W-MON", periods=n_weeks)
+    cutoff_start_date = pd.to_datetime(cutoff_start_date)
+    cutoff_start_date = cutoff_start_date + pd.DateOffset(weeks=1)
+    possible_start_dates = possible_dates[possible_dates < cutoff_start_date]
+
+    # Generate product names and random start dates
+    products = [f"P{i}" for i in range(n_products)]
+    product_start = pd.Series(
+        rng.choice(possible_start_dates, size=len(products)),
+        index=pd.Index(products, name="product"),
+    )
+
+    coords = {"T": T, "product": products}
+    return T, possible_dates, possible_start_dates, products, product_start, coords
 
 
 @pytest.fixture
@@ -555,3 +593,29 @@ class TestBassModel:
             peak_dims = set(prior_samples.prior["peak"].dims[2:])
             assert "T" not in peak_dims
             assert "channel" in peak_dims
+
+    def test_bass_model_simulation(self) -> None:
+        T, *_, coords = setup_simulation_parameters()
+
+        priors = {
+            "m": Scaled(
+                Prior("Gamma", mu=1, sigma=0.001, dims="product"), factor=50_000
+            ),
+            "p": Prior("Beta", mu=0.38, sigma=0.05, dims="product"),
+            "q": Prior("Beta", mu=0.35, sigma=0.3, dims="product"),
+            "likelihood": Prior("NegativeBinomial", n=1.5, dims="product"),
+        }
+
+        model = create_bass_model(
+            t=T,
+            observed=None,
+            priors=priors,
+            coords=coords,
+        )
+
+        with model:
+            prior_samples = pm.sample_prior_predictive(draws=10, random_seed=42)
+            assert "adopters" in prior_samples["prior"]
+            assert "innovators" in prior_samples["prior"]
+            assert "imitators" in prior_samples["prior"]
+            assert "peak" in prior_samples["prior"]

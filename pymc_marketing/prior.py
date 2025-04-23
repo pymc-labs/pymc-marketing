@@ -1418,3 +1418,32 @@ def _is_censored_type(data: dict) -> bool:
 
 register_deserialization(is_type=_is_prior_type, deserialize=Prior.from_dict)
 register_deserialization(is_type=_is_censored_type, deserialize=Censored.from_dict)
+
+
+class Scaled:
+    """Scaled distribution for numerical stability."""
+
+    def __init__(self, dist: Prior, factor: float | pt.TensorVariable) -> None:
+        self.dist = dist
+        self.factor = factor
+
+    @property
+    def dims(self) -> Dims:
+        """The dimensions of the scaled distribution."""
+        return self.dist.dims
+
+    def create_variable(self, name: str) -> pt.TensorVariable:
+        """Create a scaled variable.
+
+        Parameters
+        ----------
+        name : str
+            The name of the variable.
+
+        Returns
+        -------
+        pt.TensorVariable
+            The scaled variable.
+        """
+        var = self.dist.create_variable(f"{name}_unscaled")
+        return pm.Deterministic(name, var * self.factor, dims=self.dims)
