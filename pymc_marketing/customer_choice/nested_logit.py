@@ -282,44 +282,99 @@ class NestedLogit(ModelBuilder):
                                                                  self.fixed_covar)
         
         return X, F, y
+    
+
+    def make_exp_nest(self, U, w_nest, lambdas_nests, nest, parent_lambda=None):
+        nest_indices = self.nesting_structure
+        lambda_lkup = self.lambda_lkup
+        N = U.shape[0]
+        
+        y_nest = U[:, nest_indices[nest]]
+        if len(nest_indices[nest]) > 1:
+            max_y_nest = pm.math.max(y_nest, axis=0)
+            P_y_given_nest = pm.Deterministic(
+                f"p_y_given_{nest}",
+                pm.math.softmax(y_nest / lambdas_nests[lambda_lkup[nest]], axis=1),
+                dims=("obs", f"{nest}_alts"),
+            )
+        else:
+            max_y_nest = pm.math.max(y_nest)
+            ones = pm.math.ones((N, 1))
+            P_y_given_nest = pm.Deterministic(f"p_y_given_{nest}", ones)
+        if parent_lambda is None:
+            lambda_ = lambdas_nests[lambda_lkup[nest]]
+            I_nest = pm.Deterministic(
+                f"I_{nest}", pm.math.logsumexp((y_nest - max_y_nest) / lambda_)
+            )
+            W_nest = w_nest + I_nest * lambda_
+        else:
+            l1 = lambdas_nests[lambda_lkup[nest]]
+            l2 = lambdas_nests[lambda_lkup[parent_lambda]]
+            lambdas_ = l1 * l2
+            I_nest = pm.Deterministic(
+                f"I_{nest}", pm.math.logsumexp((y_nest - max_y_nest) / lambdas_)
+            )
+            W_nest = w_nest + I_nest * (lambdas_)
+
+        exp_W_nest = pm.math.exp(W_nest)
+        return exp_W_nest, P_y_given_nest
         
     def build_model(
-        self, X, F, y
+        self, X, W, y
         ) -> None:
-        
-        with pm.Model(coords=self.coords) as model:
-            # Intercept Parameters
-            alphas = self.model_config["alphas_"].create_variable(name="alphas_")
-            # Covariate Weight Parameters
-            betas = self.model_config["betas"].create_variable("betas")
+        nest_indices = self.nesting_structure
+        coords = self.coords
 
-            # Instantiate covariate data for each Utility function
-            X_data = pm.Data('X', X, dims=('obs', 'alts', 'alt_covariates'))
-            # Instantiate outcome data
-            observed = pm.Data('y', y, dims='obs')
-            if self.F is not None:
-                betas_fixed_ = self.model_config["betas_fixed_"].create_variable(name="betas_fixed_")
-                betas_fixed = pm.Deterministic('betas_fixed', pt.set_subtensor(betas_fixed_[-1, :], 0), 
-                dims=('alts','fixed_covariates'))
-                F_data = pm.Data('F', F)
-                F = pm.Deterministic('F_interaction', pm.math.dot(F_data, betas_fixed.T))
+        with pm.Model(coords=coords) as model:
+            alphas = pm.Normal('alphas', 0, 1, dims='alts')
+            betas = pm.Normal('betas', 0, 1, dims=('covariates'))
+            lambdas_nests = pm.Beta('lambda_nests', 2, 2, dims='nests')
+            
+            if W is None:
+                w_nest = pm.math.zeros((len(coords['obs']), 
+                                        len(coords['alts'])))
             else: 
-                F = pt.zeros(observed.shape[0])
+                W_data = pm.Data('W', W, dims=('obs', 'fixed_covariates'))
+                betas_fixed_ = pm.Normal('betas_fixed_', 0, 1, dims=('alts', 'fixed_covariates'))
+                betas_fixed = pm.Deterministic('betas_fixed', pt.set_subtensor(betas_fixed_[-1, :], 0), 
+                    dims=('alts','fixed_covariates'))
+                w_nest = pm.Deterministic('w_nest', pm.math.dot(W_data, betas_fixed.T))
+            X_data = pm.Data('X', X,  dims=('obs', 'alts', 'covariates'))
+            y_data = pm.Data('y', y, dims='obs')
 
             # Compute utility as a dot product
-            U = pm.math.dot(X_data, betas)  # (N, alts)
-            # Zero out reference alternative intercept
-            alphas = pm.Deterministic('alphas', pt.set_subtensor(alphas[-1], 0), 
-            dims='alts')
-            U = pm.Deterministic("U", F + U + alphas, dims=("obs", "alts"))
-            ## Apply Softmax Transform
-            p_ = pm.Deterministic("p", pm.math.softmax(U, axis=1), 
-            dims=("obs", "alts"))
-
-            # likelihood
-            choice_obs = pm.Categorical("likelihood", p=p_, 
-                observed=observed, dims="obs")
+            alphas = pt.set_subtensor(alphas[-1], 0)
+            u = alphas + pm.math.dot(X_data, betas)
+            U = pm.Deterministic('U', w_nest + u, dims=('obs', 'alts'))
+            
+            ## Top Level
+            conditional_probs = {}
+            for n in nest_indices.keys():
+                exp_W_nest, P_y_given_nest = self.make_exp_nest(U, w_nest, 
+                    lambdas_nests, n)
+                if W is None:
+                    conditional_probs[n] = {'exp': exp_W_nest, 'P_y_given': P_y_given_nest}
+                else: 
+                    exp_W_nest = pm.math.sum(exp_W_nest, axis=1)
+                    conditional_probs[n] = {'exp': exp_W_nest, 'P_y_given': P_y_given_nest}
         
+            denom = pm.Deterministic('denom', pm.math.sum([conditional_probs[n]['exp'] 
+                                                           for n in nest_indices.keys()], axis=0))
+            nest_probs = {}
+            for n in nest_indices.keys():
+                P_nest = pm.Deterministic(f'P_{n}', (conditional_probs[n]['exp'] / denom))
+                nest_probs[n] = P_nest
+            
+            ## Construct Paths Bottom -> Up
+            path_prods = []
+            for n in nest_indices.keys():
+                P_nest = nest_probs[n]
+                P_y_given_nest = conditional_probs[n]['P_y_given']
+                prod = pm.Deterministic(f'prod_{n}', (P_nest[:, pt.newaxis]*P_y_given_nest))
+                path_prods.append(prod)
+            P_ = pm.Deterministic('P_',  pm.math.concatenate(path_prods, axis=1))
+            choice_obs = pm.Categorical("likelihood", p=P_, observed=y_data, dims="obs")
+
         return model
 
     def _data_setter(
