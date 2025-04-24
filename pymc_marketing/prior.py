@@ -97,7 +97,6 @@ Create a prior with a custom transform function by registering it with
 from __future__ import annotations
 
 import copy
-import warnings
 from collections.abc import Callable
 from inspect import signature
 from typing import Any, Protocol, runtime_checkable
@@ -800,24 +799,6 @@ class Prior:
 
         return data
 
-    def to_json(self) -> dict[str, Any]:
-        """Convert the prior to dictionary format.
-
-        Deprecated in favor of :function:`pymc_marketing.prior.Prior.to_dict`.
-
-        Returns
-        -------
-        dict[str, Any]
-            The dictionary format of the prior.
-
-        """
-        warnings.warn(
-            "The `to_json` method is deprecated in favor of `to_dict`",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.to_dict()
-
     @classmethod
     def from_dict(cls, data) -> Prior:
         """Create a Prior from the dictionary format.
@@ -877,30 +858,6 @@ class Prior:
         transform = data.get("transform")
 
         return cls(dist, dims=dims, centered=centered, transform=transform, **kwargs)
-
-    @classmethod
-    def from_json(cls, json) -> Prior:
-        """Create a Prior from the dictionary format.
-
-        Deprecated in favor of :function:`pymc_marketing.prior.Prior.from_dict`.
-
-        Parameters
-        ----------
-        json : dict[str, Any]
-            The dictionary format of the prior.
-
-        Returns
-        -------
-        Prior
-            The prior distribution.
-
-        """
-        warnings.warn(
-            "The `from_json` method is deprecated in favor of `from_dict`",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return cls.from_dict(json)
 
     def constrain(
         self, lower: float, upper: float, mass: float = 0.95, kwargs=None
