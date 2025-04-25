@@ -433,7 +433,7 @@ def _plot_across_coord(
 
 def plot_hdi(
     curve: xr.DataArray,
-    non_grid_names: set[str],
+    non_grid_names: str | set[str],
     hdi_kwargs: dict | None = None,
     subplot_kwargs: dict[str, Any] | None = None,
     plot_kwargs: dict[str, Any] | None = None,
@@ -449,7 +449,7 @@ def plot_hdi(
     ----------
     curve : xr.DataArray
         Curve to plot
-    non_grid_names : set[str]
+    non_grid_names : str | set[str]
         The names to exclude from the grid. chain and draw are
         excluded automatically
     n : int, optional
@@ -472,6 +472,9 @@ def plot_hdi(
     get_plot_data = _create_get_hdi_plot_data(hdi_kwargs or {})
     make_selection = _make_hdi_selection
     plot_selection = _plot_hdi_selection
+
+    if isinstance(non_grid_names, str):
+        non_grid_names = {non_grid_names}
 
     plot_kwargs = plot_kwargs or {}
     plot_kwargs = {**{"alpha": 0.25}, **plot_kwargs}
@@ -496,7 +499,7 @@ def plot_hdi(
 
 def plot_samples(
     curve: xr.DataArray,
-    non_grid_names: set[str],
+    non_grid_names: str | set[str],
     n: int = 10,
     rng: np.random.Generator | None = None,
     axes: npt.NDArray[Axes] | None = None,
@@ -513,7 +516,7 @@ def plot_samples(
     ----------
     curve : xr.DataArray
         Curve to plot
-    non_grid_names : set[str]
+    non_grid_names : str | set[str]
         The names to exclude from the grid. chain and draw are
         excluded automatically
     n : int, optional
@@ -536,6 +539,9 @@ def plot_samples(
 
     """
     get_plot_data = _get_sample_plot_data
+
+    if isinstance(non_grid_names, str):
+        non_grid_names = {non_grid_names}
 
     n_chains = curve.sizes["chain"]
     n_draws = curve.sizes["draw"]
@@ -573,7 +579,7 @@ def plot_samples(
 
 def plot_curve(
     curve: xr.DataArray,
-    non_grid_names: set[str],
+    non_grid_names: str | set[str],
     subplot_kwargs: dict | None = None,
     sample_kwargs: dict | None = None,
     hdi_kwargs: dict | None = None,
@@ -589,7 +595,7 @@ def plot_curve(
     ----------
     curve : xr.DataArray
         Curve to plot
-    non_grid_names : set[str]
+    non_grid_names : str | set[str]
         The names to exclude from the grid. HDI and samples both
         have defaults of hdi and chain, draw, respectively
     subplot_kwargs : dict, optional
