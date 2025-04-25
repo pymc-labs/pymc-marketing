@@ -1472,6 +1472,8 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         for mu_effect in self.mu_effects:
             mu_effect.set_data(self, pymc_model, dataset_xarray)
 
+        pymc_model.deterministics.pop(0)  # TODO: HOT FIX to decide with Ricky
+
         return pymc_model
 
     def optimize_budget(

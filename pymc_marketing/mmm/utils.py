@@ -182,152 +182,155 @@ def create_zero_dataset(
     model: Any,
     start_date: str | pd.Timestamp,
     end_date: str | pd.Timestamp,
+    channel_xr: xr.Dataset | xr.DataArray | None = None,  # ← NEW argument
 ) -> pd.DataFrame:
-    """Create a zero-filled dataset for model prediction over a specified date range.
+    """Create a DataFrame for future prediction, with zeros (or supplied constants).
 
-    Creates a DataFrame for prediction with zero values for channel and control columns,
-    preserving the original data's date frequency.
+    Creates a DataFrame with dates from start_date to end_date and all model dimensions,
+    filling channel and control columns with zeros or with values from channel_xr if provided.
 
-    Parameters
-    ----------
-    model : MMM
-        An instance of the pymc_marketing MMM class.
-    start_date : str or pd.Timestamp
-        The start date for the new DataFrame (inclusive).
-    end_date : str or pd.Timestamp
-        The end date for the new DataFrame (inclusive).
+    If *channel_xr* is provided it must
 
-    Returns
-    -------
-    pd.DataFrame
-        A pandas DataFrame structured for prediction, with zeros in channel
-        and control columns, and matching the inferred date frequency.
+    • have data variables that are a subset of ``model.channel_columns``
+    • be indexed *only* by the dimensions in ``model.dims`` (no date dimension)
 
-    Raises
-    ------
-    ValueError
-        If essential attributes are missing from the model object
-        or if the date column cannot be processed.
+    The values in *channel_xr* are copied verbatim to the corresponding channel
+    columns and broadcast across every date in ``start_date … end_date``.
     """
+    # ---- 0. Basic integrity checks (unchanged) --------------------------------
     if not hasattr(model, "X") or not isinstance(model.X, pd.DataFrame):
-        raise ValueError(
-            "MMM object must have an 'X' attribute containing a pandas DataFrame."
-        )
+        raise ValueError("'model.X' must be a pandas DataFrame.")
+
     if not hasattr(model, "date_column") or model.date_column not in model.X.columns:
         raise ValueError(
-            "MMM object must have a valid 'date_column' attribute corresponding to a column in mmm.X."
+            "Model must expose `.date_column` and that column must be in `model.X`."
         )
-    if not hasattr(model, "channel_columns"):
-        raise ValueError("MMM object must have a 'channel_columns' attribute.")
-    if not hasattr(model, "control_columns"):
-        raise ValueError("MMM object must have a 'control_columns' attribute.")
-    if not hasattr(model, "dims"):
-        raise ValueError("MMM object must have a 'dims' attribute.")
+
+    required_attrs = ("channel_columns", "control_columns", "dims")
+    for attr in required_attrs:
+        if not hasattr(model, attr):
+            raise ValueError(f"Model must have a '{attr}' attribute.")
 
     original_data = model.X
     date_col = model.date_column
-    channel_cols = model.channel_columns
-    control_cols = model.control_columns
-    dim_cols = list(model.dims)  # Ensure it's a list
+    channel_cols = list(model.channel_columns)
+    control_cols = list(model.control_columns)
+    dim_cols = list(model.dims)  # ensure list
 
-    # --- Frequency Inference ---
-    try:
-        # Ensure date column is datetime type
-        date_series = pd.to_datetime(original_data[date_col])
-        # Infer frequency from unique sorted dates
-        inferred_freq = pd.infer_freq(date_series.unique())
-        if inferred_freq is None:
-            warnings.warn(
-                f"Could not infer date frequency from column '{date_col}'. "
-                "Defaulting to daily frequency ('D'). Check if dates are regular.",
-                UserWarning,
-                stacklevel=2,
-            )
-            inferred_freq = "D"  # Default to daily if inference fails
-        else:
-            print(f"Inferred date frequency: {inferred_freq}")
-    except Exception as e:
+    # ---- 1. Infer date frequency ------------------------------------------------
+    date_series = pd.to_datetime(original_data[date_col])
+    inferred_freq = pd.infer_freq(date_series.unique())
+    if inferred_freq is None:  # fall-back if inference fails
         warnings.warn(
-            f"Error during frequency inference for column '{date_col}': {e}. "
-            "Defaulting to daily frequency ('D').",
+            f"Could not infer frequency from '{date_col}'. Using daily ('D').",
             UserWarning,
             stacklevel=2,
         )
         inferred_freq = "D"
-    # --- End Frequency Inference ---
 
-    # 1. Generate Date Range using inferred frequency
-    try:
-        new_dates = pd.date_range(
-            start=start_date,
-            end=end_date,
-            freq=inferred_freq,  # Use inferred frequency
-            name=date_col,
-        )
-        if new_dates.empty:
-            raise ValueError(
-                "Date range resulted in empty dates. Check start/end dates and frequency."
-            )
-    except ValueError as e:
-        raise ValueError(
-            f"""Error creating date range: {e}. Ensure start_date and end_date are valid and compatible with
-            inferred frequency '{inferred_freq}'."""
-        ) from e
+    # ---- 2. Build the full Cartesian product of dates X dims -------------------
+    new_dates = pd.date_range(
+        start=start_date, end=end_date, freq=inferred_freq, name=date_col
+    )
+    if new_dates.empty:
+        raise ValueError("Generated date range is empty. Check dates and frequency.")
 
     date_df = pd.DataFrame(new_dates)
 
-    # 2. Get Unique Dimension Combinations
-    if dim_cols:
+    if dim_cols:  # cross-join with dimension levels
         unique_dims = original_data[dim_cols].drop_duplicates().reset_index(drop=True)
-        # 3. Cross Join Dates and Dimensions
-        # Add temporary keys for cross join
-        date_df["_key"] = 1
-        unique_dims["_key"] = 1
-        pred_df = pd.merge(date_df, unique_dims, on="_key").drop("_key", axis=1)
+        date_df["_k"] = 1
+        unique_dims["_k"] = 1
+        pred_df = pd.merge(date_df, unique_dims, on="_k").drop(columns="_k")
     else:
-        # If no dims, the prediction frame just has the date column
-        pred_df = date_df
+        pred_df = date_df.copy()
 
-    # 4. Add Channel and Control Columns with Zeros
+    # ---- 3. Initialise channel & control columns with zeros --------------------
     for col in channel_cols + control_cols:
-        if col not in pred_df.columns:  # Avoid overwriting dim cols if they overlap
+        if col not in pred_df.columns:  # don't overwrite dim columns by accident
             pred_df[col] = 0.0
 
-    # 5. Add any other columns present in original_data, filling with 0
+    # ---- 4. Optional channel_xr injection --------------------------------------
+    if channel_xr is not None:
+        # --- 4.1 Normalise to Dataset ------------------------------------------
+        if isinstance(channel_xr, xr.DataArray):
+            # Give the single DataArray a name equal to its channel (attr 'name')
+            channel_name = channel_xr.name or "value"
+            channel_xr = channel_xr.to_dataset(name=channel_name)
+
+        if not isinstance(channel_xr, xr.Dataset):
+            raise TypeError("`channel_xr` must be an xarray Dataset or DataArray.")
+
+        # --- 4.2 Validate variables & dimensions -------------------------------
+        invalid_vars = set(channel_xr.data_vars) - set(channel_cols)
+        if invalid_vars:
+            raise ValueError(
+                f"`channel_xr` contains variables not in `model.channel_columns`: "
+                f"{sorted(invalid_vars)}"
+            )
+
+        missing_channels = set(channel_cols) - set(channel_xr.data_vars)
+        if missing_channels:
+            warnings.warn(
+                f"`channel_xr` does not supply values for {sorted(missing_channels)}; "
+                "they will stay at 0.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        invalid_dims = set(channel_xr.dims) - set(dim_cols)
+        if invalid_dims:
+            raise ValueError(
+                f"`channel_xr` uses dims that are not recognised model dims: "
+                f"{sorted(invalid_dims)}"
+            )
+
+        if date_col in channel_xr.dims:
+            raise ValueError("`channel_xr` must NOT include the date dimension.")
+
+        # --- 4.3 Convert to DataFrame & merge ----------------------------------
+        channel_df = channel_xr.to_dataframe().reset_index()
+
+        # Left-join on every dimension; suffix prevents collisions during merge
+        pred_df = pred_df.merge(
+            channel_df,
+            on=dim_cols,
+            how="left",
+            suffixes=("", "_chan"),
+        )
+
+        # --- 4.4 Copy merged values into official channel columns --------------
+        for ch in channel_cols:
+            chan_col = f"{ch}_chan"
+            if chan_col in pred_df.columns:
+                pred_df[ch] = pred_df[chan_col]
+                pred_df.drop(columns=chan_col, inplace=True)
+
+        # Replace any remaining NaNs introduced by the merge
+        pred_df[channel_cols] = pred_df[channel_cols].fillna(0.0)
+
+    # ---- 5. Bring in any “other” columns from the training data ----------------
     other_cols = [
         col
         for col in original_data.columns
-        if col not in (*[date_col], *dim_cols, *channel_cols, *control_cols)
+        if col not in [date_col, *dim_cols, *channel_cols, *control_cols]
     ]
     for col in other_cols:
         if col not in pred_df.columns:
             pred_df[col] = 0.0
 
-    # 6. Ensure correct column order
+    # ---- 6. Match original column order & dtypes ------------------------------
     final_columns = original_data.columns
-    # Handle cases where a dim column might also be a channel/control (unlikely but possible)
-    pred_df = pred_df[[col for col in final_columns if col in pred_df.columns]]
-    # Add any missing columns (e.g., if original had only dates, no dims/channels/controls)
-    for col in final_columns:
-        if col not in pred_df.columns:
-            # Determine appropriate fill value (0 for numeric, maybe mode/NaN for categoricals not in dims?)
-            # Sticking to 0.0 for simplicity as per original request goal.
-            pred_df[col] = 0.0
+    pred_df = pred_df.reindex(columns=final_columns)
 
-    # Reapply final desired column order
-    pred_df = pred_df[final_columns]
-
-    # 7. Ensure correct data types (optional but good practice)
     for col in final_columns:
-        if col in original_data.columns and col in pred_df.columns:
-            target_dtype = original_data[col].dtype
-            try:
-                pred_df[col] = pred_df[col].astype(target_dtype)
-            except Exception as e:
-                warnings.warn(
-                    f"Could not cast column '{col}' to original dtype {target_dtype}: {e}",
-                    UserWarning,
-                    stacklevel=2,
-                )
+        try:
+            pred_df[col] = pred_df[col].astype(original_data[col].dtype)
+        except Exception as e:
+            warnings.warn(
+                f"Could not cast '{col}' to {original_data[col].dtype}: {e}",
+                UserWarning,
+                stacklevel=2,
+            )
 
     return pred_df
