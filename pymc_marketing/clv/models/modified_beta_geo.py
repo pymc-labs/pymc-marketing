@@ -13,20 +13,17 @@
 #   limitations under the License.
 """Modified Beta-Geometric Negative Binomial Distribution (MBG/NBD) model for a non-contractual customer population across continuous time."""  # noqa: E501
 
-import warnings
 from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
 import pymc as pm
-import pytensor.tensor as pt
 import xarray
 from pymc.util import RandomState
 from scipy.special import hyp2f1
 
 from pymc_marketing.clv.distributions import ModifiedBetaGeoNBD
 from pymc_marketing.clv.models import BetaGeoModel
-from pymc_marketing.clv.utils import to_xarray
 
 
 class ModifiedBetaGeoModel(BetaGeoModel):
@@ -178,48 +175,6 @@ class ModifiedBetaGeoModel(BetaGeoModel):
                 ),
                 dims=["customer_id", "obs_var"],
             )
-
-    def expected_num_purchases(
-        self,
-        customer_id: np.ndarray | pd.Series,
-        t: np.ndarray | pd.Series | pt.TensorVariable,
-        frequency: np.ndarray | pd.Series | pt.TensorVariable,
-        recency: np.ndarray | pd.Series | pt.TensorVariable,
-        T: np.ndarray | pd.Series | pt.TensorVariable,
-    ) -> xarray.DataArray:
-        r"""Compute the expected number of purchases for a customer.
-
-        This is a deprecated method and will be removed in a future release.
-        Please use `ModifiedBetaGeoModel.expected_purchases` instead.
-        """
-        warnings.warn(
-            "Deprecated method. Use 'expected_purchases' instead.",
-            FutureWarning,
-            stacklevel=1,
-        )
-
-        t = np.asarray(t)
-        if t.size != 1:
-            t = to_xarray(customer_id, t)
-
-        T = np.asarray(T)
-        if T.size != 1:
-            T = to_xarray(customer_id, T)
-
-        x, t_x = to_xarray(customer_id, frequency, recency)
-
-        a, b, alpha, r = self._unload_params()
-
-        hyp_term = hyp2f1(r + x, b + x + 1, a + b + x, t / (alpha + T + t))
-        first_term = (a + b + x) / (a - 1)
-        second_term = 1 - hyp_term * ((alpha + T) / (alpha + t + T)) ** (r + x)
-        numerator = first_term * second_term
-
-        denominator = 1 + (a / (b + x)) * ((alpha + T) / (alpha + t_x)) ** (r + x)
-
-        return (numerator / denominator).transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
-        )
 
     def expected_purchases(
         self,
