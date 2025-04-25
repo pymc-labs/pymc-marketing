@@ -8,7 +8,7 @@ import xarray as xr
 def mock_sample(*args, **kwargs):
     random_seed = kwargs.get("random_seed", None)
     model = kwargs.get("model", None)
-    samples = 20
+    samples = 10
     idata = pm.sample_prior_predictive(
         model=model,
         random_seed=random_seed,
