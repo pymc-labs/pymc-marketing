@@ -20,7 +20,7 @@ import arviz as az
 
 
 def from_netcdf(filepath: str | Path) -> az.InferenceData:
-    """Load inference data from a netcdf file.
+    """Load inference data from a netcdf file without `fit_data` group warnings.
 
     Parameters
     ----------

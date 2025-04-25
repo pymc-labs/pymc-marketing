@@ -20,4 +20,5 @@
   model_graph
   plot
   prior
+  utils
 ```
