@@ -246,21 +246,45 @@ class NestedLogit(ModelBuilder):
             The order of the alterntives should map to the order of the
             utility formulas. 
         """
-        mode_mapping = dict(zip(alternatives, range(len(alternatives))))
-        df['mode_encoded'] = df[depvar].map(mode_mapping)
+        prod_mapping = dict(zip(alternatives, range(len(alternatives))))
+        df['mode_encoded'] = df[depvar].map(prod_mapping)
         y = df['mode_encoded'].values
-        return y
+        return y, prod_mapping
     
     @staticmethod
-    def _prepare_coords(df, alternatives, covariates, f_covariates):
+    def _parse_nesting(nest_dict, product_indices):
+        top_level = {}
+        mid_level = {}
+        for k in nest_dict.keys():
+            if isinstance(nest_dict[k], dict): 
+                collected_idxs = []
+                for j in nest_dict[k]:
+                    idxs = [product_indices[i] for i in nest_dict[k][j]]
+                    mid_level[k + '_' + j] = idxs
+                    collected_idxs = collected_idxs + idxs
+                top_level[k] = np.sort(collected_idxs)
+            else:
+                top_level[k] = np.sort([product_indices[i] for i in nest_dict[k]])   
+
+        if not mid_level:
+            mid_level = None
+        return top_level, mid_level
+    
+    @staticmethod
+    def _prepare_coords(df, alternatives, 
+                        covariates, 
+                        f_covariates, 
+                        nests):
         coords = {
             "alts": alternatives,
             "alts_probs": alternatives[:-1],
             "alt_covariates": covariates,
             'fixed_covariates': [s.strip() for s in [s.split('+') for s in f_covariates][0]],
+            'nests': nests,
             "obs": range(len(df)),
-    }
+        }
         return coords
+    
     
     def preprocess_model_data(
         self,
@@ -272,20 +296,32 @@ class NestedLogit(ModelBuilder):
                                                            utility_equations, 
                                                            self.depvar)
         self.X, self.F, self.alternatives, self.fixed_covar = X, F, alternatives, fixed_covar
-        y = self._prepare_y_outcome(choice_df, self.alternatives, self.depvar)
+        y, prod_mapping = self._prepare_y_outcome(choice_df, self.alternatives, self.depvar)
         self.y = y
+        self.prod_indices = prod_mapping
+        top_level, mid_level = self._parse_nesting(self.nesting_structure, self.prod_indices)
+        if mid_level:
+            all_nests = list(top_level.keys()) + list(mid_level.keys())
+            self.nest_indices = {'top': top_level, 'mid': mid_level}
+        else: 
+            all_nests = list(top_level.keys())
+            self.nest_indices = top_level
+
+        self.all_nests = all_nests
+        self.lambda_lkup = dict(zip(all_nests, range(len(all_nests))))
 
         # note: type hints for coords required for mypy to not get confused
         self.coords: dict[str, list[str]] = self._prepare_coords(choice_df, 
                                                                  self.alternatives, 
                                                                  self.covariates, 
-                                                                 self.fixed_covar)
+                                                                 self.fixed_covar, 
+                                                                 self.all_nests)
         
         return X, F, y
     
 
     def make_exp_nest(self, U, w_nest, lambdas_nests, nest, parent_lambda=None):
-        nest_indices = self.nesting_structure
+        nest_indices = self.nest_indices
         lambda_lkup = self.lambda_lkup
         N = U.shape[0]
         
@@ -295,7 +331,6 @@ class NestedLogit(ModelBuilder):
             P_y_given_nest = pm.Deterministic(
                 f"p_y_given_{nest}",
                 pm.math.softmax(y_nest / lambdas_nests[lambda_lkup[nest]], axis=1),
-                dims=("obs", f"{nest}_alts"),
             )
         else:
             max_y_nest = pm.math.max(y_nest)
@@ -327,7 +362,7 @@ class NestedLogit(ModelBuilder):
 
         with pm.Model(coords=coords) as model:
             alphas = pm.Normal('alphas', 0, 1, dims='alts')
-            betas = pm.Normal('betas', 0, 1, dims=('covariates'))
+            betas = pm.Normal('betas', 0, 1, dims=('alt_covariates'))
             lambdas_nests = pm.Beta('lambda_nests', 2, 2, dims='nests')
             
             if W is None:
@@ -374,6 +409,8 @@ class NestedLogit(ModelBuilder):
                 path_prods.append(prod)
             P_ = pm.Deterministic('P_',  pm.math.concatenate(path_prods, axis=1))
             choice_obs = pm.Categorical("likelihood", p=P_, observed=y_data, dims="obs")
+
+        self.model = model
 
         return model
 
