@@ -49,7 +49,10 @@ from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.tvp import infer_time_index
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
-from pymc_marketing.mmm.utils import create_zero_dataset
+from pymc_marketing.mmm.utils import (
+    add_noise_to_channel_allocation,
+    create_zero_dataset,
+)
 from pymc_marketing.model_builder import ModelBuilder, _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
@@ -1503,3 +1506,46 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             budget_bounds=budget_bounds,
             **minimize_kwargs,
         )
+
+    def sample_response_distribution(
+        self,
+        allocation_strategy: xr.DataArray,
+        noise_level: float = 0.001,
+    ) -> az.InferenceData:
+        """Generate synthetic dataset and sample posterior predictive based on allocation.
+
+        Parameters
+        ----------
+        allocation_strategy : DataArray
+            The allocation strategy for the channels.
+        noise_level : float
+            The relative level of noise to add to the data allocation.
+
+        Returns
+        -------
+        az.InferenceData
+            The posterior predictive samples based on the synthetic dataset.
+        """
+        data = create_zero_dataset(
+            model=self,
+            start_date=self.start_date,
+            end_date=self.end_date,
+            channel_xr=allocation_strategy.to_dataset(dim="channel"),
+        )
+
+        data_with_noise = add_noise_to_channel_allocation(
+            df=data,
+            channels=self.channel_columns,
+            rel_std=noise_level,
+            seed=42,
+        )
+
+        constant_data = allocation_strategy.to_dataset(name="allocation")
+
+        return self.sample_posterior_predictive(
+            X=data_with_noise,
+            extend_idata=False,
+            include_last_observations=True,
+            var_names=["y", "channel_contribution_original_scale"],
+            progressbar=False,
+        ).merge(constant_data)

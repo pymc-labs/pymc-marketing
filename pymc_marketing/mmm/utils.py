@@ -334,3 +334,44 @@ def create_zero_dataset(
             )
 
     return pred_df
+
+
+def add_noise_to_channel_allocation(
+    df: pd.DataFrame,
+    channels: list[str],
+    rel_std: float = 0.05,
+    seed: int | None = None,
+) -> pd.DataFrame:
+    """
+    Return *df* with additive Gaussian noise applied to *channels* columns.
+
+    Parameters
+    ----------
+    df : DataFrame
+        The original data (will **not** be modified in-place).
+    channels : list of str
+        Column names whose values represent media spends.
+    rel_std : float, default 0.05
+        Noise standard-deviation expressed as a fraction of the
+        *column mean* (i.e. `0.05` ⇒ 5 % of the mean spend).
+    seed : int or None
+        Optional seed for deterministic output.
+
+    Returns
+    -------
+    DataFrame
+        A copy of *df* with noisy spends.
+    """
+    rng = np.random.default_rng(seed)
+
+    # Per-channel scale (1-D ndarray), shape (n_channels,)
+    scale = (rel_std * df[channels].mean()).to_numpy()
+
+    # Draw all required noise in one call, shape (n_rows, n_channels)
+    noise = rng.normal(loc=0.0, scale=scale, size=(len(df), len(channels)))
+
+    # Create the noisy copy
+    noisy_df = df.copy()
+    noisy_df[channels] += noise
+
+    return noisy_df
