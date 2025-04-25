@@ -19,4 +19,5 @@
   model_config
   model_graph
   prior
+  utils
 ```
