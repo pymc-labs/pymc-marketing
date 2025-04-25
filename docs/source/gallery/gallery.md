@@ -16,7 +16,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 ::::{grid} 1 2 3 3
 :gutter: 3
 
-:::{grid-item-card} MMM Example Notebook
+:::{grid-item-card} MMM Example: Introduction Notebook
 :img-top: ../gallery/images/mmm_example.png
 :link: ../notebooks/mmm/mmm_example.html
 :::
@@ -42,7 +42,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_budget_allocation_example.html
 :::
 
-:::{grid-item-card} Budget Allocation Risk Assessment
+:::{grid-item-card} Budget Allocation and Risk Assessment
 :img-top: ../gallery/images/mmm_allocation_assessment.png
 :link: ../notebooks/mmm/mmm_allocation_assessment.html
 :::
@@ -53,7 +53,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 ::::{grid} 1 2 3 3
 :gutter: 3
 
-:::{grid-item-card} Lift Test Analysis
+:::{grid-item-card} Introduction to Lift Test Calibration
 :img-top: ../gallery/images/mmm_lift_test.png
 :link: ../notebooks/mmm/mmm_lift_test.html
 :::
@@ -90,7 +90,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_time_slice_cross_validation.html
 :::
 
-:::{grid-item-card} Model Evaluation
+:::{grid-item-card} Metrics and Model Evaluation
 :img-top: ../gallery/images/mmm_evaluation.png
 :link: ../notebooks/mmm/mmm_evaluation.html
 :::
@@ -117,7 +117,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 ::::{grid} 1 2 3 3
 :gutter: 3
 
-:::{grid-item-card} MMM Case Study
+:::{grid-item-card} MMM End-to-End Case Study
 :img-top: ../gallery/images/mmm_case_study.png
 :link: ../notebooks/mmm/mmm_case_study.html
 :::
@@ -180,7 +180,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 ::::{grid} 1 2 3 3
 :gutter: 3
 
-:::{grid-item-card} Bass Diffusion Model
+:::{grid-item-card} Bass Diffusion Model Example
 :img-top: ../gallery/images/bass_example.png
 :link: ../notebooks/bass/bass_example.html
 :::
