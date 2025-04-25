@@ -434,3 +434,236 @@ class MMMPlotSuite:
                 ax.set_ylabel("Channel Contributions (Y)")
 
         return fig, axes
+
+    def budget_allocation(
+        self,
+        samples: xr.Dataset,
+        scale_factor: float | None = None,
+        figsize: tuple[float, float] = (12, 6),
+        ax: plt.Axes | None = None,
+        original_scale: bool = True,
+    ) -> tuple[Figure, plt.Axes]:
+        """Plot the budget allocation and channel contributions.
+
+        Creates a bar chart comparing allocated spend and channel contributions
+        for each channel.
+
+        Parameters
+        ----------
+        samples : xr.Dataset
+            The dataset containing the channel contributions and allocation values.
+            Expected to have 'channel_contributions' and 'allocation' variables.
+        scale_factor : float, optional
+            Scale factor to convert to original scale, if original_scale=True.
+            If None and original_scale=True, assumes scale_factor=1.
+        figsize : tuple[float, float], optional
+            The size of the figure to be created. Default is (12, 6).
+        ax : plt.Axes, optional
+            The axis to plot on. If None, a new figure and axis will be created.
+        original_scale : bool, optional
+            A boolean flag to determine if the values should be plotted in their
+            original scale. Default is True.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the plot.
+        ax : matplotlib.axes.Axes
+            The Axes object with the plot.
+        """
+        # Get the channels from samples
+        if "channel" not in samples.dims:
+            raise ValueError(
+                "Expected 'channel' dimension in samples dataset, but none found."
+            )
+
+        # Check for required variables in samples
+        if not any(
+            "channel_contribution" in var_name for var_name in samples.data_vars
+        ):
+            raise ValueError(
+                "Expected a variable containing 'channel_contribution' in samples, but none found."
+            )
+        if "allocation" not in samples:
+            raise ValueError(
+                "Expected 'allocation' variable in samples, but none found."
+            )
+
+        # Get channel contributions, averaging over date and sample
+        # Find the variable containing 'channel_contribution' in its name
+        channel_contrib_var = next(
+            var_name
+            for var_name in samples.data_vars
+            if "channel_contribution" in var_name
+        )
+        channel_contributions = (
+            samples[channel_contrib_var].mean(dim=["date", "sample"]).to_numpy()
+        )
+
+        # Apply scale factor if in original scale
+        if original_scale and scale_factor is not None:
+            channel_contributions *= scale_factor
+
+        # Get allocated spend
+        allocated_spend = samples.allocation.to_numpy()
+
+        # Create plot
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
+        else:
+            fig = ax.get_figure()
+
+        bar_width = 0.35
+        opacity = 0.7
+
+        # Get channel index and names
+        channels = samples.coords["channel"].values
+        index = range(len(channels))
+
+        # Plot allocated spend
+        bars1 = ax.bar(
+            index,
+            allocated_spend,
+            bar_width,
+            color="C0",
+            alpha=opacity,
+            label="Allocated Spend",
+        )
+
+        # Create twin axis for contributions
+        ax2 = ax.twinx()
+
+        # Plot contributions
+        bars2 = ax2.bar(
+            [i + bar_width for i in index],
+            channel_contributions,
+            bar_width,
+            color="C1",
+            alpha=opacity,
+            label="Channel Contributions",
+        )
+
+        # Labels and formatting
+        ax.set_xlabel("Channels")
+        ax.set_ylabel("Allocated Spend", color="C0", labelpad=10)
+        ax2.set_ylabel("Channel Contributions", color="C1", labelpad=10)
+
+        # Set x-ticks in the middle of the bars
+        ax.set_xticks([i + bar_width / 2 for i in index])
+        ax.set_xticklabels(channels)
+        ax.tick_params(axis="x", rotation=90)
+
+        # Turn off grid and add legend
+        ax.grid(False)
+        ax2.grid(False)
+
+        bars = [bars1, bars2]
+        labels = ["Allocated Spend", "Channel Contributions"]
+        ax.legend(bars, labels, loc="best")
+
+        fig.tight_layout()
+        return fig, ax
+
+    def allocated_contribution_by_channel(
+        self,
+        samples: xr.Dataset,
+        scale_factor: float | None = None,
+        lower_quantile: float = 0.025,
+        upper_quantile: float = 0.975,
+        original_scale: bool = True,
+        figsize: tuple[float, float] = (10, 6),
+        ax: plt.Axes | None = None,
+    ) -> tuple[Figure, plt.Axes]:
+        """Plot the allocated contribution by channel with uncertainty intervals.
+
+        This function visualizes the mean allocated contributions by channel along with
+        the uncertainty intervals defined by the lower and upper quantiles.
+
+        Parameters
+        ----------
+        samples : xr.Dataset
+            The dataset containing the samples of channel contributions.
+            Expected to have 'channel_contributions' variable with dimensions
+            'channel', 'date', and 'sample'.
+        scale_factor : float, optional
+            Scale factor to convert to original scale, if original_scale=True.
+            If None and original_scale=True, assumes scale_factor=1.
+        lower_quantile : float, optional
+            The lower quantile for the uncertainty interval. Default is 0.025.
+        upper_quantile : float, optional
+            The upper quantile for the uncertainty interval. Default is 0.975.
+        original_scale : bool, optional
+            If True, the contributions are plotted on the original scale. Default is True.
+        figsize : tuple[float, float], optional
+            The size of the figure to be created. Default is (10, 6).
+        ax : plt.Axes, optional
+            The axis to plot on. If None, a new figure and axis will be created.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the plot.
+        ax : matplotlib.axes.Axes
+            The Axes object with the plot.
+        """
+        # Check for expected dimensions and variables
+        if "channel" not in samples.dims:
+            raise ValueError(
+                "Expected 'channel' dimension in samples dataset, but none found."
+            )
+        if "date" not in samples.dims:
+            raise ValueError(
+                "Expected 'date' dimension in samples dataset, but none found."
+            )
+        if "sample" not in samples.dims:
+            raise ValueError(
+                "Expected 'sample' dimension in samples dataset, but none found."
+            )
+        # Check if any variable contains channel contributions
+        if not any(
+            "channel_contribution" in var_name for var_name in samples.data_vars
+        ):
+            raise ValueError(
+                "Expected a variable containing 'channel_contribution' in samples, but none found."
+            )
+
+        # Get channel contributions data
+        channel_contrib_var = next(
+            var_name
+            for var_name in samples.data_vars
+            if "channel_contribution" in var_name
+        )
+        channel_contributions = samples[channel_contrib_var]
+
+        # Apply scale factor if in original scale
+        if original_scale and scale_factor is not None:
+            channel_contributions = channel_contributions * scale_factor
+
+        # Create plot
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
+        else:
+            fig = ax.get_figure()
+
+        # Plot mean values by channel
+        channel_contributions.mean(dim="sample").plot(hue="channel", ax=ax)
+
+        # Add uncertainty intervals for each channel
+        for channel in samples.coords["channel"].values:
+            ax.fill_between(
+                x=channel_contributions.date.values,
+                y1=channel_contributions.sel(channel=channel).quantile(
+                    lower_quantile, dim="sample"
+                ),
+                y2=channel_contributions.sel(channel=channel).quantile(
+                    upper_quantile, dim="sample"
+                ),
+                alpha=0.1,
+            )
+
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Channel Contribution")
+        ax.set_title("Allocated Contribution by Channel Over Time")
+
+        fig.tight_layout()
+        return fig, ax
