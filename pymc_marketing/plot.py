@@ -660,7 +660,7 @@ def plot_curve(
 
         fig, axes = plot_curve(
             curve,
-            non_grid_names={"date"},
+            "date",
             subplot_kwargs={"figsize": (15, 5)},
         )
         plt.show()
@@ -674,7 +674,7 @@ def plot_curve(
         colors = ["red", "blue"]
         fig, axes = plot_curve(
             curve,
-            non_grid_names={"date"},
+            "date",
             same_axes=True,
             colors=colors,
         )
