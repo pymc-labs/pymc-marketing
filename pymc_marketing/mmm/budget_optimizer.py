@@ -165,7 +165,9 @@ class BudgetOptimizer(BaseModel):
     def __init__(self, **data):
         super().__init__(**data)
         # 1. Prepare model with time dimension for optimization
-        pymc_model = self.mmm_model._set_predictors_for_optimization(self.num_periods)
+        pymc_model = self.mmm_model._set_predictors_for_optimization(
+            self.num_periods
+        )  # TODO: Once multidimensional class becomes the main class.
 
         # 2. Shared variable for total_budget: Use annotation to avoid type checking
         self._total_budget: SharedVariable = shared(

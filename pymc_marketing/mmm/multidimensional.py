@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import warnings
+from collections.abc import Sequence
 from copy import deepcopy
 from typing import Any, Literal
 
@@ -29,9 +30,11 @@ import pytensor.tensor as pt
 import xarray as xr
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
+from scipy.optimize import OptimizeResult
 
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import MuEffect, create_event_mu_effect
+from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     adstock_from_dict,
@@ -45,6 +48,8 @@ from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.tvp import infer_time_index
+from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
+from pymc_marketing.mmm.utils import create_zero_dataset
 from pymc_marketing.model_builder import ModelBuilder, _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
@@ -1417,3 +1422,82 @@ def create_sample_kwargs(
     # Update with additional keyword arguments
     sampler_config.update(kwargs)
     return sampler_config
+
+
+class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
+    """Wrapper for the BudgetOptimizer to handle multi-dimensional model."""
+
+    def __init__(self, model: MMM, start_date: str, end_date: str):
+        self.model_class = model
+        self.start_date = start_date
+        self.end_date = end_date
+        # Compute the number of periods to allocate budget for
+        self.zero_data = create_zero_dataset(
+            model=self.model_class, start_date=start_date, end_date=end_date
+        )
+        self.num_periods = len(self.zero_data[self.model_class.date_column].unique())
+        # Adding missing dependencies for compatibility with BudgetOptimizer
+        self._channel_scales = 1.0
+
+    def __getattr__(self, name):
+        """Delegate attribute access to the wrapped MMM model."""
+        try:
+            # First, try to get the attribute from the wrapper itself
+            return object.__getattribute__(self, name)
+        except AttributeError:
+            # If not found, delegate to the wrapped model
+            try:
+                return getattr(self.model_class, name)
+            except AttributeError as e:
+                # Raise an AttributeError if the attribute is not found in either
+                raise AttributeError(
+                    f"'{type(self).__name__}' object and its wrapped 'MMM' object have no attribute '{name}'"
+                ) from e
+
+    def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
+        """Return the respective PyMC model with any predictors set for optimization."""
+        # Use the model's method for transformation
+        dataset_xarray = self._posterior_predictive_data_transformation(
+            X=self.zero_data,
+            include_last_observations=False,
+        )
+
+        # Use the model's method to set data
+        pymc_model = self._set_xarray_data(
+            dataset_xarray=dataset_xarray,
+            clone_model=True,  # Ensure we work on a clone
+        )
+
+        # Use the model's mu_effects and set data using the model instance
+        for mu_effect in self.mu_effects:
+            mu_effect.set_data(self, pymc_model, dataset_xarray)
+
+        return pymc_model
+
+    def optimize_budget(
+        self,
+        budget: float | int,
+        budget_bounds: xr.DataArray | dict[str, tuple[float, float]] | None = None,
+        response_variable: str = "total_media_contribution_original_scale",
+        utility_function: UtilityFunctionType = average_response,
+        constraints: Sequence[dict[str, Any]] = (),
+        default_constraints: bool = True,
+        **minimize_kwargs,
+    ) -> tuple[xr.DataArray, OptimizeResult]:
+        """Optimize the budget allocation for the model."""
+        from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+
+        allocator = BudgetOptimizer(
+            num_periods=self.num_periods,
+            utility_function=utility_function,
+            response_variable=response_variable,
+            custom_constraints=constraints,
+            default_constraints=default_constraints,
+            model=self,  # Pass the wrapper instance itself to the BudgetOptimizer
+        )
+
+        return allocator.allocate_budget(
+            total_budget=budget,
+            budget_bounds=budget_bounds,
+            **minimize_kwargs,
+        )
