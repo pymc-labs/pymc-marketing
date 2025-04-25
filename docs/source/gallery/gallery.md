@@ -181,7 +181,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :gutter: 3
 
 :::{grid-item-card} Bass Diffusion Model
-:img-top: ../gallery/images/bass_diffusion_model.png
+:img-top: ../gallery/images/bass_example.png
 :link: ../notebooks/bass/bass_example.html
 :::
 ::::
