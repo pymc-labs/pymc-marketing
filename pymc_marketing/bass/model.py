@@ -99,17 +99,14 @@ Create a basic Bass model for multiple products:
     t = np.arange(n_dates)
 
     # Define coordinates for multiple products
-    coords = {"date": dates, "product": ["A", "B", "C"]}
+    coords = {"T": t, "product": ["A", "B", "C"]}
 
     # Define priors
     priors = {
-        "m": Prior("DiracDelta", c=5_000),  # Market potential
+        "m": Prior("DiracDelta", c=10_000),  # Market potential
         "p": Prior("Beta", alpha=13.85, beta=692.43, dims="product"),  # Innovation coefficient
         "q": Prior("Beta", alpha=36.2, beta=54.4),  # Imitation coefficient
-        "likelihood": Prior(
-            "Poisson",
-            dims="date",
-        ),
+        "likelihood": Prior("Poisson", dims=("T", "product")),
     }
 
     # Create the Bass model
@@ -121,9 +118,10 @@ Create a basic Bass model for multiple products:
 
     # Plot the adoption curves
     fig, ax = plt.subplots(figsize=(10, 6))
-    idata.prior["y"].pipe(plot_curve, {"date"}, axes=ax)
+    idata.prior["y"].pipe(plot_curve, {"T"}, axes=ax)
     plt.title("Bass Model Prior Predictive Adoption Curves")
     plt.tight_layout()
+    plt.show()
 
 """
 
@@ -285,7 +283,10 @@ def create_bass_model(
         )
         likelihood_dims = set(getattr(priors["likelihood"], "dims", ()) or ())
 
-        combined_dims = ("T", *tuple(parameter_dims.union(likelihood_dims)))
+        combined_dims = (
+            "T",
+            *tuple(parameter_dims.union(likelihood_dims).difference(["T"])),
+        )
         dim_handler = create_dim_handler(combined_dims)
 
         m = dim_handler(priors["m"].create_variable("m"), priors["m"].dims)
