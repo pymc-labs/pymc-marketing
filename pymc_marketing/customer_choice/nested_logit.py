@@ -305,7 +305,7 @@ class NestedLogit(ModelBuilder):
             self.nest_indices = {'top': top_level, 'mid': mid_level}
         else: 
             all_nests = list(top_level.keys())
-            self.nest_indices = top_level
+            self.nest_indices = {'top': top_level }
 
         self.all_nests = all_nests
         self.lambda_lkup = dict(zip(all_nests, range(len(all_nests))))
