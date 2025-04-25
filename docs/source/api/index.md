@@ -7,6 +7,7 @@
   :recursive:
   :toctree: generated/
 
+  bass
   clv
   customer_choice
   deserialize
@@ -17,5 +18,7 @@
   model_builder
   model_config
   model_graph
+  plot
   prior
+  utils
 ```
