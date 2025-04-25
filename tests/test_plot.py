@@ -111,8 +111,12 @@ def test_plot_functions(mock_curve, plot_func, same_axes: bool, legend: bool) ->
     plt.close(fig)
 
 
-def test_plot_curve(mock_curve) -> None:
-    fig, axes = plot_curve(mock_curve, non_grid_names={"day"})
+@pytest.mark.parametrize(
+    "non_grid_names",
+    [pytest.param("day", id="string"), pytest.param({"day"}, id="set")],
+)
+def test_plot_curve(mock_curve, non_grid_names) -> None:
+    fig, axes = plot_curve(mock_curve, non_grid_names)
 
     assert axes.size == mock_curve.sizes["geo"]
     assert isinstance(fig, plt.Figure)

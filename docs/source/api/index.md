@@ -18,6 +18,7 @@
   model_builder
   model_config
   model_graph
+  plot
   prior
   utils
 ```
