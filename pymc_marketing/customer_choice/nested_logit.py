@@ -320,13 +320,16 @@ class NestedLogit(ModelBuilder):
         return X, F, y
     
 
-    def make_exp_nest(self, U, w_nest, lambdas_nests, nest, parent_lambda=None):
+    def make_exp_nest(self, U, w_nest, lambdas_nests, nest, level='top'):
         nest_indices = self.nest_indices
-        lambda_lkup = self.lambda_lkup
+        lambda_lkup = self.lambda_lkup 
         N = U.shape[0]
-        
-        y_nest = U[:, nest_indices[nest]]
-        if len(nest_indices[nest]) > 1:
+        if '_' in nest:
+            parent, child = nest.split('_')
+        else: 
+            parent = None
+        y_nest = U[:, nest_indices[level][nest]]
+        if len(nest_indices[level][nest]) > 1:
             max_y_nest = pm.math.max(y_nest, axis=0)
             P_y_given_nest = pm.Deterministic(
                 f"p_y_given_{nest}",
@@ -336,7 +339,7 @@ class NestedLogit(ModelBuilder):
             max_y_nest = pm.math.max(y_nest)
             ones = pm.math.ones((N, 1))
             P_y_given_nest = pm.Deterministic(f"p_y_given_{nest}", ones)
-        if parent_lambda is None:
+        if parent is None:
             lambda_ = lambdas_nests[lambda_lkup[nest]]
             I_nest = pm.Deterministic(
                 f"I_{nest}", pm.math.logsumexp((y_nest - max_y_nest) / lambda_)
@@ -344,7 +347,7 @@ class NestedLogit(ModelBuilder):
             W_nest = w_nest + I_nest * lambda_
         else:
             l1 = lambdas_nests[lambda_lkup[nest]]
-            l2 = lambdas_nests[lambda_lkup[parent_lambda]]
+            l2 = lambdas_nests[lambda_lkup[parent]]
             lambdas_ = l1 * l2
             I_nest = pm.Deterministic(
                 f"I_{nest}", pm.math.logsumexp((y_nest - max_y_nest) / lambdas_)
@@ -353,11 +356,33 @@ class NestedLogit(ModelBuilder):
 
         exp_W_nest = pm.math.exp(W_nest)
         return exp_W_nest, P_y_given_nest
+    
+
+    def make_P_nest(self, U, W, w_nest, lambdas_nests, level):
+        nest_indices = self.nest_indices
+        conditional_probs = {}
+        for n in nest_indices[level].keys():
+            exp_W_nest, P_y_given_nest = self.make_exp_nest(U, w_nest, 
+                lambdas_nests, n, level)
+            if W is None:
+                conditional_probs[n] = {'exp': exp_W_nest, 'P_y_given': P_y_given_nest}
+            else: 
+                exp_W_nest = pm.math.sum(exp_W_nest, axis=1)
+                conditional_probs[n] = {'exp': exp_W_nest, 'P_y_given': P_y_given_nest}
+
+        denom = pm.Deterministic(f'denom_{level}', pm.math.sum([conditional_probs[n]['exp'] 
+                                                                for n in nest_indices[level].keys()], axis=0))
+        nest_probs = {}
+        for n in nest_indices[level].keys():
+            P_nest = pm.Deterministic(f'P_{n}', (conditional_probs[n]['exp'] / denom))
+            nest_probs[n] = P_nest
+        return conditional_probs, nest_probs
         
+
     def build_model(
         self, X, W, y
         ) -> None:
-        nest_indices = self.nesting_structure
+        nest_indices = self.nest_indices
         coords = self.coords
 
         with pm.Model(coords=coords) as model:
@@ -374,7 +399,7 @@ class NestedLogit(ModelBuilder):
                 betas_fixed = pm.Deterministic('betas_fixed', pt.set_subtensor(betas_fixed_[-1, :], 0), 
                     dims=('alts','fixed_covariates'))
                 w_nest = pm.Deterministic('w_nest', pm.math.dot(W_data, betas_fixed.T))
-            X_data = pm.Data('X', X,  dims=('obs', 'alts', 'covariates'))
+            X_data = pm.Data('X', X,  dims=('obs', 'alts', 'alt_covariates'))
             y_data = pm.Data('y', y, dims='obs')
 
             # Compute utility as a dot product
@@ -382,36 +407,52 @@ class NestedLogit(ModelBuilder):
             u = alphas + pm.math.dot(X_data, betas)
             U = pm.Deterministic('U', w_nest + u, dims=('obs', 'alts'))
             
-            ## Top Level
-            conditional_probs = {}
-            for n in nest_indices.keys():
-                exp_W_nest, P_y_given_nest = self.make_exp_nest(U, w_nest, 
-                    lambdas_nests, n)
-                if W is None:
-                    conditional_probs[n] = {'exp': exp_W_nest, 'P_y_given': P_y_given_nest}
-                else: 
-                    exp_W_nest = pm.math.sum(exp_W_nest, axis=1)
-                    conditional_probs[n] = {'exp': exp_W_nest, 'P_y_given': P_y_given_nest}
+            ## Mid Level
+            if 'mid' in nest_indices.keys():
+                cond_prob_m, nest_prob_m = self.make_P_nest(U, W, w_nest, lambdas_nests, 'mid')
         
-            denom = pm.Deterministic('denom', pm.math.sum([conditional_probs[n]['exp'] 
-                                                           for n in nest_indices.keys()], axis=0))
-            nest_probs = {}
-            for n in nest_indices.keys():
-                P_nest = pm.Deterministic(f'P_{n}', (conditional_probs[n]['exp'] / denom))
-                nest_probs[n] = P_nest
+                ## Construct Paths Bottom -> Up
+                child_nests = {}
+                path_prods_m = {}
+                ordered = [(key, min(vals)) for key, vals in nest_indices['mid'].items()]
+                middle_nests = [x[0] for x in sorted(ordered, key=lambda x: x[1])]
+                for idx, n in enumerate(middle_nests):
+                    is_last = idx == len(middle_nests) - 1
+                    parent, child = n.split('_')
+                    P_nest = nest_prob_m[n]
+                    P_y_given_nest = cond_prob_m[n]['P_y_given']
+                    prod = pm.Deterministic(f'prod_{n}_m', (P_nest[:, pt.newaxis]*P_y_given_nest))
+                    if parent in path_prods_m:
+                        path_prods_m[parent].append(prod)
+                    else:
+                        path_prods_m[parent] = []
+                        path_prods_m[parent].append(prod)
+                    if is_last:
+                        P_ = pm.Deterministic(f'P_{parent}_children',  pm.math.concatenate(path_prods_m[parent], axis=1))
+                        child_nests[parent] = P_
+            else: 
+                child_nests = {}
+
+            ## Top Level
+            cond_prob_t, nest_prob_t = self.make_P_nest(U, W, w_nest, lambdas_nests, 'top')
+
+            path_prods_t = []
+            ordered = [(key, min(vals)) for key, vals in nest_indices['top'].items()]
+            top_nests = [x[0] for x in sorted(ordered, key=lambda x: x[1])]
+            for idx, n in enumerate(top_nests):
+                P_nest = nest_prob_t[n]
+                P_y_given_nest = cond_prob_t[n]['P_y_given']
+                if n in child_nests:
+                    P_y_given_nest_mid = pm.Deterministic(f'P_y_given_nest_mid_{n}', child_nests[n])
+                    prod = pm.Deterministic(f'prod_{n}_t', (P_nest[:, pt.newaxis]*(P_y_given_nest_mid)))
+                else:
+                    prod = pm.Deterministic(f'prod_{n}_t', (P_nest[:, pt.newaxis]*(P_y_given_nest)))
+                path_prods_t.append(prod)
+            P_ = pm.Deterministic('P_', pm.math.concatenate(path_prods_t, axis=1))
             
-            ## Construct Paths Bottom -> Up
-            path_prods = []
-            for n in nest_indices.keys():
-                P_nest = nest_probs[n]
-                P_y_given_nest = conditional_probs[n]['P_y_given']
-                prod = pm.Deterministic(f'prod_{n}', (P_nest[:, pt.newaxis]*P_y_given_nest))
-                path_prods.append(prod)
-            P_ = pm.Deterministic('P_',  pm.math.concatenate(path_prods, axis=1))
             choice_obs = pm.Categorical("likelihood", p=P_, observed=y_data, dims="obs")
 
         self.model = model
-
         return model
 
     def _data_setter(
