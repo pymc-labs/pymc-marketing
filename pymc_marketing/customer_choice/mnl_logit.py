@@ -458,7 +458,7 @@ class MNLogit(ModelBuilder):
                 new_choice_df, self.utility_equations
             )
             with self.model:
-                pm.set_data({"X": new_X, "W": new_F, "y": new_y})
+                pm.set_data({"X": new_X, "F": new_F, "y": new_y})
                 # use the updated values and predict outcomes and probabilities:
                 idata_new_policy = pm.sample_posterior_predictive(
                     self.idata,
