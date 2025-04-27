@@ -253,6 +253,8 @@ class NestedLogit(ModelBuilder):
     
     @staticmethod
     def _parse_nesting(nest_dict, product_indices):
+        if not nest_dict:
+            raise ValueError("Nesting structure must not be empty.")
         top_level = {}
         mid_level = {}
         for k in nest_dict.keys():
