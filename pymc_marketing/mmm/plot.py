@@ -17,6 +17,7 @@ import itertools
 
 import arviz as az
 import matplotlib.pyplot as plt
+import numpy as np
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -446,7 +447,8 @@ class MMMPlotSuite:
         """Plot the budget allocation and channel contributions.
 
         Creates a bar chart comparing allocated spend and channel contributions
-        for each channel.
+        for each channel. If additional dimensions besides 'channel' are present,
+        creates a subplot for each combination of these dimensions.
 
         Parameters
         ----------
@@ -460,6 +462,7 @@ class MMMPlotSuite:
             The size of the figure to be created. Default is (12, 6).
         ax : plt.Axes, optional
             The axis to plot on. If None, a new figure and axis will be created.
+            Only used when no extra dimensions are present.
         original_scale : bool, optional
             A boolean flag to determine if the values should be plotted in their
             original scale. Default is True.
@@ -468,8 +471,8 @@ class MMMPlotSuite:
         -------
         fig : matplotlib.figure.Figure
             The Figure object containing the plot.
-        ax : matplotlib.axes.Axes
-            The Axes object with the plot.
+        axes : matplotlib.axes.Axes or numpy.ndarray of matplotlib.axes.Axes
+            The Axes object with the plot, or array of Axes for multiple subplots.
         """
         # Get the channels from samples
         if "channel" not in samples.dims:
@@ -489,35 +492,214 @@ class MMMPlotSuite:
                 "Expected 'allocation' variable in samples, but none found."
             )
 
-        # Get channel contributions, averaging over date and sample
         # Find the variable containing 'channel_contribution' in its name
         channel_contrib_var = next(
             var_name
             for var_name in samples.data_vars
             if "channel_contribution" in var_name
         )
-        channel_contributions = (
-            samples[channel_contrib_var].mean(dim=["date", "sample"]).to_numpy()
-        )
 
-        # Apply scale factor if in original scale
-        if original_scale and scale_factor is not None:
-            channel_contributions *= scale_factor
+        # Identify extra dimensions beyond 'channel'
+        channel_contribution_dims = list(samples[channel_contrib_var].dims)
+        allocation_dims = list(samples.allocation.dims)
 
-        # Get allocated spend
-        allocated_spend = samples.allocation.to_numpy()
+        # Always remove 'date' and 'sample' from consideration as these are always averaged over
+        if "date" in channel_contribution_dims:
+            channel_contribution_dims.remove("date")
+        if "sample" in channel_contribution_dims:
+            channel_contribution_dims.remove("sample")
 
-        # Create plot
-        if ax is None:
-            fig, ax = plt.subplots(figsize=figsize)
+        extra_dims = [dim for dim in channel_contribution_dims if dim != "channel"]
+
+        # If no extra dimensions or using provided axis, create a single plot
+        if not extra_dims or ax is not None:
+            if ax is None:
+                fig, ax = plt.subplots(figsize=figsize)
+            else:
+                fig = ax.get_figure()
+
+            # Average over all dimensions except channel
+            reduction_dims = [
+                dim for dim in samples[channel_contrib_var].dims if dim != "channel"
+            ]
+            channel_contributions = (
+                samples[channel_contrib_var].mean(dim=reduction_dims).to_numpy()
+            )
+
+            # Ensure channel_contributions is 1D
+            if channel_contributions.ndim > 1:
+                channel_contributions = channel_contributions.flatten()
+
+            # Apply scale factor if in original scale
+            if original_scale and scale_factor is not None:
+                channel_contributions *= scale_factor
+
+            # Get allocated spend
+            allocation_reduction_dims = [
+                dim for dim in allocation_dims if dim != "channel"
+            ]
+            if allocation_reduction_dims:
+                allocated_spend = samples.allocation.mean(
+                    dim=allocation_reduction_dims
+                ).to_numpy()
+            else:
+                allocated_spend = samples.allocation.to_numpy()
+
+            # Ensure allocated_spend is 1D
+            if allocated_spend.ndim > 1:
+                allocated_spend = allocated_spend.flatten()
+
+            # Plot single chart
+            self._plot_budget_allocation_bars(
+                ax,
+                samples.coords["channel"].values,
+                allocated_spend,
+                channel_contributions,
+            )
+
+            return fig, ax
+
+        # For multiple dimensions, create a grid of subplots
+        # Determine layout based on number of extra dimensions
+        if len(extra_dims) == 1:
+            # One extra dimension: use for rows
+            dim_values = [samples.coords[extra_dims[0]].values]
+            nrows = len(dim_values[0])
+            ncols = 1
+            subplot_dims = [extra_dims[0], None]
+        elif len(extra_dims) == 2:
+            # Two extra dimensions: one for rows, one for columns
+            dim_values = [
+                samples.coords[extra_dims[0]].values,
+                samples.coords[extra_dims[1]].values,
+            ]
+            nrows = len(dim_values[0])
+            ncols = len(dim_values[1])
+            subplot_dims = extra_dims
         else:
-            fig = ax.get_figure()
+            # Three or more: use first two for rows/columns, average over the rest
+            dim_values = [
+                samples.coords[extra_dims[0]].values,
+                samples.coords[extra_dims[1]].values,
+            ]
+            nrows = len(dim_values[0])
+            ncols = len(dim_values[1])
+            subplot_dims = [extra_dims[0], extra_dims[1]]
 
+        # Calculate figure size based on number of subplots
+        subplot_figsize = (figsize[0] * max(1, ncols), figsize[1] * max(1, nrows))
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=subplot_figsize)
+
+        # Make axes indexable even for 1x1 grid
+        if nrows == 1 and ncols == 1:
+            axes = np.array([[axes]])
+        elif nrows == 1:
+            axes = axes.reshape(1, -1)
+        elif ncols == 1:
+            axes = axes.reshape(-1, 1)
+
+        # Create a subplot for each combination of dimension values
+        for i, row_val in enumerate(dim_values[0]):
+            for j, col_val in enumerate(
+                dim_values[1] if len(dim_values) > 1 else [None]
+            ):
+                ax = axes[i, j]
+
+                # Select data for this subplot
+                selection = {subplot_dims[0]: row_val}
+                if col_val is not None:
+                    selection[subplot_dims[1]] = col_val
+
+                # Select channel contributions for this subplot
+                subset = samples[channel_contrib_var].sel(**selection)
+
+                # Average over remaining dimensions
+                remaining_dims = [
+                    dim
+                    for dim in subset.dims
+                    if dim != "channel" and dim not in selection
+                ]
+                channel_contributions = subset.mean(dim=remaining_dims).to_numpy()
+
+                # Ensure 1D
+                if channel_contributions.ndim > 1:
+                    channel_contributions = channel_contributions.flatten()
+
+                # Apply scale factor if needed
+                if original_scale and scale_factor is not None:
+                    channel_contributions *= scale_factor
+
+                # Select allocation data for this subplot
+                if all(dim in allocation_dims for dim in selection):
+                    # Only select dimensions that exist in allocation
+                    allocation_selection = {
+                        k: v for k, v in selection.items() if k in allocation_dims
+                    }
+                    allocation_subset = samples.allocation.sel(**allocation_selection)
+
+                    # Average over remaining dimensions
+                    allocation_remaining_dims = [
+                        dim for dim in allocation_subset.dims if dim != "channel"
+                    ]
+                    allocated_spend = allocation_subset.mean(
+                        dim=allocation_remaining_dims
+                    ).to_numpy()
+                else:
+                    # If dimensions don't match, use the overall average
+                    allocation_reduction_dims = [
+                        dim for dim in allocation_dims if dim != "channel"
+                    ]
+                    allocated_spend = samples.allocation.mean(
+                        dim=allocation_reduction_dims
+                    ).to_numpy()
+
+                # Ensure 1D
+                if allocated_spend.ndim > 1:
+                    allocated_spend = allocated_spend.flatten()
+
+                # Plot on this subplot
+                self._plot_budget_allocation_bars(
+                    ax,
+                    samples.coords["channel"].values,
+                    allocated_spend,
+                    channel_contributions,
+                )
+
+                # Add subplot title based on dimension values
+                title_parts = []
+                if subplot_dims[0] is not None:
+                    title_parts.append(f"{subplot_dims[0]}={row_val}")
+                if subplot_dims[1] is not None:
+                    title_parts.append(f"{subplot_dims[1]}={col_val}")
+
+                if title_parts:
+                    ax.set_title(", ".join(title_parts))
+
+        fig.tight_layout()
+        return fig, axes
+
+    def _plot_budget_allocation_bars(
+        self,
+        ax: plt.Axes,
+        channels: NDArray,
+        allocated_spend: NDArray,
+        channel_contributions: NDArray,
+    ) -> None:
+        """Plot budget allocation bars on a given axis.
+
+        Parameters
+        ----------
+        ax : plt.Axes
+            The axis to plot on.
+        channels : NDArray
+            Array of channel names.
+        allocated_spend : NDArray
+            Array of allocated spend values.
+        channel_contributions : NDArray
+            Array of channel contribution values.
+        """
         bar_width = 0.35
         opacity = 0.7
-
-        # Get channel index and names
-        channels = samples.coords["channel"].values
         index = range(len(channels))
 
         # Plot allocated spend
@@ -561,10 +743,7 @@ class MMMPlotSuite:
         labels = ["Allocated Spend", "Channel Contributions"]
         ax.legend(bars, labels, loc="best")
 
-        fig.tight_layout()
-        return fig, ax
-
-    def allocated_contribution_by_channel(
+    def allocated_contribution_by_channel_over_time(
         self,
         samples: xr.Dataset,
         scale_factor: float | None = None,
@@ -573,11 +752,13 @@ class MMMPlotSuite:
         original_scale: bool = True,
         figsize: tuple[float, float] = (10, 6),
         ax: plt.Axes | None = None,
-    ) -> tuple[Figure, plt.Axes]:
+    ) -> tuple[Figure, plt.Axes | NDArray[Axes]]:
         """Plot the allocated contribution by channel with uncertainty intervals.
 
         This function visualizes the mean allocated contributions by channel along with
         the uncertainty intervals defined by the lower and upper quantiles.
+        If additional dimensions besides 'channel', 'date', and 'sample' are present,
+        creates a subplot for each combination of these dimensions.
 
         Parameters
         ----------
@@ -598,13 +779,14 @@ class MMMPlotSuite:
             The size of the figure to be created. Default is (10, 6).
         ax : plt.Axes, optional
             The axis to plot on. If None, a new figure and axis will be created.
+            Only used when no extra dimensions are present.
 
         Returns
         -------
         fig : matplotlib.figure.Figure
             The Figure object containing the plot.
-        ax : matplotlib.axes.Axes
-            The Axes object with the plot.
+        axes : matplotlib.axes.Axes or numpy.ndarray of matplotlib.axes.Axes
+            The Axes object with the plot, or array of Axes for multiple subplots.
         """
         # Check for expected dimensions and variables
         if "channel" not in samples.dims:
@@ -633,37 +815,134 @@ class MMMPlotSuite:
             for var_name in samples.data_vars
             if "channel_contribution" in var_name
         )
-        channel_contributions = samples[channel_contrib_var]
 
-        # Apply scale factor if in original scale
-        if original_scale and scale_factor is not None:
-            channel_contributions = channel_contributions * scale_factor
+        # Identify extra dimensions beyond 'channel', 'date', and 'sample'
+        all_dims = list(samples[channel_contrib_var].dims)
+        ignored_dims = {"channel", "date", "sample"}
+        extra_dims = [dim for dim in all_dims if dim not in ignored_dims]
 
-        # Create plot
-        if ax is None:
-            fig, ax = plt.subplots(figsize=figsize)
+        # If no extra dimensions or using provided axis, create a single plot
+        if not extra_dims or ax is not None:
+            if ax is None:
+                fig, ax = plt.subplots(figsize=figsize)
+            else:
+                fig = ax.get_figure()
+
+            channel_contributions = samples[channel_contrib_var]
+
+            # Apply scale factor if in original scale
+            if original_scale and scale_factor is not None:
+                channel_contributions = channel_contributions * scale_factor
+
+            # Plot mean values by channel
+            channel_contributions.mean(dim="sample").plot(hue="channel", ax=ax)
+
+            # Add uncertainty intervals for each channel
+            for channel in samples.coords["channel"].values:
+                ax.fill_between(
+                    x=channel_contributions.date.values,
+                    y1=channel_contributions.sel(channel=channel).quantile(
+                        lower_quantile, dim="sample"
+                    ),
+                    y2=channel_contributions.sel(channel=channel).quantile(
+                        upper_quantile, dim="sample"
+                    ),
+                    alpha=0.1,
+                )
+
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Channel Contribution")
+            ax.set_title("Allocated Contribution by Channel Over Time")
+
+            fig.tight_layout()
+            return fig, ax
+
+        # For multiple dimensions, create a grid of subplots
+        # Determine layout based on number of extra dimensions
+        if len(extra_dims) == 1:
+            # One extra dimension: use for rows
+            dim_values = [samples.coords[extra_dims[0]].values]
+            nrows = len(dim_values[0])
+            ncols = 1
+            subplot_dims = [extra_dims[0], None]
+        elif len(extra_dims) == 2:
+            # Two extra dimensions: one for rows, one for columns
+            dim_values = [
+                samples.coords[extra_dims[0]].values,
+                samples.coords[extra_dims[1]].values,
+            ]
+            nrows = len(dim_values[0])
+            ncols = len(dim_values[1])
+            subplot_dims = extra_dims
         else:
-            fig = ax.get_figure()
+            # Three or more: use first two for rows/columns, average over the rest
+            dim_values = [
+                samples.coords[extra_dims[0]].values,
+                samples.coords[extra_dims[1]].values,
+            ]
+            nrows = len(dim_values[0])
+            ncols = len(dim_values[1])
+            subplot_dims = [extra_dims[0], extra_dims[1]]
 
-        # Plot mean values by channel
-        channel_contributions.mean(dim="sample").plot(hue="channel", ax=ax)
+        # Calculate figure size based on number of subplots
+        subplot_figsize = (figsize[0] * max(1, ncols), figsize[1] * max(1, nrows))
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=subplot_figsize)
 
-        # Add uncertainty intervals for each channel
-        for channel in samples.coords["channel"].values:
-            ax.fill_between(
-                x=channel_contributions.date.values,
-                y1=channel_contributions.sel(channel=channel).quantile(
-                    lower_quantile, dim="sample"
-                ),
-                y2=channel_contributions.sel(channel=channel).quantile(
-                    upper_quantile, dim="sample"
-                ),
-                alpha=0.1,
-            )
+        # Make axes indexable even for 1x1 grid
+        if nrows == 1 and ncols == 1:
+            axes = np.array([[axes]])
+        elif nrows == 1:
+            axes = axes.reshape(1, -1)
+        elif ncols == 1:
+            axes = axes.reshape(-1, 1)
 
-        ax.set_xlabel("Date")
-        ax.set_ylabel("Channel Contribution")
-        ax.set_title("Allocated Contribution by Channel Over Time")
+        # Create a subplot for each combination of dimension values
+        for i, row_val in enumerate(dim_values[0]):
+            for j, col_val in enumerate(
+                dim_values[1] if len(dim_values) > 1 else [None]
+            ):
+                ax = axes[i, j]
+
+                # Select data for this subplot
+                selection = {subplot_dims[0]: row_val}
+                if col_val is not None:
+                    selection[subplot_dims[1]] = col_val
+
+                # Select channel contributions for this subplot
+                subset = samples[channel_contrib_var].sel(**selection)
+
+                # Apply scale factor if needed
+                if original_scale and scale_factor is not None:
+                    subset = subset * scale_factor
+
+                # Plot mean values by channel for this subset
+                subset.mean(dim="sample").plot(hue="channel", ax=ax)
+
+                # Add uncertainty intervals for each channel
+                for channel in samples.coords["channel"].values:
+                    channel_data = subset.sel(channel=channel)
+                    ax.fill_between(
+                        x=channel_data.date.values,
+                        y1=channel_data.quantile(lower_quantile, dim="sample"),
+                        y2=channel_data.quantile(upper_quantile, dim="sample"),
+                        alpha=0.1,
+                    )
+
+                # Add subplot title based on dimension values
+                title_parts = []
+                if subplot_dims[0] is not None:
+                    title_parts.append(f"{subplot_dims[0]}={row_val}")
+                if subplot_dims[1] is not None:
+                    title_parts.append(f"{subplot_dims[1]}={col_val}")
+
+                base_title = "Allocated Contribution by Channel Over Time"
+                if title_parts:
+                    ax.set_title(f"{base_title} - {', '.join(title_parts)}")
+                else:
+                    ax.set_title(base_title)
+
+                ax.set_xlabel("Date")
+                ax.set_ylabel("Channel Contribution")
 
         fig.tight_layout()
-        return fig, ax
+        return fig, axes
