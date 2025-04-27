@@ -320,7 +320,7 @@ class NestedLogit(ModelBuilder):
         return X, F, y
     
 
-    def make_exp_nest(self, U, w_nest, lambdas_nests, nest, level='top'):
+    def make_exp_nest(self, U, W, betas_fixed, lambdas_nests, nest, level='top'):
         nest_indices = self.nest_indices
         lambda_lkup = self.lambda_lkup 
         N = U.shape[0]
@@ -329,6 +329,10 @@ class NestedLogit(ModelBuilder):
         else: 
             parent = None
         y_nest = U[:, nest_indices[level][nest]]
+        betas_fixed_ = betas_fixed[nest_indices[level][nest], :]
+        betas_fixed_ = pm.Deterministic(f'beta_fixed_{level}_{nest}', pt.set_subtensor(betas_fixed_[-1, :], 0))
+        
+        w_nest = pm.math.dot(W, betas_fixed_.T)
         if len(nest_indices[level][nest]) > 1:
             max_y_nest = pm.math.max(y_nest, axis=0)
             P_y_given_nest = pm.Deterministic(
@@ -358,11 +362,11 @@ class NestedLogit(ModelBuilder):
         return exp_W_nest, P_y_given_nest
     
 
-    def make_P_nest(self, U, W, w_nest, lambdas_nests, level):
+    def make_P_nest(self, U, W, betas_fixed, lambdas_nests, level):
         nest_indices = self.nest_indices
         conditional_probs = {}
         for n in nest_indices[level].keys():
-            exp_W_nest, P_y_given_nest = self.make_exp_nest(U, w_nest, 
+            exp_W_nest, P_y_given_nest = self.make_exp_nest(U, W, betas_fixed, 
                 lambdas_nests, n, level)
             if W is None:
                 conditional_probs[n] = {'exp': exp_W_nest, 'P_y_given': P_y_given_nest}
@@ -370,8 +374,8 @@ class NestedLogit(ModelBuilder):
                 exp_W_nest = pm.math.sum(exp_W_nest, axis=1)
                 conditional_probs[n] = {'exp': exp_W_nest, 'P_y_given': P_y_given_nest}
 
-        denom = pm.Deterministic(f'denom_{level}', pm.math.sum([conditional_probs[n]['exp'] 
-                                                                for n in nest_indices[level].keys()], axis=0))
+        
+        denom = pm.Deterministic(f'denom_{level}', pm.math.sum([conditional_probs[n]['exp'] for n in nest_indices[level].keys()], axis=0))
         nest_probs = {}
         for n in nest_indices[level].keys():
             P_nest = pm.Deterministic(f'P_{n}', (conditional_probs[n]['exp'] / denom))
@@ -397,8 +401,8 @@ class NestedLogit(ModelBuilder):
                 W_data = pm.Data('W', W, dims=('obs', 'fixed_covariates'))
                 betas_fixed_ = pm.Normal('betas_fixed_', 0, 1, dims=('alts', 'fixed_covariates'))
                 betas_fixed = pm.Deterministic('betas_fixed', pt.set_subtensor(betas_fixed_[-1, :], 0), 
-                    dims=('alts','fixed_covariates'))
-                w_nest = pm.Deterministic('w_nest', pm.math.dot(W_data, betas_fixed.T))
+                        dims=('alts','fixed_covariates'))
+                w_nest = pm.math.dot(W_data, betas_fixed.T)
             X_data = pm.Data('X', X,  dims=('obs', 'alts', 'alt_covariates'))
             y_data = pm.Data('y', y, dims='obs')
 
@@ -409,7 +413,7 @@ class NestedLogit(ModelBuilder):
             
             ## Mid Level
             if 'mid' in nest_indices.keys():
-                cond_prob_m, nest_prob_m = self.make_P_nest(U, W, w_nest, lambdas_nests, 'mid')
+                cond_prob_m, nest_prob_m = self.make_P_nest(U, W, betas_fixed_, lambdas_nests, 'mid')
         
                 ## Construct Paths Bottom -> Up
                 child_nests = {}
@@ -434,7 +438,7 @@ class NestedLogit(ModelBuilder):
                 child_nests = {}
 
             ## Top Level
-            cond_prob_t, nest_prob_t = self.make_P_nest(U, W, w_nest, lambdas_nests, 'top')
+            cond_prob_t, nest_prob_t = self.make_P_nest(U, W, betas_fixed_, lambdas_nests, 'top')
 
             path_prods_t = []
             ordered = [(key, min(vals)) for key, vals in nest_indices['top'].items()]
@@ -479,6 +483,7 @@ class NestedLogit(ModelBuilder):
         attrs["covariates"] = json.dumps(self.covariates)
         attrs["depvar"] = json.dumps(self.depvar)
         attrs["choice_df"] = json.dumps('Placeholder for DF')
+        attrs['nesting_structure'] = json.dumps(self.nesting_structure)
         attrs["utility_equations"] = json.dumps(self.utility_equations)
 
         return attrs
@@ -545,7 +550,7 @@ class NestedLogit(ModelBuilder):
 
         """
         sample_prior_predictive_kwargs = sample_prior_predictive_kwargs or {}
-        fit_kwargs = fit_kwargs or {}
+        fit_kwargs = fit_kwargs or {'nuts_sampler': 'numpyro'}
         sample_posterior_predictive_kwargs = sample_posterior_predictive_kwargs or {}
         X, F, y = self.preprocess_model_data(self.choice_df, self.utility_equations)  # type: ignore
         model = self.build_model(X, F, y)
