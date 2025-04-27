@@ -26,25 +26,26 @@ rng = np.random.default_rng(seed)
 
 @pytest.fixture
 def sample_df():
-    return pd.DataFrame({
-        "choice": ["alt", "alt", "other"],
-        "alt_X1": [1, 2, 3],
-        "alt_X2": [4, 5, 6],
-        "other_X1": [1, 2, 4],
-        "other_X2":[5, 6, 8],
-        "income": [50000, 60000, 70000]
-    })
+    return pd.DataFrame(
+        {
+            "choice": ["alt", "alt", "other"],
+            "alt_X1": [1, 2, 3],
+            "alt_X2": [4, 5, 6],
+            "other_X1": [1, 2, 4],
+            "other_X2": [5, 6, 8],
+            "income": [50000, 60000, 70000],
+        }
+    )
+
 
 @pytest.fixture
 def utility_eqs():
-    return ["alt ~ alt_X1 + alt_X2 | income",
-            "other ~ other_X1 + other_X2 | income"
-            ]
+    return ["alt ~ alt_X1 + alt_X2 | income", "other ~ other_X1 + other_X2 | income"]
 
 
 @pytest.fixture
 def mnl():
-    return MNLogit(sample_df, utility_eqs, 'choice', ['X1', 'X2'])
+    return MNLogit(sample_df, utility_eqs, "choice", ["X1", "X2"])
 
 
 def test_parse_formula_valid(mnl, sample_df):
@@ -72,6 +73,7 @@ def test_parse_formula_missing_fixed_covariate(mnl, sample_df):
     with pytest.raises(ValueError):
         mnl.parse_formula(sample_df, formula, "choice")
 
+
 def test_prepare_X_matrix_valid(mnl, sample_df, utility_eqs):
     X, F, alts, fixed_cov = mnl.prepare_X_matrix(sample_df, utility_eqs, "choice")
 
@@ -84,40 +86,35 @@ def test_prepare_X_matrix_valid(mnl, sample_df, utility_eqs):
 def test_prepare_X_matrix_missing_column(mnl, sample_df):
     formulas = [
         "alt ~ alt_X1 + missing_col | income",
-        "other ~ other_X1 + other_X2 | income"
+        "other ~ other_X1 + other_X2 | income",
     ]
     with pytest.raises(ValueError):
         mnl.prepare_X_matrix(sample_df, formulas, "choice")
 
 
 def test_prepare_X_matrix_unequal_covariates(mnl, sample_df):
-    formulas = [
-        "alt ~ alt_X1 + alt_X2 | income",
-        "other ~ other_X1 | income"
-    ]
+    formulas = ["alt ~ alt_X1 + alt_X2 | income", "other ~ other_X1 | income"]
     # Expect a shape mismatch assertion because n_covariates is hardcoded from first formula
     with pytest.raises(ValueError):  # NumPy stack will fail
         mnl.prepare_X_matrix(sample_df, formulas, "choice")
 
 
 def test_prepare_X_matrix_no_fixed_covariates(mnl, sample_df):
-    formulas = [
-        "alt ~ alt_X1 + alt_X2 | ",
-        "other ~ other_X1 + other_X2 | "
-    ]
+    formulas = ["alt ~ alt_X1 + alt_X2 | ", "other ~ other_X1 + other_X2 | "]
     X, F, alts, fixed_cov = mnl.prepare_X_matrix(sample_df, formulas, "choice")
 
     assert X.shape == (3, 2, 2)
     assert F == []  # Empty list if no fixed covariates
     assert len(fixed_cov) == 0
 
+
 def test_build_model_returns_pymc_model(mnl, sample_df, utility_eqs):
     X = np.random.randn(5, 2, 3)  # 5 obs x 2 alts x 3 alt covariates
-    F = np.random.randn(5, 2)     # 5 obs x 2 fixed covariates
+    F = np.random.randn(5, 2)  # 5 obs x 2 fixed covariates
     y = np.random.randint(0, 2, size=5)  # obs labels
 
     mnl.preprocess_model_data(sample_df, utility_eqs)
     model = mnl.build_model(X, F, y)
     assert isinstance(model, pm.Model)
-    assert mnl.alternatives == ['alt', 'other']
-    assert mnl.covariates == ['X1', 'X2']
+    assert mnl.alternatives == ["alt", "other"]
+    assert mnl.covariates == ["X1", "X2"]
