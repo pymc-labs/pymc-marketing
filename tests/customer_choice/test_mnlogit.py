@@ -62,19 +62,19 @@ def test_parse_formula_valid(mnl, sample_df):
 
 def test_parse_formula_invalid_target(mnl, sample_df):
     formula = "invalid_target ~ alt_X1 + alt_X2 | income"
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mnl.parse_formula(sample_df, formula, "choice")
 
 
 def test_parse_formula_missing_alt_covariate(mnl, sample_df):
     formula = "alt ~ alt_X1 + missing_col | income"
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mnl.parse_formula(sample_df, formula, "choice")
 
 
 def test_parse_formula_missing_fixed_covariate(mnl, sample_df):
     formula = "alt ~ alt_X1 + alt_X2 | missing_fixed"
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mnl.parse_formula(sample_df, formula, "choice")
 
 def test_prepare_X_matrix_valid(mnl, sample_df, utility_eqs):
@@ -91,7 +91,7 @@ def test_prepare_X_matrix_missing_column(mnl, sample_df):
         "alt ~ alt_X1 + missing_col | income",
         "other ~ other_X1 + other_X2 | income"
     ]
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         mnl.prepare_X_matrix(sample_df, formulas, "choice")
 
 

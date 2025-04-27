@@ -14,22 +14,17 @@
 """Nested Logit for Product Preference Analysis."""
 
 import json
-from typing import Any, cast
 
 import arviz as az
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
-import pymc as pm
-from matplotlib.axes import Axes
-from typing_extensions import Self
-from xarray import DataArray
 import patsy
-
+import pymc as pm
 import pytensor.tensor as pt
+from typing_extensions import Self
 
-from pymc_marketing.model_builder import ModelBuilder, create_idata_accessor
+from pymc_marketing.model_builder import ModelBuilder
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.prior import Prior
 
@@ -55,7 +50,7 @@ class NestedLogit(ModelBuilder):
         each product alternative. The formulas should be in Wilkinson
         style notation and allow the target product to be specified as
         as a function of the alternative specific attributes and the individual
-        specific attributes: 
+        specific attributes:
         target_product ~ target_attribute1 + target_attribute2 | individual_attribute
 
     depvar : str
@@ -75,7 +70,6 @@ class NestedLogit(ModelBuilder):
 
     Notes
     -----
-
     Example:
     -------
     The format of `choice_df`:
@@ -149,7 +143,7 @@ class NestedLogit(ModelBuilder):
                 dims="obs",
             )
         }
-    
+
     @property
     def default_sampler_config(self) -> dict:
         """Default sampler configuration."""
@@ -170,47 +164,54 @@ class NestedLogit(ModelBuilder):
         }
 
         return result
-    
+
     def parse_formula(self, df, formula, depvar):
-        """ Helper function to parse the three part
-            structure of the formula specification.
-            Checks to ensure each covariate and target
-            variable is in the choice_df
+        """Parse the three-part structure of a formula specification.
+
+        Splits the formula into target, alternative-specific covariates, and
+        fixed covariates. Ensures that the target variable appears in the
+        dependent variable column and that all specified covariates exist
+        in the input dataframe.
         """
         target, covariates = formula.split('~')
         target = target.strip()
+
         alt_covariates, fixed_covariates = covariates.split('|')
         alt_covariates = alt_covariates.strip()
         fixed_covariates = fixed_covariates.strip()
-        assert target in df[depvar].unique()
-        for f in fixed_covariates.split('+'): 
-            if f.strip():
-                assert f.strip() in df.columns
+
+        if target not in df[depvar].unique():
+            raise ValueError(f"Target '{target}' not found in dependent variable '{depvar}'.")
+
+        for f in fixed_covariates.split('+'):
+            if f.strip() and f.strip() not in df.columns:
+                raise ValueError(f"Fixed covariate '{f.strip()}' not found in dataframe columns.")
+
         for a in alt_covariates.split('+'):
-            if a.strip():
-                assert a.strip() in df.columns
+            if a.strip() and a.strip() not in df.columns:
+                raise ValueError(f"Alternative covariate '{a.strip()}' not found in dataframe columns.")
+
         return target, alt_covariates, fixed_covariates
-    
+
     def prepare_X_matrix(self, df, utility_formulas, depvar):
-        """ Helper function to prepare a X matrix for utility equations
+        """Prepare the X matrix for the utility equations.
 
-                alt1 ~ alt1_X1 + alt1_X2 | income 
-            
-            The Dimensions of the X matrix should return a tensor
-            with N observations x Alt x Covariates. Assumes utility
-            formulas have an equal number of covariates per alternative. 
-            These can be zero values if one alternative lacks some attribute.
+        The X matrix is a tensor with dimensions:
+        (N observations) x (Alternatives) x (Covariates).
+        Assumes that the utility formulas specify an equal number of covariates
+        per alternative; these can be zero-valued if an alternative lacks a
+        specific attribute.
 
-            The utility formulas should express the driver relationship
-            between the choice value in the dependent variable and the attributes
-            of the alternative that would incentivise that choice. 
-            The LHS of each formula needs to relate to a value of the dependent choice 
-            variable and the RHS needs to express an additive relation of the available
-            covariates
+        Utility formulas should express the relationship between the choice
+        outcome (dependent variable) and the attributes of each alternative
+        that incentivize that choice. The left-hand side (LHS) of each formula
+        must correspond to a value of the dependent variable, while the
+        right-hand side (RHS) should define an additive combination of the
+        available covariates.
 
-            We also allow for the incorporation of fixed covariates which do not vary
-            across the alternatives. For the fixed covariates we need an alternative specific
-            parameter to identify the contribution to utility varies.
+        We also allow the incorporation of fixed covariates that do not vary
+        across alternatives. For these, an alternative-specific parameter is
+        used to allow the contribution to utility to vary by alternative.
         """
         n_obs = len(df)
         n_alts = len(utility_formulas)
@@ -227,56 +228,65 @@ class NestedLogit(ModelBuilder):
             if fixed_covar:
                 fixed_covariates.append(fixed_covar)
 
-        if fixed_covariates:  
+        if fixed_covariates:
             F = np.unique(fixed_covariates)[0]
             F = '0 + ' + F
             F = np.asarray(patsy.dmatrix(F, df))
         else:
             F = []
-        
+
         X = np.stack(alt_covariates, axis=1).T
-        assert X.shape == (n_obs, n_alts, n_covariates)
+        if X.shape != (n_obs, n_alts, n_covariates):
+            raise ValueError(f"X has shape {X.shape}, but expected {(n_obs, n_alts, n_covariates)}.")
         return X, F, alts, np.unique(fixed_covariates)
-    
+
     @staticmethod
     def _prepare_y_outcome(df, alternatives, depvar):
-        """ Helper function to categorically encode the outcome variable for
-            use in the modelling. 
+        """Encode the outcome category variable for use in the modelling.
 
-            The order of the alterntives should map to the order of the
-            utility formulas. 
+        The order of the alterntives should map to the order of the
+        utility formulas.
         """
-        prod_mapping = dict(zip(alternatives, range(len(alternatives))))
+        prod_mapping = dict(zip(alternatives, range(len(alternatives)), strict=False))
         df['mode_encoded'] = df[depvar].map(prod_mapping)
         y = df['mode_encoded'].values
         return y, prod_mapping
-    
+
     @staticmethod
     def _parse_nesting(nest_dict, product_indices):
+        """Encode the relevant nesting structure specified when initialising the model.
+
+        We build two dictionaries for the top and middle logit
+        models in the hierarchical nesting structure as required.
+        """
         if not nest_dict:
             raise ValueError("Nesting structure must not be empty.")
         top_level = {}
         mid_level = {}
         for k in nest_dict.keys():
-            if isinstance(nest_dict[k], dict): 
+            if isinstance(nest_dict[k], dict):
                 collected_idxs = []
                 for j in nest_dict[k]:
-                    idxs = [product_indices[i] for i in nest_dict[k][j]]
-                    mid_level[k + '_' + j] = idxs
-                    collected_idxs = collected_idxs + idxs
+                    if isinstance(nest_dict[k][j], dict):
+                        raise ValueError("Cannot have more than 2 layers of Nesting")
+                    else:
+                        idxs = [product_indices[i] for i in nest_dict[k][j]]
+                        mid_level[k + '_' + j] = idxs
+                        collected_idxs = collected_idxs + idxs
                 top_level[k] = np.sort(collected_idxs)
             else:
-                top_level[k] = np.sort([product_indices[i] for i in nest_dict[k]])   
+                top_level[k] = np.sort([product_indices[i] for i in nest_dict[k]])
 
         if not mid_level:
             mid_level = None
         return top_level, mid_level
-    
+
     @staticmethod
-    def _prepare_coords(df, alternatives, 
-                        covariates, 
-                        f_covariates, 
+    def _prepare_coords(df, alternatives,
+                        covariates,
+                        f_covariates,
                         nests):
+        """Prepare coordinates for PyMC nested logit model."""
         coords = {
             "alts": alternatives,
             "alts_probs": alternatives[:-1],
@@ -286,16 +296,16 @@ class NestedLogit(ModelBuilder):
             "obs": range(len(df)),
         }
         return coords
-    
-    
+
+
     def preprocess_model_data(
         self,
         choice_df,
         utility_equations
     ) -> None:
-
-        X, F, alternatives, fixed_covar = self.prepare_X_matrix(choice_df, 
-                                                           utility_equations, 
+        """Pre-process the model initiation inputs into a format that can be used by the PyMC model."""
+        X, F, alternatives, fixed_covar = self.prepare_X_matrix(choice_df,
+                                                           utility_equations,
                                                            self.depvar)
         self.X, self.F, self.alternatives, self.fixed_covar = X, F, alternatives, fixed_covar
         y, prod_mapping = self._prepare_y_outcome(choice_df, self.alternatives, self.depvar)
@@ -305,35 +315,39 @@ class NestedLogit(ModelBuilder):
         if mid_level:
             all_nests = list(top_level.keys()) + list(mid_level.keys())
             self.nest_indices = {'top': top_level, 'mid': mid_level}
-        else: 
+        else:
             all_nests = list(top_level.keys())
             self.nest_indices = {'top': top_level }
 
         self.all_nests = all_nests
-        self.lambda_lkup = dict(zip(all_nests, range(len(all_nests))))
+        self.lambda_lkup = dict(zip(all_nests, range(len(all_nests)), strict=False))
 
         # note: type hints for coords required for mypy to not get confused
-        self.coords: dict[str, list[str]] = self._prepare_coords(choice_df, 
-                                                                 self.alternatives, 
-                                                                 self.covariates, 
-                                                                 self.fixed_covar, 
+        self.coords: dict[str, list[str]] = self._prepare_coords(choice_df,
+                                                                 self.alternatives,
+                                                                 self.covariates,
+                                                                 self.fixed_covar,
                                                                  self.all_nests)
-        
+
         return X, F, y
-    
+
 
     def make_exp_nest(self, U, W, betas_fixed, lambdas_nests, nest, level='top'):
+        """Calculate within nest probabilities.
+
+        Allows mixing between levels of the nesting structure within the PyMC model.
+        """
         nest_indices = self.nest_indices
-        lambda_lkup = self.lambda_lkup 
+        lambda_lkup = self.lambda_lkup
         N = U.shape[0]
         if '_' in nest:
             parent, child = nest.split('_')
-        else: 
+        else:
             parent = None
         y_nest = U[:, nest_indices[level][nest]]
         betas_fixed_ = betas_fixed[nest_indices[level][nest], :]
         betas_fixed_ = pm.Deterministic(f'beta_fixed_{level}_{nest}', pt.set_subtensor(betas_fixed_[-1, :], 0))
-        
+
         w_nest = pm.math.dot(W, betas_fixed_.T)
         if len(nest_indices[level][nest]) > 1:
             max_y_nest = pm.math.max(y_nest, axis=0)
@@ -362,32 +376,37 @@ class NestedLogit(ModelBuilder):
 
         exp_W_nest = pm.math.exp(W_nest)
         return exp_W_nest, P_y_given_nest
-    
+
 
     def make_P_nest(self, U, W, betas_fixed, lambdas_nests, level):
+        """Calculate the probability of choosing a nest."""
         nest_indices = self.nest_indices
         conditional_probs = {}
         for n in nest_indices[level].keys():
-            exp_W_nest, P_y_given_nest = self.make_exp_nest(U, W, betas_fixed, 
+            exp_W_nest, P_y_given_nest = self.make_exp_nest(U, W, betas_fixed,
                 lambdas_nests, n, level)
             if W is None:
                 conditional_probs[n] = {'exp': exp_W_nest, 'P_y_given': P_y_given_nest}
-            else: 
+            else:
                 exp_W_nest = pm.math.sum(exp_W_nest, axis=1)
                 conditional_probs[n] = {'exp': exp_W_nest, 'P_y_given': P_y_given_nest}
 
-        
-        denom = pm.Deterministic(f'denom_{level}', pm.math.sum([conditional_probs[n]['exp'] for n in nest_indices[level].keys()], axis=0))
+
+        denom = pm.Deterministic(f'denom_{level}',
+                                 pm.math.sum([conditional_probs[n]['exp']
+                                              for n in nest_indices[level].keys()],
+                                                axis=0))
         nest_probs = {}
         for n in nest_indices[level].keys():
             P_nest = pm.Deterministic(f'P_{n}', (conditional_probs[n]['exp'] / denom))
             nest_probs[n] = P_nest
         return conditional_probs, nest_probs
-        
+
 
     def build_model(
         self, X, W, y
         ) -> None:
+        """Build Model."""
         nest_indices = self.nest_indices
         coords = self.coords
 
@@ -395,14 +414,14 @@ class NestedLogit(ModelBuilder):
             alphas = pm.Normal('alphas', 0, 1, dims='alts')
             betas = pm.Normal('betas', 0, 1, dims=('alt_covariates'))
             lambdas_nests = pm.Beta('lambda_nests', 2, 2, dims='nests')
-            
+
             if W is None:
-                w_nest = pm.math.zeros((len(coords['obs']), 
+                w_nest = pm.math.zeros((len(coords['obs']),
                                         len(coords['alts'])))
-            else: 
+            else:
                 W_data = pm.Data('W', W, dims=('obs', 'fixed_covariates'))
                 betas_fixed_ = pm.Normal('betas_fixed_', 0, 1, dims=('alts', 'fixed_covariates'))
-                betas_fixed = pm.Deterministic('betas_fixed', pt.set_subtensor(betas_fixed_[-1, :], 0), 
+                betas_fixed = pm.Deterministic('betas_fixed', pt.set_subtensor(betas_fixed_[-1, :], 0),
                         dims=('alts','fixed_covariates'))
                 w_nest = pm.math.dot(W_data, betas_fixed.T)
             X_data = pm.Data('X', X,  dims=('obs', 'alts', 'alt_covariates'))
@@ -412,11 +431,11 @@ class NestedLogit(ModelBuilder):
             alphas = pt.set_subtensor(alphas[-1], 0)
             u = alphas + pm.math.dot(X_data, betas)
             U = pm.Deterministic('U', w_nest + u, dims=('obs', 'alts'))
-            
+
             ## Mid Level
             if 'mid' in nest_indices.keys():
                 cond_prob_m, nest_prob_m = self.make_P_nest(U, W, betas_fixed_, lambdas_nests, 'mid')
-        
+
                 ## Construct Paths Bottom -> Up
                 child_nests = {}
                 path_prods_m = {}
@@ -434,9 +453,10 @@ class NestedLogit(ModelBuilder):
                         path_prods_m[parent] = []
                         path_prods_m[parent].append(prod)
                     if is_last:
-                        P_ = pm.Deterministic(f'P_{parent}_children',  pm.math.concatenate(path_prods_m[parent], axis=1))
+                        P_ = pm.Deterministic(f'P_{parent}_children',
+                                              pm.math.concatenate(path_prods_m[parent], axis=1))
                         child_nests[parent] = P_
-            else: 
+            else:
                 child_nests = {}
 
             ## Top Level
@@ -445,7 +465,7 @@ class NestedLogit(ModelBuilder):
             path_prods_t = []
             ordered = [(key, min(vals)) for key, vals in nest_indices['top'].items()]
             top_nests = [x[0] for x in sorted(ordered, key=lambda x: x[1])]
-            for idx, n in enumerate(top_nests):
+            for _idx, n in enumerate(top_nests):
                 P_nest = nest_prob_t[n]
                 P_y_given_nest = cond_prob_t[n]['P_y_given']
                 if n in child_nests:
@@ -455,8 +475,8 @@ class NestedLogit(ModelBuilder):
                     prod = pm.Deterministic(f'prod_{n}_t', (P_nest[:, pt.newaxis]*(P_y_given_nest)))
                 path_prods_t.append(prod)
             P_ = pm.Deterministic('p', pm.math.concatenate(path_prods_t, axis=1), dims=("obs", "alts"))
-            
-            choice_obs = pm.Categorical("likelihood", p=P_, observed=y_data, dims="obs")
+
+            _ = pm.Categorical("likelihood", p=P_, observed=y_data, dims="obs")
 
         self.model = model
         return model
@@ -489,8 +509,9 @@ class NestedLogit(ModelBuilder):
         attrs["utility_equations"] = json.dumps(self.utility_equations)
 
         return attrs
-    
+
     def sample_prior_predictive(self, extend_idata, kwargs):
+        """Sample Prior Predictive Distribution."""
         with self.model:  # sample with new input data
             prior_pred: az.InferenceData = pm.sample_prior_predictive(500, **kwargs)
             self.set_idata_attrs(prior_pred)
@@ -502,25 +523,27 @@ class NestedLogit(ModelBuilder):
                 self.idata = prior_pred
 
     def fit(self, extend_idata, kwargs):
+        """Fit Nested Logit Model."""
         if extend_idata:
             with self.model:
                 self.idata.extend(pm.sample(**kwargs))
-        else: 
+        else:
             with self.model:
                 self.idata = pm.sample(**kwargs)
 
     def sample_posterior_predictive(self, extend_idata, kwargs):
+        """Sample Posterior Predictive Distribution."""
         if extend_idata:
             with self.model:
-                self.idata.extend(pm.sample_posterior_predictive(self.idata, 
+                self.idata.extend(pm.sample_posterior_predictive(self.idata,
                                                         var_names=['likelihood', 'p'],
                                                          **kwargs))
-        else: 
+        else:
             with self.model:
-                self.post_pred = pm.sample_posterior_predictive(self.idata, 
+                self.post_pred = pm.sample_posterior_predictive(self.idata,
                                                         var_names=['likelihood', 'p'],
                                                          **kwargs)
-    
+
 
     def sample(
         self,
@@ -562,18 +585,17 @@ class NestedLogit(ModelBuilder):
         self.fit(extend_idata=True, kwargs=fit_kwargs)
         self.sample_posterior_predictive(extend_idata=True, kwargs=sample_posterior_predictive_kwargs)
         return self
-    
+
 
     def apply_intervention(self, new_choice_df, new_utility_equations=None):
-        """ A function to apply one of two types of intervention.
-            The first type of intervention assumes we have a fitted model and
-            just aims to sample from the posterior predictive distribution after
-            adjusting one of more of the models observable attributes and passing
-            in the new_choice_df. 
+        """Apply one of two types of intervention.
 
-            The second type of intervention allows that we remove a product entirely
-            from the market place and model the market share which accrues to each product
-            in the adjusted market. 
+        The first type of intervention assumes we have a fitted model and
+        just aims to sample from the posterior predictive distribution after
+        adjusting one of more of the models observable attributes and passing
+        in the new_choice_df. The second type of intervention allows that we remove a
+        product entirely from the market place and model the market share which
+        accrues to each product in the adjusted market.
         """
         if not hasattr(self, 'model'):
                 self.sample()
@@ -593,40 +615,43 @@ class NestedLogit(ModelBuilder):
         else:
             new_X, new_F, new_y = self.preprocess_model_data(new_choice_df, new_utility_equations)
             new_model = self.build_model(new_X, new_F, new_y)
-            with new_model: 
+            with new_model:
                 idata_new_policy = pm.sample_prior_predictive()
                 idata_new_policy.extend(
                     pm.sample(
                     target_accept=.99,
                     tune=2000,
-                    idata_kwargs={"log_likelihood": True}, 
-                    random_seed=101, 
+                    idata_kwargs={"log_likelihood": True},
+                    random_seed=101,
                     )
                     )
-                idata_new_policy.extend(pm.sample_posterior_predictive(idata_new_policy, 
+                idata_new_policy.extend(pm.sample_posterior_predictive(idata_new_policy,
                                                                        var_names=["p", "likelihood"]))
 
             self.intervention_idata = idata_new_policy
-            
+
         return idata_new_policy
-    
+
     @staticmethod
     def calculate_share_change(idata, new_idata):
+        """Calculate difference in market share due to market intervention."""
         expected = idata['posterior_predictive'].mean(dim=('chain', 'draw', 'obs'))['p']
         expected_new = new_idata['posterior_predictive'].mean(dim=('chain', 'draw', 'obs'))['p']
         shares_df = pd.DataFrame({'product': expected['alts'], 'policy_share': expected})
         shares_df_new = pd.DataFrame({'product': expected_new['alts'], 'new_policy_share': expected_new})
         shares_df = shares_df.merge(shares_df_new, left_on='product', right_on='product', how='left')
         shares_df.fillna(0, inplace=True)
-        shares_df['relative_change'] = (shares_df['new_policy_share'] - shares_df['policy_share']) / shares_df['policy_share']
+        shares_df['relative_change'] = ((shares_df['new_policy_share'] - shares_df['policy_share']) /
+                                        shares_df['policy_share'])
         shares_df.set_index('product', inplace=True)
         return shares_df
-    
+
     @staticmethod
     def make_change_plot(change_df, title="Price Intervention", figsize=(8, 4)):
+        """Plot change induced by a market intervention."""
         fig, ax = plt.subplots(figsize=figsize)
-        ax.axvline(x=0, color='black', linestyle='--', linewidth=1) 
-        ax.axvline(x=1, color='black', linestyle='--', linewidth=1) 
+        ax.axvline(x=0, color='black', linestyle='--', linewidth=1)
+        ax.axvline(x=1, color='black', linestyle='--', linewidth=1)
         ax.set_xlim(-0.2, 1.2)
 
         upperbound = change_df[['policy_share', 'new_policy_share']].max().max() + 0.05
@@ -638,15 +663,15 @@ class NestedLogit(ModelBuilder):
             # Color depending on the evolution
             value_before = change_df[change_df.index==mode]['policy_share'].item()
             value_after = change_df[change_df.index==mode]['new_policy_share'].item()
-            
+
             # Red if the value has decreased, green otherwise
             if value_before > value_after:
                 color='red'
             else:
                 color='green'
-            
+
             # Add the line to the plot
-            ax.plot([0, 1], change_df.loc[mode][['policy_share', 'new_policy_share']], 
+            ax.plot([0, 1], change_df.loc[mode][['policy_share', 'new_policy_share']],
                     marker='o', label=mode, color=color)
 
         for mode in change_df.index:
@@ -654,22 +679,21 @@ class NestedLogit(ModelBuilder):
                 y_position = np.round(change_df.loc[mode][metric], 2)
                 if metric == 'policy_share':
                     x_position = 0 - 0.12
-                else: 
+                else:
                     x_position = 1 + 0.02
                 ax.text(
                     x_position,
-                    y_position, 
+                    y_position,
                     f'{mode}, {y_position}',
                     fontsize=8, # Text size
                     color='black', # Text color
-                    ) 
+                    )
         ax.set_xticks([])
         ax.set_ylabel("Share of Market %")
         ax.set_xlabel("Before/After")
         ax.set_title(f" Multinomial Logit implied Market Shares \n Before and After {title} \n \n\n", )
-        return fig 
+        return fig
 
 
 
-        
-    
+
