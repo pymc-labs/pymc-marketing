@@ -214,7 +214,9 @@ def create_zero_dataset(
     original_data = model.X
     date_col = model.date_column
     channel_cols = list(model.channel_columns)
-    control_cols = list(model.control_columns)
+    control_cols = (
+        list(model.control_columns) if model.control_columns is not None else []
+    )
     dim_cols = list(model.dims)  # ensure list
 
     # ---- 1. Infer date frequency ------------------------------------------------

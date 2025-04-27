@@ -21,11 +21,13 @@ import pytest
 import xarray as xr
 from pymc.model_graph import fast_eval
 from pytensor.tensor.basic import TensorVariable
+from scipy.optimize import OptimizeResult
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis
 from pymc_marketing.mmm.multidimensional import (
     MMM,
+    MultiDimensionalBudgetOptimizerWrapper,
     create_event_mu_effect,
 )
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
@@ -739,3 +741,50 @@ def test_scaling_dict_doesnt_mutate() -> None:
         target=VariableScaling(method="max", dims=dims),
         channel=VariableScaling(method="max", dims=dims),
     )
+
+
+def test_multidimensional_budget_optimizer_wrapper(fit_mmm, mock_pymc_sample):
+    """Test the MultiDimensionalBudgetOptimizerWrapper functionality."""
+    start_date = "2025-01-01"
+    end_date = "2025-01-31"
+
+    # Create the wrapper
+    optimizer = MultiDimensionalBudgetOptimizerWrapper(
+        model=fit_mmm, start_date=start_date, end_date=end_date
+    )
+
+    # Test basic attributes
+    assert hasattr(optimizer, "model_class")
+    assert hasattr(optimizer, "zero_data")
+    assert hasattr(optimizer, "num_periods")
+    assert optimizer.model_class == fit_mmm
+
+    # Test attribute delegation
+    assert optimizer.date_column == fit_mmm.date_column
+    assert optimizer.channel_columns == fit_mmm.channel_columns
+    assert optimizer.dims == fit_mmm.dims
+
+    # Create a budget bounds DataArray
+    budget = 1000
+    countries = fit_mmm.xarray_dataset.country.values
+    channels = fit_mmm.channel_columns
+    budget_bounds = xr.DataArray(
+        np.array([[[0, budget]] * len(channels)] * len(countries)),
+        coords=[countries, channels, ["low", "high"]],
+        dims=["country", "channel", "bound"],
+    )
+
+    # Run a real optimization
+    allocation_xarray, scipy_opt_result = optimizer.optimize_budget(
+        budget=budget, budget_bounds=budget_bounds
+    )
+
+    # Check the results
+    assert set(allocation_xarray.dims) == set(
+        (*fit_mmm.dims, "channel")
+    )  # Check dims excluding 'date'
+    assert allocation_xarray.shape == (
+        len(countries),
+        len(channels),
+    )  # Check shape based on dims
+    assert isinstance(scipy_opt_result, OptimizeResult)
