@@ -12,18 +12,13 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-import re
 
 import numpy as np
 import pandas as pd
-import pytest
-from matplotlib import pyplot as plt
-from matplotlib.axes import Axes
-from xarray import DataArray
 import pymc as pm
+import pytest
 
 from pymc_marketing.customer_choice.mnl_logit import MNLogit
-from pymc_marketing.prior import Prior
 
 seed = sum(map(ord, "CustomerChoice"))
 rng = np.random.default_rng(seed)
@@ -42,7 +37,7 @@ def sample_df():
 
 @pytest.fixture
 def utility_eqs():
-    return ["alt ~ alt_X1 + alt_X2 | income", 
+    return ["alt ~ alt_X1 + alt_X2 | income",
             "other ~ other_X1 + other_X2 | income"
             ]
 
@@ -80,7 +75,7 @@ def test_parse_formula_missing_fixed_covariate(mnl, sample_df):
 def test_prepare_X_matrix_valid(mnl, sample_df, utility_eqs):
     X, F, alts, fixed_cov = mnl.prepare_X_matrix(sample_df, utility_eqs, "choice")
 
-    assert X.shape == (3, 2, 2)  # 4 obs × 2 alts × 2 covariates
+    assert X.shape == (3, 2, 2)  # 4 obs x 2 alts x 2 covariates
     assert F.shape == (3, 1)  # Fixed covariate should be one column
     assert set(alts) == {"alt", "other"}
     assert fixed_cov.tolist() == ["income"]
@@ -117,8 +112,8 @@ def test_prepare_X_matrix_no_fixed_covariates(mnl, sample_df):
     assert len(fixed_cov) == 0
 
 def test_build_model_returns_pymc_model(mnl, sample_df, utility_eqs):
-    X = np.random.randn(5, 2, 3)  # 5 obs × 2 alts × 3 alt covariates
-    F = np.random.randn(5, 2)     # 5 obs × 2 fixed covariates
+    X = np.random.randn(5, 2, 3)  # 5 obs x 2 alts x 3 alt covariates
+    F = np.random.randn(5, 2)     # 5 obs x 2 fixed covariates
     y = np.random.randint(0, 2, size=5)  # obs labels
 
     mnl.preprocess_model_data(sample_df, utility_eqs)

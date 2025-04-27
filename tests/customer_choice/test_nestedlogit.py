@@ -12,18 +12,13 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-import re
 
 import numpy as np
 import pandas as pd
-import pytest
-from matplotlib import pyplot as plt
-from matplotlib.axes import Axes
-from xarray import DataArray
 import pymc as pm
+import pytest
 
 from pymc_marketing.customer_choice.nested_logit import NestedLogit
-from pymc_marketing.prior import Prior
 
 seed = sum(map(ord, "CustomerChoice"))
 rng = np.random.default_rng(seed)
@@ -39,14 +34,14 @@ def sample_df():
         "other_X2":[5, 6, 8, 0],
         "option_X1": [4, 6, 7, 1],
         "option_X2": [6, 6, 7, 4],
-        "another_X1": [5, 3, 7, 8], 
+        "another_X1": [5, 3, 7, 8],
         "another_X2": [7, 4, 2, 8],
         "income": [50000, 60000, 70000, 90002]
     })
 
 @pytest.fixture
 def utility_eqs():
-    return ["alt ~ alt_X1 + alt_X2 | income", 
+    return ["alt ~ alt_X1 + alt_X2 | income",
             "other ~ other_X1 + other_X2 | income",
             "option ~ option_X1 + option_X2 | income",
             "another ~ another_X1 + another_X2 | income"
@@ -55,15 +50,15 @@ def utility_eqs():
 
 @pytest.fixture
 def nesting_structure_1():
-    return {'nest1': ['alt', 'other'], 
-            'nest2': ['option', 'another'] 
+    return {'nest1': ['alt', 'other'],
+            'nest2': ['option', 'another']
             }
 
 
 @pytest.fixture
 def nesting_structure_2():
-    return {'nest1': ['alt'], 
-            'nest2': {'option': ['option'], 'another': ['other', 'another']} 
+    return {'nest1': ['alt'],
+            'nest2': {'option': ['option'], 'another': ['other', 'another']}
             }
 
 
