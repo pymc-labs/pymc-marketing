@@ -71,6 +71,12 @@ def nstL(sample_df, utility_eqs, nesting_structure_1):
         sample_df, utility_eqs, "choice", ["X1", "X2"], nesting_structure_1
     )
 
+@pytest.fixture
+def nstL2(sample_df, utility_eqs, nesting_structure_2):
+    return NestedLogit(
+        sample_df, utility_eqs, "choice", ["X1", "X2"], nesting_structure_2
+    )
+
 
 def test_parse_nesting_standard(nstL):
     nesting_dict = {
@@ -145,3 +151,21 @@ def test_build_model_returns_pymc_model(nstL, sample_df, utility_eqs):
     assert isinstance(model, pm.Model)
     assert nstL.alternatives == ["alt", "other", "option", "another"]
     assert nstL.covariates == ["X1", "X2"]
+
+def test_build_model_2layer_returns_pymc_model(nstL2, sample_df, utility_eqs):
+    X, F, y = nstL2.preprocess_model_data(sample_df, utility_eqs)
+    model = nstL2.build_model(X, F, y)
+    assert isinstance(nstL2.coords, dict)
+    assert isinstance(model, pm.Model)
+    assert nstL2.alternatives == ["alt", "other", "option", "another"]
+    assert nstL2.covariates == ["X1", "X2"]
+    assert "top" in nstL2.nest_indices
+    assert "mid" in nstL2.nest_indices
+
+def test_sample(nstL, sample_df, utility_eqs, mock_pymc_sample):
+    X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs)
+    model = nstL.build_model(X, F, y)
+    nstL.sample()
+    assert hasattr(nstL, "idata")
+
+
