@@ -178,6 +178,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mnl_logit.png
 :link: ../notebooks/customer_choice/mnl_logit.html
 :::
+
+:::{grid-item-card} Nested Logit Discrete Choice
+:img-top: ../gallery/images/nested_logit.png
+:link: ../notebooks/customer_choice/nested_logit.html
+:::
 ::::
 
 ## General Tutorials

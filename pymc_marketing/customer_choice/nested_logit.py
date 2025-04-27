@@ -452,7 +452,7 @@ class NestedLogit(ModelBuilder):
                 else:
                     prod = pm.Deterministic(f'prod_{n}_t', (P_nest[:, pt.newaxis]*(P_y_given_nest)))
                 path_prods_t.append(prod)
-            P_ = pm.Deterministic('P_', pm.math.concatenate(path_prods_t, axis=1))
+            P_ = pm.Deterministic('p', pm.math.concatenate(path_prods_t, axis=1), dims=("obs", "alts"))
             
             choice_obs = pm.Categorical("likelihood", p=P_, observed=y_data, dims="obs")
 
@@ -578,7 +578,7 @@ class NestedLogit(ModelBuilder):
         if new_utility_equations is None:
             new_X, new_F, new_y = self.preprocess_model_data(new_choice_df, self.utility_equations)
             with self.model:
-                pm.set_data({"X": new_X, "F": new_F, 'y': new_y})
+                pm.set_data({"X": new_X, "W": new_F, 'y': new_y})
                 # use the updated values and predict outcomes and probabilities:
                 idata_new_policy = pm.sample_posterior_predictive(
                     self.idata,
