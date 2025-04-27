@@ -425,8 +425,10 @@ class Prior:
         transform: str | None = None,
         **parameters,
     ) -> None:
-        self.distribution = distribution
+        # Assign parameters first to avoid recursion in __getattr__ during initialization
         self.parameters = parameters
+        # Now call setters
+        self.distribution = distribution
         self.dims = dims
         self.centered = centered
         self.transform = transform
@@ -474,6 +476,28 @@ class Prior:
     def __getitem__(self, key: str) -> Prior | Any:
         """Return the parameter of the prior."""
         return self.parameters[key]
+
+    def __getattr__(self, name: str) -> Any:
+        """Allow attribute access to prior parameters."""
+        # Check __dict__ first for regular attributes to prevent infinite recursion
+        # if 'parameters' attribute itself is accessed via __getattr__ before it's set.
+        if name == 'parameters' or name not in self.__dict__.get('parameters', {}):
+             # If the name is 'parameters' itself, or if 'parameters' exists but
+             # doesn't contain 'name', raise AttributeError normally.
+             # This breaks the recursion if `parameters` is accessed before assignment.
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'"
+            )
+        try:
+            # If 'parameters' exists and contains 'name', return it.
+            return self.parameters[name]
+        except KeyError:
+            # This part should theoretically not be reached due to the check above,
+            # but kept for robustness.
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'"
+            )
+
 
     def _checks(self) -> None:
         if not self.centered:

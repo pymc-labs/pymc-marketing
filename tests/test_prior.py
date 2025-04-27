@@ -109,6 +109,22 @@ def test_get_item() -> None:
     assert var["sigma"] == 1
 
 
+def test_get_attr() -> None:
+    """Test attribute access for prior parameters."""
+    var = Prior("Normal", mu=0, sigma=1)
+
+    # Test accessing existing parameters
+    assert var.mu == 0
+    assert var.sigma == 1
+
+    # Test accessing a non-parameter attribute (should work if it exists)
+    assert var.distribution == "Normal"
+
+    # Test accessing a non-existent attribute (should raise AttributeError)
+    with pytest.raises(AttributeError, match="'Prior' object has no attribute 'non_existent'"):
+        var.non_existent # type: ignore
+
+
 def test_noncentered_needs_params() -> None:
     with pytest.raises(ValueError):
         Prior(
