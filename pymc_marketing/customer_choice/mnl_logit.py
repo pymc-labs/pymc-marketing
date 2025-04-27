@@ -30,6 +30,7 @@ from pymc_marketing.prior import Prior
 
 HDI_ALPHA = 0.5
 
+
 class MNLogit(ModelBuilder):
     """
     Multinomial Logit class.
@@ -124,19 +125,19 @@ class MNLogit(ModelBuilder):
             The default model configuration.
 
         """
-        alphas = Prior("Normal", mu=0, sigma=5, dims='alts')
-        betas = Prior("Normal", mu=0, sigma=1, dims='alt_covariates')
-        betas_fixed = Prior("Normal", mu=0, sigma=1, dims=('alts','fixed_covariates'))
+        alphas = Prior("Normal", mu=0, sigma=5, dims="alts")
+        betas = Prior("Normal", mu=0, sigma=1, dims="alt_covariates")
+        betas_fixed = Prior("Normal", mu=0, sigma=1, dims=("alts", "fixed_covariates"))
 
         return {
             "alphas_": alphas,
             "betas": betas,
-            'betas_fixed_': betas_fixed,
+            "betas_fixed_": betas_fixed,
             "likelihood": Prior(
                 "Categorical",
                 p=0,
                 dims="obs",
-            )
+            ),
         }
 
     @property
@@ -155,11 +156,10 @@ class MNLogit(ModelBuilder):
             "alphas_": self.model_config["alphas_"].to_dict(),
             "likelihood": self.model_config["likelihood"].to_dict(),
             "betas": self.model_config["betas"].to_dict(),
-            "betas_fixed": self.model_config["betas_fixed_"].to_dict()
+            "betas_fixed": self.model_config["betas_fixed_"].to_dict(),
         }
 
         return result
-
 
     def parse_formula(self, df, formula, depvar):
         """Parse the three-part structure of a formula specification.
@@ -169,23 +169,29 @@ class MNLogit(ModelBuilder):
         dependent variable column and that all specified covariates exist
         in the input dataframe.
         """
-        target, covariates = formula.split('~')
+        target, covariates = formula.split("~")
         target = target.strip()
 
-        alt_covariates, fixed_covariates = covariates.split('|')
+        alt_covariates, fixed_covariates = covariates.split("|")
         alt_covariates = alt_covariates.strip()
         fixed_covariates = fixed_covariates.strip()
 
         if target not in df[depvar].unique():
-            raise ValueError(f"Target '{target}' not found in dependent variable '{depvar}'.")
+            raise ValueError(
+                f"Target '{target}' not found in dependent variable '{depvar}'."
+            )
 
-        for f in fixed_covariates.split('+'):
+        for f in fixed_covariates.split("+"):
             if f.strip() and f.strip() not in df.columns:
-                raise ValueError(f"Fixed covariate '{f.strip()}' not found in dataframe columns.")
+                raise ValueError(
+                    f"Fixed covariate '{f.strip()}' not found in dataframe columns."
+                )
 
-        for a in alt_covariates.split('+'):
+        for a in alt_covariates.split("+"):
             if a.strip() and a.strip() not in df.columns:
-                raise ValueError(f"Alternative covariate '{a.strip()}' not found in dataframe columns.")
+                raise ValueError(
+                    f"Alternative covariate '{a.strip()}' not found in dataframe columns."
+                )
 
         return target, alt_covariates, fixed_covariates
 
@@ -211,14 +217,14 @@ class MNLogit(ModelBuilder):
         """
         n_obs = len(df)
         n_alts = len(utility_formulas)
-        n_covariates = len(utility_formulas[0].split('|')[0].split('+'))
+        n_covariates = len(utility_formulas[0].split("|")[0].split("+"))
 
         alts = []
         alt_covariates = []
         fixed_covariates = []
         for f in utility_formulas:
             target, alt_covar, fixed_covar = self.parse_formula(df, f, depvar)
-            f = '0 + ' + alt_covar
+            f = "0 + " + alt_covar
             alt_covariates.append(np.asarray(patsy.dmatrix(f, df)).T)
             alts.append(target)
             if fixed_covar:
@@ -226,14 +232,16 @@ class MNLogit(ModelBuilder):
 
         if fixed_covariates:
             F = np.unique(fixed_covariates)[0]
-            F = '0 + ' + F
+            F = "0 + " + F
             F = np.asarray(patsy.dmatrix(F, df))
         else:
             F = []
 
         X = np.stack(alt_covariates, axis=1).T
         if X.shape != (n_obs, n_alts, n_covariates):
-            raise ValueError(f"X has shape {X.shape}, but expected {(n_obs, n_alts, n_covariates)}.")
+            raise ValueError(
+                f"X has shape {X.shape}, but expected {(n_obs, n_alts, n_covariates)}."
+            )
         return X, F, alts, np.unique(fixed_covariates)
 
     @staticmethod
@@ -244,8 +252,8 @@ class MNLogit(ModelBuilder):
         utility formulas.
         """
         mode_mapping = dict(zip(alternatives, range(len(alternatives)), strict=False))
-        df['mode_encoded'] = df[depvar].map(mode_mapping)
-        y = df['mode_encoded'].values
+        df["mode_encoded"] = df[depvar].map(mode_mapping)
+        y = df["mode_encoded"].values
         return y
 
     @staticmethod
@@ -255,35 +263,33 @@ class MNLogit(ModelBuilder):
             "alts": alternatives,
             "alts_probs": alternatives[:-1],
             "alt_covariates": covariates,
-            'fixed_covariates': [s.strip() for s in [s.split('+') for s in f_covariates][0]],
+            "fixed_covariates": [s.strip() for s in f_covariates[0].split("+")],
             "obs": range(len(df)),
-    }
+        }
         return coords
 
-    def preprocess_model_data(
-        self,
-        choice_df,
-        utility_equations
-    ) -> None:
+    def preprocess_model_data(self, choice_df, utility_equations) -> None:
         """Pre-process the model initiation inputs into a format that can be used by the PyMC model."""
-        X, F, alternatives, fixed_covar = self.prepare_X_matrix(choice_df,
-                                                           utility_equations,
-                                                           self.depvar)
-        self.X, self.F, self.alternatives, self.fixed_covar = X, F, alternatives, fixed_covar
+        X, F, alternatives, fixed_covar = self.prepare_X_matrix(
+            choice_df, utility_equations, self.depvar
+        )
+        self.X, self.F, self.alternatives, self.fixed_covar = (
+            X,
+            F,
+            alternatives,
+            fixed_covar,
+        )
         y = self._prepare_y_outcome(choice_df, self.alternatives, self.depvar)
         self.y = y
 
         # note: type hints for coords required for mypy to not get confused
-        self.coords: dict[str, list[str]] = self._prepare_coords(choice_df,
-                                                                 self.alternatives,
-                                                                 self.covariates,
-                                                                 self.fixed_covar)
+        self.coords: dict[str, list[str]] = self._prepare_coords(
+            choice_df, self.alternatives, self.covariates, self.fixed_covar
+        )
 
         return X, F, y
 
-    def build_model(
-        self, X, F, y
-        ) -> None:
+    def build_model(self, X, F, y) -> None:
         """Build Model."""
         with pm.Model(coords=self.coords) as model:
             # Intercept Parameters
@@ -292,44 +298,50 @@ class MNLogit(ModelBuilder):
             betas = self.model_config["betas"].create_variable("betas")
 
             # Instantiate covariate data for each Utility function
-            X_data = pm.Data('X', X, dims=('obs', 'alts', 'alt_covariates'))
+            X_data = pm.Data("X", X, dims=("obs", "alts", "alt_covariates"))
             # Instantiate outcome data
-            observed = pm.Data('y', y, dims='obs')
+            observed = pm.Data("y", y, dims="obs")
             if self.F is not None:
-                betas_fixed_ = self.model_config["betas_fixed_"].create_variable(name="betas_fixed_")
-                betas_fixed = pm.Deterministic('betas_fixed', pt.set_subtensor(betas_fixed_[-1, :], 0),
-                dims=('alts','fixed_covariates'))
-                F_data = pm.Data('F', F)
-                F = pm.Deterministic('F_interaction', pm.math.dot(F_data, betas_fixed.T))
+                betas_fixed_ = self.model_config["betas_fixed_"].create_variable(
+                    name="betas_fixed_"
+                )
+                betas_fixed = pm.Deterministic(
+                    "betas_fixed",
+                    pt.set_subtensor(betas_fixed_[-1, :], 0),
+                    dims=("alts", "fixed_covariates"),
+                )
+                F_data = pm.Data("F", F)
+                F = pm.Deterministic(
+                    "F_interaction", pm.math.dot(F_data, betas_fixed.T)
+                )
             else:
                 F = pt.zeros(observed.shape[0])
 
             # Compute utility as a dot product
             U = pm.math.dot(X_data, betas)  # (N, alts)
             # Zero out reference alternative intercept
-            alphas = pm.Deterministic('alphas', pt.set_subtensor(alphas[-1], 0),
-            dims='alts')
+            alphas = pm.Deterministic(
+                "alphas", pt.set_subtensor(alphas[-1], 0), dims="alts"
+            )
             U = pm.Deterministic("U", F + U + alphas, dims=("obs", "alts"))
             ## Apply Softmax Transform
-            p_ = pm.Deterministic("p", pm.math.softmax(U, axis=1),
-            dims=("obs", "alts"))
+            p_ = pm.Deterministic("p", pm.math.softmax(U, axis=1), dims=("obs", "alts"))
 
             # likelihood
-            _ = pm.Categorical("likelihood", p=p_,
-                observed=observed, dims="obs")
+            _ = pm.Categorical("likelihood", p=p_, observed=observed, dims="obs")
 
         return model
 
     def _data_setter(
-            self,
-            X: np.ndarray | pd.DataFrame,
-            y: np.ndarray | pd.Series | None = None,
-        ) -> None:
-            """Set the data.
+        self,
+        X: np.ndarray | pd.DataFrame,
+        y: np.ndarray | pd.Series | None = None,
+    ) -> None:
+        """Set the data.
 
-            Required from the parent class
+        Required from the parent class
 
-            """
+        """
 
     def create_idata_attrs(self) -> dict[str, str]:
         """Create the attributes for the InferenceData object.
@@ -343,7 +355,7 @@ class MNLogit(ModelBuilder):
         attrs = super().create_idata_attrs()
         attrs["covariates"] = json.dumps(self.covariates)
         attrs["depvar"] = json.dumps(self.depvar)
-        attrs["choice_df"] = json.dumps('Placeholder for DF')
+        attrs["choice_df"] = json.dumps("Placeholder for DF")
         attrs["utility_equations"] = json.dumps(self.utility_equations)
 
         return attrs
@@ -373,15 +385,16 @@ class MNLogit(ModelBuilder):
         """Sample Posterior Predictive Distribution."""
         if extend_idata:
             with self.model:
-                self.idata.extend(pm.sample_posterior_predictive(self.idata,
-                                                        var_names=['likelihood', 'p'],
-                                                         **kwargs))
+                self.idata.extend(
+                    pm.sample_posterior_predictive(
+                        self.idata, var_names=["likelihood", "p"], **kwargs
+                    )
+                )
         else:
             with self.model:
-                self.post_pred = pm.sample_posterior_predictive(self.idata,
-                                                        var_names=['likelihood', 'p'],
-                                                         **kwargs)
-
+                self.post_pred = pm.sample_posterior_predictive(
+                    self.idata, var_names=["likelihood", "p"], **kwargs
+                )
 
     def sample(
         self,
@@ -419,11 +432,14 @@ class MNLogit(ModelBuilder):
         model = self.build_model(X, F, y)
         self.model = model
 
-        self.sample_prior_predictive(extend_idata=True, kwargs=sample_prior_predictive_kwargs)
+        self.sample_prior_predictive(
+            extend_idata=True, kwargs=sample_prior_predictive_kwargs
+        )
         self.fit(extend_idata=True, kwargs=fit_kwargs)
-        self.sample_posterior_predictive(extend_idata=True, kwargs=sample_posterior_predictive_kwargs)
+        self.sample_posterior_predictive(
+            extend_idata=True, kwargs=sample_posterior_predictive_kwargs
+        )
         return self
-
 
     def apply_intervention(self, new_choice_df, new_utility_equations=None):
         """Apply one of two types of intervention.
@@ -435,36 +451,44 @@ class MNLogit(ModelBuilder):
         product entirely from the market place and model the market share which
         accrues to each product in the adjusted market.
         """
-        if not hasattr(self, 'model'):
-                self.sample()
+        if not hasattr(self, "model"):
+            self.sample()
         if new_utility_equations is None:
-            new_X, new_F, new_y = self.preprocess_model_data(new_choice_df, self.utility_equations)
+            new_X, new_F, new_y = self.preprocess_model_data(
+                new_choice_df, self.utility_equations
+            )
             with self.model:
-                pm.set_data({"X": new_X, "W": new_F, 'y': new_y})
+                pm.set_data({"X": new_X, "W": new_F, "y": new_y})
                 # use the updated values and predict outcomes and probabilities:
                 idata_new_policy = pm.sample_posterior_predictive(
                     self.idata,
                     var_names=["p", "likelihood"],
                     return_inferencedata=True,
                     extend_inferencedata=False,
-                    random_seed=100)
+                    random_seed=100,
+                )
 
             self.intervention_idata = idata_new_policy
         else:
-            new_X, new_F, new_y = self.preprocess_model_data(new_choice_df, new_utility_equations)
+            new_X, new_F, new_y = self.preprocess_model_data(
+                new_choice_df, new_utility_equations
+            )
             new_model = self.build_model(new_X, new_F, new_y)
             with new_model:
                 idata_new_policy = pm.sample_prior_predictive()
                 idata_new_policy.extend(
                     pm.sample(
-                    target_accept=.99,
-                    tune=2000,
-                    idata_kwargs={"log_likelihood": True},
-                    random_seed=101,
+                        target_accept=0.99,
+                        tune=2000,
+                        idata_kwargs={"log_likelihood": True},
+                        random_seed=101,
                     )
+                )
+                idata_new_policy.extend(
+                    pm.sample_posterior_predictive(
+                        idata_new_policy, var_names=["p", "likelihood"]
                     )
-                idata_new_policy.extend(pm.sample_posterior_predictive(idata_new_policy,
-                                                                       var_names=["p", "likelihood"]))
+                )
 
             self.intervention_idata = idata_new_policy
 
@@ -473,65 +497,80 @@ class MNLogit(ModelBuilder):
     @staticmethod
     def calculate_share_change(idata, new_idata):
         """Calculate difference in market share due to market intervention."""
-        expected = idata['posterior_predictive'].mean(dim=('chain', 'draw', 'obs'))['p']
-        expected_new = new_idata['posterior_predictive'].mean(dim=('chain', 'draw', 'obs'))['p']
-        shares_df = pd.DataFrame({'product': expected['alts'], 'policy_share': expected})
-        shares_df_new = pd.DataFrame({'product': expected_new['alts'], 'new_policy_share': expected_new})
-        shares_df = shares_df.merge(shares_df_new, left_on='product', right_on='product', how='left')
+        expected = idata["posterior_predictive"].mean(dim=("chain", "draw", "obs"))["p"]
+        expected_new = new_idata["posterior_predictive"].mean(
+            dim=("chain", "draw", "obs")
+        )["p"]
+        shares_df = pd.DataFrame(
+            {"product": expected["alts"], "policy_share": expected}
+        )
+        shares_df_new = pd.DataFrame(
+            {"product": expected_new["alts"], "new_policy_share": expected_new}
+        )
+        shares_df = shares_df.merge(
+            shares_df_new, left_on="product", right_on="product", how="left"
+        )
         shares_df.fillna(0, inplace=True)
-        shares_df['relative_change'] = ((shares_df['new_policy_share'] - shares_df['policy_share']) /
-                                        shares_df['policy_share'])
-        shares_df.set_index('product', inplace=True)
+        shares_df["relative_change"] = (
+            shares_df["new_policy_share"] - shares_df["policy_share"]
+        ) / shares_df["policy_share"]
+        shares_df.set_index("product", inplace=True)
         return shares_df
 
     @staticmethod
     def make_change_plot(change_df, title="Price Intervention", figsize=(8, 4)):
         """Plot change induced by a market intervention."""
         fig, ax = plt.subplots(figsize=figsize)
-        ax.axvline(x=0, color='black', linestyle='--', linewidth=1)
-        ax.axvline(x=1, color='black', linestyle='--', linewidth=1)
+        ax.axvline(x=0, color="black", linestyle="--", linewidth=1)
+        ax.axvline(x=1, color="black", linestyle="--", linewidth=1)
         ax.set_xlim(-0.2, 1.2)
 
-        upperbound = change_df[['policy_share', 'new_policy_share']].max().max() + 0.05
-        ax.text(-0.05, upperbound, 'BEFORE', fontsize=12, color='black', fontweight='bold')
-        ax.text(.95, upperbound, 'AFTER', fontsize=12, color='black', fontweight='bold')
+        upperbound = change_df[["policy_share", "new_policy_share"]].max().max() + 0.05
+        ax.text(
+            -0.05, upperbound, "BEFORE", fontsize=12, color="black", fontweight="bold"
+        )
+        ax.text(
+            0.95, upperbound, "AFTER", fontsize=12, color="black", fontweight="bold"
+        )
 
         for mode in change_df.index:
-
             # Color depending on the evolution
-            value_before = change_df[change_df.index==mode]['policy_share'].item()
-            value_after = change_df[change_df.index==mode]['new_policy_share'].item()
+            value_before = change_df[change_df.index == mode]["policy_share"].item()
+            value_after = change_df[change_df.index == mode]["new_policy_share"].item()
 
             # Red if the value has decreased, green otherwise
             if value_before > value_after:
-                color='red'
+                color = "red"
             else:
-                color='green'
+                color = "green"
 
             # Add the line to the plot
-            ax.plot([0, 1], change_df.loc[mode][['policy_share', 'new_policy_share']],
-                    marker='o', label=mode, color=color)
+            ax.plot(
+                [0, 1],
+                change_df.loc[mode][["policy_share", "new_policy_share"]],
+                marker="o",
+                label=mode,
+                color=color,
+            )
 
         for mode in change_df.index:
-            for metric in ['policy_share', 'new_policy_share']:
+            for metric in ["policy_share", "new_policy_share"]:
                 y_position = np.round(change_df.loc[mode][metric], 2)
-                if metric == 'policy_share':
+                if metric == "policy_share":
                     x_position = 0 - 0.12
                 else:
                     x_position = 1 + 0.02
                 ax.text(
                     x_position,
                     y_position,
-                    f'{mode}, {y_position}',
-                    fontsize=8, # Text size
-                    color='black', # Text color
-                    )
+                    f"{mode}, {y_position}",
+                    fontsize=8,  # Text size
+                    color="black",  # Text color
+                )
         ax.set_xticks([])
         ax.set_ylabel("Share of Market %")
         ax.set_xlabel("Before/After")
-        ax.set_title(f" Multinomial Logit implied Market Shares \n Before and After {title} \n \n\n", )
+        ax.set_title(
+            f" Multinomial Logit implied Market Shares \n Before and After {title} \n \n\n",
+        )
         return fig
-
-
-
-
