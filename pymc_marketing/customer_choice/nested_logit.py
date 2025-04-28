@@ -240,7 +240,7 @@ class NestedLogit(ModelBuilder):
             F = "0 + " + F
             F = np.asarray(patsy.dmatrix(F, df))
         else:
-            F = []
+            F = None
 
         X = np.stack(alt_covariates, axis=1).T
         if X.shape != (n_obs, n_alts, n_covariates):
@@ -293,17 +293,21 @@ class NestedLogit(ModelBuilder):
     @staticmethod
     def _prepare_coords(df, alternatives, covariates, f_covariates, nests):
         """Prepare coordinates for PyMC nested logit model."""
+        if f_covariates:
+            f_cov = [s.strip() for s in f_covariates[0].split("+")]
+        else:
+            f_cov = []
         coords = {
             "alts": alternatives,
             "alts_probs": alternatives[:-1],
             "alt_covariates": covariates,
-            "fixed_covariates": [s.strip() for s in f_covariates[0].split("+")],
+            "fixed_covariates": f_cov,
             "nests": nests,
             "obs": range(len(df)),
         }
         return coords
 
-    def preprocess_model_data(self, choice_df, utility_equations) -> None:
+    def preprocess_model_data(self, choice_df, utility_equations)-> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Pre-process the model initiation inputs into a format that can be used by the PyMC model."""
         X, F, alternatives, fixed_covar = self.prepare_X_matrix(
             choice_df, utility_equations, self.depvar
@@ -343,7 +347,7 @@ class NestedLogit(ModelBuilder):
 
         return X, F, y
 
-    def make_exp_nest(self, U, W, betas_fixed, lambdas_nests, nest, level="top"):
+    def make_exp_nest(self, U, W, betas_fixed_, lambdas_nests, nest, level="top"):
         """Calculate within nest probabilities.
 
         Allows mixing between levels of the nesting structure within the PyMC model.
@@ -356,12 +360,15 @@ class NestedLogit(ModelBuilder):
         else:
             parent = None
         y_nest = U[:, nest_indices[level][nest]]
-        betas_fixed_ = betas_fixed[nest_indices[level][nest], :]
-        betas_fixed_ = pm.Deterministic(
-            f"beta_fixed_{level}_{nest}", pt.set_subtensor(betas_fixed_[-1, :], 0)
-        )
+        if W is None:
+            w_nest =  pm.math.zeros((N, len(self.alternatives)))
+        else:
+            betas_fixed_temp = betas_fixed_[nest_indices[level][nest], :]
+            betas_fixed_temp = pm.Deterministic(
+                f"beta_fixed_{level}_{nest}", pt.set_subtensor(betas_fixed_temp[-1, :], 0)
+            )
+            w_nest = pm.math.dot(W, betas_fixed_temp.T)
 
-        w_nest = pm.math.dot(W, betas_fixed_.T)
         if len(nest_indices[level][nest]) > 1:
             max_y_nest = pm.math.max(y_nest, axis=0)
             P_y_given_nest = pm.Deterministic(
@@ -390,15 +397,16 @@ class NestedLogit(ModelBuilder):
         exp_W_nest = pm.math.exp(W_nest)
         return exp_W_nest, P_y_given_nest
 
-    def make_P_nest(self, U, W, betas_fixed, lambdas_nests, level):
+    def make_P_nest(self, U, W, betas_fixed_, lambdas_nests, level):
         """Calculate the probability of choosing a nest."""
         nest_indices = self.nest_indices
         conditional_probs = {}
         for n in nest_indices[level].keys():
             exp_W_nest, P_y_given_nest = self.make_exp_nest(
-                U, W, betas_fixed, lambdas_nests, n, level
+                U, W, betas_fixed_, lambdas_nests, n, level
             )
             if W is None:
+                exp_W_nest = pm.math.sum(exp_W_nest, axis=1)
                 conditional_probs[n] = {"exp": exp_W_nest, "P_y_given": P_y_given_nest}
             else:
                 exp_W_nest = pm.math.sum(exp_W_nest, axis=1)
@@ -429,6 +437,7 @@ class NestedLogit(ModelBuilder):
 
             if W is None:
                 w_nest = pm.math.zeros((len(coords["obs"]), len(coords["alts"])))
+                betas_fixed_ = None
             else:
                 W_data = pm.Data("W", W, dims=("obs", "fixed_covariates"))
                 betas_fixed_ = pm.Normal(
@@ -447,6 +456,7 @@ class NestedLogit(ModelBuilder):
             alphas = pt.set_subtensor(alphas[-1], 0)
             u = alphas + pm.math.dot(X_data, betas)
             U = pm.Deterministic("U", w_nest + u, dims=("obs", "alts"))
+            
 
             ## Mid Level
             if "mid" in nest_indices.keys():
@@ -456,7 +466,7 @@ class NestedLogit(ModelBuilder):
 
                 ## Construct Paths Bottom -> Up
                 child_nests = {}
-                path_prods_m = {}
+                path_prods_m: dict[str, list] = {}
                 ordered = [
                     (key, min(vals)) for key, vals in nest_indices["mid"].items()
                 ]
@@ -610,8 +620,9 @@ class NestedLogit(ModelBuilder):
 
         """
         sample_prior_predictive_kwargs = sample_prior_predictive_kwargs or {}
-        fit_kwargs = fit_kwargs or {"nuts_sampler": "numpyro"}
+        fit_kwargs = fit_kwargs or {"nuts_sampler": "numpyro", 'idata_kwargs': {"log_likelihood": True}}
         sample_posterior_predictive_kwargs = sample_posterior_predictive_kwargs or {}
+
         X, F, y = self.preprocess_model_data(self.choice_df, self.utility_equations)  # type: ignore
         model = self.build_model(X, F, y)
         self.model = model
@@ -642,7 +653,10 @@ class NestedLogit(ModelBuilder):
                 new_choice_df, self.utility_equations
             )
             with self.model:
-                pm.set_data({"X": new_X, "W": new_F, "y": new_y})
+                if new_F is None: 
+                    pm.set_data({"X": new_X, "y": new_y})
+                else: 
+                    pm.set_data({"X": new_X, "W": new_F, "y": new_y})
                 # use the updated values and predict outcomes and probabilities:
                 idata_new_policy = pm.sample_posterior_predictive(
                     self.idata,

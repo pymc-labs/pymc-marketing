@@ -428,6 +428,9 @@ class MNLogit(ModelBuilder):
         sample_prior_predictive_kwargs = sample_prior_predictive_kwargs or {}
         fit_kwargs = fit_kwargs or {}
         sample_posterior_predictive_kwargs = sample_posterior_predictive_kwargs or {}
+        X: np.ndarray
+        F: np.ndarray
+        y: np.ndarray
         X, F, y = self.preprocess_model_data(self.choice_df, self.utility_equations)  # type: ignore
         model = self.build_model(X, F, y)
         self.model = model
