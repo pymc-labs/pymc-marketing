@@ -955,12 +955,12 @@ class MMM(ModelBuilder):
 
             ## Hot fix for target data meanwhile pymc allows for internal scaling `https://github.com/pymc-devs/pymc/pull/7656`
             target_dim_handler = create_dim_handler(("date", *self.dims))
-            target_data_scaled = pm.Deterministic(
-                name="target_scaled",
-                var=_target
-                / target_dim_handler(_target_scale, self.scalers._target.dims),
-                dims=("date", *self.dims),
+
+            target_data_scaled = _target / target_dim_handler(
+                _target_scale, self.scalers._target.dims
             )
+            target_data_scaled.name = "target_data_scaled"
+            target_data_scaled.dims = ("date", *self.dims)
 
             for mu_effect in self.mu_effects:
                 mu_effect.create_data(self)
@@ -1474,8 +1474,6 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         # Use the model's mu_effects and set data using the model instance
         for mu_effect in self.mu_effects:
             mu_effect.set_data(self, pymc_model, dataset_xarray)
-
-        pymc_model.deterministics.pop(0)  # TODO: HOT FIX to decide with Ricky
 
         return pymc_model
 
