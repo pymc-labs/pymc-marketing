@@ -13,11 +13,11 @@
 #   limitations under the License.
 
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
-import matplotlib.pyplot as plt
 
 from pymc_marketing.customer_choice.nested_logit import NestedLogit
 
@@ -79,12 +79,17 @@ def nstL2(sample_df, utility_eqs, nesting_structure_2):
         sample_df, utility_eqs, "choice", ["X1", "X2"], nesting_structure_2
     )
 
+
 @pytest.fixture
 def sample_change_df():
-    return pd.DataFrame({
-        "policy_share": [0.3, 0.5, 0.2],
-        "new_policy_share": [0.25, 0.55, 0.2],
-    }, index=["mode1", "mode2", "mode3"])
+    return pd.DataFrame(
+        {
+            "policy_share": [0.3, 0.5, 0.2],
+            "new_policy_share": [0.25, 0.55, 0.2],
+        },
+        index=["mode1", "mode2", "mode3"],
+    )
+
 
 def test_parse_nesting_standard(nstL):
     nesting_dict = {
@@ -154,7 +159,7 @@ def test_preprocess_model_data_sets_attributes(nstL, sample_df, utility_eqs):
 
 def test_build_model_returns_pymc_model(nstL, sample_df, utility_eqs):
     X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs)
-    model = nstL.build_model(X, F, y)
+    model = nstL.make_model(X, F, y)
     assert isinstance(nstL.coords, dict)
     assert isinstance(model, pm.Model)
     assert nstL.alternatives == ["alt", "other", "option", "another"]
@@ -163,7 +168,7 @@ def test_build_model_returns_pymc_model(nstL, sample_df, utility_eqs):
 
 def test_build_model_2layer_returns_pymc_model(nstL2, sample_df, utility_eqs):
     X, F, y = nstL2.preprocess_model_data(sample_df, utility_eqs)
-    model = nstL2.build_model(X, F, y)
+    model = nstL2.make_model(X, F, y)
     assert isinstance(nstL2.coords, dict)
     assert isinstance(model, pm.Model)
     assert nstL2.alternatives == ["alt", "other", "option", "another"]
@@ -174,20 +179,21 @@ def test_build_model_2layer_returns_pymc_model(nstL2, sample_df, utility_eqs):
 
 def test_sample(nstL, sample_df, utility_eqs, mock_pymc_sample):
     X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs)
-    _ = nstL.build_model(X, F, y)
+    _ = nstL.make_model(X, F, y)
     nstL.sample()
     assert hasattr(nstL, "idata")
 
 
 def test_counterfactual(nstL, sample_df, utility_eqs, mock_pymc_sample):
     X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs)
-    _ = nstL.build_model(X, F, y)
+    _ = nstL.make_model(X, F, y)
     nstL.sample()
     new = sample_df.copy()
     nstL.apply_intervention(new)
     change_df = nstL.calculate_share_change(nstL.idata, nstL.intervention_idata)
     assert isinstance(change_df, pd.DataFrame)
     assert hasattr(nstL, "intervention_idata")
+
 
 def test_make_change_plot_returns_figure(nstL, sample_change_df):
     fig = nstL.make_change_plot(sample_change_df, title="Test Intervention")

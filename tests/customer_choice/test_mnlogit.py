@@ -13,11 +13,11 @@
 #   limitations under the License.
 
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
-import matplotlib.pyplot as plt
 
 from pymc_marketing.customer_choice.mnl_logit import MNLogit
 
@@ -41,10 +41,14 @@ def sample_df():
 
 @pytest.fixture
 def sample_change_df():
-    return pd.DataFrame({
-        "policy_share": [0.3, 0.5, 0.2],
-        "new_policy_share": [0.25, 0.55, 0.2],
-    }, index=["mode1", "mode2", "mode3"])
+    return pd.DataFrame(
+        {
+            "policy_share": [0.3, 0.5, 0.2],
+            "new_policy_share": [0.25, 0.55, 0.2],
+        },
+        index=["mode1", "mode2", "mode3"],
+    )
+
 
 @pytest.fixture
 def utility_eqs():
@@ -52,7 +56,7 @@ def utility_eqs():
 
 
 @pytest.fixture
-def mnl():
+def mnl(sample_df, utility_eqs):
     return MNLogit(sample_df, utility_eqs, "choice", ["X1", "X2"])
 
 
@@ -122,10 +126,29 @@ def test_build_model_returns_pymc_model(mnl, sample_df, utility_eqs):
     y = np.random.randint(0, 2, size=5)  # obs labels
 
     mnl.preprocess_model_data(sample_df, utility_eqs)
-    model = mnl.build_model(X, F, y)
+    model = mnl.make_model(X, F, y)
     assert isinstance(model, pm.Model)
     assert mnl.alternatives == ["alt", "other"]
     assert mnl.covariates == ["X1", "X2"]
+
+
+def test_sample(mnl, mock_pymc_sample):
+    X, F, y = mnl.preprocess_model_data(mnl.choice_df, mnl.utility_equations)
+    _ = mnl.make_model(X, F, y)
+    mnl.sample()
+    assert hasattr(mnl, "idata")
+
+
+def test_counterfactual(mnl, mock_pymc_sample):
+    X, F, y = mnl.preprocess_model_data(mnl.choice_df, mnl.utility_equations)
+    _ = mnl.make_model(X, F, y)
+    mnl.sample()
+    new = mnl.choice_df.copy()
+    new["alt_X1"] = new["alt_X1"] * 1.2
+    mnl.apply_intervention(new)
+    change_df = mnl.calculate_share_change(mnl.idata, mnl.intervention_idata)
+    assert isinstance(change_df, pd.DataFrame)
+    assert hasattr(mnl, "intervention_idata")
 
 
 def test_make_change_plot_returns_figure(mnl, sample_change_df):

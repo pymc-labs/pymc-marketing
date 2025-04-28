@@ -349,6 +349,10 @@ class NestedLogit(ModelBuilder):
 
         return X, F, y
 
+    def build_model(self, X, y, **kwargs):
+        """Do not use, required by parent class. Prefer make_model()."""
+        return super().build_model(X, y, **kwargs)
+
     def make_exp_nest(self, U, W, betas_fixed_, lambdas_nests, nest, level="top"):
         """Calculate within nest probabilities.
 
@@ -428,7 +432,7 @@ class NestedLogit(ModelBuilder):
             nest_probs[n] = P_nest
         return conditional_probs, nest_probs
 
-    def build_model(self, X, W, y) -> None:
+    def make_model(self, X, W, y) -> None:
         """Build Model."""
         nest_indices = self.nest_indices
         coords = self.coords
@@ -627,10 +631,10 @@ class NestedLogit(ModelBuilder):
             "idata_kwargs": {"log_likelihood": True},
         }
         sample_posterior_predictive_kwargs = sample_posterior_predictive_kwargs or {}
-
-        X, F, y = self.preprocess_model_data(self.choice_df, self.utility_equations)  # type: ignore
-        model = self.build_model(X, F, y)
-        self.model = model
+        if not hasattr(self, "model"):
+            X, F, y = self.preprocess_model_data(self.choice_df, self.utility_equations)  # type: ignore
+            model = self.make_model(X, F, y)
+            self.model = model
 
         self.sample_prior_predictive(
             extend_idata=True, kwargs=sample_prior_predictive_kwargs
@@ -676,7 +680,7 @@ class NestedLogit(ModelBuilder):
             new_X, new_F, new_y = self.preprocess_model_data(
                 new_choice_df, new_utility_equations
             )
-            new_model = self.build_model(new_X, new_F, new_y)
+            new_model = self.make_model(new_X, new_F, new_y)
             with new_model:
                 idata_new_policy = pm.sample_prior_predictive()
                 idata_new_policy.extend(
