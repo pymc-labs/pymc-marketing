@@ -259,11 +259,15 @@ class MNLogit(ModelBuilder):
     @staticmethod
     def _prepare_coords(df, alternatives, covariates, f_covariates):
         """Prepare coordinates for PyMC model."""
+        if isinstance(f_covariates, np.ndarray) & (f_covariates.size > 0):
+            f_cov = [s.strip() for s in f_covariates[0].split("+")]
+        else:
+            f_cov = []
         coords = {
             "alts": alternatives,
             "alts_probs": alternatives[:-1],
             "alt_covariates": covariates,
-            "fixed_covariates": [s.strip() for s in f_covariates[0].split("+")],
+            "fixed_covariates": f_cov,
             "obs": range(len(df)),
         }
         return coords

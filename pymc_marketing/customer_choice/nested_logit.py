@@ -293,7 +293,7 @@ class NestedLogit(ModelBuilder):
     @staticmethod
     def _prepare_coords(df, alternatives, covariates, f_covariates, nests):
         """Prepare coordinates for PyMC nested logit model."""
-        if f_covariates:
+        if isinstance(f_covariates, np.ndarray) & (f_covariates.size > 0):
             f_cov = [s.strip() for s in f_covariates[0].split("+")]
         else:
             f_cov = []
