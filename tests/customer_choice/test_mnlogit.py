@@ -51,6 +51,15 @@ def sample_change_df():
 
 
 @pytest.fixture
+def new_utility_eqs():
+    return [
+        "alt ~ alt_X1 + alt_X2 | income",
+        "other ~ other_X1 + other_X2 | income",
+        "option ~ option_X1 + option_X2 | income",
+    ]
+
+
+@pytest.fixture
 def utility_eqs():
     return ["alt ~ alt_X1 + alt_X2 | income", "other ~ other_X1 + other_X2 | income"]
 
@@ -149,6 +158,8 @@ def test_counterfactual(mnl, mock_pymc_sample):
     change_df = mnl.calculate_share_change(mnl.idata, mnl.intervention_idata)
     assert isinstance(change_df, pd.DataFrame)
     assert hasattr(mnl, "intervention_idata")
+    idata_new_policy = mnl.apply_intervention(new, mnl.utility_equations)
+    assert "posterior_predictive" in idata_new_policy
 
 
 def test_make_change_plot_returns_figure(mnl, sample_change_df):
