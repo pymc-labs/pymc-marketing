@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+import matplotlib.pyplot as plt
 
 from pymc_marketing.customer_choice.nested_logit import NestedLogit
 
@@ -78,6 +79,12 @@ def nstL2(sample_df, utility_eqs, nesting_structure_2):
         sample_df, utility_eqs, "choice", ["X1", "X2"], nesting_structure_2
     )
 
+@pytest.fixture
+def sample_change_df():
+    return pd.DataFrame({
+        "policy_share": [0.3, 0.5, 0.2],
+        "new_policy_share": [0.25, 0.55, 0.2],
+    }, index=["mode1", "mode2", "mode3"])
 
 def test_parse_nesting_standard(nstL):
     nesting_dict = {
@@ -181,3 +188,8 @@ def test_counterfactual(nstL, sample_df, utility_eqs, mock_pymc_sample):
     change_df = nstL.calculate_share_change(nstL.idata, nstL.intervention_idata)
     assert isinstance(change_df, pd.DataFrame)
     assert hasattr(nstL, "intervention_idata")
+
+def test_make_change_plot_returns_figure(nstL, sample_change_df):
+    fig = nstL.make_change_plot(sample_change_df, title="Test Intervention")
+
+    assert isinstance(fig, plt.Figure)

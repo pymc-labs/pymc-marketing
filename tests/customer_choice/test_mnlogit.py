@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+import matplotlib.pyplot as plt
 
 from pymc_marketing.customer_choice.mnl_logit import MNLogit
 
@@ -37,6 +38,13 @@ def sample_df():
         }
     )
 
+
+@pytest.fixture
+def sample_change_df():
+    return pd.DataFrame({
+        "policy_share": [0.3, 0.5, 0.2],
+        "new_policy_share": [0.25, 0.55, 0.2],
+    }, index=["mode1", "mode2", "mode3"])
 
 @pytest.fixture
 def utility_eqs():
@@ -118,3 +126,9 @@ def test_build_model_returns_pymc_model(mnl, sample_df, utility_eqs):
     assert isinstance(model, pm.Model)
     assert mnl.alternatives == ["alt", "other"]
     assert mnl.covariates == ["X1", "X2"]
+
+
+def test_make_change_plot_returns_figure(mnl, sample_change_df):
+    fig = mnl.make_change_plot(sample_change_df, title="Test Intervention")
+
+    assert isinstance(fig, plt.Figure)
