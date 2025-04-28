@@ -307,7 +307,9 @@ class NestedLogit(ModelBuilder):
         }
         return coords
 
-    def preprocess_model_data(self, choice_df, utility_equations)-> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def preprocess_model_data(
+        self, choice_df, utility_equations
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Pre-process the model initiation inputs into a format that can be used by the PyMC model."""
         X, F, alternatives, fixed_covar = self.prepare_X_matrix(
             choice_df, utility_equations, self.depvar
@@ -361,11 +363,12 @@ class NestedLogit(ModelBuilder):
             parent = None
         y_nest = U[:, nest_indices[level][nest]]
         if W is None:
-            w_nest =  pm.math.zeros((N, len(self.alternatives)))
+            w_nest = pm.math.zeros((N, len(self.alternatives)))
         else:
             betas_fixed_temp = betas_fixed_[nest_indices[level][nest], :]
             betas_fixed_temp = pm.Deterministic(
-                f"beta_fixed_{level}_{nest}", pt.set_subtensor(betas_fixed_temp[-1, :], 0)
+                f"beta_fixed_{level}_{nest}",
+                pt.set_subtensor(betas_fixed_temp[-1, :], 0),
             )
             w_nest = pm.math.dot(W, betas_fixed_temp.T)
 
@@ -456,7 +459,6 @@ class NestedLogit(ModelBuilder):
             alphas = pt.set_subtensor(alphas[-1], 0)
             u = alphas + pm.math.dot(X_data, betas)
             U = pm.Deterministic("U", w_nest + u, dims=("obs", "alts"))
-            
 
             ## Mid Level
             if "mid" in nest_indices.keys():
@@ -620,7 +622,10 @@ class NestedLogit(ModelBuilder):
 
         """
         sample_prior_predictive_kwargs = sample_prior_predictive_kwargs or {}
-        fit_kwargs = fit_kwargs or {"nuts_sampler": "numpyro", 'idata_kwargs': {"log_likelihood": True}}
+        fit_kwargs = fit_kwargs or {
+            "nuts_sampler": "numpyro",
+            "idata_kwargs": {"log_likelihood": True},
+        }
         sample_posterior_predictive_kwargs = sample_posterior_predictive_kwargs or {}
 
         X, F, y = self.preprocess_model_data(self.choice_df, self.utility_equations)  # type: ignore
@@ -653,9 +658,9 @@ class NestedLogit(ModelBuilder):
                 new_choice_df, self.utility_equations
             )
             with self.model:
-                if new_F is None: 
+                if new_F is None:
                     pm.set_data({"X": new_X, "y": new_y})
-                else: 
+                else:
                     pm.set_data({"X": new_X, "W": new_F, "y": new_y})
                 # use the updated values and predict outcomes and probabilities:
                 idata_new_policy = pm.sample_posterior_predictive(
