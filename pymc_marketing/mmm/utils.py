@@ -182,7 +182,7 @@ def create_zero_dataset(
     model: Any,
     start_date: str | pd.Timestamp,
     end_date: str | pd.Timestamp,
-    channel_xr: xr.Dataset | xr.DataArray | None = None,  # ← NEW argument
+    channel_xr: xr.Dataset | xr.DataArray | None = None,
 ) -> pd.DataFrame:
     """Create a DataFrame for future prediction, with zeros (or supplied constants).
 
