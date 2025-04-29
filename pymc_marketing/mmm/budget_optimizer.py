@@ -480,7 +480,7 @@ class BudgetOptimizer(BaseModel):
 
         # 5. Construct the initial guess (x0) if not provided
         if x0 is None:
-            x0 = np.ones(budgets_size) * (total_budget / budgets_size).astype(
+            x0 = (np.ones(budgets_size) * (total_budget / budgets_size)).astype(
                 self._budgets_flat.type.dtype
             )
 
