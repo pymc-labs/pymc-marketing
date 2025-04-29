@@ -237,7 +237,7 @@ def test_fit(
 
         return data.unstack(name)
 
-    actual = mmm.model["target_scaled"].eval()
+    actual = mmm.target_data_scaled.eval()
     expected = (
         mmm.xarray_dataset._target.to_series()
         .pipe(normalization)
@@ -637,7 +637,7 @@ def test_different_target_scaling(method, multi_dim_data, mock_pymc_sample) -> N
 
     normalization = {"mean": mean, "max": max_abs}[method]
 
-    actual = mmm.model["target_scaled"].eval()
+    actual = mmm.target_data_scaled.eval()
     expected = (
         mmm.xarray_dataset._target.to_series()
         .unstack("country")

@@ -953,14 +953,15 @@ class MMM(ModelBuilder):
             channel_data_.name = "channel_data_scaled"
             channel_data_.dims = ("date", *self.dims, "channel")
 
-            ## Hot fix for target data meanwhile pymc allows for internal scaling `https://github.com/pymc-devs/pymc/pull/7656`
             target_dim_handler = create_dim_handler(("date", *self.dims))
 
             target_data_scaled = _target / target_dim_handler(
                 _target_scale, self.scalers._target.dims
             )
-            target_data_scaled.name = "target_data_scaled"
+            target_data_scaled.name = "target_scaled"
             target_data_scaled.dims = ("date", *self.dims)
+            ## TODO: Find a better way to save it or access it in the pytensor graph.
+            self.target_data_scaled = target_data_scaled
 
             for mu_effect in self.mu_effects:
                 mu_effect.create_data(self)
