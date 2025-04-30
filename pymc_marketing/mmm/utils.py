@@ -224,11 +224,11 @@ def create_zero_dataset(
     inferred_freq = pd.infer_freq(date_series.unique())
     if inferred_freq is None:  # fall-back if inference fails
         warnings.warn(
-            f"Could not infer frequency from '{date_col}'. Using daily ('D').",
+            f"Could not infer frequency from '{date_col}'. Using weekly ('W').",
             UserWarning,
             stacklevel=2,
         )
-        inferred_freq = "D"
+        inferred_freq = "W"
 
     # ---- 2. Build the full Cartesian product of dates X dims -------------------
     new_dates = pd.date_range(
