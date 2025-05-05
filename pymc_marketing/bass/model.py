@@ -119,7 +119,7 @@ Create a basic Bass model for multiple products:
     # Plot the adoption curves
     fig, axes = plt.subplots(1, 3, figsize=(10, 6))
     idata.prior["y"].pipe(plot_curve, {"T"}, axes=axes)
-    plt.subtitle("Bass Model Prior Predictive Adoption Curves")
+    plt.suptitle("Bass Model Prior Predictive Adoption Curves")
     plt.tight_layout()
     plt.show()
 
