@@ -49,6 +49,7 @@ from pymc_marketing.mmm.hsgp import (
     create_m_and_L_recommendations,
 )
 from pymc_marketing.mmm.linear_trend import LinearTrend
+from pymc_marketing.mmm.marginal_effects import CounterfactualSweep
 from pymc_marketing.mmm.media_transformation import (
     MediaConfig,
     MediaConfigList,
@@ -66,6 +67,7 @@ __all__ = [
     "MMM",
     "AdstockTransformation",
     "BaseValidateMMM",
+    "CounterfactualSweep",
     "CovFunc",
     "DelayedAdstock",
     "GeometricAdstock",
