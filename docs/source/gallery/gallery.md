@@ -30,6 +30,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_multidimensional_example.png
 :link: ../notebooks/mmm/mmm_multidimensional_example.html
 :::
+
+:::{grid-item-card} Marginal Effects Example
+:img-top: ../gallery/images/mmm_marginal_effects.png
+:link: ../notebooks/mmm/mmm_marginal_effects.html
+:::
 ::::
 
 ### Budget Allocation
@@ -109,10 +114,6 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} MMMs and Pearl's ladder of causal inference
 :img-top: ../gallery/images/mmm_counterfactuals.png
 :link: ../notebooks/mmm/mmm_counterfactuals.html
-:::
-
-:img-top: ../gallery/images/mmm_marginal_effects.png
-:link: ../notebooks/mmm/mmm_marginal_effects.html
 :::
 
 ::::
