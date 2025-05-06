@@ -59,12 +59,10 @@ model:
         kwargs:
           args: ["Normal"]
           sigma:
-            target: pymc_marketing.prior.Prior
-            kwargs:
-              args: ["Gamma"]
-              mu: 1
-              sigma: 0.5
-              dims: "market"
+            distribution: "Gamma"
+            mu: 1
+            sigma: 0.5
+            dims: "market"
           dims: ["date", "market"]
 
 # ----------------------------------------------------------------------
