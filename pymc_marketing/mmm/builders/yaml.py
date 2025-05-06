@@ -21,8 +21,9 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import xarray as xr
 import yaml  # type: ignore
+
+from pymc_marketing.utils import from_netcdf
 
 from .deserializers import register_custom_deserializers
 from .factories import build
@@ -96,6 +97,6 @@ def build_from_yaml(
     if (idata_fp := cfg.get("idata_path")) is not None:
         idata_path = Path(idata_fp)
         if os.path.exists(idata_path):
-            model.idata = xr.open_dataset(idata_path)
+            model.idata = from_netcdf(idata_path)
 
     return model
