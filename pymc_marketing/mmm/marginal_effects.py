@@ -148,9 +148,6 @@ class CounterfactualSweep:
 
         x = self.sweep_values
         y = self.marginal_effects.mean(dim=["chain", "draw"]).sum(dim="date")
-        # y = self.marginal_effects.sum(dim="date")
-        # transpose to get "sweep" as the last dimension
-        # y = y.transpose(..., "sweep")
         ax.plot(x, y, label="Posterior mean marginal effect", color="C1")
 
         az.plot_hdi(
