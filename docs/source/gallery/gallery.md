@@ -110,6 +110,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_counterfactuals.png
 :link: ../notebooks/mmm/mmm_counterfactuals.html
 :::
+
+:img-top: ../gallery/images/mmm_marginal_effects.png
+:link: ../notebooks/mmm/mmm_marginal_effects.html
+:::
+
 ::::
 
 ### Case Studies
