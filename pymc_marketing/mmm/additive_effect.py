@@ -320,7 +320,24 @@ class LinearTrendEffect:
 
 
 class EventAdditiveEffect(BaseModel):
-    """Event effect class for the MMM."""
+    """Event effect class for the MMM.
+
+    Parameters
+    ----------
+    df_events : pd.DataFrame
+        The DataFrame containing the event data.
+            * `name`: name of the event. Used as the model coordinates.
+            * `start_date`: start date of the event
+            * `end_date`: end date of the event
+    prefix : str
+        The prefix to use for the event effect and associated variables.
+    effect : EventEffect
+        The event effect to apply.
+    reference_date : str
+        The arbitrary reference date to calculate distance from events in days. Default
+        is "2025-01-01".
+
+    """
 
     df_events: InstanceOf[pd.DataFrame]
     prefix: str
