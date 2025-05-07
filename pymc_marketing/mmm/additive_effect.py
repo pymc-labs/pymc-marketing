@@ -18,7 +18,7 @@ from typing import Any, Protocol
 import pandas as pd
 import pymc as pm
 import xarray as xr
-from pydantic import BaseModel
+from pydantic import BaseModel, InstanceOf
 from pytensor import tensor as pt
 
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
@@ -443,10 +443,10 @@ def create_event_mu_effect(
     return Effect()
 
 
-class EventEffect(BaseModel):
+class EventAdditiveEffect(BaseModel):
     """Event effect class for the MMM."""
 
-    df_events: pd.DataFrame
+    df_events: InstanceOf[pd.DataFrame]
     prefix: str
     effect: EventEffect
     reference_date: str = "2025-01-01"
