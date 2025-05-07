@@ -13,11 +13,12 @@
 #   limitations under the License.
 """Additive effects for the multidimensional Marketing Mix Model."""
 
-from typing import Protocol
+from typing import Any, Protocol
 
 import pandas as pd
 import pymc as pm
 import xarray as xr
+from pydantic import BaseModel
 from pytensor import tensor as pt
 
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
@@ -440,3 +441,108 @@ def create_event_mu_effect(
             pm.set_data(new_data=new_data, model=model)
 
     return Effect()
+
+
+class EventEffect(BaseModel):
+    """Event effect class for the MMM."""
+
+    df_events: pd.DataFrame
+    prefix: str
+    effect: EventEffect
+    reference_date: str = "2025-01-01"
+
+    def model_post_init(self, context: Any, /) -> None:
+        if missing_columns := set(["start_date", "end_date", "name"]).difference(
+            self.df_events.columns
+        ):
+            raise ValueError(f"Columns {missing_columns} are missing in df_events.")
+
+        self.effect.basis.prefix = self.prefix
+
+    @property
+    def start_dates(self) -> pd.Series:
+        return pd.to_datetime(self.df_events["start_date"])
+
+    @property
+    def end_dates(self) -> pd.Series:
+        return pd.to_datetime(self.df_events["end_date"])
+
+    def create_data(self, mmm: MMM) -> None:
+        """Create the required data in the model.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The MMM model instance.
+
+        """
+        model: pm.Model = mmm.model
+
+        model_dates = pd.to_datetime(model.coords["date"])
+
+        model.add_coord(self.prefix, self.df_events["name"].to_numpy())
+
+        if "days" not in model:
+            pm.Data(
+                "days",
+                days_from_reference(model_dates, self.reference_date),
+                dims="date",
+            )
+
+        pm.Data(
+            f"{self.prefix}_start_diff",
+            days_from_reference(self.start_dates, self.reference_date),
+            dims=self.prefix,
+        )
+        pm.Data(
+            f"{self.prefix}_end_diff",
+            days_from_reference(self.end_dates, self.reference_date),
+            dims=self.prefix,
+        )
+
+    def create_effect(self, mmm: MMM) -> pt.TensorVariable:
+        """Create the event effect in the model.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The MMM model instance.
+
+        Returns
+        -------
+        pt.TensorVariable
+            The average event effect in the model.
+
+        """
+        model: pm.Model = mmm.model
+
+        s_ref = model["days"][:, None] - model[f"{self.prefix}_start_diff"]
+        e_ref = model["days"][:, None] - model[f"{self.prefix}_end_diff"]
+
+        def create_basis_matrix(s_ref, e_ref):
+            return pt.where(
+                (s_ref >= 0) & (e_ref <= 0),
+                0,
+                pt.where(pt.abs(s_ref) < pt.abs(e_ref), s_ref, e_ref),
+            )
+
+        X = create_basis_matrix(s_ref, e_ref)
+        event_effect = self.effect.apply(X, name=self.prefix)
+
+        total_effect = pm.Deterministic(
+            f"{self.prefix}_total_effect",
+            event_effect.sum(axis=1),
+            dims="date",
+        )
+
+        dim_handler = create_dim_handler(("date", *mmm.dims))
+        return dim_handler(total_effect, "date")
+
+    def set_data(self, mmm: MMM, model: pm.Model, X: xr.Dataset) -> None:
+        """Set the data for new predictions."""
+        new_dates = pd.to_datetime(model.coords["date"])
+
+        new_data = {
+            "days": days_from_reference(new_dates, self.reference_date),
+        }
+        pm.set_data(new_data=new_data, model=model)

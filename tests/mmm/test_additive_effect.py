@@ -16,7 +16,10 @@ import pandas as pd
 import pymc as pm
 import pytest
 
-from pymc_marketing.mmm.additive_effect import FourierEffect, LinearTrendEffect
+from pymc_marketing.mmm.additive_effect import (
+    FourierEffect,
+    LinearTrendEffect,
+)
 from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.prior import Prior
