@@ -17,7 +17,7 @@ import numpy as np
 import numpy.typing as npt
 from sklearn.metrics import (
     mean_absolute_error,
-    root_mean_squared_error,
+    mean_squared_error,
 )
 
 
@@ -151,7 +151,7 @@ def nrmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     float
         Normalized root mean square error.
     """
-    return root_mean_squared_error(y_true, y_pred) / (y_true.max() - y_true.min())
+    return np.sqrt(mean_squared_error(y_true, y_pred)) / (y_true.max() - y_true.min())
 
 
 def nmae(y_true: np.ndarray, y_pred: np.ndarray) -> float:

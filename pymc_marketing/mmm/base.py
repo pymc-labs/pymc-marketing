@@ -1169,6 +1169,7 @@ class MMMModelBuilder(ModelBuilder):
         ax.xaxis.set_major_formatter(mtick.FuncFormatter(lambda y, _: f"{y: 0.0%}"))
         fig: plt.Figure = plt.gcf()
         fig.suptitle("channel Contribution Share", fontsize=16, y=1.05)
+
         return fig
 
     def _process_decomposition_components(self, data: pd.DataFrame) -> pd.DataFrame:

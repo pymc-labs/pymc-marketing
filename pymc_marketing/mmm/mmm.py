@@ -467,7 +467,7 @@ class BaseMMM(BaseValidateMMM):
                 date_column="date_week",
                 channel_columns=["x1", "x2"],
                 adstock=GeometricAdstock(l_max=8),
-                saturation=LogisticSaturation(),
+                saturation=HillSaturation(),
                 control_columns=[
                     "event_1",
                     "event_2",
