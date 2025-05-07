@@ -165,7 +165,9 @@ class BudgetOptimizer(BaseModel):
     def __init__(self, **data):
         super().__init__(**data)
         # 1. Prepare model with time dimension for optimization
-        pymc_model = self.mmm_model._set_predictors_for_optimization(self.num_periods)
+        pymc_model = self.mmm_model._set_predictors_for_optimization(
+            self.num_periods
+        )  # TODO: Once multidimensional class becomes the main class.
 
         # 2. Shared variable for total_budget: Use annotation to avoid type checking
         self._total_budget: SharedVariable = shared(
@@ -270,13 +272,20 @@ class BudgetOptimizer(BaseModel):
         repeated_budgets_with_carry_over_shape.insert(
             date_dim_idx, num_periods + max_lag
         )
+
+        # Get the dtype from the model's channel_data to ensure type compatibility
+        channel_data_dtype = model["channel_data"].dtype
+
         repeated_budgets_with_carry_over = pt.zeros(
-            repeated_budgets_with_carry_over_shape
+            repeated_budgets_with_carry_over_shape,
+            dtype=channel_data_dtype,  # Use the same dtype as channel_data
         )
         set_idxs = (*((slice(None),) * date_dim_idx), slice(None, num_periods))
         repeated_budgets_with_carry_over = repeated_budgets_with_carry_over[
             set_idxs
-        ].set(repeated_budgets)
+        ].set(
+            pt.cast(repeated_budgets, channel_data_dtype)
+        )  # Cast to ensure type compatibility
         repeated_budgets_with_carry_over.name = "repeated_budgets_with_carry_over"
 
         # Freeze dims & data in the underlying PyMC model
