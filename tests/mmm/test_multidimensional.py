@@ -25,9 +25,7 @@ from pytensor.tensor.basic import TensorVariable
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.additive_effect import EventAdditiveEffect
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis
-from pymc_marketing.mmm.multidimensional import (
-    MMM,
-)
+from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.prior import Prior
 

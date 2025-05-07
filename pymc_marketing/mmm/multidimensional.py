@@ -31,7 +31,7 @@ from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
 
 from pymc_marketing.mmm import SoftPlusHSGP
-from pymc_marketing.mmm.additive_effect import MuEffect, create_event_mu_effect
+from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, MuEffect
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     adstock_from_dict,
@@ -239,7 +239,11 @@ class MMM(ModelBuilder):
                 f"Event effect dims {effect.dims} must contain {prefix} and {self.dims}"
             )
 
-        event_effect = create_event_mu_effect(df_events, prefix, effect)
+        event_effect = EventAdditiveEffect(
+            df_events=df_events,
+            prefix=prefix,
+            effect=effect,
+        )
         self.mu_effects.append(event_effect)
 
     @property
