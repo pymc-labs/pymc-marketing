@@ -452,6 +452,7 @@ class EventAdditiveEffect(BaseModel):
     reference_date: str = "2025-01-01"
 
     def model_post_init(self, context: Any, /) -> None:
+        """Post initialization of the model."""
         if missing_columns := set(["start_date", "end_date", "name"]).difference(
             self.df_events.columns
         ):
@@ -461,10 +462,12 @@ class EventAdditiveEffect(BaseModel):
 
     @property
     def start_dates(self) -> pd.Series:
+        """The start dates of the events."""
         return pd.to_datetime(self.df_events["start_date"])
 
     @property
     def end_dates(self) -> pd.Series:
+        """The end dates of the events."""
         return pd.to_datetime(self.df_events["end_date"])
 
     def create_data(self, mmm: MMM) -> None:
