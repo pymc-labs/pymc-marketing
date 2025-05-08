@@ -412,17 +412,17 @@ class EventAdditiveEffect(BaseModel):
         """
         model: pm.Model = mmm.model
 
-        s_ref = model["days"][:, None] - model[f"{self.prefix}_start_diff"]
-        e_ref = model["days"][:, None] - model[f"{self.prefix}_end_diff"]
+        start_ref = model["days"][:, None] - model[f"{self.prefix}_start_diff"]
+        end_ref = model["days"][:, None] - model[f"{self.prefix}_end_diff"]
 
-        def create_basis_matrix(s_ref, e_ref):
+        def create_basis_matrix(start_ref, end_ref):
             return pt.where(
-                (s_ref >= 0) & (e_ref <= 0),
+                (start_ref >= 0) & (end_ref <= 0),
                 0,
-                pt.where(pt.abs(s_ref) < pt.abs(e_ref), s_ref, e_ref),
+                pt.where(pt.abs(start_ref) < pt.abs(end_ref), start_ref, end_ref),
             )
 
-        X = create_basis_matrix(s_ref, e_ref)
+        X = create_basis_matrix(start_ref, end_ref)
         event_effect = self.effect.apply(X, name=self.prefix)
 
         total_effect = pm.Deterministic(
