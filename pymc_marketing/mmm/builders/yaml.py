@@ -93,7 +93,12 @@ def build_from_yaml(
     # 4 ───────────────────────────────────────────── build PyMC graph
     model.build_model(X, y)  # this **must** precede any idata loading
 
-    # 5 ──────────────────────────────────────────── attach inference data
+    # 5 ───────────────────────── add original scale contribution variables
+    original_scale_vars = cfg.get("original_scale_vars", [])
+    if original_scale_vars:
+        model.add_original_scale_contribution_variable(var=original_scale_vars)
+
+    # 6 ──────────────────────────────────────────── attach inference data
     if (idata_fp := cfg.get("idata_path")) is not None:
         idata_path = Path(idata_fp)
         if os.path.exists(idata_path):
