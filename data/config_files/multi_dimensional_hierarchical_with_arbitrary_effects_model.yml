@@ -2,7 +2,7 @@ schema_version: 1
 
 # ----------------------------------------------------------------------
 model:
-  target: pymc_marketing.mmm.multidimensional.MMM
+  target_class: pymc_marketing.mmm.multidimensional.MMM
   kwargs:
     date_column: "date"
     channel_columns: # explicit for reproducibility
@@ -23,11 +23,11 @@ model:
 
     # --- media transformations ---------------------------------------
     adstock:
-      target: pymc_marketing.mmm.GeometricAdstock
+      target_class: pymc_marketing.mmm.GeometricAdstock
       kwargs: {l_max: 12}        # any other hyper-parameters here
 
     saturation:
-      target: pymc_marketing.mmm.LogisticSaturation
+      target_class: pymc_marketing.mmm.LogisticSaturation
       kwargs:
         priors:
           beta:
@@ -47,7 +47,7 @@ model:
     # --- model (hierarchical) priors ---------------------------------
     model_config:
       intercept:
-        target: pymc_marketing.prior.Prior
+        target_class: pymc_marketing.prior.Prior
         kwargs:
           args: ["Gamma"]
           mu: 0.5
@@ -55,7 +55,7 @@ model:
           dims: "market"
 
       likelihood:
-        target: pymc_marketing.prior.Prior
+        target_class: pymc_marketing.prior.Prior
         kwargs:
           args: ["Normal"]
           sigma:
@@ -69,10 +69,10 @@ model:
 # Effects with complex priors
 effects:
   # 1. Linear Trend Effect with complex nested priors
-  - target: pymc_marketing.mmm.additive_effect.LinearTrendEffect
+  - target_class: pymc_marketing.mmm.additive_effect.LinearTrendEffect
     kwargs:
       trend:
-        target: pymc_marketing.mmm.LinearTrend
+        target_class: pymc_marketing.mmm.LinearTrend
         kwargs:
           n_changepoints: 2
           include_intercept: false
@@ -88,10 +88,10 @@ effects:
       prefix: "trend"
 
   # 2. Fourier Effect with complex nested priors
-  - target: pymc_marketing.mmm.additive_effect.FourierEffect
+  - target_class: pymc_marketing.mmm.additive_effect.FourierEffect
     kwargs:
       fourier:
-        target: pymc_marketing.mmm.WeeklyFourier
+        target_class: pymc_marketing.mmm.WeeklyFourier
         kwargs:
           n_order: 3
           prefix: "weekly_fourier"

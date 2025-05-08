@@ -90,17 +90,17 @@ def _build_single(spec: Mapping[str, Any]) -> Any:
     Notes
     -----
     Recognised keys
-    * target : str   (mandatory)
+    * target_class : str   (mandatory)
     * kwargs : dict  (optional)
     * args   : list  (optional positional arguments)
     """
-    # Ensure target is a string
-    if not isinstance(spec["target"], str):
+    # Ensure target_class is a string
+    if not isinstance(spec["target_class"], str):
         raise TypeError(
-            f"Expected string for 'target' but got {type(spec['target']).__name__}: {spec['target']}"
+            f"Expected string for 'target_class' but got {type(spec['target_class']).__name__}: {spec['target_class']}"
         )
 
-    cls = locate(spec["target"])
+    cls = locate(spec["target_class"])
 
     raw_kwargs: MutableMapping[str, Any] = dict(spec.get("kwargs", {}))
     raw_args: Sequence[Any] = raw_kwargs.pop("args", spec.get("args", ()))
@@ -164,14 +164,14 @@ def resolve(value):
     if isinstance(value, Mapping) and "scaling" in value:
         return value
     # nested object
-    if isinstance(value, Mapping) and "target" in value:
+    if isinstance(value, Mapping) and "target_class" in value:
         return _build_single(value)
     # list of nested objects
     if (
         isinstance(value, list)
         and value
         and isinstance(value[0], Mapping)
-        and "target" in value[0]
+        and "target_class" in value[0]
     ):
         return [_build_single(v) for v in value]
     return value
@@ -179,6 +179,6 @@ def resolve(value):
 
 def build(spec: Mapping[str, Any]) -> Any:
     """Public wrapper that checks minimal structure and delegates to _build_single."""
-    if "target" not in spec:
-        raise ValueError("Spec must contain a 'target' key.")
+    if "target_class" not in spec:
+        raise ValueError("Spec must contain a 'target_class' key.")
     return _build_single(spec)

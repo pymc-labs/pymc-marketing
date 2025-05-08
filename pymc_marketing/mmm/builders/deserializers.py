@@ -46,8 +46,8 @@ def deserialize_prior(data: dict[str, Any]) -> Prior:
             data_copy[key] = deserialize_prior(value)
         elif (
             isinstance(value, dict)
-            and "target" in value
-            and value["target"] == "pymc_marketing.prior.Prior"
+            and "target_class" in value
+            and value["target_class"] == "pymc_marketing.prior.Prior"
         ):
             data_copy[key] = deserialize_standard_prior(value)
 
@@ -111,8 +111,8 @@ def is_standard_prior_dict(data: Any) -> tuple[bool, str]:
         return False, ""
 
     if (
-        "target" in data
-        and data["target"] == "pymc_marketing.prior.Prior"
+        "target_class" in data
+        and data["target_class"] == "pymc_marketing.prior.Prior"
         and "kwargs" in data
     ):
         return True, "Prior"
@@ -126,7 +126,7 @@ def deserialize_standard_prior(data: dict[str, Any]) -> Prior:
 
     The expected format is:
     {
-        "target": "pymc_marketing.prior.Prior",
+        "target_class": "pymc_marketing.prior.Prior",
         "kwargs": {
             "args": ["Distribution"],
             "param1": value1,
@@ -148,7 +148,10 @@ def deserialize_standard_prior(data: dict[str, Any]) -> Prior:
         if isinstance(value, dict):
             if "distribution" in value:
                 new_kwargs[key] = deserialize_prior(value)
-            elif "target" in value and value["target"] == "pymc_marketing.prior.Prior":
+            elif (
+                "target_class" in value
+                and value["target_class"] == "pymc_marketing.prior.Prior"
+            ):
                 new_kwargs[key] = deserialize_standard_prior(value)
 
     # Create Prior
@@ -165,7 +168,10 @@ def is_priors_dict(data: Any) -> bool:
     for _key, value in data.items():
         if isinstance(value, dict) and (
             "distribution" in value
-            or ("target" in value and value["target"] == "pymc_marketing.prior.Prior")
+            or (
+                "target_class" in value
+                and value["target_class"] == "pymc_marketing.prior.Prior"
+            )
         ):
             return True
     return False
@@ -178,7 +184,10 @@ def deserialize_priors_dict(data: dict[str, Any]) -> dict[str, Any]:
         if isinstance(value, dict):
             if "distribution" in value:
                 result[key] = deserialize_prior(value)
-            elif "target" in value and value["target"] == "pymc_marketing.prior.Prior":
+            elif (
+                "target_class" in value
+                and value["target_class"] == "pymc_marketing.prior.Prior"
+            ):
                 result[key] = deserialize_standard_prior(value)
             else:
                 result[key] = value
