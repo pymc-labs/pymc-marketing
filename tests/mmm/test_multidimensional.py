@@ -24,11 +24,11 @@ from pytensor.tensor.basic import TensorVariable
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm.additive_effect import EventAdditiveEffect
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis
 from pymc_marketing.mmm.multidimensional import (
     MMM,
     MultiDimensionalBudgetOptimizerWrapper,
-    create_event_mu_effect,
 )
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.prior import Prior
@@ -469,7 +469,11 @@ def test_create_effect_mu_effect(
     df_events,
     event_effect,
 ) -> None:
-    effect = create_event_mu_effect(df_events, prefix="holiday", effect=event_effect)
+    effect = EventAdditiveEffect(
+        df_events=df_events,
+        prefix="holiday",
+        effect=event_effect,
+    )
 
     with mock_mmm.model:
         effect.create_data(mock_mmm)
