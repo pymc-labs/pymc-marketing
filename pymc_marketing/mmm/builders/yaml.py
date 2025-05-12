@@ -25,11 +25,7 @@ import yaml  # type: ignore
 
 from pymc_marketing.utils import from_netcdf
 
-from .deserializers import register_custom_deserializers
 from .factories import build
-
-# Register custom deserializers before doing anything else
-register_custom_deserializers()
 
 
 # -----------------------------------------------------------------------------
@@ -71,6 +67,7 @@ def build_from_yaml(
     cfg: Mapping[str, Any] = yaml.safe_load(Path(config_path).read_text())
 
     # 1 ─────────────────────────────────── shell (no effects yet)
+    model_config = cfg["model"]["kwargs"]  # Get model kwargs
     model = build(cfg["model"])
 
     # 2 ──────────────────────────────── resolve covariates / target
@@ -83,6 +80,21 @@ def build_from_yaml(
         if "y_path" not in data_cfg:
             raise ValueError("y not provided and no `data.y_path` found in YAML.")
         y = _load_df(data_cfg["y_path"])
+
+    # Convert date column after loading data
+    date_column = model_config.get("date_column")
+    if date_column:
+        date_col_in_X = date_column in X.columns
+        date_col_in_y = date_column in y.columns
+
+        if date_column in X.columns:
+            X[date_column] = pd.to_datetime(X[date_column])
+        if date_column in y.columns:
+            y[date_column] = pd.to_datetime(y[date_column])
+        if not date_col_in_X and not date_col_in_y:
+            raise ValueError(
+                f"Date column '{date_column}' specified in config not found in either X or y data."
+            )
 
     # 3 ───────────────────────────────────── effects (preserve order)
     # Build and append each effect

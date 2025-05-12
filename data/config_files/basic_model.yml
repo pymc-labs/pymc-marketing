@@ -2,7 +2,7 @@ schema_version: 1
 
 # ----------------------------------------------------------------------
 model:
-  target_class: pymc_marketing.mmm.multidimensional.MMM
+  class: pymc_marketing.mmm.multidimensional.MMM
   kwargs:
     date_column: "date"
     channel_columns:                                     # explicit for reproducibility
@@ -13,11 +13,11 @@ model:
 
     # --- media transformations ---------------------------------------
     adstock:
-      target_class: pymc_marketing.mmm.GeometricAdstock
+      class: pymc_marketing.mmm.GeometricAdstock
       kwargs: {l_max: 12}        # any other hyper-parameters here
 
     saturation:
-      target_class: pymc_marketing.mmm.MichaelisMentenSaturation
+      class: pymc_marketing.mmm.MichaelisMentenSaturation
       kwargs: {}                 # default α, λ priors inside the class
 
 # ----------------------------------------------------------------------

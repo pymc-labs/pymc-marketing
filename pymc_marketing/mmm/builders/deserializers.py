@@ -15,11 +15,12 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 from typing import Any
 
 # Add these imports to register any built-in deserializers
-from pymc_marketing.deserialize import register_deserialization
+from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.prior import Prior
 
 logger = logging.getLogger(__name__)
@@ -46,8 +47,8 @@ def deserialize_prior(data: dict[str, Any]) -> Prior:
             data_copy[key] = deserialize_prior(value)
         elif (
             isinstance(value, dict)
-            and "target_class" in value
-            and value["target_class"] == "pymc_marketing.prior.Prior"
+            and "class" in value
+            and value["class"] == "pymc_marketing.prior.Prior"
         ):
             data_copy[key] = deserialize_standard_prior(value)
 
@@ -55,50 +56,53 @@ def deserialize_prior(data: dict[str, Any]) -> Prior:
     return Prior(distribution, **data_copy)
 
 
-def is_likelihood_dict(data: Any) -> bool:
-    """Check if the data is a likelihood dictionary with a nested sigma Prior."""
-    if not isinstance(data, dict):
-        return False
-    # Likelihood dict typically has sigma and dims keys
-    return (
-        "distribution" in data
-        and data["distribution"] == "Normal"
-        and "sigma" in data
-        and isinstance(data["sigma"], dict)
-    )
+def is_alternative_prior(data: Any) -> bool:
+    """Check if the data is a dictionary representing a Prior (alternative check)."""
+    return isinstance(data, dict) and "distribution" in data
 
 
-def deserialize_likelihood(data: dict[str, Any]) -> Prior:
+def deserialize_alternative_prior(data: dict[str, Any]) -> Prior:
     """
-    Deserialize a likelihood dictionary as a Normal prior with nested sigma.
+    Alternative deserializer that recursively handles all nested parameters.
 
-    The expected format is:
-    {
-        "distribution": "Normal",
-        "sigma": {
-            "distribution": "Gamma",
-            ...
-        },
-        "dims": ...
+    This implementation is more general and handles cases where any parameter
+    might be a nested prior, and also extracts centered and transform parameters.
+
+    Examples
+    --------
+    This handles cases like:
+
+    ```yaml
+    distribution: Gamma
+    alpha: 1
+    beta:
+        distribution: HalfNormal
+        sigma: 1
+        dims: channel
+    dims: [brand, channel]
+    ```
+    """
+    data = copy.deepcopy(data)
+
+    distribution = data.pop("distribution")
+    dims = data.pop("dims", None)
+    centered = data.pop("centered", True)
+    transform = data.pop("transform", None)
+    parameters = data
+
+    # Recursively deserialize any nested parameters
+    parameters = {
+        key: value if not isinstance(value, dict) else deserialize(value)
+        for key, value in parameters.items()
     }
-    """
-    # Make a copy to avoid modifying the original
-    data_copy = data.copy()
 
-    # Extract distribution
-    distribution = data_copy.pop("distribution")
-
-    # Handle special sigma case - deserialize it if it contains a distribution
-    if (
-        "sigma" in data_copy
-        and isinstance(data_copy["sigma"], dict)
-        and "distribution" in data_copy["sigma"]
-    ):
-        data_copy["sigma"] = deserialize_prior(data_copy["sigma"])
-
-    # Create Prior
-    logger.info(f"Creating Prior with distribution={distribution}, kwargs={data_copy}")
-    return Prior(distribution, **data_copy)
+    return Prior(
+        distribution,
+        transform=transform,
+        centered=centered,
+        dims=dims,
+        **parameters,
+    )
 
 
 def is_standard_prior_dict(data: Any) -> tuple[bool, str]:
@@ -111,8 +115,8 @@ def is_standard_prior_dict(data: Any) -> tuple[bool, str]:
         return False, ""
 
     if (
-        "target_class" in data
-        and data["target_class"] == "pymc_marketing.prior.Prior"
+        "class" in data
+        and data["class"] == "pymc_marketing.prior.Prior"
         and "kwargs" in data
     ):
         return True, "Prior"
@@ -126,7 +130,7 @@ def deserialize_standard_prior(data: dict[str, Any]) -> Prior:
 
     The expected format is:
     {
-        "target_class": "pymc_marketing.prior.Prior",
+        "class": "pymc_marketing.prior.Prior",
         "kwargs": {
             "args": ["Distribution"],
             "param1": value1,
@@ -148,10 +152,7 @@ def deserialize_standard_prior(data: dict[str, Any]) -> Prior:
         if isinstance(value, dict):
             if "distribution" in value:
                 new_kwargs[key] = deserialize_prior(value)
-            elif (
-                "target_class" in value
-                and value["target_class"] == "pymc_marketing.prior.Prior"
-            ):
+            elif "class" in value and value["class"] == "pymc_marketing.prior.Prior":
                 new_kwargs[key] = deserialize_standard_prior(value)
 
     # Create Prior
@@ -168,10 +169,7 @@ def is_priors_dict(data: Any) -> bool:
     for _key, value in data.items():
         if isinstance(value, dict) and (
             "distribution" in value
-            or (
-                "target_class" in value
-                and value["target_class"] == "pymc_marketing.prior.Prior"
-            )
+            or ("class" in value and value["class"] == "pymc_marketing.prior.Prior")
         ):
             return True
     return False
@@ -184,10 +182,7 @@ def deserialize_priors_dict(data: dict[str, Any]) -> dict[str, Any]:
         if isinstance(value, dict):
             if "distribution" in value:
                 result[key] = deserialize_prior(value)
-            elif (
-                "target_class" in value
-                and value["target_class"] == "pymc_marketing.prior.Prior"
-            ):
+            elif "class" in value and value["class"] == "pymc_marketing.prior.Prior":
                 result[key] = deserialize_standard_prior(value)
             else:
                 result[key] = value
@@ -196,18 +191,16 @@ def deserialize_priors_dict(data: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def register_custom_deserializers():
-    """Register all custom deserializers."""
-    # Register the simple prior deserializer for distribution-based format
-    register_deserialization(is_prior_dict, deserialize_prior)
+# Register the simple prior deserializer for distribution-based format
+register_deserialization(is_prior_dict, deserialize_prior)
 
-    # Register the nested likelihood deserializer for distribution-based format
-    register_deserialization(is_likelihood_dict, deserialize_likelihood)
+# Register the alternative prior deserializer for more complex nested cases
+register_deserialization(is_alternative_prior, deserialize_alternative_prior)
 
-    # Register the standard deserializer used by factories.py
-    register_deserialization(
-        lambda x: is_standard_prior_dict(x)[0], deserialize_standard_prior
-    )
+# Register the standard deserializer used by factories.py
+register_deserialization(
+    lambda x: is_standard_prior_dict(x)[0], deserialize_standard_prior
+)
 
-    # Register the priors dictionary deserializer
-    register_deserialization(is_priors_dict, deserialize_priors_dict)
+# Register the priors dictionary deserializer
+register_deserialization(is_priors_dict, deserialize_priors_dict)

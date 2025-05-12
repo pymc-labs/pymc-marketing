@@ -83,30 +83,27 @@ def create_prior_from_dict(prior_dict: dict) -> Prior:
     return Prior(distribution, **data)
 
 
-def _build_single(spec: Mapping[str, Any]) -> Any:
+def build(spec: Mapping[str, Any]) -> Any:
     """
     Instantiate the object described by *spec*.
 
     Notes
     -----
     Recognised keys
-    * target_class : str   (mandatory)
+    * class : str   (mandatory)
     * kwargs : dict  (optional)
     * args   : list  (optional positional arguments)
     """
-    # Ensure target_class is a string
-    if not isinstance(spec["target_class"], str):
+    # Ensure class is a string
+    if not isinstance(spec["class"], str):
         raise TypeError(
-            f"Expected string for 'target_class' but got {type(spec['target_class']).__name__}: {spec['target_class']}"
+            f"Expected string for 'class' but got {type(spec['class']).__name__}: {spec['class']}"
         )
 
-    cls = locate(spec["target_class"])
+    cls = locate(spec["class"])
 
     raw_kwargs: MutableMapping[str, Any] = dict(spec.get("kwargs", {}))
     raw_args: Sequence[Any] = raw_kwargs.pop("args", spec.get("args", ()))
-
-    # Handle special keys that should not be processed
-    special_keys = ["scaling"]
 
     # Handle specific kwargs that should be processed differently
     special_processing_keys = ["priors", "prior"]
@@ -120,10 +117,7 @@ def _build_single(spec: Mapping[str, Any]) -> Any:
 
     kwargs = {}
     for k, v in raw_kwargs.items():
-        if k in special_keys:
-            # Pass these through without processing
-            kwargs[k] = v
-        elif k in special_processing_keys:
+        if k in special_processing_keys:
             # Handle priors and prior differently
             if isinstance(v, dict):
                 if k == "priors":
@@ -140,7 +134,7 @@ def _build_single(spec: Mapping[str, Any]) -> Any:
                     kwargs[k] = priors_dict
                 elif k == "prior" and "distribution" in v:
                     # Create a single prior object
-                    kwargs[k] = create_prior_from_dict(v)
+                    kwargs[k] = create_prior_from_dict(v)  # type: ignore
                 else:
                     kwargs[k] = resolve(v)
             else:
@@ -158,27 +152,17 @@ def resolve(value):
     """
     Resolve a value by recursively building nested objects.
 
-    This is a helper function for _build_single.
+    This is a helper function for build.
     """
-    # Special structure items
-    if isinstance(value, Mapping) and "scaling" in value:
-        return value
     # nested object
-    if isinstance(value, Mapping) and "target_class" in value:
-        return _build_single(value)
+    if isinstance(value, Mapping) and "class" in value:
+        return build(value)
     # list of nested objects
     if (
         isinstance(value, list)
         and value
         and isinstance(value[0], Mapping)
-        and "target_class" in value[0]
+        and "class" in value[0]
     ):
-        return [_build_single(v) for v in value]
+        return [build(v) for v in value]
     return value
-
-
-def build(spec: Mapping[str, Any]) -> Any:
-    """Public wrapper that checks minimal structure and delegates to _build_single."""
-    if "target_class" not in spec:
-        raise ValueError("Spec must contain a 'target_class' key.")
-    return _build_single(spec)

@@ -2,7 +2,7 @@ schema_version: 1
 
 # ----------------------------------------------------------------------
 model:
-  target_class: pymc_marketing.mmm.multidimensional.MMM
+  class: pymc_marketing.mmm.multidimensional.MMM
   kwargs:
     date_column: "date"
     channel_columns: # explicit for reproducibility
@@ -11,19 +11,20 @@ model:
       # …
     target_column: "kpi_registrations"
     dims: ["market"]  # Keep as array for consistency
-    # Standard scaling format
+    # Standard scaling format using class/kwargs pattern
     scaling:
-      type: "max"
-      target:
-        method: "max"
-        dims: []
-      channel:
-        method: "max"
-        dims: ["market"]
+      class: pymc_marketing.mmm.scaling.Scaling
+      kwargs:
+        target:
+          method: "max"
+          dims: []
+        channel:
+          method: "max"
+          dims: ["market"]
 
     # --- media transformations ---------------------------------------
     adstock:
-      target_class: pymc_marketing.mmm.GeometricAdstock
+      class: pymc_marketing.mmm.GeometricAdstock
       kwargs:
           priors:
               alpha:
@@ -34,7 +35,7 @@ model:
           l_max: 28
 
     saturation:
-      target_class: pymc_marketing.mmm.MichaelisMentenSaturation
+      class: pymc_marketing.mmm.MichaelisMentenSaturation
       kwargs:
         priors:
           alpha:
@@ -51,33 +52,29 @@ model:
     # --- model (hierarchical) priors ---------------------------------
     model_config:
       intercept:
-        target_class: pymc_marketing.prior.Prior
-        kwargs:
-          args: ["HalfCauchy"]
-          beta:
-            distribution: "HalfNormal"
-            sigma: .3
-          dims: "market"
+        distribution: HalfCauchy
+        beta:
+          distribution: HalfNormal
+          sigma: 0.3
+        dims: market
 
       likelihood:
-        target_class: pymc_marketing.prior.Prior
-        kwargs:
-          args: ["TruncatedNormal"]
-          lower: 0
-          sigma:
-            distribution: "HalfNormal"
-            sigma: 1
-            dims: "market"
-          dims: ["date", "market"]
+        distribution: TruncatedNormal
+        lower: 0
+        sigma:
+          distribution: "HalfNormal"
+          sigma: 1
+          dims: "market"
+        dims: ["date", "market"]
 
 # ----------------------------------------------------------------------
 # Effects with complex priors
 effects:
   # 1. Linear Trend Effect with complex nested priors
-  - target_class: pymc_marketing.mmm.additive_effect.LinearTrendEffect
+  - class: pymc_marketing.mmm.additive_effect.LinearTrendEffect
     kwargs:
       trend:
-        target_class: pymc_marketing.mmm.LinearTrend
+        class: pymc_marketing.mmm.LinearTrend
         kwargs:
           n_changepoints: 2
           include_intercept: false
@@ -93,10 +90,10 @@ effects:
       prefix: "trend"
 
   # 2. Fourier Effect with complex nested priors
-  - target_class: pymc_marketing.mmm.additive_effect.FourierEffect
+  - class: pymc_marketing.mmm.additive_effect.FourierEffect
     kwargs:
       fourier:
-        target_class: pymc_marketing.mmm.WeeklyFourier
+        class: pymc_marketing.mmm.WeeklyFourier
         kwargs:
           n_order: 3
           prefix: "weekly_fourier"

@@ -2,7 +2,7 @@ schema_version: 1
 
 # ----------------------------------------------------------------------
 model:
-  target_class: pymc_marketing.mmm.multidimensional.MMM
+  class: pymc_marketing.mmm.multidimensional.MMM
   kwargs:
     date_column: "date"
     channel_columns: # explicit for reproducibility
@@ -13,21 +13,22 @@ model:
     dims: ["market"]  # Keep as array for consistency
     # Standard scaling format
     scaling:
-      type: "max"
-      target:
-        method: "max"
-        dims: []
-      channel:
-        method: "max"
-        dims: []
+      class: pymc_marketing.mmm.scaling.Scaling
+      kwargs:
+        target:
+          method: "max"
+          dims: []
+        channel:
+          method: "max"
+          dims: ["market"]
 
     # --- media transformations ---------------------------------------
     adstock:
-      target_class: pymc_marketing.mmm.GeometricAdstock
+      class: pymc_marketing.mmm.GeometricAdstock
       kwargs: {l_max: 12}        # any other hyper-parameters here
 
     saturation:
-      target_class: pymc_marketing.mmm.LogisticSaturation
+      class: pymc_marketing.mmm.LogisticSaturation
       kwargs:
         priors:
           beta:
@@ -47,23 +48,20 @@ model:
     # --- model (hierarchical) priors ---------------------------------
     model_config:
       intercept:
-        target_class: pymc_marketing.prior.Prior
-        kwargs:
-          args: ["Gamma"]
-          mu: 0.5
-          sigma: 1
-          dims: "market"
+        distribution: HalfCauchy
+        beta:
+          distribution: HalfNormal
+          sigma: 0.3
+        dims: market
 
       likelihood:
-        target_class: pymc_marketing.prior.Prior
-        kwargs:
-          args: ["Normal"]
-          sigma:
-            distribution: "Gamma"
-            mu: 1
-            sigma: 0.5
-            dims: "market"
-          dims: ["date", "market"]
+        distribution: TruncatedNormal
+        lower: 0
+        sigma:
+          distribution: "HalfNormal"
+          sigma: 1
+          dims: "market"
+        dims: ["date", "market"]
 
 # ----------------------------------------------------------------------
 # (optional) sampler options you plan to forward to pm.sample():
