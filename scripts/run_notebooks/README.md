@@ -14,8 +14,6 @@ python scripts/run_notebooks/runner.py
 
 # Makefile command
 make run_notebooks
-
-
 ```
 
 ### Specific notebook(s)
