@@ -42,7 +42,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2"]
+dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
 docs = [
     "blackjax",
     "fastprogress",
