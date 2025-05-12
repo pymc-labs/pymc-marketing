@@ -87,6 +87,7 @@ jobs:
           cache-dependency-path: "pyproject.toml"
       - name: Run tests
         run: |
+          sudo apt-get install graphviz graphviz-dev
           pip install -e .[test]
           pytest --only-slow ${{ matrix.split }}
       - name: Upload coverage to Codecov
