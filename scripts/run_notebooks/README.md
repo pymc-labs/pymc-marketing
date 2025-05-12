@@ -18,7 +18,7 @@ make run_notebooks
 
 ### Specific notebook(s)
 
-Specific notebooks can be run by passing them to the `--notebooks` arguments. Use the full path to the notebook. For example:
+Specific notebook(s) can be run by passing them to the `--notebooks` arguments. Use the relative path to the notebook. For example:
 
 ```bash
 python scripts/run_notebooks/runner.py --notebooks docs/source/notebooks/bass/bass_example.ipynb <another-notebook>
