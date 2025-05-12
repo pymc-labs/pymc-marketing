@@ -23,6 +23,7 @@ import xarray as xr
 import yaml
 
 from pymc_marketing.mmm.builders.yaml import build_from_yaml
+from pymc_marketing.model_config import ModelConfigError
 
 
 @pytest.fixture
@@ -40,7 +41,7 @@ def y_data():
 def get_yaml_files():
     """Get all YAML files from the data/config_files directory."""
     config_dir = Path("data/config_files")
-    return [str(file) for file in config_dir.glob("*.yml")]
+    return [str(file) for file in config_dir.glob("*.yml") if "wrong_" not in file.name]
 
 
 @pytest.mark.parametrize("config_path", get_yaml_files())
@@ -76,3 +77,60 @@ def test_build_from_yaml(config_path, X_data, y_data):
 
     # Verify that the result is an xarray dataset
     assert isinstance(prior_predictive, xr.Dataset)
+
+
+def test_wrong_adstock_class():
+    """Test that a model with a wrong adstock class fails appropriately."""
+    wrong_config_path = Path("data/config_files/wrong_adstock_class.yml")
+
+    # Should fail with AttributeError for the non-existent adstock class
+    with pytest.raises(AttributeError, match=".*NonExistentAdstock.*"):
+        build_from_yaml(wrong_config_path)
+
+    # Verify the config file has the expected wrong class
+    cfg = yaml.safe_load(wrong_config_path.read_text())
+    adstock_config = cfg["model"]["kwargs"]["adstock"]
+    assert adstock_config["class"] == "pymc_marketing.mmm.NonExistentAdstock"
+
+
+def test_wrong_saturation_params():
+    """Test that a model with wrong saturation parameters fails appropriately."""
+    wrong_config_path = Path("data/config_files/wrong_saturation_params.yml")
+
+    # Should eventually fail with a ModelConfigError or TypeError
+    with pytest.raises((TypeError, ModelConfigError, ValueError)):
+        build_from_yaml(wrong_config_path)
+
+    # Verify the config file has the expected wrong parameters
+    cfg = yaml.safe_load(wrong_config_path.read_text())
+    saturation_config = cfg["model"]["kwargs"]["saturation"]["kwargs"]["priors"]
+    assert saturation_config["alpha"] == "not_a_number"
+    assert saturation_config["lambda"] == -5.0
+
+
+def test_wrong_distribution():
+    """Test that a model with an invalid distribution fails appropriately."""
+    wrong_config_path = Path("data/config_files/wrong_distribution.yml")
+
+    # Should fail with ModelConfigError when parsing distributions
+    with pytest.raises(ModelConfigError):
+        build_from_yaml(wrong_config_path)
+
+    # Verify the config file has the expected wrong distribution
+    cfg = yaml.safe_load(wrong_config_path.read_text())
+    model_config = cfg["model"]["kwargs"]["model_config"]
+    assert model_config["intercept"]["dist"] == "InvalidDistribution"
+
+
+def test_wrong_parameter_type():
+    """Test that a model with a wrong parameter type fails appropriately."""
+    wrong_config_path = Path("data/config_files/wrong_parameter_type.yml")
+
+    # Should fail with ModelConfigError when parsing distributions
+    with pytest.raises(ModelConfigError):
+        build_from_yaml(wrong_config_path)
+
+    # Verify the config file has the expected wrong parameter type
+    cfg = yaml.safe_load(wrong_config_path.read_text())
+    model_config = cfg["model"]["kwargs"]["model_config"]
+    assert model_config["likelihood"]["kwargs"]["sigma"] == "wrong_value_type"
