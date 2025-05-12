@@ -86,6 +86,7 @@ test = [
     "networkx",
     "dowhy",
     "osqp<1.0.0,>=0.6.2",
+    "pygraphviz",
 ]
 
 [tool.hatch.build.targets.sdist]
