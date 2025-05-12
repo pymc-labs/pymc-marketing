@@ -55,7 +55,7 @@ jobs:
         run: pip install pymc==${{ env.OLDEST_PYMC_VERSION }}
       - name: Run tests
         run: |
-          sudo apt-get install graphviz
+          sudo apt-get install graphviz graphviz-dev
           pip install -e .[test]
           pytest ${{ matrix.split }}
       - name: Check oldest version of PyMC
@@ -87,6 +87,7 @@ jobs:
           cache-dependency-path: "pyproject.toml"
       - name: Run tests
         run: |
+          sudo apt-get install graphviz graphviz-dev
           pip install -e .[test]
           pytest --only-slow ${{ matrix.split }}
       - name: Upload coverage to Codecov
