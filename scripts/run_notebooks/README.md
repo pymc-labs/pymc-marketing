@@ -4,18 +4,20 @@ Run all of the specified notebooks with mocked sampling in order to check for ru
 
 ## Usage
 
-Run all of the notebooks
+### All notebook
+
+Use either the script directly or the Makefile command.
 
 ```bash
+# Directly
 python scripts/run_notebooks/runner.py
-```
 
-This is stored in the Makefile as well and be run with the `run_notebooks` target.
-
-```bash
+# Makefile command
 make run_notebooks
-```
 
+### Specific notebook(s)
+
+```
 Specific notebooks can be run by passing them to the `--notebooks` arguments. Use the full path to the notebook. For example:
 
 ```bash
