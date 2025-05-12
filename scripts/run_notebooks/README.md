@@ -15,9 +15,11 @@ python scripts/run_notebooks/runner.py
 # Makefile command
 make run_notebooks
 
-### Specific notebook(s)
 
 ```
+
+### Specific notebook(s)
+
 Specific notebooks can be run by passing them to the `--notebooks` arguments. Use the full path to the notebook. For example:
 
 ```bash
