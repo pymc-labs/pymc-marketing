@@ -1,5 +1,6 @@
 """Script to run all notebooks in the docs/source/notebooks directory."""
 
+import argparse
 import logging
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -96,8 +97,23 @@ def run_parameters(notebook_paths: list[Path]) -> list[RunParams]:
     return [to_mock(notebook_path) for notebook_path in notebook_paths]
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run notebooks.")
+    parser.add_argument(
+        "--notebooks",
+        nargs="+",
+        type=str,
+        help="List of notebooks to run. If not provided, all notebooks will be run.",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
     notebooks_to_run = NOTEBOOKS
+
+    args = parse_args()
+    if args.notebooks:
+        notebooks_to_run = [Path(notebook) for notebook in args.notebooks]
 
     setup_logging()
     logging.info("Starting notebook runner")
