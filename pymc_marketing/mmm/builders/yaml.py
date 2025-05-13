@@ -23,9 +23,8 @@ from typing import Any
 import pandas as pd
 import yaml  # type: ignore
 
+from pymc_marketing.mmm.builders.factories import build
 from pymc_marketing.utils import from_netcdf
-
-from .factories import build
 
 
 # -----------------------------------------------------------------------------
