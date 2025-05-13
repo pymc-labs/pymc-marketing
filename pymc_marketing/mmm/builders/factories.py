@@ -19,7 +19,6 @@ import importlib
 from collections.abc import Mapping, MutableMapping, Sequence
 from typing import Any
 
-# Import Prior class directly
 from pymc_marketing.prior import Prior
 
 # Optional short-name registry -------------------------------------------------
