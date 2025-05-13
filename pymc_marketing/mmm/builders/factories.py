@@ -93,7 +93,6 @@ def build(spec: Mapping[str, Any]) -> Any:
     * kwargs : dict  (optional)
     * args   : list  (optional positional arguments)
     """
-    # Ensure class is a string
     if not isinstance(spec["class"], str):
         raise TypeError(
             f"Expected string for 'class' but got {type(spec['class']).__name__}: {spec['class']}"
@@ -153,10 +152,9 @@ def resolve(value):
 
     This is a helper function for build.
     """
-    # nested object
     if isinstance(value, Mapping) and "class" in value:
         return build(value)
-    # list of nested objects
+
     if (
         isinstance(value, list)
         and value
@@ -164,4 +162,5 @@ def resolve(value):
         and "class" in value[0]
     ):
         return [build(v) for v in value]
+
     return value
