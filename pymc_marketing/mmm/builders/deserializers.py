@@ -62,8 +62,7 @@ def is_alternative_prior(data: Any) -> bool:
 
 
 def deserialize_alternative_prior(data: dict[str, Any]) -> Prior:
-    """
-    Alternative deserializer that recursively handles all nested parameters.
+    """Alternative deserializer that recursively handles all nested parameters.
 
     This implementation is more general and handles cases where any parameter
     might be a nested prior, and also extracts centered and transform parameters.
@@ -72,15 +71,16 @@ def deserialize_alternative_prior(data: dict[str, Any]) -> Prior:
     --------
     This handles cases like:
 
-    ```yaml
-    distribution: Gamma
-    alpha: 1
-    beta:
-        distribution: HalfNormal
-        sigma: 1
-        dims: channel
-    dims: [brand, channel]
-    ```
+    .. code-block:: yaml
+
+        distribution: Gamma
+        alpha: 1
+        beta:
+            distribution: HalfNormal
+            sigma: 1
+            dims: channel
+        dims: [brand, channel]
+
     """
     data = copy.deepcopy(data)
 
