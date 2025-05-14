@@ -15,6 +15,7 @@
 Tests for the YAML builder module in pymc_marketing.mmm.builders.yaml.
 """
 
+import warnings
 from pathlib import Path
 
 import pandas as pd
@@ -22,7 +23,10 @@ import pytest
 import xarray as xr
 import yaml
 
-from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", FutureWarning)
+    from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
+
 from pymc_marketing.model_config import ModelConfigError
 
 

@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import os
+import warnings
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,7 @@ import pandas as pd
 import yaml  # type: ignore
 
 from pymc_marketing.mmm.builders.factories import build
+from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.utils import from_netcdf
 
 
@@ -47,7 +49,7 @@ def build_mmm_from_yaml(
     *,
     X: pd.DataFrame | None = None,
     y: pd.DataFrame | None = None,
-) -> Any:
+) -> MMM:
     """
     Build an MMM model from *config_path*.
 
@@ -67,7 +69,10 @@ def build_mmm_from_yaml(
 
     # 1 ─────────────────────────────────── shell (no effects yet)
     model_config = cfg["model"]["kwargs"]  # Get model kwargs
-    model = build(cfg["model"])
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        model = build(cfg["model"])
 
     # 2 ──────────────────────────────── resolve covariates / target
     data_cfg: Mapping[str, Any] = cfg.get("data", {})
