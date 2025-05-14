@@ -1280,7 +1280,7 @@ class Censored:
         """Create a censored distribution from a dictionary."""
         data = data["data"]
         return cls(  # type: ignore
-            distribution=Prior.from_dict(data["dist"]),
+            distribution=deserialize(data["dist"]),
             lower=data["lower"],
             upper=data["upper"],
         )
