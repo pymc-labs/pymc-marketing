@@ -21,7 +21,7 @@ model:
           lambda: -5.0  # Negative value for parameter that should be positive
 
 # ----------------------------------------------------------------------
-sample_kwargs:
+sampler_config:
   tune: 1000
   draws: 200
   chains: 8

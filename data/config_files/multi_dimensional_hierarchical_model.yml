@@ -62,7 +62,7 @@ model:
 
 # ----------------------------------------------------------------------
 # (optional) sampler options you plan to forward to pm.sample():
-sample_kwargs:
+sampler_config:
   tune: 1000
   draws: 200
   chains: 8
