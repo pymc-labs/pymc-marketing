@@ -465,6 +465,8 @@ class Prior:
     def dims(self, dims) -> None:
         if isinstance(dims, str):
             dims = (dims,)
+        elif isinstance(dims, list):
+            dims = tuple(dims)
 
         self._dims = dims or ()
 
