@@ -29,7 +29,6 @@ from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.utils import from_netcdf
 
 
-# -----------------------------------------------------------------------------
 def _load_df(path: str | Path) -> pd.DataFrame:
     """
     Read a DataFrame from *path* based on extension.
@@ -53,13 +52,24 @@ def build_mmm_from_yaml(
     """
     Build an MMM model from *config_path*.
 
+    The configuration keys:
+
+    - `model` (required): MMM initialization parameters
+    - `effects` (optional): list of additive effects in the model
+    - `data` (optional): paths to X and y data
+    - `original_scale_vars` (optional): list of original scale variables
+    - `idata_path` (optional): path to inference data
+
     Parameters
     ----------
     config_path : str | Path
-        YAML file following the schema described in factories.py.
-    X, y : pandas.DataFrame, optional
-        Pre-loaded covariate matrix and target vector.  If omitted, the loader
-        tries to read them from paths in the YAML under `data:`.
+        YAML file with model configuration.
+    X : ~pandas.DataFrame, optional
+        Pre-loaded covariate matrix.  If omitted, the loader tries to read it
+        from a path in the YAML under `data.X_path`.
+    y : ~pandas.DataFrame, optional
+        Pre-loaded target vector.  If omitted, the loader tries to read it
+        from a path in the YAML under `data.y_path`.
 
     Returns
     -------
