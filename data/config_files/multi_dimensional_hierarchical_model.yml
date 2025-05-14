@@ -62,13 +62,13 @@ model:
 
 # ----------------------------------------------------------------------
 # (optional) sampler options you plan to forward to pm.sample():
-sampler_config:
-  tune: 1000
-  draws: 200
-  chains: 8
-  random_seed: 42
-  target_accept: 0.90
-  nuts_sampler: "numpyro"
+    sampler_config:
+      tune: 1000
+      draws: 200
+      chains: 8
+      random_seed: 42
+      target_accept: 0.90
+      nuts_sampler: "nutpie"
 
 # ----------------------------------------------------------------------
 # (optional) idata from a previous sample
