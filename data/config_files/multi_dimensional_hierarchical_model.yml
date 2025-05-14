@@ -1,6 +1,3 @@
-schema_version: 1
-
-# ----------------------------------------------------------------------
 model:
   class: pymc_marketing.mmm.multidimensional.MMM
   kwargs:

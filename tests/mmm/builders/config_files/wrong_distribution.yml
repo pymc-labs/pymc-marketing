@@ -1,6 +1,3 @@
-schema_version: 1
-
-# ----------------------------------------------------------------------
 model:
   class: pymc_marketing.mmm.multidimensional.MMM
   kwargs:
@@ -20,12 +17,11 @@ model:
       class: pymc_marketing.mmm.MichaelisMentenSaturation
       kwargs: {}
 
-    # Wrong model configuration - invalid parameter type
+    # Wrong model configuration - invalid distribution name
     model_config:
-      likelihood:
-        dist: "Normal"
-        kwargs:
-          sigma: "wrong_value_type"  # String instead of number
+      intercept:
+        dist: "InvalidDistribution"
+        kwargs: {}
 
 # ----------------------------------------------------------------------
 sample_kwargs:

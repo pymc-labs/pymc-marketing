@@ -16,9 +16,9 @@
 # Expose key functionality
 from pymc_marketing.deserialize import register_deserialization
 from pymc_marketing.mmm.builders.factories import build, create_prior_from_dict
-from pymc_marketing.mmm.builders.yaml import build_from_yaml
+from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
 
-__all__ = ["build", "build_from_yaml"]
+__all__ = ["build", "build_mmm_from_yaml"]
 
 # Register deserializers
 register_deserialization(

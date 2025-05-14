@@ -42,7 +42,7 @@ def _load_df(path: str | Path) -> pd.DataFrame:
     raise ValueError(f"Unrecognised tabular format: {path}")
 
 
-def build_from_yaml(
+def build_mmm_from_yaml(
     config_path: str | Path,
     *,
     X: pd.DataFrame | None = None,

@@ -19,6 +19,7 @@ import importlib
 from collections.abc import Mapping, MutableMapping, Sequence
 from typing import Any
 
+from pymc_marketing.deserialize import deserialize
 from pymc_marketing.prior import Prior
 
 # Optional short-name registry -------------------------------------------------
@@ -126,13 +127,23 @@ def build(spec: Mapping[str, Any]) -> Any:
                             isinstance(prior_value, dict)
                             and "distribution" in prior_value
                         ):
-                            priors_dict[prior_key] = create_prior_from_dict(prior_value)
+                            # Use deserialize for individual priors
+                            try:
+                                priors_dict[prior_key] = deserialize(prior_value)
+                            except Exception:
+                                # Fall back to create_prior_from_dict if deserialize fails
+                                priors_dict[prior_key] = create_prior_from_dict(
+                                    prior_value
+                                )
                         else:
                             priors_dict[prior_key] = prior_value
                     kwargs[k] = priors_dict
                 elif k == "prior" and "distribution" in v:
-                    # Create a single prior object
-                    kwargs[k] = create_prior_from_dict(v)  # type: ignore
+                    # Use deserialize for a single prior, with fallback
+                    try:
+                        kwargs[k] = deserialize(v)
+                    except Exception:
+                        kwargs[k] = create_prior_from_dict(v)  # type: ignore
                 else:
                     kwargs[k] = resolve(v)
             else:

@@ -22,7 +22,7 @@ import pytest
 import xarray as xr
 import yaml
 
-from pymc_marketing.mmm.builders.yaml import build_from_yaml
+from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
 from pymc_marketing.model_config import ModelConfigError
 
 
@@ -45,14 +45,14 @@ def get_yaml_files():
 
 
 @pytest.mark.parametrize("config_path", get_yaml_files())
-def test_build_from_yaml(config_path, X_data, y_data):
-    """Test that build_from_yaml can create models from all config files."""
+def test_build_mmm_from_yaml(config_path, X_data, y_data):
+    """Test that build_mmm_from_yaml can create models from all config files."""
     # Load YAML to check if effects are defined
     with open(config_path) as file:
         config = yaml.safe_load(file)
 
     # Build model from YAML
-    model = build_from_yaml(
+    model = build_mmm_from_yaml(
         config_path=config_path,
         X=X_data,
         y=y_data,
@@ -81,11 +81,11 @@ def test_build_from_yaml(config_path, X_data, y_data):
 
 def test_wrong_adstock_class():
     """Test that a model with a wrong adstock class fails appropriately."""
-    wrong_config_path = Path("data/config_files/wrong_adstock_class.yml")
+    wrong_config_path = Path("tests/mmm/builders/config_files/wrong_adstock_class.yml")
 
     # Should fail with AttributeError for the non-existent adstock class
     with pytest.raises(AttributeError, match=".*NonExistentAdstock.*"):
-        build_from_yaml(wrong_config_path)
+        build_mmm_from_yaml(wrong_config_path)
 
     # Verify the config file has the expected wrong class
     cfg = yaml.safe_load(wrong_config_path.read_text())
@@ -95,11 +95,13 @@ def test_wrong_adstock_class():
 
 def test_wrong_saturation_params():
     """Test that a model with wrong saturation parameters fails appropriately."""
-    wrong_config_path = Path("data/config_files/wrong_saturation_params.yml")
+    wrong_config_path = Path(
+        "tests/mmm/builders/config_files/wrong_saturation_params.yml"
+    )
 
     # Should eventually fail with a ModelConfigError or TypeError
     with pytest.raises((TypeError, ModelConfigError, ValueError)):
-        build_from_yaml(wrong_config_path)
+        build_mmm_from_yaml(wrong_config_path)
 
     # Verify the config file has the expected wrong parameters
     cfg = yaml.safe_load(wrong_config_path.read_text())
@@ -110,11 +112,11 @@ def test_wrong_saturation_params():
 
 def test_wrong_distribution():
     """Test that a model with an invalid distribution fails appropriately."""
-    wrong_config_path = Path("data/config_files/wrong_distribution.yml")
+    wrong_config_path = Path("tests/mmm/builders/config_files/wrong_distribution.yml")
 
     # Should fail with ModelConfigError when parsing distributions
     with pytest.raises(ModelConfigError):
-        build_from_yaml(wrong_config_path)
+        build_mmm_from_yaml(wrong_config_path)
 
     # Verify the config file has the expected wrong distribution
     cfg = yaml.safe_load(wrong_config_path.read_text())
@@ -124,11 +126,11 @@ def test_wrong_distribution():
 
 def test_wrong_parameter_type():
     """Test that a model with a wrong parameter type fails appropriately."""
-    wrong_config_path = Path("data/config_files/wrong_parameter_type.yml")
+    wrong_config_path = Path("tests/mmm/builders/config_files/wrong_parameter_type.yml")
 
     # Should fail with ModelConfigError when parsing distributions
     with pytest.raises(ModelConfigError):
-        build_from_yaml(wrong_config_path)
+        build_mmm_from_yaml(wrong_config_path)
 
     # Verify the config file has the expected wrong parameter type
     cfg = yaml.safe_load(wrong_config_path.read_text())
