@@ -20,7 +20,6 @@ from collections.abc import Mapping, MutableMapping, Sequence
 from typing import Any
 
 from pymc_marketing.deserialize import deserialize
-from pymc_marketing.prior import Prior
 
 # Optional short-name registry -------------------------------------------------
 REGISTRY: dict[str, Any] = {
@@ -56,31 +55,6 @@ def locate(qualname: str) -> Any:
         )
     module_obj = importlib.import_module(module)
     return getattr(module_obj, obj_name)
-
-
-def create_prior_from_dict(prior_dict: dict) -> Prior:
-    """
-    Create a Prior object from a dictionary representation.
-
-    This handles nested priors by recursively converting dictionaries to Prior objects.
-    """
-    if not isinstance(prior_dict, dict) or "distribution" not in prior_dict:
-        raise ValueError(f"Invalid prior dictionary: {prior_dict}")
-
-    # Make a copy to avoid modifying the original
-    data = prior_dict.copy()
-    distribution = data.pop("distribution")
-
-    # Convert list dimensions to tuples to avoid unhashable type errors
-    if "dims" in data and isinstance(data["dims"], list):
-        data["dims"] = tuple(data["dims"])
-
-    # Process nested priors in parameters
-    for key, value in list(data.items()):
-        if isinstance(value, dict) and "distribution" in value:
-            data[key] = create_prior_from_dict(value)
-
-    return Prior(distribution, **data)
 
 
 def build(spec: Mapping[str, Any]) -> Any:
@@ -123,27 +97,13 @@ def build(spec: Mapping[str, Any]) -> Any:
                     # Create a dictionary of priors
                     priors_dict = {}
                     for prior_key, prior_value in v.items():
-                        if (
-                            isinstance(prior_value, dict)
-                            and "distribution" in prior_value
-                        ):
-                            # Use deserialize for individual priors
-                            try:
-                                priors_dict[prior_key] = deserialize(prior_value)
-                            except Exception:
-                                # Fall back to create_prior_from_dict if deserialize fails
-                                priors_dict[prior_key] = create_prior_from_dict(
-                                    prior_value
-                                )
+                        if isinstance(prior_value, dict):
+                            priors_dict[prior_key] = deserialize(prior_value)
                         else:
                             priors_dict[prior_key] = prior_value
                     kwargs[k] = priors_dict
                 elif k == "prior" and "distribution" in v:
-                    # Use deserialize for a single prior, with fallback
-                    try:
-                        kwargs[k] = deserialize(v)
-                    except Exception:
-                        kwargs[k] = create_prior_from_dict(v)  # type: ignore
+                    kwargs[k] = deserialize(v)
                 else:
                     kwargs[k] = resolve(v)
             else:
