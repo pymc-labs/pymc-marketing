@@ -1109,6 +1109,59 @@ class Prior:
         return distribution.create_variable(name)
 
 
+def is_alternative_prior(data: Any) -> bool:
+    """Check if the data is a dictionary representing a Prior (alternative check)."""
+    return isinstance(data, dict) and "distribution" in data
+
+
+def deserialize_alternative_prior(data: dict[str, Any]) -> Prior:
+    """Alternative deserializer that recursively handles all nested parameters.
+
+    This implementation is more general and handles cases where any parameter
+    might be a nested prior, and also extracts centered and transform parameters.
+
+    Examples
+    --------
+    This handles cases like:
+
+    .. code-block:: yaml
+
+        distribution: Gamma
+        alpha: 1
+        beta:
+            distribution: HalfNormal
+            sigma: 1
+            dims: channel
+        dims: [brand, channel]
+
+    """
+    data = copy.deepcopy(data)
+
+    distribution = data.pop("distribution")
+    dims = data.pop("dims", None)
+    centered = data.pop("centered", True)
+    transform = data.pop("transform", None)
+    parameters = data
+
+    # Recursively deserialize any nested parameters
+    parameters = {
+        key: value if not isinstance(value, dict) else deserialize(value)
+        for key, value in parameters.items()
+    }
+
+    return Prior(
+        distribution,
+        transform=transform,
+        centered=centered,
+        dims=dims,
+        **parameters,
+    )
+
+
+# Register the alternative prior deserializer for more complex nested cases
+register_deserialization(is_alternative_prior, deserialize_alternative_prior)
+
+
 class VariableNotFound(Exception):
     """Variable is not found."""
 

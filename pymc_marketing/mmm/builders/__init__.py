@@ -13,8 +13,6 @@
 #   limitations under the License.
 """Configuration I/O for PyMC-Marketing."""
 
-# Expose key functionality
-from pymc_marketing.mmm.builders import deserializers  # noqa: F401
 from pymc_marketing.mmm.builders.factories import build
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
 
