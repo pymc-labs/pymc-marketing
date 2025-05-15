@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from pymc_marketing.mmm import MMM
+from pymc_marketing.mmm.multidimensional import MMM
 
 
 class CounterfactualSweep:
@@ -60,15 +60,26 @@ class CounterfactualSweep:
 
         self.run_sweep()
 
-    def run_sweep(self) -> None:
+    def run_sweep(self):
         """Run the model's predict function over the sweep grid and store results."""
         predictions = []
         for sweep_value in self.sweep_values:
             X_new = self.create_intervention(sweep_value)
             counterfac = self.mmm.predict(X_new, extend_idata=False, progressbar=False)
-            actual = self.mmm._get_group_predictive_data(
-                group="posterior_predictive", original_scale=True
-            )["y"]
+
+            # TODO: Ideally we can use this --------------------------------------------
+            # actual = self.mmm._get_group_predictive_data(
+            #     group="posterior_predictive", original_scale=True
+            # )["y"]
+            # But the multidimensional MMM does not have this method. So instead we do
+            # the following:
+            scalers = self.mmm.get_scales_as_xarray()
+            actual = (
+                self.mmm.idata["posterior_predictive"]["y"]
+                * scalers["target_scale"].item()
+            )
+            # --------------------------------------------------------------------------
+
             uplift = counterfac - actual
             predictions.append(uplift)
 
