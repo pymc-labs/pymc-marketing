@@ -20,18 +20,20 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from pymc_marketing.mmm import MMM
+
 
 class CounterfactualSweep:
     """CounterfactualSweep class is used to perform counterfactual analysis on MMM's."""
 
     def __init__(
         self,
-        mmm,
+        mmm: MMM,
         X: pd.DataFrame,
         predictors: list[str],
         sweep_values: np.ndarray,
         sweep_type: str = "multiplicative",
-    ):
+    ) -> None:
         """
         Initialize and run the counterfactual sweep.
 
@@ -57,10 +59,9 @@ class CounterfactualSweep:
         self.sweep_values = sweep_values
         self.sweep_type = sweep_type
 
-        # Run sweep and store results
         self.run_sweep()
 
-    def run_sweep(self):
+    def run_sweep(self) -> None:
         """Run the model's predict function over the sweep grid and store results."""
         predictions = []
         for sweep_value in self.sweep_values:
@@ -78,7 +79,7 @@ class CounterfactualSweep:
             .transpose(..., "sweep")
         )
 
-    def create_intervention(self, sweep_value):
+    def create_intervention(self, sweep_value: float) -> pd.DataFrame:
         """Apply the intervention to the predictors."""
         X_new = self.X.copy()
         if self.sweep_type == "multiplicative":
@@ -94,7 +95,9 @@ class CounterfactualSweep:
             raise ValueError(f"Unsupported sweep_type: {self.sweep_type}")
         return X_new
 
-    def plot_uplift(self, hdi_prob: float = 0.94, ax=None) -> plt.Axes:
+    def plot_uplift(
+        self, hdi_prob: float = 0.94, ax: plt.Axes | None = None
+    ) -> plt.Axes:
         """Plot the counterfactual uplift curve."""
         if ax is None:
             fig, ax = plt.subplots(figsize=(10, 6))
@@ -125,7 +128,7 @@ class CounterfactualSweep:
         plt.legend()
         return ax
 
-    def compute_marginal_effects(self):
+    def compute_marginal_effects(self) -> xr.DataArray:
         """Compute marginal effects via finite differences from the sweep results."""
         sweep_axis = self.results.get_axis_num("sweep")
         marginal_effects = np.gradient(
@@ -138,7 +141,9 @@ class CounterfactualSweep:
         )
         return self.marginal_effects
 
-    def plot_marginal_effects(self, hdi_prob: float = 0.94, ax=None) -> plt.Axes:
+    def plot_marginal_effects(
+        self, hdi_prob: float = 0.94, ax: plt.Axes | None = None
+    ) -> plt.Axes:
         """Plot the marginal effects curve."""
         if not hasattr(self, "marginal_effects"):
             self.compute_marginal_effects()
