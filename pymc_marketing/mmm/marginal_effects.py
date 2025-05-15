@@ -199,4 +199,12 @@ class CounterfactualSweep:
             )
         ax.set_ylabel("Marginal effect (dE[Y]/dX)")
         plt.legend()
+
+        # Set y-axis limits based on the sign of y values
+        y_values = y.values if hasattr(y, "values") else np.array(y)
+        if np.all(y_values < 0):
+            ax.set_ylim(top=0)
+        elif np.all(y_values > 0):
+            ax.set_ylim(bottom=0)
+
         return ax
