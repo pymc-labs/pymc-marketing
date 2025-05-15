@@ -14,6 +14,8 @@
 
 """Counterfactual sweeps for Marketing Mix Models (MMM)."""
 
+from typing import Literal
+
 import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,7 +34,9 @@ class CounterfactualSweep:
         X: pd.DataFrame,
         predictors: list[str],
         sweep_values: np.ndarray,
-        sweep_type: str = "multiplicative",
+        sweep_type: Literal[
+            "multiplicative", "additive", "absolute"
+        ] = "multiplicative",
     ) -> None:
         """
         Initialize and run the counterfactual sweep.
@@ -48,11 +52,6 @@ class CounterfactualSweep:
             - 'additive': Add each sweep value to the original predictor values.
             - 'absolute': Set the predictor values directly to each sweep value (ignoring original values).
         """
-        if sweep_type not in ["multiplicative", "additive", "absolute"]:
-            raise ValueError(
-                "sweep_type must be 'multiplicative', 'additive', or 'absolute'."
-            )
-
         self.mmm = mmm
         self.X = X
         self.predictors = predictors
