@@ -1,3 +1,6 @@
+:::{title} PyMC-Marketing
+:::
+
 :::{image} _static/marketing-logo-dark.jpg
 :align: center
 :class: only-dark
