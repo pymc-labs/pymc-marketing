@@ -144,7 +144,21 @@ class CounterfactualSweep:
     def plot_marginal_effects(
         self, hdi_prob: float = 0.94, ax: plt.Axes | None = None
     ) -> plt.Axes:
-        """Plot the marginal effects curve."""
+        """
+        Plot the marginal effects curve.
+
+        Parameters
+        ----------
+        hdi_prob : float, optional
+            The probability for computing the highest density interval (HDI). Default is 0.94.
+        ax : Optional[plt.Axes], optional
+            An optional matplotlib Axes on which to plot. If None, a new Axes is created.
+
+        Returns
+        -------
+        plt.Axes
+            The Axes object with the marginal effects plot.
+        """
         if not hasattr(self, "marginal_effects"):
             self.compute_marginal_effects()
 
