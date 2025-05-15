@@ -144,7 +144,7 @@ class CounterfactualSweep:
             self.compute_marginal_effects()
 
         if ax is None:
-            fig, ax = plt.subplots(figsize=(10, 6))
+            _, ax = plt.subplots(figsize=(10, 6))
 
         x = self.sweep_values
         y = self.marginal_effects.mean(dim=["chain", "draw"]).sum(dim="date")
