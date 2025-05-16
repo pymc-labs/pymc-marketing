@@ -1,0 +1,124 @@
+model:
+  class: pymc_marketing.mmm.multidimensional.MMM
+  kwargs:
+    date_column: "date"
+    channel_columns: # explicit for reproducibility
+      - channel_1
+      - channel_2
+      # …
+    target_column: "kpi_registrations"
+    dims: ["market"]  # Keep as array for consistency
+    # Standard scaling format using class/kwargs pattern
+    scaling:
+      class: pymc_marketing.mmm.scaling.Scaling
+      kwargs:
+        target:
+          method: "max"
+          dims: []
+        channel:
+          method: "max"
+          dims: ["market"]
+
+    # --- media transformations ---------------------------------------
+    adstock:
+      class: pymc_marketing.mmm.GeometricAdstock
+      kwargs:
+          priors:
+              alpha:
+                  distribution: "Beta"
+                  alpha: 1
+                  beta: 1
+                  dims: ["market", "channel"]
+          l_max: 28
+
+    saturation:
+      class: pymc_marketing.mmm.MichaelisMentenSaturation
+      kwargs:
+        priors:
+          alpha:
+            distribution: "Gamma"
+            mu: .5
+            sigma: .5
+            dims: ["market", "channel"]
+          lam:
+            distribution: "Gamma"
+            alpha: 2
+            beta: 1
+            dims: "market"                # default α, λ priors inside the class
+
+    # --- model (hierarchical) priors ---------------------------------
+    model_config:
+      intercept:
+        distribution: HalfCauchy
+        beta:
+          distribution: HalfNormal
+          sigma: 0.3
+        dims: market
+
+      likelihood:
+        distribution: TruncatedNormal
+        lower: 0
+        sigma:
+          distribution: "HalfNormal"
+          sigma: 1
+          dims: "market"
+        dims: ["date", "market"]
+
+# ----------------------------------------------------------------------
+# Effects with complex priors
+effects:
+  # 1. Linear Trend Effect with complex nested priors
+  - class: pymc_marketing.mmm.additive_effect.LinearTrendEffect
+    kwargs:
+      trend:
+        class: pymc_marketing.mmm.LinearTrend
+        kwargs:
+          n_changepoints: 2
+          include_intercept: false
+          dims: ["market"]  # Keep as array format
+          priors:
+            delta:
+              distribution: "Normal"
+              mu:
+                distribution: "HalfNormal"
+                sigma: 0.5
+              sigma: 0.1
+              dims: ["market", "changepoint"]
+      prefix: "trend"
+
+  # 2. Fourier Effect with complex nested priors
+  - class: pymc_marketing.mmm.additive_effect.FourierEffect
+    kwargs:
+      fourier:
+        class: pymc_marketing.mmm.WeeklyFourier
+        kwargs:
+          n_order: 3
+          prefix: "weekly_fourier"
+          prior:
+            distribution: "Laplace"
+            mu:
+              distribution: "HalfNormal"
+              sigma: 0.5
+              dims: "market"
+            b: 0.1
+            dims: ["market", "weekly_fourier"]
+
+# ----------------------------------------------------------------------
+# (optional) sampler options you plan to forward to pm.sample():
+    sampler_config:
+      tune: 1000
+      draws: 200
+      chains: 8
+      random_seed: 42
+      target_accept: 0.90
+      nuts_sampler: "nutpie"
+
+# ----------------------------------------------------------------------
+# (optional) idata from a previous sample
+# idata_path: "random.nc"
+
+# ----------------------------------------------------------------------
+# (optional) Data paths
+# data:
+#   X_path: "data/X.csv"
+#   y_path: "data/y.csv"
