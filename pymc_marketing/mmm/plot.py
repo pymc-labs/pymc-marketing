@@ -125,17 +125,6 @@ class MMMPlotSuite:
 
         return data
 
-    def _compute_ci(
-        self, data: xr.DataArray, ci: float = 0.85, sample_dim: str = "sample"
-    ) -> tuple[xr.DataArray, xr.DataArray, xr.DataArray]:
-        """Compute median and lower/upper credible intervals over given sample_dim."""
-        lower_q = 0.5 - ci / 2
-        upper_q = 0.5 + ci / 2
-        data_median = data.quantile(0.5, dim=sample_dim)
-        data_lower = data.quantile(lower_q, dim=sample_dim)
-        data_upper = data.quantile(upper_q, dim=sample_dim)
-        return data_median, data_lower, data_upper
-
     def _get_posterior_predictive_data(
         self,
         idata: xr.Dataset | None,
@@ -156,6 +145,20 @@ class MMMPlotSuite:
             )
         return self.idata.posterior_predictive  # type: ignore
 
+    def _add_median_and_hdi(
+        self, ax: Axes, data: xr.DataArray, var: str, hdi_prob: float = 0.85
+    ) -> Axes:
+        """Add median and HDI to the given axis."""
+        median = data.median(dim="sample") if "sample" in data.dims else data.median()
+        hdi = az.hdi(data, hdi_prob=hdi_prob)
+
+        if "date" not in data.dims:
+            raise ValueError(f"Expected 'date' dimension in {var}, but none found.")
+        dates = data.coords["date"].values
+        ax.plot(dates, median, label=var, alpha=0.9)
+        ax.fill_between(dates, hdi[..., 0], hdi[..., 1], alpha=0.2)
+        return ax
+
     # ------------------------------------------------------------------------
     #                          Main Plotting Methods
     # ------------------------------------------------------------------------
@@ -164,6 +167,7 @@ class MMMPlotSuite:
         self,
         var: list[str] | None = None,
         idata: xr.Dataset | None = None,
+        hdi_prob: float = 0.85,
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot time series from the posterior predictive distribution.
 
@@ -177,6 +181,8 @@ class MMMPlotSuite:
         idata : xarray.Dataset, optional
             The posterior predictive dataset to plot. If not provided, tries to
             use `self.idata.posterior_predictive`.
+        hdi_prob: float, optional
+            The probability mass of the highest density interval to be displayed. Default is 0.85.
 
         Returns
         -------
@@ -190,7 +196,10 @@ class MMMPlotSuite:
         ValueError
             If no `idata` is provided and `self.idata.posterior_predictive` does
             not exist, instructing the user to run `MMM.sample_posterior_predictive()`.
+            If `hdi_prob` is not between 0 and 1, instructing the user to provide a valid value.
         """
+        if not 0 < hdi_prob < 1:
+            raise ValueError("HDI probability must be between 0 and 1.")
         # 1. Retrieve or validate posterior_predictive data
         pp_data = self._get_posterior_predictive_data(idata)
 
@@ -229,19 +238,7 @@ class MMMPlotSuite:
                 data = pp_data[v].sel(**indexers)
                 # Sum leftover dims, stack chain+draw if needed
                 data = self._reduce_and_stack(data, ignored_dims)
-                # Compute median & 85% intervals
-                median, lower, upper = self._compute_ci(data, ci=0.85)
-
-                # Extract date coordinate
-                if "date" not in data.dims:
-                    raise ValueError(
-                        f"Expected 'date' dimension in {v}, but none found."
-                    )
-                dates = data.coords["date"].values
-
-                # Plot
-                ax.plot(dates, median, label=v, alpha=0.9)
-                ax.fill_between(dates, lower, upper, alpha=0.2)
+                ax = self._add_median_and_hdi(ax, data, v, hdi_prob=hdi_prob)
 
             # 7. Subplot title & labels
             title = self._build_subplot_title(
@@ -259,7 +256,7 @@ class MMMPlotSuite:
     def contributions_over_time(
         self,
         var: list[str],
-        ci: float = 0.85,
+        hdi_prob: float = 0.85,
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot the time-series contributions for each variable in `var`.
 
@@ -271,9 +268,8 @@ class MMMPlotSuite:
         ----------
         var : list of str
             A list of variable names to plot from the posterior.
-        ci : float, optional
-            Credible interval width. For instance, 0.85 will show the
-            7.5th to 92.5th percentile range. The default is 0.85.
+        hdi_prob: float, optional
+            The probability mass of the highest density interval to be displayed. Default is 0.85.
 
         Returns
         -------
@@ -281,9 +277,14 @@ class MMMPlotSuite:
             The Figure object containing the subplots.
         axes : np.ndarray of matplotlib.axes.Axes
             Array of Axes objects corresponding to each subplot row.
+
+        Raises
+        ------
+        ValueError
+            If `hdi_prob` is not between 0 and 1, instructing the user to provide a valid value.
         """
-        if not 0 < ci < 1:
-            raise ValueError("Credible interval must be between 0 and 1.")
+        if not 0 < hdi_prob < 1:
+            raise ValueError("HDI probability must be between 0 and 1.")
 
         if not hasattr(self.idata, "posterior"):
             raise ValueError(
@@ -324,14 +325,7 @@ class MMMPlotSuite:
                 data = self._reduce_and_stack(
                     data, dims_to_ignore={"date", "chain", "draw", "sample"}
                 )
-
-                # Compute median and credible intervals
-                median, lower, upper = self._compute_ci(data, ci=ci)
-
-                # Extract dates
-                dates = data.coords["date"].values
-                ax.plot(dates, median, label=f"{v}", alpha=0.9)
-                ax.fill_between(dates, lower, upper, alpha=0.2)
+                ax = self._add_median_and_hdi(ax, data, v, hdi_prob=hdi_prob)
 
             title = self._build_subplot_title(
                 dims=additional_dims, combo=combo, fallback_title="Time Series"
