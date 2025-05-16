@@ -183,17 +183,35 @@ def linear_trend_model(dates) -> pm.Model:
     return pm.Model(coords=coords)
 
 
-def test_linear_trend_effect(create_mock_mmm, new_dates, linear_trend_model) -> None:
+@pytest.mark.parametrize(
+    "mmm_dims, linear_trend_dims",
+    [
+        pytest.param((), (), id="scalar"),
+        pytest.param(("geo", "product"), ("geo", "product"), id="2d"),
+    ],
+)
+def test_linear_trend_effect(
+    create_mock_mmm,
+    new_dates,
+    linear_trend_model,
+    mmm_dims,
+    linear_trend_dims,
+) -> None:
     prefix = "linear_trend"
-    effect = LinearTrendEffect(LinearTrend(), prefix=prefix)
+    effect = LinearTrendEffect(
+        LinearTrend(dims=linear_trend_dims),
+        prefix=prefix,
+    )
 
-    mmm = create_mock_mmm(dims=(), model=linear_trend_model)
+    mmm = create_mock_mmm(dims=mmm_dims, model=linear_trend_model)
+
+    mmm.model.add_coords({dim: ["dummy"] for dim in linear_trend_dims})
 
     with mmm.model:
         effect.create_data(mmm)
 
     assert set(mmm.model.named_vars) == {f"{prefix}_t"}
-    assert set(mmm.model.coords) == {"date"}
+    assert set(mmm.model.coords) == {"date"}.union(linear_trend_dims)
     assert effect.linear_trend_first_date == mmm.model.coords["date"][0]
 
     with mmm.model:
@@ -205,7 +223,7 @@ def test_linear_trend_effect(create_mock_mmm, new_dates, linear_trend_model) -> 
         f"{prefix}_effect",
         f"{prefix}_t",
     }
-    assert set(mmm.model.coords) == {"date", "changepoint"}
+    assert set(mmm.model.coords) == {"date", "changepoint"}.union(linear_trend_dims)
 
     with mmm.model:
         idata = pm.sample_prior_predictive()
