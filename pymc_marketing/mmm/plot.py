@@ -159,6 +159,7 @@ class MMMPlotSuite:
         if "date" not in data.dims:
             raise ValueError(f"Expected 'date' dimension in {var}, but none found.")
         dates = data.coords["date"].values
+        # Add median and HDI to the plot
         ax.plot(dates, median, label=var, alpha=0.9)
         ax.fill_between(dates, hdi[var][..., 0], hdi[var][..., 1], alpha=0.2)
         return ax
@@ -323,7 +324,7 @@ class MMMPlotSuite:
                 else {}
             )
 
-            # Plot each var
+            # Plot posterior median and HDI for each var
             for v in var:
                 data = self.idata.posterior[v].sel(**indexers)  # type: ignore
                 data = self._reduce_and_stack(
