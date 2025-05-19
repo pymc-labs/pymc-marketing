@@ -39,7 +39,7 @@ Plot the curve samples:
 
 .. code-block:: python
 
-    _, axes = trend.plot_curve(curve, sample_kwargs={"rng": rng})
+    _, axes = trend.plot_curve(curve, random_seed=rng)
     ax = axes[0]
     ax.set(
         xlabel="Time",
@@ -188,10 +188,10 @@ class LinearTrend(BaseModel):
 
     .. code-block:: python
 
-        sample_kwargs = {"n": 3, "rng": rng}
         fig, axes = hierarchical_trend.plot_curve(
             curve,
-            sample_kwargs=sample_kwargs,
+            n_samples=3,
+            random_seed=rng,
         )
         fig.suptitle("Hierarchical Linear Trend")
         axes[0].set(ylabel="Trend", xlabel="Time")

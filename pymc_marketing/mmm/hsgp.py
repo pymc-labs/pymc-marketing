@@ -485,7 +485,7 @@ class HSGP(HSGPBase):
         }
         prior = hsgp.sample_prior(coords=coords, random_seed=rng)
         curve = prior["f"]
-        hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
+        hsgp.plot_curve(curve, random_seed=rng)
         plt.show()
 
     Using a demeaned basis to remove "intercept" effect of first basis:
@@ -526,7 +526,7 @@ class HSGP(HSGPBase):
         demeaned = sample_curve(hsgp_demeaned).rename("True")
 
         combined = xr.merge([non_demeaned, demeaned]).to_array("demeaned")
-        _, axes = combined.pipe(plot_curve, {"time"}, same_axes=True)
+        _, axes = combined.pipe(plot_curve, "time", same_axes=True)
         axes[0].set(title="Demeaned the intercepty first basis")
         plt.show()
 
@@ -562,7 +562,7 @@ class HSGP(HSGPBase):
         }
         prior = hsgp.sample_prior(coords=coords, random_seed=rng)
         curve = prior["f"]
-        hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
+        hsgp.plot_curve(curve, random_seed=rng)
         plt.show()
 
     HSGP with different link function via `transform` argument
@@ -601,7 +601,7 @@ class HSGP(HSGPBase):
         }
         prior = hsgp.sample_prior(coords=coords, random_seed=rng)
         curve = prior["f"]
-        hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
+        hsgp.plot_curve(curve, random_seed=rng)
         plt.show()
 
     New data predictions with HSGP
@@ -710,7 +710,7 @@ class HSGP(HSGPBase):
         curve = prior["f"]
         fig, _ = hsgp.plot_curve(
             curve,
-            sample_kwargs={"rng": rng},
+            random_seed=rng,
             subplot_kwargs={"figsize": (12, 8), "ncols": 3},
         )
         fig.suptitle("Higher dimensional HSGP prior")
@@ -987,7 +987,8 @@ class HSGPPeriodic(HSGPBase):
         curve = prior["f"]
         fig, axes = hsgp.plot_curve(
             curve,
-            sample_kwargs={"n": 3, "rng": rng},
+            n_samples=3,
+            random_seed=rng,
         )
         ax = axes[0]
         ax.set(xlabel="Date", ylabel="f", title="HSGP with period of 52 weeks")
@@ -1039,7 +1040,8 @@ class HSGPPeriodic(HSGPBase):
         curve = prior["f"]
         fig, axes = hsgp.plot_curve(
             curve,
-            sample_kwargs={"n": 3, "rng": rng},
+            n_samples=3,
+            random_seed=rng,
         )
         ax = axes[0]
         ax.set(xlabel="Date", ylabel="f", title="HSGP with period of 52 weeks")
@@ -1084,7 +1086,7 @@ class HSGPPeriodic(HSGPBase):
         demeaned = sample_curve(hsgp_demeaned).rename("True")
 
         combined = xr.merge([non_demeaned, demeaned]).to_array("demeaned")
-        _, axes = combined.pipe(plot_curve, {"time"}, same_axes=True)
+        _, axes = combined.pipe(plot_curve, "time", same_axes=True)
         axes[0].set(title="Demeaned the intercepty first basis")
         plt.show()
 
@@ -1133,7 +1135,8 @@ class HSGPPeriodic(HSGPBase):
         curve = prior["f"]
         fig, axes = hsgp.plot_curve(
             curve,
-            sample_kwargs={"n": 3, "rng": rng},
+            n_samples=3,
+            random_seed=rng,
             subplot_kwargs={"figsize": (12, 8), "ncols": 3},
         )
         plt.show()
@@ -1316,7 +1319,7 @@ class SoftPlusHSGP(HSGP):
         }
         prior = hsgp.sample_prior(coords=coords, random_seed=rng)
         curve = prior["f"]
-        hsgp.plot_curve(curve, sample_kwargs={"rng": rng})
+        hsgp.plot_curve(curve, random_seed=rng)
         plt.show()
 
     New data predictions with SoftPlusHSGP
