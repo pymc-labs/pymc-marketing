@@ -150,13 +150,17 @@ class MMMPlotSuite:
     ) -> Axes:
         """Add median and HDI to the given axis."""
         median = data.median(dim="sample") if "sample" in data.dims else data.median()
-        hdi = az.hdi(data, hdi_prob=hdi_prob)
+        hdi = az.hdi(
+            data,
+            hdi_prob=hdi_prob,
+            input_core_dims=[["sample"]] if "sample" in data.dims else None,
+        )
 
         if "date" not in data.dims:
             raise ValueError(f"Expected 'date' dimension in {var}, but none found.")
         dates = data.coords["date"].values
         ax.plot(dates, median, label=var, alpha=0.9)
-        ax.fill_between(dates, hdi[..., 0], hdi[..., 1], alpha=0.2)
+        ax.fill_between(dates, hdi[var][..., 0], hdi[var][..., 1], alpha=0.2)
         return ax
 
     # ------------------------------------------------------------------------
