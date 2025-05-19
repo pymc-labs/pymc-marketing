@@ -62,6 +62,7 @@ docs = [
     "sphinx-copybutton",
     "sphinx-design",
     "sphinx-notfound-page",
+    "sphinx-remove-toctrees",
     "sphinx",
     "sphinxext-opengraph",
     "watermark",
