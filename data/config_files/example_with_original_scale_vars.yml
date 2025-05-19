@@ -1,0 +1,45 @@
+model:
+  class: pymc_marketing.mmm.multidimensional.MMM
+  kwargs:
+    date_column: "date"
+    channel_columns:                                     # explicit for reproducibility
+      - channel_1
+      - channel_2
+      # …
+    target_column: "kpi_registrations"
+
+    # --- media transformations ---------------------------------------
+    adstock:
+      class: pymc_marketing.mmm.GeometricAdstock
+      kwargs: {l_max: 12}        # any other hyper-parameters here
+
+    saturation:
+      class: pymc_marketing.mmm.MichaelisMentenSaturation
+      kwargs: {}                 # default α, λ priors inside the class
+
+# ----------------------------------------------------------------------
+# (optional) sampler options you plan to forward to pm.sample():
+    sampler_config:
+      tune: 1000
+      draws: 200
+      chains: 8
+      random_seed: 42
+      target_accept: 0.90
+      nuts_sampler: "nutpie"
+
+# ----------------------------------------------------------------------
+# (optional) idata from a previous sample
+# idata_path: "data/idata.nc"
+
+# ----------------------------------------------------------------------
+# (optional) Data paths
+# data:
+#   X_path: "data/X.csv"
+#   y_path: "data/y.csv"
+
+# ----------------------------------------------------------------------
+# (optional) Add original scale contribution variables
+# These will be processed after model building but before attaching idata
+original_scale_vars:
+  - channel_contribution
+  - intercept_contribution

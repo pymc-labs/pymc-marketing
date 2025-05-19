@@ -1164,3 +1164,45 @@ def test_scaled_sample_prior() -> None:
     assert prior.sizes == {"chain": 1, "draw": 25, "channel": 3}
     assert "scaled_var" in prior
     assert "scaled_var_unscaled" in prior
+
+
+def test_prior_list_dims() -> None:
+    dist = Prior("Normal", dims=["channel", "geo"])
+    assert dist.dims == ("channel", "geo")
+
+
+@pytest.mark.parametrize(
+    "data, expected",
+    [
+        pytest.param(
+            {
+                "distribution": "Laplace",
+                "mu": 1,
+                "b": 2,
+                "dims": ("x", "y"),
+                "transform": "sigmoid",
+            },
+            Prior("Laplace", mu=1, b=2, dims=("x", "y"), transform="sigmoid"),
+            id="Prior",
+        ),
+        pytest.param(
+            {"distribution": "Normal", "mu": {"distribution": "Normal"}},
+            Prior("Normal", mu=Prior("Normal")),
+            id="Prior with nested distribution",
+        ),
+        pytest.param(
+            {
+                "class": "Censored",
+                "data": {
+                    "dist": {"distribution": "Normal"},
+                    "lower": 0,
+                    "upper": 10,
+                },
+            },
+            Censored(Prior("Normal"), lower=0, upper=10),
+            id="Censored with alternative",
+        ),
+    ],
+)
+def test_alternative_prior_deserialize(data, expected) -> None:
+    assert deserialize(data) == expected
