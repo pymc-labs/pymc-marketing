@@ -10,7 +10,7 @@
    .. rubric:: Methods
 
    .. autosummary::
-      :toctree:
+      :toctree: classmethods
 
    {% for item in methods %}
       {{ objname }}.{{ item }}
