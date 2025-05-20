@@ -34,7 +34,9 @@
       :toctree:
 
    {% for item in classes %}
+      {% if not item.endswith("RV") %}
       {{ item }}
+      {% endif %}
    {%- endfor %}
    {% endif %}
    {% endblock %}
