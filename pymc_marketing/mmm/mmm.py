@@ -1280,7 +1280,7 @@ class MMM(
 
             ax.plot(
                 np.asarray(self.X[self.date_column]),
-                np.full(len(self.X[self.date_column]), intercept.mean().data),
+                np.full(len(self.X[self.date_column]), intercept.mean(["chain", "draw"]).data),
                 color=f"C{i + 1}",
             )
             ax.fill_between(
