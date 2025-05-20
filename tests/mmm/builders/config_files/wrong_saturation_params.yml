@@ -1,0 +1,28 @@
+model:
+  class: pymc_marketing.mmm.multidimensional.MMM
+  kwargs:
+    date_column: "date"
+    channel_columns:
+      - channel_1
+      - channel_2
+    target_column: "kpi_registrations"
+
+    # Normal adstock configuration
+    adstock:
+      class: pymc_marketing.mmm.GeometricAdstock
+      kwargs: {l_max: 12}
+
+    # Wrong saturation configuration - invalid parameter types
+    saturation:
+      class: pymc_marketing.mmm.MichaelisMentenSaturation
+      kwargs:
+        priors:
+          alpha: "not_a_number"  # String instead of number
+          lambda: -5.0  # Negative value for parameter that should be positive
+
+# ----------------------------------------------------------------------
+sampler_config:
+  tune: 1000
+  draws: 200
+  chains: 8
+  random_seed: 42

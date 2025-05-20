@@ -211,7 +211,7 @@ class LinearTrend(BaseModel):
         None,
         description="Priors for the trend parameters.",
     )
-    dims: tuple[str] | InstanceOf[Dims] | str | None = Field(
+    dims: tuple[str, ...] | InstanceOf[Dims] | str | None = Field(
         None,
         description="The additional dimensions for the trend.",
     )

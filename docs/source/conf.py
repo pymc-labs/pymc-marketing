@@ -33,6 +33,7 @@ extensions = [
     "notfound.extension",
     "sphinx_copybutton",
     "sphinx_design",
+    "sphinx_remove_toctrees",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -76,6 +77,9 @@ pygments_style = "friendly"
 
 # configure notfound extension to not add any prefix to the urls
 notfound_urls_prefix = "/en/latest/"
+
+# exclude method pages from toctree to make pages lighter and build faster
+remove_from_toctrees = ["**/classmethods/*"]
 
 # myst config
 nb_execution_mode = "auto"
