@@ -659,7 +659,7 @@ def log_mmm_evaluation_metrics(
 
 
 class MMMWrapper(mlflow.pyfunc.PythonModel):
-    """A class to prepare a PyMC Marketing Mix Model (MMM) for logging and registering in MLflow.
+    """A class to prepare a PyMC-Marketing Mix Model (MMM) for logging and registering in MLflow.
 
     This class extends MLflow's PythonModel to handle prediction tasks using a PyMC-based MMM.
     It supports several prediction methods, including point-prediction, posterior and prior predictive sampling.
