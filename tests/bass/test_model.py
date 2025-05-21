@@ -118,8 +118,8 @@ class TestBassFunctions:
         t = np.array([0, 1, 5, 10, 20])
 
         # Calculate expected values based on the Bass model formula
-        expected = (
-            (p + q) * np.exp(-(p + q) * t) / (1 + (q / p) * np.exp(-(p + q) * t)) ** 2
+        expected = (p * np.square(p + q) * np.exp(t * (p + q))) / np.square(
+            p * np.exp(t * (p + q)) + q
         )
 
         # Calculate actual values from the function
@@ -149,7 +149,7 @@ class TestBassFunctions:
 
         # At t=0, f(t) gives approximately 0.00219512
         # This is (p+q)/(1+(q/p))^2 = (p+q)*p^2/(p+q)^2 = p^2/(p+q)
-        expected = p**2 / (p + q)  # Approximately 0.00219512
+        expected = (p * ((p + q) ** 2)) / (p + q) ** 2
         actual = f(p, q, t).eval()
 
         np.testing.assert_allclose(actual, expected, rtol=1e-5)
@@ -267,10 +267,8 @@ class TestBassModel:
             1 + (q_val / p_val) * np.exp(-(p_val + q_val) * t)
         )
         f_values = (
-            (p_val + q_val)
-            * np.exp(-(p_val + q_val) * t)
-            / (1 + (q_val / p_val) * np.exp(-(p_val + q_val) * t)) ** 2
-        )
+            p_val * np.square(p_val + q_val) * pt.exp(t * (p_val + q_val))
+        ) / pt.square(p_val * pt.exp(t * (p_val + q_val)) + q_val)
 
         # Calculate the outputs with numpy
         adopters_np = m_val * f_values
