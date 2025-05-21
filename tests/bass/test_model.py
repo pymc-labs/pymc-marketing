@@ -267,8 +267,8 @@ class TestBassModel:
             1 + (q_val / p_val) * np.exp(-(p_val + q_val) * t)
         )
         f_values = (
-            p_val * np.square(p_val + q_val) * pt.exp(t * (p_val + q_val))
-        ) / pt.square(p_val * pt.exp(t * (p_val + q_val)) + q_val)
+            p_val * np.square(p_val + q_val) * np.exp(t * (p_val + q_val))
+        ) / np.square(p_val * np.exp(t * (p_val + q_val)) + q_val)
 
         # Calculate the outputs with numpy
         adopters_np = m_val * f_values
