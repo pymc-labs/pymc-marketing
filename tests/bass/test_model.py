@@ -13,12 +13,15 @@
 #   limitations under the License.
 """Tests for the Bass diffusion model."""
 
+from itertools import product
 from typing import Any
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+import pytensor
+import pytensor.tensor as pt
 import pytest
 from pydantic import BaseModel, ConfigDict
 
@@ -619,3 +622,19 @@ class TestBassModel:
             assert "innovators" in prior_samples["prior"]
             assert "imitators" in prior_samples["prior"]
             assert "peak" in prior_samples["prior"]
+
+
+def test_derivative() -> None:
+    p = pt.scalar("p")
+    q = pt.scalar("q")
+    t = pt.scalar("t")
+    F_res = F(p, q, t)
+    F_prime_fn = pytensor.function([p, q, t], pytensor.grad(F_res, t))
+    f_res = f(p, q, t)
+    f_fn = pytensor.function([p, q, t], f_res)
+
+    for p_, q_, t_ in product([0.01, 0.02, 0.03], [0.3, 0.4, 0.5], [0, 10, 100]):
+        np.testing.assert_allclose(
+            f_fn(p_, q_, t_),
+            F_prime_fn(p_, q_, t_),
+        )
