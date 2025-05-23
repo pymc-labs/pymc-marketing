@@ -109,10 +109,20 @@ class BudgetOptimizer(BaseModel):
 
     Parameters
     ----------
-    model: MMMModel
+    num_periods : int
+        Number of time units at the desired time granularity to allocate budget for.
+    model : MMMModel
         The marketing mix model to optimize.
+    response_variable : str, optional
+        The response variable to optimize. Default is "total_contributions".
     utility_function : UtilityFunctionType, optional
         The utility function to maximize. Default is the mean of the response distribution.
+    budgets_to_optimize : xarray.DataArray, optional
+        Mask defining a subset of budgets to optimize. Non-optimized budgets remain fixed at 0.
+    custom_constraints : Sequence[Constraint], optional
+        Custom constraints for the optimizer.
+    default_constraints : bool, optional
+        Whether to add a default sum constraint on the total budget. Default is True.
     """
 
     num_periods: int = Field(
@@ -141,7 +151,7 @@ class BudgetOptimizer(BaseModel):
 
     budgets_to_optimize: DataArray | None = Field(
         default=None,
-        description="Mask that defines a subset of budgets to optimize. Non-optimized budgets remain fixed at 0.",
+        description="Mask defining a subset of budgets to optimize. Non-optimized budgets remain fixed at 0.",
     )
 
     custom_constraints: Sequence[Constraint] = Field(
