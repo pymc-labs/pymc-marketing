@@ -93,6 +93,9 @@ class MMM(ModelBuilder):
         Whether to use time-varying effects for media channels.
     dims : tuple | None
         Additional dimensions for the model.
+    scaling : Scaling | dict | None
+        Scaling methods to be used for the target variable and the marketing channels.
+        Defaults to max scaling for both.
     model_config : dict | None
         Configuration settings for the model.
     sampler_config : dict | None
