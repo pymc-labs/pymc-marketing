@@ -610,7 +610,8 @@ def plot_curve(
     hdi_probs : float | list[float], optional
         HDI probabilities. Defaults to None or 95%
     random_seed : pymc.util.RandomState, optional
-        Random number generator. Defaults to None
+        Random number generator. Defaults to None which uses
+        np.random.default_rng()
     subplot_kwargs : dict, optional
         Additional kwargs to while creating the fig and axes
     sample_kwargs : dict, optional
