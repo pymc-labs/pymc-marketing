@@ -108,3 +108,25 @@ def test_saturation_curves_scatter_original_scale_fails_if_no_deterministic(
         fit_mmm_without_channel_original_scale.plot.saturation_curves_scatter(
             original_scale=True
         )
+
+
+def test_contributions_over_time(fit_mmm_with_channel_original_scale):
+    fig, ax = fit_mmm_with_channel_original_scale.plot.contributions_over_time(
+        var=["channel_contribution"],
+        hdi_prob=0.95,
+    )
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, np.ndarray)
+    assert all(isinstance(a, Axes) for a in ax.flat)
+
+
+def test_posterior_predictive(fit_mmm_with_channel_original_scale, df):
+    fit_mmm_with_channel_original_scale.sample_posterior_predictive(
+        df.drop(columns=["y"])
+    )
+    fig, ax = fit_mmm_with_channel_original_scale.plot.posterior_predictive(
+        hdi_prob=0.95,
+    )
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, np.ndarray)
+    assert all(isinstance(a, Axes) for a in ax.flat)

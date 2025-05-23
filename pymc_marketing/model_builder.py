@@ -148,7 +148,7 @@ class DifferentModelError(Exception):
 
 
 class ModelBuilder(ABC):
-    """Base class for building models with PyMC Marketing.
+    """Base class for building models with PyMC-Marketing.
 
     It provides an easy-to-use API (similar to scikit-learn) for models
     and help with deployment.
