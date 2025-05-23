@@ -33,7 +33,6 @@ import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
-from pymc.util import RandomState
 
 Values = Sequence[Any] | npt.NDArray[Any]
 Coords = dict[str, Values]
@@ -586,7 +585,7 @@ def plot_curve(
     non_grid_names: str | set[str],
     n_samples: int = 10,
     hdi_probs: float | list[float] | None = None,
-    random_seed: RandomState = None,
+    random_seed: np.random.Generator | None = None,
     subplot_kwargs: dict | None = None,
     sample_kwargs: dict | None = None,
     hdi_kwargs: dict | None = None,
@@ -610,7 +609,7 @@ def plot_curve(
     hdi_probs : float | list[float], optional
         HDI probabilities. Defaults to None which uses arviz default for
         stats.ci_prob which is 94%
-    random_seed : pymc.util.RandomState, optional
+    random_seed : np.random.Generator, optional
         Random number generator. Defaults to None which uses
         np.random.default_rng()
     subplot_kwargs : dict, optional

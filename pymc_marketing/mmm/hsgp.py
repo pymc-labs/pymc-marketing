@@ -388,7 +388,7 @@ class HSGPBase(BaseModel):
         curve: xr.DataArray,
         n_samples: int = 10,
         hdi_probs: float | list[float] | None = None,
-        random_seed=None,
+        random_seed: np.random.Generator | None = None,
         subplot_kwargs: dict | None = None,
         sample_kwargs: dict | None = None,
         hdi_kwargs: dict | None = None,
