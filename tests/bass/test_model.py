@@ -13,12 +13,15 @@
 #   limitations under the License.
 """Tests for the Bass diffusion model."""
 
+from itertools import product
 from typing import Any
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+import pytensor
+import pytensor.tensor as pt
 import pytest
 from pydantic import BaseModel, ConfigDict
 
@@ -115,8 +118,8 @@ class TestBassFunctions:
         t = np.array([0, 1, 5, 10, 20])
 
         # Calculate expected values based on the Bass model formula
-        expected = (
-            (p + q) * np.exp(-(p + q) * t) / (1 + (q / p) * np.exp(-(p + q) * t)) ** 2
+        expected = (p * np.square(p + q) * np.exp(t * (p + q))) / np.square(
+            p * np.exp(t * (p + q)) + q
         )
 
         # Calculate actual values from the function
@@ -146,7 +149,7 @@ class TestBassFunctions:
 
         # At t=0, f(t) gives approximately 0.00219512
         # This is (p+q)/(1+(q/p))^2 = (p+q)*p^2/(p+q)^2 = p^2/(p+q)
-        expected = p**2 / (p + q)  # Approximately 0.00219512
+        expected = (p * ((p + q) ** 2)) / (p + q) ** 2
         actual = f(p, q, t).eval()
 
         np.testing.assert_allclose(actual, expected, rtol=1e-5)
@@ -264,10 +267,8 @@ class TestBassModel:
             1 + (q_val / p_val) * np.exp(-(p_val + q_val) * t)
         )
         f_values = (
-            (p_val + q_val)
-            * np.exp(-(p_val + q_val) * t)
-            / (1 + (q_val / p_val) * np.exp(-(p_val + q_val) * t)) ** 2
-        )
+            p_val * np.square(p_val + q_val) * np.exp(t * (p_val + q_val))
+        ) / np.square(p_val * np.exp(t * (p_val + q_val)) + q_val)
 
         # Calculate the outputs with numpy
         adopters_np = m_val * f_values
@@ -619,3 +620,19 @@ class TestBassModel:
             assert "innovators" in prior_samples["prior"]
             assert "imitators" in prior_samples["prior"]
             assert "peak" in prior_samples["prior"]
+
+
+def test_derivative() -> None:
+    p = pt.scalar("p")
+    q = pt.scalar("q")
+    t = pt.scalar("t")
+    F_res = F(p, q, t)
+    F_prime_fn = pytensor.function([p, q, t], pytensor.grad(F_res, t))
+    f_res = f(p, q, t)
+    f_fn = pytensor.function([p, q, t], f_res)
+
+    for p_, q_, t_ in product([0.01, 0.02, 0.03], [0.3, 0.4, 0.5], [0, 10, 100]):
+        np.testing.assert_allclose(
+            f_fn(p_, q_, t_),
+            F_prime_fn(p_, q_, t_),
+        )
