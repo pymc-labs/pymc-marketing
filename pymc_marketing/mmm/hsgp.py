@@ -407,7 +407,8 @@ class HSGPBase(BaseModel):
         n_samples : int, optional
             Number of samples
         hdi_probs : float | list[float], optional
-            HDI probabilities. Defaults to None or 95%
+            HDI probabilities. Defaults to None which uses arviz default for
+            stats.ci_prob which is 94%
         random_seed : int | random number generator, optional
             Random number generator. Defaults to None
         subplot_kwargs : dict, optional
