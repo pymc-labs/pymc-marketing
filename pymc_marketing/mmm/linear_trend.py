@@ -39,7 +39,7 @@ Plot the curve samples:
 
 .. code-block:: python
 
-    _, axes = trend.plot_curve(curve, sample_kwargs={"rng": rng})
+    _, axes = trend.plot_curve(curve, random_seed=rng)
     ax = axes[0]
     ax.set(
         xlabel="Time",
@@ -188,10 +188,10 @@ class LinearTrend(BaseModel):
 
     .. code-block:: python
 
-        sample_kwargs = {"n": 3, "rng": rng}
         fig, axes = hierarchical_trend.plot_curve(
             curve,
-            sample_kwargs=sample_kwargs,
+            n_samples=3,
+            random_seed=rng,
         )
         fig.suptitle("Hierarchical Linear Trend")
         axes[0].set(ylabel="Trend", xlabel="Time")
@@ -411,6 +411,9 @@ class LinearTrend(BaseModel):
     def plot_curve(
         self,
         curve: xr.DataArray,
+        n_samples: int = 10,
+        hdi_probs: float | list[float] | None = None,
+        random_seed: np.random.Generator | None = None,
         subplot_kwargs: dict | None = None,
         sample_kwargs: dict | None = None,
         hdi_kwargs: dict | None = None,
@@ -427,6 +430,13 @@ class LinearTrend(BaseModel):
         ----------
         curve : xr.DataArray
             DataArray with the curve samples.
+        n_samples : int, optional
+            Number of samples
+        hdi_probs : float | list[float], optional
+            HDI probabilities. Defaults to None which uses arviz default for
+            stats.ci_prob which is 94%
+        random_seed : int | random number generator, optional
+            Random number generator. Defaults to None
         subplot_kwargs : dict, optional
             Keyword arguments for the subplots, by default None.
         sample_kwargs : dict, optional
@@ -455,6 +465,9 @@ class LinearTrend(BaseModel):
         fig, axes = plot_curve(
             curve,
             {"t"},
+            n_samples=n_samples,
+            hdi_probs=hdi_probs,
+            random_seed=random_seed,
             subplot_kwargs=subplot_kwargs,
             sample_kwargs=sample_kwargs,
             hdi_kwargs=hdi_kwargs,

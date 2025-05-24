@@ -380,6 +380,9 @@ class Transformation:
     def plot_curve(
         self,
         curve: xr.DataArray,
+        n_samples: int = 10,
+        hdi_probs: float | list[float] | None = None,
+        random_seed: np.random.Generator | None = None,
         subplot_kwargs: dict | None = None,
         sample_kwargs: dict | None = None,
         hdi_kwargs: dict | None = None,
@@ -395,6 +398,13 @@ class Transformation:
         ----------
         curve : xr.DataArray
             The curve to plot.
+        n_samples : int, optional
+            Number of samples
+        hdi_probs : float | list[float], optional
+            HDI probabilities. Defaults to None which uses arviz default for
+            stats.ci_prob which is 94%
+        random_seed : int | random number generator, optional
+            Random number generator. Defaults to None
         subplot_kwargs : dict, optional
             Keyword arguments for plt.subplots
         sample_kwargs : dict, optional
@@ -420,6 +430,9 @@ class Transformation:
         return plot_curve(
             curve,
             non_grid_names=set(NON_GRID_NAMES),
+            n_samples=n_samples,
+            hdi_probs=hdi_probs,
+            random_seed=random_seed,
             subplot_kwargs=subplot_kwargs,
             sample_kwargs=sample_kwargs,
             hdi_kwargs=hdi_kwargs,
