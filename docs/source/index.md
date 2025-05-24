@@ -23,7 +23,7 @@
 
 :::{image} _static/labs-logo-dark.png
 :align: center
-:target: https://www.pymc-labs.io
+:target: https://www.pymc-labs.com
 :scale: 20 %
 :alt: PyMC Labs logo
 :class: only-dark
@@ -31,7 +31,7 @@
 
 :::{image} _static/labs-logo-light.png
 :align: center
-:target: https://www.pymc-labs.io
+:target: https://www.pymc-labs.com
 :scale: 20 %
 :alt: PyMC Labs logo
 :class: only-light

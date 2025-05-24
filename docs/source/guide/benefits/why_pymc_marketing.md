@@ -1,7 +1,7 @@
 # Why PyMC-Marketing?
 
 ## Open source
-PyMC-Marketing is open source, developed by a team of [PyMC Labs](https://www.pymc-labs.io) researchers and a community of experts. PyMC Labs has deep expertise in building Bayesian models to provide business insights. Pairing that with input from a community with strong applied marketing expertise and experience makes for a winning combination. See {doc}`why_open_source` for more on this.
+PyMC-Marketing is open source, developed by a team of [PyMC Labs](https://www.pymc-labs.com) researchers and a community of experts. PyMC Labs has deep expertise in building Bayesian models to provide business insights. Pairing that with input from a community with strong applied marketing expertise and experience makes for a winning combination. See {doc}`why_open_source` for more on this.
 
 ## Independent and unbiased
 We (PyMC Labs) do not have our own advertising channel and we have no vested interests in one media channel over another. So you can be sure that the output of our Media Mix Models are based entirely on what your data (and prior beliefs) tell the models.

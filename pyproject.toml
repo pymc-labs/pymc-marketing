@@ -8,7 +8,7 @@ description = "Marketing Statistical Models in PyMC"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
 dynamic = ["version", "readme"]
-maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.io" }]
+maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.com" }]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python",
