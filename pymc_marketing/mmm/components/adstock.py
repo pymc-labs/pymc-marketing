@@ -188,7 +188,7 @@ class GeometricAdstock(AdstockTransformation):
         adstock = GeometricAdstock(l_max=10)
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -221,7 +221,7 @@ class DelayedAdstock(AdstockTransformation):
         adstock = DelayedAdstock(l_max=10)
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -262,7 +262,7 @@ class WeibullPDFAdstock(AdstockTransformation):
         adstock = WeibullPDFAdstock(l_max=10)
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -304,7 +304,7 @@ class WeibullCDFAdstock(AdstockTransformation):
         adstock = WeibullCDFAdstock(l_max=10)
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """

@@ -270,7 +270,7 @@ def create_default_image() -> None:
                 os.makedirs(os.path.dirname(DEFAULT_IMG_LOC), exist_ok=True)
                 plt.figure(figsize=(4, 3))
                 plt.text(
-                    0.5, 0.5, "PyMC Marketing", ha="center", va="center", fontsize=14
+                    0.5, 0.5, "PyMC-Marketing", ha="center", va="center", fontsize=14
                 )
                 plt.savefig(DEFAULT_IMG_LOC)
                 plt.close()

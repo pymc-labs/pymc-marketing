@@ -141,7 +141,7 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
 
         prior = saturation.sample_prior(random_seed=rng)
         curve = saturation.sample_curve(prior)
-        saturation.plot_curve(curve, sample_kwargs={"rng": rng})
+        saturation.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -202,7 +202,7 @@ class LogisticSaturation(SaturationTransformation):
         adstock = LogisticSaturation()
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -236,7 +236,7 @@ class InverseScaledLogisticSaturation(SaturationTransformation):
         adstock = InverseScaledLogisticSaturation()
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -270,7 +270,7 @@ class TanhSaturation(SaturationTransformation):
         adstock = TanhSaturation()
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -304,7 +304,7 @@ class TanhSaturationBaselined(SaturationTransformation):
         adstock = TanhSaturationBaselined()
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -340,7 +340,7 @@ class MichaelisMentenSaturation(SaturationTransformation):
         adstock = MichaelisMentenSaturation()
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -374,7 +374,7 @@ class HillSaturation(SaturationTransformation):
         adstock = HillSaturation()
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -409,7 +409,7 @@ class HillSaturationSigmoid(SaturationTransformation):
         adstock = HillSaturationSigmoid()
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -442,7 +442,7 @@ class RootSaturation(SaturationTransformation):
         saturation = RootSaturation()
         prior = saturation.sample_prior(random_seed=rng)
         curve = saturation.sample_curve(prior)
-        saturation.plot_curve(curve, sample_kwargs={"rng": rng})
+        saturation.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
