@@ -329,6 +329,22 @@ class WeibullCDFAdstock(AdstockTransformation):
     }
 
 
+class NoAdstock(AdstockTransformation):
+    """Wrapper around no adstock transformation."""
+
+    lookup_name: str = "no_adstock"
+
+    def function(self, x):
+        """No adstock function."""
+        return x
+
+    default_priors = {}
+
+    def update_priors(self, priors):
+        """Update priors for the no adstock transformation."""
+        return
+
+
 def adstock_from_dict(data: dict) -> AdstockTransformation:
     """Create an adstock transformation from a dictionary."""
     data = data.copy()

@@ -459,6 +459,37 @@ class RootSaturation(SaturationTransformation):
     }
 
 
+class LinearSaturation(SaturationTransformation):
+    """Wrapper around linear saturation function.
+
+    For more information, see :func:`pymc_marketing.mmm.transformers.linear_saturation`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import LinearSaturation
+
+        rng = np.random.default_rng(0)
+
+        saturation = LinearSaturation()
+        prior = saturation.sample_prior(random_seed=rng)
+        curve = saturation.sample_curve(prior)
+        saturation.plot_curve(curve, random_seed=rng)
+        plt.show()
+
+    """
+
+    lookup_name = "linear"
+
+    def function(self, x, b):
+        """Linear saturation function."""
+        return pt.as_tensor_variable(b * x)
+
+    default_priors = {"b": Prior("HalfNormal", sigma=1)}
+
+
 def saturation_from_dict(data: dict) -> SaturationTransformation:
     """Get a saturation function from a dictionary."""
     data = data.copy()
