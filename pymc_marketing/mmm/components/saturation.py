@@ -483,11 +483,11 @@ class LinearSaturation(SaturationTransformation):
 
     lookup_name = "linear"
 
-    def function(self, x, b):
+    def function(self, x, beta):
         """Linear saturation function."""
-        return pt.as_tensor_variable(b * x)
+        return pt.as_tensor_variable(beta * x)
 
-    default_priors = {"b": Prior("HalfNormal", sigma=1)}
+    default_priors = {"beta": Prior("HalfNormal", sigma=1)}
 
 
 def saturation_from_dict(data: dict) -> SaturationTransformation:
