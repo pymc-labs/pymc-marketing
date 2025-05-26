@@ -14,7 +14,7 @@
 """Linear regression model implemented using the MMM class."""
 
 from pymc_marketing.mmm.components.adstock import NoAdstock
-from pymc_marketing.mmm.components.saturation import LinearSaturation
+from pymc_marketing.mmm.components.saturation import NoSaturation
 from pymc_marketing.mmm.mmm import MMM
 
 
@@ -48,6 +48,6 @@ def FancyLinearRegression(
     """
     return MMM(
         adstock=NoAdstock(l_max=1),
-        saturation=LinearSaturation(),
+        saturation=NoSaturation(),
         **mmm_kwargs,
     )

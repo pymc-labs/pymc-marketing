@@ -459,7 +459,7 @@ class RootSaturation(SaturationTransformation):
     }
 
 
-class LinearSaturation(SaturationTransformation):
+class NoSaturation(SaturationTransformation):
     """Wrapper around linear saturation function.
 
     For more information, see :func:`pymc_marketing.mmm.transformers.linear_saturation`.
@@ -469,11 +469,11 @@ class LinearSaturation(SaturationTransformation):
 
         import matplotlib.pyplot as plt
         import numpy as np
-        from pymc_marketing.mmm import LinearSaturation
+        from pymc_marketing.mmm import NoSaturation
 
         rng = np.random.default_rng(0)
 
-        saturation = LinearSaturation()
+        saturation = NoSaturation()
         prior = saturation.sample_prior(random_seed=rng)
         curve = saturation.sample_curve(prior)
         saturation.plot_curve(curve, random_seed=rng)
