@@ -31,7 +31,6 @@ class CounterfactualSweep:
     def __init__(
         self,
         mmm: MMM,
-        X: pd.DataFrame,
         predictors: list[str],
         sweep_values: np.ndarray,
         sweep_type: Literal[
@@ -53,7 +52,6 @@ class CounterfactualSweep:
             - 'absolute': Set the predictor values directly to each sweep value (ignoring original values).
         """
         self.mmm = mmm
-        self.X = X
         self.predictors = predictors
         self.sweep_values = sweep_values
         self.sweep_type = sweep_type
@@ -103,7 +101,7 @@ class CounterfactualSweep:
 
     def create_intervention(self, sweep_value: float) -> pd.DataFrame:
         """Apply the intervention to the predictors."""
-        X_new = self.X.copy()
+        X_new = self.mmm.X.copy()
         if self.sweep_type == "multiplicative":
             for predictor in self.predictors:
                 X_new[predictor] *= sweep_value
