@@ -111,11 +111,11 @@ class MMM(ModelBuilder):
     @validate_call
     def __init__(
         self,
-        date_column: str = Field(..., description="The name of the column representing the date in the dataset."),
-        channel_columns: list[str] = Field(min_length=1, description="A list of columns representing the marketing channels."),
-        target_column: str = Field(..., description="The name of the column representing the target variable to be predicted."),
+        date_column: str = Field(..., description="Column name of the date variable."),
+        channel_columns: list[str] = Field(min_length=1, description="Column names of the media channel variables."),
+        target_column: str = Field(..., description="The name of the target column."),
         adstock: InstanceOf[AdstockTransformation] = Field(
-            ..., description="The adstock transformation to apply to the channel data."
+            ..., description="Type of adstock transformation to apply."
         ),
         saturation: InstanceOf[SaturationTransformation] = Field(
             ..., description="The saturation transformation to apply to the channel data."
