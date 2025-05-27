@@ -58,9 +58,7 @@ class CounterfactualSweep:
         self.sweep_values = sweep_values
         self.sweep_type = sweep_type
 
-        self.run_sweep()
-
-    def run_sweep(self):
+    def run_sweep(self) -> xr.Dataset:
         """Run the model's predict function over the sweep grid and store results."""
         predictions = []
         for sweep_value in self.sweep_values:
@@ -83,11 +81,25 @@ class CounterfactualSweep:
             uplift = counterfac - actual
             predictions.append(uplift)
 
-        self.results = (
+        results = (
             xr.concat(predictions, dim="sweep")
             .assign_coords(sweep=self.sweep_values)
             .transpose(..., "sweep")
         )
+
+        marginal_effects = self.compute_marginal_effects(results, self.sweep_values)
+
+        results = xr.Dataset(
+            {
+                "y": results,
+                "marginal_effects": marginal_effects,
+                "sweep_values": self.sweep_values,  # results.coords["sweep"]
+            }
+        )
+        # Add metadata to the results
+        results.attrs["sweep_type"] = self.sweep_type
+        results.attrs["predictors"] = self.predictors
+        return results
 
     def create_intervention(self, sweep_value: float) -> pd.DataFrame:
         """Apply the intervention to the predictors."""
@@ -105,20 +117,21 @@ class CounterfactualSweep:
             raise ValueError(f"Unsupported sweep_type: {self.sweep_type}")
         return X_new
 
+    @staticmethod
     def plot_uplift(
-        self, hdi_prob: float = 0.94, ax: plt.Axes | None = None
+        results: xr.Dataset, hdi_prob: float = 0.94, ax: plt.Axes | None = None
     ) -> plt.Axes:
         """Plot the counterfactual uplift curve."""
         if ax is None:
             fig, ax = plt.subplots(figsize=(10, 6))
 
-        x = self.sweep_values
-        y = self.results.mean(dim=["chain", "draw"]).sum(dim="date")
+        x = results.sweep_values.values
+        y = results.y.mean(dim=["chain", "draw"]).sum(dim="date")
         ax.plot(x, y, label="Posterior mean", color="C0")
 
         az.plot_hdi(
             x,
-            self.results.sum(dim="date"),
+            results.y.sum(dim="date"),
             hdi_prob=hdi_prob,
             color="C0",
             fill_kwargs={"alpha": 0.5, "label": f"{hdi_prob * 100:.0f}% HDI"},
@@ -128,31 +141,33 @@ class CounterfactualSweep:
         )
 
         ax.set(title="Counterfactual uplift plot")
-        if self.sweep_type == "absolute":
-            ax.set_xlabel(f"Absolute value of: {self.predictors}")
+        if results.sweep_type == "absolute":
+            ax.set_xlabel(f"Absolute value of: {results.predictors}")
         else:
             ax.set_xlabel(
-                f"{self.sweep_type.capitalize()} change of: {self.predictors}"
+                f"{results.sweep_type.capitalize()} change of: {results.predictors}"
             )
         ax.set_ylabel("Total uplift (sum over dates)")
         plt.legend()
         return ax
 
-    def compute_marginal_effects(self) -> xr.DataArray:
+    @staticmethod
+    def compute_marginal_effects(results, sweep_values) -> xr.DataArray:
         """Compute marginal effects via finite differences from the sweep results."""
-        sweep_axis = self.results.get_axis_num("sweep")
+        sweep_axis = results.get_axis_num("sweep")
         marginal_effects = np.gradient(
-            self.results, self.sweep_values, axis=sweep_axis, edge_order=2
+            results, sweep_values, axis=sweep_axis, edge_order=2
         )
-        self.marginal_effects = xr.DataArray(
+        marginal_effects = xr.DataArray(
             marginal_effects,
-            dims=self.results.dims,
-            coords=self.results.coords,
+            dims=results.dims,
+            coords=results.coords,
         )
-        return self.marginal_effects
+        return marginal_effects
 
+    @staticmethod
     def plot_marginal_effects(
-        self, hdi_prob: float = 0.94, ax: plt.Axes | None = None
+        results: xr.Dataset, hdi_prob: float = 0.94, ax: plt.Axes | None = None
     ) -> plt.Axes:
         """
         Plot the marginal effects curve.
@@ -169,19 +184,16 @@ class CounterfactualSweep:
         plt.Axes
             The Axes object with the marginal effects plot.
         """
-        if not hasattr(self, "marginal_effects"):
-            self.compute_marginal_effects()
-
         if ax is None:
             _, ax = plt.subplots(figsize=(10, 6))
 
-        x = self.sweep_values
-        y = self.marginal_effects.mean(dim=["chain", "draw"]).sum(dim="date")
+        x = results.sweep_values.values
+        y = results.marginal_effects.mean(dim=["chain", "draw"]).sum(dim="date")
         ax.plot(x, y, label="Posterior mean marginal effect", color="C1")
 
         az.plot_hdi(
             x,
-            self.marginal_effects.sum(dim="date"),
+            results.marginal_effects.sum(dim="date"),
             hdi_prob=hdi_prob,
             color="C1",
             fill_kwargs={"alpha": 0.5, "label": f"{hdi_prob * 100:.0f}% HDI"},
@@ -191,11 +203,11 @@ class CounterfactualSweep:
         )
 
         ax.set(title="Marginal effects plot")
-        if self.sweep_type == "absolute":
-            ax.set_xlabel(f"Absolute value of: {self.predictors}")
+        if results.sweep_type == "absolute":
+            ax.set_xlabel(f"Absolute value of: {results.predictors}")
         else:
             ax.set_xlabel(
-                f"{self.sweep_type.capitalize()} change of: {self.predictors}"
+                f"{results.sweep_type.capitalize()} change of: {results.predictors}"
             )
         ax.set_ylabel("Marginal effect (dE[Y]/dX)")
         plt.legend()
