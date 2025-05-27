@@ -55,6 +55,7 @@ Plot the default priors for an adstock transformation:
 from __future__ import annotations
 
 import numpy as np
+import pytensor.tensor as pt
 import xarray as xr
 from pydantic import Field, validate_call
 
@@ -336,7 +337,7 @@ class NoAdstock(AdstockTransformation):
 
     def function(self, x):
         """No adstock function."""
-        return x
+        return pt.as_tensor_variable(x)
 
     default_priors = {}
 

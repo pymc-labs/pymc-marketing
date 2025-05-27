@@ -481,7 +481,7 @@ class NoSaturation(SaturationTransformation):
 
     """
 
-    lookup_name = "linear"
+    lookup_name = "no_saturation"
 
     def function(self, x, beta):
         """Linear saturation function."""
