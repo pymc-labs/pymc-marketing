@@ -19,10 +19,10 @@ import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
+from pydantic import ValidationError
 from pymc.model_graph import fast_eval
 from pytensor.tensor.basic import TensorVariable
 from scipy.optimize import OptimizeResult
-from pydantic import ValidationError
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.additive_effect import EventAdditiveEffect
@@ -793,7 +793,8 @@ def test_multidimensional_budget_optimizer_wrapper(fit_mmm, mock_pymc_sample):
         len(channels),
     )  # Check shape based on dims
     assert isinstance(scipy_opt_result, OptimizeResult)
-    
+
+
 class TestPydanticValidation:
     """Test suite specifically for Pydantic validation in multidimensional MMM."""
 
@@ -807,7 +808,7 @@ class TestPydanticValidation:
                 adstock=GeometricAdstock(l_max=8),
                 saturation=LogisticSaturation(),
             )
-        
+
         # Check that the error message mentions the constraint
         error_msg = str(exc_info.value)
         assert "at least 1 item" in error_msg or "min_length" in error_msg
@@ -823,7 +824,7 @@ class TestPydanticValidation:
                 saturation=LogisticSaturation(),
                 yearly_seasonality=0,  # Should be > 0
             )
-        
+
         error_msg = str(exc_info.value)
         assert "greater than 0" in error_msg
 
@@ -838,7 +839,7 @@ class TestPydanticValidation:
                 saturation=LogisticSaturation(),
                 yearly_seasonality=-1,
             )
-        
+
         error_msg = str(exc_info.value)
         assert "greater than 0" in error_msg
 
@@ -852,7 +853,7 @@ class TestPydanticValidation:
                 adstock="not_an_adstock",  # Invalid type
                 saturation=LogisticSaturation(),
             )
-        
+
         error_msg = str(exc_info.value)
         assert "AdstockTransformation" in error_msg
 
@@ -866,7 +867,7 @@ class TestPydanticValidation:
                 adstock=GeometricAdstock(l_max=8),
                 saturation="not_a_saturation",  # Invalid type
             )
-        
+
         error_msg = str(exc_info.value)
         assert "SaturationTransformation" in error_msg
 
@@ -881,7 +882,7 @@ class TestPydanticValidation:
                 saturation=LogisticSaturation(),
                 control_columns=[],  # Empty list should fail when not None
             )
-        
+
         error_msg = str(exc_info.value)
         assert "at least 1 item" in error_msg or "min_length" in error_msg
 
@@ -896,7 +897,7 @@ class TestPydanticValidation:
                 saturation=LogisticSaturation(),
                 scaling="invalid_scaling",  # Should be Scaling object or dict
             )
-        
+
         error_msg = str(exc_info.value)
         assert "Scaling" in error_msg or "dict" in error_msg
 
@@ -940,7 +941,7 @@ class TestPydanticValidation:
             dims=("country", "product"),
         )
         assert mmm.dims == ("country", "product")
-        
+
         # Test with single dimension
         mmm2 = MMM(
             date_column="date",
@@ -1009,7 +1010,7 @@ class TestPydanticValidation:
             yearly_seasonality=4,
             adstock_first=False,
         )
-        
+
         # Verify all values were set correctly
         assert mmm.date_column == "date"
         assert mmm.channel_columns == ["channel_1", "channel_2", "channel_3"]
@@ -1034,7 +1035,7 @@ class TestPydanticValidation:
                 adstock=GeometricAdstock(l_max=8),
                 saturation=LogisticSaturation(),
             )
-        
+
         # The error should mention that channel_columns should be a list
         error_msg = str(exc_info.value)
         assert "channel_columns" in error_msg
