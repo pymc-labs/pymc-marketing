@@ -108,17 +108,21 @@ class MMM(ModelBuilder):
 
     _model_type: str = "MMMM (Multi-Dimensional Marketing Mix Model)"
     version: str = "0.0.1"
+
     @validate_call
     def __init__(
         self,
         date_column: str = Field(..., description="Column name of the date variable."),
-        channel_columns: list[str] = Field(min_length=1, description="Column names of the media channel variables."),
+        channel_columns: list[str] = Field(
+            min_length=1, description="Column names of the media channel variables."
+        ),
         target_column: str = Field(..., description="The name of the target column."),
         adstock: InstanceOf[AdstockTransformation] = Field(
             ..., description="Type of adstock transformation to apply."
         ),
         saturation: InstanceOf[SaturationTransformation] = Field(
-            ..., description="The saturation transformation to apply to the channel data."
+            ...,
+            description="The saturation transformation to apply to the channel data.",
         ),
         time_varying_intercept: Annotated[
             bool,
@@ -134,8 +138,12 @@ class MMM(ModelBuilder):
         scaling: InstanceOf[Scaling] | dict | None = Field(
             None, description="Scaling configuration for the model."
         ),
-        model_config: dict | None = Field(None, description="Configuration settings for the model."),
-        sampler_config: dict | None = Field(None, description="Configuration settings for the sampler."),
+        model_config: dict | None = Field(
+            None, description="Configuration settings for the model."
+        ),
+        sampler_config: dict | None = Field(
+            None, description="Configuration settings for the sampler."
+        ),
         control_columns: Annotated[
             list[str],
             Field(
@@ -147,7 +155,8 @@ class MMM(ModelBuilder):
         yearly_seasonality: Annotated[
             int,
             Field(
-                gt=0, description="The number of yearly seasonalities to include in the model."
+                gt=0,
+                description="The number of yearly seasonalities to include in the model.",
             ),
         ]
         | None = None,
