@@ -639,7 +639,7 @@ def tanh_saturation(
 
     References
     ----------
-    See https://www.pymc-labs.io/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/ # noqa: E501
+    See https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/ # noqa: E501
 
     """  # noqa: E501
     return b * pt.tanh(x / (b * c))
