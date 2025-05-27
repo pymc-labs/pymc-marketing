@@ -91,7 +91,6 @@ class CounterfactualSweep:
             {
                 "y": results,
                 "marginal_effects": marginal_effects,
-                "sweep_values": self.sweep_values,  # results.coords["sweep"]
             }
         )
         # Add metadata to the results
@@ -123,7 +122,7 @@ class CounterfactualSweep:
         if ax is None:
             fig, ax = plt.subplots(figsize=(10, 6))
 
-        x = results.sweep_values.values
+        x = results.sweep.values
         y = results.y.mean(dim=["chain", "draw"]).sum(dim="date")
         ax.plot(x, y, label="Posterior mean", color="C0")
 
@@ -185,7 +184,7 @@ class CounterfactualSweep:
         if ax is None:
             _, ax = plt.subplots(figsize=(10, 6))
 
-        x = results.sweep_values.values
+        x = results.sweep.values
         y = results.marginal_effects.mean(dim=["chain", "draw"]).sum(dim="date")
         ax.plot(x, y, label="Posterior mean marginal effect", color="C1")
 
