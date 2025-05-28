@@ -30,9 +30,9 @@ PyMC-Marketing stands out as the most widely used library by PyPI downloads (see
 
 Your optimal choice should depend primarily on:
 
-1. Your team's technical expertise  
-2. Your primary advertising channels  
-3. Preference for an independent open-source solution vs. one sponsored by Ad Networks  
+1. Your team's technical expertise
+2. Your primary advertising channels
+3. Preference for an independent open-source solution vs. one sponsored by Ad Networks
 
 ![MMM Downloads Analysis](./mmm_downloads_analysis.png)
 
@@ -57,7 +57,3 @@ Your optimal choice should depend primarily on:
 - Production ready setup and integration into broader data science workflows is important (ML Flow)
 - You prefer independence from major ad publishers and networks
 - Professional consulting support is desirable
-
-
-
-
