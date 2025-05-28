@@ -54,6 +54,6 @@ Your optimal choice should depend primarily on:
 
 - Maximum flexibility for complex, unique business requirements is necessary
 - You need advanced statistical modeling capabilities (e.g., Gaussian Processes)
-- Production ready setup and integration into broader data science workflows is important (ML Flow)
+- Production ready setup and integration into broader data science workflows is important (MLflow)
 - You prefer independence from major ad publishers and networks
 - Professional consulting support is desirable
