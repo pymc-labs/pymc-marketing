@@ -18,7 +18,7 @@ Given the popularity of the Media Mix Modelling (MMM) approach, numerous package
 | **Lift-Test Calibration**     | ✅              | ✅              | ❌         | ✅                      |
 | **Geographic Modeling**       | ✅              | ❌              | ❌         | ✅                      |
 | **Unit-Tested**               | ✅              | ❌              | ✅         | ✅                      |
-| **ML-Flow Integration**       | ✅              | ❌              | ❌         | ❌                      |
+| **MLFlow Integration**       | ✅              | ❌              | ❌         | ❌                      |
 | **GPU Sampling Accelleration**| ✅              | -               | ❌         | ✅                      |
 | **Consulting Support**        | Provided by Authors              | Third-party agency               |   Third-party agency        |  Third-party agency                      |
 
