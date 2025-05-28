@@ -36,7 +36,7 @@ Your optimal choice should depend primarily on:
 
 ![MMM Downloads Analysis](./mmm_downloads_analysis.png)
 
-## Our Reccomendation
+## Our Recommendation
 
 ### Choose Meta Robyn if:
 
