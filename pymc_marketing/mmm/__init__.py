@@ -52,7 +52,6 @@ from pymc_marketing.mmm.hsgp import (
 )
 from pymc_marketing.mmm.linear_regression import FancyLinearRegression
 from pymc_marketing.mmm.linear_trend import LinearTrend
-from pymc_marketing.mmm.marginal_effects import CounterfactualSweep
 from pymc_marketing.mmm.media_transformation import (
     MediaConfig,
     MediaConfigList,
@@ -63,6 +62,7 @@ from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
 )
+from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.validating import validation_method_X, validation_method_y
 
 __all__ = [
@@ -70,7 +70,6 @@ __all__ = [
     "MMM",
     "AdstockTransformation",
     "BaseValidateMMM",
-    "CounterfactualSweep",
     "CovFunc",
     "DelayedAdstock",
     "FancyLinearRegression",
@@ -92,6 +91,7 @@ __all__ = [
     "PeriodicCovFunc",
     "RootSaturation",
     "SaturationTransformation",
+    "SensitivityAnalysis",
     "SoftPlusHSGP",
     "TanhSaturation",
     "TanhSaturationBaselined",

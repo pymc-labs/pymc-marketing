@@ -25,8 +25,8 @@ import xarray as xr
 from pymc_marketing.mmm.multidimensional import MMM
 
 
-class CounterfactualSweep:
-    """CounterfactualSweep class is used to perform counterfactual analysis on MMM's."""
+class SensitivityAnalysis:
+    """SensitivityAnalysis class is used to perform counterfactual analysis on MMM's."""
 
     def __init__(
         self,
