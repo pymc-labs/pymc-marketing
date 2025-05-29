@@ -145,21 +145,19 @@ class MMM(ModelBuilder):
             None, description="Configuration settings for the sampler."
         ),
         control_columns: Annotated[
-            list[str],
+            list[str] | None,
             Field(
                 min_length=1,
                 description="A list of control variables to include in the model.",
             ),
-        ]
-        | None = None,
+        ] = None,
         yearly_seasonality: Annotated[
-            int,
+            int | None,
             Field(
                 gt=0,
                 description="The number of yearly seasonalities to include in the model.",
             ),
-        ]
-        | None = None,
+        ] = None,
         adstock_first: Annotated[
             bool,
             Field(strict=True, description="Apply adstock before saturation?"),
@@ -181,10 +179,6 @@ class MMM(ModelBuilder):
 
         if isinstance(scaling, dict):
             scaling = deepcopy(scaling)
-
-            for side in ("channel", "target"):
-                if side in scaling and isinstance(scaling[side], dict):
-                    scaling[side].setdefault("dims", self.dims)
 
             if "channel" not in scaling:
                 scaling["channel"] = VariableScaling(method="max", dims=self.dims)

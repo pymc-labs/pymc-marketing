@@ -903,15 +903,20 @@ class TestPydanticValidation:
 
     def test_valid_scaling_dict_accepted(self):
         """Test that valid scaling dict is accepted and converted."""
+        scaling_dict = {
+            "channel": {"method": "max", "dims": ()},
+            "target": {"method": "max", "dims": ()},
+        }
         mmm = MMM(
             date_column="date",
             channel_columns=["channel_1"],
             target_column="target",
             adstock=GeometricAdstock(l_max=8),
             saturation=LogisticSaturation(),
-            scaling={"channel": {"method": "max"}, "target": {"method": "max"}},
+            scaling=scaling_dict,
         )
         assert isinstance(mmm.scaling, Scaling)
+        assert mmm.scaling.model_dump() == scaling_dict
 
     def test_valid_scaling_object_accepted(self):
         """Test that valid Scaling object is accepted."""
