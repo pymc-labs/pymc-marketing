@@ -151,10 +151,7 @@ class SensitivityAnalysis:
     @staticmethod
     def compute_marginal_effects(results, sweep_values) -> xr.DataArray:
         """Compute marginal effects via finite differences from the sweep results."""
-        sweep_axis = results.get_axis_num("sweep")
-        marginal_effects = np.gradient(
-            results, sweep_values, axis=sweep_axis, edge_order=2
-        )
+        marginal_effects = results.differentiate(coord="sweep")
         marginal_effects = xr.DataArray(
             marginal_effects,
             dims=results.dims,
