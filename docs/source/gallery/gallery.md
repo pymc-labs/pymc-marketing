@@ -32,8 +32,8 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 
 :::{grid-item-card} Marginal Effects Example
-:img-top: ../gallery/images/mmm_marginal_effects.png
-:link: ../notebooks/mmm/mmm_marginal_effects.html
+:img-top: ../gallery/images/mmm_sensitivity_analysis.png
+:link: ../notebooks/mmm/mmm_sensitivity_analysis.html
 :::
 ::::
 
