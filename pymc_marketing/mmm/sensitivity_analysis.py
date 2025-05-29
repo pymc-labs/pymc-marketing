@@ -22,15 +22,13 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from pymc_marketing.mmm.multidimensional import MMM
-
 
 class SensitivityAnalysis:
     """SensitivityAnalysis class is used to perform counterfactual analysis on MMM's."""
 
     def __init__(
         self,
-        mmm: MMM,
+        mmm,
         predictors: list[str],
         sweep_values: np.ndarray,
         sweep_type: Literal[

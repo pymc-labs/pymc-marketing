@@ -57,6 +57,7 @@ from pymc_marketing.model_builder import ModelBuilder, _handle_deprecate_pred_ar
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.prior import Prior, create_dim_handler
+from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 
 PYMC_MARKETING_ISSUE = "https://github.com/pymc-labs/pymc-marketing/issues/new"
 warning_msg = (
@@ -1387,6 +1388,14 @@ class MMM(ModelBuilder):
             )
 
         return posterior_predictive_samples
+    
+    def sensitivity_analysis(self, *args, **kwargs) -> xr.Dataset:
+        """Run sensitivity analysis on the model."""
+        return SensitivityAnalysis(
+            mmm=self,
+            *args,
+            **kwargs,
+        ).run_sweep()
 
 
 def create_sample_kwargs(
