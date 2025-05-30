@@ -1390,7 +1390,9 @@ class MMM(ModelBuilder):
         return posterior_predictive_samples
 
     def sensitivity_analysis(self, *args, **kwargs) -> None:
-        """Run sensitivity analysis on the model. The results are added to the InferenceData object in a new group, `sensitivity_analysis`."""
+        """Run sensitivity analysis on the model. The results are added to the
+        InferenceData object in a new group, `sensitivity_analysis`.
+        """
         results: xr.DataSet = SensitivityAnalysis(
             mmm=self,
             *args,
