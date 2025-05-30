@@ -1389,13 +1389,17 @@ class MMM(ModelBuilder):
 
         return posterior_predictive_samples
 
-    def sensitivity_analysis(self, *args, **kwargs) -> xr.Dataset:
-        """Run sensitivity analysis on the model."""
-        return SensitivityAnalysis(
+    def sensitivity_analysis(self, *args, **kwargs) -> None:
+        """Run sensitivity analysis on the model. The results are added to the InferenceData object in a new group, `sensitivity_analysis`."""
+        results: xr.DataSet = SensitivityAnalysis(
             mmm=self,
             *args,
             **kwargs,
         ).run_sweep()
+
+        if hasattr(self.idata, "sensitivity_analysis"):
+            delattr(self.idata, "sensitivity_analysis")
+        self.idata.add_groups({"sensitivity_analysis": results})
 
 
 def create_sample_kwargs(

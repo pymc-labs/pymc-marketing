@@ -196,6 +196,6 @@ class SensitivityAnalysis:
             if not marginal:
                 ax.axhline(y=0, color="k", linestyle="--", alpha=0.5)
         elif results.sweep_type == "additive":
-            ax.axhline(y=0, color="k", linestyle="--", alpha=0.5)
+            ax.axvline(x=0, color="k", linestyle="--", alpha=0.5)
 
         return ax
