@@ -60,20 +60,12 @@ class SensitivityAnalysis:
         for sweep_value in self.sweep_values:
             X_new = self.create_intervention(sweep_value)
             counterfac = self.mmm.predict(X_new, extend_idata=False, progressbar=False)
-
             # TODO: Ideally we can use this --------------------------------------------
             # actual = self.mmm._get_group_predictive_data(
             #     group="posterior_predictive", original_scale=True
             # )["y"]
-            # But the multidimensional MMM does not have this method. So instead we do
-            # the following:
-            scalers = self.mmm.get_scales_as_xarray()
-            actual = (
-                self.mmm.idata["posterior_predictive"]["y"]
-                * scalers["target_scale"].item()
-            )
+            actual = self.mmm.idata["posterior_predictive"]["y"]
             # --------------------------------------------------------------------------
-
             uplift = counterfac - actual
             predictions.append(uplift)
 
@@ -135,7 +127,7 @@ class SensitivityAnalysis:
             ax=ax,
         )
 
-        ax.set(title="Counterfactual uplift plot")
+        ax.set(title="Sensitivity analysis plot")
         if results.sweep_type == "absolute":
             ax.set_xlabel(f"Absolute value of: {results.predictors}")
         else:
@@ -144,6 +136,12 @@ class SensitivityAnalysis:
             )
         ax.set_ylabel("Total uplift (sum over dates)")
         plt.legend()
+        if results.sweep_type == "multiplicative":
+            ax.axvline(x=1, color="k", linestyle="--", alpha=0.5)
+            ax.axhline(y=0, color="k", linestyle="--", alpha=0.5)
+        elif results.sweep_type == "additive":
+            ax.axhline(y=0, color="k", linestyle="--", alpha=0.5)
+
         return ax
 
     @staticmethod
@@ -211,4 +209,8 @@ class SensitivityAnalysis:
         elif np.all(y_values > 0):
             ax.set_ylim(bottom=0)
 
+        if results.sweep_type == "multiplicative":
+            ax.axvline(x=1, color="k", linestyle="--", alpha=0.5)
+        elif results.sweep_type == "additive":
+            ax.axhline(y=0, color="k", linestyle="--", alpha=0.5)
         return ax
