@@ -32,8 +32,7 @@ dependencies = [
     "pydantic>=2.1.0",
     # NOTE: Used as minimum pymc version with test.yml `OLDEST_PYMC_VERSION`
     "pymc>=5.22.0",
-    "pytensor>=2.30.3",
-    "git+https://github.com/zaxtax/pytensor.git@blockwise_scan_hack",
+    "pytensor @ git+https://github.com/zaxtax/pytensor.git@blockwise_scan_hack",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "xarray>=2024.1.0",
@@ -98,6 +97,9 @@ exclude = ["docs"]
 path = "pymc_marketing/version.py"
 
 # <https://github.com/hynek/hatch-fancy-pypi-readme>
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.metadata.hooks.fancy-pypi-readme]
 content-type = "text/markdown"
 
