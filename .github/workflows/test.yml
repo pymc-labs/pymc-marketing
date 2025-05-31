@@ -57,6 +57,7 @@ jobs:
         run: |
           sudo apt-get install graphviz graphviz-dev
           pip install -e .[test]
+          pip install git+https://github.com/zaxtax/pytensor.git@blockwise_scan_hack --force-reinstall
           pytest ${{ matrix.split }}
       - name: Check oldest version of PyMC
         if: ${{ matrix.config.oldest-pymc }}
@@ -89,6 +90,7 @@ jobs:
         run: |
           sudo apt-get install graphviz graphviz-dev
           pip install -e .[test]
+          pip install git+https://github.com/zaxtax/pytensor.git@blockwise_scan_hack --force-reinstall
           pytest --only-slow ${{ matrix.split }}
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
