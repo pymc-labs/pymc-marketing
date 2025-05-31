@@ -56,7 +56,7 @@ jobs:
       - name: Run tests
         run: |
           sudo apt-get install graphviz graphviz-dev
-          pip install -e .[test]
+          pip install -e .[test] --no-deps
           pytest ${{ matrix.split }}
       - name: Check oldest version of PyMC
         if: ${{ matrix.config.oldest-pymc }}
@@ -88,7 +88,7 @@ jobs:
       - name: Run tests
         run: |
           sudo apt-get install graphviz graphviz-dev
-          pip install -e .[test]
+          pip install -e .[test] --no-deps
           pytest --only-slow ${{ matrix.split }}
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

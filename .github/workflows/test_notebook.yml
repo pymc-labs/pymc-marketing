@@ -34,6 +34,6 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get install graphviz graphviz-dev
-        pip install -e .[docs,test,dag]
+        pip install -e .[docs,test,dag] --no-deps
     - name: Run notebooks
       run: make run_notebooks
