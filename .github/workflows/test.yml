@@ -50,13 +50,11 @@ jobs:
           python-version: ${{ matrix.config.python-version }}
           cache: "pip"
           cache-dependency-path: "pyproject.toml"
-      - name: Install oldest version of PyMC
-        if: ${{ matrix.config.oldest-pymc }}
-        run: pip install pymc==${{ env.OLDEST_PYMC_VERSION }}
       - name: Run tests
         run: |
           sudo apt-get install graphviz graphviz-dev
-          pip install -e .[test] --no-deps
+          pip install -e .
+          pip install -e .[test] --force-reinstall
           pytest ${{ matrix.split }}
       - name: Check oldest version of PyMC
         if: ${{ matrix.config.oldest-pymc }}
@@ -88,7 +86,8 @@ jobs:
       - name: Run tests
         run: |
           sudo apt-get install graphviz graphviz-dev
-          pip install -e .[test] --no-deps
+          pip install -e .
+          pip install -e .[test] --force-reinstall
           pytest --only-slow ${{ matrix.split }}
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
