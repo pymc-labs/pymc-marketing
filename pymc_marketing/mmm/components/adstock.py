@@ -55,6 +55,7 @@ Plot the default priors for an adstock transformation:
 from __future__ import annotations
 
 import numpy as np
+import pytensor.tensor as pt
 import xarray as xr
 from pydantic import Field, validate_call
 
@@ -188,7 +189,7 @@ class GeometricAdstock(AdstockTransformation):
         adstock = GeometricAdstock(l_max=10)
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -221,7 +222,7 @@ class DelayedAdstock(AdstockTransformation):
         adstock = DelayedAdstock(l_max=10)
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -262,7 +263,7 @@ class WeibullPDFAdstock(AdstockTransformation):
         adstock = WeibullPDFAdstock(l_max=10)
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -304,7 +305,7 @@ class WeibullCDFAdstock(AdstockTransformation):
         adstock = WeibullCDFAdstock(l_max=10)
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -327,6 +328,22 @@ class WeibullCDFAdstock(AdstockTransformation):
         "lam": Prior("Gamma", mu=2, sigma=2.5),
         "k": Prior("Gamma", mu=2, sigma=2.5),
     }
+
+
+class NoAdstock(AdstockTransformation):
+    """Wrapper around no adstock transformation."""
+
+    lookup_name: str = "no_adstock"
+
+    def function(self, x):
+        """No adstock function."""
+        return pt.as_tensor_variable(x)
+
+    default_priors = {}
+
+    def update_priors(self, priors):
+        """Update priors for the no adstock transformation."""
+        return
 
 
 def adstock_from_dict(data: dict) -> AdstockTransformation:

@@ -31,6 +31,7 @@ from pymc_marketing.mmm import (
     InverseScaledLogisticSaturation,
     LogisticSaturation,
     MichaelisMentenSaturation,
+    NoSaturation,
     RootSaturation,
     SaturationTransformation,
     TanhSaturation,
@@ -56,6 +57,7 @@ def saturation_functions():
         HillSaturation(),
         HillSaturationSigmoid(),
         RootSaturation(),
+        NoSaturation(),
     ]
     return [
         pytest.param(transformation, id=transformation.lookup_name)
