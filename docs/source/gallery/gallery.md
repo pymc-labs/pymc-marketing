@@ -31,7 +31,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_multidimensional_example.html
 :::
 
-:::{grid-item-card} Marginal Effects Example
+:::{grid-item-card} Sensitivity Analysis and Marginal Effects
 :img-top: ../gallery/images/mmm_sensitivity_analysis.png
 :link: ../notebooks/mmm/mmm_sensitivity_analysis.html
 :::
