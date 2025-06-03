@@ -951,6 +951,7 @@ class MMMPlotSuite:
         hdi_prob: float = 0.94,
         ax: plt.Axes | None = None,
         marginal: bool = False,
+        percentage: bool = False,
     ) -> plt.Axes:
         """
         Plot the counterfactual uplift or marginal effects curve.
@@ -965,6 +966,9 @@ class MMMPlotSuite:
             An optional matplotlib Axes on which to plot. If None, a new Axes is created.
         marginal : bool, optional
             If True, plot marginal effects. If False (default), plot uplift.
+        percentage : bool, optional
+            If True, plot the results on the y-axis as percentages, instead of absolute
+            values. Default is False.
 
         Returns
         -------
@@ -973,6 +977,9 @@ class MMMPlotSuite:
         """
         if ax is None:
             _, ax = plt.subplots(figsize=(10, 6))
+
+        if percentage and marginal:
+            raise ValueError("Not implemented marginal effects in percentage scale.")
 
         # grab sensitivity analysis results from idata
         results = self.idata.sensitivity_analysis
@@ -984,10 +991,17 @@ class MMMPlotSuite:
             color = "C1"
             label = "Posterior mean marginal effect"
             title = "Marginal effects plot"
-            ylabel = "Marginal effect (dE[Y]/dX)"
+            ylabel = r"Marginal effect, $\frac{d\mathbb{E}[Y]}{dX}$"
         else:
-            y = results.y.mean(dim=["chain", "draw"]).sum(dim="date")
-            y_hdi = results.y.sum(dim="date")
+            if percentage:
+                actual = self.idata.posterior_predictive["y"]
+                y = results.y.mean(dim=["chain", "draw"]).sum(dim="date") / actual.mean(
+                    dim=["chain", "draw"]
+                ).sum(dim="date")
+                y_hdi = results.y.sum(dim="date") / actual.sum(dim="date")
+            else:
+                y = results.y.mean(dim=["chain", "draw"]).sum(dim="date")
+                y_hdi = results.y.sum(dim="date")
             color = "C0"
             label = "Posterior mean"
             title = "Sensitivity analysis plot"
@@ -1022,6 +1036,10 @@ class MMMPlotSuite:
             ax.set_ylim(top=0)
         elif np.all(y_values > 0):
             ax.set_ylim(bottom=0)
+
+        ax.yaxis.set_major_formatter(
+            plt.FuncFormatter(lambda x, _: f"{x:.1%}" if percentage else f"{x:,.1f}")
+        )
 
         # Add reference lines
         if results.sweep_type == "multiplicative":

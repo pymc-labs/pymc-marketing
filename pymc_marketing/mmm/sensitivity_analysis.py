@@ -54,16 +54,16 @@ class SensitivityAnalysis:
 
     def run_sweep(self) -> xr.Dataset:
         """Run the model's predict function over the sweep grid and store results."""
+        # TODO: Ideally we can use this --------------------------------------------
+        # actual = self.mmm._get_group_predictive_data(
+        #     group="posterior_predictive", original_scale=True
+        # )["y"]
+        actual = self.mmm.idata["posterior_predictive"]["y"]
+        # --------------------------------------------------------------------------
         predictions = []
         for sweep_value in self.sweep_values:
             X_new = self.create_intervention(sweep_value)
             counterfac = self.mmm.predict(X_new, extend_idata=False, progressbar=False)
-            # TODO: Ideally we can use this --------------------------------------------
-            # actual = self.mmm._get_group_predictive_data(
-            #     group="posterior_predictive", original_scale=True
-            # )["y"]
-            actual = self.mmm.idata["posterior_predictive"]["y"]
-            # --------------------------------------------------------------------------
             uplift = counterfac - actual
             predictions.append(uplift)
 
