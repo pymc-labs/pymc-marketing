@@ -19,6 +19,7 @@ from pathlib import Path
 
 import arviz as az
 import mlflow
+import mlflow.artifacts
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -34,6 +35,7 @@ with warnings.catch_warnings():
     from pymc_marketing.mlflow import (
         autolog,
         create_log_callback,
+        log_error,
         log_likelihood_type,
         log_mmm_evaluation_metrics,
         log_model_graph,
@@ -763,3 +765,44 @@ def test_logging_callback(model_with_likelihood) -> None:
         for value in ["energy", "mu"]:
             history = client.get_metric_history(run_id, f"chain_{chain}/{value}")
             assert len(history) == 10
+
+
+def test_log_error() -> None:
+    mlflow.set_experiment("pymc-marketing-test-suite-log-error")
+
+    class MyException(Exception):
+        """Custom exception for testing purposes."""
+
+    def foo():
+        raise MyException("This is an error")
+
+    def bar():
+        foo()
+
+    def baz():
+        bar()
+
+    file_name = "sample-error.txt"
+    main = log_error(baz, file_name=file_name)
+
+    with mlflow.start_run() as run:
+        with pytest.raises(MyException, match="This is an error"):
+            main()
+
+    assert mlflow.active_run() is None
+
+    run_data = get_run_data(run.info.run_id)
+
+    assert run_data.artifacts == [file_name]
+
+    artifact_uri = f"{run.info.artifact_uri}/{file_name}"
+    loaded_artifact = mlflow.artifacts.load_text(artifact_uri)
+
+    lines = [
+        "in baz",
+        "in bar",
+        "in foo",
+        "This is an error",
+    ]
+    for line in lines:
+        assert line in loaded_artifact
