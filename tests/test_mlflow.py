@@ -768,6 +768,8 @@ def test_logging_callback(model_with_likelihood) -> None:
 
 
 def test_log_error() -> None:
+    mlflow.set_experiment("pymc-marketing-test-suite-log-error")
+
     class MyException(Exception):
         """Custom exception for testing purposes."""
 
