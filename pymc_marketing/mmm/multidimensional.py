@@ -45,6 +45,10 @@ from pymc_marketing.mmm.components.saturation import (
 )
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
+from pymc_marketing.mmm.lift_test import (
+    add_lift_measurements_to_likelihood_from_saturation,
+    scale_lift_measurements,
+)
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.tvp import infer_time_index
@@ -1390,6 +1394,154 @@ class MMM(ModelBuilder):
             )
 
         return posterior_predictive_samples
+
+    def add_lift_test_measurements(
+        self,
+        df_lift_test: pd.DataFrame,
+        dist: type[pm.Distribution] = pm.Gamma,
+        name: str = "lift_measurements",
+    ) -> None:
+        """Add lift tests to the model.
+
+        The model for the difference of a channel's saturation curve is created
+        from `x` and `x + delta_x` for each channel. This random variable is
+        then conditioned using the empirical lift, `delta_y`, and `sigma` of the lift test
+        with the specified distribution `dist`.
+
+        The pseudo-code for the lift test is as follows:
+
+        .. code-block:: python
+
+            model_estimated_lift = (
+                saturation_curve(x + delta_x)
+                - saturation_curve(x)
+            )
+            empirical_lift = delta_y
+            dist(abs(model_estimated_lift), sigma=sigma, observed=abs(empirical_lift))
+
+
+        The model has to be built before adding the lift tests.
+
+        Parameters
+        ----------
+        df_lift_test : pd.DataFrame
+            DataFrame with lift test results with at least the following columns:
+                * `DIM_NAME`: dimension name. One column per dimension in `mmm.dims`.
+                * `channel`: channel name. Must be present in `channel_columns`.
+                * `x`: x axis value of the lift test.
+                * `delta_x`: change in x axis value of the lift test.
+                * `delta_y`: change in y axis value of the lift test.
+                * `sigma`: standard deviation of the lift test.
+        dist : pm.Distribution, optional
+            The distribution to use for the likelihood, by default pm.Gamma
+        name : str, optional
+            The name of the likelihood of the lift test contribution(s),
+            by default "lift_measurements". Name change required if calling
+            this method multiple times.
+
+        Raises
+        ------
+        RuntimeError
+            If the model has not been built yet.
+        KeyError
+            If the 'channel' column or any of the model dimensions is not present
+            in df_lift_test.
+
+        Examples
+        --------
+        Build the model first then add lift test measurements.
+
+        .. code-block:: python
+
+            import pandas as pd
+            import numpy as np
+
+            from pymc_marketing.multidimensional import (
+                GeometricAdstock,
+                LogisticSaturation,
+                MMM,
+            )
+
+            model = MMM(
+                date_column="date_week",
+                channel_columns=["x1", "x2"],
+                dims=("geo",),
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
+                control_columns=[
+                    "event_1",
+                    "event_2",
+                ],
+                yearly_seasonality=2,
+            )
+
+            X: pd.DataFrame = ...
+            y: np.ndarray = ...
+
+            model.build_model(X, y)
+
+            df_lift_test = pd.DataFrame({
+                "channel": ["x1", "x1"],
+                "geo": ["geo_a", "geo_b"],
+                "x": [1, 1],
+                "delta_x": [0.1, 0.2],
+                "delta_y": [0.1, 0.1],
+                "sigma": [0.1, 0.1],
+            })
+
+            model.add_lift_test_measurements(df_lift_test)
+
+        """
+        if not hasattr(self, "model"):
+            raise RuntimeError(
+                "The model has not been built yet. Please, build the model first."
+            )
+
+        if "channel" not in df_lift_test.columns:
+            raise KeyError(
+                "The 'channel' column is required to map the lift measurements to the model."
+            )
+
+        for dim in self.dims:
+            if dim not in df_lift_test.columns:
+                raise KeyError(
+                    f"The {dim} column is required to map the lift measurements to the model."
+                )
+
+        # Define a target transformer from the target scaler.
+        def target_transform(target):
+            return target / self.scalers._target.to_numpy()
+
+        # Define a channel transformer from the channel scalker.
+        def channel_transform(channels):
+            return (
+                channels
+                / self.scalers._channel.loc[
+                    dict(channel=self.channel_columns)
+                ].to_numpy()
+            )
+
+        df_lift_test_scaled = scale_lift_measurements(
+            df_lift_test=df_lift_test,
+            channel_col="channel",
+            channel_columns=self.channel_columns,  # type: ignore
+            channel_transform=channel_transform,
+            target_transform=target_transform,
+            dim_cols=self.dims,
+        )
+        # This is coupled with the name of the
+        # latent process Deterministic
+        time_varying_var_name = (
+            "media_temporal_latent_multiplier" if self.time_varying_media else None
+        )
+        add_lift_measurements_to_likelihood_from_saturation(
+            df_lift_test=df_lift_test_scaled,
+            saturation=self.saturation,
+            time_varying_var_name=time_varying_var_name,
+            model=self.model,
+            dist=dist,
+            name=name,
+        )
 
 
 def create_sample_kwargs(
