@@ -118,7 +118,7 @@ Create a basic Bass model for multiple products:
 
     # Plot the adoption curves
     fig, axes = plt.subplots(1, 3, figsize=(10, 6))
-    idata.prior["y"].pipe(plot_curve, {"T"}, axes=axes)
+    idata.prior["y"].pipe(plot_curve, "T", axes=axes)
     plt.suptitle("Bass Model Prior Predictive Adoption Curves")
     plt.tight_layout()
     plt.show()
@@ -212,7 +212,9 @@ def f(
 
     The peak adoption rate occurs at time :math:`t^* = \frac{\ln(q/p)}{p+q}`
     """
-    return (p + q) * pt.exp(-(p + q) * t) / (1 + (q / p) * pt.exp(-(p + q) * t)) ** 2
+    return (p * pt.square(p + q) * pt.exp(t * (p + q))) / pt.square(
+        p * pt.exp(t * (p + q)) + q
+    )
 
 
 def create_bass_model(

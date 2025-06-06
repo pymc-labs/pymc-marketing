@@ -8,7 +8,7 @@ description = "Marketing Statistical Models in PyMC"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
 dynamic = ["version", "readme"]
-maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.io" }]
+maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.com" }]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python",
@@ -31,7 +31,7 @@ dependencies = [
     "pandas",
     "pydantic>=2.1.0",
     # NOTE: Used as minimum pymc version with test.yml `OLDEST_PYMC_VERSION`
-    "pymc>=5.22.0",
+    "pymc>=5.22.0,<5.23.0",
     "pytensor>=2.30.3",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",

@@ -83,9 +83,9 @@ This module provides event transformations for use in Marketing Mix Models.
 
     fig, axes = idata.prior.effect.pipe(
         plot_curve,
-        {"date"},
+        "date",
+        random_seed=rng,
         subplot_kwargs={"ncols": 1},
-        sample_kwargs={"rng": rng},
     )
     fig.suptitle("Gaussian Event Effect")
     plt.show()
