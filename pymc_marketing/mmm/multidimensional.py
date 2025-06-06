@@ -1527,12 +1527,12 @@ class MMM(ModelBuilder):
             channel_columns=self.channel_columns,  # type: ignore
             channel_transform=channel_transform,
             target_transform=target_transform,
-            dim_cols=self.dims,
+            dim_cols=list(self.dims),
         )
         # This is coupled with the name of the
         # latent process Deterministic
         time_varying_var_name = (
-            "media_temporal_latent_multiplier" if self.time_varying_media else None
+            "media_latent_process" if self.time_varying_media else None
         )
         add_lift_measurements_to_likelihood_from_saturation(
             df_lift_test=df_lift_test_scaled,
