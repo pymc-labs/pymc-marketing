@@ -792,3 +792,78 @@ def test_multidimensional_budget_optimizer_wrapper(fit_mmm, mock_pymc_sample):
         len(channels),
     )  # Check shape based on dims
     assert isinstance(scipy_opt_result, OptimizeResult)
+
+
+@pytest.fixture
+def df_lift_test() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "channel": ["channel_1", "channel_1"],
+            "country": ["Venezuela", "Colombia"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+            "date": pd.to_datetime(["2023-01-02", "2023-01-04"]),
+        }
+    )
+
+
+def test_add_lift_test_measurements(multi_dim_data, df_lift_test) -> None:
+    X, y = multi_dim_data
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    name = "lift_measurements"
+    assert name not in mmm.model
+
+    mmm.add_lift_test_measurements(
+        df_lift_test,
+        name=name,
+    )
+
+    assert name in mmm.model
+
+
+def test_add_lift_test_measurements_no_model() -> None:
+    adstock = GeometricAdstock(l_max=4)
+    saturation = LogisticSaturation()
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=adstock,
+        saturation=saturation,
+    )
+    with pytest.raises(RuntimeError, match="The model has not been built yet."):
+        mmm.add_lift_test_measurements(
+            pd.DataFrame(),
+        )
+
+
+def test_time_varying_media_with_lift_test(multi_dim_data, df_lift_test) -> None:
+    X, y = multi_dim_data
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_media=True,
+    )
+    mmm.build_model(X=X, y=y)
+    try:
+        mmm.add_lift_test_measurements(df_lift_test)
+    except Exception as e:
+        pytest.fail(
+            f"add_lift_test_measurements for time_varying_media model failed with error {e}"
+        )
