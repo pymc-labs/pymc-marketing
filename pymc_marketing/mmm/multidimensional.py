@@ -47,6 +47,7 @@ from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.tvp import infer_time_index
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.mmm.utils import (
@@ -1387,6 +1388,20 @@ class MMM(ModelBuilder):
             )
 
         return posterior_predictive_samples
+
+    def sensitivity_analysis(self, *args, **kwargs) -> None:
+        """Run sensitivity analysis on the model. The results are added to the
+        InferenceData object in a new group, `sensitivity_analysis`.
+        """
+        results: xr.DataSet = SensitivityAnalysis(
+            mmm=self,
+            *args,
+            **kwargs,
+        ).run_sweep()
+
+        if hasattr(self.idata, "sensitivity_analysis"):
+            delattr(self.idata, "sensitivity_analysis")
+        self.idata.add_groups({"sensitivity_analysis": results})
 
 
 def create_sample_kwargs(
