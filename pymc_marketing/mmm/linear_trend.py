@@ -484,6 +484,7 @@ class LinearTrend(BaseModel):
         max_value = curve.coords["t"].max().item()
 
         for ax in np.ravel(axes):
+            # n change points from 0 to self.n_changepoints-1
             for i in range(0, self.n_changepoints):
                 ax.axvline(
                     max_value * i / (self.n_changepoints - 1),
