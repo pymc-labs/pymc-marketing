@@ -19,6 +19,7 @@ from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     DelayedAdstock,
     GeometricAdstock,
+    NoAdstock,
     WeibullCDFAdstock,
     WeibullPDFAdstock,
     adstock_from_dict,
@@ -29,6 +30,7 @@ from pymc_marketing.mmm.components.saturation import (
     InverseScaledLogisticSaturation,
     LogisticSaturation,
     MichaelisMentenSaturation,
+    NoSaturation,
     RootSaturation,
     SaturationTransformation,
     TanhSaturation,
@@ -48,6 +50,7 @@ from pymc_marketing.mmm.hsgp import (
     create_eta_prior,
     create_m_and_L_recommendations,
 )
+from pymc_marketing.mmm.linear_regression import FancyLinearRegression
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import (
     MediaConfig,
@@ -68,6 +71,7 @@ __all__ = [
     "BaseValidateMMM",
     "CovFunc",
     "DelayedAdstock",
+    "FancyLinearRegression",
     "GeometricAdstock",
     "HSGPPeriodic",
     "HillSaturation",
@@ -81,6 +85,8 @@ __all__ = [
     "MediaTransformation",
     "MichaelisMentenSaturation",
     "MonthlyFourier",
+    "NoAdstock",
+    "NoSaturation",
     "PeriodicCovFunc",
     "RootSaturation",
     "SaturationTransformation",

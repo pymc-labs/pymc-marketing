@@ -433,7 +433,8 @@ def _plot_across_coord(
 
 def plot_hdi(
     curve: xr.DataArray,
-    non_grid_names: set[str],
+    non_grid_names: str | set[str],
+    hdi_prob: float | None = None,
     hdi_kwargs: dict | None = None,
     subplot_kwargs: dict[str, Any] | None = None,
     plot_kwargs: dict[str, Any] | None = None,
@@ -449,7 +450,7 @@ def plot_hdi(
     ----------
     curve : xr.DataArray
         Curve to plot
-    non_grid_names : set[str]
+    non_grid_names : str | set[str]
         The names to exclude from the grid. chain and draw are
         excluded automatically
     n : int, optional
@@ -469,9 +470,14 @@ def plot_hdi(
         Figure and the axes
 
     """
-    get_plot_data = _create_get_hdi_plot_data(hdi_kwargs or {})
+    hdi_kwargs = hdi_kwargs or {}
+    hdi_kwargs = {**dict(hdi_prob=hdi_prob), **hdi_kwargs}
+    get_plot_data = _create_get_hdi_plot_data(hdi_kwargs)
     make_selection = _make_hdi_selection
     plot_selection = _plot_hdi_selection
+
+    if isinstance(non_grid_names, str):
+        non_grid_names = {non_grid_names}
 
     plot_kwargs = plot_kwargs or {}
     plot_kwargs = {**{"alpha": 0.25}, **plot_kwargs}
@@ -496,7 +502,7 @@ def plot_hdi(
 
 def plot_samples(
     curve: xr.DataArray,
-    non_grid_names: set[str],
+    non_grid_names: str | set[str],
     n: int = 10,
     rng: np.random.Generator | None = None,
     axes: npt.NDArray[Axes] | None = None,
@@ -513,7 +519,7 @@ def plot_samples(
     ----------
     curve : xr.DataArray
         Curve to plot
-    non_grid_names : set[str]
+    non_grid_names : str | set[str]
         The names to exclude from the grid. chain and draw are
         excluded automatically
     n : int, optional
@@ -536,6 +542,9 @@ def plot_samples(
 
     """
     get_plot_data = _get_sample_plot_data
+
+    if isinstance(non_grid_names, str):
+        non_grid_names = {non_grid_names}
 
     n_chains = curve.sizes["chain"]
     n_draws = curve.sizes["draw"]
@@ -573,7 +582,10 @@ def plot_samples(
 
 def plot_curve(
     curve: xr.DataArray,
-    non_grid_names: set[str],
+    non_grid_names: str | set[str],
+    n_samples: int = 10,
+    hdi_probs: float | list[float] | None = None,
+    random_seed: np.random.Generator | None = None,
     subplot_kwargs: dict | None = None,
     sample_kwargs: dict | None = None,
     hdi_kwargs: dict | None = None,
@@ -589,9 +601,17 @@ def plot_curve(
     ----------
     curve : xr.DataArray
         Curve to plot
-    non_grid_names : set[str]
+    non_grid_names : str | set[str]
         The names to exclude from the grid. HDI and samples both
         have defaults of hdi and chain, draw, respectively
+    n_samples : int, optional
+        Number of samples
+    hdi_probs : float | list[float], optional
+        HDI probabilities. Defaults to None which uses arviz default for
+        stats.ci_prob which is 94%
+    random_seed : np.random.Generator, optional
+        Random number generator. Defaults to None which uses
+        np.random.default_rng()
     subplot_kwargs : dict, optional
         Additional kwargs to while creating the fig and axes
     sample_kwargs : dict, optional
@@ -654,9 +674,26 @@ def plot_curve(
 
         fig, axes = plot_curve(
             curve,
-            non_grid_names={"date"},
+            "date",
             subplot_kwargs={"figsize": (15, 5)},
+            random_seed=rng,
         )
+        plt.show()
+
+    Choose the HDI intervals and number of samples
+
+    .. plot::
+        :include-source: True
+        :context: reset
+
+        fig, axes = plot_curve(
+            curve,
+            "date",
+            n_samples=3,
+            hdi_probs=[0.5, 0.95],
+            random_seed=rng,
+        )
+        fig.suptitle("Same data but fewer lines and more HDIs")
         plt.show()
 
     Plot same curve on same axes with custom colors
@@ -668,9 +705,10 @@ def plot_curve(
         colors = ["red", "blue"]
         fig, axes = plot_curve(
             curve,
-            non_grid_names={"date"},
+            "date",
             same_axes=True,
             colors=colors,
+            random_seed=rng,
         )
         axes[0].set(title="Same data but on same axes and custom colors")
         plt.show()
@@ -678,8 +716,14 @@ def plot_curve(
     """
     curve = drop_scalar_coords(curve)
 
+    hdi_probs = hdi_probs or None
+    if not isinstance(hdi_probs, list):
+        hdi_probs = [hdi_probs]  # type: ignore
+
     hdi_kwargs = hdi_kwargs or {}
     sample_kwargs = sample_kwargs or {}
+
+    sample_kwargs = {**dict(n=n_samples, rng=random_seed), **sample_kwargs}
 
     if "subplot_kwargs" not in sample_kwargs:
         sample_kwargs["subplot_kwargs"] = subplot_kwargs
@@ -706,11 +750,13 @@ def plot_curve(
         non_grid_names=non_grid_names,
         **sample_kwargs,
     )
-    fig, axes = plot_hdi(
-        curve,
-        non_grid_names=non_grid_names,
-        axes=axes,
-        **hdi_kwargs,
-    )
+    for hdi_prob in hdi_probs:
+        fig, axes = plot_hdi(
+            curve,
+            hdi_prob=hdi_prob,
+            non_grid_names=non_grid_names,
+            axes=axes,
+            **hdi_kwargs,
+        )
 
     return fig, axes
