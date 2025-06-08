@@ -78,7 +78,7 @@ class LinearTrend(BaseModel):
 
     .. math::
 
-        f(t) = k + \sum_{m=1}^{M} \delta_m I(t > s_m)
+        f(t) = k + \sum_{m=0}^{M-1} \delta_m I(t > s_m)
 
     where:
 
@@ -91,9 +91,9 @@ class LinearTrend(BaseModel):
 
     .. math::
 
-            s_m = \frac{m}{M+1} \max(t)
+            s_m = \frac{m}{M-1} \max(t), 0 \le m \le M-1
 
-    where :math:`M` is the number of change points.
+    where :math:`M` is the number of change points (:math:`M>1`).
 
     The priors for the trend parameters are:
 
@@ -484,10 +484,9 @@ class LinearTrend(BaseModel):
         max_value = curve.coords["t"].max().item()
 
         for ax in np.ravel(axes):
-            for i in range(1, self.n_changepoints + 1):
-                # Need to add 1 to the number of changepoints
+            for i in range(0, self.n_changepoints):
                 ax.axvline(
-                    max_value * i / (self.n_changepoints + 1),
+                    max_value * i / (self.n_changepoints - 1),
                     color="gray",
                     linestyle="--",
                 )

@@ -19,7 +19,7 @@ import json
 import warnings
 from collections.abc import Sequence
 from copy import deepcopy
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import arviz as az
 import numpy as np
@@ -28,6 +28,7 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
+from pydantic import Field, InstanceOf, validate_call
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
 from scipy.optimize import OptimizeResult
@@ -109,22 +110,59 @@ class MMM(ModelBuilder):
     _model_type: str = "MMMM (Multi-Dimensional Marketing Mix Model)"
     version: str = "0.0.1"
 
+    @validate_call
     def __init__(
         self,
-        date_column: str,
-        channel_columns: list[str],
-        target_column: str,
-        adstock: AdstockTransformation,
-        saturation: SaturationTransformation,
-        time_varying_intercept: bool = False,
-        time_varying_media: bool = False,
-        dims: tuple | None = None,
-        scaling: Scaling | dict | None = None,
-        model_config: dict | None = None,  # Ensure model_config is a dictionary
-        sampler_config: dict | None = None,
-        control_columns: list[str] | None = None,
-        yearly_seasonality: int | None = None,
-        adstock_first: bool = True,
+        date_column: str = Field(..., description="Column name of the date variable."),
+        channel_columns: list[str] = Field(
+            min_length=1, description="Column names of the media channel variables."
+        ),
+        target_column: str = Field(..., description="The name of the target column."),
+        adstock: InstanceOf[AdstockTransformation] = Field(
+            ..., description="Type of adstock transformation to apply."
+        ),
+        saturation: InstanceOf[SaturationTransformation] = Field(
+            ...,
+            description="The saturation transformation to apply to the channel data.",
+        ),
+        time_varying_intercept: Annotated[
+            bool,
+            Field(strict=True, description="Whether to use a time-varying intercept"),
+        ] = False,
+        time_varying_media: Annotated[
+            bool,
+            Field(strict=True, description="Whether to use time-varying media effects"),
+        ] = False,
+        dims: tuple[str, ...] | None = Field(
+            None, description="Additional dimensions for the model."
+        ),
+        scaling: InstanceOf[Scaling] | dict | None = Field(
+            None, description="Scaling configuration for the model."
+        ),
+        model_config: dict | None = Field(
+            None, description="Configuration settings for the model."
+        ),
+        sampler_config: dict | None = Field(
+            None, description="Configuration settings for the sampler."
+        ),
+        control_columns: Annotated[
+            list[str] | None,
+            Field(
+                min_length=1,
+                description="A list of control variables to include in the model.",
+            ),
+        ] = None,
+        yearly_seasonality: Annotated[
+            int | None,
+            Field(
+                gt=0,
+                description="The number of yearly seasonalities to include in the model.",
+            ),
+        ] = None,
+        adstock_first: Annotated[
+            bool,
+            Field(strict=True, description="Apply adstock before saturation?"),
+        ] = True,
     ) -> None:
         """Define the constructor method."""
         # Your existing initialization logic
