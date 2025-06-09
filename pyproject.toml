@@ -31,8 +31,8 @@ dependencies = [
     "pandas",
     "pydantic>=2.1.0",
     # NOTE: Used as minimum pymc version with test.yml `OLDEST_PYMC_VERSION`
-    "pymc>=5.22.0,<5.23.0",
-    "pytensor>=2.30.3",
+    "pymc>=5.23.0",
+    "pytensor>=2.31.3",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "xarray>=2024.1.0",
