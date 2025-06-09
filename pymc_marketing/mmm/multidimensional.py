@@ -1463,26 +1463,29 @@ class MMM(ModelBuilder):
             )
 
             model = MMM(
-                date_column="date_week",
+                date_column="date",
                 channel_columns=["x1", "x2"],
-                dims=("geo",),
+                target_column = "target",
                 adstock=GeometricAdstock(l_max=8),
                 saturation=LogisticSaturation(),
-                control_columns=[
-                    "event_1",
-                    "event_2",
-                ],
                 yearly_seasonality=2,
+                dims=("geo",),
             )
 
-            X: pd.DataFrame = ...
-            y: np.ndarray = ...
+            X = pd.DataFrame({
+                "date": np.tile(pd.date_range(start="2025-01-01", end="2025-05-01", freq="W"), 2),
+                "x1": np.random.rand(34),
+                "x2": np.random.rand(34),
+                "target": np.random.rand(34),
+                "geo": 17 * ["FIN"] + 17 * ["SWE"]
+            })
+            y = X["target"]
 
-            model.build_model(X, y)
+            model.build_model(X.drop(columns=["target"]), y)
 
             df_lift_test = pd.DataFrame({
                 "channel": ["x1", "x1"],
-                "geo": ["geo_a", "geo_b"],
+                "geo": ["FIN", "SWE"],
                 "x": [1, 1],
                 "delta_x": [0.1, 0.2],
                 "delta_y": [0.1, 0.1],
