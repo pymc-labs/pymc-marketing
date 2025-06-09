@@ -1494,11 +1494,12 @@ class MMM(ModelBuilder):
             import pandas as pd
             import numpy as np
 
-            from pymc_marketing.multidimensional import (
+            from pymc_marketing.mmm import (
                 GeometricAdstock,
-                LogisticSaturation,
-                MMM,
+                LogisticSaturation
             )
+
+            from pymc_marketing.mmm.multidimensional import MMM
 
             model = MMM(
                 date_column="date",
