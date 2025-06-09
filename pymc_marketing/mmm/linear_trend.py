@@ -284,6 +284,24 @@ class LinearTrend(BaseModel):
 
         return priors
 
+    @property
+    def non_broadcastable_dims(self) -> tuple[str, ...]:
+        """Get the dimensions of the trend that are not just broadcastable.
+
+        Returns
+        -------
+        tuple[str, ...]
+            Tuple with the dimensions of the trend.
+
+        """
+        dims = set()
+        for prior in self.priors.values():
+            dims.update(prior.dims)
+
+        dims = dims.difference({"changepoint"})
+
+        return tuple(dim for dim in cast(tuple[str, ...], self.dims) if dim in dims)
+
     def apply(self, t: pt.TensorLike) -> TensorVariable:
         """Create the linear trend for the given x values.
 
