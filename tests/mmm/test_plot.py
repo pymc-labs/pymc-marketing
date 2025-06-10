@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -18,7 +20,10 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.multidimensional import MMM
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", FutureWarning)
+    from pymc_marketing.mmm.multidimensional import MMM
 
 
 @pytest.fixture
