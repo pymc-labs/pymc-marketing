@@ -184,14 +184,21 @@ def linear_trend_model(dates) -> pm.Model:
 
 
 @pytest.mark.parametrize(
-    "mmm_dims, priors, linear_trend_dims",
+    "mmm_dims, priors, linear_trend_dims, deterministic_dims",
     [
-        pytest.param((), None, (), id="scalar"),
-        pytest.param(("geo", "product"), None, ("geo", "product"), id="2d"),
+        pytest.param((), {}, (), ("date",), id="scalar"),
+        pytest.param(
+            ("geo", "product"),
+            {},
+            ("geo", "product"),
+            ("date", None, None),
+            id="2d",
+        ),
         pytest.param(
             ("geo", "product"),
             {"delta": Prior("Normal", dims=("geo", "changepoint"))},
             ("geo", "product"),
+            ("date", None, None),
             id="missing-product-dim-in-delta",
         ),
     ],
@@ -203,6 +210,7 @@ def test_linear_trend_effect(
     mmm_dims,
     priors,
     linear_trend_dims,
+    deterministic_dims,
 ) -> None:
     prefix = "linear_trend"
     effect = LinearTrendEffect(
@@ -222,7 +230,11 @@ def test_linear_trend_effect(
     assert effect.linear_trend_first_date == mmm.model.coords["date"][0]
 
     with mmm.model:
-        pm.Deterministic("effect", effect.create_effect(mmm), dims=("date", *mmm.dims))
+        pm.Deterministic(
+            "effect",
+            effect.create_effect(mmm),
+            dims=deterministic_dims,
+        )
 
     assert set(mmm.model.named_vars) == {
         "delta",
