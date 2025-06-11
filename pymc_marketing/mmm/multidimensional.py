@@ -868,20 +868,32 @@ class MMM(ModelBuilder):
         >>> )
         """
         self._validate_model_was_built()
+        target_dims = self.scalers._target.dims
         with self.model:
             for v in var:
                 self._validate_contribution_variable(v)
-                dims = self.model.named_vars_to_dims[v]
-                dim_handler = create_dim_handler(dims)
+                var_dims = self.model.named_vars_to_dims[v]
+                mmm_dims_order = ("date", *self.dims)
+                if "channel" in v:
+                    mmm_dims_order += ("channel",)
+
+                deterministic_dims = tuple(
+                    [
+                        dim
+                        for dim in mmm_dims_order
+                        if dim in set(target_dims).union(var_dims)
+                    ]
+                )
+                dim_handler = create_dim_handler(deterministic_dims)
 
                 pm.Deterministic(
                     name=v + "_original_scale",
-                    var=self.model[v]
+                    var=dim_handler(self.model[v], var_dims)
                     * dim_handler(
                         self.model["target_scale"],
-                        self.scalers._target.dims,
+                        target_dims,
                     ),
-                    dims=dims,
+                    dims=deterministic_dims,
                 )
 
     def build_model(
