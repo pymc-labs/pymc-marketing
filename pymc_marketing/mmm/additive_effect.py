@@ -292,7 +292,7 @@ class LinearTrendEffect:
         trend_dims = ("date", *self.trend.dims)  # type: ignore
         trend_non_broadcastable_dims = ("date", *self.trend.non_broadcastable_dims)
         trend_effect = pm.Deterministic(
-            f"{self.prefix}_effect",
+            f"{self.prefix}_effect_contribution",
             trend_effect[create_index(trend_dims, trend_non_broadcastable_dims)],
             dims=trend_non_broadcastable_dims,
         )

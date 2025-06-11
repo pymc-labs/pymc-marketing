@@ -239,7 +239,7 @@ def test_linear_trend_effect(
     assert set(mmm.model.named_vars) == {
         "delta",
         "effect",
-        f"{prefix}_effect",
+        f"{prefix}_effect_contribution",
         f"{prefix}_t",
     }
     assert set(mmm.model.coords) == {"date", "changepoint"}.union(linear_trend_dims)
