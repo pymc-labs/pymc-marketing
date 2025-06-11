@@ -874,8 +874,11 @@ class MMM(ModelBuilder):
                 self._validate_contribution_variable(v)
                 var_dims = self.model.named_vars_to_dims[v]
                 mmm_dims_order = ("date", *self.dims)
-                if "channel" in v:
+
+                if v == "channel_contribution":
                     mmm_dims_order += ("channel",)
+                elif v == "control_contribuition":
+                    mmm_dims_order += ("control",)
 
                 deterministic_dims = tuple(
                     [
