@@ -877,7 +877,7 @@ class MMM(ModelBuilder):
 
                 if v == "channel_contribution":
                     mmm_dims_order += ("channel",)
-                elif v == "control_contribuition":
+                elif v == "control_contribution":
                     mmm_dims_order += ("control",)
 
                 deterministic_dims = tuple(
