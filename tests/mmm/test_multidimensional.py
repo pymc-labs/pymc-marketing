@@ -25,8 +25,9 @@ from pytensor.tensor.basic import TensorVariable
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.additive_effect import EventAdditiveEffect
+from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, LinearTrendEffect
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis
+from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.multidimensional import (
     MMM,
     MultiDimensionalBudgetOptimizerWrapper,
@@ -1045,3 +1046,51 @@ class TestPydanticValidation:
         error_msg = str(exc_info.value)
         assert "channel_columns" in error_msg
         assert "list" in error_msg.lower()
+
+
+def test_mmm_linear_trend_different_dimensions_original_scale(
+    multi_dim_data,
+) -> None:
+    X, y = multi_dim_data
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        scaling={"target": {"method": "max", "dims": ()}},
+    )
+    trend = LinearTrend(
+        n_changepoints=2,
+        include_intercept=False,
+        priors={
+            "delta": Prior("Normal", dims="changepoint"),
+        },
+        dims=("geo",),
+    )
+
+    # Create the wrapper
+    trend_effect = LinearTrendEffect(trend=trend, prefix="trend")
+    mmm.mu_effects.append(trend_effect)
+
+    mmm.build_model(X, y)
+
+    mmm.add_original_scale_contribution_variable(var=["trend_effect_contribution"])
+
+    mmm.sample_prior_predictive(
+        X,
+        var_names=["trend_effect_contribution_original_scale", "y"],
+    )
+
+    prior = mmm.prior
+    variable = prior.trend_effect_contribution_original_scale
+
+    assert variable.dims == ("chain", "draw", "date", "country")
+    assert variable.sizes == {
+        "chain": 1,
+        "draw": 500,
+        "date": 7,
+        "country": 3,
+    }
