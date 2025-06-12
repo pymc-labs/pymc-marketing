@@ -515,7 +515,7 @@ def scale_channel_lift_measurements(
     channel_col: str,
     channel_columns: list[str],
     transform: Callable[[np.ndarray], np.ndarray],
-    dim_cols=None,
+    dim_cols: list[str] | None = None,
 ) -> pd.DataFrame:
     """Scale the lift measurements for a specific channel.
 
@@ -606,7 +606,7 @@ def scale_lift_measurements(
     channel_columns: list[str | int],
     channel_transform: Callable[[np.ndarray], np.ndarray],
     target_transform: Callable[[np.ndarray], np.ndarray],
-    dim_cols=None,
+    dim_cols: list[str] | None = None,
 ) -> pd.DataFrame:
     """Scale the DataFrame with lift test results to be used in the model.
 
