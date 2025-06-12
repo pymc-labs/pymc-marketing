@@ -292,7 +292,7 @@ class LinearTrend(BaseModel):
         Parameters
         ----------
         t : pt.TensorLike
-            # 1D array of strictly increasing time values for the trend starting from 0.
+            1D array of strictly increasing time values for the trend starting from 0.
 
         Returns
         -------
