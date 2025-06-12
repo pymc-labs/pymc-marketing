@@ -810,7 +810,26 @@ def df_lift_test() -> pd.DataFrame:
     )
 
 
-def test_add_lift_test_measurements(multi_dim_data, df_lift_test) -> None:
+@pytest.mark.parametrize(
+    "target_scaling_dims",
+    [
+        pytest.param(("country",), id="through-country (default)"),
+        pytest.param((), id="by-country"),
+    ],
+)
+@pytest.mark.parametrize(
+    "channel_scaling_dims",
+    [
+        pytest.param(("country",), id="through-country (default)"),
+        pytest.param((), id="by-country"),
+    ],
+)
+def test_add_lift_test_measurements(
+    multi_dim_data,
+    df_lift_test,
+    target_scaling_dims,
+    channel_scaling_dims,
+) -> None:
     X, y = multi_dim_data
     mmm = MMM(
         adstock=GeometricAdstock(l_max=2),
@@ -818,6 +837,10 @@ def test_add_lift_test_measurements(multi_dim_data, df_lift_test) -> None:
         date_column="date",
         target_column="target",
         channel_columns=["channel_1", "channel_2", "channel_3"],
+        scaling=Scaling(
+            channel=VariableScaling(method="max", dims=channel_scaling_dims),
+            target=VariableScaling(method="max", dims=target_scaling_dims),
+        ),
         dims=("country",),
     )
     mmm.build_model(X, y)
