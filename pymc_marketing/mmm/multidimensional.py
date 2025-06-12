@@ -1554,7 +1554,7 @@ class MMM(ModelBuilder):
         def target_transform(target):
             return target / self.scalers._target.to_numpy()
 
-        # Define a channel transformer from the channel scalker.
+        # Define a channel transformer from the channel scaler.
         def channel_transform(channels):
             return (
                 channels
