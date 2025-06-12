@@ -82,7 +82,7 @@ class LinearTrend(BaseModel):
 
     where:
 
-    - :math:`0 \le t \le T`,
+    - :math:`t \ge 0`,
     - :math:`k` is the base intercept,
     - :math:`\delta_m` is the change in the trend at change point :math:`m`,
     - :math:`I` is the indicator function,
@@ -94,7 +94,8 @@ class LinearTrend(BaseModel):
 
             s_m = \frac{m}{M-1} T, 0 \le m \le M-1
 
-    where :math:`M` is the number of change points (:math:`M>1`).
+    where :math:`M` is the number of change points (:math:`M>1`)
+    and :math:`T` is the time of the last observed data point.
 
     The priors for the trend parameters are:
 
@@ -277,7 +278,7 @@ class LinearTrend(BaseModel):
                 "Laplace",
                 mu=0,
                 b=0.25,
-                dims=tuple(d for d in {"changepoint"}.union(cast(Dims, self.dims))),
+                dims="changepoint",
             ),
         }
         if self.include_intercept:
