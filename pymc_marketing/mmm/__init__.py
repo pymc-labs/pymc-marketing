@@ -62,6 +62,7 @@ from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
 )
+from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.validating import validation_method_X, validation_method_y
 
 __all__ = [
@@ -90,6 +91,7 @@ __all__ = [
     "PeriodicCovFunc",
     "RootSaturation",
     "SaturationTransformation",
+    "SensitivityAnalysis",
     "SoftPlusHSGP",
     "TanhSaturation",
     "TanhSaturationBaselined",
