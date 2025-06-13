@@ -11,14 +11,23 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import warnings
+
+import arviz as az
 import numpy as np
 import pandas as pd
 import pytest
+import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.multidimensional import MMM
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", FutureWarning)
+    from pymc_marketing.mmm.multidimensional import MMM
+
+from pymc_marketing.mmm.plot import MMMPlotSuite
 
 
 @pytest.fixture
@@ -127,6 +136,59 @@ def test_posterior_predictive(fit_mmm_with_channel_original_scale, df):
     fig, ax = fit_mmm_with_channel_original_scale.plot.posterior_predictive(
         hdi_prob=0.95,
     )
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, np.ndarray)
+    assert all(isinstance(a, Axes) for a in ax.flat)
+
+
+@pytest.fixture(scope="module")
+def mock_idata() -> az.InferenceData:
+    seed = sum(map(ord, "Fake posterior"))
+    rng = np.random.default_rng(seed)
+    normal = rng.normal
+
+    dates = pd.date_range("2025-01-01", periods=52, freq="W-MON")
+    return az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "intercept": xr.DataArray(
+                    normal(size=(4, 100, 52, 3)),
+                    dims=("chain", "draw", "date", "country"),
+                    coords={
+                        "chain": np.arange(4),
+                        "draw": np.arange(100),
+                        "date": dates,
+                        "country": ["A", "B", "C"],
+                    },
+                ),
+                "linear_trend": xr.DataArray(
+                    normal(size=(4, 100, 52)),
+                    dims=("chain", "draw", "date"),
+                    coords={
+                        "chain": np.arange(4),
+                        "draw": np.arange(100),
+                        "date": dates,
+                    },
+                ),
+            }
+        )
+    )
+
+
+@pytest.fixture(scope="module")
+def mock_suite(mock_idata):
+    """Fixture to create a mock MMMPlotSuite with a mocked posterior."""
+    return MMMPlotSuite(idata=mock_idata)
+
+
+def test_contributions_over_time_expand_dims(mock_suite: MMMPlotSuite):
+    fig, ax = mock_suite.contributions_over_time(
+        var=[
+            "intercept",
+            "linear_trend",
+        ]
+    )
+
     assert isinstance(fig, Figure)
     assert isinstance(ax, np.ndarray)
     assert all(isinstance(a, Axes) for a in ax.flat)

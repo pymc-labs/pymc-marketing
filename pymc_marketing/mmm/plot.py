@@ -302,6 +302,11 @@ class MMMPlotSuite:
         ignored_dims = {"chain", "draw", "date"}
         additional_dims = [d for d in all_dims if d not in ignored_dims]
 
+        coords = {
+            key: value.to_numpy()
+            for key, value in self.idata.posterior[var].coords.items()
+        }
+
         # Identify combos
         if additional_dims:
             additional_coords = [
@@ -326,7 +331,12 @@ class MMMPlotSuite:
 
             # Plot posterior median and HDI for each var
             for v in var:
-                data = self.idata.posterior[v].sel(**indexers)  # type: ignore
+                data = self.idata.posterior[v]
+                missing_coords = {
+                    key: value for key, value in coords.items() if key not in data.dims
+                }
+                data = data.expand_dims(**missing_coords)
+                data = data.sel(**indexers)  # type: ignore
                 data = self._reduce_and_stack(
                     data, dims_to_ignore={"date", "chain", "draw", "sample"}
                 )
