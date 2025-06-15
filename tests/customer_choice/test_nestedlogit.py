@@ -148,7 +148,7 @@ def test_preprocess_model_data_sets_attributes(nstL, sample_df, utility_eqs):
     assert hasattr(nstL, "coords")
 
     # Check X, F, y shapes match the data
-    assert nstL.X.shape[0] == sample_df.shape[0]
+    assert nstL.X_data.shape[0] == sample_df.shape[0]
     assert nstL.y.shape[0] == sample_df.shape[0]
 
     # Check that nest_indices has 'top' and maybe 'mid'
