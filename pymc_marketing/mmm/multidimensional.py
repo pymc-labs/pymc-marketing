@@ -1543,6 +1543,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         utility_function: UtilityFunctionType = average_response,
         constraints: Sequence[dict[str, Any]] = (),
         default_constraints: bool = True,
+        budgets_to_optimize: xr.DataArray | None = None,
         **minimize_kwargs,
     ) -> tuple[xr.DataArray, OptimizeResult]:
         """Optimize the budget allocation for the model."""
@@ -1554,6 +1555,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             response_variable=response_variable,
             custom_constraints=constraints,
             default_constraints=default_constraints,
+            budgets_to_optimize=budgets_to_optimize,
             model=self,  # Pass the wrapper instance itself to the BudgetOptimizer
         )
 
