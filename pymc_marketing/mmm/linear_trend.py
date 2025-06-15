@@ -82,6 +82,7 @@ class LinearTrend(BaseModel):
 
     where:
 
+    - :math:`t \ge 0`,
     - :math:`k` is the base intercept,
     - :math:`\delta_m` is the change in the trend at change point :math:`m`,
     - :math:`I` is the indicator function,
@@ -91,9 +92,10 @@ class LinearTrend(BaseModel):
 
     .. math::
 
-            s_m = \frac{m}{M-1} \max(t), 0 \le m \le M-1
+            s_m = \frac{m}{M-1} T, 0 \le m \le M-1
 
-    where :math:`M` is the number of change points (:math:`M>1`).
+    where :math:`M` is the number of change points (:math:`M>1`)
+    and :math:`T` is the time of the last observed data point.
 
     The priors for the trend parameters are:
 
@@ -284,13 +286,31 @@ class LinearTrend(BaseModel):
 
         return priors
 
+    @property
+    def non_broadcastable_dims(self) -> tuple[str, ...]:
+        """Get the dimensions of the trend that are not just broadcastable.
+
+        Returns
+        -------
+        tuple[str, ...]
+            Tuple with the dimensions of the trend.
+
+        """
+        dims = set()
+        for prior in self.priors.values():
+            dims.update(prior.dims)
+
+        dims = dims.difference({"changepoint"})
+
+        return tuple(dim for dim in cast(tuple[str, ...], self.dims) if dim in dims)
+
     def apply(self, t: pt.TensorLike) -> TensorVariable:
         """Create the linear trend for the given x values.
 
         Parameters
         ----------
         t : pt.TensorLike
-            Input values for the trend.
+            1D array of strictly increasing time values for the trend starting from 0.
 
         Returns
         -------
