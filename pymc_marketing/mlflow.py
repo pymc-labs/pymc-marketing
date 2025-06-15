@@ -29,7 +29,7 @@ are patched:
     - :func:`log_sample_diagnostics`: Log information derived from the InferenceData object.
     - :func:`log_arviz_summary`: Log table of summary statistics about estimated parameters
     - :func:`log_metadata`: Log the metadata of the data used in the model.
-    - :func:`log_error`: Log the exception if an error occurs during sampling.
+    - :func:`log_error`: Log the traceback and exception if an error occurs during sampling.
 - `pymc.find_MAP`:
     - :func:`log_model_derived_info`: Log types of parameters, coords, model graph, etc.
 - `MMM.fit`:
@@ -143,6 +143,7 @@ Autologging for a PyMC-Marketing CLV model:
 import logging
 import os
 import tempfile
+import traceback
 import warnings
 from collections.abc import Callable
 from functools import wraps
@@ -659,7 +660,7 @@ def log_mmm_evaluation_metrics(
 
 
 class MMMWrapper(mlflow.pyfunc.PythonModel):
-    """A class to prepare a PyMC Marketing Mix Model (MMM) for logging and registering in MLflow.
+    """A class to prepare a PyMC-Marketing Mix Model (MMM) for logging and registering in MLflow.
 
     This class extends MLflow's PythonModel to handle prediction tasks using a PyMC-based MMM.
     It supports several prediction methods, including point-prediction, posterior and prior predictive sampling.
@@ -981,7 +982,7 @@ def log_mmm_configuration(mmm: MMM) -> None:
 
 
 def log_error(func: Callable, file_name: str):
-    """Log arbitrary caught error of function to MLflow.
+    """Log arbitrary caught error and traceback to MLflow.
 
     .. note::
 
@@ -1021,7 +1022,8 @@ def log_error(func: Callable, file_name: str):
         except Exception as e:
             with tempfile.TemporaryDirectory() as tmp_dir:
                 path = Path(tmp_dir) / file_name
-                path.write_text(str(e))
+                with path.open("w") as f:
+                    traceback.print_exc(file=f)
 
                 mlflow.log_artifact(str(path))
             raise e

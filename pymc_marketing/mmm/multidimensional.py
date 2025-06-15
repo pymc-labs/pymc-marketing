@@ -17,8 +17,9 @@ from __future__ import annotations
 
 import json
 import warnings
+from collections.abc import Sequence
 from copy import deepcopy
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import arviz as az
 import numpy as np
@@ -27,11 +28,14 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
+from pydantic import Field, InstanceOf, validate_call
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
+from scipy.optimize import OptimizeResult
 
 from pymc_marketing.mmm import SoftPlusHSGP
-from pymc_marketing.mmm.additive_effect import MuEffect, create_event_mu_effect
+from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, MuEffect
+from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     adstock_from_dict,
@@ -45,6 +49,11 @@ from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.tvp import infer_time_index
+from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
+from pymc_marketing.mmm.utils import (
+    add_noise_to_channel_allocation,
+    create_zero_dataset,
+)
 from pymc_marketing.model_builder import ModelBuilder, _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
@@ -100,22 +109,59 @@ class MMM(ModelBuilder):
     _model_type: str = "MMMM (Multi-Dimensional Marketing Mix Model)"
     version: str = "0.0.1"
 
+    @validate_call
     def __init__(
         self,
-        date_column: str,
-        channel_columns: list[str],
-        target_column: str,
-        adstock: AdstockTransformation,
-        saturation: SaturationTransformation,
-        time_varying_intercept: bool = False,
-        time_varying_media: bool = False,
-        dims: tuple | None = None,
-        scaling: Scaling | dict | None = None,
-        model_config: dict | None = None,  # Ensure model_config is a dictionary
-        sampler_config: dict | None = None,
-        control_columns: list[str] | None = None,
-        yearly_seasonality: int | None = None,
-        adstock_first: bool = True,
+        date_column: str = Field(..., description="Column name of the date variable."),
+        channel_columns: list[str] = Field(
+            min_length=1, description="Column names of the media channel variables."
+        ),
+        target_column: str = Field(..., description="The name of the target column."),
+        adstock: InstanceOf[AdstockTransformation] = Field(
+            ..., description="Type of adstock transformation to apply."
+        ),
+        saturation: InstanceOf[SaturationTransformation] = Field(
+            ...,
+            description="The saturation transformation to apply to the channel data.",
+        ),
+        time_varying_intercept: Annotated[
+            bool,
+            Field(strict=True, description="Whether to use a time-varying intercept"),
+        ] = False,
+        time_varying_media: Annotated[
+            bool,
+            Field(strict=True, description="Whether to use time-varying media effects"),
+        ] = False,
+        dims: tuple[str, ...] | None = Field(
+            None, description="Additional dimensions for the model."
+        ),
+        scaling: InstanceOf[Scaling] | dict | None = Field(
+            None, description="Scaling configuration for the model."
+        ),
+        model_config: dict | None = Field(
+            None, description="Configuration settings for the model."
+        ),
+        sampler_config: dict | None = Field(
+            None, description="Configuration settings for the sampler."
+        ),
+        control_columns: Annotated[
+            list[str] | None,
+            Field(
+                min_length=1,
+                description="A list of control variables to include in the model.",
+            ),
+        ] = None,
+        yearly_seasonality: Annotated[
+            int | None,
+            Field(
+                gt=0,
+                description="The number of yearly seasonalities to include in the model.",
+            ),
+        ] = None,
+        adstock_first: Annotated[
+            bool,
+            Field(strict=True, description="Apply adstock before saturation?"),
+        ] = True,
     ) -> None:
         """Define the constructor method."""
         # Your existing initialization logic
@@ -239,7 +285,11 @@ class MMM(ModelBuilder):
                 f"Event effect dims {effect.dims} must contain {prefix} and {self.dims}"
             )
 
-        event_effect = create_event_mu_effect(df_events, prefix, effect)
+        event_effect = EventAdditiveEffect(
+            df_events=df_events,
+            prefix=prefix,
+            effect=effect,
+        )
         self.mu_effects.append(event_effect)
 
     @property
@@ -818,20 +868,35 @@ class MMM(ModelBuilder):
         >>> )
         """
         self._validate_model_was_built()
+        target_dims = self.scalers._target.dims
         with self.model:
             for v in var:
                 self._validate_contribution_variable(v)
-                dims = self.model.named_vars_to_dims[v]
-                dim_handler = create_dim_handler(dims)
+                var_dims = self.model.named_vars_to_dims[v]
+                mmm_dims_order = ("date", *self.dims)
+
+                if v == "channel_contribution":
+                    mmm_dims_order += ("channel",)
+                elif v == "control_contribution":
+                    mmm_dims_order += ("control",)
+
+                deterministic_dims = tuple(
+                    [
+                        dim
+                        for dim in mmm_dims_order
+                        if dim in set(target_dims).union(var_dims)
+                    ]
+                )
+                dim_handler = create_dim_handler(deterministic_dims)
 
                 pm.Deterministic(
                     name=v + "_original_scale",
-                    var=self.model[v]
+                    var=dim_handler(self.model[v], var_dims)
                     * dim_handler(
                         self.model["target_scale"],
-                        self.scalers._target.dims,
+                        target_dims,
                     ),
-                    dims=dims,
+                    dims=deterministic_dims,
                 )
 
     def build_model(
@@ -945,14 +1010,15 @@ class MMM(ModelBuilder):
             channel_data_.name = "channel_data_scaled"
             channel_data_.dims = ("date", *self.dims, "channel")
 
-            ## Hot fix for target data meanwhile pymc allows for internal scaling `https://github.com/pymc-devs/pymc/pull/7656`
             target_dim_handler = create_dim_handler(("date", *self.dims))
-            target_data_scaled = pm.Deterministic(
-                name="target_scaled",
-                var=_target
-                / target_dim_handler(_target_scale, self.scalers._target.dims),
-                dims=("date", *self.dims),
+
+            target_data_scaled = _target / target_dim_handler(
+                _target_scale, self.scalers._target.dims
             )
+            target_data_scaled.name = "target_scaled"
+            target_data_scaled.dims = ("date", *self.dims)
+            ## TODO: Find a better way to save it or access it in the pytensor graph.
+            self.target_data_scaled = target_data_scaled
 
             for mu_effect in self.mu_effects:
                 mu_effect.create_data(self)
@@ -1417,3 +1483,125 @@ def create_sample_kwargs(
     # Update with additional keyword arguments
     sampler_config.update(kwargs)
     return sampler_config
+
+
+class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
+    """Wrapper for the BudgetOptimizer to handle multi-dimensional model."""
+
+    def __init__(self, model: MMM, start_date: str, end_date: str):
+        self.model_class = model
+        self.start_date = start_date
+        self.end_date = end_date
+        # Compute the number of periods to allocate budget for
+        self.zero_data = create_zero_dataset(
+            model=self.model_class, start_date=start_date, end_date=end_date
+        )
+        self.num_periods = len(self.zero_data[self.model_class.date_column].unique())
+        # Adding missing dependencies for compatibility with BudgetOptimizer
+        self._channel_scales = 1.0
+
+    def __getattr__(self, name):
+        """Delegate attribute access to the wrapped MMM model."""
+        try:
+            # First, try to get the attribute from the wrapper itself
+            return object.__getattribute__(self, name)
+        except AttributeError:
+            # If not found, delegate to the wrapped model
+            try:
+                return getattr(self.model_class, name)
+            except AttributeError as e:
+                # Raise an AttributeError if the attribute is not found in either
+                raise AttributeError(
+                    f"'{type(self).__name__}' object and its wrapped 'MMM' object have no attribute '{name}'"
+                ) from e
+
+    def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
+        """Return the respective PyMC model with any predictors set for optimization."""
+        # Use the model's method for transformation
+        dataset_xarray = self._posterior_predictive_data_transformation(
+            X=self.zero_data,
+            include_last_observations=False,
+        )
+
+        # Use the model's method to set data
+        pymc_model = self._set_xarray_data(
+            dataset_xarray=dataset_xarray,
+            clone_model=True,  # Ensure we work on a clone
+        )
+
+        # Use the model's mu_effects and set data using the model instance
+        for mu_effect in self.mu_effects:
+            mu_effect.set_data(self, pymc_model, dataset_xarray)
+
+        return pymc_model
+
+    def optimize_budget(
+        self,
+        budget: float | int,
+        budget_bounds: xr.DataArray | dict[str, tuple[float, float]] | None = None,
+        response_variable: str = "total_media_contribution_original_scale",
+        utility_function: UtilityFunctionType = average_response,
+        constraints: Sequence[dict[str, Any]] = (),
+        default_constraints: bool = True,
+        **minimize_kwargs,
+    ) -> tuple[xr.DataArray, OptimizeResult]:
+        """Optimize the budget allocation for the model."""
+        from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+
+        allocator = BudgetOptimizer(
+            num_periods=self.num_periods,
+            utility_function=utility_function,
+            response_variable=response_variable,
+            custom_constraints=constraints,
+            default_constraints=default_constraints,
+            model=self,  # Pass the wrapper instance itself to the BudgetOptimizer
+        )
+
+        return allocator.allocate_budget(
+            total_budget=budget,
+            budget_bounds=budget_bounds,
+            **minimize_kwargs,
+        )
+
+    def sample_response_distribution(
+        self,
+        allocation_strategy: xr.DataArray,
+        noise_level: float = 0.001,
+    ) -> az.InferenceData:
+        """Generate synthetic dataset and sample posterior predictive based on allocation.
+
+        Parameters
+        ----------
+        allocation_strategy : DataArray
+            The allocation strategy for the channels.
+        noise_level : float
+            The relative level of noise to add to the data allocation.
+
+        Returns
+        -------
+        az.InferenceData
+            The posterior predictive samples based on the synthetic dataset.
+        """
+        data = create_zero_dataset(
+            model=self,
+            start_date=self.start_date,
+            end_date=self.end_date,
+            channel_xr=allocation_strategy.to_dataset(dim="channel"),
+        )
+
+        data_with_noise = add_noise_to_channel_allocation(
+            df=data,
+            channels=self.channel_columns,
+            rel_std=noise_level,
+            seed=42,
+        )
+
+        constant_data = allocation_strategy.to_dataset(name="allocation")
+
+        return self.sample_posterior_predictive(
+            X=data_with_noise,
+            extend_idata=False,
+            include_last_observations=True,
+            var_names=["y", "channel_contribution_original_scale"],
+            progressbar=False,
+        ).merge(constant_data)

@@ -19,14 +19,18 @@ import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
+from pydantic import ValidationError
 from pymc.model_graph import fast_eval
 from pytensor.tensor.basic import TensorVariable
+from scipy.optimize import OptimizeResult
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, LinearTrendEffect
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis
+from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.multidimensional import (
     MMM,
-    create_event_mu_effect,
+    MultiDimensionalBudgetOptimizerWrapper,
 )
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.prior import Prior
@@ -235,7 +239,7 @@ def test_fit(
 
         return data.unstack(name)
 
-    actual = mmm.model["target_scaled"].eval()
+    actual = mmm.target_data_scaled.eval()
     expected = (
         mmm.xarray_dataset._target.to_series()
         .pipe(normalization)
@@ -467,7 +471,11 @@ def test_create_effect_mu_effect(
     df_events,
     event_effect,
 ) -> None:
-    effect = create_event_mu_effect(df_events, prefix="holiday", effect=event_effect)
+    effect = EventAdditiveEffect(
+        df_events=df_events,
+        prefix="holiday",
+        effect=event_effect,
+    )
 
     with mock_mmm.model:
         effect.create_data(mock_mmm)
@@ -635,7 +643,7 @@ def test_different_target_scaling(method, multi_dim_data, mock_pymc_sample) -> N
 
     normalization = {"mean": mean, "max": max_abs}[method]
 
-    actual = mmm.model["target_scaled"].eval()
+    actual = mmm.target_data_scaled.eval()
     expected = (
         mmm.xarray_dataset._target.to_series()
         .unstack("country")
@@ -739,3 +747,350 @@ def test_scaling_dict_doesnt_mutate() -> None:
         target=VariableScaling(method="max", dims=dims),
         channel=VariableScaling(method="max", dims=dims),
     )
+
+
+def test_multidimensional_budget_optimizer_wrapper(fit_mmm, mock_pymc_sample):
+    """Test the MultiDimensionalBudgetOptimizerWrapper functionality."""
+    start_date = "2025-01-01"
+    end_date = "2025-01-31"
+
+    # Create the wrapper
+    optimizer = MultiDimensionalBudgetOptimizerWrapper(
+        model=fit_mmm, start_date=start_date, end_date=end_date
+    )
+
+    # Test basic attributes
+    assert hasattr(optimizer, "model_class")
+    assert hasattr(optimizer, "zero_data")
+    assert hasattr(optimizer, "num_periods")
+    assert optimizer.model_class == fit_mmm
+
+    # Test attribute delegation
+    assert optimizer.date_column == fit_mmm.date_column
+    assert optimizer.channel_columns == fit_mmm.channel_columns
+    assert optimizer.dims == fit_mmm.dims
+
+    # Create a budget bounds DataArray
+    budget = 1000
+    countries = fit_mmm.xarray_dataset.country.values
+    channels = fit_mmm.channel_columns
+    budget_bounds = xr.DataArray(
+        np.array([[[0, budget]] * len(channels)] * len(countries)),
+        coords=[countries, channels, ["low", "high"]],
+        dims=["country", "channel", "bound"],
+    )
+
+    # Run a real optimization
+    allocation_xarray, scipy_opt_result = optimizer.optimize_budget(
+        budget=budget, budget_bounds=budget_bounds
+    )
+
+    # Check the results
+    assert set(allocation_xarray.dims) == set(
+        (*fit_mmm.dims, "channel")
+    )  # Check dims excluding 'date'
+    assert allocation_xarray.shape == (
+        len(countries),
+        len(channels),
+    )  # Check shape based on dims
+    assert isinstance(scipy_opt_result, OptimizeResult)
+
+
+class TestPydanticValidation:
+    """Test suite specifically for Pydantic validation in multidimensional MMM."""
+
+    def test_empty_channel_columns_raises_validation_error(self):
+        """Test that empty channel_columns raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            MMM(
+                date_column="date",
+                channel_columns=[],  # Empty list should fail
+                target_column="target",
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
+            )
+
+        # Check that the error message mentions the constraint
+        error_msg = str(exc_info.value)
+        assert "at least 1 item" in error_msg or "min_length" in error_msg
+
+    def test_invalid_yearly_seasonality_raises_validation_error(self):
+        """Test that yearly_seasonality <= 0 raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            MMM(
+                date_column="date",
+                channel_columns=["channel_1"],
+                target_column="target",
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
+                yearly_seasonality=0,  # Should be > 0
+            )
+
+        error_msg = str(exc_info.value)
+        assert "greater than 0" in error_msg
+
+    def test_negative_yearly_seasonality_raises_validation_error(self):
+        """Test that negative yearly_seasonality raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            MMM(
+                date_column="date",
+                channel_columns=["channel_1"],
+                target_column="target",
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
+                yearly_seasonality=-1,
+            )
+
+        error_msg = str(exc_info.value)
+        assert "greater than 0" in error_msg
+
+    def test_invalid_adstock_type_raises_validation_error(self):
+        """Test that invalid adstock type raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            MMM(
+                date_column="date",
+                channel_columns=["channel_1"],
+                target_column="target",
+                adstock="not_an_adstock",  # Invalid type
+                saturation=LogisticSaturation(),
+            )
+
+        error_msg = str(exc_info.value)
+        assert "AdstockTransformation" in error_msg
+
+    def test_invalid_saturation_type_raises_validation_error(self):
+        """Test that invalid saturation type raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            MMM(
+                date_column="date",
+                channel_columns=["channel_1"],
+                target_column="target",
+                adstock=GeometricAdstock(l_max=8),
+                saturation="not_a_saturation",  # Invalid type
+            )
+
+        error_msg = str(exc_info.value)
+        assert "SaturationTransformation" in error_msg
+
+    def test_empty_control_columns_raises_validation_error(self):
+        """Test that empty control_columns list raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            MMM(
+                date_column="date",
+                channel_columns=["channel_1"],
+                target_column="target",
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
+                control_columns=[],  # Empty list should fail when not None
+            )
+
+        error_msg = str(exc_info.value)
+        assert "at least 1 item" in error_msg or "min_length" in error_msg
+
+    def test_invalid_scaling_type_raises_validation_error(self):
+        """Test that invalid scaling type raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            MMM(
+                date_column="date",
+                channel_columns=["channel_1"],
+                target_column="target",
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
+                scaling="invalid_scaling",  # Should be Scaling object or dict
+            )
+
+        error_msg = str(exc_info.value)
+        assert "Scaling" in error_msg or "dict" in error_msg
+
+    def test_valid_scaling_dict_accepted(self):
+        """Test that valid scaling dict is accepted and converted."""
+        scaling_dict = {
+            "channel": {"method": "max", "dims": ()},
+            "target": {"method": "max", "dims": ()},
+        }
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
+            scaling=scaling_dict,
+        )
+        assert isinstance(mmm.scaling, Scaling)
+        assert mmm.scaling.model_dump() == scaling_dict
+
+    def test_valid_scaling_object_accepted(self):
+        """Test that valid Scaling object is accepted."""
+        scaling_obj = Scaling(
+            target=VariableScaling(method="max", dims=()),
+            channel=VariableScaling(method="max", dims=()),
+        )
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
+            scaling=scaling_obj,
+        )
+        assert mmm.scaling == scaling_obj
+
+    def test_dims_type_validation(self):
+        """Test that dims validates as tuple of strings."""
+        # Valid dims
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
+            dims=("country", "product"),
+        )
+        assert mmm.dims == ("country", "product")
+
+        # Test with single dimension
+        mmm2 = MMM(
+            date_column="date",
+            channel_columns=["channel_1"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
+            dims=("country",),
+        )
+        assert mmm2.dims == ("country",)
+
+    def test_invalid_boolean_types_raise_validation_error(self):
+        """Test that non-boolean values for boolean fields raise ValidationError."""
+        with pytest.raises(ValidationError):
+            MMM(
+                date_column="date",
+                channel_columns=["channel_1"],
+                target_column="target",
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
+                time_varying_intercept="yes",  # Should be boolean
+            )
+
+    def test_missing_required_fields_raise_validation_error(self):
+        """Test that missing required fields raise ValidationError."""
+        # Missing date_column
+        with pytest.raises(ValidationError) as exc_info:
+            MMM(
+                channel_columns=["channel_1"],
+                target_column="target",
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
+            )
+        error_msg = str(exc_info.value)
+        assert "date_column" in error_msg
+
+        # Missing channel_columns
+        with pytest.raises(ValidationError) as exc_info:
+            MMM(
+                date_column="date",
+                target_column="target",
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
+            )
+        error_msg = str(exc_info.value)
+        assert "channel_columns" in error_msg
+
+    def test_all_parameters_with_valid_values(self):
+        """Test initialization with all parameters set to valid values."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="revenue",
+            adstock=GeometricAdstock(l_max=10),
+            saturation=LogisticSaturation(),
+            time_varying_intercept=True,
+            time_varying_media=True,
+            dims=("country", "product"),
+            scaling=Scaling(
+                target=VariableScaling(method="mean", dims=("country",)),
+                channel=VariableScaling(method="max", dims=("country", "channel")),
+            ),
+            model_config={"intercept": Prior("Normal", mu=0, sigma=2)},
+            sampler_config={"draws": 1000, "chains": 4},
+            control_columns=["holiday", "promotion"],
+            yearly_seasonality=4,
+            adstock_first=False,
+        )
+
+        # Verify all values were set correctly
+        assert mmm.date_column == "date"
+        assert mmm.channel_columns == ["channel_1", "channel_2", "channel_3"]
+        assert mmm.target_column == "revenue"
+        assert isinstance(mmm.adstock, GeometricAdstock)
+        assert isinstance(mmm.saturation, LogisticSaturation)
+        assert mmm.time_varying_intercept is True
+        assert mmm.time_varying_media is True
+        assert mmm.dims == ("country", "product")
+        assert isinstance(mmm.scaling, Scaling)
+        assert mmm.control_columns == ["holiday", "promotion"]
+        assert mmm.yearly_seasonality == 4
+        assert mmm.adstock_first is False
+
+    def test_validation_error_provides_helpful_messages(self):
+        """Test that validation errors provide clear, actionable messages."""
+        with pytest.raises(ValidationError) as exc_info:
+            MMM(
+                date_column="date",
+                channel_columns="not_a_list",  # Should be a list
+                target_column="target",
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
+            )
+
+        # The error should mention that channel_columns should be a list
+        error_msg = str(exc_info.value)
+        assert "channel_columns" in error_msg
+        assert "list" in error_msg.lower()
+
+
+def test_mmm_linear_trend_different_dimensions_original_scale(
+    multi_dim_data,
+) -> None:
+    X, y = multi_dim_data
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        scaling={"target": {"method": "max", "dims": ()}},
+    )
+    trend = LinearTrend(
+        n_changepoints=2,
+        include_intercept=False,
+        priors={
+            "delta": Prior("Normal", dims="changepoint"),
+        },
+        dims=("geo",),
+    )
+
+    # Create the wrapper
+    trend_effect = LinearTrendEffect(trend=trend, prefix="trend")
+    mmm.mu_effects.append(trend_effect)
+
+    mmm.build_model(X, y)
+
+    mmm.add_original_scale_contribution_variable(var=["trend_effect_contribution"])
+
+    mmm.sample_prior_predictive(
+        X,
+        var_names=["trend_effect_contribution_original_scale", "y"],
+    )
+
+    prior = mmm.prior
+    variable = prior.trend_effect_contribution_original_scale
+
+    assert variable.dims == ("chain", "draw", "date", "country")
+    assert variable.sizes == {
+        "chain": 1,
+        "draw": 500,
+        "date": 7,
+        "country": 3,
+    }

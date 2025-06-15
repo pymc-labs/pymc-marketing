@@ -1,3 +1,6 @@
+:::{title} PyMC-Marketing
+:::
+
 :::{image} _static/marketing-logo-dark.jpg
 :align: center
 :class: only-dark
@@ -20,7 +23,7 @@
 
 :::{image} _static/labs-logo-dark.png
 :align: center
-:target: https://www.pymc-labs.io
+:target: https://www.pymc-labs.com
 :scale: 20 %
 :alt: PyMC Labs logo
 :class: only-dark
@@ -28,7 +31,7 @@
 
 :::{image} _static/labs-logo-light.png
 :align: center
-:target: https://www.pymc-labs.io
+:target: https://www.pymc-labs.com
 :scale: 20 %
 :alt: PyMC Labs logo
 :class: only-light
@@ -189,7 +192,7 @@ See our example notebooks for [saturated markets](https://www.pymc-marketing.io/
 <h1 style="text-align: center;">Resources</h1>
 
 ### Bolt's success story with PyMC-Marketing
-**Checkout the video below to see how Bolt leverages PyMC Marketing to assess the impact of their marketing efforts.**
+**Checkout the video below to see how Bolt leverages PyMC-Marketing to assess the impact of their marketing efforts.**
 <iframe width="800" height="450" src="https://www.youtube.com/embed/djXoPq60bRM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 
 ### Time-varying parameters in MMMs in PyMC-Marketing
