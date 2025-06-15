@@ -195,23 +195,38 @@ class BudgetOptimizer(BaseModel):
         }
         self._budget_shape = tuple(len(coord) for coord in self._budget_coords.values())
 
-        # 4. Handle mask vs. no mask in flattening
+        # 4. Ensure that we only optmize over non-zero channels
         if self.budgets_to_optimize is None:
-            size_budgets = np.prod(self._budget_shape)
+            # If no mask is provided, we optimize all channels
+            self.budgets_to_optimize = (
+                self.mmm_model.idata.posterior.channel_contribution.mean(
+                    ("chain", "draw", "date")
+                ).astype(bool)
+            )
         else:
-            size_budgets = self.budgets_to_optimize.sum().item()
+            # If a mask is provided, ensure it has the correct shape
+            expected_shape = self.mmm_model.idata.posterior.channel_contribution.mean(
+                ("chain", "draw", "date")
+            ).shape
+            mask_shape = self.budgets_to_optimize.shape
+
+            # Check that the mask shape matches the expected shape
+            if mask_shape != expected_shape:
+                if not np.all(np.logical_not(mask_shape) | expected_shape):
+                    raise ValueError(
+                        "budgets_to_optimize mask contains True values at coordinates where the model has no "
+                        "information."
+                    )
+
+        size_budgets = self.budgets_to_optimize.sum().item()
 
         self._budgets_flat = pt.tensor("budgets_flat", shape=(size_budgets,))
 
-        if self.budgets_to_optimize is None:
-            # No mask case: reshape entire vector
-            self._budgets = self._budgets_flat.reshape(self._budget_shape)
-        else:
-            # Masked case: fill a zero array, then set only the True positions
-            budgets_zeros = pt.zeros(self._budget_shape)
-            budgets_zeros.name = "budgets_zeros"
-            bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
-            self._budgets = budgets_zeros[bool_mask].set(self._budgets_flat)
+        # Fill a zero array, then set only the True positions
+        budgets_zeros = pt.zeros(self._budget_shape)
+        budgets_zeros.name = "budgets_zeros"
+        bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
+        self._budgets = budgets_zeros[bool_mask].set(self._budgets_flat)
 
         # 5. Replace channel_data with budgets in the PyMC model
         self._pymc_model = self._replace_channel_data_by_optimization_variable(
@@ -491,13 +506,10 @@ class BudgetOptimizer(BaseModel):
                 for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]
             ]
 
-        # 4. Determine how many budget entries we optimize
-        if self.budgets_to_optimize is None:
-            budgets_size = np.prod(self._budget_shape)
-        else:
-            budgets_size = self.budgets_to_optimize.sum().item()
+        # 3. Determine how many budget entries we optimize
+        budgets_size = self.budgets_to_optimize.sum().item()  # type: ignore
 
-        # 5. Construct the initial guess (x0) if not provided
+        # 4. Construct the initial guess (x0) if not provided
         if x0 is None:
             x0 = (np.ones(budgets_size) * (total_budget / budgets_size)).astype(
                 self._budgets_flat.type.dtype
@@ -507,7 +519,7 @@ class BudgetOptimizer(BaseModel):
         # will raise a TypeError if x0 does not have acceptable shape and/or type
         x0 = self._budgets_flat.type.filter(x0)
 
-        # 6. Run the SciPy optimizer
+        # 5. Run the SciPy optimizer
         result = minimize(
             fun=self._compiled_functions[self.utility_function]["objective_and_grad"],
             x0=x0,
@@ -517,7 +529,7 @@ class BudgetOptimizer(BaseModel):
             **minimize_kwargs,
         )
 
-        # 7. Process results
+        # 6. Process results
         if result.success or return_if_fail:
             if self.budgets_to_optimize is None:
                 # Reshape the entire optimized solution
