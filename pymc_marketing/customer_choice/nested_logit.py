@@ -947,11 +947,10 @@ class NestedLogit(ModelBuilder):
         )
         shares_df.fillna(0, inplace=True)
 
-        pd.eval(
-            """relative_change = (shares_df.new_policy_share - shares_df.policy_share)
-                / shares_df.policy_share""",
-            target=shares_df,
-        )
+        shares_df["relative_change"] = (
+            shares_df["new_policy_share"] - shares_df["policy_share"]
+        ) / shares_df["policy_share"]
+
         shares_df.set_index("product", inplace=True)
         return shares_df
 
