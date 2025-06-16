@@ -20,9 +20,9 @@ import pymc as pm
 import pytest
 import xarray as xr
 from lifetimes.fitters.modified_beta_geo_fitter import ModifiedBetaGeoFitter
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models.modified_beta_geo import ModifiedBetaGeoModel
-from pymc_marketing.prior import Prior
 from tests.conftest import create_mock_fit, mock_sample
 
 

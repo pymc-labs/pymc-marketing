@@ -24,7 +24,7 @@ Create a normal prior.
 
 .. code-block:: python
 
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
 
     normal = Prior("Normal")
 
@@ -83,7 +83,7 @@ Create a prior with a custom transform function by registering it with
 
 .. code-block:: python
 
-    from pymc_marketing.prior import register_tensor_transform
+    from pymc_extras.prior import register_tensor_transform
 
     def custom_transform(x):
         return x ** 2

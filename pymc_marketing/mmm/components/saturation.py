@@ -25,7 +25,7 @@ Create a new saturation transformation:
 .. code-block:: python
 
     from pymc_marketing.mmm import SaturationTransformation
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
 
     class InfiniteReturns(SaturationTransformation):
         lookup_name: str = "infinite_returns"
@@ -54,7 +54,7 @@ for saturation parameter of logistic saturation.
 
 .. code-block:: python
 
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
     from pymc_marketing.mmm import LogisticSaturation
 
     hierarchical_lam = Prior(
@@ -78,6 +78,7 @@ import pytensor.tensor as pt
 import xarray as xr
 from pydantic import Field, InstanceOf, validate_call
 from pymc_extras.deserialize import deserialize, register_deserialization
+from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.components.base import (
     Transformation,
@@ -93,7 +94,6 @@ from pymc_marketing.mmm.transformers import (
     tanh_saturation,
     tanh_saturation_baselined,
 )
-from pymc_marketing.prior import Prior
 
 SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {}
 
@@ -117,7 +117,7 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
     .. code-block:: python
 
         from pymc_marketing.mmm import SaturationTransformation
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         def infinite_returns(x, b):
             return b * x

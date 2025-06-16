@@ -15,9 +15,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
 import pytest
+from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.linear_trend import LinearTrend
-from pymc_marketing.prior import Prior
 
 
 def test_init_errors_with_additional_parameter() -> None:

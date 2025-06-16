@@ -30,7 +30,7 @@ There are two types of Fourier seasonality transformations available:
     import numpy as np
     import arviz as az
     from pymc_marketing.mmm import YearlyFourier
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
 
     plt.style.use('arviz-darkgrid')
 
@@ -84,7 +84,7 @@ Change the prior distribution of the fourier seasonality.
 .. code-block:: python
 
     from pymc_marketing.mmm import YearlyFourier
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
 
     prior = Prior("Normal", mu=0, sigma=0.10)
     yearly = YearlyFourier(n_order=6, prior=prior)
@@ -94,7 +94,7 @@ Even make it hierarchical...
 .. code-block:: python
 
     from pymc_marketing.mmm import YearlyFourier
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
 
     # "fourier" is the default prefix!
     prior = Prior(
@@ -766,7 +766,7 @@ class YearlyFourier(FourierBase):
         import numpy as np
 
         from pymc_marketing.mmm import YearlyFourier
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         az.style.use("arviz-white")
 
@@ -832,7 +832,7 @@ class MonthlyFourier(FourierBase):
         import numpy as np
 
         from pymc_marketing.mmm import MonthlyFourier
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         az.style.use("arviz-white")
 
@@ -897,7 +897,7 @@ class WeeklyFourier(FourierBase):
         import numpy as np
 
         from pymc_marketing.mmm import WeeklyFourier
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         az.style.use("arviz-white")
 

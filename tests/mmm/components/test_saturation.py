@@ -24,6 +24,7 @@ from pymc_extras.deserialize import (
     deserialize,
     register_deserialization,
 )
+from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import (
     HillSaturation,
@@ -38,7 +39,6 @@ from pymc_marketing.mmm import (
     TanhSaturationBaselined,
     saturation_from_dict,
 )
-from pymc_marketing.prior import Prior
 
 
 @pytest.fixture

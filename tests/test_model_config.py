@@ -20,10 +20,10 @@ from pymc_extras.deserialize import (
     DESERIALIZERS,
     register_deserialization,
 )
+from pymc_extras.prior import Prior
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.model_config import ModelConfigError, parse_model_config
-from pymc_marketing.prior import Prior
 
 
 @pytest.fixture

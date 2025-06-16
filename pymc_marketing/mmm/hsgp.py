@@ -571,7 +571,7 @@ class HSGP(HSGPBase):
     .. note::
 
         The `transform` parameter must be registered or from either `pytensor.tensor`
-        or `pymc.math` namespaces. See the :func:`pymc_marketing.prior.register_tensor_transform`
+        or `pymc.math` namespaces. See the :func:`pymc_extras.prior.register_tensor_transform`
 
     .. plot::
         :include-source: True
@@ -619,7 +619,7 @@ class HSGP(HSGPBase):
         import matplotlib.pyplot as plt
 
         from pymc_marketing.mmm import HSGP
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         seed = sum(map(ord, "New data predictions"))
         rng = np.random.default_rng(seed)
@@ -960,7 +960,7 @@ class HSGPPeriodic(HSGPBase):
         import matplotlib.pyplot as plt
 
         from pymc_marketing.mmm import HSGPPeriodic
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         seed = sum(map(ord, "Periodic GP"))
         rng = np.random.default_rng(seed)
@@ -1000,7 +1000,7 @@ class HSGPPeriodic(HSGPBase):
     .. note::
 
         The `transform` parameter must be registered or from either `pytensor.tensor`
-        or `pymc.math` namespaces. See the :func:`pymc_marketing.prior.register_tensor_transform`
+        or `pymc.math` namespaces. See the :func:`pymc_extras.prior.register_tensor_transform`
 
     .. plot::
         :include-source: True
@@ -1012,7 +1012,7 @@ class HSGPPeriodic(HSGPBase):
         import matplotlib.pyplot as plt
 
         from pymc_marketing.mmm import HSGPPeriodic
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         seed = sum(map(ord, "Periodic GP"))
         rng = np.random.default_rng(seed)
@@ -1105,7 +1105,7 @@ class HSGPPeriodic(HSGPBase):
         import matplotlib.pyplot as plt
 
         from pymc_marketing.mmm import HSGPPeriodic
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         seed = sum(map(ord, "Higher dimensional HSGP with periodic data"))
         rng = np.random.default_rng(seed)
@@ -1347,7 +1347,7 @@ class SoftPlusHSGP(HSGP):
 
         from pymc_marketing.mmm import SoftPlusHSGP
         from pymc_marketing.model_graph import deterministics_to_flat
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         seed = sum(map(ord, "New data predictions with SoftPlusHSGP"))
         rng = np.random.default_rng(seed)

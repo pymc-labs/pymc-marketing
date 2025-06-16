@@ -156,7 +156,7 @@ class LinearTrend(BaseModel):
 
     .. code-block:: python
 
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         hierarchical_delta = Prior(
             "Laplace",

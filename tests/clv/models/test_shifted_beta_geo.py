@@ -19,10 +19,10 @@ import pandas as pd
 import pymc as pm
 import pytest
 from pymc.distributions.censored import CensoredRV
+from pymc_extras.prior import Prior
 from scipy import stats
 
 from pymc_marketing.clv import ShiftedBetaGeoModelIndividual
-from pymc_marketing.prior import Prior
 
 
 class TestShiftedBetaGeoModel:

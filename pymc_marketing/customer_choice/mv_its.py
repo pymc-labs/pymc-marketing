@@ -23,12 +23,12 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 from matplotlib.axes import Axes
+from pymc_extras.prior import Prior
 from typing_extensions import Self
 from xarray import DataArray
 
 from pymc_marketing.model_builder import ModelBuilder, create_idata_accessor
 from pymc_marketing.model_config import parse_model_config
-from pymc_marketing.prior import Prior
 
 HDI_ALPHA = 0.5
 

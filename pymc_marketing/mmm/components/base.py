@@ -220,7 +220,7 @@ class Transformation:
         .. code-block:: python
 
             from pymc_marketing.mmm.components.base import Transformation
-            from pymc_marketing.prior import Prior
+            from pymc_extras.prior import Prior
 
             class MyTransformation(Transformation):
                 lookup_name: str = "my_transformation"

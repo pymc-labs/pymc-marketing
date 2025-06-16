@@ -23,7 +23,7 @@ from pymc_marketing.deserialize import deserialize
 
 # Optional short-name registry -------------------------------------------------
 REGISTRY: dict[str, Any] = {
-    # "Prior": pymc_marketing.prior.Prior,   # <— example of a whitelisted alias
+    # "Prior": pymc_extras.prior.Prior,   # <— example of a whitelisted alias
 }
 
 # -----------------------------------------------------------------------------
