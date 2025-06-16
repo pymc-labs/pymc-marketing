@@ -100,9 +100,7 @@ import copy
 from typing import Any
 
 from pymc_extras.deserialize import deserialize, register_deserialization
-from pymc_extras.prior import (
-    Prior,
-)
+from pymc_extras.prior import Prior
 
 
 def is_alternative_prior(data: Any) -> bool:
