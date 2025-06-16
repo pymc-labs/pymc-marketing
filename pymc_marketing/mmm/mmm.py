@@ -553,7 +553,7 @@ class BaseMMM(BaseValidateMMM):
 
             # We define the deterministic variable to define the optimization by default
             pm.Deterministic(
-                name="total_contributions",
+                name="total_contribution",
                 var=channel_contribution.sum(axis=(-2, -1)),
                 dims=(),
             )
@@ -2322,7 +2322,7 @@ class MMM(
         budget: float | int,
         num_periods: int,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
-        response_variable: str = "total_contributions",
+        response_variable: str = "total_contribution",
         utility_function: UtilityFunctionType = average_response,
         constraints: Sequence[dict[str, Any]] = (),
         default_constraints: bool = True,
@@ -2354,7 +2354,7 @@ class MMM(
             An xarray DataArary or dictionary specifying the lower and upper bounds for the budget allocation
             for each channel. If None, no bounds are applied.
         response_variable : str, optional
-            The response variable to optimize. Default is "total_contributions".
+            The response variable to optimize. Default is "total_contribution".
         utility_function : UtilityFunctionType, optional
             The utility function to maximize. Default is the mean of the response distribution.
         custom_constraints : list[dict[str, Any]], optional

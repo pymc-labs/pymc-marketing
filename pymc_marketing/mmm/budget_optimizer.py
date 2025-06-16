@@ -114,7 +114,7 @@ class BudgetOptimizer(BaseModel):
     model : MMMModel
         The marketing mix model to optimize.
     response_variable : str, optional
-        The response variable to optimize. Default is "total_contributions".
+        The response variable to optimize. Default is "total_contribution".
     utility_function : UtilityFunctionType, optional
         The utility function to maximize. Default is the mean of the response distribution.
     budgets_to_optimize : xarray.DataArray, optional
@@ -139,7 +139,7 @@ class BudgetOptimizer(BaseModel):
     )
 
     response_variable: str = Field(
-        default="total_contributions",
+        default="total_contribution",
         description="The response variable to optimize.",
     )
 
