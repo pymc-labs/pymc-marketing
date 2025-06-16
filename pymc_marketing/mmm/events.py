@@ -108,9 +108,9 @@ from pydantic import (
     model_validator,
     validate_call,
 )
+from pymc_extras.deserialize import deserialize, register_deserialization
 from pytensor.tensor.variable import TensorVariable
 
-from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.mmm.components.base import Transformation, create_registration_meta
 from pymc_marketing.prior import Prior, create_dim_handler
 

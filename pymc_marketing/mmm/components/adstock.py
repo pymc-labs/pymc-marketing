@@ -58,8 +58,8 @@ import numpy as np
 import pytensor.tensor as pt
 import xarray as xr
 from pydantic import Field, validate_call
+from pymc_extras.deserialize import deserialize, register_deserialization
 
-from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.mmm.components.base import (
     SupportedPrior,
     Transformation,

@@ -108,8 +108,7 @@ import xarray as xr
 from pydantic import InstanceOf, validate_call
 from pydantic.dataclasses import dataclass
 from pymc.distributions.shape_utils import Dims
-
-from pymc_marketing.deserialize import deserialize, register_deserialization
+from pymc_extras.deserialize import deserialize, register_deserialization
 
 
 class UnsupportedShapeError(Exception):

@@ -19,12 +19,12 @@ import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-
-from pymc_marketing.deserialize import (
+from pymc_extras.deserialize import (
     DESERIALIZERS,
     deserialize,
     register_deserialization,
 )
+
 from pymc_marketing.mmm import (
     HillSaturation,
     HillSaturationSigmoid,

@@ -227,10 +227,10 @@ from pydantic import (
     field_serializer,
     model_validator,
 )
+from pymc_extras.deserialize import deserialize, register_deserialization
 from typing_extensions import Self
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK, DAYS_IN_YEAR
-from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.plot import SelToString, plot_curve, plot_hdi, plot_samples
 from pymc_marketing.prior import Prior, VariableFactory, create_dim_handler
 

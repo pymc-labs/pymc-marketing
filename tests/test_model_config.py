@@ -16,11 +16,11 @@ import warnings
 
 import numpy as np
 import pytest
-
-from pymc_marketing.deserialize import (
+from pymc_extras.deserialize import (
     DESERIALIZERS,
     register_deserialization,
 )
+
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.model_config import ModelConfigError, parse_model_config
 from pymc_marketing.prior import Prior

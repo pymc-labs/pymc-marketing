@@ -23,12 +23,12 @@ from graphviz.graphs import Digraph
 from preliz.distributions.distributions import Distribution
 from pydantic import ValidationError
 from pymc.model_graph import fast_eval
-
-from pymc_marketing.deserialize import (
+from pymc_extras.deserialize import (
     DESERIALIZERS,
     deserialize,
     register_deserialization,
 )
+
 from pymc_marketing.prior import (
     Censored,
     MuAlreadyExistsError,

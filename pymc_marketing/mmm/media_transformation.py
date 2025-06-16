@@ -97,8 +97,8 @@ from typing import cast
 import pymc as pm
 import pytensor.tensor as pt
 from pymc.distributions.shape_utils import Dims
+from pymc_extras.deserialize import register_deserialization
 
-from pymc_marketing.deserialize import register_deserialization
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     adstock_from_dict,
