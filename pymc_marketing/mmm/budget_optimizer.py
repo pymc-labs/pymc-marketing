@@ -311,8 +311,8 @@ class BudgetOptimizer(BaseModel):
 
         Example:
         --------
-        `BudgetOptimizer(...).extract_response_distribution("channel_contributions")`
-        returns a graph that computes `"channel_contributions"` as a function of both
+        `BudgetOptimizer(...).extract_response_distribution("channel_contribution")`
+        returns a graph that computes `"channel_contribution"` as a function of both
         the newly introduced budgets and the posterior of model parameters.
         """
         model = self._pymc_model

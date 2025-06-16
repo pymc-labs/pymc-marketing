@@ -463,7 +463,7 @@ class MMMPlotSuite:
         ----------
         samples : xr.Dataset
             The dataset containing the channel contributions and allocation values.
-            Expected to have 'channel_contributions' and 'allocation' variables.
+            Expected to have 'channel_contribution' and 'allocation' variables.
         scale_factor : float, optional
             Scale factor to convert to original scale, if original_scale=True.
             If None and original_scale=True, assumes scale_factor=1.
@@ -531,17 +531,17 @@ class MMMPlotSuite:
             reduction_dims = [
                 dim for dim in samples[channel_contrib_var].dims if dim != "channel"
             ]
-            channel_contributions = (
+            channel_contribution = (
                 samples[channel_contrib_var].mean(dim=reduction_dims).to_numpy()
             )
 
-            # Ensure channel_contributions is 1D
-            if channel_contributions.ndim > 1:
-                channel_contributions = channel_contributions.flatten()
+            # Ensure channel_contribution is 1D
+            if channel_contribution.ndim > 1:
+                channel_contribution = channel_contribution.flatten()
 
             # Apply scale factor if in original scale
             if original_scale and scale_factor is not None:
-                channel_contributions *= scale_factor
+                channel_contribution *= scale_factor
 
             # Get allocated spend
             allocation_reduction_dims = [
@@ -563,7 +563,7 @@ class MMMPlotSuite:
                 ax,
                 samples.coords["channel"].values,
                 allocated_spend,
-                channel_contributions,
+                channel_contribution,
             )
 
             return fig, ax
@@ -628,15 +628,15 @@ class MMMPlotSuite:
                     for dim in subset.dims
                     if dim != "channel" and dim not in selection
                 ]
-                channel_contributions = subset.mean(dim=remaining_dims).to_numpy()
+                channel_contribution = subset.mean(dim=remaining_dims).to_numpy()
 
                 # Ensure 1D
-                if channel_contributions.ndim > 1:
-                    channel_contributions = channel_contributions.flatten()
+                if channel_contribution.ndim > 1:
+                    channel_contribution = channel_contribution.flatten()
 
                 # Apply scale factor if needed
                 if original_scale and scale_factor is not None:
-                    channel_contributions *= scale_factor
+                    channel_contribution *= scale_factor
 
                 # Select allocation data for this subplot
                 if all(dim in allocation_dims for dim in selection):
@@ -671,7 +671,7 @@ class MMMPlotSuite:
                     ax,
                     samples.coords["channel"].values,
                     allocated_spend,
-                    channel_contributions,
+                    channel_contribution,
                 )
 
                 # Add subplot title based on dimension values
@@ -692,7 +692,7 @@ class MMMPlotSuite:
         ax: plt.Axes,
         channels: NDArray,
         allocated_spend: NDArray,
-        channel_contributions: NDArray,
+        channel_contribution: NDArray,
     ) -> None:
         """Plot budget allocation bars on a given axis.
 
@@ -704,7 +704,7 @@ class MMMPlotSuite:
             Array of channel names.
         allocated_spend : NDArray
             Array of allocated spend values.
-        channel_contributions : NDArray
+        channel_contribution : NDArray
             Array of channel contribution values.
         """
         bar_width = 0.35
@@ -727,11 +727,11 @@ class MMMPlotSuite:
         # Plot contributions
         bars2 = ax2.bar(
             [i + bar_width for i in index],
-            channel_contributions,
+            channel_contribution,
             bar_width,
             color="C1",
             alpha=opacity,
-            label="Channel Contributions",
+            label="Channel Contribution",
         )
 
         # Labels and formatting
@@ -773,7 +773,7 @@ class MMMPlotSuite:
         ----------
         samples : xr.Dataset
             The dataset containing the samples of channel contributions.
-            Expected to have 'channel_contributions' variable with dimensions
+            Expected to have 'channel_contribution' variable with dimensions
             'channel', 'date', and 'sample'.
         scale_factor : float, optional
             Scale factor to convert to original scale, if original_scale=True.
@@ -837,23 +837,23 @@ class MMMPlotSuite:
             else:
                 fig = ax.get_figure()
 
-            channel_contributions = samples[channel_contrib_var]
+            channel_contribution = samples[channel_contrib_var]
 
             # Apply scale factor if in original scale
             if original_scale and scale_factor is not None:
-                channel_contributions = channel_contributions * scale_factor
+                channel_contribution = channel_contribution * scale_factor
 
             # Plot mean values by channel
-            channel_contributions.mean(dim="sample").plot(hue="channel", ax=ax)
+            channel_contribution.mean(dim="sample").plot(hue="channel", ax=ax)
 
             # Add uncertainty intervals for each channel
             for channel in samples.coords["channel"].values:
                 ax.fill_between(
-                    x=channel_contributions.date.values,
-                    y1=channel_contributions.sel(channel=channel).quantile(
+                    x=channel_contribution.date.values,
+                    y1=channel_contribution.sel(channel=channel).quantile(
                         lower_quantile, dim="sample"
                     ),
-                    y2=channel_contributions.sel(channel=channel).quantile(
+                    y2=channel_contribution.sel(channel=channel).quantile(
                         upper_quantile, dim="sample"
                     ),
                     alpha=0.1,
