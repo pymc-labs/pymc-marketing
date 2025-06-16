@@ -38,7 +38,7 @@ dependencies = [
     "xarray>=2024.1.0",
     "xarray-einstats>=0.5.1",
     "pyprojroot",
-    "preliz>=0.8.0",
+    "pymc-extras>=0.2.7",
 ]
 
 [project.optional-dependencies]
@@ -70,6 +70,7 @@ docs = [
     "networkx",
     "dowhy",
     "osqp<1.0.0,>=0.6.2",
+    "preliz>=0.8.0",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
@@ -88,6 +89,7 @@ test = [
     "dowhy",
     "osqp<1.0.0,>=0.6.2",
     "pygraphviz",
+    "preliz>=0.8.0",
 ]
 
 [tool.hatch.build.targets.sdist]
