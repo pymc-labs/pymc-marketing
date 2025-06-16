@@ -1024,7 +1024,7 @@ class MMM(
     """  # noqa: E501
 
     _model_type: str = "MMM"
-    version: str = "0.0.2"
+    version: str = "0.0.3"
 
     def channel_contribution_forward_pass(
         self,
