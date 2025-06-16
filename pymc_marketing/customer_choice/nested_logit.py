@@ -182,6 +182,29 @@ class NestedLogit(ModelBuilder):
 
         return result
 
+    @staticmethod
+    def _check_columns(
+        df: pd.DataFrame, fixed_covariates: str, alt_covariates: str
+    ) -> None:
+        for f in fixed_covariates.split("+"):
+            if f.strip() and f.strip() not in df.columns:
+                raise ValueError(
+                    f"Fixed covariate '{f.strip()}' not found in dataframe columns."
+                )
+
+        for a in alt_covariates.split("+"):
+            if a.strip() and a.strip() not in df.columns:
+                raise ValueError(
+                    f"Alternative covariate '{a.strip()}' not found in dataframe columns."
+                )
+
+    @staticmethod
+    def _check_dependent_variable(target: str, df: pd.DataFrame, depvar: str) -> None:
+        if target not in df[depvar].unique():
+            raise ValueError(
+                f"Target '{target}' not found in dependent variable '{depvar}'."
+            )
+
     def parse_formula(
         self, df: pd.DataFrame, formula: str, depvar: str
     ) -> tuple[str, str, str]:
@@ -199,22 +222,8 @@ class NestedLogit(ModelBuilder):
         alt_covariates = alt_covariates.strip()
         fixed_covariates = fixed_covariates.strip()
 
-        if target not in df[depvar].unique():
-            raise ValueError(
-                f"Target '{target}' not found in dependent variable '{depvar}'."
-            )
-
-        for f in fixed_covariates.split("+"):
-            if f.strip() and f.strip() not in df.columns:
-                raise ValueError(
-                    f"Fixed covariate '{f.strip()}' not found in dataframe columns."
-                )
-
-        for a in alt_covariates.split("+"):
-            if a.strip() and a.strip() not in df.columns:
-                raise ValueError(
-                    f"Alternative covariate '{a.strip()}' not found in dataframe columns."
-                )
+        self._check_columns(df, fixed_covariates, alt_covariates)
+        self._check_dependent_variable(target, df, depvar)
 
         return target, alt_covariates, fixed_covariates
 
@@ -613,7 +622,7 @@ class NestedLogit(ModelBuilder):
             exp_W_nest = pm.math.sum(exp_W_nest, axis=1)
             conditional_probs[n] = {"exp": exp_W_nest, "P_y_given": P_y_given_nest}
 
-        ## Sum the inclusive value terms as normalising constanT
+        ## Sum the exp inclusive value terms as normalising constanT
         denom = pm.Deterministic(
             f"denom_{level}",
             pm.math.sum(
@@ -931,7 +940,27 @@ class NestedLogit(ModelBuilder):
     def calculate_share_change(
         idata: az.InferenceData, new_idata: az.InferenceData
     ) -> pd.DataFrame:
-        """Calculate difference in market share due to market intervention."""
+        """Calculate difference in market share due to market intervention.
+
+        Parameters
+        ----------
+        idata : az.InferenceData
+            Posterior predictive samples under the baseline (pre-intervention) policy.
+            Must contain a "posterior_predictive" group with a "p" variable representing
+            predicted market shares.
+
+        new_idata : az.InferenceData
+            Posterior predictive samples under the new (post-intervention) policy.
+            Structure should match `idata`, with a "posterior_predictive" group containing "p".
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame indexed by product, containing:
+            - 'policy_share': mean predicted share under the baseline policy
+            - 'new_policy_share': mean predicted share under the new policy
+            - 'relative_change': relative change in share due to the intervention
+        """
         expected = idata["posterior_predictive"].mean(dim=("chain", "draw", "obs"))["p"]
         expected_new = new_idata["posterior_predictive"].mean(
             dim=("chain", "draw", "obs")
@@ -960,7 +989,27 @@ class NestedLogit(ModelBuilder):
         title: str = "Change in Proportion due to Intervention",
         figsize: tuple = (8, 4),
     ):
-        """Plot change induced by a market intervention."""
+        """Plot change induced by a market intervention.
+
+        Parameters
+        ----------
+        change_df : pd.DataFrame
+            A DataFrame indexed by product (or mode) with the following columns:
+            - 'policy_share': share before the intervention
+            - 'new_policy_share': share after the intervention
+
+        title : str, optional
+            Title of the plot. Default is "Change in Proportion due to Intervention".
+
+        figsize : tuple, optional
+            Size of the plot in inches, as (width, height). Default is (8, 4).
+
+        Returns
+        -------
+        object
+            A matplotlib Figure object showing before/after market share comparisons,
+            with colored lines indicating gain (green) or loss (red) for each product.
+        """
         fig, ax = plt.subplots(figsize=figsize)
         ax.axvline(x=0, color="black", linestyle="--", linewidth=1)
         ax.axvline(x=1, color="black", linestyle="--", linewidth=1)
