@@ -64,11 +64,11 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import BaseModel, ConfigDict, Field, InstanceOf, model_validator
 from pymc.distributions.shape_utils import Dims
+from pymc_extras.prior import Prior, create_dim_handler
 from pytensor.tensor.variable import TensorVariable
 from typing_extensions import Self
 
 from pymc_marketing.plot import SelToString, plot_curve
-from pymc_marketing.prior import Prior, create_dim_handler
 
 
 class LinearTrend(BaseModel):
