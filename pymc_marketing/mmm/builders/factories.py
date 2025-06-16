@@ -19,7 +19,10 @@ import importlib
 from collections.abc import Mapping, MutableMapping, Sequence
 from typing import Any
 
-from pymc_marketing.deserialize import deserialize
+from pymc_extras.deserialize import deserialize
+
+# In order to register custom deserializers
+import pymc_marketing.prior  # noqa: F401
 
 # Optional short-name registry -------------------------------------------------
 REGISTRY: dict[str, Any] = {
