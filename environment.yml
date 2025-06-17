@@ -5,6 +5,7 @@ channels:
   - defaults
 dependencies:
 # Base dependencies
+- python>=3.11
 - arviz>=0.13.0
 - matplotlib>=3.5.1
 - numpy>=1.17
