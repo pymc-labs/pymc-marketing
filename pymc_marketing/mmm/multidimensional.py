@@ -1154,6 +1154,43 @@ class MMM(ModelBuilder):
                 observed=target_data_scaled,
             )
 
+    def _validate_date_overlap_with_include_last_observations(
+        self, X: pd.DataFrame, include_last_observations: bool
+    ) -> None:
+        """Validate that include_last_observations is not used with overlapping dates.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            The input data for prediction.
+        include_last_observations : bool
+            Whether to include the last observations of the training data.
+
+        Raises
+        ------
+        ValueError
+            If include_last_observations=True and input dates overlap with training dates.
+        """
+        if not include_last_observations:
+            return
+
+        # Get training dates and input dates
+        training_dates = pd.to_datetime(self.model_coords["date"])
+        input_dates = pd.to_datetime(X[self.date_column].unique())
+
+        # Check for overlap
+        overlapping_dates = set(training_dates).intersection(set(input_dates))
+
+        if overlapping_dates:
+            overlapping_dates_str = ", ".join(
+                sorted([str(d.date()) for d in overlapping_dates])
+            )
+            raise ValueError(
+                f"Cannot use include_last_observations=True when input dates overlap with training dates. "
+                f"Overlapping dates found: {overlapping_dates_str}. "
+                f"Either set include_last_observations=False or use input dates that don't overlap with training data."
+            )
+
     def _posterior_predictive_data_transformation(
         self,
         X: pd.DataFrame,
@@ -1176,6 +1213,11 @@ class MMM(ModelBuilder):
         xr.Dataset
             The transformed data in xarray format.
         """
+        # Validate that include_last_observations is not used with overlapping dates
+        self._validate_date_overlap_with_include_last_observations(
+            X, include_last_observations
+        )
+
         dataarrays = []
         if include_last_observations:
             last_obs = self.xarray_dataset.isel(date=slice(-self.adstock.l_max, None))
