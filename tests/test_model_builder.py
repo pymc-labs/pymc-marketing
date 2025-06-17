@@ -13,9 +13,11 @@
 #   limitations under the License.
 import hashlib
 import json
+import re
 import sys
 import tempfile
 
+import arviz as az
 import graphviz
 import numpy as np
 import pandas as pd
@@ -23,7 +25,11 @@ import pymc as pm
 import pytest
 import xarray as xr
 
-from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
+from pymc_marketing.model_builder import (
+    DifferentModelError,
+    ModelBuilder,
+    create_sample_kwargs,
+)
 
 
 @pytest.fixture(scope="module")
@@ -751,3 +757,40 @@ def test_xarray_model_builder(X_is_array, xarray_X, xarray_y, mock_pymc_sample) 
             ),
         ).to_xarray(),
     )
+
+
+@pytest.fixture(scope="module")
+def stale_idata(fitted_model_instance) -> az.InferenceData:
+    idata = fitted_model_instance.idata.copy()
+    idata.attrs["version"] = "0.0.1"
+
+    return idata
+
+
+@pytest.fixture(scope="module")
+def different_configuration_idata(fitted_model_instance) -> az.InferenceData:
+    idata = fitted_model_instance.idata.copy()
+    model_config = json.loads(idata.attrs["model_config"])
+    model_config["a"] = {"loc": 1, "scale": 15, "dims": ("numbers",)}
+    idata.attrs["model_config"] = json.dumps(model_config)
+
+    return idata
+
+
+@pytest.mark.parametrize(
+    "fixture_name, match",
+    [
+        pytest.param(
+            "stale_idata",
+            re.escape("The model version (0.0.1)"),
+            id="different version",
+        ),
+        pytest.param(
+            "different_configuration_idata", "The model id", id="different id"
+        ),
+    ],
+)
+def test_load_from_idata_errors(request, fixture_name, match) -> None:
+    idata = request.getfixturevalue(fixture_name)
+    with pytest.raises(DifferentModelError, match=match):
+        ModelBuilderTest.load_from_idata(idata)
