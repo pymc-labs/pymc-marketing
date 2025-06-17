@@ -13,10 +13,9 @@
 #   limitations under the License.
 """Scaling configuration for the MMMM."""
 
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
-from typing_extensions import Self
 
 
 class VariableScaling(BaseModel):

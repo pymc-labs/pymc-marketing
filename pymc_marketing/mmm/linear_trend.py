@@ -53,7 +53,7 @@ Plot the curve samples:
 """
 
 from collections.abc import Iterable
-from typing import Any, cast
+from typing import Any, Self, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -66,7 +66,6 @@ from pydantic import BaseModel, ConfigDict, Field, InstanceOf, model_validator
 from pymc.distributions.shape_utils import Dims
 from pymc_extras.prior import Prior, create_dim_handler
 from pytensor.tensor.variable import TensorVariable
-from typing_extensions import Self
 
 from pymc_marketing.plot import SelToString, plot_curve
 

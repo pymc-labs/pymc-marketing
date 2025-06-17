@@ -14,7 +14,7 @@
 """Multivariate Interrupted Time Series Analysis for Product Incrementality."""
 
 import json
-from typing import Any, cast
+from typing import Any, Self, cast
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -24,7 +24,6 @@ import pandas as pd
 import pymc as pm
 from matplotlib.axes import Axes
 from pymc_extras.prior import Prior
-from typing_extensions import Self
 from xarray import DataArray
 
 from pymc_marketing.model_builder import ModelBuilder, create_idata_accessor

@@ -209,7 +209,7 @@ conflicts.
 import datetime
 from abc import abstractmethod
 from collections.abc import Callable, Iterable
-from typing import Any
+from typing import Any, Self
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -229,7 +229,6 @@ from pydantic import (
 )
 from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import Prior, VariableFactory, create_dim_handler
-from typing_extensions import Self
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK, DAYS_IN_YEAR
 from pymc_marketing.plot import SelToString, plot_curve, plot_hdi, plot_samples

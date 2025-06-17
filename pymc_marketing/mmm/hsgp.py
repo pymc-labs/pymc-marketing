@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from enum import Enum
-from typing import Literal, cast
+from typing import Literal, Self, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -31,7 +31,6 @@ from pymc.distributions.shape_utils import Dims
 from pymc_extras.prior import Prior, _get_transform, create_dim_handler
 from pytensor.tensor import TensorLike
 from pytensor.tensor.variable import TensorVariable
-from typing_extensions import Self
 
 from pymc_marketing.plot import SelToString, plot_curve
 
