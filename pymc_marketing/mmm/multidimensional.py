@@ -1257,13 +1257,15 @@ class MMM(ModelBuilder):
             )
         else:
             # Return empty xarray with same dimensions as the target but full of zeros
+            # Use the same dtype as the existing target data to avoid dtype mismatches
+            target_dtype = self.xarray_dataset._target.dtype
             y_xarray = xr.DataArray(
                 np.zeros(
                     (
                         X[self.date_column].nunique(),
                         *[len(self.xarray_dataset.coords[dim]) for dim in self.dims],
                     ),
-                    dtype=np.int32,
+                    dtype=target_dtype,
                 ),
                 dims=("date", *self.dims),
                 coords={
