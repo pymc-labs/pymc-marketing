@@ -577,12 +577,14 @@ class MMM(ModelBuilder):
             subset=[date_column, *valid_dims, metric_coordinate_name]
         )
 
-        # Convert to xarray
+        # Convert to xarray, renaming date_column to "date" for internal consistency
         if valid_dims:
+            df_long = df_long.rename(columns={date_column: "date"})
             return df_long.set_index(
-                [date_column, *valid_dims, metric_coordinate_name]
+                ["date", *valid_dims, metric_coordinate_name]
             ).to_xarray()
-        return df_long.set_index([date_column, metric_coordinate_name]).to_xarray()
+        df_long = df_long.rename(columns={date_column: "date"})
+        return df_long.set_index(["date", metric_coordinate_name]).to_xarray()
 
     def _process_dataframe(
         self,
@@ -625,12 +627,13 @@ class MMM(ModelBuilder):
             subset=[date_column, *valid_dims, metric_coordinate_name]
         )
 
-        # Convert to xarray
+        # Convert to xarray, renaming date_column to "date" for internal consistency
+        df_long = df_long.rename(columns={date_column: "date"})
         if valid_dims:
             return df_long.set_index(
-                [date_column, *valid_dims, metric_coordinate_name]
+                ["date", *valid_dims, metric_coordinate_name]
             ).to_xarray()
-        return df_long.set_index([date_column, metric_coordinate_name]).to_xarray()
+        return df_long.set_index(["date", metric_coordinate_name]).to_xarray()
 
     def _create_xarray_from_pandas(
         self,
@@ -716,10 +719,12 @@ class MMM(ModelBuilder):
         )
         dataarrays.append(X_dataarray)
 
+        # Create a temporary DataFrame to properly handle the y data transformation
+        temp_y_df = pd.concat([self.X[[self.date_column, *self.dims]], self.y], axis=1)
         y_dataarray = self._create_xarray_from_pandas(
-            data=pd.concat([self.X, self.y], axis=1).set_index(
-                [self.date_column, *self.dims]
-            )[self.target_column],
+            data=temp_y_df.set_index([self.date_column, *self.dims])[
+                self.target_column
+            ],
             date_column=self.date_column,
             dims=self.dims,
             metric_list=[self.target_column],
@@ -777,7 +782,7 @@ class MMM(ModelBuilder):
         Examples
         --------
         >>> mmm = MMM(
-            date_column="date",
+            date_column="date_week",
             channel_columns=["channel_1", "channel_2"],
             target_column="target",
         )
@@ -819,7 +824,7 @@ class MMM(ModelBuilder):
         Examples
         --------
         >>> mmm = MMM(
-            date_column="date",
+            date_column="date_week",
             channel_columns=["channel_1", "channel_2"],
             target_column="target",
         )
@@ -1275,7 +1280,7 @@ class MMM(ModelBuilder):
 
         if self.time_varying_intercept or self.time_varying_media:
             data["time_index"] = infer_time_index(
-                pd.Series(dataset_xarray[self.date_column]),
+                pd.Series(dataset_xarray["date"]),
                 pd.Series(self.model_coords["date"]),
                 self._time_resolution,
             )
