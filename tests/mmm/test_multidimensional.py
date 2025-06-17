@@ -446,20 +446,16 @@ def test_sample_posterior_predictive_same_data_with_include_last_observations(
 
     # Try to use include_last_observations=True with the same training data
     # This should raise a ValueError
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(
+        ValueError,
+        match="Cannot use include_last_observations=True when input dates overlap with training dates",
+    ):
         mmm.sample_posterior_predictive(
             X_train,  # Same training data
             include_last_observations=True,  # This should trigger the error
             extend_idata=False,
             random_seed=123,
         )
-
-    # Check that the error message contains the expected text
-    error_msg = str(exc_info.value)
-    assert (
-        "Cannot use include_last_observations=True when input dates overlap with training dates"
-        in error_msg
-    )
 
 
 def test_sample_posterior_predictive_partial_overlap_with_include_last_observations(
@@ -492,20 +488,16 @@ def test_sample_posterior_predictive_partial_overlap_with_include_last_observati
     overlap_data = X.iloc[-8:-2]  # This will include some training dates
 
     # This should raise a ValueError due to partial overlap
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(
+        ValueError,
+        match="Cannot use include_last_observations=True when input dates overlap with training dates",
+    ):
         mmm.sample_posterior_predictive(
             overlap_data,
             include_last_observations=True,
             extend_idata=False,
             random_seed=123,
         )
-
-    # Check that the error message is appropriate
-    error_msg = str(exc_info.value)
-    assert (
-        "Cannot use include_last_observations=True when input dates overlap with training dates"
-        in error_msg
-    )
 
 
 def test_sample_posterior_predictive_no_overlap_with_include_last_observations(
