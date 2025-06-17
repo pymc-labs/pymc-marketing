@@ -114,7 +114,7 @@ class BudgetOptimizer(BaseModel):
     model : MMMModel
         The marketing mix model to optimize.
     response_variable : str, optional
-        The response variable to optimize. Default is "total_contributions".
+        The response variable to optimize. Default is "total_contribution".
     utility_function : UtilityFunctionType, optional
         The utility function to maximize. Default is the mean of the response distribution.
     budgets_to_optimize : xarray.DataArray, optional
@@ -139,7 +139,7 @@ class BudgetOptimizer(BaseModel):
     )
 
     response_variable: str = Field(
-        default="total_contributions",
+        default="total_contribution",
         description="The response variable to optimize.",
     )
 
@@ -311,8 +311,8 @@ class BudgetOptimizer(BaseModel):
 
         Example:
         --------
-        `BudgetOptimizer(...).extract_response_distribution("channel_contributions")`
-        returns a graph that computes `"channel_contributions"` as a function of both
+        `BudgetOptimizer(...).extract_response_distribution("channel_contribution")`
+        returns a graph that computes `"channel_contribution"` as a function of both
         the newly introduced budgets and the posterior of model parameters.
         """
         model = self._pymc_model
