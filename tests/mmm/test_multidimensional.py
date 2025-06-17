@@ -418,6 +418,132 @@ def test_sample_posterior_predictive_same_data(single_dim_data, mock_pymc_sample
     )
 
 
+def test_sample_posterior_predictive_same_data_with_include_last_observations(
+    single_dim_data, mock_pymc_sample
+):
+    """
+    Test that using include_last_observations=True with training data (overlapping dates)
+    raises a ValueError with a clear error message.
+    """
+    X, y = single_dim_data
+    X_train = X.iloc[:-5]
+    y_train = y.iloc[:-5]
+
+    # Build and fit the model
+    adstock = GeometricAdstock(l_max=2)
+    saturation = LogisticSaturation()
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=adstock,
+        saturation=saturation,
+    )
+
+    mmm.build_model(X_train, y_train)
+    mmm.fit(X_train, y_train, draws=200, tune=100, chains=1, random_seed=123)
+
+    # Try to use include_last_observations=True with the same training data
+    # This should raise a ValueError
+    with pytest.raises(
+        ValueError,
+        match="Cannot use include_last_observations=True when input dates overlap with training dates",
+    ):
+        mmm.sample_posterior_predictive(
+            X_train,  # Same training data
+            include_last_observations=True,  # This should trigger the error
+            extend_idata=False,
+            random_seed=123,
+        )
+
+
+def test_sample_posterior_predictive_partial_overlap_with_include_last_observations(
+    single_dim_data, mock_pymc_sample
+):
+    """
+    Test that even partial date overlap with include_last_observations=True raises ValueError.
+    """
+    X, y = single_dim_data
+    X_train = X.iloc[:-5]
+    y_train = y.iloc[:-5]
+
+    # Build and fit the model
+    adstock = GeometricAdstock(l_max=2)
+    saturation = LogisticSaturation()
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=adstock,
+        saturation=saturation,
+    )
+
+    mmm.build_model(X_train, y_train)
+    mmm.fit(X_train, y_train, draws=200, tune=100, chains=1, random_seed=123)
+
+    # Create data that partially overlaps with training data
+    # Take the last 3 training dates + 3 new future dates
+    overlap_data = X.iloc[-8:-2]  # This will include some training dates
+
+    # This should raise a ValueError due to partial overlap
+    with pytest.raises(
+        ValueError,
+        match="Cannot use include_last_observations=True when input dates overlap with training dates",
+    ):
+        mmm.sample_posterior_predictive(
+            overlap_data,
+            include_last_observations=True,
+            extend_idata=False,
+            random_seed=123,
+        )
+
+
+def test_sample_posterior_predictive_no_overlap_with_include_last_observations(
+    single_dim_data, mock_pymc_sample
+):
+    """
+    Test that include_last_observations=True works correctly when there's no date overlap.
+    """
+    X, y = single_dim_data
+    X_train = X.iloc[:-5]
+    X_new = X.iloc[-5:]  # Non-overlapping future dates
+    y_train = y.iloc[:-5]
+
+    # Build and fit the model
+    adstock = GeometricAdstock(l_max=2)
+    saturation = LogisticSaturation()
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=adstock,
+        saturation=saturation,
+    )
+
+    mmm.build_model(X_train, y_train)
+    mmm.fit(X_train, y_train, draws=200, tune=100, chains=1, random_seed=123)
+
+    # This should work fine since dates don't overlap
+    try:
+        result = mmm.sample_posterior_predictive(
+            X_new,  # Non-overlapping dates
+            include_last_observations=True,  # Should work fine
+            extend_idata=False,
+            random_seed=123,
+        )
+
+        # Verify that the result includes the expected dates
+        # (should be l_max training dates + new prediction dates, then sliced to remove l_max)
+        expected_dates = X_new["date"].values
+        np.testing.assert_array_equal(result.coords["date"].values, expected_dates)
+
+    except ValueError as e:
+        pytest.fail(f"Unexpected error when using non-overlapping dates: {e}")
+
+
 @pytest.fixture
 def df_events() -> pd.DataFrame:
     return pd.DataFrame(
