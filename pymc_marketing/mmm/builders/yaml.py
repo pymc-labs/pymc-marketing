@@ -99,13 +99,12 @@ def build_mmm_from_yaml(
     date_column = model_config.get("date_column")
     if date_column:
         date_col_in_X = date_column in X.columns
-        date_col_in_y = date_column in y.columns
 
         if date_column in X.columns:
             X[date_column] = pd.to_datetime(X[date_column])
         if date_column in y.columns:
             y[date_column] = pd.to_datetime(y[date_column])
-        if not date_col_in_X and not date_col_in_y:
+        if not date_col_in_X:
             raise ValueError(
                 f"Date column '{date_column}' specified in config not found in either X or y data."
             )
