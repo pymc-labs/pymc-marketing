@@ -1094,3 +1094,195 @@ def test_mmm_linear_trend_different_dimensions_original_scale(
         "date": 7,
         "country": 3,
     }
+
+
+@pytest.mark.parametrize(
+    "date_col_name",
+    ["date_week", "week", "period", "timestamp", "time_period"],
+    ids=["date_week", "week", "period", "timestamp", "time_period"],
+)
+def test_mmm_with_arbitrary_date_column_names_single_dim(
+    single_dim_data, date_col_name, mock_pymc_sample
+):
+    """Test that MMM works with arbitrary date column names (single dimension data).
+
+    This test validates the fix for hardcoded 'date' references by:
+    1. Taking existing test data with 'date' column
+    2. Renaming the date column to various arbitrary names
+    3. Verifying MMM can build and fit models successfully
+    4. Checking that internal coordinates use 'date' consistently
+    """
+    X_single, y_single = single_dim_data
+
+    # Rename the date column to test arbitrary names
+    X_renamed = X_single.rename(columns={"date": date_col_name})
+
+    mmm = MMM(
+        date_column=date_col_name,  # Use the renamed column
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    # This should work without any manual renaming
+    mmm.build_model(X_renamed, y_single)
+
+    # Verify internal coordinates use 'date' consistently
+    assert "date" in mmm.model.coords, (
+        f"Internal model coordinates should use 'date', not '{date_col_name}'"
+    )
+    assert "date" in mmm.xarray_dataset.coords, (
+        f"Internal xarray coordinates should use 'date', not '{date_col_name}'"
+    )
+
+    # Verify model can be fitted
+    idata = mmm.fit(X_renamed, y_single, draws=50, tune=25, chains=1)
+    assert isinstance(idata, az.InferenceData)
+
+    # Test posterior predictive sampling
+    pred_data = mmm.sample_posterior_predictive(
+        X_renamed, extend_idata=False, random_seed=42
+    )
+    assert "date" in pred_data.dims, (
+        "Posterior predictive should use 'date' coordinate internally"
+    )
+
+
+@pytest.mark.parametrize(
+    "date_col_name",
+    ["date_week", "period", "timestamp"],
+    ids=["date_week", "period", "timestamp"],
+)
+def test_mmm_with_arbitrary_date_column_names_multi_dim(
+    multi_dim_data, date_col_name, mock_pymc_sample
+):
+    """Test that MMM works with arbitrary date column names (multi-dimensional data).
+
+    This test validates complex features work with arbitrary date column names.
+    """
+    X_multi, y_multi = multi_dim_data
+
+    # Rename the date column
+    X_renamed = X_multi.rename(columns={"date": date_col_name})
+
+    mmm_multi = MMM(
+        date_column=date_col_name,  # Use the renamed column
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=True,  # Add complexity to test more code paths
+        yearly_seasonality=2,
+    )
+
+    # Build and fit the model
+    mmm_multi.build_model(X_renamed, y_multi)
+
+    # Verify internal coordinates use 'date' consistently
+    assert "date" in mmm_multi.model.coords
+    assert "date" in mmm_multi.xarray_dataset.coords
+    assert "country" in mmm_multi.model.coords  # Should preserve other dims
+
+    # Verify model can be fitted with complex features
+    idata_multi = mmm_multi.fit(X_renamed, y_multi, draws=50, tune=25, chains=1)
+    assert isinstance(idata_multi, az.InferenceData)
+
+    # Test that time-varying features work with arbitrary date names
+    assert "intercept_latent_process" in mmm_multi.model.named_vars
+    assert "fourier_contribution" in mmm_multi.model.named_vars
+
+    # Test posterior predictive with new data having the same arbitrary date column name
+    X_new = X_renamed.copy()
+    diff_days = (X_new[date_col_name].max() - X_new[date_col_name].min()).days + 7
+    X_new[date_col_name] += pd.Timedelta(days=diff_days)
+
+    pred_data_multi = mmm_multi.sample_posterior_predictive(
+        X_new, extend_idata=False, random_seed=42
+    )
+    assert "date" in pred_data_multi.dims
+    assert "country" in pred_data_multi.dims
+
+
+def test_date_column_validation_with_arbitrary_names(single_dim_data):
+    """Test that proper validation occurs with arbitrary date column names."""
+    X, y = single_dim_data
+
+    # Test that specifying wrong date column name raises appropriate error
+    X_renamed = X.rename(columns={"date": "week_ending"})
+
+    mmm = MMM(
+        date_column="wrong_column_name",  # This column doesn't exist
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    # Should raise an error because 'wrong_column_name' is not in the DataFrame
+    with pytest.raises(ValueError, match="date_column 'wrong_column_name' not found"):
+        mmm.build_model(X_renamed, y)
+
+
+@pytest.mark.parametrize(
+    "date_col_name",
+    ["date_start", "end_date", "date_week_ending", "reporting_date"],
+    ids=["date_start", "end_date", "date_week_ending", "reporting_date"],
+)
+def test_mixed_date_column_scenarios_variations(
+    single_dim_data, date_col_name, mock_pymc_sample
+):
+    """Test edge cases with date column names that contain 'date' but aren't exactly 'date'."""
+    X, y = single_dim_data
+
+    X_test = X.rename(columns={"date": date_col_name})
+
+    mmm = MMM(
+        date_column=date_col_name,
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    mmm.build_model(X_test, y)
+
+    # Verify scaling operations work correctly
+    scales = mmm.get_scales_as_xarray()
+    assert "channel_scale" in scales
+    assert "target_scale" in scales
+
+    # Verify the model builds successfully
+    assert hasattr(mmm, "model")
+    assert hasattr(mmm, "xarray_dataset")
+
+
+def test_arbitrary_date_column_with_control_variables(
+    single_dim_data, mock_pymc_sample
+):
+    """Test that the fix works with control columns and arbitrary date column names."""
+    X, y = single_dim_data
+
+    # Scenario: Ensure the fix works with control columns
+    X_with_controls = X.rename(columns={"date": "time_stamp"})
+    X_with_controls["control_1"] = np.random.normal(0, 1, len(X_with_controls))
+    X_with_controls["control_2"] = np.random.normal(0, 1, len(X_with_controls))
+
+    mmm_controls = MMM(
+        date_column="time_stamp",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    mmm_controls.build_model(X_with_controls, y)
+
+    # Verify control data was processed correctly
+    assert "_control" in mmm_controls.xarray_dataset
+    assert "control_data" in mmm_controls.model.named_vars
+
+    idata = mmm_controls.fit(X_with_controls, y, draws=50, tune=25, chains=1)
+    assert isinstance(idata, az.InferenceData)
