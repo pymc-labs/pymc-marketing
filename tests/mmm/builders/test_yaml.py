@@ -59,7 +59,7 @@ def test_build_mmm_from_yaml(config_path, X_data, y_data):
     model = build_mmm_from_yaml(
         config_path=config_path,
         X=X_data,
-        y=y_data,
+        y=y_data.squeeze(),
     )
 
     # Check that model was created successfully
