@@ -149,11 +149,13 @@ class NestedLogit(ModelBuilder):
         alphas = Prior("Normal", mu=0, sigma=5, dims="alts")
         betas = Prior("Normal", mu=0, sigma=1, dims="alt_covariates")
         betas_fixed = Prior("Normal", mu=0, sigma=1, dims=("alts", "fixed_covariates"))
+        lambdas_nests = Prior("Beta", alpha=1, beta=1, dims="nests")
 
         return {
             "alphas_": alphas,
             "betas": betas,
             "betas_fixed_": betas_fixed,
+            "lambdas_nests": lambdas_nests,
             "likelihood": Prior(
                 "Categorical",
                 p=0,
@@ -176,8 +178,9 @@ class NestedLogit(ModelBuilder):
         result: dict[str, int | float | dict] = {
             "alphas_": self.model_config["alphas_"].to_dict(),
             "likelihood": self.model_config["likelihood"].to_dict(),
+            "lambdas_nests": self.model_config["lambdas_nests"].to_dict(),
             "betas": self.model_config["betas"].to_dict(),
-            "betas_fixed": self.model_config["betas_fixed_"].to_dict(),
+            "betas_fixed_": self.model_config["betas_fixed_"].to_dict(),
         }
 
         return result
@@ -218,7 +221,10 @@ class NestedLogit(ModelBuilder):
         target, covariates = formula.split("~")
         target = target.strip()
 
-        alt_covariates, fixed_covariates = covariates.split("|")
+        if "|" in covariates:
+            alt_covariates, fixed_covariates = covariates.split("|")
+        else:
+            alt_covariates, fixed_covariates = covariates, ""
         alt_covariates = alt_covariates.strip()
         fixed_covariates = fixed_covariates.strip()
 
@@ -276,6 +282,10 @@ class NestedLogit(ModelBuilder):
             if fixed_covar:
                 fixed_covariates.append(fixed_covar)
 
+        for alt in df[depvar].unique():
+            if alt not in alts:
+                raise ValueError(f"""There is an alternative {alt} in the data
+                                 with no matching equation""")
         if fixed_covariates:
             F = np.unique(fixed_covariates)[0]
             F = "0 + " + F
@@ -633,7 +643,9 @@ class NestedLogit(ModelBuilder):
         ## Calculate the nest probability
         nest_probs = {}
         for n in nest_indices[level].keys():
-            P_nest = pm.Deterministic(f"P_{n}", (conditional_probs[n]["exp"] / denom))
+            P_nest = pm.Deterministic(
+                f"P_{n}", (conditional_probs[n]["exp"] / denom), dims="obs"
+            )
             nest_probs[n] = P_nest
         return conditional_probs, nest_probs
 
@@ -643,17 +655,24 @@ class NestedLogit(ModelBuilder):
         coords = self.coords
 
         with pm.Model(coords=coords) as model:
-            alphas = pm.Normal("alphas", 0, 1, dims="alts")
-            betas = pm.Normal("betas", 0, 1, dims=("alt_covariates"))
-            lambdas_nests = pm.Beta("lambda_nests", 2, 2, dims="nests")
+            # alternative specific intercepts
+            alphas = self.model_config["alphas_"].create_variable(name="alphas_")
+            # Covariate Weight Parameters
+            betas = self.model_config["betas"].create_variable("betas")
+            lambdas_nests = self.model_config["lambdas_nests"].create_variable(
+                "lambdas_nests"
+            )
+            alphas = pm.Deterministic(
+                "alphas", pt.set_subtensor(alphas[-1], 0), dims="alts"
+            )
 
             if W is None:
                 w_nest = pm.math.zeros((len(coords["obs"]), len(coords["alts"])))
                 betas_fixed_ = None
             else:
                 W_data = pm.Data("W", W, dims=("obs", "fixed_covariates"))
-                betas_fixed_ = pm.Normal(
-                    "betas_fixed_", 0, 1, dims=("alts", "fixed_covariates")
+                betas_fixed_ = self.model_config["betas_fixed_"].create_variable(
+                    "betas_fixed_"
                 )
                 betas_fixed = pm.Deterministic(
                     "betas_fixed",
@@ -665,7 +684,6 @@ class NestedLogit(ModelBuilder):
             y_data = pm.Data("y", y, dims="obs")
 
             # Compute utility as a dot product
-            alphas = pt.set_subtensor(alphas[-1], 0)
             u = alphas + pm.math.dot(X_data, betas)
             U = pm.Deterministic("U", w_nest + u, dims=("obs", "alts"))
 
@@ -794,19 +812,15 @@ class NestedLogit(ModelBuilder):
         self, extend_idata: bool, kwargs: dict[str, Any]
     ) -> None:
         """Sample Posterior Predictive Distribution."""
-        if extend_idata:
-            with self.model:
-                if self.idata is not None:
-                    self.idata.extend(
-                        pm.sample_posterior_predictive(
-                            self.idata, var_names=["likelihood", "p"], **kwargs
-                        )
-                    )
-        else:
+        if self.idata is not None:
             with self.model:
                 self.post_pred = pm.sample_posterior_predictive(
                     self.idata, var_names=["likelihood", "p"], **kwargs
                 )
+            if extend_idata:
+                self.idata.extend(self.post_pred)
+        else:
+            raise ValueError("Cannot extend `idata` because it is None.")
 
     def sample(
         self,
@@ -984,7 +998,7 @@ class NestedLogit(ModelBuilder):
         return shares_df
 
     @staticmethod
-    def make_change_plot(
+    def plot_change(
         change_df: pd.DataFrame,
         title: str = "Change in Proportion due to Intervention",
         figsize: tuple = (8, 4),

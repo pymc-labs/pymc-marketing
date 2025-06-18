@@ -163,6 +163,6 @@ def test_counterfactual(mnl, mock_pymc_sample):
 
 
 def test_make_change_plot_returns_figure(mnl, sample_change_df):
-    fig = mnl.make_change_plot(sample_change_df, title="Test Intervention")
+    fig = mnl.plot_change(sample_change_df, title="Test Intervention")
 
     assert isinstance(fig, plt.Figure)

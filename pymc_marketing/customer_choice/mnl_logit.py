@@ -172,7 +172,10 @@ class MNLogit(ModelBuilder):
         target, covariates = formula.split("~")
         target = target.strip()
 
-        alt_covariates, fixed_covariates = covariates.split("|")
+        if "|" in covariates:
+            alt_covariates, fixed_covariates = covariates.split("|")
+        else:
+            alt_covariates, fixed_covariates = covariates, ""
         alt_covariates = alt_covariates.strip()
         fixed_covariates = fixed_covariates.strip()
 
@@ -528,7 +531,7 @@ class MNLogit(ModelBuilder):
         return shares_df
 
     @staticmethod
-    def make_change_plot(change_df, title="Price Intervention", figsize=(8, 4)):
+    def plot_change(change_df, title="Change due to Intervention", figsize=(8, 4)):
         """Plot change induced by a market intervention."""
         fig, ax = plt.subplots(figsize=figsize)
         ax.axvline(x=0, color="black", linestyle="--", linewidth=1)
@@ -580,7 +583,5 @@ class MNLogit(ModelBuilder):
         ax.set_xticks([])
         ax.set_ylabel("Share of Market %")
         ax.set_xlabel("Before/After")
-        ax.set_title(
-            f" Multinomial Logit implied Market Shares \n Before and After {title} \n \n\n",
-        )
+        ax.set_title(title)
         return fig

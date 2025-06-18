@@ -211,6 +211,6 @@ def test_counterfactual(
 
 
 def test_make_change_plot_returns_figure(nstL, sample_change_df):
-    fig = nstL.make_change_plot(sample_change_df, title="Test Intervention")
+    fig = nstL.plot_change(sample_change_df, title="Test Intervention")
 
     assert isinstance(fig, plt.Figure)
