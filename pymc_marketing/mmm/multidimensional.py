@@ -577,12 +577,14 @@ class MMM(ModelBuilder):
             subset=[date_column, *valid_dims, metric_coordinate_name]
         )
 
-        # Convert to xarray
+        # Convert to xarray, renaming date_column to "date" for internal consistency
         if valid_dims:
+            df_long = df_long.rename(columns={date_column: "date"})
             return df_long.set_index(
-                [date_column, *valid_dims, metric_coordinate_name]
+                ["date", *valid_dims, metric_coordinate_name]
             ).to_xarray()
-        return df_long.set_index([date_column, metric_coordinate_name]).to_xarray()
+        df_long = df_long.rename(columns={date_column: "date"})
+        return df_long.set_index(["date", metric_coordinate_name]).to_xarray()
 
     def _process_dataframe(
         self,
@@ -625,12 +627,13 @@ class MMM(ModelBuilder):
             subset=[date_column, *valid_dims, metric_coordinate_name]
         )
 
-        # Convert to xarray
+        # Convert to xarray, renaming date_column to "date" for internal consistency
+        df_long = df_long.rename(columns={date_column: "date"})
         if valid_dims:
             return df_long.set_index(
-                [date_column, *valid_dims, metric_coordinate_name]
+                ["date", *valid_dims, metric_coordinate_name]
             ).to_xarray()
-        return df_long.set_index([date_column, metric_coordinate_name]).to_xarray()
+        return df_long.set_index(["date", metric_coordinate_name]).to_xarray()
 
     def _create_xarray_from_pandas(
         self,
@@ -716,10 +719,12 @@ class MMM(ModelBuilder):
         )
         dataarrays.append(X_dataarray)
 
+        # Create a temporary DataFrame to properly handle the y data transformation
+        temp_y_df = pd.concat([self.X[[self.date_column, *self.dims]], self.y], axis=1)
         y_dataarray = self._create_xarray_from_pandas(
-            data=pd.concat([self.X, self.y], axis=1).set_index(
-                [self.date_column, *self.dims]
-            )[self.target_column],
+            data=temp_y_df.set_index([self.date_column, *self.dims])[
+                self.target_column
+            ],
             date_column=self.date_column,
             dims=self.dims,
             metric_list=[self.target_column],
@@ -777,7 +782,7 @@ class MMM(ModelBuilder):
         Examples
         --------
         >>> mmm = MMM(
-            date_column="date",
+            date_column="date_week",
             channel_columns=["channel_1", "channel_2"],
             target_column="target",
         )
@@ -819,7 +824,7 @@ class MMM(ModelBuilder):
         Examples
         --------
         >>> mmm = MMM(
-            date_column="date",
+            date_column="date_week",
             channel_columns=["channel_1", "channel_2"],
             target_column="target",
         )
@@ -1154,6 +1159,43 @@ class MMM(ModelBuilder):
                 observed=target_data_scaled,
             )
 
+    def _validate_date_overlap_with_include_last_observations(
+        self, X: pd.DataFrame, include_last_observations: bool
+    ) -> None:
+        """Validate that include_last_observations is not used with overlapping dates.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            The input data for prediction.
+        include_last_observations : bool
+            Whether to include the last observations of the training data.
+
+        Raises
+        ------
+        ValueError
+            If include_last_observations=True and input dates overlap with training dates.
+        """
+        if not include_last_observations:
+            return
+
+        # Get training dates and input dates
+        training_dates = pd.to_datetime(self.model_coords["date"])
+        input_dates = pd.to_datetime(X[self.date_column].unique())
+
+        # Check for overlap
+        overlapping_dates = set(training_dates).intersection(set(input_dates))
+
+        if overlapping_dates:
+            overlapping_dates_str = ", ".join(
+                sorted([str(d.date()) for d in overlapping_dates])
+            )
+            raise ValueError(
+                f"Cannot use include_last_observations=True when input dates overlap with training dates. "
+                f"Overlapping dates found: {overlapping_dates_str}. "
+                f"Either set include_last_observations=False or use input dates that don't overlap with training data."
+            )
+
     def _posterior_predictive_data_transformation(
         self,
         X: pd.DataFrame,
@@ -1176,6 +1218,11 @@ class MMM(ModelBuilder):
         xr.Dataset
             The transformed data in xarray format.
         """
+        # Validate that include_last_observations is not used with overlapping dates
+        self._validate_date_overlap_with_include_last_observations(
+            X, include_last_observations
+        )
+
         dataarrays = []
         if include_last_observations:
             last_obs = self.xarray_dataset.isel(date=slice(-self.adstock.l_max, None))
@@ -1215,13 +1262,15 @@ class MMM(ModelBuilder):
             )
         else:
             # Return empty xarray with same dimensions as the target but full of zeros
+            # Use the same dtype as the existing target data to avoid dtype mismatches
+            target_dtype = self.xarray_dataset._target.dtype
             y_xarray = xr.DataArray(
                 np.zeros(
                     (
                         X[self.date_column].nunique(),
                         *[len(self.xarray_dataset.coords[dim]) for dim in self.dims],
                     ),
-                    dtype=np.int32,
+                    dtype=target_dtype,
                 ),
                 dims=("date", *self.dims),
                 coords={
@@ -1275,7 +1324,7 @@ class MMM(ModelBuilder):
 
         if self.time_varying_intercept or self.time_varying_media:
             data["time_index"] = infer_time_index(
-                pd.Series(dataset_xarray[self.date_column]),
+                pd.Series(dataset_xarray["date"]),
                 pd.Series(self.model_coords["date"]),
                 self._time_resolution,
             )
