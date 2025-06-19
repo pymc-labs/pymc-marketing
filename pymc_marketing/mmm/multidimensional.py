@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from copy import deepcopy
 from typing import Annotated, Any, Literal
 
@@ -1433,6 +1433,95 @@ class MMM(ModelBuilder):
 
         return posterior_predictive_samples
 
+    def _make_channel_transform(
+        self, df_lift_test: pd.DataFrame
+    ) -> Callable[[np.ndarray], np.ndarray]:
+        """Create a function for transforming the channel data into the same scale as in the model.
+
+        Parameters
+        ----------
+        df_lift_test : pd.DataFrame
+            Lift test measurements.
+
+        Returns
+        -------
+        Callable[[np.ndarray], np.ndarray]
+            The function for scaling the channel data.
+        """
+        # The tansformer will be passed a np.ndarray of data corresponding to this index.
+        index_cols = [*list(self.dims), "channel"]
+        # We reconstruct the input dataframe following the transformations performed within
+        # `lift_test.scale_channel_lift_measurements()``.
+        input_df = (
+            df_lift_test.loc[:, [*index_cols, "x", "delta_x"]]
+            .set_index(index_cols, append=True)
+            .stack()
+            .unstack(level=-2)
+            .reindex(self.channel_columns, axis=1)  # type: ignore
+            .fillna(0)
+        )
+
+        def transform(input: np.ndarray) -> np.ndarray:
+            # reconstruct the df corresponding to the input np.ndarray.
+            reconstructed = (
+                pd.DataFrame(data=input, index=input_df.index, columns=input_df.columns)
+                .stack()
+                .unstack(level=-2)
+            )
+            return (
+                (
+                    # Scale the data according to the scaler coords.
+                    reconstructed.to_xarray() / self.scalers._channel
+                )
+                .to_dataframe()
+                .fillna(0)
+                .stack()
+                .unstack(level=-2)
+                .loc[input_df.index, :]
+                .values
+            )
+
+        # Finally return the scaled data as a np.ndarray corresponding to the input index order.
+        return transform
+
+    def _make_target_transform(
+        self, df_lift_test: pd.DataFrame
+    ) -> Callable[[np.ndarray], np.ndarray]:
+        """Create a function for transforming the target measurements into the same scale as in the model.
+
+        Parameters
+        ----------
+        df_lift_test : pd.DataFrame
+            Lift test measurements.
+
+        Returns
+        -------
+        Callable[[np.ndarray], np.ndarray]
+            The function for scaling the target data.
+        """
+        # These are the same order as in the original lift test measurements.
+        index_cols = [*list(self.dims), "channel"]
+        input_idx = df_lift_test.set_index(index_cols, append=True).index
+
+        def transform(input: np.ndarray) -> np.ndarray:
+            # Reconstruct the input df column with the correct index.
+            reconstructed = pd.DataFrame(
+                data=input, index=input_idx, columns=["target"]
+            )
+            return (
+                (
+                    # Scale the measurements.
+                    reconstructed.to_xarray() / self.scalers._target
+                )
+                .to_dataframe()
+                .loc[input_idx, :]
+                .values
+            )
+
+        # Finally, return the scaled measurements as a np.ndarray corresponding to
+        # the input index order.
+        return transform
+
     def add_lift_test_measurements(
         self,
         df_lift_test: pd.DataFrame,
@@ -1550,18 +1639,11 @@ class MMM(ModelBuilder):
                     f"The {dim} column is required to map the lift measurements to the model."
                 )
 
-        # Define a target transformer from the target scaler.
-        def target_transform(target):
-            return target / self.scalers._target.to_numpy()
+        # Function to scale "delta_y", and "sigma" to same scale as target in model.
+        target_transform = self._make_target_transform(df_lift_test)
 
-        # Define a channel transformer from the channel scaler.
-        def channel_transform(channels):
-            return (
-                channels
-                / self.scalers._channel.loc[
-                    dict(channel=self.channel_columns)
-                ].to_numpy()
-            )
+        # Function to scale "x" and "delta_x" to the same scale as their respective channels.
+        channel_transform = self._make_channel_transform(df_lift_test)
 
         df_lift_test_scaled = scale_lift_measurements(
             df_lift_test=df_lift_test,
