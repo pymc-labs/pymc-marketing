@@ -186,7 +186,7 @@ def warn_function_deprecation(func):
     def wrapper(*args, **kwargs):
         name = func.__name__
         warnings.warn(
-            f"This {name} function has moved to pymc_extras.prior module and will be removed in a future release. "
+            f"The {name} function has moved to pymc_extras.prior module and will be removed in a future release. "
             f"Import it from `from pymc_extras.prior import {name}`.",
             DeprecationWarning,
             stacklevel=2,
