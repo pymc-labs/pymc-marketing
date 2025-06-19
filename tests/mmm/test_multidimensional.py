@@ -1193,9 +1193,9 @@ def test_add_lift_test_measurements_missing_single_dimension_from_multiple() -> 
         mmm.add_lift_test_measurements(df_lift_test_missing_product)
 
 
-def test_add_lift_test_measurements_no_dimensions_success(multi_dim_data) -> None:
+def test_add_lift_test_measurements_no_dimensions_success(single_dim_data) -> None:
     """Test that lift test measurements work correctly when no dimensions are specified."""
-    X, y = multi_dim_data
+    X, y = single_dim_data
     mmm = MMM(
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
