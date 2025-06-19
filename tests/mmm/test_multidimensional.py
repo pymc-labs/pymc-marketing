@@ -1412,3 +1412,54 @@ def test_arbitrary_date_column_with_control_variables(
 
     idata = mmm_controls.fit(X_with_controls, y, draws=50, tune=25, chains=1)
     assert isinstance(idata, az.InferenceData)
+
+
+@pytest.mark.parametrize(
+    "model_config, expected_config, expected_rv",
+    [
+        pytest.param(
+            {"intercept_tvp_config": {"ls_lower": 0.1, "ls_upper": None}},
+            None,
+            dict(name="intercept_latent_process_raw_ls_raw", kind="WeibullBetaRV"),
+            id="weibull",
+        ),
+        pytest.param(
+            {"intercept_tvp_config": {"ls_lower": 1, "ls_upper": 10}},
+            None,
+            dict(name="intercept_latent_process_raw_ls", kind="InvGammaRV"),
+            id="inversegamma",
+        ),
+    ],
+)
+def test_specify_time_varying_configuration(
+    single_dim_data,
+    model_config,
+    expected_config,
+    expected_rv,
+) -> None:
+    X, y = single_dim_data
+    expected_config = expected_config or model_config
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        model_config=model_config,
+        time_varying_intercept=True,
+    )
+
+    assert isinstance(mmm.model_config["intercept_tvp_config"], dict)
+    assert (
+        mmm.model_config["intercept_tvp_config"]
+        == expected_config["intercept_tvp_config"]
+    )
+
+    mmm.build_model(X, y)
+
+    assert (
+        mmm.model[expected_rv["name"]].owner.op.__class__.__name__
+        == expected_rv["kind"]
+    )
