@@ -184,10 +184,23 @@ def linear_trend_model(dates) -> pm.Model:
 
 
 @pytest.mark.parametrize(
-    "mmm_dims, linear_trend_dims",
+    "mmm_dims, priors, linear_trend_dims, deterministic_dims",
     [
-        pytest.param((), (), id="scalar"),
-        pytest.param(("geo", "product"), ("geo", "product"), id="2d"),
+        pytest.param((), {}, (), ("date",), id="scalar"),
+        pytest.param(
+            ("geo", "product"),
+            {},
+            ("geo", "product"),
+            ("date", None, None),
+            id="2d",
+        ),
+        pytest.param(
+            ("geo", "product"),
+            {"delta": Prior("Normal", dims=("geo", "changepoint"))},
+            ("geo", "product"),
+            ("date", None, None),
+            id="missing-product-dim-in-delta",
+        ),
     ],
 )
 def test_linear_trend_effect(
@@ -195,17 +208,19 @@ def test_linear_trend_effect(
     new_dates,
     linear_trend_model,
     mmm_dims,
+    priors,
     linear_trend_dims,
+    deterministic_dims,
 ) -> None:
     prefix = "linear_trend"
     effect = LinearTrendEffect(
-        LinearTrend(dims=linear_trend_dims),
+        LinearTrend(priors=priors, dims=linear_trend_dims),
         prefix=prefix,
     )
 
     mmm = create_mock_mmm(dims=mmm_dims, model=linear_trend_model)
 
-    mmm.model.add_coords({dim: ["dummy"] for dim in linear_trend_dims})
+    mmm.model.add_coords({dim: ["dummy1", "dummy2"] for dim in linear_trend_dims})
 
     with mmm.model:
         effect.create_data(mmm)
@@ -215,12 +230,16 @@ def test_linear_trend_effect(
     assert effect.linear_trend_first_date == mmm.model.coords["date"][0]
 
     with mmm.model:
-        pm.Deterministic("effect", effect.create_effect(mmm), dims=("date", *mmm.dims))
+        pm.Deterministic(
+            "effect",
+            effect.create_effect(mmm),
+            dims=deterministic_dims,
+        )
 
     assert set(mmm.model.named_vars) == {
         "delta",
         "effect",
-        f"{prefix}_effect",
+        f"{prefix}_effect_contribution",
         f"{prefix}_t",
     }
     assert set(mmm.model.coords) == {"date", "changepoint"}.union(linear_trend_dims)

@@ -377,3 +377,11 @@ def add_noise_to_channel_allocation(
     noisy_df[channels] += noise
 
     return noisy_df
+
+
+def create_index(
+    dims: tuple[str, ...],
+    take: tuple[str, ...],
+) -> tuple[int | slice, ...]:
+    """Create an index to take the first dimension of a tensor based on the provided dimensions."""
+    return tuple(slice(None) if dim in take else 0 for dim in dims)
