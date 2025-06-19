@@ -956,6 +956,7 @@ def test_add_lift_test_measurements(
     df_lift_test,
     target_scaling_dims,
     channel_scaling_dims,
+    mock_pymc_sample,
 ) -> None:
     X, y = multi_dim_data
     mmm = MMM(
@@ -982,6 +983,11 @@ def test_add_lift_test_measurements(
 
     assert name in mmm.model
 
+    try:
+        mmm.fit(X, y)
+    except Exception as e:
+        pytest.fail(f"Sampling failed with error: {e}")
+
 
 def test_add_lift_test_measurements_no_model() -> None:
     adstock = GeometricAdstock(l_max=4)
@@ -1000,7 +1006,9 @@ def test_add_lift_test_measurements_no_model() -> None:
         )
 
 
-def test_time_varying_media_with_lift_test(multi_dim_data, df_lift_test) -> None:
+def test_time_varying_media_with_lift_test(
+    multi_dim_data, df_lift_test, mock_pymc_sample
+) -> None:
     X, y = multi_dim_data
     mmm = MMM(
         date_column="date",
@@ -1018,6 +1026,11 @@ def test_time_varying_media_with_lift_test(multi_dim_data, df_lift_test) -> None
         pytest.fail(
             f"add_lift_test_measurements for time_varying_media model failed with error {e}"
         )
+
+    try:
+        mmm.fit(X, y)
+    except Exception as e:
+        pytest.fail(f"Sampling failed with error: {e}")
 
 
 def test_add_lift_test_measurements_missing_channel_column(multi_dim_data) -> None:
@@ -1193,7 +1206,9 @@ def test_add_lift_test_measurements_missing_single_dimension_from_multiple() -> 
         mmm.add_lift_test_measurements(df_lift_test_missing_product)
 
 
-def test_add_lift_test_measurements_no_dimensions_success(single_dim_data) -> None:
+def test_add_lift_test_measurements_no_dimensions_success(
+    single_dim_data, mock_pymc_sample
+) -> None:
     """Test that lift test measurements work correctly when no dimensions are specified."""
     X, y = single_dim_data
     mmm = MMM(
@@ -1225,6 +1240,11 @@ def test_add_lift_test_measurements_no_dimensions_success(single_dim_data) -> No
         pytest.fail(
             f"add_lift_test_measurements should work with no dimensions, but failed with error: {e}"
         )
+
+    try:
+        mmm.fit(X, y)
+    except Exception as e:
+        pytest.fail(f"Sampling failed with error: {e}")
 
 
 class TestPydanticValidation:
