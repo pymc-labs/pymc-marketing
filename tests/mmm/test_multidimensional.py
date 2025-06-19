@@ -1215,14 +1215,23 @@ def test_add_lift_test_measurements_missing_single_dimension_from_multiple() -> 
         mmm.add_lift_test_measurements(df_lift_test_missing_product)
 
 
+@pytest.mark.parametrize(
+    "saturation_dims",
+    [
+        pytest.param((), id="scalar"),
+        pytest.param(("channel",), id="vector"),
+    ],
+)
 def test_add_lift_test_measurements_no_dimensions_success(
-    single_dim_data, mock_pymc_sample
+    saturation_dims,
+    single_dim_data,
+    mock_pymc_sample,
 ) -> None:
     """Test that lift test measurements work correctly when no dimensions are specified."""
     X, y = single_dim_data
     mmm = MMM(
         adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
+        saturation=LogisticSaturation().set_dims_for_all_priors(dims=saturation_dims),
         date_column="date",
         target_column="target",
         channel_columns=["channel_1", "channel_2", "channel_3"],
