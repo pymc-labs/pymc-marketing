@@ -938,6 +938,14 @@ def df_lift_test() -> pd.DataFrame:
 
 
 @pytest.mark.parametrize(
+    "saturation_dims",
+    [
+        pytest.param((), id="scalar"),
+        pytest.param(("channel",), id="vector"),
+        pytest.param(("country", "channel"), id="matrix"),
+    ],
+)
+@pytest.mark.parametrize(
     "target_scaling_dims",
     [
         pytest.param(("country",), id="through-country (default)"),
@@ -954,6 +962,7 @@ def df_lift_test() -> pd.DataFrame:
 def test_add_lift_test_measurements(
     multi_dim_data,
     df_lift_test,
+    saturation_dims,
     target_scaling_dims,
     channel_scaling_dims,
     mock_pymc_sample,
@@ -961,7 +970,7 @@ def test_add_lift_test_measurements(
     X, y = multi_dim_data
     mmm = MMM(
         adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
+        saturation=LogisticSaturation().set_dims_for_all_priors(dims=saturation_dims),
         date_column="date",
         target_column="target",
         channel_columns=["channel_1", "channel_2", "channel_3"],
