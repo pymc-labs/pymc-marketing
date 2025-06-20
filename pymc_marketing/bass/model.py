@@ -91,7 +91,7 @@ Create a basic Bass model for multiple products:
 
     from pymc_marketing.bass.model import create_bass_model
     from pymc_marketing.plot import plot_curve
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
 
     # Create time points - 3 years of monthly data
     n_dates = 12 * 3
@@ -130,8 +130,7 @@ from typing import Any
 import pymc as pm
 import pytensor.tensor as pt
 from pymc.model import Model
-
-from pymc_marketing.prior import Censored, Prior, VariableFactory, create_dim_handler
+from pymc_extras.prior import Censored, Prior, VariableFactory, create_dim_handler
 
 
 def F(

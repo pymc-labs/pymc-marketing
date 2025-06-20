@@ -26,6 +26,7 @@ import pytensor.tensor as pt
 import xarray
 from numpy import exp, log
 from pymc.util import RandomState
+from pymc_extras.prior import Prior
 from pytensor.compile import Mode, get_default_mode
 from pytensor.graph import Constant, node_rewriter
 from pytensor.scalar import Grad2F1Loop
@@ -37,7 +38,6 @@ from pymc_marketing.clv.distributions import ParetoNBD
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
-from pymc_marketing.prior import Prior
 
 
 @node_rewriter([Elemwise])
@@ -117,7 +117,7 @@ class ParetoNBDModel(CLVModel):
 
         import pymc as pm
 
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
         from pymc_marketing.clv import ParetoNBDModel, rfm_summary
 
         rfm_df = rfm_summary(raw_data,'id_col_name','date_col_name')

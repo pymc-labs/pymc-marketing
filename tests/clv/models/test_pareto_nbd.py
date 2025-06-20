@@ -19,10 +19,10 @@ import pandas as pd
 import pymc as pm
 import pytest
 from lifetimes import ParetoNBDFitter
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv import ParetoNBDModel
 from pymc_marketing.clv.distributions import ParetoNBD
-from pymc_marketing.prior import Prior
 from tests.conftest import create_mock_fit, set_model_fit
 
 

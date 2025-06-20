@@ -18,12 +18,12 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models.gamma_gamma import (
     GammaGammaModel,
     GammaGammaModelIndividual,
 )
-from pymc_marketing.prior import Prior
 from tests.conftest import mock_fit_MAP, set_model_fit
 
 

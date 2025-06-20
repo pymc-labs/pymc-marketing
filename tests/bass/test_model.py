@@ -24,9 +24,9 @@ import pytensor
 import pytensor.tensor as pt
 import pytest
 from pydantic import BaseModel, ConfigDict
+from pymc_extras.prior import Prior, Scaled
 
 from pymc_marketing.bass.model import F, create_bass_model, f
-from pymc_marketing.prior import Prior, Scaled
 
 
 class BassModelComponents(BaseModel):

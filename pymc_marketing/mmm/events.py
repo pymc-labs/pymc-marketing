@@ -26,7 +26,7 @@ This module provides event transformations for use in Marketing Mix Models.
 
     from pymc_marketing.mmm.events import EventEffect, GaussianBasis
     from pymc_marketing.plot import plot_curve
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
 
     seed = sum(map(ord, "Events"))
     rng = np.random.default_rng(seed)
@@ -108,11 +108,11 @@ from pydantic import (
     model_validator,
     validate_call,
 )
+from pymc_extras.deserialize import deserialize, register_deserialization
+from pymc_extras.prior import Prior, create_dim_handler
 from pytensor.tensor.variable import TensorVariable
 
-from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.mmm.components.base import Transformation, create_registration_meta
-from pymc_marketing.prior import Prior, create_dim_handler
 
 BASIS_TRANSFORMATIONS: dict = {}
 BasisMeta = create_registration_meta(BASIS_TRANSFORMATIONS)

@@ -28,6 +28,7 @@ import pymc as pm
 import pytensor.tensor as pt
 import seaborn as sns
 from pydantic import Field, InstanceOf, validate_call
+from pymc_extras.prior import Prior
 from scipy.optimize import OptimizeResult
 from xarray import DataArray, Dataset
 
@@ -59,7 +60,6 @@ from pymc_marketing.mmm.validating import ValidateControlColumns
 from pymc_marketing.model_builder import _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
-from pymc_marketing.prior import Prior
 
 __all__ = ["MMM", "BaseMMM"]
 
@@ -451,7 +451,7 @@ class BaseMMM(BaseValidateMMM):
                 LogisticSaturation
                 MMM,
             )
-            from pymc_marketing.prior import Prior
+            from pymc_extras.prior import Prior
 
             custom_config = {
                 "intercept": Prior("Normal", mu=0, sigma=2),
@@ -979,7 +979,7 @@ class MMM(
             LogisticSaturation
             MMM,
         )
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         my_model_config = {
             "saturation_beta": Prior("LogNormal", mu=np.array([2, 1]), sigma=1),
