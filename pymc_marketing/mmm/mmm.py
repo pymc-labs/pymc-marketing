@@ -50,7 +50,7 @@ from pymc_marketing.mmm.lift_test import (
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
-from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
+from pymc_marketing.mmm.utility import UnivariateUtilityFunctionType, average_response
 from pymc_marketing.mmm.utils import (
     apply_sklearn_transformer_across_dim,
     create_new_spend_data,
@@ -2323,7 +2323,7 @@ class MMM(
         num_periods: int,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
         response_variable: str = "total_contribution",
-        utility_function: UtilityFunctionType = average_response,
+        utility_function: UnivariateUtilityFunctionType = average_response,
         constraints: Sequence[dict[str, Any]] = (),
         default_constraints: bool = True,
         **minimize_kwargs,
@@ -2355,7 +2355,7 @@ class MMM(
             for each channel. If None, no bounds are applied.
         response_variable : str, optional
             The response variable to optimize. Default is "total_contribution".
-        utility_function : UtilityFunctionType, optional
+        utility_function : UnivariateUtilityFunctionType, optional
             The utility function to maximize. Default is the mean of the response distribution.
         custom_constraints : list[dict[str, Any]], optional
             Custom constraints for the optimization. If None, no custom constraints are applied. Format:

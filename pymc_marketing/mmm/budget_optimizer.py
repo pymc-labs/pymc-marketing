@@ -369,14 +369,11 @@ class BudgetOptimizer(BaseModel):
     def _compile_objective_and_grad(self):
         """Compile the objective function and its gradient, both referencing `self._budgets_flat`."""
         budgets_flat = self._budgets_flat
-        budgets = self._budgets
         response_distribution = self.extract_response_distribution(
             self.response_variable
         )
 
-        objective = -self.utility_function(
-            samples=response_distribution, budgets=budgets
-        )
+        objective = -self.utility_function(samples=response_distribution)
         objective_grad = pt.grad(rewrite_pregrad(objective), budgets_flat)
 
         objective_and_grad_func = function([budgets_flat], [objective, objective_grad])

@@ -359,13 +359,13 @@ def mean_response_eq_constraint_fun(
     return mean_resp - target_response
 
 
-def minimize_budget_utility(samples, budgets):
+def minimize_budget_utility(samples):
     """
     A trivial "utility" that just tries to minimize total budget.
     Since the BudgetOptimizer by default *maximizes* the utility,
     we use the negative sign to effectively force minimization.
     """
-    return -pt.sum(budgets)
+    return -pt.sum(samples)
 
 
 @pytest.mark.parametrize(

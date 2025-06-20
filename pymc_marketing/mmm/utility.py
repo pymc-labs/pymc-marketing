@@ -46,6 +46,7 @@ from collections.abc import Callable
 
 import pytensor.tensor as pt
 
+UnivariateUtilityFunctionType = Callable[[pt.TensorVariable], pt.TensorVariable]
 UtilityFunctionType = Callable[[pt.TensorVariable, pt.TensorVariable], float]
 
 
@@ -86,7 +87,7 @@ def _compute_quantile(x: pt.TensorVariable, q: float) -> pt.TensorVariable:
 
 
 def average_response(
-    samples: pt.TensorVariable, budgets: pt.TensorVariable
+    samples: pt.TensorVariable,
 ) -> pt.TensorVariable:
     """Compute the average response of the posterior predictive distribution."""
     return pt.mean(_check_samples_dimensionality(samples))
