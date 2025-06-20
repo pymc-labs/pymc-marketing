@@ -337,7 +337,7 @@ def test_allocate_budget_infeasible_constraints(
     # Instantiate BudgetOptimizer with custom constraints
     optimizer = BudgetOptimizer(
         model=mmm,
-        response_variable="total_contributions",
+        response_variable="total_contribution",
         default_constraints=False,  # Avoid default equality constraints
         custom_constraints=custom_constraints,
         num_periods=30,
@@ -355,7 +355,7 @@ def mean_response_eq_constraint_fun(
     Enforces mean_response(budgets_sym) = target_response,
     i.e. returns (mean_resp - target_response).
     """
-    resp_dist = optimizer.extract_response_distribution("total_contributions")
+    resp_dist = optimizer.extract_response_distribution("total_contribution")
     mean_resp = pt.mean(_check_samples_dimensionality(resp_dist))
     return mean_resp - target_response
 
@@ -418,7 +418,7 @@ def test_allocate_budget_custom_response_constraint(
 
     optimizer = BudgetOptimizer(
         model=mmm,
-        response_variable="total_contributions",
+        response_variable="total_contribution",
         utility_function=minimize_budget_utility,
         default_constraints=False,
         custom_constraints=custom_constraints,
@@ -430,7 +430,7 @@ def test_allocate_budget_custom_response_constraint(
         budget_bounds=None,
     )
 
-    resp_dist_sym = optimizer.extract_response_distribution("total_contributions")
+    resp_dist_sym = optimizer.extract_response_distribution("total_contribution")
     resp_mean_sym = pt.mean(_check_samples_dimensionality(resp_dist_sym))
     test_fn = pytensor.function([optimizer._budgets_flat], resp_mean_sym)
     final_resp = test_fn(res.x)
