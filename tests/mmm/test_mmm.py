@@ -20,6 +20,7 @@ import pymc as pm
 import pytest
 import xarray as xr
 from matplotlib import pyplot as plt
+from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.components.adstock import DelayedAdstock, GeometricAdstock
 from pymc_marketing.mmm.components.saturation import (
@@ -29,7 +30,6 @@ from pymc_marketing.mmm.components.saturation import (
 )
 from pymc_marketing.mmm.mmm import MMM, BaseMMM
 from pymc_marketing.model_builder import DifferentModelError
-from pymc_marketing.prior import Prior
 
 seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
