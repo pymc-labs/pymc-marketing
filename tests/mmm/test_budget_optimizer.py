@@ -195,15 +195,16 @@ def test_allocate_budget(
     )
 
     mmm.build_model(X=X_dummy, y=y_dummy)
+    mmm.fit(X=X_dummy, y=y_dummy, chains=1, draws=50, tune=10)
 
-    # Only these parameters are needed for the optimizer
-    mmm.idata = az.from_dict(
-        posterior={
-            "saturation_lam": parameters["saturation_params"]["lam"],
-            "saturation_beta": parameters["saturation_params"]["beta"],
-            "adstock_alpha": parameters["adstock_params"]["alpha"],
-        }
-    )
+    # # Only these parameters are needed for the optimizer
+    # mmm.idata = az.from_dict(
+    #     posterior={
+    #         "saturation_lam": parameters["saturation_params"]["lam"],
+    #         "saturation_beta": parameters["saturation_params"]["beta"],
+    #         "adstock_alpha": parameters["adstock_params"]["alpha"],
+    #     }
+    # )
 
     # Create BudgetOptimizer Instance
     match = "Using default equality constraint"
