@@ -922,6 +922,349 @@ def test_multidimensional_budget_optimizer_wrapper(fit_mmm, mock_pymc_sample):
     assert isinstance(scipy_opt_result, OptimizeResult)
 
 
+@pytest.fixture
+def df_lift_test() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "channel": ["channel_1", "channel_1"],
+            "country": ["Venezuela", "Colombia"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+            "date": pd.to_datetime(["2023-01-02", "2023-01-04"]),
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "saturation_dims",
+    [
+        pytest.param((), id="scalar"),
+        pytest.param(("channel",), id="vector"),
+        pytest.param(("country", "channel"), id="matrix"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target_scaling_dims",
+    [
+        pytest.param(("country",), id="through-country (default)"),
+        pytest.param((), id="by-country"),
+    ],
+)
+@pytest.mark.parametrize(
+    "channel_scaling_dims",
+    [
+        pytest.param(("country",), id="through-country (default)"),
+        pytest.param((), id="by-country"),
+    ],
+)
+def test_add_lift_test_measurements(
+    multi_dim_data,
+    df_lift_test,
+    saturation_dims,
+    target_scaling_dims,
+    channel_scaling_dims,
+    mock_pymc_sample,
+) -> None:
+    X, y = multi_dim_data
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation().set_dims_for_all_priors(dims=saturation_dims),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        scaling=Scaling(
+            channel=VariableScaling(method="max", dims=channel_scaling_dims),
+            target=VariableScaling(method="max", dims=target_scaling_dims),
+        ),
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    name = "lift_measurements"
+    assert name not in mmm.model
+
+    mmm.add_lift_test_measurements(
+        df_lift_test,
+        name=name,
+    )
+
+    assert name in mmm.model
+
+    try:
+        mmm.fit(X, y)
+    except Exception as e:
+        pytest.fail(f"Sampling failed with error: {e}")
+
+
+def test_add_lift_test_measurements_no_model() -> None:
+    adstock = GeometricAdstock(l_max=4)
+    saturation = LogisticSaturation()
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=adstock,
+        saturation=saturation,
+    )
+    with pytest.raises(RuntimeError, match="The model has not been built yet."):
+        mmm.add_lift_test_measurements(
+            pd.DataFrame(),
+        )
+
+
+def test_time_varying_media_with_lift_test(
+    multi_dim_data, df_lift_test, mock_pymc_sample
+) -> None:
+    X, y = multi_dim_data
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_media=True,
+    )
+    mmm.build_model(X=X, y=y)
+    try:
+        mmm.add_lift_test_measurements(df_lift_test)
+    except Exception as e:
+        pytest.fail(
+            f"add_lift_test_measurements for time_varying_media model failed with error {e}"
+        )
+
+    try:
+        mmm.fit(X, y)
+    except Exception as e:
+        pytest.fail(f"Sampling failed with error: {e}")
+
+
+def test_add_lift_test_measurements_missing_channel_column(multi_dim_data) -> None:
+    """Test that KeyError is raised when 'channel' column is missing from lift test data."""
+    X, y = multi_dim_data
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    # Create lift test data without 'channel' column
+    df_lift_test_missing_channel = pd.DataFrame(
+        {
+            "country": ["Venezuela", "Colombia"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+            "date": pd.to_datetime(["2023-01-02", "2023-01-04"]),
+        }
+    )
+
+    with pytest.raises(
+        KeyError,
+        match="The 'channel' column is required to map the lift measurements to the model.",
+    ):
+        mmm.add_lift_test_measurements(df_lift_test_missing_channel)
+
+
+def test_add_lift_test_measurements_missing_dimension_column(multi_dim_data) -> None:
+    """Test that KeyError is raised when dimension column is missing from lift test data."""
+    X, y = multi_dim_data
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    # Create lift test data without 'country' column (which is in dims)
+    df_lift_test_missing_dim = pd.DataFrame(
+        {
+            "channel": ["channel_1", "channel_1"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+            "date": pd.to_datetime(["2023-01-02", "2023-01-04"]),
+        }
+    )
+
+    with pytest.raises(
+        KeyError,
+        match="The country column is required to map the lift measurements to the model.",
+    ):
+        mmm.add_lift_test_measurements(df_lift_test_missing_dim)
+
+
+def test_add_lift_test_measurements_missing_multiple_dimension_columns() -> None:
+    """Test that KeyError is raised when multiple dimension columns are missing from lift test data."""
+    # Create multi-dimensional data with multiple dimensions
+    date_range = pd.date_range("2023-01-01", periods=7)
+    countries = ["Venezuela", "Colombia"]
+    products = ["Product_A", "Product_B"]
+
+    records = []
+    for country in countries:
+        for product in products:
+            for date in date_range:
+                channel_1 = np.random.randint(100, 500)
+                channel_2 = np.random.randint(100, 500)
+                target = channel_1 + channel_2 + np.random.randint(50, 150)
+                records.append((date, country, product, channel_1, channel_2, target))
+
+    df = pd.DataFrame(
+        records,
+        columns=["date", "country", "product", "channel_1", "channel_2", "target"],
+    )
+
+    X = df[["date", "country", "product", "channel_1", "channel_2"]].copy()
+    y = df["target"].copy()
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        dims=("country", "product"),
+    )
+    mmm.build_model(X, y)
+
+    # Create lift test data missing both dimension columns
+    df_lift_test_missing_dims = pd.DataFrame(
+        {
+            "channel": ["channel_1", "channel_1"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+            "date": pd.to_datetime(["2023-01-02", "2023-01-04"]),
+        }
+    )
+
+    # Should raise KeyError for the first missing dimension (country)
+    with pytest.raises(
+        KeyError,
+        match="The country column is required to map the lift measurements to the model.",
+    ):
+        mmm.add_lift_test_measurements(df_lift_test_missing_dims)
+
+
+def test_add_lift_test_measurements_missing_single_dimension_from_multiple() -> None:
+    """Test that KeyError is raised when one dimension column is missing from multi-dimensional lift test data."""
+    # Create multi-dimensional data with multiple dimensions
+    date_range = pd.date_range("2023-01-01", periods=7)
+    countries = ["Venezuela", "Colombia"]
+    products = ["Product_A", "Product_B"]
+
+    records = []
+    for country in countries:
+        for product in products:
+            for date in date_range:
+                channel_1 = np.random.randint(100, 500)
+                channel_2 = np.random.randint(100, 500)
+                target = channel_1 + channel_2 + np.random.randint(50, 150)
+                records.append((date, country, product, channel_1, channel_2, target))
+
+    df = pd.DataFrame(
+        records,
+        columns=["date", "country", "product", "channel_1", "channel_2", "target"],
+    )
+
+    X = df[["date", "country", "product", "channel_1", "channel_2"]].copy()
+    y = df["target"].copy()
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        dims=("country", "product"),
+    )
+    mmm.build_model(X, y)
+
+    # Create lift test data missing only 'product' column
+    df_lift_test_missing_product = pd.DataFrame(
+        {
+            "channel": ["channel_1", "channel_1"],
+            "country": ["Venezuela", "Colombia"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+            "date": pd.to_datetime(["2023-01-02", "2023-01-04"]),
+        }
+    )
+
+    # Should raise KeyError for the missing 'product' dimension
+    with pytest.raises(
+        KeyError,
+        match="The product column is required to map the lift measurements to the model.",
+    ):
+        mmm.add_lift_test_measurements(df_lift_test_missing_product)
+
+
+@pytest.mark.parametrize(
+    "saturation_dims",
+    [
+        pytest.param((), id="scalar"),
+        pytest.param(("channel",), id="vector"),
+    ],
+)
+def test_add_lift_test_measurements_no_dimensions_success(
+    saturation_dims,
+    single_dim_data,
+    mock_pymc_sample,
+) -> None:
+    """Test that lift test measurements work correctly when no dimensions are specified."""
+    X, y = single_dim_data
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation().set_dims_for_all_priors(dims=saturation_dims),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=(),  # No dimensions
+    )
+    mmm.build_model(X, y)
+
+    # Create lift test data with only required columns (no dimension columns)
+    df_lift_test_no_dims = pd.DataFrame(
+        {
+            "channel": ["channel_1", "channel_1"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+        }
+    )
+
+    # Should work without errors since no dimensions are required
+    try:
+        mmm.add_lift_test_measurements(df_lift_test_no_dims)
+        assert "lift_measurements" in mmm.model
+    except Exception as e:
+        pytest.fail(
+            f"add_lift_test_measurements should work with no dimensions, but failed with error: {e}"
+        )
+
+    try:
+        mmm.fit(X, y)
+    except Exception as e:
+        pytest.fail(f"Sampling failed with error: {e}")
+
+
 class TestPydanticValidation:
     """Test suite specifically for Pydantic validation in multidimensional MMM."""
 
