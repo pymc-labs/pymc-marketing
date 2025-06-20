@@ -148,7 +148,7 @@ class NestedLogit(ModelBuilder):
         """
         alphas = Prior("Normal", mu=0, sigma=5, dims="alts")
         betas = Prior("Normal", mu=0, sigma=1, dims="alt_covariates")
-        betas_fixed = Prior("Normal", mu=0, sigma=1, dims=("alts", "fixed_covariates"))
+        betas_fixed = Prior("Normal", mu=0, sigma=1, dims="fixed_covariates")
         lambdas_nests = Prior("Beta", alpha=1, beta=1, dims="nests")
 
         return {
@@ -454,79 +454,86 @@ class NestedLogit(ModelBuilder):
         self,
         U: TensorVariable,
         W: TensorVariable | None,
-        betas_fixed_: TensorVariable,
+        betas_fixed: TensorVariable,
         lambdas_nests: TensorVariable,
         nest: str,
         level: str = "top",
     ) -> tuple[TensorVariable, TensorVariable]:
-        r"""Calculate within nest probabilities.
+        r"""
+        Calculate within-nest probabilities for nested logit models.
 
-        This function recursively computes the utility aggregates used to build a nested
-        logit model within a PyMC probabilistic model. It is responsible for computing:
+        This function recursively computes the utility aggregates used to build a
+        nested logit model within a PyMC probabilistic framework. Specifically, it calculates:
 
-        1. The **conditional probability of choosing an alternative given a nest**, denoted
-
-        $$
-        P(y_i = j \mid j \in \text{nest}) = \frac{\exp\left( \frac{U_{ij}}{\lambda} \right)}
-        {\sum_{j \in \text{nest}} \exp\left( \frac{U_{ij}}{\lambda} \right)}
-        $$
-
-        using a softmax scaled by a nest-specific temperature parameter $\lambda$.
-
-        2. The **inclusive value** (or **log-sum utility**) for the nest, which serves as
-        a “meta-utility” passed to the next level in the tree:
+        1. **Conditional choice probabilities within a nest**:
 
         $$
-        I_{\text{nest}}(i) = \lambda \cdot \log \left( \sum_{j \in \text{nest}}
-        \exp \left( \frac{U_{ij}}{\lambda} \right) \right)
+        P(y_i = j \mid j \in \text{nest}) =
+        \frac{\exp\left( \frac{U_{ij}}{\lambda} \right)}
+                {\sum_{j \in \text{nest}} \exp\left( \frac{U_{ij}}{\lambda} \right)}
         $$
 
-        3. An exponentiated utility term that includes
-        fixed covariate contributions and inclusive value, which is used for
-        computing choice probabilities in the parent nest.
+        This is a softmax probability scaled by the nest-specific temperature
+        (scale) parameter \\( \lambda \\).
+
+        2. **Inclusive value (or log-sum utility)**:
+
+        $$
+        I_{\text{nest}}(i) = \lambda \cdot \log \left(
+        \sum_{j \in \text{nest}} \exp \left( \frac{U_{ij}}{\lambda} \right) \right)
+        $$
+
+        This quantity represents the “meta-utility” of a nest, passed up the
+        hierarchy in nested logit models.
+
+        3. **Exponentiated meta-utility**:
+
+        An exponentiated term combining inclusive value and fixed covariate
+        contributions, used when computing choice probabilities in the parent nest.
 
         Parameters
         ----------
         U : TensorVariable
-            A tensor of shape (N, J), where N is the number of observations and
-            J is the number of alternatives. Represents latent utilities.
+            Tensor of shape (N, J), where N is the number of observations and J is the
+            number of alternatives. Represents latent utilities.
 
-        W : TensorVariable | None
+        W : TensorVariable or None
             Optional tensor of shape (N, K), where K is the number of fixed covariates.
             Represents covariate contributions that do not vary across alternatives.
 
-        betas_fixed_ : TensorVariable
-            A tensor of shape (J, K), with one coefficient vector per alternative
-            for fixed (non-alternative-varying) covariates.
+        betas_fixed : TensorVariable
+            Tensor of shape (J, K), with one coefficient vector per alternative for
+            fixed (non-alternative-varying) covariates.
 
         lambdas_nests : TensorVariable
-            A Beta random variable for each of the nests
+            A tensor containing the nest-specific scale parameters \\( \lambda \\),
+            typically modeled with a Beta distribution.
 
         nest : str
-            Name of the current nest to process (e.g., "Land" or "Land_Car").
-            Determines which set of alternatives is being grouped.
+            Name of the current nest to process (e.g., `"Land"` or `"Land_Car"`).
+            Determines which subset of alternatives belongs to the nest.
 
         level : str, default="top"
             Either `"top"` or `"mid"`, indicating the level of the nest in the
-            nesting tree structure. Used to fetch the correct index mapping.
+            hierarchical structure. Used to select the correct index mapping.
 
         Returns
         -------
         exp_W_nest : TensorVariable
-        Exponentiated meta-utility for the current nest (used in normalization).
+            Exponentiated meta-utility for the current nest, used in the parent nest’s
+            softmax normalization.
 
         P_y_given_nest : TensorVariable
-        Conditional probability of each alternative given membership in the current nest.
+            Conditional probability of choosing each alternative within the current nest.
 
         Notes
         -----
-        This function is central to implementing hierarchical nested logit models
-        where alternatives are organized into mutually exclusive nests. The nesting
-        scale parameter \\( \\lambda \\) modulates substitution patterns within nests:
+        This function supports two-level nested logit models, where alternatives are
+        grouped into mutually exclusive nests. The scale parameter \\( \lambda \\)
+        controls the degree of substitutability within each nest.
 
-        The function supports up to two levels of nesting, and raises an error
-        if deeper hierarchies are defined. This restriction simplifies both modeling
-        and computation.
+        Currently, deeper nesting levels (more than two) are not supported, to simplify
+        both modeling and computation.
         """
         nest_indices = self.nest_indices
         lambda_lkup = self.lambda_lkup
@@ -539,7 +546,8 @@ class NestedLogit(ModelBuilder):
         if W is None:
             w_nest = pm.math.zeros((N, len(self.alternatives)))
         else:
-            betas_fixed_temp = betas_fixed_[nest_indices[level][nest], :]
+            betas_fixed_temp = betas_fixed[nest_indices[level][nest], :]
+            betas_fixed_temp = pt.set_subtensor(betas_fixed_temp[-1], 0)
             w_nest = pm.math.dot(W, betas_fixed_temp.T)
 
         if len(nest_indices[level][nest]) > 1:
@@ -574,7 +582,7 @@ class NestedLogit(ModelBuilder):
         self,
         U: TensorVariable,
         W: TensorVariable | None,
-        betas_fixed_: TensorVariable,
+        betas_fixed: TensorVariable,
         lambdas_nests: TensorVariable,
         level: str,
     ) -> tuple[
@@ -600,7 +608,7 @@ class NestedLogit(ModelBuilder):
             Tensor of systematic utilities with shape `(n_obs, n_alternatives)`.
         W : TensorVariable | None
             Fixed covariates design matrix (if used), else `None`.
-        betas_fixed_ : TensorVariable
+        betas_fixed : TensorVariable
             Alternative-specific coefficients for the fixed covariates.
         lambdas_nests : TensorVariable
             A Beta random variable for each of the nests
@@ -627,7 +635,7 @@ class NestedLogit(ModelBuilder):
         ## Collect All Exp Inclusive Value terms per nest
         for n in nest_indices[level].keys():
             exp_W_nest, P_y_given_nest = self.make_exp_nest(
-                U, W, betas_fixed_, lambdas_nests, n, level
+                U, W, betas_fixed, lambdas_nests, n, level
             )
             exp_W_nest = pm.math.sum(exp_W_nest, axis=1)
             conditional_probs[n] = {"exp": exp_W_nest, "P_y_given": P_y_given_nest}
@@ -667,8 +675,7 @@ class NestedLogit(ModelBuilder):
             )
 
             if W is None:
-                w_nest = pm.math.zeros((len(coords["obs"]), len(coords["alts"])))
-                betas_fixed_ = None
+                betas_fixed = None
             else:
                 W_data = pm.Data("W", W, dims=("obs", "fixed_covariates"))
                 betas_fixed_ = self.model_config["betas_fixed_"].create_variable(
@@ -676,21 +683,21 @@ class NestedLogit(ModelBuilder):
                 )
                 betas_fixed = pm.Deterministic(
                     "betas_fixed",
-                    pt.set_subtensor(betas_fixed_[-1, :], 0),
+                    pt.outer(alphas, betas_fixed_),
                     dims=("alts", "fixed_covariates"),
                 )
-                w_nest = pm.math.dot(W_data, betas_fixed.T)
+                _ = pm.Deterministic("w_nest", pm.math.dot(W_data, betas_fixed.T))
             X_data = pm.Data("X", X, dims=("obs", "alts", "alt_covariates"))
             y_data = pm.Data("y", y, dims="obs")
 
             # Compute utility as a dot product
             u = alphas + pm.math.dot(X_data, betas)
-            U = pm.Deterministic("U", w_nest + u, dims=("obs", "alts"))
+            U = pm.Deterministic("U", u, dims=("obs", "alts"))
 
             ## Mid Level
             if "mid" in nest_indices.keys():
                 cond_prob_m, nest_prob_m = self.make_P_nest(
-                    U, W, betas_fixed_, lambdas_nests, "mid"
+                    U, W, betas_fixed, lambdas_nests, "mid"
                 )
 
                 ## Construct Paths Bottom -> Up
@@ -725,7 +732,7 @@ class NestedLogit(ModelBuilder):
 
             ## Top Level
             cond_prob_t, nest_prob_t = self.make_P_nest(
-                U, W, betas_fixed_, lambdas_nests, "top"
+                U, W, betas_fixed, lambdas_nests, "top"
             )
 
             path_prods_t = []
