@@ -1525,7 +1525,8 @@ class MMM(ModelBuilder):
             .fillna(0)
         )
 
-        def transform(input: np.ndarray) -> np.ndarray:
+        def channel_transform(input: np.ndarray) -> np.ndarray:
+            """Transform lift test channel data to the same scale as in the model."""
             # reconstruct the df corresponding to the input np.ndarray.
             reconstructed = (
                 pd.DataFrame(data=input, index=input_df.index, columns=input_df.columns)
@@ -1546,7 +1547,7 @@ class MMM(ModelBuilder):
             )
 
         # Finally return the scaled data as a np.ndarray corresponding to the input index order.
-        return transform
+        return channel_transform
 
     def _make_target_transform(
         self, df_lift_test: pd.DataFrame
@@ -1567,7 +1568,8 @@ class MMM(ModelBuilder):
         index_cols = [*list(self.dims), "channel"]
         input_idx = df_lift_test.set_index(index_cols, append=True).index
 
-        def transform(input: np.ndarray) -> np.ndarray:
+        def target_transform(input: np.ndarray) -> np.ndarray:
+            """Transform lift test measurements and sigma to the same scale as in the model."""
             # Reconstruct the input df column with the correct index.
             reconstructed = pd.DataFrame(
                 data=input, index=input_idx, columns=["target"]
@@ -1584,7 +1586,7 @@ class MMM(ModelBuilder):
 
         # Finally, return the scaled measurements as a np.ndarray corresponding to
         # the input index order.
-        return transform
+        return target_transform
 
     def add_lift_test_measurements(
         self,
