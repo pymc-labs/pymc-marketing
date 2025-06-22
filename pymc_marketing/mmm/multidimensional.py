@@ -1512,7 +1512,7 @@ class MMM(ModelBuilder):
         Callable[[np.ndarray], np.ndarray]
             The function for scaling the channel data.
         """
-        # The tansformer will be passed a np.ndarray of data corresponding to this index.
+        # The transformer will be passed a np.ndarray of data corresponding to this index.
         index_cols = [*list(self.dims), "channel"]
         # We reconstruct the input dataframe following the transformations performed within
         # `lift_test.scale_channel_lift_measurements()``.
