@@ -89,8 +89,10 @@ Create a prior with a custom transform function by registering it with
 
     from pymc_extras.prior import register_tensor_transform
 
+
     def custom_transform(x):
-        return x ** 2
+        return x**2
+
 
     register_tensor_transform("square", custom_transform)
 

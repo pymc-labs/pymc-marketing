@@ -49,18 +49,20 @@ Create a combined media configuration for offline and online media channels:
         MediaConfigList,
     )
 
-    media_configs: MediaConfigList([
-        MediaConfig(
-            name="offline",
-            columns=["TV", "Radio"],
-            media_transformation=offline_media_transform,
-        ),
-        MediaConfig(
-            name="online",
-            columns=["Facebook", "Instagram", "YouTube", "TikTok"],
-            media_transformation=online_media_transform,
-        ),
-    ])
+    media_configs: MediaConfigList(
+        [
+            MediaConfig(
+                name="offline",
+                columns=["TV", "Radio"],
+                media_transformation=offline_media_transform,
+            ),
+            MediaConfig(
+                name="online",
+                columns=["Facebook", "Instagram", "YouTube", "TikTok"],
+                media_transformation=online_media_transform,
+            ),
+        ]
+    )
 
 
 Apply the media transformation to media data in PyMC model:
@@ -81,9 +83,7 @@ Apply the media transformation to media data in PyMC model:
     }
     with pm.Model(coords=coords) as model:
         media_data = pm.Data(
-            "media_data",
-            df.loc[:, media_columns].to_numpy(),
-            dims=("date", "media")
+            "media_data", df.loc[:, media_columns].to_numpy(), dims=("date", "media")
         )
         transformed_media_data = media_configs(media_data)
 

@@ -1222,6 +1222,215 @@ def test_mmm_linear_trend_different_dimensions_original_scale(
     }
 
 
+def test_set_xarray_data_preserves_dtypes(multi_dim_data, mock_pymc_sample):
+    """Test that _set_xarray_data preserves the original data types from the model."""
+    X, y = multi_dim_data
+
+    # Build and fit the model
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        control_columns=None,  # Testing without control columns first
+    )
+
+    mmm.build_model(X, y)
+
+    # Store original dtypes from the model
+    original_channel_dtype = mmm.model.named_vars["channel_data"].type.dtype
+    original_target_dtype = mmm.model.named_vars["target_data"].type.dtype
+
+    # Create new data with different dtypes
+    X_new = X.copy()
+    # Convert channel columns to float32 (different from typical float64)
+    for col in ["channel_1", "channel_2", "channel_3"]:
+        X_new[col] = X_new[col].astype(np.float32)
+
+    # Transform to xarray dataset without target (prediction scenario)
+    dataset_xarray = mmm._posterior_predictive_data_transformation(
+        X=X_new,
+        y=None,  # Don't pass y for prediction
+        include_last_observations=False,
+    )
+
+    # Verify that the input data has different dtypes
+    assert dataset_xarray._channel.dtype == np.float32
+
+    # Apply _set_xarray_data
+    model = mmm._set_xarray_data(dataset_xarray, clone_model=True)
+
+    # Check that the data in the model has been converted to the original dtypes
+    assert model.named_vars["channel_data"].get_value().dtype == original_channel_dtype
+
+    # Also verify the data shapes are preserved
+    assert model.named_vars["channel_data"].get_value().shape == (
+        len(X_new[mmm.date_column].unique()),
+        len(mmm.xarray_dataset.coords["country"]),
+        len(mmm.channel_columns),
+    )
+
+    # Now test with target data - create properly structured y data
+    # Combine X and y to create a proper DataFrame structure
+    df_with_target = X_new.copy()
+    df_with_target["target"] = y.values  # Add target column
+
+    # Convert target to float32 to test dtype conversion
+    df_with_target["target"] = df_with_target["target"].astype(np.float32)
+
+    # Extract y as a properly indexed Series
+    y_new = df_with_target.set_index(["date", "country"])["target"]
+
+    # Transform to xarray dataset with target
+    dataset_xarray_with_target = mmm._posterior_predictive_data_transformation(
+        X=X_new,
+        y=y_new,
+        include_last_observations=False,
+    )
+
+    # Verify that the target has different dtype
+    assert dataset_xarray_with_target._target.dtype == np.float32
+
+    # Apply _set_xarray_data with target
+    model_with_target = mmm._set_xarray_data(
+        dataset_xarray_with_target, clone_model=True
+    )
+
+    # Check that target dtype is preserved
+    assert (
+        model_with_target.named_vars["target_data"].get_value().dtype
+        == original_target_dtype
+    )
+    assert model_with_target.named_vars["target_data"].get_value().shape == (
+        len(X_new[mmm.date_column].unique()),
+        len(mmm.xarray_dataset.coords["country"]),
+    )
+
+
+def test_set_xarray_data_with_control_columns_preserves_dtypes(multi_dim_data):
+    """Test that _set_xarray_data preserves dtypes when control columns are present."""
+    X, y = multi_dim_data
+
+    # Add control columns with specific dtypes
+    X["control_1"] = np.random.randn(len(X)).astype(np.float64)
+    X["control_2"] = np.random.randn(len(X)).astype(np.float64)
+
+    # Build model with control columns
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        control_columns=["control_1", "control_2"],
+    )
+
+    mmm.build_model(X, y)
+
+    # Store original dtypes
+    original_channel_dtype = mmm.model.named_vars["channel_data"].type.dtype
+    original_control_dtype = mmm.model.named_vars["control_data"].type.dtype
+    original_target_dtype = mmm.model.named_vars["target_data"].type.dtype
+
+    # Create new data with different dtypes
+    X_new = X.copy()
+    # Convert all numeric columns to float32
+    for col in X_new.select_dtypes(include=[np.number]).columns:
+        X_new[col] = X_new[col].astype(np.float32)
+
+    # First test without target (prediction scenario)
+    dataset_xarray = mmm._posterior_predictive_data_transformation(
+        X=X_new,
+        y=None,
+        include_last_observations=False,
+    )
+
+    # Apply _set_xarray_data
+    model = mmm._set_xarray_data(dataset_xarray, clone_model=True)
+
+    # Check that data types are preserved
+    assert model.named_vars["channel_data"].get_value().dtype == original_channel_dtype
+    assert model.named_vars["control_data"].get_value().dtype == original_control_dtype
+
+    # Now test with target data - create properly structured y data
+    df_with_target = X_new.copy()
+    df_with_target["target"] = y.values
+    df_with_target["target"] = df_with_target["target"].astype(np.float32)
+
+    # Extract y as a properly indexed Series
+    y_new = df_with_target.set_index(["date", "country"])["target"]
+
+    # Transform to xarray dataset with target
+    dataset_xarray_with_target = mmm._posterior_predictive_data_transformation(
+        X=X_new,
+        y=y_new,
+        include_last_observations=False,
+    )
+
+    # Apply _set_xarray_data with target
+    model_with_target = mmm._set_xarray_data(
+        dataset_xarray_with_target, clone_model=True
+    )
+
+    # Check that all data types are preserved
+    assert (
+        model_with_target.named_vars["channel_data"].get_value().dtype
+        == original_channel_dtype
+    )
+    assert (
+        model_with_target.named_vars["control_data"].get_value().dtype
+        == original_control_dtype
+    )
+    assert (
+        model_with_target.named_vars["target_data"].get_value().dtype
+        == original_target_dtype
+    )
+
+
+def test_set_xarray_data_without_target_preserves_dtypes(multi_dim_data):
+    """Test that _set_xarray_data preserves dtypes when target is not provided."""
+    X, y = multi_dim_data
+
+    # Build the model
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+
+    mmm.build_model(X, y)
+
+    # Store original dtype
+    original_channel_dtype = mmm.model.named_vars["channel_data"].type.dtype
+
+    # Create new data without target
+    X_new = X.copy()
+    for col in ["channel_1", "channel_2", "channel_3"]:
+        X_new[col] = X_new[col].astype(np.float32)
+
+    # Transform to xarray dataset without y
+    dataset_xarray = mmm._posterior_predictive_data_transformation(
+        X=X_new,
+        y=None,  # No target provided
+        include_last_observations=False,
+    )
+
+    # Apply _set_xarray_data
+    model = mmm._set_xarray_data(dataset_xarray, clone_model=True)
+
+    # Check that channel data type is preserved
+    assert model.named_vars["channel_data"].get_value().dtype == original_channel_dtype
+
+    # Target data should remain unchanged from the original model
+    # (no new target data was provided)
+
+
 @pytest.mark.parametrize(
     "date_col_name",
     ["date_week", "week", "period", "timestamp", "time_period"],

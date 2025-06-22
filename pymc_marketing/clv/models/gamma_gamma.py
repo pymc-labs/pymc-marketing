@@ -248,15 +248,17 @@ class GammaGammaModel(BaseGammaGammaModel):
         from pymc_marketing.clv import GammaGammaModel
 
         model = GammaGammaModel(
-            data=pandas.DataFrame({
-                "customer_id": [0, 1, 2, 3, ...],
-                "monetary_value" :[23.5, 19.3, 11.2, 100.5, ...],
-                "frequency": [6, 8, 2, 1, ...],
-            }),
+            data=pandas.DataFrame(
+                {
+                    "customer_id": [0, 1, 2, 3, ...],
+                    "monetary_value": [23.5, 19.3, 11.2, 100.5, ...],
+                    "frequency": [6, 8, 2, 1, ...],
+                }
+            ),
             model_config={
-                "p": {'dist': 'HalfNormal', kwargs: {}},
-                "q": {'dist': 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
-                "v": {'dist': 'HalfCauchy', kwargs: {"beta":1}},
+                "p": {"dist": "HalfNormal", kwargs: {}},
+                "q": {"dist": "HalfStudentT", kwargs: {"nu": 4, "sigma": 10}},
+                "v": {"dist": "HalfCauchy", kwargs: {"beta": 1}},
             },
             sampler_config={
                 "draws": 1000,
@@ -271,15 +273,17 @@ class GammaGammaModel(BaseGammaGammaModel):
         print(model.fit_summary())
 
         # Predict spend of customers for which we know transaction history, conditioned on data.
-        expected_customer_spend = model.expected_customer_spend(
-            data=pandas.DataFrame(
-                {
-                "customer_id": [0, 1, 2, 3, ...],
-                "monetary_value" :[23.5, 19.3, 11.2, 100.5, ...],
-                "frequency": [6, 8, 2, 1, ...],
-                }
+        expected_customer_spend = (
+            model.expected_customer_spend(
+                data=pandas.DataFrame(
+                    {
+                        "customer_id": [0, 1, 2, 3, ...],
+                        "monetary_value": [23.5, 19.3, 11.2, 100.5, ...],
+                        "frequency": [6, 8, 2, 1, ...],
+                    }
+                ),
             ),
-        ),
+        )
         print(expected_customer_spend.mean("customer_id"))
 
         # Predict spend of 10 new customers, conditioned on data
