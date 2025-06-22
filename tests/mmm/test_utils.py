@@ -177,6 +177,9 @@ def test_add_noise_to_channel_allocation():
     assert np.abs(df["channel1"].mean() - result["channel1"].mean()) < 5
     assert np.abs(df["channel2"].mean() - result["channel2"].mean()) < 3
 
+    # Test no negative values
+    assert (result[channels] >= 0).all().all(), "No negative values in channels"
+
 
 class FakeMMM:
     def __init__(self):

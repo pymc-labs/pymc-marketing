@@ -27,6 +27,7 @@ Create a new saturation transformation:
     from pymc_marketing.mmm import SaturationTransformation
     from pymc_marketing.prior import Prior
 
+
     class InfiniteReturns(SaturationTransformation):
         lookup_name: str = "infinite_returns"
 
@@ -119,8 +120,10 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
         from pymc_marketing.mmm import SaturationTransformation
         from pymc_marketing.prior import Prior
 
+
         def infinite_returns(x, b):
             return b * x
+
 
         class InfiniteReturns(SaturationTransformation):
             lookup_name = "infinite_returns"

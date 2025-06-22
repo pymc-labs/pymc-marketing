@@ -47,7 +47,7 @@ def build_mmm_from_yaml(
     config_path: str | Path,
     *,
     X: pd.DataFrame | None = None,
-    y: pd.DataFrame | None = None,
+    y: pd.DataFrame | pd.Series | None = None,
 ) -> MMM:
     """
     Build an MMM model from *config_path*.
@@ -64,10 +64,10 @@ def build_mmm_from_yaml(
     ----------
     config_path : str | Path
         YAML file with model configuration.
-    X : ~pandas.DataFrame, optional
+    X : pandas.DataFrame, optional
         Pre-loaded covariate matrix.  If omitted, the loader tries to read it
         from a path in the YAML under `data.X_path`.
-    y : ~pandas.DataFrame, optional
+    y : pandas.DataFrame | pandas.Series, optional
         Pre-loaded target vector.  If omitted, the loader tries to read it
         from a path in the YAML under `data.y_path`.
 
@@ -99,13 +99,11 @@ def build_mmm_from_yaml(
     date_column = model_config.get("date_column")
     if date_column:
         date_col_in_X = date_column in X.columns
-        date_col_in_y = date_column in y.columns
 
         if date_column in X.columns:
             X[date_column] = pd.to_datetime(X[date_column])
-        if date_column in y.columns:
-            y[date_column] = pd.to_datetime(y[date_column])
-        if not date_col_in_X and not date_col_in_y:
+
+        if not date_col_in_X:
             raise ValueError(
                 f"Date column '{date_column}' specified in config not found in either X or y data."
             )
