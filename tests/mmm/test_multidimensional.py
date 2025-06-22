@@ -1430,6 +1430,7 @@ def test_set_xarray_data_without_target_preserves_dtypes(multi_dim_data):
     # Target data should remain unchanged from the original model
     # (no new target data was provided)
 
+
 @pytest.mark.parametrize(
     "date_col_name",
     ["date_week", "week", "period", "timestamp", "time_period"],
