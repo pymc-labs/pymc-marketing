@@ -130,8 +130,8 @@ used in the model.
     periods = 52 * 3
     dates = pd.date_range("2022-01-01", periods=periods, freq="W-MON")
 
-    training_dates = dates[:52 * 2]
-    testing_dates = dates[52 * 2:]
+    training_dates = dates[: 52 * 2]
+    testing_dates = dates[52 * 2 :]
 
     yearly = YearlyFourier(n_order=3)
 
@@ -438,8 +438,10 @@ class FourierBase(BaseModel):
 
             fourier = YearlyFourier(n_order=3)
 
+
             def callback(result):
                 pm.Deterministic("fourier_trend", result, dims=("date", "fourier"))
+
 
             dates = pd.date_range("2023-01-01", periods=52, freq="W-MON")
 

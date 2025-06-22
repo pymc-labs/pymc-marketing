@@ -82,7 +82,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         from pymc_marketing.prior import Prior
         from pymc_marketing.clv import BetaGeoBetaBinomModel
 
-        rfm_df = rfm_summary(raw_data,'id_col_name','date_col_name')
+        rfm_df = rfm_summary(raw_data, "id_col_name", "date_col_name")
 
         # Initialize model with customer data; `model_config` parameter is optional
         model = BetaGeoBetaBinomModel(
@@ -96,11 +96,11 @@ class BetaGeoBetaBinomModel(CLVModel):
         )
 
         # Fit model quickly to large datasets via Maximum a Posteriori
-        model.fit(fit_method='map')
+        model.fit(fit_method="map")
         print(model.fit_summary())
 
         # Fit with the default 'mcmc' for more informative predictions and reliable performance on smaller datasets
-        model.fit(fit_method='mcmc')
+        model.fit(fit_method="mcmc")
         print(model.fit_summary())
 
         # Predict number of purchases for customers over the next 10 time periods
@@ -113,15 +113,15 @@ class BetaGeoBetaBinomModel(CLVModel):
         # Data parameter is omitted here because predictions are ran on original dataset
         expected_num_purchases = model.expected_purchase_probability(
             n=[0, 1, 2, 3],
-            future_t=[10,20,30,40],
+            future_t=[10, 20, 30, 40],
         )
 
         new_data = pd.DataFrame(
-            data = {
-            "customer_id": [0, 1, 2, 3],
-            "frequency": [5, 2, 1, 8],
-            "recency": [7, 4, 2.5, 11],
-            "T": [10, 8, 10, 22]
+            data={
+                "customer_id": [0, 1, 2, 3],
+                "frequency": [5, 2, 1, 8],
+                "recency": [7, 4, 2.5, 11],
+                "T": [10, 8, 10, 22],
             }
         )
 

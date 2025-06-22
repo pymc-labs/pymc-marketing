@@ -57,13 +57,15 @@ class Scaling(BaseModel):
 
         from pymc_marketing.mmm.multidimensional import Scaling
 
-        scaling = Scaling(**{
-            "target": {
-                "method": "max",
-                # Exclude 'DMA' from dims here.
-                "dims": (),
-            },
-        })
+        scaling = Scaling(
+            **{
+                "target": {
+                    "method": "max",
+                    # Exclude 'DMA' from dims here.
+                    "dims": (),
+                },
+            }
+        )
 
     """
 

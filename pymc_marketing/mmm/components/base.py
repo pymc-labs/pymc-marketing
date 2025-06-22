@@ -222,11 +222,13 @@ class Transformation:
             from pymc_marketing.mmm.components.base import Transformation
             from pymc_marketing.prior import Prior
 
+
             class MyTransformation(Transformation):
                 lookup_name: str = "my_transformation"
                 prefix: str = "transformation"
                 function = lambda x, lam: x * lam
                 default_priors = {"lam": Prior("Gamma", alpha=3, beta=1)}
+
 
             transformation = MyTransformation()
             transformation.update_priors(
