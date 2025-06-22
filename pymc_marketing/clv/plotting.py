@@ -78,10 +78,7 @@ def plot_customer_exposure(
 
     .. code-block:: python
 
-        df = pd.DataFrame({
-            "recency": [0, 1, 2, 3, 4],
-            "T": [5, 5, 5, 5, 5]
-        })
+        df = pd.DataFrame({"recency": [0, 1, 2, 3, 4], "T": [5, 5, 5, 5, 5]})
 
         plot_customer_exposure(df)
 
@@ -89,21 +86,13 @@ def plot_customer_exposure(
 
     .. code-block:: python
 
-        (
-            df
-            .sort_values(["recency", "T"])
-            .pipe(plot_customer_exposure)
-        )
+        (df.sort_values(["recency", "T"]).pipe(plot_customer_exposure))
 
     Plot exposure for only those with time until last purchase is less than 3
 
     .. code-block:: python
 
-        (
-            df
-            .query("T - recency < 3")
-            .pipe(plot_customer_exposure)
-        )
+        (df.query("T - recency < 3").pipe(plot_customer_exposure))
 
     """
     if padding < 0:

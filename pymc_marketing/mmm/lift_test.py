@@ -97,10 +97,12 @@ def exact_row_indices(df: pd.DataFrame, model: pm.Model) -> Indices:
 
         from pymc_marketing.mmm.lift_test import exact_row_indices
 
-        df_lift_test = pd.DataFrame({
-            "channel": [0, 1, 0],
-            "geo": ["A", "B", "B"],
-        })
+        df_lift_test = pd.DataFrame(
+            {
+                "channel": [0, 1, 0],
+                "geo": ["A", "B", "B"],
+            }
+        )
 
         coords = {"channel": [0, 1, 2], "geo": ["A", "B", "C"]}
         model = pm.Model(coords=coords)
@@ -338,15 +340,19 @@ def add_saturation_observations(
         import pandas as pd
         from pymc_marketing.mmm.lift_test import add_saturation_observations
 
-        df_base_lift_test = pd.DataFrame({
-            "x": [1, 2, 3],
-            "delta_x": [1, 2, 3],
-            "delta_y": [1, 2, 3],
-            "sigma": [0.1, 0.2, 0.3],
-        })
+        df_base_lift_test = pd.DataFrame(
+            {
+                "x": [1, 2, 3],
+                "delta_x": [1, 2, 3],
+                "delta_y": [1, 2, 3],
+                "sigma": [0.1, 0.2, 0.3],
+            }
+        )
+
 
         def saturation_function(x, alpha, lam):
             return alpha * x / (x + lam)
+
 
         # These are required since alpha and lam
         # have both channel and date dimensions
@@ -387,12 +393,14 @@ def add_saturation_observations(
 
         saturation = LogisticSaturation()
 
-        df_base_lift_test = pd.DataFrame({
-            "x": [1, 2, 3],
-            "delta_x": [1, 2, 3],
-            "delta_y": [1, 2, 3],
-            "sigma": [0.1, 0.2, 0.3],
-        })
+        df_base_lift_test = pd.DataFrame(
+            {
+                "x": [1, 2, 3],
+                "delta_x": [1, 2, 3],
+                "delta_y": [1, 2, 3],
+                "sigma": [0.1, 0.2, 0.3],
+            }
+        )
 
         df_lift_test = df_base_lift_test.assign(
             channel="channel_1",
@@ -425,12 +433,14 @@ def add_saturation_observations(
 
         saturation = LogisticSaturation()
 
-        df_base_lift_test = pd.DataFrame({
-            "x": [1, 2, 3],
-            "delta_x": [1, 2, 3],
-            "delta_y": [1, 2, 3],
-            "sigma": [0.1, 0.2, 0.3],
-        })
+        df_base_lift_test = pd.DataFrame(
+            {
+                "x": [1, 2, 3],
+                "delta_x": [1, 2, 3],
+                "delta_y": [1, 2, 3],
+                "sigma": [0.1, 0.2, 0.3],
+            }
+        )
 
         df_lift_test = df_base_lift_test.assign(
             channel="channel_1",
