@@ -83,9 +83,9 @@ class MNLogit(ModelBuilder):
     Example `utility_equations` list:
 
     >>> utility_equations = [
-    ...     'alt_1 ~ X1_alt1 + X2_alt1 | income',
-    ...     'alt_2 ~ X1_alt2 + X2_alt2 | income',
-    ...     'alt_3 ~ X1_alt3 + X2_alt3 | income'
+    ...     "alt_1 ~ X1_alt1 + X2_alt1 | income",
+    ...     "alt_2 ~ X1_alt2 + X2_alt2 | income",
+    ...     "alt_3 ~ X1_alt3 + X2_alt3 | income",
     ... ]
 
     """

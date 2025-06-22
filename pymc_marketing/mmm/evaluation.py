@@ -201,7 +201,7 @@ def compute_summary_metrics(
         data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
         data = pd.read_csv(data_url, parse_dates=["date_week"])
 
-        X = data.drop("y",axis=1)
+        X = data.drop("y", axis=1)
         y = data["y"]
         mmm = MMM(
             adstock=GeometricAdstock(l_max=8),
@@ -225,7 +225,7 @@ def compute_summary_metrics(
             y_true=mmm.y,
             y_pred=posterior_preds.y,
             metrics_to_calculate=["r_squared", "rmse", "mae"],
-            hdi_prob=0.89
+            hdi_prob=0.89,
         )
 
         # Print the results neatly

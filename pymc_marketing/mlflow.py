@@ -86,7 +86,7 @@ Autologging for a PyMC-Marketing MMM:
     data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
     data = pd.read_csv(data_url, parse_dates=["date_week"])
 
-    X = data.drop("y",axis=1)
+    X = data.drop("y", axis=1)
     y = data["y"]
 
     mmm = MMM(
@@ -842,7 +842,7 @@ def log_mmm(
         data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
         data = pd.read_csv(data_url, parse_dates=["date_week"])
 
-        X = data.drop("y",axis=1)
+        X = data.drop("y", axis=1)
         y = data["y"]
 
         mmm = MMM(
@@ -1005,8 +1005,10 @@ def log_error(func: Callable, file_name: str):
 
         from pymc_marketing.mlflow import log_error
 
+
         def raising_function():
             raise NotImplementedError("Sorry. Not implemented")
+
 
         func = log_error(raising_function, file_name="raising-function")
 
@@ -1124,7 +1126,7 @@ def autolog(
         data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
         data = pd.read_csv(data_url, parse_dates=["date_week"])
 
-        X = data.drop("y",axis=1)
+        X = data.drop("y", axis=1)
         y = data["y"]
 
         mmm = MMM(

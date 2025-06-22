@@ -93,18 +93,16 @@ class NestedLogit(ModelBuilder):
     Example `utility_equations` list:
 
     >>> utility_equations = [
-    ...     'alt_1 ~ X1_alt1 + X2_alt1 | income',
-    ...     'alt_2 ~ X1_alt2 + X2_alt2 | income',
-    ...     'alt_3 ~ X1_alt3 + X2_alt3 | income'
+    ...     "alt_1 ~ X1_alt1 + X2_alt1 | income",
+    ...     "alt_2 ~ X1_alt2 + X2_alt2 | income",
+    ...     "alt_3 ~ X1_alt3 + X2_alt3 | income",
     ... ]
 
     Example nesting structure:
 
     >>> nesting_structure = {
-    ... "Nest1": ["alt1"],
-    ... "Nest2": {"Nest2_1": ["alt_2", "alt_3"],
-    ...           "Nest_2_2": ["alt_4", "alt_5"]
-    ...          }
+    ...     "Nest1": ["alt1"],
+    ...     "Nest2": {"Nest2_1": ["alt_2", "alt_3"], "Nest_2_2": ["alt_4", "alt_5"]},
     ... }
 
     """
