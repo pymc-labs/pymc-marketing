@@ -1620,10 +1620,7 @@ class MMM(ModelBuilder):
 
         .. code-block:: python
 
-            model_estimated_lift = (
-                saturation_curve(x + delta_x)
-                - saturation_curve(x)
-            )
+            model_estimated_lift = saturation_curve(x + delta_x) - saturation_curve(x)
             empirical_lift = delta_y
             dist(abs(model_estimated_lift), sigma=sigma, observed=abs(empirical_lift))
 
@@ -1664,42 +1661,45 @@ class MMM(ModelBuilder):
             import pandas as pd
             import numpy as np
 
-            from pymc_marketing.mmm import (
-                GeometricAdstock,
-                LogisticSaturation
-            )
+            from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 
             from pymc_marketing.mmm.multidimensional import MMM
 
             model = MMM(
                 date_column="date",
                 channel_columns=["x1", "x2"],
-                target_column = "target",
+                target_column="target",
                 adstock=GeometricAdstock(l_max=8),
                 saturation=LogisticSaturation(),
                 yearly_seasonality=2,
                 dims=("geo",),
             )
 
-            X = pd.DataFrame({
-                "date": np.tile(pd.date_range(start="2025-01-01", end="2025-05-01", freq="W"), 2),
-                "x1": np.random.rand(34),
-                "x2": np.random.rand(34),
-                "target": np.random.rand(34),
-                "geo": 17 * ["FIN"] + 17 * ["SWE"]
-            })
+            X = pd.DataFrame(
+                {
+                    "date": np.tile(
+                        pd.date_range(start="2025-01-01", end="2025-05-01", freq="W"), 2
+                    ),
+                    "x1": np.random.rand(34),
+                    "x2": np.random.rand(34),
+                    "target": np.random.rand(34),
+                    "geo": 17 * ["FIN"] + 17 * ["SWE"],
+                }
+            )
             y = X["target"]
 
             model.build_model(X.drop(columns=["target"]), y)
 
-            df_lift_test = pd.DataFrame({
-                "channel": ["x1", "x1"],
-                "geo": ["FIN", "SWE"],
-                "x": [1, 1],
-                "delta_x": [0.1, 0.2],
-                "delta_y": [0.1, 0.1],
-                "sigma": [0.1, 0.1],
-            })
+            df_lift_test = pd.DataFrame(
+                {
+                    "channel": ["x1", "x1"],
+                    "geo": ["FIN", "SWE"],
+                    "x": [1, 1],
+                    "delta_x": [0.1, 0.2],
+                    "delta_y": [0.1, 0.1],
+                    "sigma": [0.1, 0.1],
+                }
+            )
 
             model.add_lift_test_measurements(df_lift_test)
 
