@@ -226,7 +226,6 @@ class ModelBuilder(ABC):
         .. code-block:: python
 
             def _data_setter(self, X, y=None):
-
                 data = {"X": X}
                 if y is None:
                     y = np.zeros(len(X))
@@ -466,8 +465,10 @@ class ModelBuilder(ABC):
         >>>     def __init__(self):
         >>>         super().__init__()
         >>> model = MyModel()
-        >>> model.fit(X,y)
-        >>> model.save('model_results.nc')  # This will call the overridden method in MyModel
+        >>> model.fit(X, y)
+        >>> model.save(
+        ...     "model_results.nc"
+        ... )  # This will call the overridden method in MyModel
 
         """
         if self.idata is not None and "posterior" in self.idata:
@@ -694,7 +695,7 @@ class ModelBuilder(ABC):
         Examples
         --------
         >>> model = MyModel()
-        >>> idata = model.fit(X,y)
+        >>> idata = model.fit(X, y)
         Auto-assigning NUTS sampler...
         Initializing NUTS using jitter+adapt_diag...
 
@@ -814,9 +815,9 @@ class ModelBuilder(ABC):
         Examples
         --------
         >>> model = MyModel()
-        >>> idata = model.fit(X,y)
+        >>> idata = model.fit(X, y)
         >>> x_pred = []
-        >>> prediction_data = pd.DataFrame({'input':x_pred})
+        >>> prediction_data = pd.DataFrame({"input": x_pred})
         >>> pred_mean = model.predict(prediction_data)
 
         """

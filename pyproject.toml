@@ -124,6 +124,8 @@ replacement = '[\1](https://github.com/pymc-labs/pymc-marketing/tree/main/\g<2>)
 repository = "https://github.com/pymc-labs/pymc-marketing"
 homepage = "https://www.pymc-marketing.io"
 
+[tool.ruff.format]
+docstring-code-format = true
 
 [tool.ruff.lint]
 select = ["B", "D", "DOC", "E", "F", "I", "RUF", "S", "UP", "W"]

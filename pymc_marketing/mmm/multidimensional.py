@@ -1306,18 +1306,26 @@ class MMM(ModelBuilder):
         """
         model = cm(self.model) if clone_model else self.model
 
-        data = {
-            "channel_data": dataset_xarray._channel.transpose(
-                "date", *self.dims, "channel"
-            )
-        }
+        # Get channel data and handle dtype conversion
+        channel_values = dataset_xarray._channel.transpose(
+            "date", *self.dims, "channel"
+        )
+        if "channel_data" in model.named_vars:
+            original_dtype = model.named_vars["channel_data"].type.dtype
+            channel_values = channel_values.astype(original_dtype)
+
+        data = {"channel_data": channel_values}
         coords = self.model.coords.copy()
         coords["date"] = dataset_xarray["date"].to_numpy()
 
         if "_control" in dataset_xarray:
-            data["control_data"] = dataset_xarray["_control"].transpose(
+            control_values = dataset_xarray["_control"].transpose(
                 "date", *self.dims, "control"
             )
+            if "control_data" in model.named_vars:
+                original_dtype = model.named_vars["control_data"].type.dtype
+                control_values = control_values.astype(original_dtype)
+            data["control_data"] = control_values
             coords["control"] = dataset_xarray["control"].to_numpy()
         if self.yearly_seasonality is not None:
             data["dayofyear"] = dataset_xarray["date"].dt.dayofyear.to_numpy()
@@ -1330,7 +1338,14 @@ class MMM(ModelBuilder):
             )
 
         if "_target" in dataset_xarray:
-            data["target_data"] = dataset_xarray._target.transpose("date", *self.dims)
+            target_values = dataset_xarray._target.transpose("date", *self.dims)
+            # Get the original dtype from the model's shared variable
+            if "target_data" in model.named_vars:
+                original_dtype = model.named_vars["target_data"].type.dtype
+                # Convert to the original dtype to avoid precision loss errors
+                data["target_data"] = target_values.astype(original_dtype)
+            else:
+                data["target_data"] = target_values
 
         self.new_updated_data = data
         self.new_updated_coords = coords

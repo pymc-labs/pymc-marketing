@@ -28,6 +28,7 @@ Create a new adstock transformation:
     from pymc_marketing.mmm import AdstockTransformation
     from pymc_marketing.prior import Prior
 
+
     class MyAdstock(AdstockTransformation):
         lookup_name: str = "my_adstock"
 

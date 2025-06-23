@@ -29,7 +29,10 @@ Create a basic PyMC model using the time-varying GP multiplier:
     import pandas as pd
 
     from pymc_marketing.hsgp_kwargs import HSGPKwargs
-    from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
+    from pymc_marketing.mmm.tvp import (
+        create_time_varying_gp_multiplier,
+        infer_time_index,
+    )
 
     # Generate example data
     np.random.seed(0)
