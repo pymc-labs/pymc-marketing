@@ -77,14 +77,15 @@ Autologging for a PyMC-Marketing MMM:
         LogisticSaturation,
         MMM,
     )
+    from pymc_marketing.paths import data_dir
     import pymc_marketing.mlflow
 
     pymc_marketing.mlflow.autolog(log_mmm=True)
 
     # Usual PyMC-Marketing model code
 
-    data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
-    data = pd.read_csv(data_url, parse_dates=["date_week"])
+    file_path = data_dir / "mmm_example.csv"
+    data = pd.read_csv(file_path, parse_dates=["date_week"])
 
     X = data.drop("y", axis=1)
     y = data["y"]
@@ -122,6 +123,7 @@ Autologging for a PyMC-Marketing CLV model:
     import mlflow
 
     from pymc_marketing.clv import BetaGeoModel
+    from pymc_marketing.paths import data_dir
 
     import pymc_marketing.mlflow
 
@@ -129,8 +131,8 @@ Autologging for a PyMC-Marketing CLV model:
 
     mlflow.set_experiment("CLV Experiment")
 
-    data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
-    data = pd.read_csv(data_url)
+    file_path = data_dir / "clv_quickstart.csv"
+    data = pd.read_csv(file_path)
     data["customer_id"] = data.index
 
     model = BetaGeoModel(data=data)
@@ -832,6 +834,7 @@ def log_mmm(
             LogisticSaturation,
             MMM,
         )
+        from pymc_marketing.paths import data_dir
         import pymc_marketing.mlflow
         from pymc_marketing.mlflow import log_mmm
 
@@ -839,8 +842,8 @@ def log_mmm(
 
         # Usual PyMC-Marketing model code
 
-        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
-        data = pd.read_csv(data_url, parse_dates=["date_week"])
+        file_path = data_dir / "mmm_example.csv"
+        data = pd.read_csv(file_path, parse_dates=["date_week"])
 
         X = data.drop("y", axis=1)
         y = data["y"]
@@ -1117,14 +1120,15 @@ def autolog(
             LogisticSaturation,
             MMM,
         )
+        from pymc_marketing.paths import data_dir
         import pymc_marketing.mlflow
 
         pymc_marketing.mlflow.autolog(log_mmm=True)
 
         # Usual PyMC-Marketing model code
 
-        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
-        data = pd.read_csv(data_url, parse_dates=["date_week"])
+        file_path = data_dir / "mmm_example.csv"
+        data = pd.read_csv(file_path, parse_dates=["date_week"])
 
         X = data.drop("y", axis=1)
         y = data["y"]
@@ -1163,6 +1167,7 @@ def autolog(
         import mlflow
 
         from pymc_marketing.clv import BetaGeoModel
+        from pymc_marketing.paths import data_dir
 
         import pymc_marketing.mlflow
 
@@ -1170,8 +1175,8 @@ def autolog(
 
         mlflow.set_experiment("CLV Experiment")
 
-        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
-        data = pd.read_csv(data_url)
+        file_path = data_dir / "clv_quickstart.csv"
+        data = pd.read_csv(file_path)
         data["customer_id"] = data.index
 
         model = BetaGeoModel(data=data)
