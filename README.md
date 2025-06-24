@@ -238,6 +238,15 @@ The Bass Diffusion Model is a popular model for predicting the adoption of new p
     <img src="docs/source/_static/bass.png" width="100%" />
 </center>
 
+## Discrete Choice Models
+
+Discrete choice models come in various forms, but each aims to show how choosing between a set of alternatives can be understood as a function of the observable attributes of the alternatives at hand. This type of modelling drives insight into the "must-have" features of a product, and can be used to assess the success or failure of product launches or re-launches. The PyMC-marketing implementation offers a formula based model specification, for estimating the relative utility of each good in a market and identifying their most important features.
+
+<center>
+    <img src="docs/source/_static/discrete_choice_before_after.png" width="100%" />
+</center>
+
+
 ## Why PyMC-Marketing vs other solutions?
 
 PyMC-Marketing is and will always be free for commercial use, licensed under [Apache 2.0](LICENSE). Developed by core developers behind the popular PyMC package and marketing experts, it provides state-of-the-art measurements and analytics for marketing teams.
