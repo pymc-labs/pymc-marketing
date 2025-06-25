@@ -85,9 +85,10 @@ from pymc_marketing.mmm import (
     LogisticSaturation,
     MMM,
 )
+from pymc_marketing.paths import data_dir
 
-data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
-data = pd.read_csv(data_url, parse_dates=["date_week"])
+file_path = data_dir / "mmm_example.csv"
+data = pd.read_csv(file_path, parse_dates=["date_week"])
 
 mmm = MMM(
     adstock=GeometricAdstock(l_max=8),
@@ -168,9 +169,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 from pymc_marketing import clv
+from pymc_marketing.paths import data_dir
 
-data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
-data = pd.read_csv(data_url)
+file_path = data_dir / "clv_quickstart.csv"
+data = pd.read_csv(data_path)
 data["customer_id"] = data.index
 
 beta_geo_model = clv.BetaGeoModel(data=data)
@@ -235,6 +237,15 @@ The Bass Diffusion Model is a popular model for predicting the adoption of new p
 <center>
     <img src="docs/source/_static/bass.png" width="100%" />
 </center>
+
+## Discrete Choice Models
+
+Discrete choice models come in various forms, but each aims to show how choosing between a set of alternatives can be understood as a function of the observable attributes of the alternatives at hand. This type of modelling drives insight into the "must-have" features of a product, and can be used to assess the success or failure of product launches or re-launches. The PyMC-marketing implementation offers a formula based model specification, for estimating the relative utility of each good in a market and identifying their most important features.
+
+<center>
+    <img src="docs/source/_static/discrete_choice_before_after.png" width="100%" />
+</center>
+
 
 ## Why PyMC-Marketing vs other solutions?
 
