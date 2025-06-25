@@ -474,13 +474,15 @@ class BudgetOptimizer(BaseModel):
                     f"Dict approach to budget_bounds is not supported for multi-dimensional budgets. "
                     f"budget_dims = {self._budget_dims}. Pass an xarray.DataArray instead."
                 )
+
             # Flatten each channel's bounds into an array
-            budget_bounds_array = np.concatenate(
+
+            budget_bounds_array = np.broadcast_to(
                 [
                     np.asarray(budget_bounds[channel])
                     for channel in self.mmm_model.channel_columns
                 ],
-                axis=0,
+                (*self._budget_shape, 2),
             )
         elif isinstance(budget_bounds, DataArray):
             # Must have dims (*self._budget_dims, "bound")
@@ -497,14 +499,10 @@ class BudgetOptimizer(BaseModel):
             )
 
         # 2. Build the final bounds list
-        if self.budgets_to_optimize is None:
-            bounds = [(low, high) for (low, high) in budget_bounds_array.reshape(-1, 2)]
-        else:
-            # Only gather bounds for the True positions in the mask
-            bounds = [
-                (low, high)
-                for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]
-            ]
+        bounds = [
+            (low, high)
+            for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]  # type: ignore
+        ]
 
         # 3. Determine how many budget entries we optimize
         budgets_size = self.budgets_to_optimize.sum().item()  # type: ignore
@@ -531,15 +529,12 @@ class BudgetOptimizer(BaseModel):
 
         # 6. Process results
         if result.success or return_if_fail:
-            if self.budgets_to_optimize is None:
-                # Reshape the entire optimized solution
-                optimal_budgets = np.reshape(result.x, self._budget_shape)
-            else:
-                # Fill zeros, then place the solution in masked positions
-                optimal_budgets = np.zeros_like(
-                    self.budgets_to_optimize.values, dtype=float
-                )
-                optimal_budgets[self.budgets_to_optimize.values] = result.x
+            # Fill zeros, then place the solution in masked positions
+            optimal_budgets = np.zeros_like(
+                self.budgets_to_optimize.values,  # type: ignore
+                dtype=float,
+            )
+            optimal_budgets[self.budgets_to_optimize.values] = result.x  # type: ignore
 
             optimal_budgets = DataArray(
                 optimal_budgets, dims=self._budget_dims, coords=self._budget_coords

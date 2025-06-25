@@ -1602,7 +1602,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
     def optimize_budget(
         self,
         budget: float | int,
-        budget_bounds: xr.DataArray | dict[str, tuple[float, float]] | None = None,
+        budget_bounds: xr.DataArray | None = None,
         response_variable: str = "total_media_contribution_original_scale",
         utility_function: UtilityFunctionType = average_response,
         constraints: Sequence[dict[str, Any]] = (),

@@ -84,7 +84,7 @@ def dummy_df():
                         [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
                         [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
                     ]
-                ),  # dims: chain, draw, channel
+                ),  # dims: chain, draw, channel, date
             },
             None,
             {"channel_1": 54.78357587906867, "channel_2": 45.21642412093133},
@@ -279,7 +279,25 @@ def test_allocate_budget_custom_minimize_args(minimize_mock, dummy_df) -> None:
             "saturation_lam": [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]],
             "saturation_beta": [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]],
             "adstock_alpha": [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]],
-        }
+            "channel_contribution": np.array(
+                [
+                    [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                    [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                ]
+            ),  # dims: chain, draw, channel, date
+        },
+        coords={
+            "chain": [0, 1],
+            "draw": [0, 1],
+            "channel": df_kwargs["channel_columns"],
+            "date": [0, 1],
+        },
+        dims={
+            "saturation_lam": ["chain", "draw", "channel"],
+            "saturation_beta": ["chain", "draw", "channel"],
+            "adstock_alpha": ["chain", "draw", "channel"],
+            "channel_contribution": ["chain", "draw", "channel", "date"],
+        },
     )
     match = "Using default equality constraint"
     with pytest.warns(UserWarning, match=match):
@@ -295,7 +313,9 @@ def test_allocate_budget_custom_minimize_args(minimize_mock, dummy_df) -> None:
         "options": {"ftol": 1e-8, "maxiter": 1_002},
     }
 
-    with pytest.raises(ValueError, match="conflicting sizes for dimension"):
+    with pytest.raises(
+        ValueError, match="NumPy boolean array indexing assignment cannot assign"
+    ):
         optimizer.allocate_budget(
             total_budget, budget_bounds, minimize_kwargs=minimize_kwargs
         )
