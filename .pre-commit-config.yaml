@@ -13,7 +13,7 @@ repos:
           - --exclude=scripts/
           - --start-year=2022
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.13
+    rev: v0.12.0
     hooks:
       - id: ruff
         types_or: [python, pyi, jupyter]
@@ -23,7 +23,7 @@ repos:
         types_or: [python, pyi, jupyter]
         exclude: ^docs/source/notebooks/clv/dev/
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.16.0
+    rev: v1.16.1
     hooks:
       - id: mypy
         args: [--ignore-missing-imports]

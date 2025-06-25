@@ -195,11 +195,12 @@ def compute_summary_metrics(
             LogisticSaturation,
             MMM,
         )
+        from pymc_marketing.paths import data_dir
         from pymc_marketing.mmm.evaluation import compute_summary_metrics
 
         # Usual PyMC-Marketing demo model code
-        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
-        data = pd.read_csv(data_url, parse_dates=["date_week"])
+        file_path = data_dir / "mmm_example.csv"
+        data = pd.read_csv(file_path, parse_dates=["date_week"])
 
         X = data.drop("y", axis=1)
         y = data["y"]
