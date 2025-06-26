@@ -876,7 +876,7 @@ class MMM(ModelBuilder):
         Examples
         --------
         >>> model.add_original_scale_contribution_variable(
-        >>>     var=["channel_contribution", "total_media_contribution", "likelihood"]
+        >>>     var=["channel_contribution", "total_media_contribution", "y"]
         >>> )
         """
         self._validate_model_was_built()
