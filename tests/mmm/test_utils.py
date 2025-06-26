@@ -20,6 +20,7 @@ from sklearn.preprocessing import MaxAbsScaler
 from pymc_marketing.mmm.utils import (
     add_noise_to_channel_allocation,
     apply_sklearn_transformer_across_dim,
+    create_index,
     create_new_spend_data,
     create_zero_dataset,
     transform_1d_array,
@@ -176,6 +177,9 @@ def test_add_noise_to_channel_allocation():
     assert np.abs(df["channel1"].mean() - result["channel1"].mean()) < 5
     assert np.abs(df["channel2"].mean() - result["channel2"].mean()) < 3
 
+    # Test no negative values
+    assert (result[channels] >= 0).all().all(), "No negative values in channels"
+
 
 class FakeMMM:
     def __init__(self):
@@ -235,3 +239,30 @@ def test_create_zero_dataset():
         result_with_channels.loc[result_with_channels.region == "B", "channel1"] == 7.0
     )
     assert np.all(result_with_channels["channel2"] == 0)  # Not provided in channel_xr
+
+
+@pytest.mark.parametrize(
+    "dims, take, expected_result",
+    [
+        pytest.param(
+            ("date",),
+            ("date",),
+            (slice(None),),
+            id="empty-slice",
+        ),
+        pytest.param(
+            ("date", "product", "geo"),
+            ("date", "geo"),
+            (slice(None), 0, slice(None)),
+            id="drop-product",
+        ),
+        pytest.param(
+            ("date", "product", "geo"),
+            ("date",),
+            (slice(None), 0, 0),
+            id="drop-both",
+        ),
+    ],
+)
+def test_create_index(dims, take, expected_result):
+    assert create_index(dims, take) == expected_result
