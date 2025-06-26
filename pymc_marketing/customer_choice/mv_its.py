@@ -14,7 +14,7 @@
 """Multivariate Interrupted Time Series Analysis for Product Incrementality."""
 
 import json
-from typing import Any, cast
+from typing import Any, Self, cast
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -23,12 +23,11 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 from matplotlib.axes import Axes
-from typing_extensions import Self
+from pymc_extras.prior import Prior
 from xarray import DataArray
 
 from pymc_marketing.model_builder import ModelBuilder, create_idata_accessor
 from pymc_marketing.model_config import parse_model_config
-from pymc_marketing.prior import Prior
 
 HDI_ALPHA = 0.5
 

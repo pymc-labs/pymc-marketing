@@ -21,13 +21,13 @@ import pandas as pd
 import pymc as pm
 import xarray
 from pymc.util import RandomState
+from pymc_extras.prior import Prior
 from scipy.special import betaln, expit, hyp2f1
 
 from pymc_marketing.clv.distributions import BetaGeoNBD
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
-from pymc_marketing.prior import Prior
 
 
 class BetaGeoModel(CLVModel):
@@ -72,7 +72,7 @@ class BetaGeoModel(CLVModel):
     --------
     .. code-block:: python
 
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
         from pymc_marketing.clv import BetaGeoModel, rfm_summary
 
         # customer identifiers and purchase datetimes

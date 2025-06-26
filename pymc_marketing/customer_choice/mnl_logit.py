@@ -14,6 +14,7 @@
 """Multinomial Logit for Product Preference Analysis."""
 
 import json
+from typing import Self
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -22,11 +23,10 @@ import pandas as pd
 import patsy
 import pymc as pm
 import pytensor.tensor as pt
-from typing_extensions import Self
+from pymc_extras.prior import Prior
 
 from pymc_marketing.model_builder import ModelBuilder
 from pymc_marketing.model_config import parse_model_config
-from pymc_marketing.prior import Prior
 
 HDI_ALPHA = 0.5
 

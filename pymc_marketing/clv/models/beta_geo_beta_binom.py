@@ -24,6 +24,7 @@ import pytensor.tensor as pt
 import xarray
 from numpy import exp
 from pymc.util import RandomState
+from pymc_extras.prior import Prior
 from pytensor.graph import vectorize_graph
 from scipy.special import betaln, gammaln
 
@@ -31,7 +32,6 @@ from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
-from pymc_marketing.prior import Prior
 
 
 class BetaGeoBetaBinomModel(CLVModel):
@@ -79,7 +79,7 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         import pymc as pm
 
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
         from pymc_marketing.clv import BetaGeoBetaBinomModel
 
         rfm_df = rfm_summary(raw_data, "id_col_name", "date_col_name")
