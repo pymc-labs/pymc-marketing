@@ -709,11 +709,11 @@ class MMM(ModelBuilder):
 
     def _generate_and_preprocess_model_data(
         self,
-        X: pd.DataFrame,  # type: ignore
-        y: pd.Series,  # type: ignore
+        X: pd.DataFrame,
+        y: pd.Series,
     ):
-        self.X = X  # type: ignore
-        self.y = y  # type: ignore
+        self.X = X
+        self.y = y
 
         dataarrays = []
 
