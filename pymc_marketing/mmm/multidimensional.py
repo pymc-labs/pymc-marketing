@@ -975,6 +975,13 @@ class MMM(ModelBuilder):
             )
 
         """
+        if not isinstance(y, pd.Series):
+            y = pd.Series(
+                y,
+                index=X.index,
+                name=self.target_column,
+            )
+
         self._generate_and_preprocess_model_data(
             X=X,  # type: ignore
             y=y,  # type: ignore
