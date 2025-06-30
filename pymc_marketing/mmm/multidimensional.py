@@ -987,8 +987,8 @@ class MMM(ModelBuilder):
             )
 
         self._generate_and_preprocess_model_data(
-            X=X,  # type: ignore
-            y=y,  # type: ignore
+            X=X,
+            y=y,
         )
         # Compute and save scales
         self._compute_scales()
