@@ -146,7 +146,7 @@ def single_dim_data():
     )
     X = df[["date", "channel_1", "channel_2", "channel_3"]].copy()
 
-    return X, df.set_index(["date"])["target"].copy()
+    return X, df["target"].copy()
 
 
 @pytest.fixture
