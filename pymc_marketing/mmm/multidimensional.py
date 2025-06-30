@@ -913,8 +913,8 @@ class MMM(ModelBuilder):
 
     def build_model(
         self,
-        X: pd.DataFrame,
-        y: pd.Series | np.ndarray,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | np.ndarray | xr.DataArray,
         **kwargs,
     ) -> None:
         """Build a probabilistic model using PyMC for marketing mix modeling.
@@ -975,6 +975,10 @@ class MMM(ModelBuilder):
             )
 
         """
+        if not isinstance(X, pd.DataFrame):
+            # Casting to DataFrame if not already
+            X = X.to_dataframe()
+
         if not isinstance(y, pd.Series):
             y = pd.Series(
                 y,
