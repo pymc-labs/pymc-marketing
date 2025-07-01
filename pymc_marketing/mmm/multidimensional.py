@@ -31,6 +31,7 @@ import xarray as xr
 from pydantic import Field, InstanceOf, validate_call
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
+from pymc_extras.prior import Prior, create_dim_handler
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.mmm import SoftPlusHSGP
@@ -61,7 +62,6 @@ from pymc_marketing.mmm.utils import (
 from pymc_marketing.model_builder import ModelBuilder, _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
-from pymc_marketing.prior import Prior, create_dim_handler
 
 PYMC_MARKETING_ISSUE = "https://github.com/pymc-labs/pymc-marketing/issues/new"
 warning_msg = (
@@ -948,7 +948,7 @@ class MMM(ModelBuilder):
 
             from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
             from pymc_marketing.mmm.multidimensional import MMM
-            from pymc_marketing.prior import Prior
+            from pymc_extras.prior import Prior
 
             custom_config = {
                 "intercept": Prior("Normal", mu=0, sigma=2),

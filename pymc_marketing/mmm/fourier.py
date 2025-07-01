@@ -30,7 +30,7 @@ There are two types of Fourier seasonality transformations available:
     import numpy as np
     import arviz as az
     from pymc_marketing.mmm import YearlyFourier
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
 
     plt.style.use('arviz-darkgrid')
 
@@ -84,7 +84,7 @@ Change the prior distribution of the fourier seasonality.
 .. code-block:: python
 
     from pymc_marketing.mmm import YearlyFourier
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
 
     prior = Prior("Normal", mu=0, sigma=0.10)
     yearly = YearlyFourier(n_order=6, prior=prior)
@@ -94,7 +94,7 @@ Even make it hierarchical...
 .. code-block:: python
 
     from pymc_marketing.mmm import YearlyFourier
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
 
     # "fourier" is the default prefix!
     prior = Prior(
@@ -209,7 +209,7 @@ conflicts.
 import datetime
 from abc import abstractmethod
 from collections.abc import Callable, Iterable
-from typing import Any
+from typing import Any, Self
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -227,12 +227,11 @@ from pydantic import (
     field_serializer,
     model_validator,
 )
-from typing_extensions import Self
+from pymc_extras.deserialize import deserialize, register_deserialization
+from pymc_extras.prior import Prior, VariableFactory, create_dim_handler
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK, DAYS_IN_YEAR
-from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.plot import SelToString, plot_curve, plot_hdi, plot_samples
-from pymc_marketing.prior import Prior, VariableFactory, create_dim_handler
 
 X_NAME: str = "day"
 NON_GRID_NAMES: frozenset[str] = frozenset({X_NAME})
@@ -768,7 +767,7 @@ class YearlyFourier(FourierBase):
         import numpy as np
 
         from pymc_marketing.mmm import YearlyFourier
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         az.style.use("arviz-white")
 
@@ -834,7 +833,7 @@ class MonthlyFourier(FourierBase):
         import numpy as np
 
         from pymc_marketing.mmm import MonthlyFourier
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         az.style.use("arviz-white")
 
@@ -899,7 +898,7 @@ class WeeklyFourier(FourierBase):
         import numpy as np
 
         from pymc_marketing.mmm import WeeklyFourier
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         az.style.use("arviz-white")
 

@@ -26,7 +26,7 @@ Create a new adstock transformation:
 .. code-block:: python
 
     from pymc_marketing.mmm import AdstockTransformation
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
 
 
     class MyAdstock(AdstockTransformation):
@@ -59,8 +59,9 @@ import numpy as np
 import pytensor.tensor as pt
 import xarray as xr
 from pydantic import Field, validate_call
+from pymc_extras.deserialize import deserialize, register_deserialization
+from pymc_extras.prior import Prior
 
-from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.mmm.components.base import (
     SupportedPrior,
     Transformation,
@@ -73,7 +74,6 @@ from pymc_marketing.mmm.transformers import (
     geometric_adstock,
     weibull_adstock,
 )
-from pymc_marketing.prior import Prior
 
 ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {}
 

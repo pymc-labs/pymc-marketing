@@ -21,10 +21,10 @@ import pytensor as pt
 import pytest
 import xarray as xr
 from lifetimes.fitters.beta_geo_beta_binom_fitter import BetaGeoBetaBinomFitter
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models import BetaGeoBetaBinomModel
-from pymc_marketing.prior import Prior
 from tests.conftest import create_mock_fit, mock_sample
 
 

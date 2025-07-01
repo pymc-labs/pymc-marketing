@@ -18,6 +18,7 @@ import pymc as pm
 import pytest
 import xarray as xr
 from numpy.testing import assert_array_equal
+from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.events import (
     EventEffect,
@@ -26,7 +27,6 @@ from pymc_marketing.mmm.events import (
     days_from_reference,
 )
 from pymc_marketing.plot import plot_curve
-from pymc_marketing.prior import Prior
 
 
 def test_gaussian_basis_plot() -> None:
