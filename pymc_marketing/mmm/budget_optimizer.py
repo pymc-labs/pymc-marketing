@@ -205,18 +205,16 @@ class BudgetOptimizer(BaseModel):
             )
         else:
             # If a mask is provided, ensure it has the correct shape
-            expected_shape = self.mmm_model.idata.posterior.channel_contribution.mean(
+            expected_mask = self.mmm_model.idata.posterior.channel_contribution.mean(
                 ("chain", "draw", "date")
-            ).shape
-            mask_shape = self.budgets_to_optimize.shape
+            ).astype(bool)
 
             # Check that the mask shape matches the expected shape
-            if mask_shape != expected_shape:
-                if not np.all(np.logical_not(mask_shape) | expected_shape):
-                    raise ValueError(
-                        "budgets_to_optimize mask contains True values at coordinates where the model has no "
-                        "information."
-                    )
+            if not np.all(expected_mask.values == self.budgets_to_optimize.values):
+                raise ValueError(
+                    "budgets_to_optimize mask contains True values at coordinates where the model has no "
+                    "information."
+                )
 
         size_budgets = self.budgets_to_optimize.sum().item()
 
