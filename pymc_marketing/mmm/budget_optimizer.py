@@ -210,7 +210,7 @@ class BudgetOptimizer(BaseModel):
             ).astype(bool)
 
             # Check if we are asking to optimize over channels that are not present in the model
-            if self.budgets_to_optimize.values.sum() > expected_mask.values.sum():
+            if np.any(self.budgets_to_optimize.values > expected_mask.values):
                 raise ValueError(
                     "budgets_to_optimize mask contains True values at coordinates where the model has no "
                     "information."
