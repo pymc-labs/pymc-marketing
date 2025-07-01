@@ -92,49 +92,10 @@ def test_budget_optimizer_no_mask(dummy_df):
     assert result.success
 
 
-# @pytest.mark.parametrize(
-#     "budgets_to_optimize, expected_shape, expect_warn",
-#     [
-#     # Mask provided with correct shape
-#     (
-#         xr.DataArray(
-#             np.array([[True, False], [True, True]]),
-#             dims=["channel", "geo"],
-#             coords={
-#                 "channel": ["channel_1", "channel_2"],
-#                 "geo": ["A", "B"],
-#             },
-#         ),
-#         (2, 2),
-#         False,
-#     ),
-#     # Mask provided with incorrect shape (should raise ValueError)
-#     (
-#         xr.DataArray(
-#             np.array([[True, False], [True, True], [True, True]]),
-#             dims=["channel", "geo"],
-#             coords={
-#                 "channel": ["channel_1", "channel_2", "channel_3"],
-#                 "geo": ["A", "B"],
-#             },
-#         ),
-#         None,
-#         False,
-#     ),
-#     ],
-#     ids=[
-#         "incorrect_mask_shape",
-#     ],
-# )
-
-
 def test_budget_optimizer_correct_mask(
     dummy_df,
 ):
     df_kwargs, X_dummy, y_dummy = dummy_df
-
-    # # Remove spend for one channel in one geo
-    # X_dummy.loc[X_dummy["geo"] == "A", "channel_2"] = 0.0
 
     budgets_to_optimize = xr.DataArray(
         np.array([[True, False], [True, True]]),

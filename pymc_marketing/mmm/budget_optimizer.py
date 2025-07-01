@@ -209,8 +209,8 @@ class BudgetOptimizer(BaseModel):
                 ("chain", "draw", "date")
             ).astype(bool)
 
-            # Check that the mask shape matches the expected shape
-            if not np.all(expected_mask.values == self.budgets_to_optimize.values):
+            # Check if we are asking to optimize over channels that are not present in the model
+            if self.budgets_to_optimize.values.sum() > expected_mask.values.sum():
                 raise ValueError(
                     "budgets_to_optimize mask contains True values at coordinates where the model has no "
                     "information."
