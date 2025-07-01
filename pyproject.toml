@@ -30,6 +30,7 @@ dependencies = [
     "numpy>=1.17",
     "pandas",
     "pydantic>=2.1.0",
+    "narwhals",
     # NOTE: Used as minimum pymc version with test.yml `OLDEST_PYMC_VERSION`
     "pymc>=5.23.0",
     "pytensor>=2.31.3",
