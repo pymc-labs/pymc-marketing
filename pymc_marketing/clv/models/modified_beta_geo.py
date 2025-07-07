@@ -14,6 +14,7 @@
 """Modified Beta-Geometric Negative Binomial Distribution (MBG/NBD) model for a non-contractual customer population across continuous time."""  # noqa: E501
 
 from collections.abc import Sequence
+from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -452,7 +453,9 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         *,
         T: int | np.ndarray | pd.Series | None = None,
         random_seed: RandomState | None = None,
-        var_names: Sequence[str] = ("dropout", "purchase_rate"),
+        var_names: Sequence[
+            Literal["dropout", "purchase_rate", "recency_frequency"]
+        ] = ("dropout", "purchase_rate", "recency_frequency"),
         n_samples: int = 1000,
     ) -> xarray.Dataset:
         # TODO: This is extraneous now, until a new distribution block is added.
@@ -475,14 +478,30 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         coords = self.model.coords.copy()  # type: ignore
         coords["customer_id"] = data["customer_id"]
 
-        with pm.Model(coords=coords):
-            a = pm.HalfFlat("a")
-            b = pm.HalfFlat("b")
-            alpha = pm.HalfFlat("alpha")
-            r = pm.HalfFlat("r")
+        with pm.Model(coords=coords) as pred_model:
+            if self.purchase_covariate_cols:
+                alpha = pm.Flat("alpha", dims=["customer_id"])
+            else:
+                alpha = pm.Flat("alpha")
 
-            pm.Beta("dropout", alpha=a, beta=b)
-            pm.Gamma("purchase_rate", alpha=r, beta=alpha)
+            if self.dropout_covariate_cols:
+                a = pm.Flat("a", dims=["customer_id"])
+                b = pm.Flat("b", dims=["customer_id"])
+            else:
+                a = pm.Flat("a")
+                b = pm.Flat("b")
+
+            r = pm.Flat("r")
+
+            pm.Beta(
+                "dropout", alpha=a, beta=b, dims=pred_model.named_vars_to_dims.get("a")
+            )
+            pm.Gamma(
+                "purchase_rate",
+                alpha=r,
+                beta=alpha,
+                dims=pred_model.named_vars_to_dims.get("alpha"),
+            )
 
             ModifiedBetaGeoNBD(
                 name="recency_frequency",
