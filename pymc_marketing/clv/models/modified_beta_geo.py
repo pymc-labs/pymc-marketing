@@ -139,29 +139,131 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     def build_model(self) -> None:  # type: ignore[override]
         """Build the model."""
         coords = {
+            "purchase_covariate": self.purchase_covariate_cols,
+            "dropout_covariate": self.dropout_covariate_cols,
             "customer_id": self.data["customer_id"],
             "obs_var": ["recency", "frequency"],
         }
         with pm.Model(coords=coords) as self.model:
             # purchase rate priors
-            alpha = self.model_config["alpha"].create_variable("alpha")
-            r = self.model_config["r"].create_variable("r")
+            if self.purchase_covariate_cols:
+                purchase_data = pm.Data(
+                    "purchase_data",
+                    self.data[self.purchase_covariate_cols],
+                    dims=["customer_id", "purchase_covariate"],
+                )
+                self.model_config["purchase_coefficient"].dims = "purchase_covariate"
+                purchase_coefficient_alpha = self.model_config[
+                    "purchase_coefficient"
+                ].create_variable("purchase_coefficient_alpha")
+
+                alpha_scale = self.model_config["alpha"].create_variable("alpha_scale")
+                alpha = pm.Deterministic(
+                    "alpha",
+                    (
+                        alpha_scale
+                        * pm.math.exp(
+                            -pm.math.dot(purchase_data, purchase_coefficient_alpha)
+                        )
+                    ),
+                    dims="customer_id",
+                )
+            else:
+                alpha = self.model_config["alpha"].create_variable("alpha")
 
             # dropout priors
             if "a" in self.model_config and "b" in self.model_config:
-                a = self.model_config["a"].create_variable("a")
-                b = self.model_config["b"].create_variable("b")
+                if self.dropout_covariate_cols:
+                    dropout_data = pm.Data(
+                        "dropout_data",
+                        self.data[self.dropout_covariate_cols],
+                        dims=["customer_id", "dropout_covariate"],
+                    )
+
+                    self.model_config["dropout_coefficient"].dims = "dropout_covariate"
+                    dropout_coefficient_a = self.model_config[
+                        "dropout_coefficient"
+                    ].create_variable("dropout_coefficient_a")
+                    dropout_coefficient_b = self.model_config[
+                        "dropout_coefficient"
+                    ].create_variable("dropout_coefficient_b")
+
+                    a_scale = self.model_config["a"].create_variable("a_scale")
+                    b_scale = self.model_config["b"].create_variable("b_scale")
+                    a = pm.Deterministic(
+                        "a",
+                        a_scale
+                        * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_a)),
+                        dims="customer_id",
+                    )
+                    b = pm.Deterministic(
+                        "b",
+                        b_scale
+                        * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_b)),
+                        dims="customer_id",
+                    )
+                else:
+                    a = self.model_config["a"].create_variable("a")
+                    b = self.model_config["b"].create_variable("b")
             else:
                 # hierarchical pooling of dropout rate priors
-                phi_dropout = self.model_config["phi_dropout"].create_variable(
-                    "phi_dropout"
-                )
-                kappa_dropout = self.model_config["kappa_dropout"].create_variable(
-                    "kappa_dropout"
-                )
+                if self.dropout_covariate_cols:
+                    dropout_data = pm.Data(
+                        "dropout_data",
+                        self.data[self.dropout_covariate_cols],
+                        dims=["customer_id", "dropout_covariate"],
+                    )
 
-                a = pm.Deterministic("a", phi_dropout * kappa_dropout)
-                b = pm.Deterministic("b", (1.0 - phi_dropout) * kappa_dropout)
+                    self.model_config["dropout_coefficient"].dims = "dropout_covariate"
+                    dropout_coefficient_a = self.model_config[
+                        "dropout_coefficient"
+                    ].create_variable("dropout_coefficient_a")
+                    dropout_coefficient_b = self.model_config[
+                        "dropout_coefficient"
+                    ].create_variable("dropout_coefficient_b")
+
+                    phi_dropout = self.model_config["phi_dropout"].create_variable(
+                        "phi_dropout"
+                    )
+                    kappa_dropout = self.model_config["kappa_dropout"].create_variable(
+                        "kappa_dropout"
+                    )
+
+                    a_scale = pm.Deterministic(
+                        "a_scale",
+                        phi_dropout * kappa_dropout,
+                    )
+                    b_scale = pm.Deterministic(
+                        "b_scale",
+                        (1.0 - phi_dropout) * kappa_dropout,
+                    )
+
+                    a = pm.Deterministic(
+                        "a",
+                        a_scale
+                        * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_a)),
+                        dims="customer_id",
+                    )
+                    b = pm.Deterministic(
+                        "b",
+                        b_scale
+                        * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_b)),
+                        dims="customer_id",
+                    )
+
+                else:
+                    phi_dropout = self.model_config["phi_dropout"].create_variable(
+                        "phi_dropout"
+                    )
+                    kappa_dropout = self.model_config["kappa_dropout"].create_variable(
+                        "kappa_dropout"
+                    )
+
+                    a = pm.Deterministic("a", phi_dropout * kappa_dropout)
+                    b = pm.Deterministic("b", (1.0 - phi_dropout) * kappa_dropout)
+
+            # r remains unchanged with or without covariates
+            r = self.model_config["r"].create_variable("r")
 
             ModifiedBetaGeoNBD(
                 name="recency_frequency",
