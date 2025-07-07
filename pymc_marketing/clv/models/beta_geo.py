@@ -61,8 +61,8 @@ class BetaGeoModel(CLVModel):
             * `b`: Shape parameter of dropout process; defaults to `1-phi_dropout` * `kappa_dropout`
             * `phi_dropout`: Nested prior for a and b priors; defaults to `Prior("Uniform", lower=0, upper=1)`
             * `kappa_dropout`: Nested prior for a and b priors; defaults to `Prior("Pareto", alpha=1, m=1)`
-            * `purchase_covariates`: Coefficients for purchase rate covariates; defaults to `Normal(0, 3)`
-            * `dropout_covariates`: Coefficients for dropout covariates; defaults to `Normal.dist(0, 3)`
+            * `purchase_covariates`: Coefficients for purchase rate covariates; defaults to `Normal(0, 1)`
+            * `dropout_covariates`: Coefficients for dropout covariates; defaults to `Normal.dist(0, 1)`
             * `purchase_covariate_cols`: List containing column names of covariates for customer purchase rates.
             * `dropout_covariate_cols`: List containing column names of covariates for customer dropouts.
     sampler_config : dict, optional
