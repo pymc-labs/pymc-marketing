@@ -358,9 +358,9 @@ class TestModifiedBetaGeoModel:
         assert model.__repr__().replace(" ", "") == (
             "MBG/NBD"
             "\nalpha~HalfFlat()"
-            "\nr~HalfFlat()"
             "\na~HalfFlat()"
             "\nb~HalfNormal(0,10)"
+            "\nr~HalfFlat()"
             "\nrecency_frequency~ModifiedBetaGeoNBD(a,b,r,alpha,<constant>)"
         )
 
