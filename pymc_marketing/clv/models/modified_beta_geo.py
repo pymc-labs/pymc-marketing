@@ -458,7 +458,6 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         ] = ("dropout", "purchase_rate", "recency_frequency"),
         n_samples: int = 1000,
     ) -> xarray.Dataset:
-        # TODO: This is extraneous now, until a new distribution block is added.
         """Compute posterior predictive samples of dropout, purchase rate and frequency/recency of new customers."""
         if data is None:
             data = self.data
