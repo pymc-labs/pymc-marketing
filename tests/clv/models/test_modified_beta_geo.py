@@ -445,15 +445,15 @@ class TestModifiedBetaGeoModelWithCovariates:
         )
 
         # Use Quickstart dataset (the CDNOW_sample research data) for testing
-        cls.data = data = pd.read_csv("data/clv_quickstart.csv")
-        data["customer_id"] = data.index
+        cls.data = pd.read_csv("data/clv_quickstart.csv")
+        cls.data["customer_id"] = cls.data.index
 
         # Create two purchase covariates and one dropout covariate
         # We standardize so that the coefficient * covariates have similar variance
-        N = data.shape[0]
-        data["purchase_cov1"] = rng.normal(size=N) / 2
-        data["purchase_cov2"] = rng.normal(size=N) / 4
-        data["dropout_cov"] = rng.normal(size=N) / 6
+        N = cls.data.shape[0]
+        cls.data["purchase_cov1"] = rng.normal(size=N) / 2
+        cls.data["purchase_cov2"] = rng.normal(size=N) / 4
+        cls.data["dropout_cov"] = rng.normal(size=N) / 6
 
         purchase_covariate_cols = ["purchase_cov1", "purchase_cov2"]
         dropout_covariate_cols = ["dropout_cov"]
@@ -524,7 +524,7 @@ class TestModifiedBetaGeoModelWithCovariates:
 
         # Create a reference model without covariates
         cls.model_without_covariates = ModifiedBetaGeoModel(
-            data, model_config=non_nested_priors
+            cls.data, model_config=non_nested_priors
         )
         mock_fit_without_covariates = az.from_dict(
             {
