@@ -26,6 +26,7 @@ Use custom transformations for media in the MMM model:
         WeibullPDFAdstock,
     )
 
+
     class InfiniteReturns(SaturationTransformation):
         def function(self, x, b):
             return b * x

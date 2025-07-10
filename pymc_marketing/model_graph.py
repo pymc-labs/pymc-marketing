@@ -61,15 +61,18 @@ def deterministics_to_flat(model: pm.Model, names: list[str]) -> pm.Model:
 
         with pm.Model() as model:
             x = pm.Normal("x", mu=0, sigma=1)
-            y = pm.Deterministic("y", x ** 2)
+            y = pm.Deterministic("y", x**2)
             z = pm.Deterministic("z", x + y)
 
         new_model = deterministics_to_flat(model, ["y"])
 
         chains, draws = 2, 100
-        mock_posterior = xr.Dataset({
-            "y": (("chain", "draw"), np.zeros((chains, draws))),
-        }, coords={"chain": np.arange(chains), "draw": np.arange(draws)})
+        mock_posterior = xr.Dataset(
+            {
+                "y": (("chain", "draw"), np.zeros((chains, draws))),
+            },
+            coords={"chain": np.arange(chains), "draw": np.arange(draws)},
+        )
 
         x_z_given_y = pm.sample_posterior_predictive(
             mock_posterior,

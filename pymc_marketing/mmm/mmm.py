@@ -940,9 +940,10 @@ class MMM(
             LogisticSaturation
             MMM,
         )
+        from pymc_marketing.paths import data_dir
 
-        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
-        data = pd.read_csv(data_url, parse_dates=["date_week"])
+        file_path = data_dir / "mmm_example.csv"
+        data = pd.read_csv(file_path, parse_dates=["date_week"])
 
         mmm = MMM(
             date_column="date_week",
@@ -1457,7 +1458,9 @@ class MMM(
 
             n_channels = len(model.channel_columns)
             spend = np.ones(n_channels)
-            new_spend_contributions = model.new_spend_contributions(spend=spend, one_time=False)
+            new_spend_contributions = model.new_spend_contributions(
+                spend=spend, one_time=False
+            )
 
         Channel contributions from 1 unit on each channel only once but with 1 unit leading up to the spend.
 
@@ -1466,7 +1469,9 @@ class MMM(
             n_channels = len(model.channel_columns)
             spend = np.ones(n_channels)
             spend_leading_up = np.ones(n_channels)
-            new_spend_contributions = model.new_spend_contributions(spend=spend, spend_leading_up=spend_leading_up)
+            new_spend_contributions = model.new_spend_contributions(
+                spend=spend, spend_leading_up=spend_leading_up
+            )
 
         """
         if spend is None:
@@ -1649,7 +1654,7 @@ class MMM(
 
         Example
         -------
-        >>> self.format_recovered_transformation_parameters(quantile=.5)
+        >>> self.format_recovered_transformation_parameters(quantile=0.5)
         >>> Output:
         {
             'x1': {
@@ -2004,10 +2009,7 @@ class MMM(
 
         .. code-block:: python
 
-            model_estimated_lift = (
-                saturation_curve(x + delta_x)
-                - saturation_curve(x)
-            )
+            model_estimated_lift = saturation_curve(x + delta_x) - saturation_curve(x)
             empirical_lift = delta_y
             dist(abs(model_estimated_lift), sigma=sigma, observed=abs(empirical_lift))
 
@@ -2069,13 +2071,15 @@ class MMM(
 
             model.build_model(X, y)
 
-            df_lift_test = pd.DataFrame({
-                "channel": ["x1", "x1"],
-                "x": [1, 1],
-                "delta_x": [0.1, 0.2],
-                "delta_y": [0.1, 0.1],
-                "sigma": [0.1, 0.1],
-            })
+            df_lift_test = pd.DataFrame(
+                {
+                    "channel": ["x1", "x1"],
+                    "x": [1, 1],
+                    "delta_x": [0.1, 0.2],
+                    "delta_y": [0.1, 0.1],
+                    "sigma": [0.1, 0.1],
+                }
+            )
 
             model.add_lift_test_measurements(df_lift_test)
 

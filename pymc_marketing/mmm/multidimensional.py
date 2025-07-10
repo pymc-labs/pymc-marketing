@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from copy import deepcopy
 from typing import Annotated, Any, Literal
 
@@ -47,6 +47,10 @@ from pymc_marketing.mmm.components.saturation import (
 )
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
+from pymc_marketing.mmm.lift_test import (
+    add_lift_measurements_to_likelihood_from_saturation,
+    scale_lift_measurements,
+)
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.tvp import infer_time_index
@@ -94,6 +98,9 @@ class MMM(ModelBuilder):
         Whether to use time-varying effects for media channels.
     dims : tuple | None
         Additional dimensions for the model.
+    scaling : Scaling | dict | None
+        Scaling methods to be used for the target variable and the marketing channels.
+        Defaults to max scaling for both.
     model_config : dict | None
         Configuration settings for the model.
     sampler_config : dict | None
@@ -206,7 +213,7 @@ class MMM(ModelBuilder):
         sampler_config = sampler_config
         model_config = parse_model_config(
             model_config,  # type: ignore
-            hsgp_kwargs_fields=["intercept_tvp_config", "media_tvp_config"],
+            non_distributions=["intercept_tvp_config", "media_tvp_config"],
         )
 
         if model_config is not None:
@@ -1306,18 +1313,26 @@ class MMM(ModelBuilder):
         """
         model = cm(self.model) if clone_model else self.model
 
-        data = {
-            "channel_data": dataset_xarray._channel.transpose(
-                "date", *self.dims, "channel"
-            )
-        }
+        # Get channel data and handle dtype conversion
+        channel_values = dataset_xarray._channel.transpose(
+            "date", *self.dims, "channel"
+        )
+        if "channel_data" in model.named_vars:
+            original_dtype = model.named_vars["channel_data"].type.dtype
+            channel_values = channel_values.astype(original_dtype)
+
+        data = {"channel_data": channel_values}
         coords = self.model.coords.copy()
         coords["date"] = dataset_xarray["date"].to_numpy()
 
         if "_control" in dataset_xarray:
-            data["control_data"] = dataset_xarray["_control"].transpose(
+            control_values = dataset_xarray["_control"].transpose(
                 "date", *self.dims, "control"
             )
+            if "control_data" in model.named_vars:
+                original_dtype = model.named_vars["control_data"].type.dtype
+                control_values = control_values.astype(original_dtype)
+            data["control_data"] = control_values
             coords["control"] = dataset_xarray["control"].to_numpy()
         if self.yearly_seasonality is not None:
             data["dayofyear"] = dataset_xarray["date"].dt.dayofyear.to_numpy()
@@ -1330,7 +1345,14 @@ class MMM(ModelBuilder):
             )
 
         if "_target" in dataset_xarray:
-            data["target_data"] = dataset_xarray._target.transpose("date", *self.dims)
+            target_values = dataset_xarray._target.transpose("date", *self.dims)
+            # Get the original dtype from the model's shared variable
+            if "target_data" in model.named_vars:
+                original_dtype = model.named_vars["target_data"].type.dtype
+                # Convert to the original dtype to avoid precision loss errors
+                data["target_data"] = target_values.astype(original_dtype)
+            else:
+                data["target_data"] = target_values
 
         self.new_updated_data = data
         self.new_updated_coords = coords
@@ -1489,6 +1511,242 @@ class MMM(ModelBuilder):
             )
 
         return posterior_predictive_samples
+
+    def _make_channel_transform(
+        self, df_lift_test: pd.DataFrame
+    ) -> Callable[[np.ndarray], np.ndarray]:
+        """Create a function for transforming the channel data into the same scale as in the model.
+
+        Parameters
+        ----------
+        df_lift_test : pd.DataFrame
+            Lift test measurements.
+
+        Returns
+        -------
+        Callable[[np.ndarray], np.ndarray]
+            The function for scaling the channel data.
+        """
+        # The transformer will be passed a np.ndarray of data corresponding to this index.
+        index_cols = [*list(self.dims), "channel"]
+        # We reconstruct the input dataframe following the transformations performed within
+        # `lift_test.scale_channel_lift_measurements()``.
+        input_df = (
+            df_lift_test.loc[:, [*index_cols, "x", "delta_x"]]
+            .set_index(index_cols, append=True)
+            .stack()
+            .unstack(level=-2)
+            .reindex(self.channel_columns, axis=1)  # type: ignore
+            .fillna(0)
+        )
+
+        def channel_transform(input: np.ndarray) -> np.ndarray:
+            """Transform lift test channel data to the same scale as in the model."""
+            # reconstruct the df corresponding to the input np.ndarray.
+            reconstructed = (
+                pd.DataFrame(data=input, index=input_df.index, columns=input_df.columns)
+                .stack()
+                .unstack(level=-2)
+            )
+            return (
+                (
+                    # Scale the data according to the scaler coords.
+                    reconstructed.to_xarray() / self.scalers._channel
+                )
+                .to_dataframe()
+                .fillna(0)
+                .stack()
+                .unstack(level=-2)
+                .loc[input_df.index, :]
+                .values
+            )
+
+        # Finally return the scaled data as a np.ndarray corresponding to the input index order.
+        return channel_transform
+
+    def _make_target_transform(
+        self, df_lift_test: pd.DataFrame
+    ) -> Callable[[np.ndarray], np.ndarray]:
+        """Create a function for transforming the target measurements into the same scale as in the model.
+
+        Parameters
+        ----------
+        df_lift_test : pd.DataFrame
+            Lift test measurements.
+
+        Returns
+        -------
+        Callable[[np.ndarray], np.ndarray]
+            The function for scaling the target data.
+        """
+        # These are the same order as in the original lift test measurements.
+        index_cols = [*list(self.dims), "channel"]
+        input_idx = df_lift_test.set_index(index_cols, append=True).index
+
+        def target_transform(input: np.ndarray) -> np.ndarray:
+            """Transform lift test measurements and sigma to the same scale as in the model."""
+            # Reconstruct the input df column with the correct index.
+            reconstructed = pd.DataFrame(
+                data=input, index=input_idx, columns=["target"]
+            )
+            return (
+                (
+                    # Scale the measurements.
+                    reconstructed.to_xarray() / self.scalers._target
+                )
+                .to_dataframe()
+                .loc[input_idx, :]
+                .values
+            )
+
+        # Finally, return the scaled measurements as a np.ndarray corresponding to
+        # the input index order.
+        return target_transform
+
+    def add_lift_test_measurements(
+        self,
+        df_lift_test: pd.DataFrame,
+        dist: type[pm.Distribution] = pm.Gamma,
+        name: str = "lift_measurements",
+    ) -> None:
+        """Add lift tests to the model.
+
+        The model for the difference of a channel's saturation curve is created
+        from `x` and `x + delta_x` for each channel. This random variable is
+        then conditioned using the empirical lift, `delta_y`, and `sigma` of the lift test
+        with the specified distribution `dist`.
+
+        The pseudo-code for the lift test is as follows:
+
+        .. code-block:: python
+
+            model_estimated_lift = saturation_curve(x + delta_x) - saturation_curve(x)
+            empirical_lift = delta_y
+            dist(abs(model_estimated_lift), sigma=sigma, observed=abs(empirical_lift))
+
+
+        The model has to be built before adding the lift tests.
+
+        Parameters
+        ----------
+        df_lift_test : pd.DataFrame
+            DataFrame with lift test results with at least the following columns:
+                * `DIM_NAME`: dimension name. One column per dimension in `mmm.dims`.
+                * `channel`: channel name. Must be present in `channel_columns`.
+                * `x`: x axis value of the lift test.
+                * `delta_x`: change in x axis value of the lift test.
+                * `delta_y`: change in y axis value of the lift test.
+                * `sigma`: standard deviation of the lift test.
+        dist : pm.Distribution, optional
+            The distribution to use for the likelihood, by default pm.Gamma
+        name : str, optional
+            The name of the likelihood of the lift test contribution(s),
+            by default "lift_measurements". Name change required if calling
+            this method multiple times.
+
+        Raises
+        ------
+        RuntimeError
+            If the model has not been built yet.
+        KeyError
+            If the 'channel' column or any of the model dimensions is not present
+            in df_lift_test.
+
+        Examples
+        --------
+        Build the model first then add lift test measurements.
+
+        .. code-block:: python
+
+            import pandas as pd
+            import numpy as np
+
+            from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+
+            from pymc_marketing.mmm.multidimensional import MMM
+
+            model = MMM(
+                date_column="date",
+                channel_columns=["x1", "x2"],
+                target_column="target",
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
+                yearly_seasonality=2,
+                dims=("geo",),
+            )
+
+            X = pd.DataFrame(
+                {
+                    "date": np.tile(
+                        pd.date_range(start="2025-01-01", end="2025-05-01", freq="W"), 2
+                    ),
+                    "x1": np.random.rand(34),
+                    "x2": np.random.rand(34),
+                    "target": np.random.rand(34),
+                    "geo": 17 * ["FIN"] + 17 * ["SWE"],
+                }
+            )
+            y = X["target"]
+
+            model.build_model(X.drop(columns=["target"]), y)
+
+            df_lift_test = pd.DataFrame(
+                {
+                    "channel": ["x1", "x1"],
+                    "geo": ["FIN", "SWE"],
+                    "x": [1, 1],
+                    "delta_x": [0.1, 0.2],
+                    "delta_y": [0.1, 0.1],
+                    "sigma": [0.1, 0.1],
+                }
+            )
+
+            model.add_lift_test_measurements(df_lift_test)
+
+        """
+        if not hasattr(self, "model"):
+            raise RuntimeError(
+                "The model has not been built yet. Please, build the model first."
+            )
+
+        if "channel" not in df_lift_test.columns:
+            raise KeyError(
+                "The 'channel' column is required to map the lift measurements to the model."
+            )
+
+        for dim in self.dims:
+            if dim not in df_lift_test.columns:
+                raise KeyError(
+                    f"The {dim} column is required to map the lift measurements to the model."
+                )
+
+        # Function to scale "delta_y", and "sigma" to same scale as target in model.
+        target_transform = self._make_target_transform(df_lift_test)
+
+        # Function to scale "x" and "delta_x" to the same scale as their respective channels.
+        channel_transform = self._make_channel_transform(df_lift_test)
+
+        df_lift_test_scaled = scale_lift_measurements(
+            df_lift_test=df_lift_test,
+            channel_col="channel",
+            channel_columns=self.channel_columns,  # type: ignore
+            channel_transform=channel_transform,
+            target_transform=target_transform,
+            dim_cols=list(self.dims),
+        )
+        # This is coupled with the name of the
+        # latent process Deterministic
+        time_varying_var_name = (
+            "media_latent_process" if self.time_varying_media else None
+        )
+        add_lift_measurements_to_likelihood_from_saturation(
+            df_lift_test=df_lift_test_scaled,
+            saturation=self.saturation,
+            time_varying_var_name=time_varying_var_name,
+            model=self.model,
+            dist=dist,
+            name=name,
+        )
 
 
 def create_sample_kwargs(

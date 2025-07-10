@@ -21,19 +21,20 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 from pymc.model_graph import fast_eval
+from pymc_extras.prior import Prior
 from pytensor.tensor.basic import TensorVariable
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, LinearTrendEffect
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis
+from pymc_marketing.mmm.lift_test import _swap_columns_and_last_index_level
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.multidimensional import (
     MMM,
     MultiDimensionalBudgetOptimizerWrapper,
 )
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
-from pymc_marketing.prior import Prior
 
 
 @pytest.fixture
@@ -922,6 +923,633 @@ def test_multidimensional_budget_optimizer_wrapper(fit_mmm, mock_pymc_sample):
     assert isinstance(scipy_opt_result, OptimizeResult)
 
 
+@pytest.fixture
+def df_lift_test() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "channel": ["channel_1", "channel_1"],
+            "country": ["Venezuela", "Colombia"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+            "date": pd.to_datetime(["2023-01-02", "2023-01-04"]),
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "saturation_dims",
+    [
+        pytest.param((), id="scalar"),
+        pytest.param(("channel",), id="vector"),
+        pytest.param(("country", "channel"), id="matrix"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target_scaling_dims",
+    [
+        pytest.param(("country",), id="through-country (default)"),
+        pytest.param((), id="by-country"),
+    ],
+)
+@pytest.mark.parametrize(
+    "channel_scaling_dims",
+    [
+        pytest.param(("country",), id="through-country (default)"),
+        pytest.param((), id="by-country"),
+    ],
+)
+def test_add_lift_test_measurements(
+    multi_dim_data,
+    df_lift_test,
+    saturation_dims,
+    target_scaling_dims,
+    channel_scaling_dims,
+    mock_pymc_sample,
+) -> None:
+    X, y = multi_dim_data
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation().set_dims_for_all_priors(dims=saturation_dims),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        scaling=Scaling(
+            channel=VariableScaling(method="max", dims=channel_scaling_dims),
+            target=VariableScaling(method="max", dims=target_scaling_dims),
+        ),
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    name = "lift_measurements"
+    assert name not in mmm.model
+
+    mmm.add_lift_test_measurements(
+        df_lift_test,
+        name=name,
+    )
+
+    assert name in mmm.model
+
+    try:
+        mmm.fit(X, y)
+    except Exception as e:
+        pytest.fail(f"Sampling failed with error: {e}")
+
+
+def test_add_lift_test_measurements_no_model() -> None:
+    adstock = GeometricAdstock(l_max=4)
+    saturation = LogisticSaturation()
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=adstock,
+        saturation=saturation,
+    )
+    with pytest.raises(RuntimeError, match="The model has not been built yet."):
+        mmm.add_lift_test_measurements(
+            pd.DataFrame(),
+        )
+
+
+def test_time_varying_media_with_lift_test(
+    multi_dim_data, df_lift_test, mock_pymc_sample
+) -> None:
+    X, y = multi_dim_data
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_media=True,
+    )
+    mmm.build_model(X=X, y=y)
+    try:
+        mmm.add_lift_test_measurements(df_lift_test)
+    except Exception as e:
+        pytest.fail(
+            f"add_lift_test_measurements for time_varying_media model failed with error {e}"
+        )
+
+    try:
+        mmm.fit(X, y)
+    except Exception as e:
+        pytest.fail(f"Sampling failed with error: {e}")
+
+
+def test_add_lift_test_measurements_missing_channel_column(multi_dim_data) -> None:
+    """Test that KeyError is raised when 'channel' column is missing from lift test data."""
+    X, y = multi_dim_data
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    # Create lift test data without 'channel' column
+    df_lift_test_missing_channel = pd.DataFrame(
+        {
+            "country": ["Venezuela", "Colombia"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+            "date": pd.to_datetime(["2023-01-02", "2023-01-04"]),
+        }
+    )
+
+    with pytest.raises(
+        KeyError,
+        match="The 'channel' column is required to map the lift measurements to the model.",
+    ):
+        mmm.add_lift_test_measurements(df_lift_test_missing_channel)
+
+
+def test_add_lift_test_measurements_missing_dimension_column(multi_dim_data) -> None:
+    """Test that KeyError is raised when dimension column is missing from lift test data."""
+    X, y = multi_dim_data
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    # Create lift test data without 'country' column (which is in dims)
+    df_lift_test_missing_dim = pd.DataFrame(
+        {
+            "channel": ["channel_1", "channel_1"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+            "date": pd.to_datetime(["2023-01-02", "2023-01-04"]),
+        }
+    )
+
+    with pytest.raises(
+        KeyError,
+        match="The country column is required to map the lift measurements to the model.",
+    ):
+        mmm.add_lift_test_measurements(df_lift_test_missing_dim)
+
+
+def test_add_lift_test_measurements_missing_multiple_dimension_columns() -> None:
+    """Test that KeyError is raised when multiple dimension columns are missing from lift test data."""
+    # Create multi-dimensional data with multiple dimensions
+    date_range = pd.date_range("2023-01-01", periods=7)
+    countries = ["Venezuela", "Colombia"]
+    products = ["Product_A", "Product_B"]
+
+    records = []
+    for country in countries:
+        for product in products:
+            for date in date_range:
+                channel_1 = np.random.randint(100, 500)
+                channel_2 = np.random.randint(100, 500)
+                target = channel_1 + channel_2 + np.random.randint(50, 150)
+                records.append((date, country, product, channel_1, channel_2, target))
+
+    df = pd.DataFrame(
+        records,
+        columns=["date", "country", "product", "channel_1", "channel_2", "target"],
+    )
+
+    X = df[["date", "country", "product", "channel_1", "channel_2"]].copy()
+    y = df["target"].copy()
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        dims=("country", "product"),
+    )
+    mmm.build_model(X, y)
+
+    # Create lift test data missing both dimension columns
+    df_lift_test_missing_dims = pd.DataFrame(
+        {
+            "channel": ["channel_1", "channel_1"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+            "date": pd.to_datetime(["2023-01-02", "2023-01-04"]),
+        }
+    )
+
+    # Should raise KeyError for the first missing dimension (country)
+    with pytest.raises(
+        KeyError,
+        match="The country column is required to map the lift measurements to the model.",
+    ):
+        mmm.add_lift_test_measurements(df_lift_test_missing_dims)
+
+
+def test_add_lift_test_measurements_missing_single_dimension_from_multiple() -> None:
+    """Test that KeyError is raised when one dimension column is missing from multi-dimensional lift test data."""
+    # Create multi-dimensional data with multiple dimensions
+    date_range = pd.date_range("2023-01-01", periods=7)
+    countries = ["Venezuela", "Colombia"]
+    products = ["Product_A", "Product_B"]
+
+    records = []
+    for country in countries:
+        for product in products:
+            for date in date_range:
+                channel_1 = np.random.randint(100, 500)
+                channel_2 = np.random.randint(100, 500)
+                target = channel_1 + channel_2 + np.random.randint(50, 150)
+                records.append((date, country, product, channel_1, channel_2, target))
+
+    df = pd.DataFrame(
+        records,
+        columns=["date", "country", "product", "channel_1", "channel_2", "target"],
+    )
+
+    X = df[["date", "country", "product", "channel_1", "channel_2"]].copy()
+    y = df["target"].copy()
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        dims=("country", "product"),
+    )
+    mmm.build_model(X, y)
+
+    # Create lift test data missing only 'product' column
+    df_lift_test_missing_product = pd.DataFrame(
+        {
+            "channel": ["channel_1", "channel_1"],
+            "country": ["Venezuela", "Colombia"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+            "date": pd.to_datetime(["2023-01-02", "2023-01-04"]),
+        }
+    )
+
+    # Should raise KeyError for the missing 'product' dimension
+    with pytest.raises(
+        KeyError,
+        match="The product column is required to map the lift measurements to the model.",
+    ):
+        mmm.add_lift_test_measurements(df_lift_test_missing_product)
+
+
+@pytest.mark.parametrize(
+    "saturation_dims",
+    [
+        pytest.param((), id="scalar"),
+        pytest.param(("channel",), id="vector"),
+    ],
+)
+def test_add_lift_test_measurements_no_dimensions_success(
+    saturation_dims,
+    single_dim_data,
+    mock_pymc_sample,
+) -> None:
+    """Test that lift test measurements work correctly when no dimensions are specified."""
+    X, y = single_dim_data
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation().set_dims_for_all_priors(dims=saturation_dims),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=(),  # No dimensions
+    )
+    mmm.build_model(X, y)
+
+    # Create lift test data with only required columns (no dimension columns)
+    df_lift_test_no_dims = pd.DataFrame(
+        {
+            "channel": ["channel_1", "channel_1"],
+            "x": [1, 2],
+            "delta_x": [1, 1],
+            "delta_y": [1, 1],
+            "sigma": [1, 1],
+        }
+    )
+
+    # Should work without errors since no dimensions are required
+    try:
+        mmm.add_lift_test_measurements(df_lift_test_no_dims)
+        assert "lift_measurements" in mmm.model
+    except Exception as e:
+        pytest.fail(
+            f"add_lift_test_measurements should work with no dimensions, but failed with error: {e}"
+        )
+
+    try:
+        mmm.fit(X, y)
+    except Exception as e:
+        pytest.fail(f"Sampling failed with error: {e}")
+
+
+@pytest.fixture
+def df_lift_test_for_transform() -> pd.DataFrame:
+    """Create a lift test DataFrame for testing transform functions."""
+    return pd.DataFrame(
+        {
+            "channel": ["channel_1", "channel_1", "channel_2"],
+            "country": ["Venezuela", "Colombia", "Chile"],
+            "x": np.random.randint(100, 500),
+            "delta_x": np.random.randint(10, 50, size=3),
+            "delta_y": np.random.randint(100, 500, size=3),
+            "sigma": np.random.randint(10, 50, size=3),
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "scaling_method, scaling_dims",
+    [
+        pytest.param("max", ("country",), id="max-scaling-across-country"),
+        pytest.param("max", (), id="max-scaling-by-country"),
+        pytest.param("mean", ("country",), id="mean-scaling-across-country"),
+        pytest.param("mean", (), id="mean-scaling-by-country"),
+    ],
+)
+def test_make_channel_transform_multi_dim(
+    multi_dim_data,
+    df_lift_test_for_transform,
+    scaling_method,
+    scaling_dims,
+) -> None:
+    """Test _make_channel_transform function with multi-dimensional data."""
+    X, y = multi_dim_data
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=Scaling(
+            channel=VariableScaling(method=scaling_method, dims=scaling_dims),
+            target=VariableScaling(method="max", dims=()),
+        ),
+    )
+
+    mmm.build_model(X.drop(columns=["channel_3"]), y)
+
+    # Get the channel transform function
+    channel_transform = mmm._make_channel_transform(df_lift_test_for_transform)
+
+    # Replicate the tranforms of mmm.lift_test.scale_channel_lift_measurements
+    index_cols = [*list(mmm.dims), "channel"]
+    df_original = df_lift_test_for_transform.loc[
+        :, [*index_cols, "x", "delta_x"]
+    ].set_index(index_cols, append=True)
+    df_to_rescale = (
+        df_original.pipe(_swap_columns_and_last_index_level)
+        .reindex(mmm.channel_columns, axis=1)
+        .fillna(0)
+    )
+
+    # Apply the transform
+    result = channel_transform(df_to_rescale.values)
+
+    # Verify the result has the expected shape
+    assert result.shape == df_to_rescale.values.shape
+
+    # Verify the scaling is applied correctly
+    if scaling_method == "max":
+        for idx, channel in enumerate(df_to_rescale.columns):
+            if scaling_dims == ("country",):
+                # Through-country scaling: max across all countries for each channel
+                assert np.all(
+                    result[:, idx] == df_to_rescale.values[:, idx] / X[channel].max()
+                )
+            else:
+                # By-country scaling: max for each country-channel combination
+                for row_idx, (_, country, _) in enumerate(df_to_rescale.index):
+                    assert result[row_idx, idx] == (
+                        df_to_rescale.values[row_idx, idx]
+                        / X.loc[X["country"] == country, channel].max()
+                    )
+    else:
+        for idx, channel in enumerate(df_to_rescale.columns):
+            if scaling_dims == ("country",):
+                # Through-country scaling: mean across all countries for each channel
+                assert np.all(
+                    result[:, idx] == df_to_rescale.values[:, idx] / X[channel].mean()
+                )
+            else:
+                # By-country scaling: mean for each country-channel combination
+                for row_idx, (_, country, _) in enumerate(df_to_rescale.index):
+                    assert result[row_idx, idx] == (
+                        df_to_rescale.values[row_idx, idx]
+                        / X.loc[X["country"] == country, channel].mean()
+                    )
+
+
+@pytest.mark.parametrize(
+    "scaling_method",
+    ["max", "mean"],
+    ids=["max-scaling", "mean-scaling"],
+)
+def test_make_channel_transform_single_dim(
+    single_dim_data,
+    df_lift_test_for_transform,
+    scaling_method,
+) -> None:
+    """Test _make_channel_transform function with single-dimensional data."""
+    X, y = single_dim_data
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        dims=(),  # No extra dimensions
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=Scaling(
+            channel=VariableScaling(method=scaling_method, dims=()),
+            target=VariableScaling(method="max", dims=()),
+        ),
+    )
+
+    mmm.build_model(X.drop(columns=["channel_3"]), y)
+
+    # Get the channel transform function
+    channel_transform = mmm._make_channel_transform(
+        df_lift_test_for_transform.drop(columns=["country"])
+    )
+
+    # Replicate the tranforms of mmm.lift_test.scale_channel_lift_measurements
+    index_cols = [*list(mmm.dims), "channel"]
+    df_original = df_lift_test_for_transform.loc[
+        :, [*index_cols, "x", "delta_x"]
+    ].set_index(index_cols, append=True)
+    df_to_rescale = (
+        df_original.pipe(_swap_columns_and_last_index_level)
+        .reindex(mmm.channel_columns, axis=1)
+        .fillna(0)
+    )
+
+    # Apply the transform
+    result = channel_transform(df_to_rescale.values)
+
+    # Verify the result has the expected shape
+    assert result.shape == df_to_rescale.values.shape
+
+    # Verify the scaling is applied correctly
+    if scaling_method == "max":
+        for idx, channel in enumerate(df_to_rescale.columns):
+            assert np.all(
+                result[:, idx] == df_to_rescale.values[:, idx] / X[channel].max()
+            )
+
+    else:  # mean scaling
+        for idx, channel in enumerate(df_to_rescale.columns):
+            assert np.all(
+                result[:, idx] == df_to_rescale.values[:, idx] / X[channel].mean()
+            )
+
+
+@pytest.mark.parametrize(
+    "scaling_method, scaling_dims",
+    [
+        pytest.param("max", ("country",), id="max-scaling-through-country"),
+        pytest.param("max", (), id="max-scaling-by-country"),
+        pytest.param("mean", ("country",), id="mean-scaling-through-country"),
+        pytest.param("mean", (), id="mean-scaling-by-country"),
+    ],
+)
+def test_make_target_transform_multi_dim(
+    multi_dim_data,
+    df_lift_test_for_transform,
+    scaling_method,
+    scaling_dims,
+) -> None:
+    """Test _make_target_transform function with multi-dimensional data."""
+    X, y = multi_dim_data
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=Scaling(
+            channel=VariableScaling(method="max", dims=()),
+            target=VariableScaling(method=scaling_method, dims=scaling_dims),
+        ),
+    )
+
+    mmm.build_model(X, y)
+
+    # Get the target transform function
+    target_transform = mmm._make_target_transform(df_lift_test_for_transform)
+
+    # Test with sample input data (delta_y values)
+    input_data = df_lift_test_for_transform[
+        "delta_y"
+    ].values  # delta_y values from lift test
+
+    # Apply the transform
+    result = target_transform(input_data).flatten()
+
+    # Verify the result has the expected shape (2D array)
+    assert result.shape == input_data.shape
+
+    # Verify the scaling is applied correctly
+    if scaling_method == "max":
+        if scaling_dims == ("country",):
+            # Through-country scaling: max across all countries
+            assert np.all(result == input_data / y.max())
+        else:
+            # per country scaling
+            for idx, country in enumerate(df_lift_test_for_transform["country"].values):
+                assert (
+                    result[idx]
+                    == input_data[idx] / y.loc[X["country"] == country].max()
+                )
+    else:  # mean scaling
+        if scaling_dims == ("country",):
+            # Through-country scaling: mean across all countries
+            assert np.all(result == input_data / y.mean())
+        else:
+            # per country scaling
+            for idx, country in enumerate(df_lift_test_for_transform["country"].values):
+                assert (
+                    result[idx]
+                    == input_data[idx] / y.loc[X["country"] == country].mean()
+                )
+
+
+@pytest.mark.parametrize(
+    "scaling_method",
+    ["max", "mean"],
+    ids=["max-scaling", "mean-scaling"],
+)
+def test_make_target_transform_single_dim(
+    single_dim_data,
+    df_lift_test_for_transform,
+    scaling_method,
+) -> None:
+    """Test _make_target_transform function with single-dimensional data."""
+    X, y = single_dim_data
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=(),  # No extra dimensions
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=Scaling(
+            channel=VariableScaling(method=scaling_method, dims=()),
+            target=VariableScaling(method=scaling_method, dims=()),
+        ),
+    )
+
+    mmm.build_model(X, y.reset_index(drop=True))
+
+    # Get the target transform function
+    target_transform = mmm._make_target_transform(df_lift_test_for_transform)
+
+    # Test with sample input data (delta_y values)
+    input_data = df_lift_test_for_transform[
+        "delta_y"
+    ].values  # delta_y values from lift test
+
+    # Apply the transform
+    result = target_transform(input_data).flatten()
+
+    # Verify the result has the expected shape (2D array)
+    assert result.shape == input_data.shape
+
+    # Verify the scaling is applied correctly
+    if scaling_method == "max":
+        assert np.all(result == input_data / y.max())
+    else:  # mean scaling
+        assert np.all(result == input_data / y.mean())
+
+
 class TestPydanticValidation:
     """Test suite specifically for Pydantic validation in multidimensional MMM."""
 
@@ -1222,6 +1850,215 @@ def test_mmm_linear_trend_different_dimensions_original_scale(
     }
 
 
+def test_set_xarray_data_preserves_dtypes(multi_dim_data, mock_pymc_sample):
+    """Test that _set_xarray_data preserves the original data types from the model."""
+    X, y = multi_dim_data
+
+    # Build and fit the model
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        control_columns=None,  # Testing without control columns first
+    )
+
+    mmm.build_model(X, y)
+
+    # Store original dtypes from the model
+    original_channel_dtype = mmm.model.named_vars["channel_data"].type.dtype
+    original_target_dtype = mmm.model.named_vars["target_data"].type.dtype
+
+    # Create new data with different dtypes
+    X_new = X.copy()
+    # Convert channel columns to float32 (different from typical float64)
+    for col in ["channel_1", "channel_2", "channel_3"]:
+        X_new[col] = X_new[col].astype(np.float32)
+
+    # Transform to xarray dataset without target (prediction scenario)
+    dataset_xarray = mmm._posterior_predictive_data_transformation(
+        X=X_new,
+        y=None,  # Don't pass y for prediction
+        include_last_observations=False,
+    )
+
+    # Verify that the input data has different dtypes
+    assert dataset_xarray._channel.dtype == np.float32
+
+    # Apply _set_xarray_data
+    model = mmm._set_xarray_data(dataset_xarray, clone_model=True)
+
+    # Check that the data in the model has been converted to the original dtypes
+    assert model.named_vars["channel_data"].get_value().dtype == original_channel_dtype
+
+    # Also verify the data shapes are preserved
+    assert model.named_vars["channel_data"].get_value().shape == (
+        len(X_new[mmm.date_column].unique()),
+        len(mmm.xarray_dataset.coords["country"]),
+        len(mmm.channel_columns),
+    )
+
+    # Now test with target data - create properly structured y data
+    # Combine X and y to create a proper DataFrame structure
+    df_with_target = X_new.copy()
+    df_with_target["target"] = y.values  # Add target column
+
+    # Convert target to float32 to test dtype conversion
+    df_with_target["target"] = df_with_target["target"].astype(np.float32)
+
+    # Extract y as a properly indexed Series
+    y_new = df_with_target.set_index(["date", "country"])["target"]
+
+    # Transform to xarray dataset with target
+    dataset_xarray_with_target = mmm._posterior_predictive_data_transformation(
+        X=X_new,
+        y=y_new,
+        include_last_observations=False,
+    )
+
+    # Verify that the target has different dtype
+    assert dataset_xarray_with_target._target.dtype == np.float32
+
+    # Apply _set_xarray_data with target
+    model_with_target = mmm._set_xarray_data(
+        dataset_xarray_with_target, clone_model=True
+    )
+
+    # Check that target dtype is preserved
+    assert (
+        model_with_target.named_vars["target_data"].get_value().dtype
+        == original_target_dtype
+    )
+    assert model_with_target.named_vars["target_data"].get_value().shape == (
+        len(X_new[mmm.date_column].unique()),
+        len(mmm.xarray_dataset.coords["country"]),
+    )
+
+
+def test_set_xarray_data_with_control_columns_preserves_dtypes(multi_dim_data):
+    """Test that _set_xarray_data preserves dtypes when control columns are present."""
+    X, y = multi_dim_data
+
+    # Add control columns with specific dtypes
+    X["control_1"] = np.random.randn(len(X)).astype(np.float64)
+    X["control_2"] = np.random.randn(len(X)).astype(np.float64)
+
+    # Build model with control columns
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        control_columns=["control_1", "control_2"],
+    )
+
+    mmm.build_model(X, y)
+
+    # Store original dtypes
+    original_channel_dtype = mmm.model.named_vars["channel_data"].type.dtype
+    original_control_dtype = mmm.model.named_vars["control_data"].type.dtype
+    original_target_dtype = mmm.model.named_vars["target_data"].type.dtype
+
+    # Create new data with different dtypes
+    X_new = X.copy()
+    # Convert all numeric columns to float32
+    for col in X_new.select_dtypes(include=[np.number]).columns:
+        X_new[col] = X_new[col].astype(np.float32)
+
+    # First test without target (prediction scenario)
+    dataset_xarray = mmm._posterior_predictive_data_transformation(
+        X=X_new,
+        y=None,
+        include_last_observations=False,
+    )
+
+    # Apply _set_xarray_data
+    model = mmm._set_xarray_data(dataset_xarray, clone_model=True)
+
+    # Check that data types are preserved
+    assert model.named_vars["channel_data"].get_value().dtype == original_channel_dtype
+    assert model.named_vars["control_data"].get_value().dtype == original_control_dtype
+
+    # Now test with target data - create properly structured y data
+    df_with_target = X_new.copy()
+    df_with_target["target"] = y.values
+    df_with_target["target"] = df_with_target["target"].astype(np.float32)
+
+    # Extract y as a properly indexed Series
+    y_new = df_with_target.set_index(["date", "country"])["target"]
+
+    # Transform to xarray dataset with target
+    dataset_xarray_with_target = mmm._posterior_predictive_data_transformation(
+        X=X_new,
+        y=y_new,
+        include_last_observations=False,
+    )
+
+    # Apply _set_xarray_data with target
+    model_with_target = mmm._set_xarray_data(
+        dataset_xarray_with_target, clone_model=True
+    )
+
+    # Check that all data types are preserved
+    assert (
+        model_with_target.named_vars["channel_data"].get_value().dtype
+        == original_channel_dtype
+    )
+    assert (
+        model_with_target.named_vars["control_data"].get_value().dtype
+        == original_control_dtype
+    )
+    assert (
+        model_with_target.named_vars["target_data"].get_value().dtype
+        == original_target_dtype
+    )
+
+
+def test_set_xarray_data_without_target_preserves_dtypes(multi_dim_data):
+    """Test that _set_xarray_data preserves dtypes when target is not provided."""
+    X, y = multi_dim_data
+
+    # Build the model
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+
+    mmm.build_model(X, y)
+
+    # Store original dtype
+    original_channel_dtype = mmm.model.named_vars["channel_data"].type.dtype
+
+    # Create new data without target
+    X_new = X.copy()
+    for col in ["channel_1", "channel_2", "channel_3"]:
+        X_new[col] = X_new[col].astype(np.float32)
+
+    # Transform to xarray dataset without y
+    dataset_xarray = mmm._posterior_predictive_data_transformation(
+        X=X_new,
+        y=None,  # No target provided
+        include_last_observations=False,
+    )
+
+    # Apply _set_xarray_data
+    model = mmm._set_xarray_data(dataset_xarray, clone_model=True)
+
+    # Check that channel data type is preserved
+    assert model.named_vars["channel_data"].get_value().dtype == original_channel_dtype
+
+    # Target data should remain unchanged from the original model
+    # (no new target data was provided)
+
+
 @pytest.mark.parametrize(
     "date_col_name",
     ["date_week", "week", "period", "timestamp", "time_period"],
@@ -1412,3 +2249,54 @@ def test_arbitrary_date_column_with_control_variables(
 
     idata = mmm_controls.fit(X_with_controls, y, draws=50, tune=25, chains=1)
     assert isinstance(idata, az.InferenceData)
+
+
+@pytest.mark.parametrize(
+    "model_config, expected_config, expected_rv",
+    [
+        pytest.param(
+            {"intercept_tvp_config": {"ls_lower": 0.1, "ls_upper": None}},
+            None,
+            dict(name="intercept_latent_process_raw_ls_raw", kind="WeibullBetaRV"),
+            id="weibull",
+        ),
+        pytest.param(
+            {"intercept_tvp_config": {"ls_lower": 1, "ls_upper": 10}},
+            None,
+            dict(name="intercept_latent_process_raw_ls", kind="InvGammaRV"),
+            id="inversegamma",
+        ),
+    ],
+)
+def test_specify_time_varying_configuration(
+    single_dim_data,
+    model_config,
+    expected_config,
+    expected_rv,
+) -> None:
+    X, y = single_dim_data
+    expected_config = expected_config or model_config
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        model_config=model_config,
+        time_varying_intercept=True,
+    )
+
+    assert isinstance(mmm.model_config["intercept_tvp_config"], dict)
+    assert (
+        mmm.model_config["intercept_tvp_config"]
+        == expected_config["intercept_tvp_config"]
+    )
+
+    mmm.build_model(X, y)
+
+    assert (
+        mmm.model[expected_rv["name"]].owner.op.__class__.__name__
+        == expected_rv["kind"]
+    )
