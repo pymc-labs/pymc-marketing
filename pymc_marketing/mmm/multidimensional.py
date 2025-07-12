@@ -876,7 +876,7 @@ class MMM(ModelBuilder):
         Examples
         --------
         >>> model.add_original_scale_contribution_variable(
-        >>>     var=["channel_contribution", "total_media_contribution", "likelihood"]
+        >>>     var=["channel_contribution", "total_media_contribution", "y"]
         >>> )
         """
         self._validate_model_was_built()
@@ -1363,85 +1363,6 @@ class MMM(ModelBuilder):
 
         return model
 
-    def fit(
-        self,
-        X: pd.DataFrame,
-        y: pd.Series | np.ndarray | None = None,
-        progressbar: bool | None = None,
-        random_seed: RandomState | None = None,
-        **kwargs: Any,
-    ) -> az.InferenceData:
-        """Fit a model using the data passed as a parameter.
-
-        Parameters
-        ----------
-        X : array-like | array, shape (n_obs, n_features)
-            The training input samples. If scikit-learn is available, array-like, otherwise array.
-        y : array-like | array, shape (n_obs,)
-            The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
-        progressbar : bool, optional
-            Specifies whether the fit progress bar should be displayed. Defaults to True.
-        random_seed : RandomState, optional
-            Provides the sampler with an initial random seed for reproducible samples.
-        **kwargs : dict
-            Additional keyword arguments passed to the sampler.
-
-        Returns
-        -------
-        az.InferenceData
-            The inference data from the fitted model.
-
-        Examples
-        --------
-        >>> model = MyModel()
-        >>> idata = model.fit(X, y, progressbar=True)
-        """
-        if not isinstance(X, pd.DataFrame):
-            raise ValueError("X must be a pandas DataFrame")
-        if not isinstance(y, pd.Series):
-            raise ValueError("y must be a pandas Series")
-
-        if not hasattr(self, "model"):
-            self.build_model(
-                X=X,
-                y=y,  # type: ignore
-            )
-
-        # Ensure sampler_config is initialized as an empty dict if None
-        self.sampler_config = self.sampler_config or {}
-
-        sampler_kwargs = create_sample_kwargs(
-            self.sampler_config,
-            progressbar,
-            random_seed,
-            **kwargs,
-        )  # type: ignore
-
-        with self.model:
-            idata = pm.sample(**sampler_kwargs)
-
-        self.idata = idata  # type: ignore
-
-        # (3) Add X,y to a custom group in the InferenceData
-        # Combine X and y into one DataFrame then convert to xarray
-        df_fit = pd.concat([X, y], axis=1)
-
-        # To xarray:
-        fit_data_xr = df_fit.to_xarray()
-
-        # It's possible ArviZ might raise a UserWarning about "fit_data"
-        # not matching a recognized group. We'll just ignore that.
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
-            )
-            self.idata.add_groups({"fit_data": fit_data_xr})
-
-        self.set_idata_attrs(self.idata)
-        return self.idata  # type: ignore
-
     def sample_posterior_predictive(
         self,
         X: pd.DataFrame | None = None,  # type: ignore
@@ -1845,11 +1766,12 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
     def optimize_budget(
         self,
         budget: float | int,
-        budget_bounds: xr.DataArray | dict[str, tuple[float, float]] | None = None,
+        budget_bounds: xr.DataArray | None = None,
         response_variable: str = "total_media_contribution_original_scale",
         utility_function: UtilityFunctionType = average_response,
         constraints: Sequence[dict[str, Any]] = (),
         default_constraints: bool = True,
+        budgets_to_optimize: xr.DataArray | None = None,
         **minimize_kwargs,
     ) -> tuple[xr.DataArray, OptimizeResult]:
         """Optimize the budget allocation for the model."""
@@ -1861,6 +1783,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             response_variable=response_variable,
             custom_constraints=constraints,
             default_constraints=default_constraints,
+            budgets_to_optimize=budgets_to_optimize,
             model=self,  # Pass the wrapper instance itself to the BudgetOptimizer
         )
 
