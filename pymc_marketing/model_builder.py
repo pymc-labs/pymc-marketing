@@ -741,8 +741,17 @@ class ModelBuilder(ABC):
             random_seed,
             **kwargs,
         )
+
+        # Sample without deterministics first
+        var_names = [var.name for var in self.model.free_RVs]
         with self.model:
-            idata = pm.sample(**sampler_kwargs)
+            idata = pm.sample(var_names=var_names, **sampler_kwargs)
+
+        # Compute deterministics after sampling
+        with self.model:
+            idata.posterior = pm.compute_deterministics(
+                idata.posterior, merge_dataset=True
+            )
 
         self.post_sample_model_transformation()
 
