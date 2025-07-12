@@ -111,8 +111,12 @@ def test_plot_functions(mock_curve, plot_func, same_axes: bool, legend: bool) ->
     plt.close(fig)
 
 
-def test_plot_curve(mock_curve) -> None:
-    fig, axes = plot_curve(mock_curve, non_grid_names={"day"})
+@pytest.mark.parametrize(
+    "non_grid_names",
+    [pytest.param("day", id="string"), pytest.param({"day"}, id="set")],
+)
+def test_plot_curve_non_grid_names_type(mock_curve, non_grid_names) -> None:
+    fig, axes = plot_curve(mock_curve, non_grid_names)
 
     assert axes.size == mock_curve.sizes["geo"]
     assert isinstance(fig, plt.Figure)
@@ -166,6 +170,25 @@ def test_plot_curve_custom_sel_to_string(mock_curve) -> None:
         "geo: 4",
     ]
 
+    plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        pytest.param({"n_samples": 3}, id="n_samples"),
+        pytest.param({"hdi_probs": [0.5, 0.9]}, id="hdi_probs"),
+    ],
+)
+def test_plot_curve_exposed_parameters(mock_curve, kwargs) -> None:
+    fig, axes = plot_curve(
+        mock_curve,
+        non_grid_names={"day"},
+        **kwargs,
+    )
+
+    assert axes.size == mock_curve.sizes["geo"]
+    assert isinstance(fig, plt.Figure)
     plt.close(fig)
 
 

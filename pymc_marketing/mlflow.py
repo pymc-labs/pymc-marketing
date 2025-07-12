@@ -29,6 +29,7 @@ are patched:
     - :func:`log_sample_diagnostics`: Log information derived from the InferenceData object.
     - :func:`log_arviz_summary`: Log table of summary statistics about estimated parameters
     - :func:`log_metadata`: Log the metadata of the data used in the model.
+    - :func:`log_error`: Log the traceback and exception if an error occurs during sampling.
 - `pymc.find_MAP`:
     - :func:`log_model_derived_info`: Log types of parameters, coords, model graph, etc.
 - `MMM.fit`:
@@ -76,16 +77,17 @@ Autologging for a PyMC-Marketing MMM:
         LogisticSaturation,
         MMM,
     )
+    from pymc_marketing.paths import data_dir
     import pymc_marketing.mlflow
 
     pymc_marketing.mlflow.autolog(log_mmm=True)
 
     # Usual PyMC-Marketing model code
 
-    data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
-    data = pd.read_csv(data_url, parse_dates=["date_week"])
+    file_path = data_dir / "mmm_example.csv"
+    data = pd.read_csv(file_path, parse_dates=["date_week"])
 
-    X = data.drop("y",axis=1)
+    X = data.drop("y", axis=1)
     y = data["y"]
 
     mmm = MMM(
@@ -121,6 +123,7 @@ Autologging for a PyMC-Marketing CLV model:
     import mlflow
 
     from pymc_marketing.clv import BetaGeoModel
+    from pymc_marketing.paths import data_dir
 
     import pymc_marketing.mlflow
 
@@ -128,8 +131,8 @@ Autologging for a PyMC-Marketing CLV model:
 
     mlflow.set_experiment("CLV Experiment")
 
-    data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
-    data = pd.read_csv(data_url)
+    file_path = data_dir / "clv_quickstart.csv"
+    data = pd.read_csv(file_path)
     data["customer_id"] = data.index
 
     model = BetaGeoModel(data=data)
@@ -141,6 +144,8 @@ Autologging for a PyMC-Marketing CLV model:
 
 import logging
 import os
+import tempfile
+import traceback
 import warnings
 from collections.abc import Callable
 from functools import wraps
@@ -657,7 +662,7 @@ def log_mmm_evaluation_metrics(
 
 
 class MMMWrapper(mlflow.pyfunc.PythonModel):
-    """A class to prepare a PyMC Marketing Mix Model (MMM) for logging and registering in MLflow.
+    """A class to prepare a PyMC-Marketing Mix Model (MMM) for logging and registering in MLflow.
 
     This class extends MLflow's PythonModel to handle prediction tasks using a PyMC-based MMM.
     It supports several prediction methods, including point-prediction, posterior and prior predictive sampling.
@@ -829,6 +834,7 @@ def log_mmm(
             LogisticSaturation,
             MMM,
         )
+        from pymc_marketing.paths import data_dir
         import pymc_marketing.mlflow
         from pymc_marketing.mlflow import log_mmm
 
@@ -836,10 +842,10 @@ def log_mmm(
 
         # Usual PyMC-Marketing model code
 
-        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
-        data = pd.read_csv(data_url, parse_dates=["date_week"])
+        file_path = data_dir / "mmm_example.csv"
+        data = pd.read_csv(file_path, parse_dates=["date_week"])
 
-        X = data.drop("y",axis=1)
+        X = data.drop("y", axis=1)
         y = data["y"]
 
         mmm = MMM(
@@ -978,11 +984,64 @@ def log_mmm_configuration(mmm: MMM) -> None:
     mlflow.log_param("saturation_name", mmm.saturation.lookup_name)
 
 
+def log_error(func: Callable, file_name: str):
+    """Log arbitrary caught error and traceback to MLflow.
+
+    .. note::
+
+        The error will still be raised with the program. It is just logged
+        to MLflow
+
+    Parameters
+    ----------
+    func : Callable
+        Arbitrary function
+    file_name : str
+        The name of the MLflow artifact
+
+    Examples
+    --------
+
+    .. code-block:: python
+
+        import mlflow
+
+        from pymc_marketing.mlflow import log_error
+
+
+        def raising_function():
+            raise NotImplementedError("Sorry. Not implemented")
+
+
+        func = log_error(raising_function, file_name="raising-function")
+
+        with mlflow.start_run():
+            func()
+
+    """
+
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                path = Path(tmp_dir) / file_name
+                with path.open("w") as f:
+                    traceback.print_exc(file=f)
+
+                mlflow.log_artifact(str(path))
+            raise e
+
+    return wrapped
+
+
 @autologging_integration(FLAVOR_NAME)
 def autolog(
     log_sampler_info: bool = True,
     log_metadata_info: bool = True,
     log_model_info: bool = True,
+    sample_error_file: str | None = "sample-error.txt",
     summary_var_names: list[str] | None = None,
     arviz_summary_kwargs: dict | None = None,
     log_mmm: bool = True,
@@ -1006,6 +1065,9 @@ def autolog(
         Whether to log the metadata of inputs used in the model. Default is True.
     log_model_info : bool, optional
         Whether to log model information. Default is True.
+    sample_error_file : str, optional
+        The name of the file to log the error if an error occurs during sampling. If
+        None, the error will not be logged. Default is "sample-error.txt".
     summary_var_names : list[str], optional
         The names of the variables to include in the ArviZ summary. Default is
         all the variables in the InferenceData object.
@@ -1058,16 +1120,17 @@ def autolog(
             LogisticSaturation,
             MMM,
         )
+        from pymc_marketing.paths import data_dir
         import pymc_marketing.mlflow
 
         pymc_marketing.mlflow.autolog(log_mmm=True)
 
         # Usual PyMC-Marketing model code
 
-        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
-        data = pd.read_csv(data_url, parse_dates=["date_week"])
+        file_path = data_dir / "mmm_example.csv"
+        data = pd.read_csv(file_path, parse_dates=["date_week"])
 
-        X = data.drop("y",axis=1)
+        X = data.drop("y", axis=1)
         y = data["y"]
 
         mmm = MMM(
@@ -1104,6 +1167,7 @@ def autolog(
         import mlflow
 
         from pymc_marketing.clv import BetaGeoModel
+        from pymc_marketing.paths import data_dir
 
         import pymc_marketing.mlflow
 
@@ -1111,8 +1175,8 @@ def autolog(
 
         mlflow.set_experiment("CLV Experiment")
 
-        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
-        data = pd.read_csv(data_url)
+        file_path = data_dir / "clv_quickstart.csv"
+        data = pd.read_csv(file_path)
         data["customer_id"] = data.index
 
         model = BetaGeoModel(data=data)
@@ -1156,6 +1220,9 @@ def autolog(
                 log_metadata(model=model, idata=idata)
 
             return idata
+
+        if sample_error_file:
+            new_sample = log_error(new_sample, sample_error_file)
 
         return new_sample
 

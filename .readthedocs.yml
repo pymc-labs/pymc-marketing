@@ -3,16 +3,21 @@
 version: 2
 
 sphinx:
-    configuration: docs/source/conf.py
+  configuration: docs/source/conf.py
 
 build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
+  jobs:
+    pre_build:
+      # Install core dependencies first
+      - pip install --upgrade pip setuptools wheel
+      - python scripts/generate_gallery.py
 
 python:
-   install:
-   - method: pip
-     path: .
-     extra_requirements:
-       - docs
+  install:
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs

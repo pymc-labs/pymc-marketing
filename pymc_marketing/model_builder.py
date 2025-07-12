@@ -30,6 +30,7 @@ from pymc.util import RandomState
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.utils import from_netcdf
+from pymc_marketing.version import __version__
 
 # If scikit-learn is available, use its data validator
 try:
@@ -147,7 +148,7 @@ class DifferentModelError(Exception):
 
 
 class ModelBuilder(ABC):
-    """Base class for building models with PyMC Marketing.
+    """Base class for building models with PyMC-Marketing.
 
     It provides an easy-to-use API (similar to scikit-learn) for models
     and help with deployment.
@@ -225,7 +226,6 @@ class ModelBuilder(ABC):
         .. code-block:: python
 
             def _data_setter(self, X, y=None):
-
                 data = {"X": X}
                 if y is None:
                     y = np.zeros(len(X))
@@ -465,8 +465,10 @@ class ModelBuilder(ABC):
         >>>     def __init__(self):
         >>>         super().__init__()
         >>> model = MyModel()
-        >>> model.fit(X,y)
-        >>> model.save('model_results.nc')  # This will call the overridden method in MyModel
+        >>> model.fit(X, y)
+        >>> model.save(
+        ...     "model_results.nc"
+        ... )  # This will call the overridden method in MyModel
 
         """
         if self.idata is not None and "posterior" in self.idata:
@@ -566,7 +568,17 @@ class ModelBuilder(ABC):
         model.build_from_idata(idata)
         model.post_sample_model_transformation()
 
-        if model.id != idata.attrs["id"]:
+        if (model_version := model.version) != (
+            loaded_version := idata.attrs["version"]
+        ):
+            msg = (
+                f"The model version ({loaded_version}) in the InferenceData does not "
+                f"match the model version ({model_version}). "
+                "There was no error loading the inference data, but the model structure "
+                "is different. "
+            )
+            raise DifferentModelError(msg)
+        elif model.id != idata.attrs["id"]:
             msg = (
                 "The model id in the InferenceData does not match the model id. "
                 "There was no error loading the inference data, but the model may "
@@ -683,7 +695,7 @@ class ModelBuilder(ABC):
         Examples
         --------
         >>> model = MyModel()
-        >>> idata = model.fit(X,y)
+        >>> idata = model.fit(X, y)
         Auto-assigning NUTS sampler...
         Initializing NUTS using jitter+adapt_diag...
 
@@ -712,8 +724,17 @@ class ModelBuilder(ABC):
             random_seed,
             **kwargs,
         )
+
+        # Sample without deterministics first
+        var_names = [var.name for var in self.model.free_RVs]
         with self.model:
-            idata = pm.sample(**sampler_kwargs)
+            idata = pm.sample(var_names=var_names, **sampler_kwargs)
+
+        # Compute deterministics after sampling
+        with self.model:
+            idata.posterior = pm.compute_deterministics(
+                idata.posterior, merge_dataset=True
+            )
 
         self.post_sample_model_transformation()
 
@@ -722,6 +743,8 @@ class ModelBuilder(ABC):
             self.idata.extend(idata, join="right")
         else:
             self.idata = idata
+
+        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
 
         if "fit_data" in self.idata:
             del self.idata.fit_data
@@ -801,9 +824,9 @@ class ModelBuilder(ABC):
         Examples
         --------
         >>> model = MyModel()
-        >>> idata = model.fit(X,y)
+        >>> idata = model.fit(X, y)
         >>> x_pred = []
-        >>> prediction_data = pd.DataFrame({'input':x_pred})
+        >>> prediction_data = pd.DataFrame({"input": x_pred})
         >>> pred_mean = model.predict(prediction_data)
 
         """
@@ -872,6 +895,8 @@ class ModelBuilder(ABC):
 
         with self.model:  # sample with new input data
             prior_pred: az.InferenceData = pm.sample_prior_predictive(samples, **kwargs)
+            prior_pred["prior"].attrs["pymc_marketing_version"] = __version__
+            prior_pred["prior_predictive"].attrs["pymc_marketing_version"] = __version__
             self.set_idata_attrs(prior_pred)
 
         if extend_idata:

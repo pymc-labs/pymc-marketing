@@ -53,13 +53,13 @@ This module provides event transformations for use in Marketing Mix Models.
         start_dates = df_events["start_date"]
         end_dates = df_events["end_date"]
 
-        s_ref = difference_in_days(model_dates, start_dates)
-        e_ref = difference_in_days(model_dates, end_dates)
+        start_ref = difference_in_days(model_dates, start_dates)
+        end_ref = difference_in_days(model_dates, end_dates)
 
         return np.where(
-            (s_ref >= 0) & (e_ref <= 0),
+            (start_ref >= 0) & (end_ref <= 0),
             0,
-            np.where(np.abs(s_ref) < np.abs(e_ref), s_ref, e_ref),
+            np.where(np.abs(start_ref) < np.abs(end_ref), start_ref, end_ref),
         )
 
 
@@ -83,9 +83,9 @@ This module provides event transformations for use in Marketing Mix Models.
 
     fig, axes = idata.prior.effect.pipe(
         plot_curve,
-        {"date"},
+        "date",
+        random_seed=rng,
         subplot_kwargs={"ncols": 1},
-        sample_kwargs={"rng": rng},
     )
     fig.suptitle("Gaussian Event Effect")
     plt.show()
@@ -100,7 +100,14 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
-from pydantic import BaseModel, Field, InstanceOf, model_validator, validate_call
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    InstanceOf,
+    model_validator,
+    validate_call,
+)
 from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.deserialize import deserialize, register_deserialization
@@ -185,6 +192,7 @@ class EventEffect(BaseModel):
     basis: InstanceOf[Basis]
     effect_size: InstanceOf[Prior]
     dims: str | tuple[str, ...]
+    model_config = ConfigDict(extra="forbid")
 
     @model_validator(mode="before")
     def _dims_to_tuple(self):

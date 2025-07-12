@@ -75,27 +75,46 @@ def test_apply(include_intercept, expected_keys) -> None:
 
 
 @pytest.mark.parametrize(
-    "delta_dims",
-    [None, ("changepoint",), ("changepoint", "geo")],
-    ids=["scalar", "1d", "2d"],
+    "delta_dims, dims",
+    [
+        pytest.param(None, ("geo",), id="1d-scalar"),
+        pytest.param(("changepoint",), ("geo",), id="1d-changpoint"),
+        pytest.param(("changepoint", "geo"), ("geo",), id="1d-changepoint-geo"),
+        pytest.param(
+            ("geo", "product", "changepoint"),
+            ("geo", "product"),
+            id="2d",
+        ),
+    ],
 )
-def test_apply_additional_dims(delta_dims) -> None:
+def test_apply_additional_dims(delta_dims, dims) -> None:
     priors = {
         "delta": Prior("Normal", dims=delta_dims),
     }
-    trend = LinearTrend(priors=priors, dims=("geo",))
+    trend = LinearTrend(priors=priors, dims=dims)
 
     n_obs = 100
     x = np.linspace(0, 1, n_obs)
     geos = ["A", "B", "C"]
+    products = ["X", "Y"]
     coords = {
         "geo": geos,
+        "product": products,
     }
     with pm.Model(coords=coords):
         mu = trend.apply(x)
 
-    n_cols = len(geos) if delta_dims is not None and "geo" in delta_dims else 1
-    assert mu.eval().shape == (n_obs, n_cols)
+    if delta_dims is None:
+        additional_sizes = (1,)
+    else:
+        additional_sizes = tuple(
+            len(coords[dim]) for dim in delta_dims if dim in coords
+        )
+
+    if not additional_sizes:
+        additional_sizes = (1,)
+
+    assert mu.eval().shape == (n_obs, *additional_sizes)
 
 
 @pytest.mark.parametrize(
@@ -113,3 +132,22 @@ def test_plot_workflow(include_changepoints: bool) -> None:
     assert isinstance(fig, plt.Figure)
     assert axes.size == 1
     assert isinstance(axes[0], plt.Axes)
+
+
+@pytest.mark.parametrize(
+    "priors, dims, expected_dims",
+    [
+        pytest.param({}, (), (), id="no-priors-no-dims"),
+        pytest.param({}, ("geo", "product"), (), id="scalar"),
+        pytest.param(
+            {"delta": Prior("Normal", dims=("geo", "changepoint"))},
+            ("geo", "product"),
+            ("geo",),
+            id="drop-broadcastable-product-dim",
+        ),
+    ],
+)
+def test_linear_trend_apply_dims(priors, dims, expected_dims) -> None:
+    trend = LinearTrend(priors=priors, dims=dims)
+
+    assert trend.non_broadcastable_dims == expected_dims

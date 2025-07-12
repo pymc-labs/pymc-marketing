@@ -85,9 +85,10 @@ from pymc_marketing.mmm import (
     LogisticSaturation,
     MMM,
 )
+from pymc_marketing.paths import data_dir
 
-data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
-data = pd.read_csv(data_url, parse_dates=["date_week"])
+file_path = data_dir / "mmm_example.csv"
+data = pd.read_csv(file_path, parse_dates=["date_week"])
 
 mmm = MMM(
     adstock=GeometricAdstock(l_max=8),
@@ -106,10 +107,10 @@ mmm = MMM(
 Initiate fitting and get insightful plots and summaries. For example, we can plot the components contributions:
 
 ```python
-X = data.drop("y",axis=1)
+X = data.drop("y", axis=1)
 y = data["y"]
-mmm.fit(X,y)
-mmm.plot_components_contributions();
+mmm.fit(X, y)
+mmm.plot_components_contributions()
 ```
 
 ![](docs/source/_static/mmm_plot_components_contributions.png)
@@ -168,9 +169,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 from pymc_marketing import clv
+from pymc_marketing.paths import data_dir
 
-data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
-data = pd.read_csv(data_url)
+file_path = data_dir / "clv_quickstart.csv"
+data = pd.read_csv(data_path)
 data["customer_id"] = data.index
 
 beta_geo_model = clv.BetaGeoModel(data=data)
@@ -209,7 +211,7 @@ existing_products = ["competitor", "own"]
 # Create MVITS model
 mvits = MVITS(
     existing_sales=existing_products,
-    saturated_market=True  # Set False for unsaturated markets
+    saturated_market=True, # Set False for unsaturated markets
 )
 
 # Fit model
@@ -227,6 +229,23 @@ mvits.plot_counterfactual()
 </center>
 
 See our example notebooks for [saturated markets](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mv_its_saturated.html) and [unsaturated markets](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mv_its_unsaturated.html) to learn more about customer choice modeling with PyMC-Marketing.
+
+## Bass Diffusion Model
+
+The Bass Diffusion Model is a popular model for predicting the adoption of new products. It is a type of product life cycle model that describes the market penetration of a new product as a function of time. PyMC-Marketing provides a flexible implementation of the Bass Diffusion Model, allowing you to customize the model parameters and fit the model to your specific data (many products).
+
+<center>
+    <img src="docs/source/_static/bass.png" width="100%" />
+</center>
+
+## Discrete Choice Models
+
+Discrete choice models come in various forms, but each aims to show how choosing between a set of alternatives can be understood as a function of the observable attributes of the alternatives at hand. This type of modelling drives insight into the "must-have" features of a product, and can be used to assess the success or failure of product launches or re-launches. The PyMC-marketing implementation offers a formula based model specification, for estimating the relative utility of each good in a market and identifying their most important features.
+
+<center>
+    <img src="docs/source/_static/discrete_choice_before_after.png" width="100%" />
+</center>
+
 
 ## Why PyMC-Marketing vs other solutions?
 

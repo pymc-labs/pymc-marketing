@@ -21,7 +21,6 @@ import pytest
 import xarray as xr
 from matplotlib import pyplot as plt
 
-from pymc_marketing.mmm.budget_optimizer import optimizer_xarray_builder
 from pymc_marketing.mmm.components.adstock import DelayedAdstock, GeometricAdstock
 from pymc_marketing.mmm.components.saturation import (
     LogisticSaturation,
@@ -494,99 +493,33 @@ class TestMMM:
         # Clean up
         os.remove("test_model")
 
-    def test_channel_contributions_forward_pass_recovers_contribution(
+    def test_channel_contribution_forward_pass_recovers_contribution(
         self,
         mmm_fitted: MMM,
     ) -> None:
         channel_data = mmm_fitted.preprocessed_data["X"][
             mmm_fitted.channel_columns
         ].to_numpy()
-        channel_contributions_forward_pass = (
-            mmm_fitted.channel_contributions_forward_pass(channel_data=channel_data)
+        channel_contribution_forward_pass = (
+            mmm_fitted.channel_contribution_forward_pass(channel_data=channel_data)
         )
-        channel_contributions_forward_pass_mean = (
-            channel_contributions_forward_pass.mean(axis=(0, 1))
+        channel_contribution_forward_pass_mean = channel_contribution_forward_pass.mean(
+            axis=(0, 1)
         )
-        channel_contributions_mean = mmm_fitted.fit_result[
-            "channel_contributions"
-        ].mean(dim=["draw", "chain"])
+        channel_contribution_mean = mmm_fitted.fit_result["channel_contribution"].mean(
+            dim=["draw", "chain"]
+        )
         assert (
-            channel_contributions_forward_pass_mean.shape
-            == channel_contributions_mean.shape
+            channel_contribution_forward_pass_mean.shape
+            == channel_contribution_mean.shape
         )
         # The forward pass results should be in the original scale of the target variable.
         # The trace fits the model with scaled data, so when scaling back, they should match.
         # Since we are using a `MaxAbsScaler`, the scaling factor is the maximum absolute, i.e y.max()
         np.testing.assert_array_almost_equal(
-            x=channel_contributions_forward_pass_mean / channel_contributions_mean,
+            x=channel_contribution_forward_pass_mean / channel_contribution_mean,
             y=mmm_fitted.y.max(),
         )
-
-    def test_allocate_budget_to_maximize_response(self, mmm_fitted: MMM) -> None:
-        budget = 2.0
-        num_periods = 8
-        time_granularity = "weekly"
-        budget_bounds = optimizer_xarray_builder(
-            value=[[0.5, 1.2], [0.5, 1.5]],
-            channel=["channel_1", "channel_2"],
-            bound=["lower", "upper"],
-        )
-        noise_level = 0.1
-
-        # Call the method
-        inference_data = mmm_fitted.allocate_budget_to_maximize_response(
-            budget=budget,
-            time_granularity=time_granularity,
-            num_periods=num_periods,
-            budget_bounds=budget_bounds,
-            noise_level=noise_level,
-            custom_constraints=(),
-        )
-
-        inference_periods = len(inference_data.coords["date"])
-
-        # a) Total budget consistency check
-        allocated_budget = mmm_fitted.optimal_allocation.sum()
-        assert np.isclose(allocated_budget, budget, rtol=1e-5), (
-            f"Total allocated budget {allocated_budget} does not match expected budget {budget}"
-        )
-
-        # b) Budget boundaries check
-        allocation = mmm_fitted.optimal_allocation
-        lower_bounds = budget_bounds.sel(bound="lower")
-        upper_bounds = budget_bounds.sel(bound="upper")
-        assert (allocation >= lower_bounds).all() and (
-            allocation <= upper_bounds
-        ).all(), (
-            f"Allocations {allocation.values} are out of bounds ({lower_bounds.values}, {upper_bounds.values})"
-        )
-
-        # c) num_periods consistency check
-        assert inference_periods == num_periods, (
-            f"Number of periods in the data {inference_periods} does not match the expected {num_periods}"
-        )
-
-    def test_allocate_budget_to_maximize_response_bad_noise_level(
-        self, mmm_fitted: MMM
-    ) -> None:
-        budget = 2.0
-        num_periods = 8
-        time_granularity = "weekly"
-        budget_bounds = optimizer_xarray_builder(
-            value=[[0.5, 1.2], [0.5, 1.5]],
-            channel=["channel_1", "channel_2"],
-            bound=["lower", "upper"],
-        )
-        noise_level = "bad_noise_level"
-
-        with pytest.raises(ValueError, match="noise_level must be a float"):
-            mmm_fitted.allocate_budget_to_maximize_response(
-                budget=budget,
-                time_granularity=time_granularity,
-                num_periods=num_periods,
-                budget_bounds=budget_bounds,
-                noise_level=noise_level,
-            )
 
     @pytest.mark.parametrize(
         argnames="original_scale",
@@ -595,7 +528,7 @@ class TestMMM:
     )
     @pytest.mark.parametrize(
         argnames="var_contribution",
-        argvalues=["channel_contributions", "control_contributions"],
+        argvalues=["channel_contribution", "control_contribution"],
         ids=["channel_contribution", "control_contribution"],
     )
     def test_get_ts_contribution_posterior(
@@ -682,41 +615,41 @@ class TestMMM:
         with pytest.raises(ValueError):
             mmm_fitted_with_posterior_predictive.plot_posterior_predictive()
 
-    def test_channel_contributions_forward_pass_is_consistent(
+    def test_channel_contribution_forward_pass_is_consistent(
         self, mmm_fitted: MMM
     ) -> None:
         channel_data = mmm_fitted.preprocessed_data["X"][
             mmm_fitted.channel_columns
         ].to_numpy()
-        channel_contributions_forward_pass = (
-            mmm_fitted.channel_contributions_forward_pass(channel_data=channel_data)
+        channel_contribution_forward_pass = (
+            mmm_fitted.channel_contribution_forward_pass(channel_data=channel_data)
         )
         # use a grid [0, 1, 2] which corresponds to
         # - no-spend -> forward pass should be zero
         # - spend input for the model -> should match the forward pass
         # - doubling the spend -> should be higher than the forward pass with the original spend
-        channel_contributions_forward_pass_grid = (
-            mmm_fitted.get_channel_contributions_forward_pass_grid(
+        channel_contribution_forward_pass_grid = (
+            mmm_fitted.get_channel_contribution_forward_pass_grid(
                 start=0, stop=2, num=3
             )
         )
-        assert channel_contributions_forward_pass_grid[0].sum().item() == 0
+        assert channel_contribution_forward_pass_grid[0].sum().item() == 0
         np.testing.assert_equal(
-            actual=channel_contributions_forward_pass,
-            desired=channel_contributions_forward_pass_grid[1].to_numpy(),
+            actual=channel_contribution_forward_pass,
+            desired=channel_contribution_forward_pass_grid[1].to_numpy(),
         )
         assert (
-            channel_contributions_forward_pass_grid[2].to_numpy()
-            >= channel_contributions_forward_pass
+            channel_contribution_forward_pass_grid[2].to_numpy()
+            >= channel_contribution_forward_pass
         ).all()
 
-    def test_get_channel_contributions_forward_pass_grid_shapes(
+    def test_get_channel_contribution_forward_pass_grid_shapes(
         self, mmm_fitted: MMM
     ) -> None:
         n_channels = len(mmm_fitted.channel_columns)
         data_range = mmm_fitted.X.shape[0]
         grid_size = 2
-        contributions = mmm_fitted.get_channel_contributions_forward_pass_grid(
+        contributions = mmm_fitted.get_channel_contribution_forward_pass_grid(
             start=0, stop=1.5, num=grid_size
         )
         draws = contributions.sizes["draw"]
@@ -729,7 +662,7 @@ class TestMMM:
             n_channels,
         )
 
-    def test_bad_start_get_channel_contributions_forward_pass_grid(
+    def test_bad_start_get_channel_contribution_forward_pass_grid(
         self,
         mmm_fitted: MMM,
     ) -> None:
@@ -737,7 +670,7 @@ class TestMMM:
             expected_exception=ValueError,
             match="start must be greater than or equal to 0.",
         ):
-            mmm_fitted.get_channel_contributions_forward_pass_grid(
+            mmm_fitted.get_channel_contribution_forward_pass_grid(
                 start=-0.5, stop=1.5, num=2
             )
 
@@ -746,10 +679,10 @@ class TestMMM:
         argvalues=[False, True],
         ids=["relative_xrange", "absolute_xrange"],
     )
-    def test_plot_channel_contributions_grid(
+    def test_plot_channel_contribution_grid(
         self, mmm_fitted: MMM, absolute_xrange: bool
     ) -> None:
-        fig = mmm_fitted.plot_channel_contributions_grid(
+        fig = mmm_fitted.plot_channel_contribution_grid(
             start=0, stop=1.5, num=2, absolute_xrange=absolute_xrange
         )
         assert isinstance(fig, plt.Figure)
@@ -1516,7 +1449,7 @@ def test_missing_attrs_to_defaults(toy_X, toy_y, mock_pymc_sample) -> None:
     os.remove(file)
 
 
-def test_channel_contributions_forward_pass_time_varying_media(
+def test_channel_contribution_forward_pass_time_varying_media(
     toy_X,
     toy_y,
     mock_pymc_sample,
@@ -1533,11 +1466,11 @@ def test_channel_contributions_forward_pass_time_varying_media(
 
     posterior = mmm.fit_result
 
-    baseline_contributions = posterior["baseline_channel_contributions"]
+    baseline_contributions = posterior["baseline_channel_contribution"]
     multiplier = posterior["media_temporal_latent_multiplier"]
     target_scale = mmm.y.max()
     recovered_contributions = baseline_contributions * multiplier * target_scale
-    media_contributions = mmm.channel_contributions_forward_pass(
+    media_contributions = mmm.channel_contribution_forward_pass(
         mmm.preprocessed_data["X"][mmm.channel_columns].to_numpy()
     )
     np.testing.assert_allclose(

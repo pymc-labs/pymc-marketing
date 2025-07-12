@@ -205,7 +205,7 @@ class CLVModel(ModelBuilder):
         if self.sampler_config is not None:
             sampler_config = self.sampler_config.copy()
 
-        sampler_config.update(**kwargs)
+        sampler_config = {**sampler_config, **kwargs}
         if sampler_config.get("method") is not None:
             raise ValueError(
                 "The 'method' parameter is set in sampler_config. Cannot be called with 'advi'."
@@ -281,7 +281,7 @@ class CLVModel(ModelBuilder):
         --------
         >>> class MyModel(ModelBuilder):
         >>>     ...
-        >>> name = './mymodel.nc'
+        >>> name = "./mymodel.nc"
         >>> imported_model = MyModel.load(name)
 
         """

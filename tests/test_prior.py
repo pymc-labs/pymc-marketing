@@ -33,6 +33,7 @@ from pymc_marketing.prior import (
     Censored,
     MuAlreadyExistsError,
     Prior,
+    Scaled,
     UnknownTransformError,
     UnsupportedDistributionError,
     UnsupportedParameterizationError,
@@ -1051,16 +1052,157 @@ def test_censored_logp(mu) -> None:
     np.testing.assert_allclose(logp(point), expected_logp(point))
 
 
-def test_to_json_deprecation() -> None:
-    match = "The `to_json` method is deprecated"
-    with pytest.warns(DeprecationWarning, match=match):
-        Prior("Normal").to_json()
+def test_scaled_initializes_correctly() -> None:
+    """Test that the Scaled class initializes correctly."""
+    normal = Prior("Normal", mu=0, sigma=1)
+    scaled = Scaled(normal, factor=2.0)
+
+    assert scaled.dist == normal
+    assert scaled.factor == 2.0
 
 
-def test_from_json_deprecation() -> None:
-    data = {
-        "dist": "Normal",
-    }
-    match = "The `from_json` method is deprecated"
-    with pytest.warns(DeprecationWarning, match=match):
-        Prior.from_json(data)
+def test_scaled_dims_property() -> None:
+    """Test that the dims property returns the dimensions of the underlying distribution."""
+    normal = Prior("Normal", mu=0, sigma=1, dims="channel")
+    scaled = Scaled(normal, factor=2.0)
+
+    assert scaled.dims == ("channel",)
+
+    # Test with multiple dimensions
+    normal.dims = ("channel", "geo")
+    assert scaled.dims == ("channel", "geo")
+
+
+def test_scaled_create_variable() -> None:
+    """Test that the create_variable method properly scales the variable."""
+    normal = Prior("Normal", mu=0, sigma=1)
+    scaled = Scaled(normal, factor=2.0)
+
+    with pm.Model() as model:
+        scaled_var = scaled.create_variable("scaled_var")
+
+    # Check that both the scaled and unscaled variables exist
+    assert "scaled_var" in model
+    assert "scaled_var_unscaled" in model
+
+    # The deterministic node should be the scaled variable
+    assert model["scaled_var"] == scaled_var
+
+
+def test_scaled_creates_correct_dimensions() -> None:
+    """Test that the scaled variable has the correct dimensions."""
+    normal = Prior("Normal", dims="channel")
+    scaled = Scaled(normal, factor=2.0)
+
+    coords = {"channel": ["A", "B", "C"]}
+    with pm.Model(coords=coords):
+        scaled_var = scaled.create_variable("scaled_var")
+
+    # Check that the scaled variable has the correct dimensions
+    assert fast_eval(scaled_var).shape == (3,)
+
+
+def test_scaled_applies_factor() -> None:
+    """Test that the scaling factor is correctly applied."""
+    normal = Prior("Normal", mu=0, sigma=1)
+    factor = 3.5
+    scaled = Scaled(normal, factor=factor)
+
+    # Sample from prior to verify scaling
+    prior = sample_prior(scaled, samples=10, name="scaled_var")
+    df_prior = prior.to_dataframe()
+
+    # Check that scaled values are original values times the factor
+    unscaled_values = df_prior["scaled_var_unscaled"].to_numpy()
+    scaled_values = df_prior["scaled_var"].to_numpy()
+    np.testing.assert_allclose(scaled_values, unscaled_values * factor)
+
+
+def test_scaled_with_tensor_factor() -> None:
+    """Test that the Scaled class works with a tensor factor."""
+    normal = Prior("Normal", mu=0, sigma=1)
+    factor = pt.as_tensor_variable(2.5)
+    scaled = Scaled(normal, factor=factor)
+
+    # Sample from prior to verify tensor scaling
+    prior = sample_prior(scaled, samples=10, name="scaled_var")
+    df_prior = prior.to_dataframe()
+
+    # Check that scaled values are original values times the factor
+    unscaled_values = df_prior["scaled_var_unscaled"].to_numpy()
+    scaled_values = df_prior["scaled_var"].to_numpy()
+    np.testing.assert_allclose(scaled_values, unscaled_values * 2.5)
+
+
+def test_scaled_with_hierarchical_prior() -> None:
+    """Test that the Scaled class works with hierarchical priors."""
+    normal = Prior(
+        "Normal", mu=Prior("Normal"), sigma=Prior("HalfNormal"), dims="channel"
+    )
+    scaled = Scaled(normal, factor=2.0)
+
+    coords = {"channel": ["A", "B", "C"]}
+    with pm.Model(coords=coords) as model:
+        scaled.create_variable("scaled_var")
+
+    # Check that all necessary variables were created
+    assert "scaled_var" in model
+    assert "scaled_var_unscaled" in model
+    assert "scaled_var_unscaled_mu" in model
+    assert "scaled_var_unscaled_sigma" in model
+
+
+def test_scaled_sample_prior() -> None:
+    """Test that sample_prior works with the Scaled class."""
+    normal = Prior("Normal", dims="channel")
+    scaled = Scaled(normal, factor=2.0)
+
+    coords = {"channel": ["A", "B", "C"]}
+    prior = sample_prior(scaled, coords=coords, draws=25, name="scaled_var")
+
+    assert isinstance(prior, xr.Dataset)
+    assert prior.sizes == {"chain": 1, "draw": 25, "channel": 3}
+    assert "scaled_var" in prior
+    assert "scaled_var_unscaled" in prior
+
+
+def test_prior_list_dims() -> None:
+    dist = Prior("Normal", dims=["channel", "geo"])
+    assert dist.dims == ("channel", "geo")
+
+
+@pytest.mark.parametrize(
+    "data, expected",
+    [
+        pytest.param(
+            {
+                "distribution": "Laplace",
+                "mu": 1,
+                "b": 2,
+                "dims": ("x", "y"),
+                "transform": "sigmoid",
+            },
+            Prior("Laplace", mu=1, b=2, dims=("x", "y"), transform="sigmoid"),
+            id="Prior",
+        ),
+        pytest.param(
+            {"distribution": "Normal", "mu": {"distribution": "Normal"}},
+            Prior("Normal", mu=Prior("Normal")),
+            id="Prior with nested distribution",
+        ),
+        pytest.param(
+            {
+                "class": "Censored",
+                "data": {
+                    "dist": {"distribution": "Normal"},
+                    "lower": 0,
+                    "upper": 10,
+                },
+            },
+            Censored(Prior("Normal"), lower=0, upper=10),
+            id="Censored with alternative",
+        ),
+    ],
+)
+def test_alternative_prior_deserialize(data, expected) -> None:
+    assert deserialize(data) == expected

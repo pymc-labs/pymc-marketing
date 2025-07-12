@@ -13,7 +13,6 @@
 #   limitations under the License.
 """Beta-Geometric Negative Binomial Distribution (BG/NBD) model for a non-contractual customer population across continuous time."""  # noqa: E501
 
-import warnings
 from collections.abc import Sequence
 from typing import Literal
 
@@ -22,7 +21,6 @@ import pandas as pd
 import pymc as pm
 import xarray
 from pymc.util import RandomState
-from pytensor.tensor import TensorVariable
 from scipy.special import betaln, expit, hyp2f1
 
 from pymc_marketing.clv.distributions import BetaGeoNBD
@@ -63,8 +61,8 @@ class BetaGeoModel(CLVModel):
             * `b`: Shape parameter of dropout process; defaults to `1-phi_dropout` * `kappa_dropout`
             * `phi_dropout`: Nested prior for a and b priors; defaults to `Prior("Uniform", lower=0, upper=1)`
             * `kappa_dropout`: Nested prior for a and b priors; defaults to `Prior("Pareto", alpha=1, m=1)`
-            * `purchase_covariates`: Coefficients for purchase rate covariates; defaults to `Normal(0, 3)`
-            * `dropout_covariates`: Coefficients for dropout covariates; defaults to `Normal.dist(0, 3)`
+            * `purchase_covariates`: Coefficients for purchase rate covariates; defaults to `Normal(0, 1)`
+            * `dropout_covariates`: Coefficients for dropout covariates; defaults to `Normal.dist(0, 1)`
             * `purchase_covariate_cols`: List containing column names of covariates for customer purchase rates.
             * `dropout_covariate_cols`: List containing column names of covariates for customer dropouts.
     sampler_config : dict, optional
@@ -435,53 +433,6 @@ class BetaGeoModel(CLVModel):
             )
         )
 
-    def expected_num_purchases(
-        self,
-        customer_id: np.ndarray | pd.Series,
-        t: np.ndarray | pd.Series | TensorVariable,
-        frequency: np.ndarray | pd.Series | TensorVariable,
-        recency: np.ndarray | pd.Series | TensorVariable,
-        T: np.ndarray | pd.Series | TensorVariable,
-    ) -> xarray.DataArray:
-        r"""Compute the expected number of purchases for a customer.
-
-        This is a deprecated method and will be removed in a future release.
-        Please use `BetaGeoModel.expected_purchases` instead.
-        """
-        warnings.warn(
-            "Deprecated method. Use 'expected_purchases' instead.",
-            FutureWarning,
-            stacklevel=1,
-        )
-
-        t = np.asarray(t)
-        if t.size != 1:
-            t = to_xarray(customer_id, t)
-
-        T = np.asarray(T)
-        if T.size != 1:
-            T = to_xarray(customer_id, T)
-
-        # print(customer_id)
-        frequency, recency = to_xarray(customer_id, frequency, recency)
-
-        a, b, alpha, r = self._unload_params()
-
-        numerator = 1 - ((alpha + T) / (alpha + T + t)) ** (r + frequency) * hyp2f1(
-            r + frequency,
-            b + frequency,
-            a + b + frequency - 1,
-            t / (alpha + T + t),
-        )
-        numerator *= (a + b + frequency - 1) / (a - 1)
-        denominator = 1 + (frequency > 0) * (a / (b + frequency - 1)) * (
-            (alpha + T) / (alpha + recency)
-        ) ** (r + frequency)
-
-        return (numerator / denominator).transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
-        )
-
     def expected_purchases(
         self,
         data: pd.DataFrame | None = None,
@@ -661,19 +612,6 @@ class BetaGeoModel(CLVModel):
         return prob_no_deposits.transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
-
-    def expected_num_purchases_new_customer(self, *args, **kwargs) -> xarray.DataArray:
-        """Compute the expected number of purchases for a new customer.
-
-        This is a deprecated method and will be removed in a future release.
-        Please use `BetaGeoModel.expected_purchases_new_customer` instead.
-        """
-        warnings.warn(
-            "Deprecated method. Use 'expected_purchases_new_customer' instead.",
-            FutureWarning,
-            stacklevel=1,
-        )
-        self.expected_purchases_new_customer(*args, **kwargs)
 
     def expected_purchases_new_customer(
         self,

@@ -27,6 +27,7 @@ Create a new saturation transformation:
     from pymc_marketing.mmm import SaturationTransformation
     from pymc_marketing.prior import Prior
 
+
     class InfiniteReturns(SaturationTransformation):
         lookup_name: str = "infinite_returns"
 
@@ -119,8 +120,10 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
         from pymc_marketing.mmm import SaturationTransformation
         from pymc_marketing.prior import Prior
 
+
         def infinite_returns(x, b):
             return b * x
+
 
         class InfiniteReturns(SaturationTransformation):
             lookup_name = "infinite_returns"
@@ -141,7 +144,7 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
 
         prior = saturation.sample_prior(random_seed=rng)
         curve = saturation.sample_curve(prior)
-        saturation.plot_curve(curve, sample_kwargs={"rng": rng})
+        saturation.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -202,7 +205,7 @@ class LogisticSaturation(SaturationTransformation):
         adstock = LogisticSaturation()
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -236,7 +239,7 @@ class InverseScaledLogisticSaturation(SaturationTransformation):
         adstock = InverseScaledLogisticSaturation()
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -270,7 +273,7 @@ class TanhSaturation(SaturationTransformation):
         adstock = TanhSaturation()
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -304,7 +307,7 @@ class TanhSaturationBaselined(SaturationTransformation):
         adstock = TanhSaturationBaselined()
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -340,7 +343,7 @@ class MichaelisMentenSaturation(SaturationTransformation):
         adstock = MichaelisMentenSaturation()
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -374,7 +377,7 @@ class HillSaturation(SaturationTransformation):
         adstock = HillSaturation()
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -409,7 +412,7 @@ class HillSaturationSigmoid(SaturationTransformation):
         adstock = HillSaturationSigmoid()
         prior = adstock.sample_prior(random_seed=rng)
         curve = adstock.sample_curve(prior)
-        adstock.plot_curve(curve, sample_kwargs={"rng": rng})
+        adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -442,7 +445,7 @@ class RootSaturation(SaturationTransformation):
         saturation = RootSaturation()
         prior = saturation.sample_prior(random_seed=rng)
         curve = saturation.sample_curve(prior)
-        saturation.plot_curve(curve, sample_kwargs={"rng": rng})
+        saturation.plot_curve(curve, random_seed=rng)
         plt.show()
 
     """
@@ -457,6 +460,37 @@ class RootSaturation(SaturationTransformation):
         "alpha": Prior("Beta", alpha=1, beta=2),
         "beta": Prior("Gamma", mu=1, sigma=1),
     }
+
+
+class NoSaturation(SaturationTransformation):
+    """Wrapper around linear saturation function.
+
+    For more information, see :func:`pymc_marketing.mmm.transformers.linear_saturation`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import NoSaturation
+
+        rng = np.random.default_rng(0)
+
+        saturation = NoSaturation()
+        prior = saturation.sample_prior(random_seed=rng)
+        curve = saturation.sample_curve(prior)
+        saturation.plot_curve(curve, random_seed=rng)
+        plt.show()
+
+    """
+
+    lookup_name = "no_saturation"
+
+    def function(self, x, beta):
+        """Linear saturation function."""
+        return pt.as_tensor_variable(beta * x)
+
+    default_priors = {"beta": Prior("HalfNormal", sigma=1)}
 
 
 def saturation_from_dict(data: dict) -> SaturationTransformation:

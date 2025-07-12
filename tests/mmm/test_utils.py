@@ -18,9 +18,11 @@ import xarray as xr
 from sklearn.preprocessing import MaxAbsScaler
 
 from pymc_marketing.mmm.utils import (
+    add_noise_to_channel_allocation,
     apply_sklearn_transformer_across_dim,
+    create_index,
     create_new_spend_data,
-    sigmoid_saturation,
+    create_zero_dataset,
     transform_1d_array,
 )
 
@@ -84,56 +86,6 @@ def test_transform_1d_array(constructor):
 
 
 @pytest.mark.parametrize(
-    "x, alpha, lam, expected",
-    [
-        (0, 1, 1, 0),
-        (1, 1, 1, 0.4621),
-    ],
-)
-def test_sigmoid_saturation(x, alpha, lam, expected):
-    assert np.isclose(sigmoid_saturation(x, alpha, lam), expected, atol=0.01)
-
-
-@pytest.mark.parametrize(
-    "x, alpha, lam",
-    [
-        (0, 0, 1),
-        (1, -1, 1),
-        (1, 1, 0),
-    ],
-)
-def test_sigmoid_saturation_value_errors(x, alpha, lam):
-    with pytest.raises(ValueError):
-        sigmoid_saturation(x, alpha, lam)
-    (
-        "spend, adstock_max_lag, one_time, spend_leading_up, expected_result",
-        [
-            (
-                [1, 2],
-                2,
-                True,
-                None,
-                [[0, 0], [0, 0], [1, 2], [0, 0], [0, 0]],
-            ),
-            (
-                [1, 2],
-                2,
-                False,
-                None,
-                [[0, 0], [0, 0], [1, 2], [1, 2], [1, 2]],
-            ),
-            (
-                [1, 2],
-                2,
-                True,
-                [3, 4],
-                [[3, 4], [3, 4], [1, 2], [0, 0], [0, 0]],
-            ),
-        ],
-    )
-
-
-@pytest.mark.parametrize(
     "spend, adstock_max_lag, one_time, spend_leading_up, expected_result",
     [
         (
@@ -185,3 +137,132 @@ def test_create_new_spend_data_value_errors() -> None:
             one_time=True,
             spend_leading_up=np.array([3, 4, 5]),
         )
+
+
+def test_add_noise_to_channel_allocation():
+    # Create a simple DataFrame with channel data
+    df = pd.DataFrame(
+        {
+            "channel1": [10, 20, 30, 40, 50],
+            "channel2": [5, 10, 15, 20, 25],
+            "target": [100, 200, 300, 400, 500],
+        }
+    )
+
+    channels = ["channel1", "channel2"]
+
+    # Test with fixed seed for reproducibility
+    result = add_noise_to_channel_allocation(df, channels, rel_std=0.1, seed=42)
+
+    # Check that the DataFrame was not modified in place
+    pd.testing.assert_frame_equal(
+        df,
+        pd.DataFrame(
+            {
+                "channel1": [10, 20, 30, 40, 50],
+                "channel2": [5, 10, 15, 20, 25],
+                "target": [100, 200, 300, 400, 500],
+            }
+        ),
+    )
+
+    # Check that noise was added (values changed)
+    assert not np.allclose(df[channels].values, result[channels].values)
+
+    # Check that non-channel columns remain unchanged
+    np.testing.assert_array_equal(df["target"].values, result["target"].values)
+
+    # Check that noise is centered around original values (approximately)
+    # The means should be close with small sample size
+    assert np.abs(df["channel1"].mean() - result["channel1"].mean()) < 5
+    assert np.abs(df["channel2"].mean() - result["channel2"].mean()) < 3
+
+    # Test no negative values
+    assert (result[channels] >= 0).all().all(), "No negative values in channels"
+
+
+class FakeMMM:
+    def __init__(self):
+        # Create a simple dataset
+        dates = pd.date_range("2022-01-01", "2022-01-31", freq="D")
+        self.X = pd.DataFrame(
+            {
+                "date": dates,
+                "region": ["A"] * 15 + ["B"] * 16,
+                "channel1": np.random.rand(31) * 10,
+                "channel2": np.random.rand(31) * 5,
+                "control1": np.random.rand(31),
+                "extra_col": np.ones(31),
+            }
+        )
+        self.date_column = "date"
+        self.channel_columns = ["channel1", "channel2"]
+        self.control_columns = ["control1"]
+        self.dims = ["region"]
+
+
+def test_create_zero_dataset():
+    # Create a fake model
+    model = FakeMMM()
+
+    # Test basic zero dataset
+    start_date = "2022-02-01"
+    end_date = "2022-02-10"
+    result = create_zero_dataset(model, start_date, end_date)
+
+    # Check results
+    assert isinstance(result, pd.DataFrame)
+    assert len(result) == 10 * 2  # 10 days by 2 regions
+    assert list(result.columns) == list(model.X.columns)
+    assert np.all(result[model.channel_columns] == 0)
+    assert np.all(result[model.control_columns] == 0)
+
+    # Test with channel_xr
+    # Create a simple xarray Dataset with channel values
+    region_coords = np.array(["A", "B"])
+    channel_values = xr.Dataset(
+        data_vars={
+            "channel1": (["region"], np.array([5.0, 7.0])),
+        },
+        coords={"region": region_coords},
+    )
+
+    result_with_channels = create_zero_dataset(
+        model, start_date, end_date, channel_values
+    )
+
+    # Check results
+    assert np.all(
+        result_with_channels.loc[result_with_channels.region == "A", "channel1"] == 5.0
+    )
+    assert np.all(
+        result_with_channels.loc[result_with_channels.region == "B", "channel1"] == 7.0
+    )
+    assert np.all(result_with_channels["channel2"] == 0)  # Not provided in channel_xr
+
+
+@pytest.mark.parametrize(
+    "dims, take, expected_result",
+    [
+        pytest.param(
+            ("date",),
+            ("date",),
+            (slice(None),),
+            id="empty-slice",
+        ),
+        pytest.param(
+            ("date", "product", "geo"),
+            ("date", "geo"),
+            (slice(None), 0, slice(None)),
+            id="drop-product",
+        ),
+        pytest.param(
+            ("date", "product", "geo"),
+            ("date",),
+            (slice(None), 0, 0),
+            id="drop-both",
+        ),
+    ],
+)
+def test_create_index(dims, take, expected_result):
+    assert create_index(dims, take) == expected_result

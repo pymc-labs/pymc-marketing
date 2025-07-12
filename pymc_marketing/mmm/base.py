@@ -818,17 +818,17 @@ class MMMModelBuilder(ModelBuilder):
         plt.Figure
 
         """
-        channel_contributions = self._format_model_contributions(
-            var_contribution="channel_contributions"
+        channel_contribution = self._format_model_contributions(
+            var_contribution="channel_contribution"
         )
-        means = [channel_contributions.mean(["chain", "draw"])]
+        means = [channel_contribution.mean(["chain", "draw"])]
         contribution_vars = [
-            az.hdi(channel_contributions, hdi_prob=0.94).channel_contributions
+            az.hdi(channel_contribution, hdi_prob=0.94).channel_contribution
         ]
 
         for arg, var_contribution in zip(
             ["control_columns", "yearly_seasonality"],
-            ["control_contributions", "fourier_contributions"],
+            ["control_contribution", "fourier_contribution"],
             strict=True,
         ):
             if getattr(self, arg, None):
@@ -928,7 +928,7 @@ class MMMModelBuilder(ModelBuilder):
         """
         _data = self.prior if prior else self.fit_result
         channel_contribution = az.extract(
-            data=_data, var_names=["channel_contributions"], combined=False
+            data=_data, var_names=["channel_contribution"], combined=False
         )
 
         # sklearn preprocessers expect 2-D arrays of (obs, features)
@@ -967,7 +967,7 @@ class MMMModelBuilder(ModelBuilder):
         contributions_channel_over_time = (
             az.extract(
                 self.fit_result,
-                var_names=["channel_contributions"],
+                var_names=["channel_contribution"],
                 combined=True,
             )
             .mean("sample")
@@ -981,7 +981,7 @@ class MMMModelBuilder(ModelBuilder):
             contributions_control_over_time = (
                 az.extract(
                     self.fit_result,
-                    var_names=["control_contributions"],
+                    var_names=["control_contribution"],
                     combined=True,
                 )
                 .mean("sample")
@@ -998,7 +998,7 @@ class MMMModelBuilder(ModelBuilder):
             contributions_fourier_over_time = pd.DataFrame(
                 az.extract(
                     self.fit_result,
-                    var_names=["fourier_contributions"],
+                    var_names=["fourier_contribution"],
                     combined=True,
                 )
                 .mean("sample")
@@ -1116,7 +1116,7 @@ class MMMModelBuilder(ModelBuilder):
         ax.legend(title="groups", loc="center left", bbox_to_anchor=(1, 0.5))
         return fig
 
-    def get_channel_contributions_share_samples(self, prior: bool = False) -> DataArray:
+    def get_channel_contribution_share_samples(self, prior: bool = False) -> DataArray:
         """Get the share of channel contributions in the original scale of the target variable.
 
         Parameters
@@ -1156,12 +1156,12 @@ class MMMModelBuilder(ModelBuilder):
         plt.Figure
 
         """
-        channel_contributions_share: DataArray = (
-            self.get_channel_contributions_share_samples(prior=prior)
+        channel_contribution_share: DataArray = (
+            self.get_channel_contribution_share_samples(prior=prior)
         )
 
         ax, *_ = az.plot_forest(
-            data=channel_contributions_share,
+            data=channel_contribution_share,
             combined=True,
             hdi_prob=hdi_prob,
             **plot_kwargs,

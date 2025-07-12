@@ -8,7 +8,7 @@ description = "Marketing Statistical Models in PyMC"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
 dynamic = ["version", "readme"]
-maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.io" }]
+maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.com" }]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python",
@@ -31,7 +31,8 @@ dependencies = [
     "pandas",
     "pydantic>=2.1.0",
     # NOTE: Used as minimum pymc version with test.yml `OLDEST_PYMC_VERSION`
-    "pymc>=5.21.1",
+    "pymc>=5.23.0",
+    "pytensor>=2.31.3",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "xarray>=2024.1.0",
@@ -41,10 +42,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dag = [
-    "dowhy",
-    "networkx",
-]
+dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
 docs = [
     "blackjax",
     "fastprogress",
@@ -64,12 +62,14 @@ docs = [
     "sphinx-copybutton",
     "sphinx-design",
     "sphinx-notfound-page",
+    "sphinx-remove-toctrees",
     "sphinx",
     "sphinxext-opengraph",
     "watermark",
     "mlflow>=2.0.0",
     "networkx",
     "dowhy",
+    "osqp<1.0.0,>=0.6.2",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
@@ -86,6 +86,8 @@ test = [
     "mlflow>=2.0.0",
     "networkx",
     "dowhy",
+    "osqp<1.0.0,>=0.6.2",
+    "pygraphviz",
 ]
 
 [tool.hatch.build.targets.sdist]
@@ -122,6 +124,8 @@ replacement = '[\1](https://github.com/pymc-labs/pymc-marketing/tree/main/\g<2>)
 repository = "https://github.com/pymc-labs/pymc-marketing"
 homepage = "https://www.pymc-marketing.io"
 
+[tool.ruff.format]
+docstring-code-format = true
 
 [tool.ruff.lint]
 select = ["B", "D", "DOC", "E", "F", "I", "RUF", "S", "UP", "W"]
