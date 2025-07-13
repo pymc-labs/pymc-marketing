@@ -17,6 +17,7 @@ import hashlib
 import json
 import warnings
 from abc import ABC, abstractmethod
+from functools import wraps
 from inspect import signature
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,8 @@ import pandas as pd
 import pymc as pm
 import xarray as xr
 from pymc.util import RandomState
+from pymc_extras.printing import model_table
+from rich.table import Table
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.utils import from_netcdf
@@ -101,6 +104,20 @@ def create_idata_accessor(value: str, message: str):
         return self.idata[value]
 
     return property(accessor)
+
+
+def requires_model(func):
+    """Ensure that the model is built before calling a method."""
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if not hasattr(self, "model"):
+            raise RuntimeError(
+                "The model hasn't been built yet. Please call `build_model` first."
+            )
+        return func(self, *args, **kwargs)
+
+    return wrapper
 
 
 def create_sample_kwargs(
@@ -1062,6 +1079,23 @@ class ModelBuilder(ABC):
 
         """
         return pm.model_to_graphviz(self.model, **kwargs)
+
+    @requires_model
+    def table(self, **model_table_kwargs) -> Table:
+        """Get the summary table of the model.
+
+        Parameters
+        ----------
+        **model_table_kwargs
+            Keyword arguments for the `model_table` function
+
+        Returns
+        -------
+        rich.table.Table
+            A rich table containing the summary of the model.
+
+        """
+        return model_table(self.model, **model_table_kwargs)
 
     prior = create_idata_accessor(
         "prior",
