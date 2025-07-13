@@ -165,6 +165,8 @@ def _find_first_transactions(
     observation_period_end: str | pandas.Period | datetime | None = None,
     time_unit: str = "D",
     sort_transactions: bool | None = True,
+    purchase_covariate_cols: list | None = None,
+    dropout_covariate_cols: list | None = None,
 ) -> pandas.DataFrame:
     """Return dataframe with first transactions.
 
@@ -214,6 +216,18 @@ def _find_first_transactions(
 
     if monetary_value_col:
         select_columns.append(monetary_value_col)
+
+    if purchase_covariate_cols:
+        select_columns.extend(purchase_covariate_cols)
+
+    if dropout_covariate_cols:
+        select_columns.extend(
+            [
+                extra_col
+                for extra_col in dropout_covariate_cols
+                if extra_col not in purchase_covariate_cols  # type: ignore
+            ]
+        )
 
     if sort_transactions:
         transactions = transactions[select_columns].sort_values(select_columns).copy()
@@ -865,13 +879,15 @@ def _expected_cumulative_transactions(
     # Has an extra column (besides the id and the date)
     # with a boolean for when it is a first transaction
     repeated_and_first_transactions = _find_first_transactions(  # type: ignore
-        transactions,
-        customer_id_col,
-        datetime_col,
+        transactions=transactions,
+        customer_id_col=customer_id_col,
+        datetime_col=datetime_col,
         datetime_format=datetime_format,
         observation_period_end=observation_period_end,
         time_unit=time_unit,
         sort_transactions=sort_transactions,
+        purchase_covariate_cols=model.purchase_covariate_cols,
+        dropout_covariate_cols=model.dropout_covariate_cols,
     )
 
     # Mask, first transactions and repeated transactions
@@ -882,10 +898,33 @@ def _expected_cumulative_transactions(
     date_range = pandas.date_range(start_date, periods=t + 1, freq=time_unit)
     date_periods = date_range.to_period(time_unit)
 
-    pred_cum_transactions = np.array([])
+    if model.purchase_covariate_cols or model.dropout_covariate_cols:
+        distinct_covariates_cols = list(
+            set(model.purchase_covariate_cols).intersection(
+                set(model.dropout_covariate_cols)
+            )
+        )
+        distinct_covariates = transactions[distinct_covariates_cols].drop_duplicates()
+    else:
+        distinct_covariates_cols = None
+
+    pred_cum_transactions = []
 
     # First Transactions on Each Day/Freq
-    first_trans_size = first_transactions.groupby(datetime_col).size()
+    if not distinct_covariates_cols:
+        first_trans_size = first_transactions.groupby(datetime_col).size()
+        first_trans_size.index = first_trans_size.index.rename("date")
+    else:
+        # get the sizes for each covariate
+        first_trans_size = first_transactions.groupby(
+            [datetime_col, *distinct_covariates_cols]
+        ).size()
+
+    if isinstance(first_trans_size.index, pandas.MultiIndex):
+        time_index = first_trans_size.index.get_level_values("date").unique()
+    else:
+        time_index = first_trans_size.index
+        time_index = time_index.rename("date")
 
     # In the loop below, we calculate the expected number of purchases for customers
     # who have made their first purchases on a date before the one being evaluated.
@@ -893,31 +932,43 @@ def _expected_cumulative_transactions(
     for i, period in enumerate(date_periods):  # index of period and its date
         if i % time_scaler == 0 and i > 0:  # type: ignore
             # Periods before the one being evaluated
-            times = np.array([d.n for d in period - first_trans_size.index])
+
+            times = np.array(
+                [
+                    d.n
+                    for d in period
+                    - first_trans_size.index.get_level_values("date").unique()
+                ]
+            )
             times = times[times > 0].astype(float) / time_scaler
 
             # create arbitrary dataframe from array of n time periods for predictions
             pred_data = pandas.DataFrame(
                 {
-                    "customer_id": times,
                     "t": times,
                 }
             )
 
+            if distinct_covariates_cols:
+                pred_data = pred_data.merge(distinct_covariates, how="cross")
+
+            pred_data = pred_data.reset_index(names="customer_id")
+
             # Array of different expected number of purchases for different times
-            # TODO: This does not currently support a covariate model
-            expected_trans_array = model.expected_purchases_new_customer(
-                pred_data
-            ).mean(dim=("chain", "draw"))
+            expected_trans_array = model.expected_purchases_new_customer(pred_data)
+
+            expected_trans_array_mean = expected_trans_array.mean(
+                dim=("chain", "draw")
+            ).assign_coords(period=period, t=i)
 
             # Mask for the number of customers with 1st transactions up to the period
-            mask = first_trans_size.index < period
-            masked_first_trans = first_trans_size[mask].values  # type: ignore
+            mask = time_index[time_index < period]
+            masked_first_trans = first_trans_size[mask]  # type: ignore
             # ``expected_trans`` is an xarray with the cumulative sum of expected transactions
-            expected_trans = (expected_trans_array * masked_first_trans).sum()
-            pred_cum_transactions = np.append(
-                pred_cum_transactions, expected_trans.values
-            )
+            expected_trans = (expected_trans_array_mean * masked_first_trans).sum()
+            pred_cum_transactions.append(expected_trans)
+
+    pred_cum_transactions = xarray.concat(pred_cum_transactions, dim="period")
 
     act_trans = repeated_transactions.groupby(datetime_col).size()
     act_tracking_transactions = act_trans.reindex(date_periods, fill_value=0)

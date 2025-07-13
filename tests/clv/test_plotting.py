@@ -31,6 +31,9 @@ class MockModel:
     def __init__(self, data: pd.DataFrame):
         self.data = data
         self._model_type = None
+        self.purchase_covariate_cols = None
+        self.dropout_covariate_cols = None
+        self.dropout_covariate_cols = None
 
     def _mock_posterior(self, data: pd.DataFrame) -> xr.DataArray:
         n_customers = len(data)

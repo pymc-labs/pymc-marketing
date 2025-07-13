@@ -706,7 +706,6 @@ class TestBetaGeoModelWithCovariates:
             cls.data,
             model_config=covariate_config,
         )
-        # set_model_fit(cls.model_with_covariates_phi_kappa, mock_fit_with_covariates)
 
         # Create a reference model without covariates
         cls.model_without_covariates = BetaGeoModel(
