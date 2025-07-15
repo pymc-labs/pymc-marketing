@@ -2094,6 +2094,13 @@ class MMM(
                 "The 'channel' column is required to map the lift measurements to the model."
             )
 
+        if self.time_varying_media and "date" not in df_lift_test.columns:
+            # `time_varying_media=True` parameter requires the date in the df_lift_test DataFrame.
+            # The `add_lift_test_measurements` method itself doesn't need a date
+            # We need to make sure the `date` coord is present in model_coords
+            # By adding this we make sure the model_coords match
+            df_lift_test["date"] = pd.to_datetime(self.model_coords["date"][0])
+
         df_lift_test_scaled = scale_lift_measurements(
             df_lift_test=df_lift_test,
             channel_col="channel",
