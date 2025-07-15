@@ -546,8 +546,7 @@ class BudgetOptimizer(BaseModel):
 
             # Evaluate constraint values and gradients if available
             if self._compiled_constraints:
-                constraint_values = []
-                constraint_jacs = []
+                constraint_info = []
 
                 for _, constraint in enumerate(self._compiled_constraints):
                     # Evaluate constraint function
@@ -555,18 +554,17 @@ class BudgetOptimizer(BaseModel):
                     # Evaluate constraint gradient
                     c_jac = constraint["jac"](xk)
 
-                    constraint_values.append(
+                    constraint_info.append(
                         {
                             "type": constraint["type"],
                             "value": float(c_val)
                             if np.ndim(c_val) == 0
                             else np.array(c_val),
+                            "jac": np.array(c_jac) if c_jac is not None else None,
                         }
                     )
-                    constraint_jacs.append(np.array(c_jac))
 
-                iter_info["constraint_values"] = constraint_values
-                iter_info["constraint_jacs"] = constraint_jacs
+                iter_info["constraint_info"] = constraint_info
 
             callback_info.append(iter_info)
 
