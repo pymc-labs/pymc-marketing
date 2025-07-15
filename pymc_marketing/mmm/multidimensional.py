@@ -1772,9 +1772,41 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         constraints: Sequence[dict[str, Any]] = (),
         default_constraints: bool = True,
         budgets_to_optimize: xr.DataArray | None = None,
+        callback: bool = False,
         **minimize_kwargs,
-    ) -> tuple[xr.DataArray, OptimizeResult]:
-        """Optimize the budget allocation for the model."""
+    ) -> (
+        tuple[xr.DataArray, OptimizeResult]
+        | tuple[xr.DataArray, OptimizeResult, list[dict[str, Any]]]
+    ):
+        """Optimize the budget allocation for the model.
+
+        Parameters
+        ----------
+        budget : float | int
+            Total budget to allocate.
+        budget_bounds : xr.DataArray | None
+            Budget bounds per channel.
+        response_variable : str
+            Response variable to optimize.
+        utility_function : UtilityFunctionType
+            Utility function to maximize.
+        constraints : Sequence[dict[str, Any]]
+            Custom constraints for the optimizer.
+        default_constraints : bool
+            Whether to add default constraints.
+        budgets_to_optimize : xr.DataArray | None
+            Mask defining which budgets to optimize.
+        callback : bool
+            Whether to return callback information tracking optimization progress.
+        **minimize_kwargs
+            Additional arguments for the optimizer.
+
+        Returns
+        -------
+        tuple
+            Optimal budgets and optimization result. If callback=True, also returns
+            a list of dictionaries with optimization information at each iteration.
+        """
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
         allocator = BudgetOptimizer(
@@ -1790,6 +1822,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         return allocator.allocate_budget(
             total_budget=budget,
             budget_bounds=budget_bounds,
+            callback=callback,
             **minimize_kwargs,
         )
 
