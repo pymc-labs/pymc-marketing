@@ -18,12 +18,12 @@ import numpy as np
 import pymc as pm
 import pytest
 import xarray as xr
-
-from pymc_marketing.deserialize import (
+from pymc_extras.deserialize import (
     DESERIALIZERS,
     deserialize,
     register_deserialization,
 )
+
 from pymc_marketing.mmm.fourier import (
     FourierBase,
     MonthlyFourier,

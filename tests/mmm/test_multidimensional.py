@@ -21,6 +21,7 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 from pymc.model_graph import fast_eval
+from pymc_extras.prior import Prior
 from pytensor.tensor.basic import TensorVariable
 from scipy.optimize import OptimizeResult
 
@@ -34,7 +35,6 @@ from pymc_marketing.mmm.multidimensional import (
     MultiDimensionalBudgetOptimizerWrapper,
 )
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
-from pymc_marketing.prior import Prior
 
 
 @pytest.fixture

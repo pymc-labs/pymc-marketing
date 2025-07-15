@@ -17,8 +17,7 @@ from typing import Annotated
 
 import pymc as pm
 from pydantic import BaseModel, Field, InstanceOf
-
-from pymc_marketing.deserialize import register_deserialization
+from pymc_extras.deserialize import register_deserialization
 
 
 class HSGPKwargs(BaseModel):

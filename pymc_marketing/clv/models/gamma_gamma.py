@@ -19,11 +19,11 @@ import pymc as pm
 import pytensor.tensor as pt
 import xarray
 from pymc.util import RandomState
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models import CLVModel
 from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
 from pymc_marketing.model_config import ModelConfig
-from pymc_marketing.prior import Prior
 
 
 class BaseGammaGammaModel(CLVModel):

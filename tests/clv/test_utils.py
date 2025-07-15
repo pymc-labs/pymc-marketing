@@ -19,6 +19,7 @@ import pymc as pm
 import pytest
 import xarray
 from pandas.testing import assert_frame_equal
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv import GammaGammaModel, ParetoNBDModel
 from pymc_marketing.clv.utils import (
@@ -31,7 +32,6 @@ from pymc_marketing.clv.utils import (
     rfm_train_test_split,
     to_xarray,
 )
-from pymc_marketing.prior import Prior
 from tests.conftest import set_model_fit
 
 
