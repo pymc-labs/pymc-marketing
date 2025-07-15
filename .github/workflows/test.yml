@@ -57,7 +57,7 @@ jobs:
         run: |
           sudo apt-get install graphviz graphviz-dev
           pip install -e .[test]
-          pytest ${{ matrix.split }}
+          pytest ${{ matrix.split }} --numprocesses auto
       - name: Check oldest version of PyMC
         if: ${{ matrix.config.oldest-pymc }}
         run: python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}'"
