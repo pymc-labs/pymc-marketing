@@ -545,8 +545,7 @@ def test_callback_functionality_parametrized(
         assert first_iter["x"].shape == first_iter["jac"].shape
 
         # Check constraints (default constraint should be present)
-        assert "constraint_values" in first_iter
-        assert "constraint_jacs" in first_iter
+        assert "constraint_info" in first_iter
 
         # Verify all iterations have same structure
         for iter_info in callback_info:
