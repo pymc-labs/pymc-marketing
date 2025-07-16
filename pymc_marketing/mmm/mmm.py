@@ -2336,9 +2336,9 @@ class MMM(
         tuple[DataArray, OptimizeResult]
         | tuple[DataArray, OptimizeResult, list[dict[str, Any]]]
     ):
-        """Optimize the given budget based on the specified utility function over a specified time period.
+        """Optimize the given budget based on the specified utility function over a specified time period (DEPRECATED).
 
-        This function optimizes the allocation of a given budget across different channels
+        DEPRECATED: This function optimizes the allocation of a given budget across different channels
         to maximize the response, considering adstock and saturation effects. It scales the
         budget and budget bounds, performs the optimization, and generates a synthetic dataset
         for posterior predictive sampling.
@@ -2390,22 +2390,9 @@ class MMM(
         ValueError
             If the noise level is not a float.
         """
-        from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
-
-        allocator = BudgetOptimizer(
-            num_periods=num_periods,
-            utility_function=utility_function,
-            response_variable=response_variable,
-            custom_constraints=constraints,
-            default_constraints=default_constraints,
-            model=self,
-        )
-
-        return allocator.allocate_budget(
-            total_budget=budget,
-            budget_bounds=budget_bounds,
-            callback=callback,
-            **minimize_kwargs,
+        raise NotImplementedError(
+            "This method is deprecated and no longer available. "
+            "Please migrate to the `Multidimensal.MMM` class."
         )
 
     def plot_budget_allocation(
