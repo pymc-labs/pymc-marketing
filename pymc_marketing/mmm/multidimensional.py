@@ -1772,6 +1772,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         constraints: Sequence[dict[str, Any]] = (),
         default_constraints: bool = True,
         budgets_to_optimize: xr.DataArray | None = None,
+        budget_distribution_over_period: xr.DataArray | None = None,
         callback: bool = False,
         **minimize_kwargs,
     ) -> (
@@ -1796,6 +1797,10 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             Whether to add default constraints.
         budgets_to_optimize : xr.DataArray | None
             Mask defining which budgets to optimize.
+        budget_distribution_over_period : xr.DataArray | None
+            Distribution factors for budget allocation over time. Should have dims ("date", *budget_dims)
+            where date dimension has length num_periods. Values along date dimension should sum to 1 for
+            each combination of other dimensions. If None, budget is distributed evenly across periods.
         callback : bool
             Whether to return callback information tracking optimization progress.
         **minimize_kwargs
@@ -1816,6 +1821,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             custom_constraints=constraints,
             default_constraints=default_constraints,
             budgets_to_optimize=budgets_to_optimize,
+            budget_distribution_over_period=budget_distribution_over_period,
             model=self,  # Pass the wrapper instance itself to the BudgetOptimizer
         )
 
