@@ -1984,7 +1984,7 @@ class MMM(
             )
 
         intercept_condition = (
-            "intercept" in posterior_predictive_samples.data_vars
+            "intercept" in sample_posterior_predictive_kwargs.get("var_names", [])
             and not self.time_varying_intercept
         )
 
