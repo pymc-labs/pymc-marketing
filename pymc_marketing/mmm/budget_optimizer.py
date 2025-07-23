@@ -25,7 +25,7 @@ import xarray as xr
 from arviz import InferenceData
 from pydantic import BaseModel, ConfigDict, Field, InstanceOf
 from pymc import Model, do
-from pymc.logprob.utils import rvs_in_graph
+
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.pytensorf import rewrite_pregrad
 from pytensor import clone_replace, function
@@ -34,6 +34,12 @@ from pytensor.graph import rewrite_graph, vectorize_graph
 from pytensor.graph.basic import ancestors
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray
+
+try:
+    from pymc.pytensorf import rvs_in_graph
+except ImportError:
+    from pymc.logprob.utils import rvs_in_graph
+
 
 from pymc_marketing.mmm.constraints import (
     Constraint,
