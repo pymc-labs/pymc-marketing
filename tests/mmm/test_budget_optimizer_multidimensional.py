@@ -194,7 +194,13 @@ def test_budget_optimizer_incorrect_mask(dummy_df, fitted_mmm):
 
 
 def test_time_distribution_by_geo_only(dummy_df, fitted_mmm):
-    """Test time distribution factors that vary by geo only (same for all channels in a geo)."""
+    """Test time distribution factors that vary by geo only (same for all channels in a geo).
+
+    Note: Even though the factors only vary by geo, we must specify all budget dimensions
+    (channel and geo). The BudgetOptimizer validates that budget_distribution_over_period
+    has dims ("date", *budget_dims) where budget_dims includes all dimensions from channel_data
+    except "date".
+    """
     df_kwargs, X_dummy, y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
@@ -203,30 +209,63 @@ def test_time_distribution_by_geo_only(dummy_df, fitted_mmm):
         end_date=X_dummy["date_week"].max() + pd.Timedelta(4, freq="1W"),  # 4 weeks
     )
 
+    # First, let's try with only geo dimension to demonstrate it fails
+    time_factors_geo_only = xr.DataArray(
+        np.array(
+            [
+                [0.7, 0.1],  # date 0: geo A front-loaded, geo B back-loaded
+                [0.2, 0.2],  # date 1
+                [0.1, 0.3],  # date 2
+                [0.0, 0.4],  # date 3
+            ]
+        ),
+        dims=["date", "geo"],
+        coords={
+            "date": [0, 1, 2, 3],
+            "geo": ["A", "B"],
+        },
+    )
+
+    from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+
+    # This should raise ValueError because we need all budget dimensions
+    with pytest.raises(
+        ValueError,
+        match="budget_distribution_over_period must have dims.*but got",
+    ):
+        BudgetOptimizer(
+            model=optimizable_model,
+            num_periods=4,
+            budget_distribution_over_period=time_factors_geo_only,
+            response_variable="total_media_contribution_original_scale",
+            default_constraints=True,
+        )
+
+    # Now create the correct format with all dimensions (even though channels have same values)
     # Create time distribution factors that vary by geo only
     # Geo A: front-loaded, Geo B: back-loaded
     time_factors_data = np.array(
         [
             # date 0
             [
-                [0.7, 0.7],  # geo A: channel_1, channel_2
-                [0.1, 0.1],
-            ],  # geo B: channel_1, channel_2
+                [0.7, 0.7],  # geo A: channel_1, channel_2 (same values)
+                [0.1, 0.1],  # geo B: channel_1, channel_2 (same values)
+            ],
             # date 1
             [
                 [0.2, 0.2],  # geo A: channel_1, channel_2
-                [0.2, 0.2],
-            ],  # geo B: channel_1, channel_2
+                [0.2, 0.2],  # geo B: channel_1, channel_2
+            ],
             # date 2
             [
                 [0.1, 0.1],  # geo A: channel_1, channel_2
-                [0.3, 0.3],
-            ],  # geo B: channel_1, channel_2
+                [0.3, 0.3],  # geo B: channel_1, channel_2
+            ],
             # date 3
             [
                 [0.0, 0.0],  # geo A: channel_1, channel_2
-                [0.4, 0.4],
-            ],  # geo B: channel_1, channel_2
+                [0.4, 0.4],  # geo B: channel_1, channel_2
+            ],
         ]
     )
 
@@ -239,8 +278,6 @@ def test_time_distribution_by_geo_only(dummy_df, fitted_mmm):
             "channel": ["channel_1", "channel_2"],
         },
     )
-
-    from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
     # Create the budget optimizer directly with time factors
     optimizer = BudgetOptimizer(
