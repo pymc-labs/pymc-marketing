@@ -38,7 +38,7 @@ dependencies = [
     "xarray>=2024.1.0",
     "xarray-einstats>=0.5.1",
     "pyprojroot",
-    "preliz==0.20.0",
+    "preliz>=0.20.0",
 ]
 
 [project.optional-dependencies]
