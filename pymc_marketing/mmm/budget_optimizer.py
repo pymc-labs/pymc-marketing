@@ -25,7 +25,6 @@ import xarray as xr
 from arviz import InferenceData
 from pydantic import BaseModel, ConfigDict, Field, InstanceOf
 from pymc import Model, do
-from pymc.logprob.utils import rvs_in_graph
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.pytensorf import rewrite_pregrad
 from pytensor import clone_replace, function
@@ -34,6 +33,11 @@ from pytensor.graph import rewrite_graph, vectorize_graph
 from pytensor.graph.basic import ancestors
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray
+
+try:
+    from pymc.pytensorf import rvs_in_graph
+except ImportError:
+    from pymc.logprob.utils import rvs_in_graph
 
 from pymc_marketing.mmm.constraints import (
     Constraint,
@@ -408,7 +412,11 @@ class BudgetOptimizer(BaseModel):
         x0: np.ndarray | None = None,
         minimize_kwargs: dict[str, Any] | None = None,
         return_if_fail: bool = False,
-    ) -> tuple[DataArray, OptimizeResult]:
+        callback: bool = False,
+    ) -> (
+        tuple[DataArray, OptimizeResult]
+        | tuple[DataArray, OptimizeResult, list[dict[str, Any]]]
+    ):
         """
         Allocate the budget based on `total_budget`, optional `budget_bounds`, and custom constraints.
 
@@ -432,6 +440,11 @@ class BudgetOptimizer(BaseModel):
             ftol=1e-9, maxiter=1_000.
         return_if_fail : bool, optional
             Return output even if optimization fails. Default is False.
+        callback : bool, optional
+            Whether to return callback information tracking optimization progress. When True, returns a third
+            element containing a list of dictionaries with optimization information at each iteration including
+            'x' (parameter values), 'fun' (objective value), 'jac' (gradient), and constraint information.
+            Default is False for backward compatibility.
 
         Returns
         -------
@@ -439,6 +452,9 @@ class BudgetOptimizer(BaseModel):
             The optimized budget allocation across channels.
         result : OptimizeResult
             The raw scipy optimization result.
+        callback_info : list[dict[str, Any]], optional
+            Only returned if callback=True. List of dictionaries containing optimization
+            information at each iteration.
 
         Raises
         ------
@@ -515,13 +531,57 @@ class BudgetOptimizer(BaseModel):
         # will raise a TypeError if x0 does not have acceptable shape and/or type
         x0 = self._budgets_flat.type.filter(x0)
 
+        # 5. Set up callback tracking if requested
+        callback_info = []
+
+        def track_progress(xk):
+            """Track optimization progress at each iteration."""
+            # Evaluate objective and gradient
+            obj_val, grad_val = self._compiled_functions[self.utility_function][
+                "objective_and_grad"
+            ](xk)
+
+            # Store iteration info
+            iter_info = {
+                "x": np.array(xk),  # Current parameter values
+                "fun": float(obj_val),  # Objective function value (scalar)
+                "jac": np.array(grad_val),  # Gradient values
+            }
+
+            # Evaluate constraint values and gradients if available
+            if self._compiled_constraints:
+                constraint_info = []
+
+                for _, constraint in enumerate(self._compiled_constraints):
+                    # Evaluate constraint function
+                    c_val = constraint["fun"](xk)
+                    # Evaluate constraint gradient
+                    c_jac = constraint["jac"](xk)
+
+                    constraint_info.append(
+                        {
+                            "type": constraint["type"],
+                            "value": float(c_val)
+                            if np.ndim(c_val) == 0
+                            else np.array(c_val),
+                            "jac": np.array(c_jac) if c_jac is not None else None,
+                        }
+                    )
+
+                iter_info["constraint_info"] = constraint_info
+
+            callback_info.append(iter_info)
+
         # 5. Run the SciPy optimizer
+        scipy_callback = track_progress if callback else None
+
         result = minimize(
             fun=self._compiled_functions[self.utility_function]["objective_and_grad"],
             x0=x0,
             jac=True,
             bounds=bounds,
             constraints=self._compiled_constraints,
+            callback=scipy_callback,
             **minimize_kwargs,
         )
 
@@ -537,7 +597,11 @@ class BudgetOptimizer(BaseModel):
             optimal_budgets = DataArray(
                 optimal_budgets, dims=self._budget_dims, coords=self._budget_coords
             )
-            return optimal_budgets, result
+
+            if callback:
+                return optimal_budgets, result, callback_info
+            else:
+                return optimal_budgets, result
 
         else:
             raise MinimizeException(f"Optimization failed: {result.message}")
