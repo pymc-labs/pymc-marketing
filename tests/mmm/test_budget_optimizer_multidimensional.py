@@ -727,3 +727,112 @@ def test_time_distribution_validation_multidim(dummy_df, fitted_mmm):
             response_variable="total_media_contribution_original_scale",
             default_constraints=True,
         )
+
+
+def test_time_distribution_total_spend_preserved(dummy_df, fitted_mmm):
+    """Test that total spend is the same with and without time distribution patterns."""
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    # Set up common parameters
+    num_periods = 4
+    total_budget = 100
+
+    optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
+        model=fitted_mmm,
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(1, freq="1W"),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(num_periods, freq="1W"),
+    )
+
+    # Run optimization WITHOUT time distribution pattern
+    from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+
+    with pytest.warns(UserWarning, match="Using default equality constraint"):
+        optimizer_no_pattern = BudgetOptimizer(
+            model=optimizable_model,
+            num_periods=num_periods,
+            budget_distribution_over_period=None,  # No pattern
+            response_variable="total_media_contribution_original_scale",
+            default_constraints=True,
+        )
+
+    optimal_budgets_no_pattern, result_no_pattern = (
+        optimizer_no_pattern.allocate_budget(
+            total_budget=total_budget,
+        )
+    )
+
+    # Run optimization WITH time distribution pattern
+    # Create a flighting pattern (e.g., 60% first period, 30% second, 10% third, 0% fourth)
+    budget_distribution_over_period = xr.DataArray(
+        np.array(
+            [
+                # date 0
+                [[0.6, 0.6], [0.6, 0.6]],  # All channels/geos: 60%
+                # date 1
+                [[0.3, 0.3], [0.3, 0.3]],  # All channels/geos: 30%
+                # date 2
+                [[0.1, 0.1], [0.1, 0.1]],  # All channels/geos: 10%
+                # date 3
+                [[0.0, 0.0], [0.0, 0.0]],  # All channels/geos: 0%
+            ]
+        ),
+        dims=["date", "geo", "channel"],
+        coords={
+            "date": [0, 1, 2, 3],
+            "geo": ["A", "B"],
+            "channel": ["channel_1", "channel_2"],
+        },
+    )
+
+    with pytest.warns(UserWarning, match="Using default equality constraint"):
+        optimizer_with_pattern = BudgetOptimizer(
+            model=optimizable_model,
+            num_periods=num_periods,
+            budget_distribution_over_period=budget_distribution_over_period,
+            response_variable="total_media_contribution_original_scale",
+            default_constraints=True,
+        )
+
+    optimal_budgets_with_pattern, result_with_pattern = (
+        optimizer_with_pattern.allocate_budget(
+            total_budget=total_budget,
+        )
+    )
+
+    # Both optimizations should succeed
+    assert result_no_pattern.success
+    assert result_with_pattern.success
+
+    # Sample response distributions for both allocations
+    response_no_pattern = optimizable_model.sample_response_distribution(
+        allocation_strategy=optimal_budgets_no_pattern,
+    )
+
+    response_with_pattern = optimizable_model.sample_response_distribution(
+        allocation_strategy=optimal_budgets_with_pattern,
+    )
+
+    # Extract channel spend from both response distributions
+    # Access channel columns directly from the sampled allocation
+    channel_columns = fitted_mmm.channel_columns
+
+    # Calculate total spend for each pattern
+    total_spend_no_pattern = 0
+    total_spend_with_pattern = 0
+
+    for channel in channel_columns:
+        # Sum across all dimensions (date, geo)
+        total_spend_no_pattern += response_no_pattern[channel].sum().item()
+        total_spend_with_pattern += response_with_pattern[channel].sum().item()
+
+    # Check that total spend is the same (within tolerance)
+    # The tolerance accounts for numerical precision differences
+    assert np.abs(total_spend_no_pattern - total_spend_with_pattern) < 0.1, (
+        f"Total spend differs between patterns: "
+        f"no pattern={total_spend_no_pattern}, "
+        f"with pattern={total_spend_with_pattern}"
+    )
+
+    # Also verify that the optimal budgets sum to the total budget
+    assert np.abs(optimal_budgets_no_pattern.sum().item() - total_budget) < 1e-6
+    assert np.abs(optimal_budgets_with_pattern.sum().item() - total_budget) < 1e-6

@@ -1836,6 +1836,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         self,
         allocation_strategy: xr.DataArray,
         noise_level: float = 0.001,
+        additional_var_names: list[str] | None = None,
     ) -> az.InferenceData:
         """Generate synthetic dataset and sample posterior predictive based on allocation.
 
@@ -1866,11 +1867,22 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         )
 
         constant_data = allocation_strategy.to_dataset(name="allocation")
+        _dataset = data_with_noise.set_index([self.date_column, *list(self.dims)])[
+            self.channel_columns
+        ].to_xarray()
 
-        return self.sample_posterior_predictive(
-            X=data_with_noise,
-            extend_idata=False,
-            include_last_observations=True,
-            var_names=["y", "channel_contribution_original_scale"],
-            progressbar=False,
-        ).merge(constant_data)
+        var_names = ["y"]
+        if additional_var_names is not None:
+            var_names.extend(additional_var_names)
+
+        return (
+            self.sample_posterior_predictive(
+                X=data_with_noise,
+                extend_idata=False,
+                include_last_observations=True,
+                var_names=var_names,
+                progressbar=False,
+            )
+            .merge(constant_data)
+            .merge(_dataset)
+        )

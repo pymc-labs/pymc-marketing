@@ -407,6 +407,7 @@ class BudgetOptimizer(BaseModel):
 
         # Stack the time periods
         repeated_budgets = pt.stack(repeated_budgets_list, axis=date_dim_idx)
+        repeated_budgets *= num_periods
 
         return repeated_budgets
 
