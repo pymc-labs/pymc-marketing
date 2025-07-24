@@ -1000,9 +1000,21 @@ def new_date_ranges_to_test():
     "new_dates",
     new_date_ranges_to_test(),
 )
-@pytest.mark.parametrize("combined", [True, False])
-@pytest.mark.parametrize("original_scale", [True, False])
-@pytest.mark.parametrize("var_names", [None, ["mu", "sigma"], ["mu", "intercept"]])
+@pytest.mark.parametrize(
+    argnames="combined",
+    argvalues=[True, False],
+    ids=["combined", "not_combined"],
+)
+@pytest.mark.parametrize(
+    argnames="original_scale",
+    argvalues=[True, False],
+    ids=["original_scale", "scaled"],
+)
+@pytest.mark.parametrize(
+    argnames="var_names",
+    argvalues=[None, ["mu", "y_sigma", "channel_contribution"], ["mu", "intercept"]],
+    ids=["no_var_names", "var_names", "var_names_with_intercept"],
+)
 def test_new_data_sample_posterior_predictive_method(
     generate_data,
     toy_X,
@@ -1017,17 +1029,22 @@ def test_new_data_sample_posterior_predictive_method(
     mmm = request.getfixturevalue(model_name)
     X = generate_data(new_dates)
 
+    kwargs = {"var_names": var_names} if var_names is not None else {}
+
     posterior_predictive = mmm.sample_posterior_predictive(
         X=X,
         extend_idata=False,
         combined=combined,
         original_scale=original_scale,
-        var_names=var_names,
+        **kwargs,
     )
     pd.testing.assert_index_equal(
         pd.DatetimeIndex(posterior_predictive.coords["date"]),
         new_dates,
     )
+
+    if var_names is not None:
+        assert var_names == list(posterior_predictive.data_vars)
 
 
 @pytest.mark.parametrize(
