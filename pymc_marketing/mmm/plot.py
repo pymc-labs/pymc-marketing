@@ -991,6 +991,13 @@ class MMMPlotSuite:
         if percentage and marginal:
             raise ValueError("Not implemented marginal effects in percentage scale.")
 
+        # Check if sensitivity analysis results exist in idata
+        if not hasattr(self.idata, "sensitivity_analysis"):
+            raise ValueError(
+                "No sensitivity analysis results found in 'self.idata'. "
+                "Please run the sensitivity analysis first using 'MMM.sensitivity_analysis()' method."
+            )
+
         # grab sensitivity analysis results from idata
         results = self.idata.sensitivity_analysis
 
