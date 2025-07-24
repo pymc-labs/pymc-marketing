@@ -694,131 +694,51 @@ class MMMPlotSuite:
 
         return fig, axes
 
-    # def saturation_curves_with_uncertainty(
-    #     self,
-    #     curve: xr.DataArray,
-    #     original_scale: bool = False,
-    #     n_samples: int = 10,
-    #     hdi_probs: float | list[float] | None = None,
-    #     random_seed: np.random.Generator | None = None,
-    #     colors: Iterable[str] | None = None,
-    #     **plot_kwargs
-    # ) -> tuple[plt.Figure, np.ndarray]:
-    #     """
-    #     Overlay saturation-curve scatter-plots with posterior-predictive sample curves and HDI bands.
+    def saturation_curves_scatter(
+        self,
+        channel_contribution: str | None = None,
+        additional_dims: list[str] | None = None,
+        additional_combinations: list[tuple] | None = None,
+        **kwargs,
+    ) -> tuple[plt.Figure, np.ndarray]:
+        """
+        Plot scatter plots of channel contributions vs. channel data.
 
-    #     Parameters
-    #     ----------
-    #     curve : xr.DataArray
-    #         Posterior-predictive curves. Must have dims
-    #         ("chain", "draw", "x", "channel", "geo") or similar.
-    #     original_scale : bool, default=False
-    #         If True, uses the `channel_contribution_original_scale` deterministic;
-    #         otherwise uses `channel_contribution`.
-    #     n_samples : int, default=10
-    #         How many sample curves to draw per subplot.
-    #     hdi_probs : float or list of float, optional
-    #         Credible interval probabilities (e.g. 0.94 or [0.5, 0.94]).  If None,
-    #         uses ArviZ's default of 0.94.
-    #     random_seed : np.random.Generator, optional
-    #         RNG for reproducible sampling. If None, uses `np.random.default_rng()`.
-    #     colors : iterable of str, optional
-    #         Colors for the sample and HDI plots.
-    #     **plot_kwargs
-    #         Additional kwargs forwarded to `plot_curve`
-    #         (e.g. `subplot_kwargs`, `same_axes`, `legend`).
+        .. deprecated:: 0.1.0
+           Will be removed in version 0.2.0. Use :meth:`saturation_scatterplot` instead.
 
-    #     Returns
-    #     -------
-    #     fig : plt.Figure
-    #         Figure containing the grid of subplots.
-    #     axes : np.ndarray of plt.Axes
-    #         Array of axes shaped (n_channels, n_geo).
-    #     """
-    #     # 1) determine grid shape from constant_data dims
-    #     cdims = self.idata.constant_data.channel_data.dims
-    #     # additional dimensions beyond date & channel
-    #     additional_dims = [d for d in cdims if d not in ("date", "channel")]
-    #     additional_coords = [
-    #         self.idata.constant_data.coords[d].values for d in additional_dims
-    #     ] if additional_dims else [()]
-    #     combos = list(itertools.product(*additional_coords))
-    #     channels = self.idata.constant_data.coords["channel"].values
-    #     n_rows, n_cols = len(channels), len(combos)
+        Parameters
+        ----------
+        channel_contribution : str, optional
+            Name of the channel contribution variable in the InferenceData.
+        additional_dims : list[str], optional
+            Additional dimensions to consider beyond 'channel'.
+        additional_combinations : list[tuple], optional
+            Specific combinations of additional dimensions to plot.
+        **kwargs
+            Additional keyword arguments passed to _init_subplots.
 
-    #     curve_data = (
-    #         curve * self.idata.constant_data.target_scale
-    #         if original_scale
-    #         else curve
-    #     )
-    #     # Ensure the DataArray has a safe name to avoid conflicts with coordinates
-    #     curve_data.name = "saturation_curve"
+        Returns
+        -------
+        fig : plt.Figure
+            The matplotlib figure.
+        axes : np.ndarray
+            Array of matplotlib axes.
+        """
+        import warnings
 
-    #     # 2) call plot_curve to draw sample curves & HDI bands
-    #     non_grid = {"chain", "draw", "x"}   # x is the horizontal axis dim in `curve`
-    #     fig, axes = plot_curve(
-    #         curve=curve_data,
-    #         non_grid_names=non_grid,
-    #         n_samples=n_samples,
-    #         hdi_probs=hdi_probs,
-    #         random_seed=random_seed,
-    #         subplot_kwargs={"figsize": (n_cols * 4, n_rows * 3)},
-    #         same_axes=False,
-    #         colors=colors,
-    #         legend=False,
-    #         **plot_kwargs
-    #     )
-    #     # ensure axes is a 2D array (n_channels x n_geo)
-    #     axes = np.array(axes).reshape(n_rows, n_cols)
-
-    #     # 3) overlay scatter on each subplot
-    #     contrib_var = (
-    #         "channel_contribution_original_scale"
-    #         if original_scale else "channel_contribution"
-    #     )
-
-    #     for i, ch in enumerate(channels):
-    #         for j, combo in enumerate(combos):
-    #             ax = axes[i, j]
-    #             # build indexers for this subplot
-    #             idx = dict(zip(additional_dims, combo, strict=False))
-    #             idx["channel"] = ch
-
-    #             # get X from constant_data, Y from posterior contributions
-    #             x_data = self.idata.constant_data.channel_data.sel(**idx)
-    #             y = (
-    #                 self.idata.posterior[contrib_var]
-    #                 .sel(**idx)
-    #                 .mean(dim=["chain", "draw"])
-    #             )
-    #             # align shapes
-    #             x_data, y = x_data.broadcast_like(y), y.broadcast_like(x_data)
-
-    #             lines = ax.get_lines()
-    #             if lines:
-    #                 dot_color = lines[0].get_color()
-    #             else:
-    #                 # fallback, shouldn't really happen once you have lines
-    #                 dot_color = None
-
-    #             ax.scatter(
-    #                 x_data.values.flatten(),
-    #                 y.values.flatten(),
-    #                 alpha=0.8,
-    #                 color=dot_color,
-    #             )
-
-    #             # title & labels
-    #             title = self._build_subplot_title(
-    #                 dims=["channel", *additional_dims],
-    #                 combo=(ch, *combo),
-    #                 fallback_title="Channel Saturation Curves",
-    #             )
-    #             ax.set_title(title)
-    #             ax.set_xlabel("Channel Data (X)")
-    #             ax.set_ylabel("Channel Contribution (Y)")
-
-    #     return fig, axes
+        warnings.warn(
+            "saturation_curves_scatter is deprecated and will be removed in version 0.2.0. "
+            "Use saturation_scatterplot instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.saturation_scatterplot(
+            channel_contribution=channel_contribution,
+            additional_dims=additional_dims,
+            additional_combinations=additional_combinations,
+            **kwargs,
+        )
 
     def budget_allocation(
         self,
