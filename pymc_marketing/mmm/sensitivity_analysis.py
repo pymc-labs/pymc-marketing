@@ -24,36 +24,53 @@ import xarray as xr
 class SensitivityAnalysis:
     """SensitivityAnalysis class is used to perform counterfactual analysis on MMM's."""
 
-    def __init__(
+    def __init__(self, mmm) -> None:
+        """
+        Initialize the SensitivityAnalysis with a reference to the MMM instance.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The marketing mix model instance used for predictions.
+        """
+        self.mmm = mmm
+
+    def run_sweep(
         self,
-        mmm,
         predictors: list[str],
         sweep_values: np.ndarray,
         sweep_type: Literal[
             "multiplicative", "additive", "absolute"
         ] = "multiplicative",
-    ) -> None:
-        """
-        Initialize and run the counterfactual sweep.
+    ) -> xr.Dataset:
+        """Run the model's predict function over the sweep grid and store results.
 
         Parameters
         ----------
-        - mmm: The marketing mix model instance used for predictions.
-        - X: Original design matrix (DataFrame).
-        - predictors (list[str]): List of predictors to intervene on.
-        - sweep_values (np.ndarray): Array of sweep values.
-        - sweep_type (str): 'multiplicative', 'additive', or 'absolute'.
+        predictors : list[str]
+            List of predictors to intervene on.
+        sweep_values : np.ndarray
+            Array of sweep values.
+        sweep_type : Literal["multiplicative", "additive", "absolute"], optional
+            Type of intervention to apply, by default "multiplicative".
             - 'multiplicative': Multiply the original predictor values by each sweep value.
             - 'additive': Add each sweep value to the original predictor values.
             - 'absolute': Set the predictor values directly to each sweep value (ignoring original values).
+
+        Returns
+        -------
+        xr.Dataset
+            Dataset containing the sensitivity analysis results.
         """
-        self.mmm = mmm
+        # Validate that idata exists
+        if not hasattr(self.mmm, "idata"):
+            raise ValueError("idata does not exist. Build the model first and fit.")
+
+        # Store parameters for this run
         self.predictors = predictors
         self.sweep_values = sweep_values
         self.sweep_type = sweep_type
 
-    def run_sweep(self) -> xr.Dataset:
-        """Run the model's predict function over the sweep grid and store results."""
         # TODO: Ideally we can use this --------------------------------------------
         # actual = self.mmm._get_group_predictive_data(
         #     group="posterior_predictive", original_scale=True
@@ -84,6 +101,12 @@ class SensitivityAnalysis:
         # Add metadata to the results
         results.attrs["sweep_type"] = self.sweep_type
         results.attrs["predictors"] = self.predictors
+
+        # Add results to the MMM's idata
+        if hasattr(self.mmm.idata, "sensitivity_analysis"):
+            delattr(self.mmm.idata, "sensitivity_analysis")
+        self.mmm.idata.add_groups({"sensitivity_analysis": results})  # type: ignore
+
         return results
 
     def create_intervention(self, sweep_value: float) -> pd.DataFrame:

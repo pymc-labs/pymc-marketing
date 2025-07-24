@@ -1434,20 +1434,27 @@ class MMM(ModelBuilder):
 
         return posterior_predictive_samples
 
-    def sensitivity_analysis(self, **kwargs) -> None:
-        """Run sensitivity analysis on the model.
+    @property
+    def sensitivity(self) -> SensitivityAnalysis:
+        """Access sensitivity analysis functionality.
 
-        The results are added to the InferenceData object in a new group, `sensitivity_analysis`.
+        Returns a SensitivityAnalysis instance that can be used to run
+        counterfactual sweeps on the model.
+
+        Returns
+        -------
+        SensitivityAnalysis
+            An instance configured with this MMM model.
+
+        Examples
+        --------
+        >>> mmm.sensitivity.run_sweep(
+        ...     predictors=["channel_1", "channel_2"],
+        ...     sweep_values=np.linspace(0.5, 2.0, 10),
+        ...     sweep_type="multiplicative",
+        ... )
         """
-        self._validate_idata_exists()
-        results: xr.DataSet = SensitivityAnalysis(
-            mmm=self,
-            **kwargs,
-        ).run_sweep()
-
-        if hasattr(self.idata, "sensitivity_analysis"):
-            delattr(self.idata, "sensitivity_analysis")
-        self.idata.add_groups({"sensitivity_analysis": results})  # type: ignore
+        return SensitivityAnalysis(mmm=self)
 
     def _make_channel_transform(
         self, df_lift_test: pd.DataFrame

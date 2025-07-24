@@ -995,7 +995,7 @@ class MMMPlotSuite:
         if not hasattr(self.idata, "sensitivity_analysis"):
             raise ValueError(
                 "No sensitivity analysis results found in 'self.idata'. "
-                "Please run the sensitivity analysis first using 'MMM.sensitivity_analysis()' method."
+                "Please run the sensitivity analysis first using 'mmm.sensitivity.run_sweep()' method."
             )
 
         # grab sensitivity analysis results from idata
