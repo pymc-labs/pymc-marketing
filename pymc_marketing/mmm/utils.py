@@ -178,11 +178,57 @@ def create_new_spend_data(
     )
 
 
+def _convert_frequency_to_timedelta(periods: int, freq: str) -> pd.Timedelta:
+    """Convert frequency string and periods to Timedelta.
+
+    Parameters
+    ----------
+    periods : int
+        Number of periods
+    freq : str
+        Frequency string (e.g., 'D', 'W', 'M', 'Y')
+
+    Returns
+    -------
+    pd.Timedelta
+        The timedelta representation
+    """
+    # Extract base frequency (e.g., 'W' from 'W-MON')
+    base_freq = freq[0] if len(freq) > 1 else freq
+
+    # Direct mapping for supported frequencies
+    if base_freq == "D":
+        return pd.Timedelta(days=periods)
+    elif base_freq == "W":
+        return pd.Timedelta(weeks=periods)
+    elif base_freq == "M":
+        # Approximate months as 30 days
+        return pd.Timedelta(days=periods * 30)
+    elif base_freq == "Y":
+        # Approximate years as 365 days
+        return pd.Timedelta(days=periods * 365)
+    elif base_freq == "H":
+        return pd.Timedelta(hours=periods)
+    elif base_freq == "T":
+        return pd.Timedelta(minutes=periods)
+    elif base_freq == "S":
+        return pd.Timedelta(seconds=periods)
+    else:
+        # Default to weeks if frequency not recognized
+        warnings.warn(
+            f"Unrecognized frequency '{freq}'. Defaulting to weeks.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return pd.Timedelta(weeks=periods)
+
+
 def create_zero_dataset(
     model: Any,
     start_date: str | pd.Timestamp,
     end_date: str | pd.Timestamp,
     channel_xr: xr.Dataset | xr.DataArray | None = None,
+    include_carryover: bool = True,
 ) -> pd.DataFrame:
     """Create a DataFrame for future prediction, with zeros (or supplied constants).
 
@@ -231,6 +277,19 @@ def create_zero_dataset(
         inferred_freq = "W"
 
     # ---- 2. Build the full Cartesian product of dates X dims -------------------
+    if include_carryover:
+        # if start_date are not timestamps, convert them to timestamps
+        if not isinstance(start_date, pd.Timestamp):
+            start_date = pd.Timestamp(start_date)
+        if not isinstance(end_date, pd.Timestamp):
+            end_date = pd.Timestamp(end_date)
+
+        # Add the adstock lag to the end date
+        if hasattr(model.adstock, "l_max"):
+            end_date += _convert_frequency_to_timedelta(
+                model.adstock.l_max, inferred_freq
+            )
+
     new_dates = pd.date_range(
         start=start_date, end=end_date, freq=inferred_freq, name=date_col
     )

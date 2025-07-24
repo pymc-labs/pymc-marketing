@@ -810,6 +810,7 @@ def test_time_distribution_total_spend_preserved(dummy_df, fitted_mmm):
 
     response_with_pattern = optimizable_model.sample_response_distribution(
         allocation_strategy=optimal_budgets_with_pattern,
+        budget_distribution_over_period=budget_distribution_over_period,
     )
 
     # Extract channel spend from both response distributions
