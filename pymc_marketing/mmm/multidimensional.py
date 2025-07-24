@@ -1871,7 +1871,11 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             self.channel_columns
         ].to_xarray()
 
-        var_names = ["y"]
+        var_names = [
+            "y",
+            "channel_contribution",
+            "total_media_contribution_original_scale",
+        ]
         if additional_var_names is not None:
             var_names.extend(additional_var_names)
 
