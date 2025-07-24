@@ -1772,6 +1772,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         constraints: Sequence[dict[str, Any]] = (),
         default_constraints: bool = True,
         budgets_to_optimize: xr.DataArray | None = None,
+        budget_distribution_over_period: xr.DataArray | None = None,
         callback: bool = False,
         **minimize_kwargs,
     ) -> (
@@ -1796,6 +1797,10 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             Whether to add default constraints.
         budgets_to_optimize : xr.DataArray | None
             Mask defining which budgets to optimize.
+        budget_distribution_over_period : xr.DataArray | None
+            Distribution factors for budget allocation over time. Should have dims ("date", *budget_dims)
+            where date dimension has length num_periods. Values along date dimension should sum to 1 for
+            each combination of other dimensions. If None, budget is distributed evenly across periods.
         callback : bool
             Whether to return callback information tracking optimization progress.
         **minimize_kwargs
@@ -1816,6 +1821,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             custom_constraints=constraints,
             default_constraints=default_constraints,
             budgets_to_optimize=budgets_to_optimize,
+            budget_distribution_over_period=budget_distribution_over_period,
             model=self,  # Pass the wrapper instance itself to the BudgetOptimizer
         )
 
@@ -1830,6 +1836,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         self,
         allocation_strategy: xr.DataArray,
         noise_level: float = 0.001,
+        additional_var_names: list[str] | None = None,
     ) -> az.InferenceData:
         """Generate synthetic dataset and sample posterior predictive based on allocation.
 
@@ -1860,15 +1867,26 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         )
 
         constant_data = allocation_strategy.to_dataset(name="allocation")
+        _dataset = data_with_noise.set_index([self.date_column, *list(self.dims)])[
+            self.channel_columns
+        ].to_xarray()
 
-        return self.sample_posterior_predictive(
-            X=data_with_noise,
-            extend_idata=False,
-            include_last_observations=True,
-            var_names=[
-                "y",
-                "channel_contribution_original_scale",
-                "total_media_contribution_original_scale",
-            ],
-            progressbar=False,
-        ).merge(constant_data)
+        var_names = [
+            "y",
+            "channel_contribution",
+            "total_media_contribution_original_scale",
+        ]
+        if additional_var_names is not None:
+            var_names.extend(additional_var_names)
+
+        return (
+            self.sample_posterior_predictive(
+                X=data_with_noise,
+                extend_idata=False,
+                include_last_observations=True,
+                var_names=var_names,
+                progressbar=False,
+            )
+            .merge(constant_data)
+            .merge(_dataset)
+        )
