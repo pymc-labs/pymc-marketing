@@ -1002,6 +1002,7 @@ def new_date_ranges_to_test():
 )
 @pytest.mark.parametrize("combined", [True, False])
 @pytest.mark.parametrize("original_scale", [True, False])
+@pytest.mark.parametrize("var_names", [None, ["mu", "sigma"], ["mu", "intercept"]])
 def test_new_data_sample_posterior_predictive_method(
     generate_data,
     toy_X,
@@ -1009,6 +1010,7 @@ def test_new_data_sample_posterior_predictive_method(
     new_dates: pd.DatetimeIndex,
     combined: bool,
     original_scale: bool,
+    var_names: list[str] | None,
     request,
 ) -> None:
     """This is the method that is used in all the other methods that generate predictions."""
@@ -1020,6 +1022,7 @@ def test_new_data_sample_posterior_predictive_method(
         extend_idata=False,
         combined=combined,
         original_scale=original_scale,
+        var_names=var_names,
     )
     pd.testing.assert_index_equal(
         pd.DatetimeIndex(posterior_predictive.coords["date"]),
