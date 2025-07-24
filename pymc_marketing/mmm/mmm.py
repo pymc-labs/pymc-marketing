@@ -69,7 +69,7 @@ class BaseMMM(BaseValidateMMM):
 
     References
     ----------
-    .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
+    .. [1] Jin, Yuxue, et al. "Bayesian methods for media mix modeling with carryover and shape effects." (2017).
 
     """
 
@@ -2330,8 +2330,12 @@ class MMM(
         utility_function: UtilityFunctionType = average_response,
         constraints: Sequence[dict[str, Any]] = (),
         default_constraints: bool = True,
+        callback: bool = False,
         **minimize_kwargs,
-    ) -> tuple[DataArray, OptimizeResult]:
+    ) -> (
+        tuple[DataArray, OptimizeResult]
+        | tuple[DataArray, OptimizeResult, list[dict[str, Any]]]
+    ):
         """Optimize the given budget based on the specified utility function over a specified time period.
 
         This function optimizes the allocation of a given budget across different channels
@@ -2366,6 +2370,10 @@ class MMM(
             [{"key":...,"constraint_fun":...,"constraint_type":...}]
         default_constraints : bool, optional
             Whether to add the default sum constraint to the optimizer. Default is True.
+        callback : bool, optional
+            Whether to return callback information tracking optimization progress. When True, returns a third
+            element containing a list of dictionaries with optimization information at each iteration.
+            Default is False for backward compatibility.
         **minimize_kwargs
             Additional arguments to pass to the `BudgetOptimizer`.
 
@@ -2396,6 +2404,7 @@ class MMM(
         return allocator.allocate_budget(
             total_budget=budget,
             budget_bounds=budget_bounds,
+            callback=callback,
             **minimize_kwargs,
         )
 

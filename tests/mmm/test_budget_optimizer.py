@@ -19,6 +19,7 @@ import pandas as pd
 import pytensor
 import pytensor.tensor as pt
 import pytest
+import xarray as xr
 
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.budget_optimizer import (
@@ -471,3 +472,161 @@ def test_allocate_budget_custom_response_constraint(
     final_resp = test_fn(res.x)
 
     np.testing.assert_allclose(final_resp, target_response, rtol=1e-2)
+
+
+@pytest.mark.parametrize(
+    "callback, total_budget, expected_return_length",
+    [
+        # Basic cases
+        (False, 100, 2),  # Default behavior - no callback
+        (True, 100, 3),  # With callback
+    ],
+    ids=[
+        "default_no_callback",
+        "basic_with_callback",
+    ],
+)
+def test_callback_functionality_parametrized(
+    dummy_df,
+    dummy_idata,
+    callback,
+    total_budget,
+    expected_return_length,
+):
+    """Test callback functionality with various parameter combinations."""
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    )
+
+    mmm.build_model(X=X_dummy, y=y_dummy)
+    mmm.idata = dummy_idata
+
+    # Create BudgetOptimizer Instance
+    match = "Using default equality constraint"
+    with pytest.warns(UserWarning, match=match):
+        optimizer = BudgetOptimizer(
+            model=mmm,
+            num_periods=30,
+        )
+
+    # Run allocation
+    result = optimizer.allocate_budget(
+        total_budget=total_budget,
+        callback=callback,
+    )
+
+    # Check return length
+    assert len(result) == expected_return_length
+
+    if callback:
+        # Unpack with callback
+        optimal_budgets, opt_result, callback_info = result
+
+        # Verify callback info structure
+        assert isinstance(callback_info, list)
+        assert len(callback_info) > 0
+
+        # Check first iteration
+        first_iter = callback_info[0]
+        assert "x" in first_iter
+        assert "fun" in first_iter
+        assert "jac" in first_iter
+
+        # Check data types
+        assert isinstance(first_iter["x"], np.ndarray)
+        assert isinstance(first_iter["fun"], float | np.float64 | np.float32)
+        assert isinstance(first_iter["jac"], np.ndarray)
+
+        # Check dimensions
+        assert first_iter["x"].shape == first_iter["jac"].shape
+
+        # Check constraints (default constraint should be present)
+        assert "constraint_info" in first_iter
+
+        # Verify all iterations have same structure
+        for iter_info in callback_info:
+            assert set(iter_info.keys()) == set(first_iter.keys())
+
+    else:
+        # Unpack without callback
+        optimal_budgets, opt_result = result
+
+    # Common checks
+    assert isinstance(optimal_budgets, xr.DataArray)
+    assert hasattr(opt_result, "x")
+    assert hasattr(opt_result, "success")
+
+    # Check budget allocation sums to total
+    assert np.abs(optimal_budgets.sum().item() - total_budget) < 1e-3
+
+
+@pytest.mark.parametrize(
+    "callback",
+    [
+        False,  # Default no callback
+        True,  # With callback
+    ],
+    ids=[
+        "no_callback",
+        "with_callback",
+    ],
+)
+def test_mmm_optimize_budget_callback_parametrized(dummy_df, dummy_idata, callback):
+    """Test callback functionality through MMM.optimize_budget interface."""
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    )
+
+    mmm.build_model(X=X_dummy, y=y_dummy)
+    mmm.idata = dummy_idata
+
+    # Test the MMM interface
+    result = mmm.optimize_budget(
+        budget=100,
+        num_periods=10,
+        callback=callback,
+    )
+
+    # Check return value count
+    if callback:
+        assert len(result) == 3
+        optimal_budgets, opt_result, callback_info = result
+
+        # Validate callback info
+        assert isinstance(callback_info, list)
+        assert len(callback_info) > 0
+
+        # Each iteration should have required keys
+        for iter_info in callback_info:
+            assert "x" in iter_info
+            assert "fun" in iter_info
+            assert "jac" in iter_info
+
+        # Check that objective values are finite
+        objectives = [iter_info["fun"] for iter_info in callback_info]
+        assert all(np.isfinite(obj) for obj in objectives)
+
+    else:
+        assert len(result) == 2
+        optimal_budgets, opt_result = result
+
+    # Common validations
+    assert isinstance(optimal_budgets, xr.DataArray)
+    assert optimal_budgets.dims == ("channel",)
+    assert len(optimal_budgets) == len(mmm.channel_columns)
+
+    # Budget should sum to total (within tolerance)
+    assert np.abs(optimal_budgets.sum().item() - 100) < 1e-6
+
+    # Check optimization result
+    assert hasattr(opt_result, "success")
+    assert hasattr(opt_result, "x")
+    assert hasattr(opt_result, "fun")

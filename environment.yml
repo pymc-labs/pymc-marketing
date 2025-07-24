@@ -13,7 +13,7 @@ dependencies:
 - streamlit>=1.25.0
 - pip
 - pydantic
-- preliz
+- preliz>=0.20.0
 - pyprojroot
 - narwhals
 # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
