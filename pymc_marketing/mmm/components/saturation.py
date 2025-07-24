@@ -465,8 +465,6 @@ class RootSaturation(SaturationTransformation):
 class NoSaturation(SaturationTransformation):
     """Wrapper around linear saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.linear_saturation`.
-
     .. plot::
         :context: close-figs
 
