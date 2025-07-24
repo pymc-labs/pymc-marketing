@@ -1865,6 +1865,10 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             X=data_with_noise,
             extend_idata=False,
             include_last_observations=True,
-            var_names=["y", "channel_contribution_original_scale"],
+            var_names=[
+                "y",
+                "channel_contribution_original_scale",
+                "total_media_contribution_original_scale",
+            ],
             progressbar=False,
         ).merge(constant_data)
