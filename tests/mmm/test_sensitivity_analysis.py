@@ -389,3 +389,272 @@ def test_plot_sensitivity_analysis_integration(mock_mmm_with_plot):
     assert isinstance(ax, Axes)
 
     plt.close()  # Close the current figure
+
+
+def test_plot_sensitivity_analysis_percentage_scale(sensitivity_analysis_with_results):
+    """Test plotting with percentage scale (non-marginal)."""
+    mmm = sensitivity_analysis_with_results.mmm
+
+    # This should work (percentage=True, marginal=False)
+    ax = mmm.plot.plot_sensitivity_analysis(percentage=True, marginal=False)
+
+    assert isinstance(ax, Axes)
+    # Check that y-axis formatter is set for percentages
+    formatter = ax.yaxis.get_major_formatter()
+    sample_value = 0.1
+    formatted = formatter(sample_value, None)
+    assert "%" in formatted
+
+    plt.close()
+
+
+@pytest.mark.parametrize("sweep_type", ["multiplicative", "additive", "absolute"])
+def test_plot_sensitivity_analysis_sweep_types_xlabel(mock_mmm_with_plot, sweep_type):
+    """Test that xlabel changes based on sweep type."""
+    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
+
+    # Run sweep with specific type
+    results = sensitivity_analysis.run_sweep(
+        var_names=["predictor_1"],
+        sweep_values=np.linspace(0.5, 1.5, 5),
+        sweep_type=sweep_type,
+    )
+
+    # Add results to MMM's idata
+    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
+
+    # Plot and check xlabel
+    ax = mock_mmm_with_plot.plot.plot_sensitivity_analysis()
+
+    xlabel = ax.get_xlabel()
+    if sweep_type == "absolute":
+        assert "Absolute value of:" in xlabel
+    else:
+        assert f"{sweep_type.capitalize()} change of:" in xlabel
+
+    plt.close()
+
+
+@pytest.mark.parametrize("sweep_type", ["multiplicative", "additive"])
+def test_plot_sensitivity_analysis_reference_lines(mock_mmm_with_plot, sweep_type):
+    """Test that reference lines are drawn for multiplicative and additive sweeps."""
+    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
+
+    # Run sweep
+    results = sensitivity_analysis.run_sweep(
+        var_names=["predictor_1"],
+        sweep_values=np.linspace(0.5, 1.5, 5),
+        sweep_type=sweep_type,
+    )
+
+    # Add results to MMM's idata
+    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
+
+    # Plot
+    ax = mock_mmm_with_plot.plot.plot_sensitivity_analysis()
+
+    # Check for reference lines (dashed lines)
+    all_lines = ax.get_lines()
+    dashed_lines = [line for line in all_lines if line.get_linestyle() == "--"]
+
+    # Should have at least one dashed reference line
+    assert len(dashed_lines) >= 1
+
+    if sweep_type == "multiplicative":
+        # Should have vertical line at x=1 and possibly horizontal line at y=0
+        has_vertical_ref = any(
+            np.allclose(line.get_xdata(), [1, 1], atol=0.1) for line in dashed_lines
+        )
+        assert has_vertical_ref
+    elif sweep_type == "additive":
+        # Should have vertical line at x=0
+        has_vertical_ref = any(
+            np.allclose(line.get_xdata(), [0, 0], atol=0.1) for line in dashed_lines
+        )
+        assert has_vertical_ref
+
+    plt.close()
+
+
+def test_plot_sensitivity_analysis_y_axis_limits_positive(mock_mmm_with_plot):
+    """Test y-axis limits when all y values are positive."""
+    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
+
+    # Create a scenario with positive values by using a sweep that increases values
+    results = sensitivity_analysis.run_sweep(
+        var_names=["predictor_1"],
+        sweep_values=np.linspace(1.0, 2.0, 5),  # All > 1 should give positive uplift
+        sweep_type="multiplicative",
+    )
+
+    # Add results to MMM's idata
+    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
+
+    # Plot
+    ax = mock_mmm_with_plot.plot.plot_sensitivity_analysis()
+
+    # Check that bottom y-limit is set to 0 for positive values
+    y_mean = results.y.mean(dim=["chain", "draw"]).sum(dim="date")
+    if np.all(y_mean.values > 0):
+        y_bottom, y_top = ax.get_ylim()
+        assert y_bottom == 0
+
+    plt.close()
+
+
+def test_plot_sensitivity_analysis_y_axis_limits_negative(mock_mmm_with_plot):
+    """Test y-axis limits when all y values are negative."""
+    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
+
+    # Create a scenario with negative values by using a sweep that decreases values
+    results = sensitivity_analysis.run_sweep(
+        var_names=["predictor_1"],
+        sweep_values=np.linspace(0.1, 0.8, 5),  # All < 1 should give negative uplift
+        sweep_type="multiplicative",
+    )
+
+    # Add results to MMM's idata
+    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
+
+    # Plot
+    ax = mock_mmm_with_plot.plot.plot_sensitivity_analysis()
+
+    # Check that top y-limit is set to 0 for negative values
+    y_mean = results.y.mean(dim=["chain", "draw"]).sum(dim="date")
+    if np.all(y_mean.values < 0):
+        y_bottom, y_top = ax.get_ylim()
+        assert y_top == 0
+
+    plt.close()
+
+
+def test_plot_sensitivity_analysis_formatter_percentage_vs_absolute(mock_mmm_with_plot):
+    """Test that the y-axis formatter differs between percentage and absolute scales."""
+    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
+
+    # Run sweep
+    results = sensitivity_analysis.run_sweep(
+        var_names=["predictor_1"],
+        sweep_values=np.linspace(0.5, 1.5, 5),
+        sweep_type="multiplicative",
+    )
+
+    # Add results to MMM's idata
+    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
+
+    # Test absolute scale
+    ax1 = mock_mmm_with_plot.plot.plot_sensitivity_analysis(percentage=False)
+    formatter_abs = ax1.yaxis.get_major_formatter()
+
+    # Test percentage scale
+    ax2 = mock_mmm_with_plot.plot.plot_sensitivity_analysis(percentage=True)
+    formatter_pct = ax2.yaxis.get_major_formatter()
+
+    # Formatters should behave differently
+    # Test by applying them to a sample value
+    sample_value = 0.1
+    abs_formatted = formatter_abs(sample_value, None)
+    pct_formatted = formatter_pct(sample_value, None)
+
+    # Percentage should contain % while absolute should not
+    assert "%" in pct_formatted
+    assert "%" not in abs_formatted
+
+    plt.close(ax1.figure)
+    plt.close(ax2.figure)
+
+
+def test_plot_sensitivity_analysis_marginal_vs_uplift_labels(mock_mmm_with_plot):
+    """Test that labels and titles change between marginal and uplift plots."""
+    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
+
+    # Run sweep with enough points for marginal effects
+    results = sensitivity_analysis.run_sweep(
+        var_names=["predictor_1"],
+        sweep_values=np.linspace(0.5, 1.5, 5),
+        sweep_type="multiplicative",
+    )
+
+    # Add results to MMM's idata
+    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
+
+    # Test uplift plot
+    ax1 = mock_mmm_with_plot.plot.plot_sensitivity_analysis(marginal=False)
+    uplift_title = ax1.get_title()
+    uplift_ylabel = ax1.get_ylabel()
+
+    # Test marginal plot
+    ax2 = mock_mmm_with_plot.plot.plot_sensitivity_analysis(marginal=True)
+    marginal_title = ax2.get_title()
+    marginal_ylabel = ax2.get_ylabel()
+
+    # Titles should be different
+    assert uplift_title != marginal_title
+    assert "Sensitivity analysis" in uplift_title
+    assert "Marginal effects" in marginal_title
+
+    # Y-labels should be different
+    assert uplift_ylabel != marginal_ylabel
+    assert "uplift" in uplift_ylabel.lower()
+    assert "marginal effect" in marginal_ylabel.lower()
+
+    plt.close(ax1.figure)
+    plt.close(ax2.figure)
+
+
+def test_plot_sensitivity_analysis_hdi_in_legend(mock_mmm_with_plot):
+    """Test that HDI probability appears in legend."""
+    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
+
+    # Run sweep
+    results = sensitivity_analysis.run_sweep(
+        var_names=["predictor_1"],
+        sweep_values=np.linspace(0.5, 1.5, 5),
+        sweep_type="multiplicative",
+    )
+
+    # Add results to MMM's idata
+    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
+
+    # Test with specific HDI probability
+    hdi_prob = 0.89
+    ax = mock_mmm_with_plot.plot.plot_sensitivity_analysis(hdi_prob=hdi_prob)
+
+    # Check legend contains HDI probability
+    legend = ax.get_legend()
+    legend_texts = [text.get_text() for text in legend.get_texts()]
+
+    # Should contain the HDI percentage
+    hdi_percentage = f"{hdi_prob * 100:.0f}%"
+    assert any(hdi_percentage in text for text in legend_texts)
+
+    plt.close()
+
+
+def test_plot_sensitivity_analysis_color_consistency(mock_mmm_with_plot):
+    """Test that colors are consistent between marginal and uplift plots."""
+    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
+
+    # Run sweep
+    results = sensitivity_analysis.run_sweep(
+        var_names=["predictor_1"],
+        sweep_values=np.linspace(0.5, 1.5, 5),
+        sweep_type="multiplicative",
+    )
+
+    # Add results to MMM's idata
+    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
+
+    # Test uplift plot
+    ax1 = mock_mmm_with_plot.plot.plot_sensitivity_analysis(marginal=False)
+    uplift_line_color = ax1.get_lines()[0].get_color()
+
+    # Test marginal plot
+    ax2 = mock_mmm_with_plot.plot.plot_sensitivity_analysis(marginal=True)
+    marginal_line_color = ax2.get_lines()[0].get_color()
+
+    # Colors should be different (C0 vs C1)
+    assert uplift_line_color != marginal_line_color
+
+    plt.close(ax1.figure)
+    plt.close(ax2.figure)
