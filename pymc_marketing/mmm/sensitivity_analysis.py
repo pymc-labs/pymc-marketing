@@ -37,7 +37,7 @@ class SensitivityAnalysis:
 
     def run_sweep(
         self,
-        predictors: list[str],
+        var_names: list[str],
         sweep_values: np.ndarray,
         sweep_type: Literal[
             "multiplicative", "additive", "absolute"
@@ -47,8 +47,8 @@ class SensitivityAnalysis:
 
         Parameters
         ----------
-        predictors : list[str]
-            List of predictors to intervene on.
+        var_names : list[str]
+            List of variable names to intervene on.
         sweep_values : np.ndarray
             Array of sweep values.
         sweep_type : Literal["multiplicative", "additive", "absolute"], optional
@@ -67,7 +67,7 @@ class SensitivityAnalysis:
             raise ValueError("idata does not exist. Build the model first and fit.")
 
         # Store parameters for this run
-        self.predictors = predictors
+        self.var_names = var_names
         self.sweep_values = sweep_values
         self.sweep_type = sweep_type
 
@@ -100,7 +100,7 @@ class SensitivityAnalysis:
         )
         # Add metadata to the results
         results.attrs["sweep_type"] = self.sweep_type
-        results.attrs["predictors"] = self.predictors
+        results.attrs["var_names"] = self.var_names
 
         # Add results to the MMM's idata
         if hasattr(self.mmm.idata, "sensitivity_analysis"):
@@ -113,14 +113,14 @@ class SensitivityAnalysis:
         """Apply the intervention to the predictors."""
         X_new = self.mmm.X.copy()
         if self.sweep_type == "multiplicative":
-            for predictor in self.predictors:
-                X_new[predictor] *= sweep_value
+            for var_name in self.var_names:
+                X_new[var_name] *= sweep_value
         elif self.sweep_type == "additive":
-            for predictor in self.predictors:
-                X_new[predictor] += sweep_value
+            for var_name in self.var_names:
+                X_new[var_name] += sweep_value
         elif self.sweep_type == "absolute":
-            for predictor in self.predictors:
-                X_new[predictor] = sweep_value
+            for var_name in self.var_names:
+                X_new[var_name] = sweep_value
         else:
             raise ValueError(f"Unsupported sweep_type: {self.sweep_type}")
         return X_new

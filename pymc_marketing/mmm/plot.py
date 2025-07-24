@@ -1039,10 +1039,10 @@ class MMMPlotSuite:
 
         ax.set(title=title)
         if results.sweep_type == "absolute":
-            ax.set_xlabel(f"Absolute value of: {results.predictors}")
+            ax.set_xlabel(f"Absolute value of: {results.var_names}")
         else:
             ax.set_xlabel(
-                f"{results.sweep_type.capitalize()} change of: {results.predictors}"
+                f"{results.sweep_type.capitalize()} change of: {results.var_names}"
             )
         ax.set_ylabel(ylabel)
         plt.legend()

@@ -1449,7 +1449,7 @@ class MMM(ModelBuilder):
         Examples
         --------
         >>> mmm.sensitivity.run_sweep(
-        ...     predictors=["channel_1", "channel_2"],
+        ...     var_names=["channel_1", "channel_2"],
         ...     sweep_values=np.linspace(0.5, 2.0, 10),
         ...     sweep_type="multiplicative",
         ... )
