@@ -85,8 +85,10 @@ Create a prior with a custom transform function by registering it with
 
     from pymc_marketing.prior import register_tensor_transform
 
+
     def custom_transform(x):
-        return x ** 2
+        return x**2
+
 
     register_tensor_transform("square", custom_transform)
 
@@ -247,8 +249,10 @@ def register_tensor_transform(name: str, transform: Transform) -> None:
             register_tensor_transform,
         )
 
+
         def custom_transform(x):
-            return x ** 2
+            return x**2
+
 
         register_tensor_transform("square", custom_transform)
 
@@ -335,6 +339,7 @@ def sample_prior(
 
         from pymc_marketing.prior import sample_prior
 
+
         class CustomVariableDefinition:
             def __init__(self, dims, n: int):
                 self.dims = dims
@@ -342,7 +347,8 @@ def sample_prior(
 
             def create_variable(self, name: str) -> "TensorVariable":
                 x = pm.Normal(f"{name}_x", mu=0, sigma=1, dims=self.dims)
-                return pt.sum([x ** n for n in range(1, self.n + 1)], axis=0)
+                return pt.sum([x**n for n in range(1, self.n + 1)], axis=0)
+
 
         cubic = CustomVariableDefinition(dims=("channel",), n=3)
         coords = {"channel": ["C1", "C2", "C3"]}

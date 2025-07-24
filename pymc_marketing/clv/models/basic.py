@@ -281,7 +281,7 @@ class CLVModel(ModelBuilder):
         --------
         >>> class MyModel(ModelBuilder):
         >>>     ...
-        >>> name = './mymodel.nc'
+        >>> name = "./mymodel.nc"
         >>> imported_model = MyModel.load(name)
 
         """

@@ -132,3 +132,22 @@ def test_plot_workflow(include_changepoints: bool) -> None:
     assert isinstance(fig, plt.Figure)
     assert axes.size == 1
     assert isinstance(axes[0], plt.Axes)
+
+
+@pytest.mark.parametrize(
+    "priors, dims, expected_dims",
+    [
+        pytest.param({}, (), (), id="no-priors-no-dims"),
+        pytest.param({}, ("geo", "product"), (), id="scalar"),
+        pytest.param(
+            {"delta": Prior("Normal", dims=("geo", "changepoint"))},
+            ("geo", "product"),
+            ("geo",),
+            id="drop-broadcastable-product-dim",
+        ),
+    ],
+)
+def test_linear_trend_apply_dims(priors, dims, expected_dims) -> None:
+    trend = LinearTrend(priors=priors, dims=dims)
+
+    assert trend.non_broadcastable_dims == expected_dims

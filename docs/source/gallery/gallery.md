@@ -74,12 +74,12 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 ::::{grid} 1 2 3 3
 :gutter: 3
 
-:::{grid-item-card} MMM with time-varying parameters
+:::{grid-item-card} MMM with time-varying media baseline
 :img-top: ../gallery/images/mmm_tvp_example.png
 :link: ../notebooks/mmm/mmm_tvp_example.html
 :::
 
-:::{grid-item-card} MMM with time-varying media baseline
+:::{grid-item-card} MMM with time-varying parameters
 :img-top: ../gallery/images/mmm_time_varying_media_example.png
 :link: ../notebooks/mmm/mmm_time_varying_media_example.html
 :::
@@ -178,6 +178,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} MV-ITS Unsaturated
 :img-top: ../gallery/images/mv_its_unsaturated.png
 :link: ../notebooks/customer_choice/mv_its_unsaturated.html
+:::
+
+:::{grid-item-card} Multinomial Logit Discrete Choice
+:img-top: ../gallery/images/mnl_logit.png
+:link: ../notebooks/customer_choice/mnl_logit.html
+:::
+
+:::{grid-item-card} Nested Logit Discrete Choice
+:img-top: ../gallery/images/nested_logit.png
+:link: ../notebooks/customer_choice/nested_logit.html
 :::
 ::::
 

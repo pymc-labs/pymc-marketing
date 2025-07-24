@@ -24,6 +24,7 @@ from pytensor import tensor as pt
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
+from pymc_marketing.mmm.utils import create_index
 from pymc_marketing.prior import create_dim_handler
 
 
@@ -289,15 +290,16 @@ class LinearTrendEffect:
 
         # Create deterministic for the trend effect
         trend_dims = ("date", *self.trend.dims)  # type: ignore
+        trend_non_broadcastable_dims = ("date", *self.trend.non_broadcastable_dims)
         trend_effect = pm.Deterministic(
-            f"{self.prefix}_effect",
-            trend_effect,
-            dims=trend_dims,
+            f"{self.prefix}_effect_contribution",
+            trend_effect[create_index(trend_dims, trend_non_broadcastable_dims)],
+            dims=trend_non_broadcastable_dims,
         )
 
         # Return the trend effect
         dim_handler = create_dim_handler(("date", *mmm.dims))
-        return dim_handler(trend_effect, trend_dims)
+        return dim_handler(trend_effect, trend_non_broadcastable_dims)
 
     def set_data(self, mmm: MMM, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions.

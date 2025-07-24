@@ -25,7 +25,6 @@ import xarray as xr
 from arviz import InferenceData
 from pydantic import BaseModel, ConfigDict, Field, InstanceOf
 from pymc import Model, do
-from pymc.logprob.utils import rvs_in_graph
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.pytensorf import rewrite_pregrad
 from pytensor import clone_replace, function
@@ -34,6 +33,11 @@ from pytensor.graph import rewrite_graph, vectorize_graph
 from pytensor.graph.basic import ancestors
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray
+
+try:
+    from pymc.pytensorf import rvs_in_graph
+except ImportError:
+    from pymc.logprob.utils import rvs_in_graph
 
 from pymc_marketing.mmm.constraints import (
     Constraint,
@@ -114,7 +118,7 @@ class BudgetOptimizer(BaseModel):
     model : MMMModel
         The marketing mix model to optimize.
     response_variable : str, optional
-        The response variable to optimize. Default is "total_contributions".
+        The response variable to optimize. Default is "total_contribution".
     utility_function : UtilityFunctionType, optional
         The utility function to maximize. Default is the mean of the response distribution.
     budgets_to_optimize : xarray.DataArray, optional
@@ -139,7 +143,7 @@ class BudgetOptimizer(BaseModel):
     )
 
     response_variable: str = Field(
-        default="total_contributions",
+        default="total_contribution",
         description="The response variable to optimize.",
     )
 
@@ -195,23 +199,36 @@ class BudgetOptimizer(BaseModel):
         }
         self._budget_shape = tuple(len(coord) for coord in self._budget_coords.values())
 
-        # 4. Handle mask vs. no mask in flattening
+        # 4. Ensure that we only optmize over non-zero channels
         if self.budgets_to_optimize is None:
-            size_budgets = np.prod(self._budget_shape)
+            # If no mask is provided, we optimize all channels
+            self.budgets_to_optimize = (
+                self.mmm_model.idata.posterior.channel_contribution.mean(
+                    ("chain", "draw", "date")
+                ).astype(bool)
+            )
         else:
-            size_budgets = self.budgets_to_optimize.sum().item()
+            # If a mask is provided, ensure it has the correct shape
+            expected_mask = self.mmm_model.idata.posterior.channel_contribution.mean(
+                ("chain", "draw", "date")
+            ).astype(bool)
+
+            # Check if we are asking to optimize over channels that are not present in the model
+            if np.any(self.budgets_to_optimize.values > expected_mask.values):
+                raise ValueError(
+                    "budgets_to_optimize mask contains True values at coordinates where the model has no "
+                    "information."
+                )
+
+        size_budgets = self.budgets_to_optimize.sum().item()
 
         self._budgets_flat = pt.tensor("budgets_flat", shape=(size_budgets,))
 
-        if self.budgets_to_optimize is None:
-            # No mask case: reshape entire vector
-            self._budgets = self._budgets_flat.reshape(self._budget_shape)
-        else:
-            # Masked case: fill a zero array, then set only the True positions
-            budgets_zeros = pt.zeros(self._budget_shape)
-            budgets_zeros.name = "budgets_zeros"
-            bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
-            self._budgets = budgets_zeros[bool_mask].set(self._budgets_flat)
+        # Fill a zero array, then set only the True positions
+        budgets_zeros = pt.zeros(self._budget_shape)
+        budgets_zeros.name = "budgets_zeros"
+        bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
+        self._budgets = budgets_zeros[bool_mask].set(self._budgets_flat)
 
         # 5. Replace channel_data with budgets in the PyMC model
         self._pymc_model = self._replace_channel_data_by_optimization_variable(
@@ -311,8 +328,8 @@ class BudgetOptimizer(BaseModel):
 
         Example:
         --------
-        `BudgetOptimizer(...).extract_response_distribution("channel_contributions")`
-        returns a graph that computes `"channel_contributions"` as a function of both
+        `BudgetOptimizer(...).extract_response_distribution("channel_contribution")`
+        returns a graph that computes `"channel_contribution"` as a function of both
         the newly introduced budgets and the posterior of model parameters.
         """
         model = self._pymc_model
@@ -395,7 +412,11 @@ class BudgetOptimizer(BaseModel):
         x0: np.ndarray | None = None,
         minimize_kwargs: dict[str, Any] | None = None,
         return_if_fail: bool = False,
-    ) -> tuple[DataArray, OptimizeResult]:
+        callback: bool = False,
+    ) -> (
+        tuple[DataArray, OptimizeResult]
+        | tuple[DataArray, OptimizeResult, list[dict[str, Any]]]
+    ):
         """
         Allocate the budget based on `total_budget`, optional `budget_bounds`, and custom constraints.
 
@@ -419,6 +440,11 @@ class BudgetOptimizer(BaseModel):
             ftol=1e-9, maxiter=1_000.
         return_if_fail : bool, optional
             Return output even if optimization fails. Default is False.
+        callback : bool, optional
+            Whether to return callback information tracking optimization progress. When True, returns a third
+            element containing a list of dictionaries with optimization information at each iteration including
+            'x' (parameter values), 'fun' (objective value), 'jac' (gradient), and constraint information.
+            Default is False for backward compatibility.
 
         Returns
         -------
@@ -426,6 +452,9 @@ class BudgetOptimizer(BaseModel):
             The optimized budget allocation across channels.
         result : OptimizeResult
             The raw scipy optimization result.
+        callback_info : list[dict[str, Any]], optional
+            Only returned if callback=True. List of dictionaries containing optimization
+            information at each iteration.
 
         Raises
         ------
@@ -459,13 +488,15 @@ class BudgetOptimizer(BaseModel):
                     f"Dict approach to budget_bounds is not supported for multi-dimensional budgets. "
                     f"budget_dims = {self._budget_dims}. Pass an xarray.DataArray instead."
                 )
+
             # Flatten each channel's bounds into an array
-            budget_bounds_array = np.concatenate(
+
+            budget_bounds_array = np.broadcast_to(
                 [
                     np.asarray(budget_bounds[channel])
                     for channel in self.mmm_model.channel_columns
                 ],
-                axis=0,
+                (*self._budget_shape, 2),
             )
         elif isinstance(budget_bounds, DataArray):
             # Must have dims (*self._budget_dims, "bound")
@@ -482,22 +513,15 @@ class BudgetOptimizer(BaseModel):
             )
 
         # 2. Build the final bounds list
-        if self.budgets_to_optimize is None:
-            bounds = [(low, high) for (low, high) in budget_bounds_array.reshape(-1, 2)]
-        else:
-            # Only gather bounds for the True positions in the mask
-            bounds = [
-                (low, high)
-                for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]
-            ]
+        bounds = [
+            (low, high)
+            for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]  # type: ignore
+        ]
 
-        # 4. Determine how many budget entries we optimize
-        if self.budgets_to_optimize is None:
-            budgets_size = np.prod(self._budget_shape)
-        else:
-            budgets_size = self.budgets_to_optimize.sum().item()
+        # 3. Determine how many budget entries we optimize
+        budgets_size = self.budgets_to_optimize.sum().item()  # type: ignore
 
-        # 5. Construct the initial guess (x0) if not provided
+        # 4. Construct the initial guess (x0) if not provided
         if x0 is None:
             x0 = (np.ones(budgets_size) * (total_budget / budgets_size)).astype(
                 self._budgets_flat.type.dtype
@@ -507,32 +531,77 @@ class BudgetOptimizer(BaseModel):
         # will raise a TypeError if x0 does not have acceptable shape and/or type
         x0 = self._budgets_flat.type.filter(x0)
 
-        # 6. Run the SciPy optimizer
+        # 5. Set up callback tracking if requested
+        callback_info = []
+
+        def track_progress(xk):
+            """Track optimization progress at each iteration."""
+            # Evaluate objective and gradient
+            obj_val, grad_val = self._compiled_functions[self.utility_function][
+                "objective_and_grad"
+            ](xk)
+
+            # Store iteration info
+            iter_info = {
+                "x": np.array(xk),  # Current parameter values
+                "fun": float(obj_val),  # Objective function value (scalar)
+                "jac": np.array(grad_val),  # Gradient values
+            }
+
+            # Evaluate constraint values and gradients if available
+            if self._compiled_constraints:
+                constraint_info = []
+
+                for _, constraint in enumerate(self._compiled_constraints):
+                    # Evaluate constraint function
+                    c_val = constraint["fun"](xk)
+                    # Evaluate constraint gradient
+                    c_jac = constraint["jac"](xk)
+
+                    constraint_info.append(
+                        {
+                            "type": constraint["type"],
+                            "value": float(c_val)
+                            if np.ndim(c_val) == 0
+                            else np.array(c_val),
+                            "jac": np.array(c_jac) if c_jac is not None else None,
+                        }
+                    )
+
+                iter_info["constraint_info"] = constraint_info
+
+            callback_info.append(iter_info)
+
+        # 5. Run the SciPy optimizer
+        scipy_callback = track_progress if callback else None
+
         result = minimize(
             fun=self._compiled_functions[self.utility_function]["objective_and_grad"],
             x0=x0,
             jac=True,
             bounds=bounds,
             constraints=self._compiled_constraints,
+            callback=scipy_callback,
             **minimize_kwargs,
         )
 
-        # 7. Process results
+        # 6. Process results
         if result.success or return_if_fail:
-            if self.budgets_to_optimize is None:
-                # Reshape the entire optimized solution
-                optimal_budgets = np.reshape(result.x, self._budget_shape)
-            else:
-                # Fill zeros, then place the solution in masked positions
-                optimal_budgets = np.zeros_like(
-                    self.budgets_to_optimize.values, dtype=float
-                )
-                optimal_budgets[self.budgets_to_optimize.values] = result.x
+            # Fill zeros, then place the solution in masked positions
+            optimal_budgets = np.zeros_like(
+                self.budgets_to_optimize.values,  # type: ignore
+                dtype=float,
+            )
+            optimal_budgets[self.budgets_to_optimize.values] = result.x  # type: ignore
 
             optimal_budgets = DataArray(
                 optimal_budgets, dims=self._budget_dims, coords=self._budget_coords
             )
-            return optimal_budgets, result
+
+            if callback:
+                return optimal_budgets, result, callback_info
+            else:
+                return optimal_budgets, result
 
         else:
             raise MinimizeException(f"Optimization failed: {result.message}")

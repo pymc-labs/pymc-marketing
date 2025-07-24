@@ -19,6 +19,7 @@ import pandas as pd
 import pytensor
 import pytensor.tensor as pt
 import pytest
+import xarray as xr
 
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.budget_optimizer import (
@@ -58,6 +59,37 @@ def dummy_df():
     return df_kwargs, df, y
 
 
+@pytest.fixture(scope="module")
+def dummy_idata(dummy_df) -> az.InferenceData:
+    df_kwargs, df, y = dummy_df
+
+    return az.from_dict(
+        posterior={
+            "saturation_lam": [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]],
+            "saturation_beta": [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]],
+            "adstock_alpha": [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]],
+            "channel_contribution": np.array(
+                [
+                    [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                    [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                ]
+            ),  # dims: chain, draw, channel, date
+        },
+        coords={
+            "chain": [0, 1],
+            "draw": [0, 1],
+            "channel": df_kwargs["channel_columns"],
+            "date": [0, 1],
+        },
+        dims={
+            "saturation_lam": ["chain", "draw", "channel"],
+            "saturation_beta": ["chain", "draw", "channel"],
+            "adstock_alpha": ["chain", "draw", "channel"],
+            "channel_contribution": ["chain", "draw", "channel", "date"],
+        },
+    )
+
+
 @pytest.mark.parametrize(
     argnames="total_budget, budget_bounds, x0, parameters, minimize_kwargs, expected_optimal, expected_response",
     argvalues=[
@@ -79,6 +111,12 @@ def dummy_df():
                         [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]]
                     )  # dims: chain, draw, channel
                 },
+                "channel_contribution": np.array(
+                    [
+                        [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                        [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                    ]
+                ),  # dims: chain, draw, channel, date
             },
             None,
             {"channel_1": 54.78357587906867, "channel_2": 45.21642412093133},
@@ -103,6 +141,12 @@ def dummy_df():
                         [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]]
                     )  # dims: chain, draw, channel
                 },
+                "channel_contribution": np.array(
+                    [
+                        [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                        [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                    ]
+                ),  # dims: chain, draw, channel, date
             },
             None,
             {"channel_1": 54.78357587906867, "channel_2": 45.21642412093133},
@@ -131,6 +175,12 @@ def dummy_df():
                         [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]]
                     )  # dims: chain, draw, channel
                 },
+                "channel_contribution": np.array(
+                    [
+                        [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                        [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                    ]
+                ),  # dims: chain, draw, channel, date
             },
             {
                 "method": "SLSQP",
@@ -163,6 +213,12 @@ def dummy_df():
                     )  # dims: chain, draw, channel
                 },
                 "channels": ["channel_1", "channel_2"],
+                "channel_contribution": np.array(
+                    [
+                        [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                        [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                    ]
+                ),  # dims: chain, draw, channel, date
             },
             None,
             {"channel_1": 0.0, "channel_2": 7.94e-13},
@@ -185,6 +241,7 @@ def test_allocate_budget(
     expected_optimal,
     expected_response,
     dummy_df,
+    dummy_idata,
 ):
     df_kwargs, X_dummy, y_dummy = dummy_df
 
@@ -196,14 +253,7 @@ def test_allocate_budget(
 
     mmm.build_model(X=X_dummy, y=y_dummy)
 
-    # Only these parameters are needed for the optimizer
-    mmm.idata = az.from_dict(
-        posterior={
-            "saturation_lam": parameters["saturation_params"]["lam"],
-            "saturation_beta": parameters["saturation_params"]["beta"],
-            "adstock_alpha": parameters["adstock_params"]["alpha"],
-        }
-    )
+    mmm.idata = dummy_idata
 
     # Create BudgetOptimizer Instance
     match = "Using default equality constraint"
@@ -229,7 +279,9 @@ def test_allocate_budget(
 
 
 @patch("pymc_marketing.mmm.budget_optimizer.minimize")
-def test_allocate_budget_custom_minimize_args(minimize_mock, dummy_df) -> None:
+def test_allocate_budget_custom_minimize_args(
+    minimize_mock, dummy_df, dummy_idata
+) -> None:
     df_kwargs, X_dummy, y_dummy = dummy_df
 
     mmm = MMM(
@@ -238,13 +290,8 @@ def test_allocate_budget_custom_minimize_args(minimize_mock, dummy_df) -> None:
         **df_kwargs,
     )
     mmm.build_model(X=X_dummy, y=y_dummy)
-    mmm.idata = az.from_dict(
-        posterior={
-            "saturation_lam": [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]],
-            "saturation_beta": [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]],
-            "adstock_alpha": [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]],
-        }
-    )
+    mmm.idata = dummy_idata
+
     match = "Using default equality constraint"
     with pytest.warns(UserWarning, match=match):
         optimizer = BudgetOptimizer(
@@ -259,7 +306,9 @@ def test_allocate_budget_custom_minimize_args(minimize_mock, dummy_df) -> None:
         "options": {"ftol": 1e-8, "maxiter": 1_002},
     }
 
-    with pytest.raises(ValueError, match="conflicting sizes for dimension"):
+    with pytest.raises(
+        ValueError, match="NumPy boolean array indexing assignment cannot assign"
+    ):
         optimizer.allocate_budget(
             total_budget, budget_bounds, minimize_kwargs=minimize_kwargs
         )
@@ -312,7 +361,7 @@ def test_allocate_budget_custom_minimize_args(minimize_mock, dummy_df) -> None:
     ],
 )
 def test_allocate_budget_infeasible_constraints(
-    total_budget, budget_bounds, parameters, custom_constraints, dummy_df
+    total_budget, budget_bounds, parameters, custom_constraints, dummy_df, dummy_idata
 ):
     df_kwargs, X_dummy, y_dummy = dummy_df
 
@@ -325,18 +374,12 @@ def test_allocate_budget_infeasible_constraints(
     mmm.build_model(X=X_dummy, y=y_dummy)
 
     # Load necessary parameters into the model
-    mmm.idata = az.from_dict(
-        posterior={
-            "saturation_lam": parameters["saturation_params"]["lam"],
-            "saturation_beta": parameters["saturation_params"]["beta"],
-            "adstock_alpha": parameters["adstock_params"]["alpha"],
-        }
-    )
+    mmm.idata = dummy_idata
 
     # Instantiate BudgetOptimizer with custom constraints
     optimizer = BudgetOptimizer(
         model=mmm,
-        response_variable="total_contributions",
+        response_variable="total_contribution",
         default_constraints=False,  # Avoid default equality constraints
         custom_constraints=custom_constraints,
         num_periods=30,
@@ -354,7 +397,7 @@ def mean_response_eq_constraint_fun(
     Enforces mean_response(budgets_sym) = target_response,
     i.e. returns (mean_resp - target_response).
     """
-    resp_dist = optimizer.extract_response_distribution("total_contributions")
+    resp_dist = optimizer.extract_response_distribution("total_contribution")
     mean_resp = pt.mean(_check_samples_dimensionality(resp_dist))
     return mean_resp - target_response
 
@@ -377,7 +420,7 @@ def minimize_budget_utility(samples, budgets):
     ids=["budget=10->resp=5", "budget=50->resp=10"],
 )
 def test_allocate_budget_custom_response_constraint(
-    dummy_df, total_budget, target_response
+    dummy_df, total_budget, target_response, dummy_idata
 ):
     """
     Checks that a custom constraint can enforce the model's mean response
@@ -394,13 +437,7 @@ def test_allocate_budget_custom_response_constraint(
     mmm.build_model(X_dummy, y_dummy)
 
     # Provide some dummy posterior samples
-    mmm.idata = az.from_dict(
-        posterior={
-            "saturation_lam": np.array([[[0.1, 0.2]]]),
-            "saturation_beta": np.array([[[0.5, 1.0]]]),
-            "adstock_alpha": np.array([[[0.5, 0.7]]]),
-        }
-    )
+    mmm.idata = dummy_idata
 
     def constraint_wrapper(budgets_sym, total_budget_sym, optimizer):
         return mean_response_eq_constraint_fun(
@@ -417,7 +454,7 @@ def test_allocate_budget_custom_response_constraint(
 
     optimizer = BudgetOptimizer(
         model=mmm,
-        response_variable="total_contributions",
+        response_variable="total_contribution",
         utility_function=minimize_budget_utility,
         default_constraints=False,
         custom_constraints=custom_constraints,
@@ -429,9 +466,167 @@ def test_allocate_budget_custom_response_constraint(
         budget_bounds=None,
     )
 
-    resp_dist_sym = optimizer.extract_response_distribution("total_contributions")
+    resp_dist_sym = optimizer.extract_response_distribution("total_contribution")
     resp_mean_sym = pt.mean(_check_samples_dimensionality(resp_dist_sym))
     test_fn = pytensor.function([optimizer._budgets_flat], resp_mean_sym)
     final_resp = test_fn(res.x)
 
     np.testing.assert_allclose(final_resp, target_response, rtol=1e-2)
+
+
+@pytest.mark.parametrize(
+    "callback, total_budget, expected_return_length",
+    [
+        # Basic cases
+        (False, 100, 2),  # Default behavior - no callback
+        (True, 100, 3),  # With callback
+    ],
+    ids=[
+        "default_no_callback",
+        "basic_with_callback",
+    ],
+)
+def test_callback_functionality_parametrized(
+    dummy_df,
+    dummy_idata,
+    callback,
+    total_budget,
+    expected_return_length,
+):
+    """Test callback functionality with various parameter combinations."""
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    )
+
+    mmm.build_model(X=X_dummy, y=y_dummy)
+    mmm.idata = dummy_idata
+
+    # Create BudgetOptimizer Instance
+    match = "Using default equality constraint"
+    with pytest.warns(UserWarning, match=match):
+        optimizer = BudgetOptimizer(
+            model=mmm,
+            num_periods=30,
+        )
+
+    # Run allocation
+    result = optimizer.allocate_budget(
+        total_budget=total_budget,
+        callback=callback,
+    )
+
+    # Check return length
+    assert len(result) == expected_return_length
+
+    if callback:
+        # Unpack with callback
+        optimal_budgets, opt_result, callback_info = result
+
+        # Verify callback info structure
+        assert isinstance(callback_info, list)
+        assert len(callback_info) > 0
+
+        # Check first iteration
+        first_iter = callback_info[0]
+        assert "x" in first_iter
+        assert "fun" in first_iter
+        assert "jac" in first_iter
+
+        # Check data types
+        assert isinstance(first_iter["x"], np.ndarray)
+        assert isinstance(first_iter["fun"], float | np.float64 | np.float32)
+        assert isinstance(first_iter["jac"], np.ndarray)
+
+        # Check dimensions
+        assert first_iter["x"].shape == first_iter["jac"].shape
+
+        # Check constraints (default constraint should be present)
+        assert "constraint_info" in first_iter
+
+        # Verify all iterations have same structure
+        for iter_info in callback_info:
+            assert set(iter_info.keys()) == set(first_iter.keys())
+
+    else:
+        # Unpack without callback
+        optimal_budgets, opt_result = result
+
+    # Common checks
+    assert isinstance(optimal_budgets, xr.DataArray)
+    assert hasattr(opt_result, "x")
+    assert hasattr(opt_result, "success")
+
+    # Check budget allocation sums to total
+    assert np.abs(optimal_budgets.sum().item() - total_budget) < 1e-3
+
+
+@pytest.mark.parametrize(
+    "callback",
+    [
+        False,  # Default no callback
+        True,  # With callback
+    ],
+    ids=[
+        "no_callback",
+        "with_callback",
+    ],
+)
+def test_mmm_optimize_budget_callback_parametrized(dummy_df, dummy_idata, callback):
+    """Test callback functionality through MMM.optimize_budget interface."""
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    )
+
+    mmm.build_model(X=X_dummy, y=y_dummy)
+    mmm.idata = dummy_idata
+
+    # Test the MMM interface
+    result = mmm.optimize_budget(
+        budget=100,
+        num_periods=10,
+        callback=callback,
+    )
+
+    # Check return value count
+    if callback:
+        assert len(result) == 3
+        optimal_budgets, opt_result, callback_info = result
+
+        # Validate callback info
+        assert isinstance(callback_info, list)
+        assert len(callback_info) > 0
+
+        # Each iteration should have required keys
+        for iter_info in callback_info:
+            assert "x" in iter_info
+            assert "fun" in iter_info
+            assert "jac" in iter_info
+
+        # Check that objective values are finite
+        objectives = [iter_info["fun"] for iter_info in callback_info]
+        assert all(np.isfinite(obj) for obj in objectives)
+
+    else:
+        assert len(result) == 2
+        optimal_budgets, opt_result = result
+
+    # Common validations
+    assert isinstance(optimal_budgets, xr.DataArray)
+    assert optimal_budgets.dims == ("channel",)
+    assert len(optimal_budgets) == len(mmm.channel_columns)
+
+    # Budget should sum to total (within tolerance)
+    assert np.abs(optimal_budgets.sum().item() - 100) < 1e-6
+
+    # Check optimization result
+    assert hasattr(opt_result, "success")
+    assert hasattr(opt_result, "x")
+    assert hasattr(opt_result, "fun")
