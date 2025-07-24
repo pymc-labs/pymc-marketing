@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from copy import deepcopy
 from typing import Annotated, Any, Literal
 
@@ -46,6 +46,10 @@ from pymc_marketing.mmm.components.saturation import (
 )
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
+from pymc_marketing.mmm.lift_test import (
+    add_lift_measurements_to_likelihood_from_saturation,
+    scale_lift_measurements,
+)
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.tvp import infer_time_index
@@ -94,6 +98,9 @@ class MMM(ModelBuilder):
         Whether to use time-varying effects for media channels.
     dims : tuple | None
         Additional dimensions for the model.
+    scaling : Scaling | dict | None
+        Scaling methods to be used for the target variable and the marketing channels.
+        Defaults to max scaling for both.
     model_config : dict | None
         Configuration settings for the model.
     sampler_config : dict | None
@@ -869,7 +876,7 @@ class MMM(ModelBuilder):
         Examples
         --------
         >>> model.add_original_scale_contribution_variable(
-        >>>     var=["channel_contribution", "total_media_contribution", "likelihood"]
+        >>>     var=["channel_contribution", "total_media_contribution", "y"]
         >>> )
         """
         self._validate_model_was_built()
@@ -1356,85 +1363,6 @@ class MMM(ModelBuilder):
 
         return model
 
-    def fit(
-        self,
-        X: pd.DataFrame,
-        y: pd.Series | np.ndarray | None = None,
-        progressbar: bool | None = None,
-        random_seed: RandomState | None = None,
-        **kwargs: Any,
-    ) -> az.InferenceData:
-        """Fit a model using the data passed as a parameter.
-
-        Parameters
-        ----------
-        X : array-like | array, shape (n_obs, n_features)
-            The training input samples. If scikit-learn is available, array-like, otherwise array.
-        y : array-like | array, shape (n_obs,)
-            The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
-        progressbar : bool, optional
-            Specifies whether the fit progress bar should be displayed. Defaults to True.
-        random_seed : RandomState, optional
-            Provides the sampler with an initial random seed for reproducible samples.
-        **kwargs : dict
-            Additional keyword arguments passed to the sampler.
-
-        Returns
-        -------
-        az.InferenceData
-            The inference data from the fitted model.
-
-        Examples
-        --------
-        >>> model = MyModel()
-        >>> idata = model.fit(X, y, progressbar=True)
-        """
-        if not isinstance(X, pd.DataFrame):
-            raise ValueError("X must be a pandas DataFrame")
-        if not isinstance(y, pd.Series):
-            raise ValueError("y must be a pandas Series")
-
-        if not hasattr(self, "model"):
-            self.build_model(
-                X=X,
-                y=y,  # type: ignore
-            )
-
-        # Ensure sampler_config is initialized as an empty dict if None
-        self.sampler_config = self.sampler_config or {}
-
-        sampler_kwargs = create_sample_kwargs(
-            self.sampler_config,
-            progressbar,
-            random_seed,
-            **kwargs,
-        )  # type: ignore
-
-        with self.model:
-            idata = pm.sample(**sampler_kwargs)
-
-        self.idata = idata  # type: ignore
-
-        # (3) Add X,y to a custom group in the InferenceData
-        # Combine X and y into one DataFrame then convert to xarray
-        df_fit = pd.concat([X, y], axis=1)
-
-        # To xarray:
-        fit_data_xr = df_fit.to_xarray()
-
-        # It's possible ArviZ might raise a UserWarning about "fit_data"
-        # not matching a recognized group. We'll just ignore that.
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
-            )
-            self.idata.add_groups({"fit_data": fit_data_xr})
-
-        self.set_idata_attrs(self.idata)
-        return self.idata  # type: ignore
-
     def sample_posterior_predictive(
         self,
         X: pd.DataFrame | None = None,  # type: ignore
@@ -1504,6 +1432,242 @@ class MMM(ModelBuilder):
             )
 
         return posterior_predictive_samples
+
+    def _make_channel_transform(
+        self, df_lift_test: pd.DataFrame
+    ) -> Callable[[np.ndarray], np.ndarray]:
+        """Create a function for transforming the channel data into the same scale as in the model.
+
+        Parameters
+        ----------
+        df_lift_test : pd.DataFrame
+            Lift test measurements.
+
+        Returns
+        -------
+        Callable[[np.ndarray], np.ndarray]
+            The function for scaling the channel data.
+        """
+        # The transformer will be passed a np.ndarray of data corresponding to this index.
+        index_cols = [*list(self.dims), "channel"]
+        # We reconstruct the input dataframe following the transformations performed within
+        # `lift_test.scale_channel_lift_measurements()``.
+        input_df = (
+            df_lift_test.loc[:, [*index_cols, "x", "delta_x"]]
+            .set_index(index_cols, append=True)
+            .stack()
+            .unstack(level=-2)
+            .reindex(self.channel_columns, axis=1)  # type: ignore
+            .fillna(0)
+        )
+
+        def channel_transform(input: np.ndarray) -> np.ndarray:
+            """Transform lift test channel data to the same scale as in the model."""
+            # reconstruct the df corresponding to the input np.ndarray.
+            reconstructed = (
+                pd.DataFrame(data=input, index=input_df.index, columns=input_df.columns)
+                .stack()
+                .unstack(level=-2)
+            )
+            return (
+                (
+                    # Scale the data according to the scaler coords.
+                    reconstructed.to_xarray() / self.scalers._channel
+                )
+                .to_dataframe()
+                .fillna(0)
+                .stack()
+                .unstack(level=-2)
+                .loc[input_df.index, :]
+                .values
+            )
+
+        # Finally return the scaled data as a np.ndarray corresponding to the input index order.
+        return channel_transform
+
+    def _make_target_transform(
+        self, df_lift_test: pd.DataFrame
+    ) -> Callable[[np.ndarray], np.ndarray]:
+        """Create a function for transforming the target measurements into the same scale as in the model.
+
+        Parameters
+        ----------
+        df_lift_test : pd.DataFrame
+            Lift test measurements.
+
+        Returns
+        -------
+        Callable[[np.ndarray], np.ndarray]
+            The function for scaling the target data.
+        """
+        # These are the same order as in the original lift test measurements.
+        index_cols = [*list(self.dims), "channel"]
+        input_idx = df_lift_test.set_index(index_cols, append=True).index
+
+        def target_transform(input: np.ndarray) -> np.ndarray:
+            """Transform lift test measurements and sigma to the same scale as in the model."""
+            # Reconstruct the input df column with the correct index.
+            reconstructed = pd.DataFrame(
+                data=input, index=input_idx, columns=["target"]
+            )
+            return (
+                (
+                    # Scale the measurements.
+                    reconstructed.to_xarray() / self.scalers._target
+                )
+                .to_dataframe()
+                .loc[input_idx, :]
+                .values
+            )
+
+        # Finally, return the scaled measurements as a np.ndarray corresponding to
+        # the input index order.
+        return target_transform
+
+    def add_lift_test_measurements(
+        self,
+        df_lift_test: pd.DataFrame,
+        dist: type[pm.Distribution] = pm.Gamma,
+        name: str = "lift_measurements",
+    ) -> None:
+        """Add lift tests to the model.
+
+        The model for the difference of a channel's saturation curve is created
+        from `x` and `x + delta_x` for each channel. This random variable is
+        then conditioned using the empirical lift, `delta_y`, and `sigma` of the lift test
+        with the specified distribution `dist`.
+
+        The pseudo-code for the lift test is as follows:
+
+        .. code-block:: python
+
+            model_estimated_lift = saturation_curve(x + delta_x) - saturation_curve(x)
+            empirical_lift = delta_y
+            dist(abs(model_estimated_lift), sigma=sigma, observed=abs(empirical_lift))
+
+
+        The model has to be built before adding the lift tests.
+
+        Parameters
+        ----------
+        df_lift_test : pd.DataFrame
+            DataFrame with lift test results with at least the following columns:
+                * `DIM_NAME`: dimension name. One column per dimension in `mmm.dims`.
+                * `channel`: channel name. Must be present in `channel_columns`.
+                * `x`: x axis value of the lift test.
+                * `delta_x`: change in x axis value of the lift test.
+                * `delta_y`: change in y axis value of the lift test.
+                * `sigma`: standard deviation of the lift test.
+        dist : pm.Distribution, optional
+            The distribution to use for the likelihood, by default pm.Gamma
+        name : str, optional
+            The name of the likelihood of the lift test contribution(s),
+            by default "lift_measurements". Name change required if calling
+            this method multiple times.
+
+        Raises
+        ------
+        RuntimeError
+            If the model has not been built yet.
+        KeyError
+            If the 'channel' column or any of the model dimensions is not present
+            in df_lift_test.
+
+        Examples
+        --------
+        Build the model first then add lift test measurements.
+
+        .. code-block:: python
+
+            import pandas as pd
+            import numpy as np
+
+            from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+
+            from pymc_marketing.mmm.multidimensional import MMM
+
+            model = MMM(
+                date_column="date",
+                channel_columns=["x1", "x2"],
+                target_column="target",
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
+                yearly_seasonality=2,
+                dims=("geo",),
+            )
+
+            X = pd.DataFrame(
+                {
+                    "date": np.tile(
+                        pd.date_range(start="2025-01-01", end="2025-05-01", freq="W"), 2
+                    ),
+                    "x1": np.random.rand(34),
+                    "x2": np.random.rand(34),
+                    "target": np.random.rand(34),
+                    "geo": 17 * ["FIN"] + 17 * ["SWE"],
+                }
+            )
+            y = X["target"]
+
+            model.build_model(X.drop(columns=["target"]), y)
+
+            df_lift_test = pd.DataFrame(
+                {
+                    "channel": ["x1", "x1"],
+                    "geo": ["FIN", "SWE"],
+                    "x": [1, 1],
+                    "delta_x": [0.1, 0.2],
+                    "delta_y": [0.1, 0.1],
+                    "sigma": [0.1, 0.1],
+                }
+            )
+
+            model.add_lift_test_measurements(df_lift_test)
+
+        """
+        if not hasattr(self, "model"):
+            raise RuntimeError(
+                "The model has not been built yet. Please, build the model first."
+            )
+
+        if "channel" not in df_lift_test.columns:
+            raise KeyError(
+                "The 'channel' column is required to map the lift measurements to the model."
+            )
+
+        for dim in self.dims:
+            if dim not in df_lift_test.columns:
+                raise KeyError(
+                    f"The {dim} column is required to map the lift measurements to the model."
+                )
+
+        # Function to scale "delta_y", and "sigma" to same scale as target in model.
+        target_transform = self._make_target_transform(df_lift_test)
+
+        # Function to scale "x" and "delta_x" to the same scale as their respective channels.
+        channel_transform = self._make_channel_transform(df_lift_test)
+
+        df_lift_test_scaled = scale_lift_measurements(
+            df_lift_test=df_lift_test,
+            channel_col="channel",
+            channel_columns=self.channel_columns,  # type: ignore
+            channel_transform=channel_transform,
+            target_transform=target_transform,
+            dim_cols=list(self.dims),
+        )
+        # This is coupled with the name of the
+        # latent process Deterministic
+        time_varying_var_name = (
+            "media_latent_process" if self.time_varying_media else None
+        )
+        add_lift_measurements_to_likelihood_from_saturation(
+            df_lift_test=df_lift_test_scaled,
+            saturation=self.saturation,
+            time_varying_var_name=time_varying_var_name,
+            model=self.model,
+            dist=dist,
+            name=name,
+        )
 
 
 def create_sample_kwargs(
@@ -1602,14 +1766,52 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
     def optimize_budget(
         self,
         budget: float | int,
-        budget_bounds: xr.DataArray | dict[str, tuple[float, float]] | None = None,
+        budget_bounds: xr.DataArray | None = None,
         response_variable: str = "total_media_contribution_original_scale",
         utility_function: UtilityFunctionType = average_response,
         constraints: Sequence[dict[str, Any]] = (),
         default_constraints: bool = True,
+        budgets_to_optimize: xr.DataArray | None = None,
+        budget_distribution_over_period: xr.DataArray | None = None,
+        callback: bool = False,
         **minimize_kwargs,
-    ) -> tuple[xr.DataArray, OptimizeResult]:
-        """Optimize the budget allocation for the model."""
+    ) -> (
+        tuple[xr.DataArray, OptimizeResult]
+        | tuple[xr.DataArray, OptimizeResult, list[dict[str, Any]]]
+    ):
+        """Optimize the budget allocation for the model.
+
+        Parameters
+        ----------
+        budget : float | int
+            Total budget to allocate.
+        budget_bounds : xr.DataArray | None
+            Budget bounds per channel.
+        response_variable : str
+            Response variable to optimize.
+        utility_function : UtilityFunctionType
+            Utility function to maximize.
+        constraints : Sequence[dict[str, Any]]
+            Custom constraints for the optimizer.
+        default_constraints : bool
+            Whether to add default constraints.
+        budgets_to_optimize : xr.DataArray | None
+            Mask defining which budgets to optimize.
+        budget_distribution_over_period : xr.DataArray | None
+            Distribution factors for budget allocation over time. Should have dims ("date", *budget_dims)
+            where date dimension has length num_periods. Values along date dimension should sum to 1 for
+            each combination of other dimensions. If None, budget is distributed evenly across periods.
+        callback : bool
+            Whether to return callback information tracking optimization progress.
+        **minimize_kwargs
+            Additional arguments for the optimizer.
+
+        Returns
+        -------
+        tuple
+            Optimal budgets and optimization result. If callback=True, also returns
+            a list of dictionaries with optimization information at each iteration.
+        """
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
         allocator = BudgetOptimizer(
@@ -1618,12 +1820,15 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             response_variable=response_variable,
             custom_constraints=constraints,
             default_constraints=default_constraints,
+            budgets_to_optimize=budgets_to_optimize,
+            budget_distribution_over_period=budget_distribution_over_period,
             model=self,  # Pass the wrapper instance itself to the BudgetOptimizer
         )
 
         return allocator.allocate_budget(
             total_budget=budget,
             budget_bounds=budget_bounds,
+            callback=callback,
             **minimize_kwargs,
         )
 
@@ -1631,6 +1836,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         self,
         allocation_strategy: xr.DataArray,
         noise_level: float = 0.001,
+        additional_var_names: list[str] | None = None,
     ) -> az.InferenceData:
         """Generate synthetic dataset and sample posterior predictive based on allocation.
 
@@ -1661,11 +1867,26 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         )
 
         constant_data = allocation_strategy.to_dataset(name="allocation")
+        _dataset = data_with_noise.set_index([self.date_column, *list(self.dims)])[
+            self.channel_columns
+        ].to_xarray()
 
-        return self.sample_posterior_predictive(
-            X=data_with_noise,
-            extend_idata=False,
-            include_last_observations=True,
-            var_names=["y", "channel_contribution_original_scale"],
-            progressbar=False,
-        ).merge(constant_data)
+        var_names = [
+            "y",
+            "channel_contribution",
+            "total_media_contribution_original_scale",
+        ]
+        if additional_var_names is not None:
+            var_names.extend(additional_var_names)
+
+        return (
+            self.sample_posterior_predictive(
+                X=data_with_noise,
+                extend_idata=False,
+                include_last_observations=True,
+                var_names=var_names,
+                progressbar=False,
+            )
+            .merge(constant_data)
+            .merge(_dataset)
+        )

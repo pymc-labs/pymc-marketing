@@ -525,6 +525,7 @@ def scale_channel_lift_measurements(
     channel_col: str,
     channel_columns: list[str],
     transform: Callable[[np.ndarray], np.ndarray],
+    dim_cols: list[str] | None = None,
 ) -> pd.DataFrame:
     """Scale the lift measurements for a specific channel.
 
@@ -542,6 +543,8 @@ def scale_channel_lift_measurements(
         a subset of these values.
     transform : Callable[[np.ndarray], np.ndarray]
         Function to scale the lift measurements.
+    dim_cols : list[str], optional
+        Column names for model dimensions.
 
     Returns
     -------
@@ -549,13 +552,16 @@ def scale_channel_lift_measurements(
         DataFrame with the scaled lift measurements.
 
     """
-    # DataFrame with MultiIndex (RangeIndex, channel_col)
+    # either [*dim_cols , channel_col], or [channel_col]
+    index_cols: list[str] = (dim_cols if dim_cols else []) + [channel_col]
+    # DataFrame with MultiIndex (RangeIndex, index_cols),
+    # where dim_cols  is optional.
     # columns: x, delta_x
-    df_original = df_lift_test.loc[:, [channel_col, "x", "delta_x"]].set_index(
-        channel_col, append=True
+    df_original = df_lift_test.loc[:, [*index_cols, "x", "delta_x"]].set_index(
+        index_cols, append=True
     )
 
-    # DataFrame with MultiIndex (RangeIndex, (x, delta_x))
+    # DataFrame with MultiIndex (RangeIndex, (x, *dim_cols , delta_x))
     # columns: channel_columns values
     df_to_rescale = (
         df_original.pipe(_swap_columns_and_last_index_level)
@@ -572,7 +578,7 @@ def scale_channel_lift_measurements(
     return (
         df_rescaled.pipe(_swap_columns_and_last_index_level)
         .loc[df_original.index, :]
-        .reset_index(channel_col)
+        .reset_index(index_cols)
     )
 
 
@@ -610,6 +616,7 @@ def scale_lift_measurements(
     channel_columns: list[str | int],
     channel_transform: Callable[[np.ndarray], np.ndarray],
     target_transform: Callable[[np.ndarray], np.ndarray],
+    dim_cols: list[str] | None = None,
 ) -> pd.DataFrame:
     """Scale the DataFrame with lift test results to be used in the model.
 
@@ -629,6 +636,8 @@ def scale_lift_measurements(
         Function to scale the lift measurements.
     target_transform : Callable[[np.ndarray], np.ndarray]
         Function to scale the target.
+    dim_cols : list[str], optional
+        Names of the columns for channel dimensions
 
     Returns
     -------
@@ -643,6 +652,7 @@ def scale_lift_measurements(
         channel_col=channel_col,
         channel_columns=channel_columns,  # type: ignore
         transform=channel_transform,
+        dim_cols=dim_cols,
     )
     df_target_scaled = scale_target_for_lift_measurements(
         df_lift_test["delta_y"],
