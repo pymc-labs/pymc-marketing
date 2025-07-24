@@ -88,6 +88,13 @@ class MissingDataParameter(Exception):
         super().__init__(msg)
 
 
+def is_leading_dim(idx_dims, dims) -> bool:
+    """Check if the idx_dims are a leading dimension of the dims."""
+    if len(idx_dims) > len(dims):
+        return False
+    return dims[: len(idx_dims)] == idx_dims
+
+
 class Transformation:
     """Base class for adstock and saturation functions.
 
@@ -338,9 +345,22 @@ class Transformation:
         return tuple(list({str(dim): None for dims in parameter_dims for dim in dims}))
 
     def _create_distributions(
-        self, dims: Dims | None = None
+        self,
+        dims: Dims | None = None,
+        idx: dict[str, pt.TensorLike] | None = None,
     ) -> dict[str, TensorVariable]:
-        dim_handler = create_dim_handler(dims or self._infer_output_core_dims())
+        if idx is not None and not is_leading_dim(idx.keys(), dims):
+            raise ValueError(
+                "The idx dimensions must be a leading dimension of the dims only."
+            )
+
+        dims = dims or self.combined_dims
+        if idx is not None:
+            n_idx_dims = len(idx)
+            dummy_dims = tuple(f"DUMMY_{i}" for i in range(n_idx_dims))
+            dims = (*dummy_dims, *dims)
+
+        dim_handler = create_dim_handler(dims)
 
         def create_variable(parameter_name: str, variable_name: str) -> TensorVariable:
             dist = self.function_priors[parameter_name]
@@ -566,7 +586,12 @@ class Transformation:
             hdi_kwargs=hdi_kwargs,
         )
 
-    def apply(self, x: pt.TensorLike, dims: Dims | None = None) -> TensorVariable:
+    def apply(
+        self,
+        x: pt.TensorLike,
+        dims: Dims | None = None,
+        idx: dict[str, pt.TensorLike] | None = None,
+    ) -> TensorVariable:
         """Call within a model context.
 
         Used internally of the MMM to apply the transformation to the data.
@@ -599,7 +624,7 @@ class Transformation:
                 transformed_data = transformation.apply(data, dims="channel")
 
         """
-        kwargs = self._create_distributions(dims=dims)
+        kwargs = self._create_distributions(dims=dims, idx=idx)
         return self.function(x, **kwargs)
 
 

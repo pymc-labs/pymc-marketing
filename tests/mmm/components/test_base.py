@@ -25,6 +25,7 @@ from pymc_marketing.mmm.components.base import (
     ParameterPriorException,
     Transformation,
     create_registration_meta,
+    is_leading_dim,
 )
 from pymc_marketing.mmm.components.saturation import TanhSaturation
 from pymc_marketing.prior import Prior, VariableFactory
@@ -477,3 +478,18 @@ def test_transform_sample_curve_with_variable_factory():
 
     curve = saturation.sample_curve(prior, 10)
     assert curve.dims == ("chain", "draw", "x", "dim_a")
+
+
+@pytest.mark.parametrize(
+    "idx_dims, dims, expected",
+    [
+        (("geo",), ("geo", "channel"), True),
+        (("channel",), ("geo", "channel"), False),
+        (("geo", "channel"), ("geo", "channel"), True),
+    ],
+)
+def test_is_leading_dim(idx_dims, dims, expected) -> None:
+    if expected:
+        assert is_leading_dim(idx_dims, dims)
+    else:
+        assert not is_leading_dim(idx_dims, dims)
