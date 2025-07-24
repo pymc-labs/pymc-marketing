@@ -200,6 +200,12 @@ class FakeMMM:
         self.control_columns = ["control1"]
         self.dims = ["region"]
 
+        # Add a fake adstock object with l_max attribute
+        class FakeAdstock:
+            l_max = 7  # Example adstock lag
+
+        self.adstock = FakeAdstock()
+
 
 def test_create_zero_dataset():
     # Create a fake model
@@ -212,7 +218,9 @@ def test_create_zero_dataset():
 
     # Check results
     assert isinstance(result, pd.DataFrame)
-    assert len(result) == 10 * 2  # 10 days by 2 regions
+    # With l_max=7, the function adds 7 days to the end date
+    # So we get 17 days (Feb 1 to Feb 17) * 2 regions = 34 rows
+    assert len(result) == 17 * 2  # 17 days by 2 regions
     assert list(result.columns) == list(model.X.columns)
     assert np.all(result[model.channel_columns] == 0)
     assert np.all(result[model.control_columns] == 0)

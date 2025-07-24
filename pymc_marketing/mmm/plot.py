@@ -695,12 +695,8 @@ class MMMPlotSuite:
         return fig, axes
 
     def saturation_curves_scatter(
-        self,
-        channel_contribution: str | None = None,
-        additional_dims: list[str] | None = None,
-        additional_combinations: list[tuple] | None = None,
-        **kwargs,
-    ) -> tuple[plt.Figure, np.ndarray]:
+        self, original_scale: bool = False, **kwargs
+    ) -> tuple[Figure, NDArray[Axes]]:
         """
         Plot scatter plots of channel contributions vs. channel data.
 
@@ -733,12 +729,9 @@ class MMMPlotSuite:
             DeprecationWarning,
             stacklevel=2,
         )
-        return self.saturation_scatterplot(
-            channel_contribution=channel_contribution,
-            additional_dims=additional_dims,
-            additional_combinations=additional_combinations,
-            **kwargs,
-        )
+        # Note: channel_contribution, additional_dims, and additional_combinations
+        # are not used by saturation_scatterplot, so we don't pass them
+        return self.saturation_scatterplot(original_scale=original_scale, **kwargs)
 
     def budget_allocation(
         self,
