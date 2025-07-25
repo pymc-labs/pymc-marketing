@@ -18,7 +18,6 @@ import warnings
 from collections.abc import Sequence
 from typing import Any, ClassVar, Protocol, runtime_checkable
 
-import arviz as az
 import numpy as np
 import pytensor.tensor as pt
 import xarray as xr
@@ -27,17 +26,10 @@ from pydantic import BaseModel, ConfigDict, Field, InstanceOf
 from pymc import Model, do
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.pytensorf import rewrite_pregrad
-from pytensor import clone_replace, function
+from pytensor import function
 from pytensor.compile.sharedvalue import SharedVariable, shared
-from pytensor.graph import rewrite_graph, vectorize_graph
-from pytensor.graph.basic import ancestors
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray
-
-try:
-    from pymc.pytensorf import rvs_in_graph
-except ImportError:
-    from pymc.logprob.utils import rvs_in_graph
 
 from pymc_marketing.mmm.constraints import (
     Constraint,
@@ -45,6 +37,7 @@ from pymc_marketing.mmm.constraints import (
     compile_constraints_for_scipy,
 )
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
+from pymc_marketing.pytensor_utils import extract_response_distribution
 
 
 def optimizer_xarray_builder(value, **kwargs):
@@ -484,56 +477,11 @@ class BudgetOptimizer(BaseModel):
         returns a graph that computes `"channel_contribution"` as a function of both
         the newly introduced budgets and the posterior of model parameters.
         """
-        model = self._pymc_model
-        # Convert InferenceData to a sample-major xarray
-        posterior = az.extract(self.mmm_model.idata).transpose("sample", ...)  # type: ignore
-
-        # The PyMC variable to extract
-        response_var = model[response_variable]
-
-        # Identify which free RVs are needed to compute `response_var`
-        free_rvs = set(model.free_RVs)
-        needed_rvs = [
-            rv for rv in ancestors([response_var], blockers=free_rvs) if rv in free_rvs
-        ]
-        placeholder_replace_dict = {
-            model[rv.name]: pt.tensor(name=rv.name, shape=rv.type.shape, dtype=rv.dtype)
-            for rv in needed_rvs
-        }
-
-        [response_var] = clone_replace(
-            [response_var],
-            replace=placeholder_replace_dict,
+        return extract_response_distribution(
+            pymc_model=self._pymc_model,
+            idata=self.mmm_model.idata,
+            response_variable=response_variable,
         )
-
-        if rvs_in_graph([response_var]):
-            raise RuntimeError("RVs found in the extracted graph, this is likely a bug")
-
-        # Cleanup graph
-        response_var = rewrite_graph(response_var, include=("canonicalize", "ShapeOpt"))
-
-        # Replace placeholders with actual posterior samples
-        replace_dict = {}
-        for placeholder in placeholder_replace_dict.values():
-            replace_dict[placeholder] = pt.constant(
-                posterior[placeholder.name].astype(placeholder.dtype),
-                name=placeholder.name,
-            )
-
-        # Vectorize across samples
-        response_distribution = vectorize_graph(response_var, replace=replace_dict)
-
-        # Final cleanup
-        response_distribution = rewrite_graph(
-            response_distribution,
-            include=(
-                "useless",
-                "local_eager_useless_unbatched_blockwise",
-                "local_useless_unbatched_blockwise",
-            ),
-        )
-
-        return response_distribution
 
     def _compile_objective_and_grad(self):
         """Compile the objective function and its gradient, both referencing `self._budgets_flat`."""
