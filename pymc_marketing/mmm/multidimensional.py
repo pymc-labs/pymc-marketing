@@ -1963,7 +1963,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         # Calculate the cutoff date
         cutoff_date = data_with_noise[
             self.date_column
-        ].max() - _convert_frequency_to_timedelta(self.adstock.l_max - 1, inferred_freq)
+        ].max() - _convert_frequency_to_timedelta(self.adstock.l_max, inferred_freq)
 
         # Zero out channel values after the cutoff date
         data_with_noise.loc[

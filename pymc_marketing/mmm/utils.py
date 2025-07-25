@@ -287,7 +287,7 @@ def create_zero_dataset(
         # Add the adstock lag to the end date
         if hasattr(model.adstock, "l_max"):
             end_date += _convert_frequency_to_timedelta(
-                model.adstock.l_max - 1, inferred_freq
+                model.adstock.l_max, inferred_freq
             )
 
     new_dates = pd.date_range(
