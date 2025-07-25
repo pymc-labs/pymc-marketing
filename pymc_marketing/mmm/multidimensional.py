@@ -1895,15 +1895,18 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             ]
 
             # Recreate budget_distribution with new date coordinates
-            budget_distribution = xr.DataArray(
+            _budget_distribution = xr.DataArray(
                 budget_distribution.values,
                 dims=budget_distribution.dims,
                 coords=new_coords,
             )
+        else:
+            # If dates are already in the correct format, use as is
+            _budget_distribution = budget_distribution
 
         # Multiply by budget distribution (xarray will automatically align dimensions)
         # Only matching channels and dates will be multiplied
-        data_xr_multiplied = data_xr_stacked * budget_distribution
+        data_xr_multiplied = data_xr_stacked * (_budget_distribution * self.num_periods)
 
         # Convert back to DataFrame format
         # First unstack the channel dimension
@@ -1960,7 +1963,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         # Calculate the cutoff date
         cutoff_date = data_with_noise[
             self.date_column
-        ].max() - _convert_frequency_to_timedelta(self.adstock.l_max, inferred_freq)
+        ].max() - _convert_frequency_to_timedelta(self.adstock.l_max - 1, inferred_freq)
 
         # Zero out channel values after the cutoff date
         data_with_noise.loc[
