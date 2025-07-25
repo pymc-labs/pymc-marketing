@@ -1722,7 +1722,10 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         self.end_date = end_date
         # Compute the number of periods to allocate budget for
         self.zero_data = create_zero_dataset(
-            model=self.model_class, start_date=start_date, end_date=end_date
+            model=self.model_class,
+            start_date=start_date,
+            end_date=end_date,
+            include_carryover=False,
         )
         self.num_periods = len(self.zero_data[self.model_class.date_column].unique())
         # Adding missing dependencies for compatibility with BudgetOptimizer
@@ -1957,7 +1960,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         # Calculate the cutoff date
         cutoff_date = data_with_noise[
             self.date_column
-        ].max() - _convert_frequency_to_timedelta(self.adstock.l_max, inferred_freq)
+        ].max() - _convert_frequency_to_timedelta(self.adstock.l_max - 1, inferred_freq)
 
         # Zero out channel values after the cutoff date
         data_with_noise.loc[

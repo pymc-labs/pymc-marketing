@@ -31,7 +31,7 @@ from pymc_marketing.mmm.multidimensional import (
 def sample_multidim_data():
     """Create sample data with country dimension for testing."""
     np.random.seed(42)
-    n_obs_per_country = 12
+    n_obs_per_country = 12  # days of data per country
     countries = ["A", "B"]
     dates = pd.date_range(start="2023-01-01", periods=n_obs_per_country, freq="W-MON")
 
@@ -128,11 +128,36 @@ def test_extract_response_distribution_vs_sample_response(
     print(f"Start date: {start_date}")
     print(f"End date: {end_date}")
 
+    # Create a BudgetOptimizer instance to mimic what happens internally
+    from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+
+    budget_optimizer = BudgetOptimizer(
+        num_periods=optimizable_model.num_periods,
+        model=optimizable_model,
+        response_variable="total_media_contribution_original_scale",
+    )
+    # Compile and evaluate to get the response values
+    response_fun = budget_optimizer.extract_response_distribution(
+        "total_media_contribution_original_scale"
+    )
+
+    eval_response_values = function([budget_optimizer._budgets_flat], response_fun)
+    response_fun_values = eval_response_values(allocation_strategy.values.flatten())
+
+    print("\n--- extract_response_distribution results ---")
+
+    mean_from_extract = np.mean(response_fun_values)
+    std_from_extract = np.std(response_fun_values)
+
+    print(f"Mean total contribution: {mean_from_extract:.2f}")
+    print(f"Std total contribution: {std_from_extract:.2f}")
+
     # Method 1: Use sample_response_distribution
     response_data = optimizable_model.sample_response_distribution(
         allocation_strategy=allocation_strategy,
         include_carryover=True,
         include_last_observations=False,
+        noise_level=1e-17,
     )
 
     # Extract the total media contribution
@@ -150,29 +175,6 @@ def test_extract_response_distribution_vs_sample_response(
 
     print(f"Mean total contribution: {mean_from_samples:.2f}")
     print(f"Std total contribution: {std_from_samples:.2f}")
-
-    # Create a BudgetOptimizer instance to mimic what happens internally
-    from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
-
-    budget_optimizer = BudgetOptimizer(
-        num_periods=optimizable_model.num_periods,
-        model=optimizable_model,
-        response_variable="total_media_contribution_original_scale",
-    )
-    # Compile and evaluate to get the response values
-    response_values = budget_optimizer.extract_response_distribution(
-        "total_media_contribution_original_scale"
-    )
-    eval_response_values = function([budget_optimizer._budgets_flat], response_values)
-    response_values = eval_response_values(allocation_strategy.values.flatten())
-
-    print("\n--- extract_response_distribution results ---")
-
-    mean_from_extract = np.mean(response_values)
-    std_from_extract = np.std(response_values)
-
-    print(f"Mean total contribution: {mean_from_extract:.2f}")
-    print(f"Std total contribution: {std_from_extract:.2f}")
 
     # Compare the results
     print("\n--- Comparison ---")
@@ -199,7 +201,7 @@ def test_extract_response_distribution_vs_sample_response(
     assert std_rel_diff < 1.0, f"Std relative difference too large: {std_rel_diff:.2f}%"
 
     # Additional checks
-    assert np.all(np.isfinite(response_values)), (
+    assert np.all(np.isfinite(response_fun_values)), (
         "extract_response_distribution produced non-finite values"
     )
     assert np.all(np.isfinite(total_contribution_samples.values)), (
@@ -208,12 +210,11 @@ def test_extract_response_distribution_vs_sample_response(
 
     # Both should have the same number of posterior samples
     expected_samples = 200  # 100 draws * 2 chains
-    assert response_values.shape[0] == expected_samples, (
+    assert response_fun_values.shape[0] == expected_samples, (
         f"Expected {expected_samples} samples from extract_response_distribution"
     )
-    assert (
-        total_contribution_samples.shape[0] * total_contribution_samples.shape[1]
-        == expected_samples
-    ), "Sample count mismatch"
+    assert total_contribution_samples.shape[0] == expected_samples, (
+        "Sample count mismatch"
+    )
 
     print("\n✓ Both methods produce consistent results!")
