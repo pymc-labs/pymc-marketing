@@ -274,3 +274,17 @@ class TestCLVModel:
             model = CLVModelTest(model_config=old_model_config)
 
         assert model.model_config == {"x": Prior("Normal", mu=0, sigma=1)}
+
+    def test_validate_cols_reports_all_missing_columns(self):
+        """Test _validate_cols raises a single ValueError listing all missing columns."""
+        required = ("customer_id", "frequency", "recency", "T")
+        data = pd.DataFrame(
+            {
+                "customer_id": [1, 2, 3],
+                "frequency": [1, 2, 3],
+            }
+        )
+        expected_error_msg = "The following required columns are missing from the input data: ['T', 'recency']"
+
+        with pytest.raises(ValueError, match=expected_error_msg):
+            CLVModel._validate_cols(data=data, required_cols=required)
