@@ -75,20 +75,22 @@ class CLVModel(ModelBuilder):
         must_be_unique: Sequence[str] = (),
         must_be_homogenous: Sequence[str] = (),
     ):
-        existing_columns = set(data.columns)
+        missing = set(required_cols).difference(data.columns)
+        if missing:
+            raise ValueError(
+                "The following required columns are missing from the "
+                f"input data: {sorted(list(missing))}"
+            )
+
         n = data.shape[0]
 
-        for required_col in required_cols:
-            if required_col not in existing_columns:
-                raise ValueError(f"Required column {required_col} missing")
-            if required_col in must_be_unique:
-                if data[required_col].nunique() != n:
-                    raise ValueError(f"Column {required_col} has duplicate entries")
-            if required_col in must_be_homogenous:
-                if data[required_col].nunique() != 1:
-                    raise ValueError(
-                        f"Column {required_col} has  non-homogeneous entries"
-                    )
+        for col in required_cols:
+            if col in must_be_unique:
+                if data[col].nunique() != n:
+                    raise ValueError(f"Column {col} has duplicate entries")
+            if col in must_be_homogenous:
+                if data[col].nunique() != 1:
+                    raise ValueError(f"Column {col} has non-homogeneous entries")
 
     def __repr__(self) -> str:
         """Representation of the model."""
