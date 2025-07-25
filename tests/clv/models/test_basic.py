@@ -284,7 +284,7 @@ class TestCLVModel:
                 "frequency": [1, 2, 3],
             }
         )
-        expected_error_msg = "The following required columns are missing from the input data: ['T', 'recency']"
+        expected_error_msg = r"The following required columns are missing from the input data: \['T', 'recency'\]"
 
         with pytest.raises(ValueError, match=expected_error_msg):
             CLVModel._validate_cols(data=data, required_cols=required)
