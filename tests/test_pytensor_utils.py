@@ -97,6 +97,10 @@ def test_extract_response_distribution_vs_sample_response(
     )  # Start one week after last training date
     end_date = start_date + pd.Timedelta(weeks=8)  # 8 weeks of future data
 
+    print(f"Start date: {start_date}")
+    print(f"End date: {end_date}")
+    print(f"Number of periods: {(end_date - start_date) // 7}")
+
     # Wrap the model in MultiDimensionalBudgetOptimizerWrapper
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_multidim_mmm,
@@ -136,6 +140,19 @@ def test_extract_response_distribution_vs_sample_response(
         model=optimizable_model,
         response_variable="total_media_contribution_original_scale",
     )
+    # Compile channel data
+    response_fun_inputs = budget_optimizer.extract_response_distribution("channel_data")
+
+    input_fun = function([budget_optimizer._budgets_flat], response_fun_inputs)
+    response_fun_inputs_values = input_fun(allocation_strategy.values.flatten())
+    print(f"Shape of channel data: {response_fun_inputs_values.shape}")
+    print("Dimension must match: (N_periods, N_country, N_channels)")
+    assert response_fun_inputs_values.shape == (
+        optimizable_model.num_periods + optimizable_model.adstock.l_max,
+        len(optimizable_model.idata.posterior.coords["country"]),
+        len(optimizable_model.idata.posterior.coords["channel"]),
+    ), "Dimension mismatch"
+
     # Compile and evaluate to get the response values
     response_fun = budget_optimizer.extract_response_distribution(
         "total_media_contribution_original_scale"
@@ -160,6 +177,19 @@ def test_extract_response_distribution_vs_sample_response(
         noise_level=1e-17,
     )
 
+    # Get the channels information
+    data_values_for_model = xr.concat(
+        [response_data[channel] for channel in optimizable_model.channel_columns],
+        dim=pd.Index(optimizable_model.channel_columns, name="channel"),
+    ).transpose(..., "channel")
+    print(f"Shape of channel data: {data_values_for_model.shape}")
+    print("Dimension must match: (N_periods, N_country, N_channels)")
+    assert data_values_for_model.shape == (
+        optimizable_model.num_periods + optimizable_model.adstock.l_max,
+        len(optimizable_model.idata.posterior.coords["country"]),
+        len(optimizable_model.idata.posterior.coords["channel"]),
+    ), "Dimension mismatch"
+
     # Extract the total media contribution
     total_contribution_samples = response_data[
         "total_media_contribution_original_scale"
@@ -175,6 +205,59 @@ def test_extract_response_distribution_vs_sample_response(
 
     print(f"Mean total contribution: {mean_from_samples:.2f}")
     print(f"Std total contribution: {std_from_samples:.2f}")
+
+    # Data inputs checks
+    ## Calculate the diff between them per day.
+    diff = response_fun_inputs_values - data_values_for_model.values
+    print(f"Diff shape: {diff.shape}")
+    ##assume dimension is (N_periods, 2, 2) pick the country 0 and channel 0
+    diff_country_0_channel_0 = diff[:, 0, 0]
+    print(f"Diff country 0 channel 0: {diff_country_0_channel_0}")
+
+    # printing each day for channel 0 and country 0 on response_fun_inputs_values, and data_values_for_model
+    print(f"Response fun inputs values: {response_fun_inputs_values[:, 0, 0]}")
+    print(f"Data values for model: {data_values_for_model.values[:, 0, 0]}")
+
+    print(f"Number of periods: {optimizable_model.num_periods}")
+    print(f"Max adstock lag: {optimizable_model.adstock.l_max}")
+    print(
+        f"Number of periods + max adstock lag: {optimizable_model.num_periods + optimizable_model.adstock.l_max}"
+    )
+
+    ## Assert that response_fun_inputs_values[:, 0, 0] have length equal
+    ## to optimizable_model.num_periods + optimizable_model.adstock.l_max
+
+    ## Assert that data_values_for_model.values[:, 0, 0] have length equal
+    ## to optimizable_model.num_periods + optimizable_model.adstock.l_max
+    assert (
+        len(response_fun_inputs_values[:, 0, 0])
+        == optimizable_model.num_periods + optimizable_model.adstock.l_max
+    ), "Response fun inputs values length mismatch"
+    assert (
+        len(data_values_for_model.values[:, 0, 0])
+        == optimizable_model.num_periods + optimizable_model.adstock.l_max
+    ), "Data values for model length mismatch"
+
+    ## Assert that the count of values with zero its equal to optimizable_model.adstock.l_max
+    assert (
+        np.sum(response_fun_inputs_values[:, 0, 0] == 0)
+        == optimizable_model.adstock.l_max
+    ), "Posterior predictive dataset: Number of values with zero mismatch"
+    assert (
+        np.sum(data_values_for_model.values[:, 0, 0] == 0)
+        == optimizable_model.adstock.l_max
+    ), "Pytensor extraction function:Number of values with zero mismatch"
+
+    ## Assert that both are the same
+    assert np.allclose(response_fun_inputs_values, data_values_for_model.values), (
+        "Data inputs are not the same across the two methods"
+    )
+
+    # Calculate expected number of periods correctly using pd.date_range
+    expected_periods = len(pd.date_range(start=start_date, end=end_date, freq="W-MON"))
+    assert optimizable_model.num_periods == expected_periods, (
+        f"Number of periods mismatch: {optimizable_model.num_periods} != {expected_periods}"
+    )
 
     # Compare the results
     print("\n--- Comparison ---")

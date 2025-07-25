@@ -1960,11 +1960,11 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         # Calculate the cutoff date
         cutoff_date = data_with_noise[
             self.date_column
-        ].max() - _convert_frequency_to_timedelta(self.adstock.l_max - 1, inferred_freq)
+        ].max() - _convert_frequency_to_timedelta(self.adstock.l_max, inferred_freq)
 
         # Zero out channel values after the cutoff date
         data_with_noise.loc[
-            data_with_noise[self.date_column] >= cutoff_date,
+            data_with_noise[self.date_column] > cutoff_date,
             self.channel_columns,
         ] = 0
 
@@ -1975,7 +1975,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         allocation_strategy: xr.DataArray,
         noise_level: float = 0.001,
         additional_var_names: list[str] | None = None,
-        include_last_observations: bool = True,
+        include_last_observations: bool = False,
         include_carryover: bool = True,
         budget_distribution_over_period: xr.DataArray | None = None,
     ) -> az.InferenceData:
