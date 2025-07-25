@@ -81,7 +81,7 @@ class CLVModel(ModelBuilder):
                 "The following required columns are missing from the "
                 f"input data: {sorted(list(missing))}"
             )
-        
+
         n = data.shape[0]
 
         for col in required_cols:
