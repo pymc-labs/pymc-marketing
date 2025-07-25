@@ -2336,21 +2336,23 @@ class MMM(
         tuple[DataArray, OptimizeResult]
         | tuple[DataArray, OptimizeResult, list[dict[str, Any]]]
     ):
-        """Optimize the given budget based on the specified utility function over a specified time period (DEPRECATED).
+        """Optimize the given budget based on the specified utility function over a specified time period.
 
-        DEPRECATED: This function optimizes the allocation of a given budget across different channels
-        to maximize the response, considering adstock and saturation effects. It scales the
-        budget and budget bounds, performs the optimization, and generates a synthetic dataset
-        for posterior predictive sampling.
+        .. deprecated:: 0.0.3
+            This function optimizes the allocation of a given budget across different channels
+           to maximize the response, considering adstock and saturation effects. It scales the
+           budget and budget bounds, performs the optimization, and generates a synthetic dataset
+           for posterior predictive sampling.
 
-        The function first scales the budget and budget bounds using the maximum scale
-        of the channel transformer. It then uses the `BudgetOptimizer` to allocate the
-        budget, and creates a synthetic dataset based on the optimal allocation. Finally,
-        it performs posterior predictive sampling on the synthetic dataset.
+            The function first scales the budget and budget bounds using the maximum scale
+            of the channel transformer. It then uses the `BudgetOptimizer` to allocate the
+            budget, and creates a synthetic dataset based on the optimal allocation. Finally,
+            it performs posterior predictive sampling on the synthetic dataset.
 
-        **Important**: When generating the posterior predicive distribution for the target with the optimized budget,
-        we are setting the control variables to zero! This is done because in many situations we do not have all the
-        control variables in the future (e.g. outlier control, special events).
+            **Important**: When generating the posterior predicive distribution for the target with the
+            optimized budget, we are setting the control variables to zero! This is done because in many
+            situations we do not have all the control variables in the future (e.g. outlier control,
+            special events).
 
         Parameters
         ----------
