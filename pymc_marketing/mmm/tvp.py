@@ -93,11 +93,11 @@ import numpy.typing as npt
 import pandas as pd
 import pytensor.tensor as pt
 from pymc.distributions.shape_utils import Dims
+from pymc_extras.prior import Prior
 
 from pymc_marketing.constants import DAYS_IN_YEAR
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.hsgp import CovFunc, SoftPlusHSGP
-from pymc_marketing.prior import Prior
 
 
 def _create_hsgp_instance(

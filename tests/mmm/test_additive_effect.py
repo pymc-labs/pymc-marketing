@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.additive_effect import (
     FourierEffect,
@@ -22,7 +23,6 @@ from pymc_marketing.mmm.additive_effect import (
 )
 from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.linear_trend import LinearTrend
-from pymc_marketing.prior import Prior
 
 
 @pytest.fixture(scope="function")
