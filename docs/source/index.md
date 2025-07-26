@@ -201,7 +201,7 @@ See our example notebooks for [saturated markets](https://www.pymc-marketing.io/
 ### Customer Lifetime Value Modeling in Marine Industry
 <iframe width="800" height="450" src="https://www.youtube.com/embed/u3oMWgStIZY" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 
-For more videos, webinars and resources, check out the [PyMC Labs YouTube channel](https://www.youtube.com/@PyMC-Labs).
+For more videos, webinars and resources, check out the [PyMC Labs YouTube channel](https://www.youtube.com/@PyMCLabs).
 
 ---
 

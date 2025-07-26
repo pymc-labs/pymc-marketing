@@ -145,7 +145,8 @@ class TestModifiedBetaGeoModel:
         data_invalid = self.data.drop(columns=missing_column)
 
         with pytest.raises(
-            ValueError, match=f"Required column {missing_column} missing"
+            ValueError,
+            match=rf"The following required columns are missing from the input data: \['{missing_column}'\]",
         ):
             ModifiedBetaGeoModel(data=data_invalid)
 

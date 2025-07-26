@@ -5,15 +5,16 @@ channels:
   - defaults
 dependencies:
 # Base dependencies
+- python=3.12
 - arviz>=0.13.0
 - matplotlib>=3.5.1
 - numpy>=1.17
-- scipy>=1.11
+- scipy>=1.15
 - pandas
 - streamlit>=1.25.0
 - pip
 - pydantic
-- preliz
+- preliz>=0.20.0
 - pyprojroot
 # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
 - pymc>=5.23.0
@@ -48,8 +49,8 @@ dependencies:
 - ruff>=0.1.4
 # test
 - lifetimes>=0.11.3
-- pytest>=7.0.1
-- pytest-cov>=3.0.0
+- pytest>=7.4.0
+- pytest-cov==3.0.0
 - pytest-mock
 - blas
 - mlflow

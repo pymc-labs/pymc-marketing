@@ -1,0 +1,124 @@
+model:
+  class: pymc_marketing.mmm.multidimensional.MMM
+  kwargs:
+    date_column: "date"
+    target_column: "y"
+    channel_columns: ["x1", "x2"]
+    control_columns: ["event_1", "event_2"]
+    dims: ["geo"]
+    yearly_seasonality: 2
+    scaling:
+      class: pymc_marketing.mmm.scaling.Scaling
+      kwargs:
+        channel:
+          method: "max"
+          dims: []
+        target:
+          method: "max"
+          dims: []
+
+    # --- media transformations ---------------------------------------
+    adstock:
+      class: pymc_marketing.mmm.GeometricAdstock
+      kwargs:
+        priors:
+          alpha:
+            distribution: "Beta"
+            alpha: 2
+            beta: 3
+            dims: "channel"
+        l_max: 8
+
+    saturation:
+      class: pymc_marketing.mmm.LogisticSaturation
+      kwargs:
+        priors:
+          beta:
+            distribution: "Gamma"
+            mu: [0.35, 0.35]
+            sigma: [0.1, 0.1]
+            dims: "channel"
+          lam:
+            distribution: "Gamma"
+            mu: 3
+            sigma: 2
+            dims: "channel"
+
+
+    # --- model (hierarchical) priors ---------------------------------
+    model_config:
+      intercept:
+        distribution: Normal
+        mu: 0.5
+        sigma: 0.5
+        dims: geo
+
+      gamma_control:
+        distribution: Normal
+        mu: 0
+        sigma: 0.5
+        dims: control
+
+      gamma_fourier:
+        distribution: Laplace
+        mu: 0
+        b:
+          distribution: HalfNormal
+          sigma: 0.2
+        dims: [geo, fourier_mode]
+
+      likelihood:
+        distribution: TruncatedNormal
+        lower: 0
+        sigma:
+          distribution: HalfNormal
+          sigma:
+            distribution: HalfNormal
+            sigma: 1.5
+        dims: [date, geo]
+
+# ----------------------------------------------------------------------
+# Effects with complex priors
+effects:
+  - class: pymc_marketing.mmm.additive_effect.LinearTrendEffect
+    kwargs:
+      trend:
+        class: pymc_marketing.mmm.LinearTrend
+        kwargs:
+          n_changepoints: 5
+          include_intercept: false
+          dims: ["geo"]  # Keep as array format
+          priors:
+            delta:
+              distribution: "Laplace"
+              mu: 0
+              b:
+                distribution: "HalfNormal"
+                sigma: 0.2
+              dims: ["changepoint", "geo"]
+      prefix: "trend"
+
+# ----------------------------------------------------------------------
+# (optional) sampler options you plan to forward to pm.sample():
+    sampler_config:
+      tune: 1000
+      draws: 200
+      chains: 8
+      random_seed: 42
+      target_accept: 0.90
+      nuts_sampler: "nutpie"
+
+# ----------------------------------------------------------------------
+# (optional) idata from a previous sample
+idata_path: "multidimensional_model.nc"
+
+original_scale_vars:
+  - channel_contribution
+  - intercept_contribution
+  - y
+
+# ----------------------------------------------------------------------
+# (optional) Data paths
+# data:
+#   X_path: "data/X.csv"
+#   y_path: "data/y.csv"
