@@ -18,9 +18,9 @@ import pandas as pd
 import pymc as pm
 import pytest
 from arviz import InferenceData, from_dict
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models.basic import CLVModel
-from pymc_marketing.prior import Prior
 from tests.conftest import mock_fit_MAP, mock_sample, set_model_fit
 
 

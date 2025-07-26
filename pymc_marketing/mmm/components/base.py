@@ -34,6 +34,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import InstanceOf
 from pymc.distributions.shape_utils import Dims
+from pymc_extras.prior import Prior, VariableFactory, create_dim_handler
 from pytensor import tensor as pt
 from pytensor.tensor.variable import TensorVariable
 
@@ -44,7 +45,6 @@ from pymc_marketing.plot import (
     plot_hdi,
     plot_samples,
 )
-from pymc_marketing.prior import Prior, VariableFactory, create_dim_handler
 
 # "x" for saturation, "time since exposure" for adstock
 NON_GRID_NAMES: frozenset[str] = frozenset({"x", "time since exposure"})
@@ -220,7 +220,7 @@ class Transformation:
         .. code-block:: python
 
             from pymc_marketing.mmm.components.base import Transformation
-            from pymc_marketing.prior import Prior
+            from pymc_extras.prior import Prior
 
 
             class MyTransformation(Transformation):
