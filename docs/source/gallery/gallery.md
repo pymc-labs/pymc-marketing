@@ -30,6 +30,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_multidimensional_example.png
 :link: ../notebooks/mmm/mmm_multidimensional_example.html
 :::
+
+:::{grid-item-card} Sensitivity Analysis and Marginal Effects
+:img-top: ../gallery/images/mmm_sensitivity_analysis.png
+:link: ../notebooks/mmm/mmm_sensitivity_analysis.html
+:::
 ::::
 
 ### Budget Allocation
@@ -110,6 +115,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_counterfactuals.png
 :link: ../notebooks/mmm/mmm_counterfactuals.html
 :::
+
 ::::
 
 ### Case Studies
