@@ -69,7 +69,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     --------
     .. code-block:: python
 
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
         from pymc_marketing.clv import ModifiedBetaGeoModel, rfm_summary
 
         # customer identifiers and purchase datetimes

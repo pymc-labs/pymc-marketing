@@ -19,10 +19,10 @@ import pandas as pd
 import pymc as pm
 import pytest
 from pymc.distributions.censored import CensoredRV
+from pymc_extras.prior import Prior
 from scipy import stats
 
 from pymc_marketing.clv import ShiftedBetaGeoModelIndividual
-from pymc_marketing.prior import Prior
 
 
 class TestShiftedBetaGeoModel:
@@ -83,17 +83,26 @@ class TestShiftedBetaGeoModel:
         # Create a version of the data that's missing the 'customer_id' column
         data_invalid = data.drop(columns="customer_id")
 
-        with pytest.raises(ValueError, match="Required column customer_id missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+        ):
             ShiftedBetaGeoModelIndividual(data=data_invalid)
 
         data_invalid = data.drop(columns="t_churn")
 
-        with pytest.raises(ValueError, match="Required column t_churn missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['t_churn'\]",
+        ):
             ShiftedBetaGeoModelIndividual(data=data_invalid)
 
         data_invalid = data.drop(columns="T")
 
-        with pytest.raises(ValueError, match="Required column T missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['T'\]",
+        ):
             ShiftedBetaGeoModelIndividual(data=data_invalid)
 
     def test_model_repr(self, default_model_config):

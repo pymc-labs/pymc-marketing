@@ -5,7 +5,7 @@ requires = ["hatchling<2", "hatch-fancy-pypi-readme"]
 [project]
 name = "pymc-marketing"
 description = "Marketing Statistical Models in PyMC"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { file = "LICENSE" }
 dynamic = ["version", "readme"]
 maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.com" }]
@@ -13,9 +13,9 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: Apache Software License",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering",
@@ -31,14 +31,15 @@ dependencies = [
     "pandas",
     "pydantic>=2.1.0",
     # NOTE: Used as minimum pymc version with test.yml `OLDEST_PYMC_VERSION`
-    "pymc>=5.23.0",
+    "pymc>=5.24.1",
     "pytensor>=2.31.3",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "xarray>=2024.1.0",
     "xarray-einstats>=0.5.1",
     "pyprojroot",
-    "preliz>=0.8.0",
+    "pymc-extras>=0.4.0",
+    "preliz>=0.20.0",
 ]
 
 [project.optional-dependencies]
@@ -70,12 +71,14 @@ docs = [
     "networkx",
     "dowhy",
     "osqp<1.0.0,>=0.6.2",
+    "preliz>=0.20.0",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
     "blackjax",
     "nutpie",
     "numpyro",
+    "jax<0.7.0", # related to https://github.com/pyro-ppl/numpyro/issues/2051
     "graphviz>=0.20.1",
     "lifetimes==0.11.3",
     "papermill",
@@ -88,6 +91,7 @@ test = [
     "dowhy",
     "osqp<1.0.0,>=0.6.2",
     "pygraphviz",
+    "preliz>=0.20.0",
 ]
 
 [tool.hatch.build.targets.sdist]
