@@ -1004,3 +1004,72 @@ def test_budget_distribution_carryover_interaction_issue(dummy_df, fitted_mmm):
         np.abs(channel_1_spend_with_carryover - channel_1_allocation * num_periods)
         < 0.1
     ), "With carryover: total spend should still equal allocation * num_periods"
+
+
+@pytest.mark.parametrize(
+    "callback",
+    [
+        False,  # Default no callback
+        True,  # With callback
+    ],
+    ids=[
+        "no_callback",
+        "with_callback",
+    ],
+)
+def test_multidimensional_optimize_budget_callback_parametrized(
+    dummy_df, fitted_mmm, callback
+):
+    """Test callback functionality through MultiDimensionalBudgetOptimizerWrapper.optimize_budget interface."""
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
+        model=fitted_mmm,
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=10),
+    )
+
+    # Test the MultiDimensionalBudgetOptimizerWrapper interface
+    result = optimizable_model.optimize_budget(
+        budget=100,
+        callback=callback,
+    )
+
+    # Check return value count
+    if callback:
+        assert len(result) == 3
+        optimal_budgets, opt_result, callback_info = result
+
+        # Validate callback info
+        assert isinstance(callback_info, list)
+        assert len(callback_info) > 0
+
+        # Each iteration should have required keys
+        for iter_info in callback_info:
+            assert "x" in iter_info
+            assert "fun" in iter_info
+            assert "jac" in iter_info
+
+        # Check that objective values are finite
+        objectives = [iter_info["fun"] for iter_info in callback_info]
+        assert all(np.isfinite(obj) for obj in objectives)
+
+    else:
+        assert len(result) == 2
+        optimal_budgets, opt_result = result
+
+    # Common validations
+    assert isinstance(optimal_budgets, xr.DataArray)
+    assert optimal_budgets.dims == (
+        "geo",
+        "channel",
+    )  # Multidimensional has geo dimension
+    assert len(optimal_budgets.coords["channel"]) == len(fitted_mmm.channel_columns)
+
+    # Budget should sum to total (within tolerance)
+    assert np.abs(optimal_budgets.sum().item() - 100) < 1e-6
+
+    # Check optimization result
+    assert hasattr(opt_result, "success")
+    assert hasattr(opt_result, "x")
+    assert hasattr(opt_result, "fun")
