@@ -21,6 +21,7 @@ from pytensor.tensor.variable import TensorVariable
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler
 
+from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
     LogisticSaturation,
@@ -484,4 +485,46 @@ def test_scale_lift_measurements(df_lift_test_with_numerics) -> None:
         result,
         expected,
         check_like=True,
+    )
+
+
+@pytest.fixture
+def dummy_mmm_model():
+    model = MMM(
+        date_column="date",
+        channel_columns=["organic", "paid", "social"],
+        control_columns=[],
+        target_column="y",
+        time_varying_media=True,  # trigger the condition
+    )
+    # mock model coords
+    model.model_coords = {"date": pd.date_range("2024-01-01", periods=10)}
+    model.channel_transformer = model._default_transformer()
+    model.target_transformer = model._default_transformer()
+    return model
+
+
+def test_adds_date_column_if_missing(dummy_mmm_model):
+    df_lift_test = pd.DataFrame(
+        {
+            "x": [1, 2, 3],
+            "delta_x": [0.1, 0.2, 0.3],
+            "sigma": [0.1, 0.2, 0.3],
+            "delta_y": [0.1, 0.2, 0.3],
+            "channel": ["organic", "paid", "social"],
+        }
+    )
+
+    # Make sure the column is missing initially
+    assert "date" not in df_lift_test.columns
+
+    # This method should patch in the missing "date"
+    dummy_mmm_model.add_lift_test_measurements(df_lift_test.copy())
+
+    # Assert that the date column was added
+    df_with_date = dummy_mmm_model.lift_test_measurements
+    assert "date" in df_with_date.columns
+    assert pd.api.types.is_datetime64_any_dtype(df_with_date["date"])
+    assert df_with_date["date"].iloc[0] == pd.to_datetime(
+        dummy_mmm_model.model_coords["date"][0]
     )
