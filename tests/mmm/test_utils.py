@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -18,6 +19,7 @@ import xarray as xr
 from sklearn.preprocessing import MaxAbsScaler
 
 from pymc_marketing.mmm.utils import (
+    _convert_frequency_to_timedelta,
     add_noise_to_channel_allocation,
     apply_sklearn_transformer_across_dim,
     create_index,
@@ -200,6 +202,12 @@ class FakeMMM:
         self.control_columns = ["control1"]
         self.dims = ["region"]
 
+        # Add a fake adstock object with l_max attribute
+        class FakeAdstock:
+            l_max = 7  # Example adstock lag
+
+        self.adstock = FakeAdstock()
+
 
 def test_create_zero_dataset():
     # Create a fake model
@@ -212,7 +220,9 @@ def test_create_zero_dataset():
 
     # Check results
     assert isinstance(result, pd.DataFrame)
-    assert len(result) == 10 * 2  # 10 days by 2 regions
+    # With l_max=7, the function adds 7 days to the end date
+    # So we get 17 days (Feb 1 to Feb 17) * 2 regions = 34 rows
+    assert len(result) == 17 * 2  # 17 days by 2 regions
     assert list(result.columns) == list(model.X.columns)
     assert np.all(result[model.channel_columns] == 0)
     assert np.all(result[model.control_columns] == 0)
@@ -266,3 +276,276 @@ def test_create_zero_dataset():
 )
 def test_create_index(dims, take, expected_result):
     assert create_index(dims, take) == expected_result
+
+
+class TestConvertFrequencyToTimedelta:
+    """Test cases for _convert_frequency_to_timedelta function."""
+
+    @pytest.mark.parametrize(
+        "periods, freq, expected",
+        [
+            # Daily frequencies
+            (1, "D", pd.Timedelta(days=1)),
+            (7, "D", pd.Timedelta(days=7)),
+            (0, "D", pd.Timedelta(days=0)),
+            # Weekly frequencies
+            (1, "W", pd.Timedelta(weeks=1)),
+            (4, "W", pd.Timedelta(weeks=4)),
+            (1, "W-MON", pd.Timedelta(weeks=1)),  # Complex frequency string
+            (2, "W-SUN", pd.Timedelta(weeks=2)),
+            # Monthly frequencies (approximated as 30 days)
+            (1, "M", pd.Timedelta(days=30)),
+            (3, "M", pd.Timedelta(days=90)),
+            (12, "M", pd.Timedelta(days=360)),
+            # Yearly frequencies (approximated as 365 days)
+            (1, "Y", pd.Timedelta(days=365)),
+            (2, "Y", pd.Timedelta(days=730)),
+            # Hourly frequencies
+            (1, "H", pd.Timedelta(hours=1)),
+            (24, "H", pd.Timedelta(hours=24)),
+            # Minute frequencies
+            (1, "T", pd.Timedelta(minutes=1)),
+            (60, "T", pd.Timedelta(minutes=60)),
+            # Second frequencies
+            (1, "S", pd.Timedelta(seconds=1)),
+            (3600, "S", pd.Timedelta(seconds=3600)),
+        ],
+    )
+    def test_supported_frequencies(self, periods, freq, expected):
+        """Test conversion of supported frequency strings."""
+        result = _convert_frequency_to_timedelta(periods, freq)
+        assert result == expected
+
+    def test_unrecognized_frequency_with_warning(self):
+        """Test that unrecognized frequencies default to weeks and issue a warning."""
+        with pytest.warns(
+            UserWarning, match="Unrecognized frequency 'XYZ'. Defaulting to weeks."
+        ):
+            result = _convert_frequency_to_timedelta(2, "XYZ")
+            expected = pd.Timedelta(weeks=2)
+            assert result == expected
+
+    def test_single_character_frequencies(self):
+        """Test single character frequency strings."""
+        assert _convert_frequency_to_timedelta(5, "D") == pd.Timedelta(days=5)
+        assert _convert_frequency_to_timedelta(3, "W") == pd.Timedelta(weeks=3)
+        assert _convert_frequency_to_timedelta(2, "M") == pd.Timedelta(days=60)
+
+    def test_complex_frequency_strings(self):
+        """Test that complex frequency strings are parsed correctly."""
+        # Should extract base frequency 'W' from 'W-MON', 'W-TUE', etc.
+        assert _convert_frequency_to_timedelta(1, "W-MON") == pd.Timedelta(weeks=1)
+        assert _convert_frequency_to_timedelta(1, "W-TUE") == pd.Timedelta(weeks=1)
+        assert _convert_frequency_to_timedelta(1, "W-WED") == pd.Timedelta(weeks=1)
+        assert _convert_frequency_to_timedelta(1, "W-THU") == pd.Timedelta(weeks=1)
+        assert _convert_frequency_to_timedelta(1, "W-FRI") == pd.Timedelta(weeks=1)
+        assert _convert_frequency_to_timedelta(1, "W-SAT") == pd.Timedelta(weeks=1)
+        assert _convert_frequency_to_timedelta(1, "W-SUN") == pd.Timedelta(weeks=1)
+
+    def test_edge_cases(self):
+        """Test edge cases like zero periods and negative periods."""
+        assert _convert_frequency_to_timedelta(0, "D") == pd.Timedelta(days=0)
+        assert _convert_frequency_to_timedelta(0, "W") == pd.Timedelta(weeks=0)
+
+
+class TestCreateZeroDataset:
+    """Extended test cases for create_zero_dataset function."""
+
+    def test_create_zero_dataset_basic(self):
+        """Test basic functionality of create_zero_dataset."""
+        model = FakeMMM()
+        start_date = "2022-02-01"
+        end_date = "2022-02-10"
+
+        result = create_zero_dataset(model, start_date, end_date)
+
+        # Check basic properties
+        assert isinstance(result, pd.DataFrame)
+        assert list(result.columns) == list(model.X.columns)
+        assert np.all(result[model.channel_columns] == 0)
+        assert np.all(result[model.control_columns] == 0)
+
+        # Check that we have data for both regions
+        assert set(result["region"].unique()) == {"A", "B"}
+
+    def test_create_zero_dataset_with_channel_xr_dataset(self):
+        """Test create_zero_dataset with channel_xr as xarray Dataset."""
+        model = FakeMMM()
+        start_date = "2022-02-01"
+        end_date = "2022-02-10"
+
+        # Create channel values as Dataset
+        channel_values = xr.Dataset(
+            data_vars={
+                "channel1": (["region"], np.array([5.0, 7.0])),
+                "channel2": (["region"], np.array([3.0, 4.0])),
+            },
+            coords={"region": np.array(["A", "B"])},
+        )
+
+        result = create_zero_dataset(model, start_date, end_date, channel_values)
+
+        # Check channel values are set correctly
+        assert np.all(result.loc[result.region == "A", "channel1"] == 5.0)
+        assert np.all(result.loc[result.region == "B", "channel1"] == 7.0)
+        assert np.all(result.loc[result.region == "A", "channel2"] == 3.0)
+        assert np.all(result.loc[result.region == "B", "channel2"] == 4.0)
+
+    def test_create_zero_dataset_with_channel_xr_dataarray(self):
+        """Test create_zero_dataset with channel_xr as xarray DataArray."""
+        model = FakeMMM()
+        start_date = "2022-02-01"
+        end_date = "2022-02-10"
+
+        # Create channel values as DataArray
+        channel_array = xr.DataArray(
+            data=np.array([10.0, 12.0]),
+            dims=["region"],
+            coords={"region": np.array(["A", "B"])},
+            name="channel1",
+        )
+
+        result = create_zero_dataset(model, start_date, end_date, channel_array)
+
+        # Check channel values are set correctly
+        assert np.all(result.loc[result.region == "A", "channel1"] == 10.0)
+        assert np.all(result.loc[result.region == "B", "channel1"] == 12.0)
+        assert np.all(result["channel2"] == 0)  # Not provided
+
+    def test_create_zero_dataset_include_carryover_false(self):
+        """Test create_zero_dataset with include_carryover=False."""
+        model = FakeMMM()
+        start_date = "2022-02-01"
+        end_date = "2022-02-10"
+
+        result_without_carryover = create_zero_dataset(
+            model, start_date, end_date, include_carryover=False
+        )
+        result_with_carryover = create_zero_dataset(
+            model, start_date, end_date, include_carryover=True
+        )
+
+        # Without carryover should have fewer rows (no l_max extension)
+        assert len(result_without_carryover) < len(result_with_carryover)
+
+        # Without carryover: 10 days * 2 regions = 20 rows
+        assert len(result_without_carryover) == 10 * 2
+
+        # With carryover: (10 + 7) days * 2 regions = 34 rows
+        assert len(result_with_carryover) == 17 * 2
+
+    def test_create_zero_dataset_with_timestamps(self):
+        """Test create_zero_dataset with pd.Timestamp inputs."""
+        model = FakeMMM()
+        start_date = pd.Timestamp("2022-02-01")
+        end_date = pd.Timestamp("2022-02-10")
+
+        result = create_zero_dataset(model, start_date, end_date)
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+
+    def test_create_zero_dataset_missing_channels_warning(self):
+        """Test warning when channel_xr doesn't supply all channels."""
+        model = FakeMMM()
+        start_date = "2022-02-01"
+        end_date = "2022-02-10"
+
+        # Only provide values for channel1, not channel2
+        channel_values = xr.Dataset(
+            data_vars={"channel1": (["region"], np.array([5.0, 7.0]))},
+            coords={"region": np.array(["A", "B"])},
+        )
+
+        with pytest.warns(
+            UserWarning, match="does not supply values for \\['channel2'\\]"
+        ):
+            result = create_zero_dataset(model, start_date, end_date, channel_values)
+
+        # channel2 should still be 0
+        assert np.all(result["channel2"] == 0)
+
+    def test_create_zero_dataset_error_cases(self):
+        """Test error cases for create_zero_dataset."""
+        model = FakeMMM()
+        start_date = "2022-02-01"
+        end_date = "2022-02-10"
+
+        # Test invalid channel_xr type
+        with pytest.raises(TypeError, match="must be an xarray Dataset or DataArray"):
+            create_zero_dataset(model, start_date, end_date, channel_xr="invalid")
+
+        # Test channel_xr with invalid variables
+        invalid_channel_xr = xr.Dataset(
+            data_vars={"invalid_channel": (["region"], np.array([5.0, 7.0]))},
+            coords={"region": np.array(["A", "B"])},
+        )
+        with pytest.raises(ValueError, match="contains variables not in"):
+            create_zero_dataset(model, start_date, end_date, invalid_channel_xr)
+
+        # Test channel_xr with invalid dimensions
+        invalid_dims_xr = xr.Dataset(
+            data_vars={"channel1": (["invalid_dim"], np.array([5.0, 7.0]))},
+            coords={"invalid_dim": np.array(["A", "B"])},
+        )
+        with pytest.raises(ValueError, match="uses dims that are not recognised"):
+            create_zero_dataset(model, start_date, end_date, invalid_dims_xr)
+
+        # Test channel_xr with date dimension (not allowed)
+        date_dim_xr = xr.Dataset(
+            data_vars={
+                "channel1": (["region", "date"], np.array([[5.0], [7.0]])),
+            },
+            coords={
+                "region": np.array(["A", "B"]),
+                "date": pd.date_range("2022-01-01", periods=1),
+            },
+        )
+        # The date dimension check is caught by the unrecognized dims check first
+        with pytest.raises(
+            ValueError, match="uses dims that are not recognised model dims"
+        ):
+            create_zero_dataset(model, start_date, end_date, date_dim_xr)
+
+    def test_create_zero_dataset_no_dims(self):
+        """Test create_zero_dataset with a model that has no dimensions."""
+
+        class FakeMMM_NoDims:
+            def __init__(self):
+                dates = pd.date_range("2022-01-01", "2022-01-10", freq="D")
+                self.X = pd.DataFrame(
+                    {
+                        "date": dates,
+                        "channel1": np.random.rand(10) * 10,
+                        "channel2": np.random.rand(10) * 5,
+                    }
+                )
+                self.date_column = "date"
+                self.channel_columns = ["channel1", "channel2"]
+                self.control_columns = []
+                self.dims = []  # No dimensions
+
+                class FakeAdstock:
+                    l_max = 3
+
+                self.adstock = FakeAdstock()
+
+        model = FakeMMM_NoDims()
+        start_date = "2022-02-01"
+        end_date = "2022-02-05"
+
+        result = create_zero_dataset(model, start_date, end_date)
+
+        # Should have (5 + 3) days = 8 rows (no cross-join with dimensions)
+        assert len(result) == 8
+        assert "region" not in result.columns
+
+    def test_create_zero_dataset_empty_date_range_error(self):
+        """Test error when generated date range is empty."""
+        model = FakeMMM()
+        # Invalid date range (end before start)
+        start_date = "2022-02-10"
+        end_date = "2022-02-01"
+
+        with pytest.raises(ValueError, match="Generated date range is empty"):
+            create_zero_dataset(model, start_date, end_date)
