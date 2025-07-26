@@ -39,3 +39,14 @@ def from_netcdf(filepath: str | Path) -> az.InferenceData:
             message=r"fit_data group is not defined in the InferenceData scheme",
         )
         return az.from_netcdf(filepath)
+
+from typing import List, Optional, Dict
+from pydantic import BaseModel
+
+class InstalledSamplers(BaseModel):
+    """
+    Schema for the samplers available to PyMC-Marketing and the default selection.
+    """
+    available: List[str]
+    default: str
+    versions: Optional[Dict[str, str]] = None
