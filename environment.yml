@@ -18,9 +18,9 @@ dependencies:
 - pyprojroot
 # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
 - pymc>=5.23.0
-- nutpie>=0.15.1
-- pymc-extras>=0.2.1
 - pytensor>=2.31.3
+- pymc-extras>=0.2.7
+- nutpie>=0.15.1
 - blackjax>=1.2.4
 - scikit-learn>=1.1.1
 - seaborn>=0.12.2
@@ -48,7 +48,7 @@ dependencies:
 - pre-commit>=2.19.0
 - ruff>=0.1.4
 # test
-- lifetimes==0.11.3
+- lifetimes>=0.11.3
 - pytest>=7.4.0
 - pytest-cov==3.0.0
 - pytest-mock

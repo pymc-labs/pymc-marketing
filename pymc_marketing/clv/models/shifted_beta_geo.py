@@ -19,11 +19,11 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 from pymc.util import RandomState
+from pymc_extras.prior import Prior
 from xarray import DataArray, Dataset
 
 from pymc_marketing.clv.models import CLVModel
 from pymc_marketing.model_config import ModelConfig
-from pymc_marketing.prior import Prior
 
 
 class ShiftedBetaGeoModelIndividual(CLVModel):
@@ -60,7 +60,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
 
             import pymc as pm
 
-            from pymc_marketing.prior import Prior
+            from pymc_extras.prior import Prior
             from pymc_marketing.clv import ShiftedBetaGeoModelIndividual
 
             model = ShiftedBetaGeoModelIndividual(

@@ -16,9 +16,10 @@
 import warnings
 from typing import Any
 
-from pymc_marketing.deserialize import deserialize
+from pymc_extras.deserialize import deserialize
+from pymc_extras.prior import Prior, VariableFactory
+
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
-from pymc_marketing.prior import Prior, VariableFactory
 
 
 class ModelConfigError(Exception):
@@ -58,7 +59,7 @@ def parse_model_config(
 
         from pymc_marketing.hsgp_kwargs import HSGPKwargs
         from pymc_marketing.model_config import parse_model_config
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         model_config = {
             "alpha": {
