@@ -546,3 +546,31 @@ def test_apply_idx(new_transformation_class) -> None:
         Y.eval(),
         expected.eval(),
     )
+
+
+def test_apply_index_too_many(new_transformation_class) -> None:
+    instance = new_transformation_class(
+        priors={
+            "a": Prior(
+                "HalfNormal",
+                dims=("geo", "product"),
+            ),
+            "b": Prior(
+                "HalfNormal",
+                dims="channel",
+            ),
+        }
+    )
+
+    coords = {
+        "geo": ["A", "B"],
+        "product": ["X", "Y", "Z"],
+        "channel": ["TV", "Radio", "Online"],
+    }
+    with pm.Model(coords=coords):
+        idx = {
+            "geo": [0, 0, 0, 1, 1, 1],
+            "product": [0, 1, 2, 0, 1, 2],
+        }
+        with pytest.raises(NotImplementedError, match="The indexing"):
+            instance.apply(None, idx=idx, dims="channel")
