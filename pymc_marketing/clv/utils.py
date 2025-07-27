@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -262,11 +262,6 @@ def _find_first_transactions(
     )
 
     return period_transactions[select_columns]
-
-
-def clv_summary(*args, **kwargs):
-    warnings.warn("clv_summary was renamed to rfm_summary", UserWarning, stacklevel=1)
-    return rfm_summary(*args, **kwargs)
 
 
 def rfm_summary(

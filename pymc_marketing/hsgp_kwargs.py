@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -17,8 +17,7 @@ from typing import Annotated
 
 import pymc as pm
 from pydantic import BaseModel, Field, InstanceOf
-
-from pymc_marketing.deserialize import register_deserialization
+from pymc_extras.deserialize import register_deserialization
 
 
 class HSGPKwargs(BaseModel):

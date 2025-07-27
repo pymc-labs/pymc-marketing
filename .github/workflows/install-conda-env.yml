@@ -1,0 +1,23 @@
+name: Install Conda Env
+
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 12 * * 1'
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/install-conda-env.yml"
+      - "environment.yml"
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: setup-micromamba
+      uses: mamba-org/setup-micromamba@v2.0.5
+      with:
+        environment-file: environment.yml

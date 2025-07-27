@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -19,11 +19,11 @@ import pymc as pm
 import pytensor.tensor as pt
 import xarray
 from pymc.util import RandomState
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models import CLVModel
 from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
 from pymc_marketing.model_config import ModelConfig
-from pymc_marketing.prior import Prior
 
 
 class BaseGammaGammaModel(CLVModel):
@@ -248,15 +248,17 @@ class GammaGammaModel(BaseGammaGammaModel):
         from pymc_marketing.clv import GammaGammaModel
 
         model = GammaGammaModel(
-            data=pandas.DataFrame({
-                "customer_id": [0, 1, 2, 3, ...],
-                "monetary_value" :[23.5, 19.3, 11.2, 100.5, ...],
-                "frequency": [6, 8, 2, 1, ...],
-            }),
+            data=pandas.DataFrame(
+                {
+                    "customer_id": [0, 1, 2, 3, ...],
+                    "monetary_value": [23.5, 19.3, 11.2, 100.5, ...],
+                    "frequency": [6, 8, 2, 1, ...],
+                }
+            ),
             model_config={
-                "p_prior": {'dist': 'HalfNormal', kwargs: {}},
-                "q_prior": {'dist': 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
-                "v_prior": {'dist': 'HalfCauchy', kwargs: {"beta":1}},
+                "p": {"dist": "HalfNormal", kwargs: {}},
+                "q": {"dist": "HalfStudentT", kwargs: {"nu": 4, "sigma": 10}},
+                "v": {"dist": "HalfCauchy", kwargs: {"beta": 1}},
             },
             sampler_config={
                 "draws": 1000,
@@ -271,15 +273,17 @@ class GammaGammaModel(BaseGammaGammaModel):
         print(model.fit_summary())
 
         # Predict spend of customers for which we know transaction history, conditioned on data.
-        expected_customer_spend = model.expected_customer_spend(
-            data=pandas.DataFrame(
-                {
-                "customer_id": [0, 1, 2, 3, ...],
-                "monetary_value" :[23.5, 19.3, 11.2, 100.5, ...],
-                "frequency": [6, 8, 2, 1, ...],
-                }
+        expected_customer_spend = (
+            model.expected_customer_spend(
+                data=pandas.DataFrame(
+                    {
+                        "customer_id": [0, 1, 2, 3, ...],
+                        "monetary_value": [23.5, 19.3, 11.2, 100.5, ...],
+                        "frequency": [6, 8, 2, 1, ...],
+                    }
+                ),
             ),
-        ),
+        )
         print(expected_customer_spend.mean("customer_id"))
 
         # Predict spend of 10 new customers, conditioned on data
@@ -318,9 +322,9 @@ class GammaGammaModel(BaseGammaGammaModel):
     def default_model_config(self) -> ModelConfig:
         """Default model configuration."""
         return {
-            "p_prior": Prior("HalfFlat"),
-            "q_prior": Prior("HalfFlat"),
-            "v_prior": Prior("HalfFlat"),
+            "p": Prior("HalfFlat"),
+            "q": Prior("HalfFlat"),
+            "v": Prior("HalfFlat"),
         }
 
     def build_model(self) -> None:  # type: ignore[override]
@@ -330,9 +334,9 @@ class GammaGammaModel(BaseGammaGammaModel):
 
         coords = {"customer_id": self.data["customer_id"]}
         with pm.Model(coords=coords) as self.model:
-            p = self.model_config["p_prior"].create_variable("p")
-            q = self.model_config["q_prior"].create_variable("q")
-            v = self.model_config["v_prior"].create_variable("v")
+            p = self.model_config["p"].create_variable("p")
+            q = self.model_config["q"].create_variable("q")
+            v = self.model_config["v"].create_variable("v")
 
             # Likelihood for mean_spend, marginalizing over nu
             # Eq 1a from [1], p.2
@@ -393,9 +397,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
                 }
             ),
             model_config={
-                "p_prior": {dist: 'HalfNorm', kwargs: {}},
-                "q_prior": {dist: 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
-                "v_prior": {dist: 'HalfCauchy', kwargs: {}},
+                "p": {dist: 'HalfNorm', kwargs: {}},
+                "q": {dist: 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
+                "v": {dist: 'HalfCauchy', kwargs: {}},
             },
             sampler_config={
                 "draws": 1000,
@@ -455,9 +459,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     def default_model_config(self) -> dict:
         """Default model configuration."""
         return {
-            "p_prior": Prior("HalfFlat"),
-            "q_prior": Prior("HalfFlat"),
-            "v_prior": Prior("HalfFlat"),
+            "p": Prior("HalfFlat"),
+            "q": Prior("HalfFlat"),
+            "v": Prior("HalfFlat"),
         }
 
     def build_model(self) -> None:  # type: ignore[override]
@@ -469,9 +473,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             "obs": range(self.data.shape[0]),
         }
         with pm.Model(coords=coords) as self.model:
-            p = self.model_config["p_prior"].create_variable("p")
-            q = self.model_config["q_prior"].create_variable("q")
-            v = self.model_config["v_prior"].create_variable("v")
+            p = self.model_config["p"].create_variable("p")
+            q = self.model_config["q"].create_variable("q")
+            v = self.model_config["v"].create_variable("v")
 
             nu = pm.Gamma("nu", q, v, dims=("customer_id",))
             pm.Gamma(

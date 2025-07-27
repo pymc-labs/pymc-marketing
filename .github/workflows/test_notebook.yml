@@ -18,6 +18,10 @@ on:
      - "docs/source/notebooks/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   example_notebooks:
     runs-on: ubuntu-latest
@@ -29,8 +33,7 @@ jobs:
         python-version: "3.12"
     - name: Install dependencies
       run: |
-        sudo apt-get install graphviz
-        pip install -e .[docs]
-        pip install -e .[test]
+        sudo apt-get install graphviz graphviz-dev
+        pip install -e .[docs,test,dag]
     - name: Run notebooks
       run: make run_notebooks

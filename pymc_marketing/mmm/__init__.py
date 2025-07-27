@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -19,10 +19,10 @@ from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     DelayedAdstock,
     GeometricAdstock,
+    NoAdstock,
     WeibullCDFAdstock,
     WeibullPDFAdstock,
     adstock_from_dict,
-    register_adstock_transformation,
 )
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
@@ -30,25 +30,27 @@ from pymc_marketing.mmm.components.saturation import (
     InverseScaledLogisticSaturation,
     LogisticSaturation,
     MichaelisMentenSaturation,
+    NoSaturation,
     RootSaturation,
     SaturationTransformation,
     TanhSaturation,
     TanhSaturationBaselined,
-    register_saturation_transformation,
     saturation_from_dict,
 )
-from pymc_marketing.mmm.fourier import MonthlyFourier, YearlyFourier
+from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.hsgp import (
     HSGP,
     CovFunc,
     HSGPPeriodic,
     PeriodicCovFunc,
+    SoftPlusHSGP,
     approx_hsgp_hyperparams,
     create_complexity_penalizing_prior,
     create_constrained_inverse_gamma_prior,
     create_eta_prior,
     create_m_and_L_recommendations,
 )
+from pymc_marketing.mmm.linear_regression import FancyLinearRegression
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import (
     MediaConfig,
@@ -69,6 +71,7 @@ __all__ = [
     "BaseValidateMMM",
     "CovFunc",
     "DelayedAdstock",
+    "FancyLinearRegression",
     "GeometricAdstock",
     "HSGPPeriodic",
     "HillSaturation",
@@ -82,11 +85,15 @@ __all__ = [
     "MediaTransformation",
     "MichaelisMentenSaturation",
     "MonthlyFourier",
+    "NoAdstock",
+    "NoSaturation",
     "PeriodicCovFunc",
     "RootSaturation",
     "SaturationTransformation",
+    "SoftPlusHSGP",
     "TanhSaturation",
     "TanhSaturationBaselined",
+    "WeeklyFourier",
     "WeibullCDFAdstock",
     "WeibullPDFAdstock",
     "YearlyFourier",
@@ -101,8 +108,6 @@ __all__ = [
     "preprocessing",
     "preprocessing_method_X",
     "preprocessing_method_y",
-    "register_adstock_transformation",
-    "register_saturation_transformation",
     "saturation_from_dict",
     "validating",
     "validation_method_X",

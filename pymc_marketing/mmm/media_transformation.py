@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -49,18 +49,20 @@ Create a combined media configuration for offline and online media channels:
         MediaConfigList,
     )
 
-    media_configs: MediaConfigList([
-        MediaConfig(
-            name="offline",
-            columns=["TV", "Radio"],
-            media_transformation=offline_media_transform,
-        ),
-        MediaConfig(
-            name="online",
-            columns=["Facebook", "Instagram", "YouTube", "TikTok"],
-            media_transformation=online_media_transform,
-        ),
-    ])
+    media_configs: MediaConfigList(
+        [
+            MediaConfig(
+                name="offline",
+                columns=["TV", "Radio"],
+                media_transformation=offline_media_transform,
+            ),
+            MediaConfig(
+                name="online",
+                columns=["Facebook", "Instagram", "YouTube", "TikTok"],
+                media_transformation=online_media_transform,
+            ),
+        ]
+    )
 
 
 Apply the media transformation to media data in PyMC model:
@@ -81,9 +83,7 @@ Apply the media transformation to media data in PyMC model:
     }
     with pm.Model(coords=coords) as model:
         media_data = pm.Data(
-            "media_data",
-            df.loc[:, media_columns].to_numpy(),
-            dims=("date", "media")
+            "media_data", df.loc[:, media_columns].to_numpy(), dims=("date", "media")
         )
         transformed_media_data = media_configs(media_data)
 
@@ -92,10 +92,12 @@ Apply the media transformation to media data in PyMC model:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 import pymc as pm
 import pytensor.tensor as pt
 from pymc.distributions.shape_utils import Dims
+from pymc_extras.deserialize import register_deserialization
 
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
@@ -143,7 +145,25 @@ class MediaTransformation:
             if self.adstock_first
             else (self.saturation, self.adstock)
         )
+        if isinstance(self.dims, str):
+            self.dims = (self.dims,)
+
         self.dims = self.dims or ()
+
+        self._check_compatible_dims()
+
+    def _check_compatible_dims(self):
+        self.dims = cast(Dims, self.dims)
+
+        if not set(self.adstock.combined_dims).issubset(self.dims):
+            raise ValueError(
+                f"Adstock dimensions {self.adstock.combined_dims} are not a subset of {self.dims}"
+            )
+
+        if not set(self.saturation.combined_dims).issubset(self.dims):
+            raise ValueError(
+                f"Saturation dimensions {self.saturation.combined_dims} are not a subset of {self.dims}"
+            )
 
     def __call__(self, x):
         """Apply adstock and saturation transformation to media data.
@@ -206,6 +226,7 @@ class MediaTransformation:
             "adstock": self.adstock.to_dict(),
             "saturation": self.saturation.to_dict(),
             "adstock_first": self.adstock_first,
+            "dims": self.dims,
         }
 
     @classmethod
@@ -227,7 +248,23 @@ class MediaTransformation:
             adstock=adstock_from_dict(data["adstock"]),
             saturation=saturation_from_dict(data["saturation"]),
             adstock_first=data["adstock_first"],
+            dims=data.get("dims"),
         )
+
+
+def _is_media_transformation(data):
+    return (
+        isinstance(data, dict)
+        and "adstock" in data
+        and "saturation" in data
+        and "adstock_first" in data
+    )
+
+
+register_deserialization(
+    is_type=_is_media_transformation,
+    deserialize=MediaTransformation.from_dict,
+)
 
 
 @dataclass
@@ -286,6 +323,16 @@ class MediaConfig:
                 data["media_transformation"]
             ),
         )
+
+
+def _is_media_config(data):
+    return (
+        isinstance(data, dict)
+        and "name" in data
+        and "columns" in data
+        and "media_transformation" in data
+        and _is_media_transformation(data["media_transformation"])
+    )
 
 
 class MediaConfigList:
@@ -392,7 +439,7 @@ class MediaConfigList:
 
         Returns
         -------
-        dict
+        list[dict]
             The media configuration list as a dictionary.
 
         """
@@ -457,3 +504,13 @@ class MediaConfigList:
             start_idx = end_idx
 
         return pt.concatenate(transformed_data, axis=1)
+
+
+def _is_media_config_list(data):
+    return isinstance(data, list) and all(_is_media_config(config) for config in data)
+
+
+register_deserialization(
+    is_type=_is_media_config_list,
+    deserialize=MediaConfigList.from_dict,
+)

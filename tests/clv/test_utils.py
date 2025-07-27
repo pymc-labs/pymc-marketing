@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -19,20 +19,19 @@ import pymc as pm
 import pytest
 import xarray
 from pandas.testing import assert_frame_equal
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv import GammaGammaModel, ParetoNBDModel
 from pymc_marketing.clv.utils import (
     _expected_cumulative_transactions,
     _find_first_transactions,
     _rfm_quartile_labels,
-    clv_summary,
     customer_lifetime_value,
     rfm_segments,
     rfm_summary,
     rfm_train_test_split,
     to_xarray,
 )
-from pymc_marketing.prior import Prior
 from tests.conftest import set_model_fit
 
 
@@ -66,9 +65,9 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
 
     model_config = {
         # Params used in lifetimes test
-        "p_prior": Prior("DiracDelta", c=6.25),
-        "q_prior": Prior("DiracDelta", c=3.74),
-        "v_prior": Prior("DiracDelta", c=15.44),
+        "p": Prior("DiracDelta", c=6.25),
+        "q": Prior("DiracDelta", c=3.74),
+        "v": Prior("DiracDelta", c=15.44),
     }
     model = GammaGammaModel(
         data=test_summary_data,
@@ -76,7 +75,7 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
     )
     model.build_model()
     fake_fit = pm.sample_prior_predictive(
-        samples=50, model=model.model, random_seed=rng
+        draws=50, model=model.model, random_seed=rng
     ).prior
     set_model_fit(model, fake_fit)
 
@@ -86,8 +85,7 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
 # TODO: Consolidate this fixture into the tests requiring it?
 @pytest.fixture()
 def df_cum_transactions():
-    url_cdnow = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/cdnow_transactions.csv"
-    cdnow_transactions = pd.read_csv(url_cdnow)
+    cdnow_transactions = pd.read_csv("data/cdnow_transactions.csv")
 
     rfm_data = rfm_summary(
         cdnow_transactions,
@@ -100,10 +98,10 @@ def df_cum_transactions():
     )
 
     model_config = {
-        "r_prior": Prior("HalfFlat"),
-        "alpha_prior": Prior("HalfFlat"),
-        "s_prior": Prior("HalfFlat"),
-        "beta_prior": Prior("HalfFlat"),
+        "r": Prior("HalfFlat"),
+        "alpha": Prior("HalfFlat"),
+        "s": Prior("HalfFlat"),
+        "beta": Prior("HalfFlat"),
     }
 
     pnbd = ParetoNBDModel(data=rfm_data, model_config=model_config)
@@ -688,10 +686,6 @@ class TestRFM:
         )
         actual = rfm_summary(transactions, "identifier", "t", time_unit="W")
         assert actual.loc[0]["frequency"] == 1.0 - 1.0
-
-    def test_clv_summary_warning(self, transaction_data):
-        with pytest.warns(UserWarning, match="clv_summary was renamed to rfm_summary"):
-            clv_summary(transaction_data, "identifier", "date")
 
     def test_rfm_train_test_split(self, transaction_data):
         # Test adapted from

@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ import pymc as pm
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
+from pymc_extras.prior import Prior, VariableFactory
 from pytensor.tensor import TensorVariable
 
 from pymc_marketing.mmm.components.base import (
@@ -27,7 +28,6 @@ from pymc_marketing.mmm.components.base import (
     create_registration_meta,
 )
 from pymc_marketing.mmm.components.saturation import TanhSaturation
-from pymc_marketing.prior import Prior, VariableFactory
 
 
 def test_new_transformation_missing_prefix() -> None:

@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Plotting functions for the CLV module."""
 
+import warnings
 from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
@@ -77,10 +78,7 @@ def plot_customer_exposure(
 
     .. code-block:: python
 
-        df = pd.DataFrame({
-            "recency": [0, 1, 2, 3, 4],
-            "T": [5, 5, 5, 5, 5]
-        })
+        df = pd.DataFrame({"recency": [0, 1, 2, 3, 4], "T": [5, 5, 5, 5, 5]})
 
         plot_customer_exposure(df)
 
@@ -88,21 +86,13 @@ def plot_customer_exposure(
 
     .. code-block:: python
 
-        (
-            df
-            .sort_values(["recency", "T"])
-            .pipe(plot_customer_exposure)
-        )
+        (df.sort_values(["recency", "T"]).pipe(plot_customer_exposure))
 
     Plot exposure for only those with time until last purchase is less than 3
 
     .. code-block:: python
 
-        (
-            df
-            .query("T - recency < 3")
-            .pipe(plot_customer_exposure)
-        )
+        (df.query("T - recency < 3").pipe(plot_customer_exposure))
 
     """
     if padding < 0:
@@ -363,7 +353,7 @@ def plot_expected_purchases_over_time(
     datetime_col: str,
     t: int,
     plot_cumulative: bool = True,
-    t_unobserved: int | None = None,
+    t_start_eval: int | None = None,
     datetime_format: str | None = None,
     time_unit: str = "D",
     time_scaler: float | None = 1,
@@ -373,6 +363,7 @@ def plot_expected_purchases_over_time(
     xlabel: str = "Time Periods",
     ylabel: str = "Purchases",
     ax: plt.Axes | None = None,
+    t_unobserved: int | None = None,
     **kwargs,
 ) -> plt.Axes:
     """Plot actual and expected purchases over time for a fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
@@ -400,7 +391,7 @@ def plot_expected_purchases_over_time(
     plot_cumulative : bool
         Default: *True*
         Plot cumulative purchases over time. Set to *False* to plot incremental purchases.
-    t_unobserved : int, optional
+    t_start_eval : int, optional
         If testing model on unobserved data, specify number of time units in training data to add an indicator for
         the start of the testing period.
     datetime_format : string, optional
@@ -467,10 +458,19 @@ def plot_expected_purchases_over_time(
     ax = df_cum_purchases.plot(ax=ax, title=title, **kwargs)
 
     if t_unobserved:
+        warnings.warn(
+            "t_unobserved is deprecated and will be removed in a future release. "
+            "Use t_start_eval instead.",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        t_start_eval = t_unobserved
+
+    if t_start_eval:
         if set_index_date:
-            x_vline = df_cum_purchases.index[int(t_unobserved)]
+            x_vline = df_cum_purchases.index[int(t_start_eval)]
         else:
-            x_vline = t_unobserved
+            x_vline = t_start_eval
         ax.axvline(x=x_vline, color="r", linestyle="--")
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -488,7 +488,7 @@ def plot_expected_purchases_ppc(
 ) -> plt.Axes:
     """Plot a prior or posterior predictive check for the customer purchase frequency distribution.
 
-    At this time only ``ParetoNBDModel`` and ``BetaGeoBetaBinomModel`` are supported.
+    ``ParetoNBDModel``, ``BetaGeoBetaBinomModel``, ``BetaGeoModel`` and ``ModifiedBetaGeoModel`` are supported.
 
     Adapted from legacy ``lifetimes`` library:
     https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/plotting.py#L25
@@ -515,10 +515,6 @@ def plot_expected_purchases_ppc(
     -------
     axes : matplotlib.AxesSubplot
     """
-    # TODO: BetaGeoModel requires its own dist class in distributions.py for this function.
-    if isinstance(model, BetaGeoModel):
-        raise AttributeError("BetaGeoModel is unsupported for this function.")
-
     if ax is None:
         ax = plt.subplot(111)
 
@@ -528,7 +524,7 @@ def plot_expected_purchases_ppc(
             model.build_model()
 
             prior_idata = pm.sample_prior_predictive(
-                samples=samples,
+                draws=samples,
                 model=model.model,
                 random_seed=random_seed,
             )

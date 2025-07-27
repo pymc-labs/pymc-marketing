@@ -68,6 +68,7 @@ Leverage our Bayesian MMM API to tailor your marketing strategies effectively. L
 | Time-varying Intercept                     | Capture time-varying baseline contributions in your model (using modern and efficient Gaussian processes approximation methods). See [guide notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_time_varying_media_example.html).                                                                                                                                       |
 | Time-varying Media Contribution            | Capture time-varying media efficiency in your model (using modern and efficient Gaussian processes approximation methods). See the [guide notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_tvp_example.html).                                                                                                                                                        |
 | Visualization and Model Diagnostics        | Get a comprehensive view of your model's performance and insights.                                                                                                                                                                                                                                                                                                                      |
+| Causal Identification                      | Input a business driven directed acyclic graph to identify the meaningful variables to include into the model to be able to draw causal conclusions. For a concrete example see the [guide notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_causal_identification.html).                                                                                             |
 | Choose among many inference algorithms     | We provide the option to choose between various NUTS samplers (e.g. BlackJax, NumPyro and Nutpie). See the [example notebook](https://www.pymc-marketing.io/en/stable/notebooks/general/other_nuts_samplers.html) for more details.                                                                                                                                                     |
 | GPU Support                                | PyMC's multiple backends allow for GPU acceleration.                                                                                                                                                                                                                                                                                                                                    |
 | Out-of-sample Predictions                  | Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.                                                                                                                                                                                                                                                                          |
@@ -84,9 +85,10 @@ from pymc_marketing.mmm import (
     LogisticSaturation,
     MMM,
 )
+from pymc_marketing.paths import data_dir
 
-data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
-data = pd.read_csv(data_url, parse_dates=["date_week"])
+file_path = data_dir / "mmm_example.csv"
+data = pd.read_csv(file_path, parse_dates=["date_week"])
 
 mmm = MMM(
     adstock=GeometricAdstock(l_max=8),
@@ -102,16 +104,22 @@ mmm = MMM(
 )
 ```
 
-Initiate fitting and get a visualization of some of the outputs with:
+Initiate fitting and get insightful plots and summaries. For example, we can plot the components contributions:
 
 ```python
-X = data.drop("y",axis=1)
+X = data.drop("y", axis=1)
 y = data["y"]
-mmm.fit(X,y)
-mmm.plot_components_contributions();
+mmm.fit(X, y)
+mmm.plot_components_contributions()
 ```
 
 ![](docs/source/_static/mmm_plot_components_contributions.png)
+
+You can compute channels efficienty and compare them with the estimated return on ad spend (ROAS).
+
+<center>
+    <img src="docs/source/_static/roas_efficiency.png" width="70%" />
+</center>
 
 Once the model is fitted, we can further optimize our budget allocation as we are including diminishing returns and carry-over effects in our model.
 
@@ -119,7 +127,8 @@ Once the model is fitted, we can further optimize our budget allocation as we ar
     <img src="docs/source/_static/mmm_plot_plot_channel_contributions_grid.png" width="80%" />
 </center>
 
-Explore a hands-on [simulated example](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
+- Explore a hands-on [simulated example](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
+- Get started with a complete end-to-end analysis: from model specification to budget allocation. See the [guide notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_case_study.html).
 
 ### Essential Reading for Marketing Mix Modeling (MMM)
 
@@ -139,12 +148,12 @@ Dynamic and interactive visualization of key Marketing Mix Modeling (MMM) concep
 
 Understand and optimize your customer's value with our **CLV models**. Our API supports various types of CLV models, catering to both contractual and non-contractual settings, as well as continuous and discrete transaction modes.
 
-- [CLV Quickstart](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/clv_quickstart.html)
-- [BG/NBD model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/bg_nbd.html)
-- [Pareto/NBD model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/pareto_nbd.html)
-- [Gamma-Gamma model](https://pymc-marketing.readthedocs.io/en/stable/notebooks/clv/gamma_gamma.html)
+- [CLV Quickstart](https://www.pymc-marketing.io/en/stable/notebooks/clv/clv_quickstart.html)
+- [BG/NBD model](https://www.pymc-marketing.io/en/stable/notebooks/clv/bg_nbd.html)
+- [Pareto/NBD model](https://www.pymc-marketing.io/en/stable/notebooks/clv/pareto_nbd.html)
+- [Gamma-Gamma model](https://www.pymc-marketing.io/en/stable/notebooks/clv/gamma_gamma.html)
 - [Shifted Beta-Geo model](https://www.pymc-marketing.io/en/stable/notebooks/clv/sBG.html)
-- [Modified BG/NBD model](https//pymc-marketing.readthedocs.io/en/stable/notebooks/clv/mbg_nbd.html)
+- [Modified BG/NBD model](https://www.pymc-marketing.io/en/stable/notebooks/clv/mbg_nbd.html)
 
 ### Examples
 
@@ -160,9 +169,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 from pymc_marketing import clv
+from pymc_marketing.paths import data_dir
 
-data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/clv_quickstart.csv"
-data = pd.read_csv(data_url)
+file_path = data_dir / "clv_quickstart.csv"
+data = pd.read_csv(data_path)
 data["customer_id"] = data.index
 
 beta_geo_model = clv.BetaGeoModel(data=data)
@@ -201,20 +211,41 @@ existing_products = ["competitor", "own"]
 # Create MVITS model
 mvits = MVITS(
     existing_sales=existing_products,
-    saturated_market=True  # Set False for unsaturated markets
+    saturated_market=True, # Set False for unsaturated markets
 )
 
 # Fit model
 mvits.fit(X, y)
 
-# Plot counterfactuals
-mvits.plot_counterfactual()
-
 # Plot causal impact on market share
 mvits.plot_causal_impact_market_share()
+
+# Plot counterfactuals
+mvits.plot_counterfactual()
 ```
 
+<center>
+    <img src="docs/source/_static/conterfactual.png" width="100%" />
+</center>
+
 See our example notebooks for [saturated markets](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mv_its_saturated.html) and [unsaturated markets](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mv_its_unsaturated.html) to learn more about customer choice modeling with PyMC-Marketing.
+
+## Bass Diffusion Model
+
+The Bass Diffusion Model is a popular model for predicting the adoption of new products. It is a type of product life cycle model that describes the market penetration of a new product as a function of time. PyMC-Marketing provides a flexible implementation of the Bass Diffusion Model, allowing you to customize the model parameters and fit the model to your specific data (many products).
+
+<center>
+    <img src="docs/source/_static/bass.png" width="100%" />
+</center>
+
+## Discrete Choice Models
+
+Discrete choice models come in various forms, but each aims to show how choosing between a set of alternatives can be understood as a function of the observable attributes of the alternatives at hand. This type of modelling drives insight into the "must-have" features of a product, and can be used to assess the success or failure of product launches or re-launches. The PyMC-marketing implementation offers a formula based model specification, for estimating the relative utility of each good in a market and identifying their most important features.
+
+<center>
+    <img src="docs/source/_static/discrete_choice_before_after.png" width="100%" />
+</center>
+
 
 ## Why PyMC-Marketing vs other solutions?
 

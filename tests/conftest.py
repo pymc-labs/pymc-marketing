@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -19,10 +19,15 @@ import pandas as pd
 import pymc as pm
 import pytest
 from arviz import InferenceData
+from pymc_extras.prior import Prior
 from xarray import DataArray, Dataset
 
-from pymc_marketing.clv.models import BetaGeoModel, CLVModel, ParetoNBDModel
-from pymc_marketing.prior import Prior
+from pymc_marketing.clv.models import (
+    BetaGeoModel,
+    CLVModel,
+    ModifiedBetaGeoModel,
+    ParetoNBDModel,
+)
 
 
 def pytest_addoption(parser):
@@ -124,12 +129,12 @@ def mock_sample(*args, **kwargs):
     """This is a mock of pm.sample that returns the prior predictive samples as the posterior."""
     random_seed = kwargs.get("random_seed", None)
     model = kwargs.get("model", None)
-    samples = kwargs.get("draws", 10)
+    draws = kwargs.get("draws", 10)
     n_chains = kwargs.get("chains", 1)
     idata: InferenceData = pm.sample_prior_predictive(
         model=model,
         random_seed=random_seed,
-        samples=samples,
+        draws=draws,
     )
 
     expanded_chains = DataArray(
@@ -145,6 +150,16 @@ def mock_sample(*args, **kwargs):
     if "prior_predictive" in idata:
         del idata.prior_predictive
     return idata
+
+
+@pytest.fixture(scope="module")
+def mock_pymc_sample():
+    original_sample = pm.sample
+    pm.sample = mock_sample
+
+    yield
+
+    pm.sample = original_sample
 
 
 def mock_fit_MAP(self, *args, **kwargs):
@@ -163,19 +178,43 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
 
     model_config = {
         # Narrow Gaussian centered at MLE params from lifetimes BetaGeoFitter
-        "a_prior": Prior("DiracDelta", c=1.85034151),
-        "alpha_prior": Prior("DiracDelta", c=1.86428187),
-        "b_prior": Prior("DiracDelta", c=3.18105431),
-        "r_prior": Prior("DiracDelta", c=0.16385072),
+        "a": Prior("DiracDelta", c=1.85034151),
+        "alpha": Prior("DiracDelta", c=1.86428187),
+        "b": Prior("DiracDelta", c=3.18105431),
+        "r": Prior("DiracDelta", c=0.16385072),
     }
     model = BetaGeoModel(
         data=test_summary_data,
         model_config=model_config,
     )
     model.build_model()
-    fake_fit = pm.sample_prior_predictive(
-        samples=50, model=model.model, random_seed=rng
+    fake_fit = pm.sample_prior_predictive(draws=50, model=model.model, random_seed=rng)
+    # posterior group required to pass L80 assert check
+    fake_fit.add_groups(posterior=fake_fit.prior)
+    set_model_fit(model, fake_fit)
+
+    return model
+
+
+# TODO: This fixture is used in the plotting and utils test modules.
+#       Consider creating a MockModel class to replace this and other fitted model fixtures.
+@pytest.fixture(scope="module")
+def fitted_mbg(test_summary_data) -> ModifiedBetaGeoModel:
+    rng = np.random.default_rng(13)
+
+    model_config = {
+        # Narrow Gaussian centered at MLE params from lifetimes BetaGeoFitter
+        "a": Prior("DiracDelta", c=1.85034151),
+        "alpha": Prior("DiracDelta", c=1.86428187),
+        "b": Prior("DiracDelta", c=3.18105431),
+        "r": Prior("DiracDelta", c=0.16385072),
+    }
+    model = ModifiedBetaGeoModel(
+        data=test_summary_data,
+        model_config=model_config,
     )
+    model.build_model()
+    fake_fit = pm.sample_prior_predictive(draws=50, model=model.model, random_seed=rng)
     # posterior group required to pass L80 assert check
     fake_fit.add_groups(posterior=fake_fit.prior)
     set_model_fit(model, fake_fit)
@@ -191,10 +230,10 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
 
     model_config = {
         # Narrow Gaussian centered at MLE params from lifetimes ParetoNBDFitter
-        "r_prior": Prior("DiracDelta", c=0.560),
-        "alpha_prior": Prior("DiracDelta", c=10.591),
-        "s_prior": Prior("DiracDelta", c=0.550),
-        "beta_prior": Prior("DiracDelta", c=9.756),
+        "r": Prior("DiracDelta", c=0.560),
+        "alpha": Prior("DiracDelta", c=10.591),
+        "s": Prior("DiracDelta", c=0.550),
+        "beta": Prior("DiracDelta", c=9.756),
     }
     pnbd_model = ParetoNBDModel(
         data=test_summary_data,
@@ -205,10 +244,22 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
     # Mock an idata object for tests requiring a fitted model
     # TODO: This is quite slow. Check similar fixtures in the model tests to speed this up.
     fake_fit = pm.sample_prior_predictive(
-        samples=50, model=pnbd_model.model, random_seed=rng
+        draws=50,
+        model=pnbd_model.model,
+        random_seed=rng,
     )
     # posterior group required to pass L80 assert check
     fake_fit.add_groups(posterior=fake_fit.prior)
     set_model_fit(pnbd_model, fake_fit)
 
     return pnbd_model
+
+
+@pytest.fixture(params=["bg_model", "mbg_model", "pnbd_model"])
+def fitted_model(request, fitted_bg, fitted_mbg, fitted_pnbd):
+    fitted_models = {
+        "bg_model": fitted_bg,
+        "mbg_model": fitted_mbg,
+        "pnbd_model": fitted_pnbd,
+    }
+    return fitted_models[request.param]

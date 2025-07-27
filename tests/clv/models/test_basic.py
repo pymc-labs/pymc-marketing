@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -18,9 +18,9 @@ import pandas as pd
 import pymc as pm
 import pytest
 from arviz import InferenceData, from_dict
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models.basic import CLVModel
-from pymc_marketing.prior import Prior
 from tests.conftest import mock_fit_MAP, mock_sample, set_model_fit
 
 
@@ -95,7 +95,7 @@ class TestCLVModel:
         model = CLVModelTest()
 
         mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
-        idata = model.fit(fit_method="map")
+        idata = model.fit(method="map")
 
         assert isinstance(idata, InferenceData)
         assert len(idata.posterior.chain) == 1
@@ -112,7 +112,7 @@ class TestCLVModel:
         mocker.patch("pymc.sample", mock_sample)
 
         idata = model.fit(
-            fit_method="demz",
+            method="demz",
             tune=5,
             chains=2,
             draws=10,
@@ -124,13 +124,51 @@ class TestCLVModel:
         assert len(idata.posterior.draw) == 10
         assert model.fit_result is idata.posterior
 
-    def test_wrong_fit_method(self):
+    def test_fit_advi(self, mocker):
+        model = CLVModelTest()
+        # mocker.patch("pymc.sample", mock_sample)
+        idata = model.fit(
+            method="advi",
+            tune=5,
+            chains=2,
+            draws=10,
+        )
+        assert isinstance(idata, InferenceData)
+        assert len(idata.posterior.chain) == 1
+        assert len(idata.posterior.draw) == 10
+
+    def test_fit_advi_with_wrong_chains_advi_kwargs(self, mocker):
+        model = CLVModelTest()
+
+        with pytest.warns(
+            UserWarning,
+            match="The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",
+        ):
+            model.fit(
+                method="advi",
+                tune=5,
+                chains=2,
+                draws=10,
+            )
+
+    def test_wrong_method(self):
         model = CLVModelTest()
         with pytest.raises(
             ValueError,
-            match=r"Fit method options are \['mcmc', 'map', 'demz'\], got: wrong_method",
+            match=r"Fit method options are \['mcmc', 'map', 'demz', 'advi', 'fullrank_advi'\], got: wrong_method",
         ):
-            model.fit(fit_method="wrong_method")
+            model.fit(method="wrong_method")
+
+    def test_fit_exception(self, mock_pymc_sample):
+        model = CLVModelTest()
+        with pytest.warns(
+            DeprecationWarning,
+            match=(
+                "'fit_method' is deprecated and will be removed in a future release. "
+                "Use 'method' instead."
+            ),
+        ):
+            model.fit(fit_method="mcmc")
 
     def test_load(self, mocker):
         model = CLVModelTest()
@@ -207,3 +245,46 @@ class TestCLVModel:
         assert model.model_config == {
             "x": Prior("StudentT", mu=0, sigma=5, nu=15),
         }
+
+    def test_backwards_compatibility_with_old_config(self):
+        model = CLVModelTest()
+        model.build_model()
+
+        old_posterior = from_dict(posterior={"alpha_prior": np.random.randn(2, 100)})
+        set_model_fit(model, old_posterior)
+        assert "alpha_prior" in model.idata.posterior
+
+        save_path = "test_model"
+        model.save(save_path)
+
+        loaded_model = CLVModelTest.load(save_path)
+
+        assert "alpha" in loaded_model.idata.posterior
+        assert "alpha_prior" not in loaded_model.idata.posterior
+
+        os.remove("test_model")
+
+    def test_deprecation_warning_on_old_config(self):
+        old_model_config = {
+            "x_prior": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}}
+        }
+        with pytest.warns(
+            DeprecationWarning, match="The key 'x_prior' in model_config is deprecated"
+        ):
+            model = CLVModelTest(model_config=old_model_config)
+
+        assert model.model_config == {"x": Prior("Normal", mu=0, sigma=1)}
+
+    def test_validate_cols_reports_all_missing_columns(self):
+        """Test _validate_cols raises a single ValueError listing all missing columns."""
+        required = ("customer_id", "frequency", "recency", "T")
+        data = pd.DataFrame(
+            {
+                "customer_id": [1, 2, 3],
+                "frequency": [1, 2, 3],
+            }
+        )
+        expected_error_msg = r"The following required columns are missing from the input data: \['T', 'recency'\]"
+
+        with pytest.raises(ValueError, match=expected_error_msg):
+            CLVModel._validate_cols(data=data, required_cols=required)

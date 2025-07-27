@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -19,25 +19,26 @@ import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-
-from pymc_marketing.deserialize import (
+from pymc_extras.deserialize import (
     DESERIALIZERS,
     deserialize,
     register_deserialization,
 )
+from pymc_extras.prior import Prior
+
 from pymc_marketing.mmm import (
     HillSaturation,
     HillSaturationSigmoid,
     InverseScaledLogisticSaturation,
     LogisticSaturation,
     MichaelisMentenSaturation,
+    NoSaturation,
     RootSaturation,
     SaturationTransformation,
     TanhSaturation,
     TanhSaturationBaselined,
     saturation_from_dict,
 )
-from pymc_marketing.prior import Prior
 
 
 @pytest.fixture
@@ -56,6 +57,7 @@ def saturation_functions():
         HillSaturation(),
         HillSaturationSigmoid(),
         RootSaturation(),
+        NoSaturation(),
     ]
     return [
         pytest.param(transformation, id=transformation.lookup_name)

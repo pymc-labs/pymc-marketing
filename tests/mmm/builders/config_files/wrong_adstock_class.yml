@@ -1,0 +1,25 @@
+model:
+  class: pymc_marketing.mmm.multidimensional.MMM
+  kwargs:
+    date_column: "date"
+    channel_columns:
+      - channel_1
+      - channel_2
+    target_column: "kpi_registrations"
+
+    # Wrong adstock configuration - invalid class name
+    adstock:
+      class: pymc_marketing.mmm.NonExistentAdstock
+      kwargs: {l_max: 12}
+
+    # Normal saturation configuration
+    saturation:
+      class: pymc_marketing.mmm.MichaelisMentenSaturation
+      kwargs: {}
+
+# ----------------------------------------------------------------------
+sampler_config:
+  tune: 1000
+  draws: 200
+  chains: 8
+  random_seed: 42

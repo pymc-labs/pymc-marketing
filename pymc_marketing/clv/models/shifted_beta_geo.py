@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -19,11 +19,11 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 from pymc.util import RandomState
+from pymc_extras.prior import Prior
 from xarray import DataArray, Dataset
 
 from pymc_marketing.clv.models import CLVModel
 from pymc_marketing.model_config import ModelConfig
-from pymc_marketing.prior import Prior
 
 
 class ShiftedBetaGeoModelIndividual(CLVModel):
@@ -60,7 +60,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
 
             import pymc as pm
 
-            from pymc_marketing.prior import Prior
+            from pymc_extras.prior import Prior
             from pymc_marketing.clv import ShiftedBetaGeoModelIndividual
 
             model = ShiftedBetaGeoModelIndividual(
@@ -70,8 +70,8 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
                     T=[8 for x in range(len(customer_id))],
                 }),
                 model_config={
-                    "alpha_prior": Prior("HalfNormal", sigma=10),
-                    "beta_prior": Prior("HalfStudentT", nu=4, sigma=10),
+                    "alpha": Prior("HalfNormal", sigma=10),
+                    "beta": Prior("HalfStudentT", nu=4, sigma=10),
                 },
                 sampler_config={
                     "draws": 1000,
@@ -136,16 +136,16 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
     def default_model_config(self) -> dict:
         """Default model configuration."""
         return {
-            "alpha_prior": Prior("HalfFlat"),
-            "beta_prior": Prior("HalfFlat"),
+            "alpha": Prior("HalfFlat"),
+            "beta": Prior("HalfFlat"),
         }
 
     def build_model(self) -> None:  # type: ignore[override]
         """Build the model."""
         coords = {"customer_id": self.data["customer_id"]}
         with pm.Model(coords=coords) as self.model:
-            alpha = self.model_config["alpha_prior"].create_variable("alpha")
-            beta = self.model_config["beta_prior"].create_variable("beta")
+            alpha = self.model_config["alpha"].create_variable("alpha")
+            beta = self.model_config["beta"].create_variable("beta")
 
             theta = pm.Beta("theta", alpha, beta, dims=("customer_id",))
 

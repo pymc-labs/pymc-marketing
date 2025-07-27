@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -19,10 +19,10 @@ import pandas as pd
 import pymc as pm
 import pytest
 from lifetimes import ParetoNBDFitter
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv import ParetoNBDModel
 from pymc_marketing.clv.distributions import ParetoNBD
-from pymc_marketing.prior import Prior
 from tests.conftest import create_mock_fit, set_model_fit
 
 
@@ -92,19 +92,19 @@ class TestParetoNBDModel:
     @pytest.fixture(scope="class")
     def model_config(self):
         return {
-            "r_prior": Prior("HalfNormal"),
-            "alpha_prior": Prior("HalfStudentT", nu=4),
-            "s_prior": Prior("HalfCauchy", beta=2),
-            "beta_prior": Prior("Gamma", alpha=1, beta=1),
+            "r": Prior("HalfNormal"),
+            "alpha": Prior("HalfStudentT", nu=4),
+            "s": Prior("HalfCauchy", beta=2),
+            "beta": Prior("Gamma", alpha=1, beta=1),
         }
 
     @pytest.fixture(scope="class")
     def default_model_config(self):
         return {
-            "r_prior": Prior("Weibull", alpha=2, beta=1),
-            "alpha_prior": Prior("Weibull", alpha=2, beta=10),
-            "s_prior": Prior("Weibull", alpha=2, beta=1),
-            "beta_prior": Prior("Weibull", alpha=2, beta=10),
+            "r": Prior("Weibull", alpha=2, beta=1),
+            "alpha": Prior("Weibull", alpha=2, beta=10),
+            "s": Prior("Weibull", alpha=2, beta=1),
+            "beta": Prior("Weibull", alpha=2, beta=10),
         }
 
     def test_model(self, model_config, default_model_config):
@@ -117,26 +117,26 @@ class TestParetoNBDModel:
             assert isinstance(
                 model.model["r"].owner.op,
                 pm.Weibull
-                if config["r_prior"].distribution == "Weibull"
-                else config["r_prior"].pymc_distribution,
+                if config["r"].distribution == "Weibull"
+                else config["r"].pymc_distribution,
             )
             assert isinstance(
                 model.model["alpha"].owner.op,
                 pm.Weibull
-                if config["alpha_prior"].distribution == "Weibull"
-                else config["alpha_prior"].pymc_distribution,
+                if config["alpha"].distribution == "Weibull"
+                else config["alpha"].pymc_distribution,
             )
             assert isinstance(
                 model.model["s"].owner.op,
                 pm.Weibull
-                if config["s_prior"].distribution == "Weibull"
-                else config["s_prior"].pymc_distribution,
+                if config["s"].distribution == "Weibull"
+                else config["s"].pymc_distribution,
             )
             assert isinstance(
                 model.model["beta"].owner.op,
                 pm.Weibull
-                if config["beta_prior"].distribution == "Weibull"
-                else config["beta_prior"].pymc_distribution,
+                if config["beta"].distribution == "Weibull"
+                else config["beta"].pymc_distribution,
             )
 
             assert model.model.eval_rv_shapes() == {
@@ -153,22 +153,34 @@ class TestParetoNBDModel:
     def test_missing_cols(self):
         data_invalid = self.data.drop(columns="customer_id")
 
-        with pytest.raises(ValueError, match="Required column customer_id missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+        ):
             ParetoNBDModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="frequency")
 
-        with pytest.raises(ValueError, match="Required column frequency missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['frequency'\]",
+        ):
             ParetoNBDModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="recency")
 
-        with pytest.raises(ValueError, match="Required column recency missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['recency'\]",
+        ):
             ParetoNBDModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="T")
 
-        with pytest.raises(ValueError, match="Required column T missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['T'\]",
+        ):
             ParetoNBDModel(data=data_invalid)
 
     def test_customer_id_error(self):
@@ -187,15 +199,15 @@ class TestParetoNBDModel:
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
-        "fit_method, rtol",
+        "method, rtol",
         [("mcmc", 0.1), ("map", 0.2), ("demz", 0.2)],
     )
-    def test_model_convergence(self, fit_method, rtol):
+    def test_model_convergence(self, method, rtol):
         model = ParetoNBDModel(
             data=self.data,
         )
 
-        model.fit(fit_method=fit_method, progressbar=False)
+        model.fit(method=method, progressbar=False)
 
         fit = model.idata.posterior
         np.testing.assert_allclose(
@@ -303,7 +315,7 @@ class TestParetoNBDModel:
             rtol=0.001,
         )
 
-    @pytest.mark.parametrize("fit_type", ("map", "mcmc"))
+    @pytest.mark.parametrize("fit_type", ("map", "mcmc", "advi"))
     def test_posterior_distributions(self, fit_type) -> None:
         rng = np.random.default_rng(42)
         dim_T = 2357
@@ -391,6 +403,16 @@ class TestParetoNBDModel:
         assert self.model.sampler_config == loaded_model.sampler_config
         assert self.model.idata == loaded_model.idata
         os.remove("test_model")
+
+    def test_fit_exception(self, mock_pymc_sample):
+        with pytest.warns(
+            DeprecationWarning,
+            match=(
+                "'fit_method' is deprecated and will be removed in a future release. "
+                "Use 'method' instead."
+            ),
+        ):
+            self.model.fit(fit_method="mcmc")
 
 
 class TestParetoNBDModelWithCovariates:
@@ -671,18 +693,18 @@ class TestParetoNBDModelWithCovariates:
         )
         # The default parameter priors are very informative. We use something more broad here
         custom_priors = {
-            "r_prior": Prior("Exponential", scale=10),
-            "alpha_prior": Prior("Exponential", scale=10),
-            "s_prior": Prior("Exponential", scale=10),
-            "beta_prior": Prior("Exponential", scale=10),
-            "purchase_coefficient_prior": Prior("Normal", mu=6, sigma=6),
-            "dropout_coefficient_prior": Prior("Normal", mu=3, sigma=3),
+            "r": Prior("Exponential", scale=10),
+            "alpha": Prior("Exponential", scale=10),
+            "s": Prior("Exponential", scale=10),
+            "beta": Prior("Exponential", scale=10),
+            "purchase_coefficient": Prior("Normal", mu=6, sigma=6),
+            "dropout_coefficient": Prior("Normal", mu=3, sigma=3),
         }
         new_model = ParetoNBDModel(
             synthetic_data,
             model_config=self.model_with_covariates.model_config | custom_priors,
         )
-        new_model.fit(fit_method="map")
+        new_model.fit(method="map")
 
         result = new_model.fit_result
         for var in default_model.free_RVs:

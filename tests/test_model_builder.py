@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -11,22 +11,9 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-#   Copyright 2023 The PyMC Developers
-#
-#   Licensed under the Apache License, Version 2.0 (the "License");
-#   you may not use this file except in compliance with the License.
-#   You may obtain a copy of the License at
-#
-#       http://www.apache.org/licenses/LICENSE-2.0
-#
-#   Unless required by applicable law or agreed to in writing, software
-#   distributed under the License is distributed on an "AS IS" BASIS,
-#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#   See the License for the specific language governing permissions and
-#   limitations under the License.
-
 import hashlib
 import json
+import re
 import sys
 import tempfile
 
@@ -37,8 +24,13 @@ import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
+from rich.table import Table
 
-from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
+from pymc_marketing.model_builder import (
+    DifferentModelError,
+    ModelBuilder,
+    create_sample_kwargs,
+)
 
 
 @pytest.fixture(scope="module")
@@ -52,12 +44,12 @@ def toy_y(toy_X):
     rng = np.random.default_rng(42)
     y = 5 * toy_X["input"] + 3
     y = y + rng.normal(0, 1, size=len(toy_X))
-    y = pd.Series(y, name="output")
+    y = pd.Series(y, name="different name than output")
     return y
 
 
 @pytest.fixture(scope="module")
-def fitted_model_instance(toy_X):
+def fitted_model_instance(toy_X, toy_y, mock_pymc_sample):
     sampler_config = {
         "draws": 100,
         "tune": 100,
@@ -76,6 +68,7 @@ def fitted_model_instance(toy_X):
     )
     model.fit(
         toy_X,
+        toy_y,
         chains=1,
         draws=100,
         tune=100,
@@ -106,24 +99,29 @@ class ModelBuilderTest(ModelBuilder):
     _model_type = "test_model"
     version = "0.1"
 
-    def build_model(self, X: pd.DataFrame, y: pd.Series, model_config=None):
+    def build_model(self, X: pd.DataFrame, y: pd.Series):
         coords = {"numbers": np.arange(len(X))}
-        self._generate_and_preprocess_model_data(X, y)
+
+        y = y if isinstance(y, np.ndarray) else y.values
+
         with pm.Model(coords=coords) as self.model:
-            if model_config is None:
-                model_config = self.default_model_config
-            x = pm.Data("x", self.X["input"].values)
-            y_data = pm.Data("y_data", self.y)
+            x = pm.Data("x", X["input"].values)
+            y_data = pm.Data("y_data", y)
 
             # prior parameters
-            a_loc = model_config["a"]["loc"]
-            a_scale = model_config["a"]["scale"]
-            b_loc = model_config["b"]["loc"]
-            b_scale = model_config["b"]["scale"]
-            obs_error = model_config["obs_error"]
+            a_loc = self.model_config["a"]["loc"]
+            a_scale = self.model_config["a"]["scale"]
+            b_loc = self.model_config["b"]["loc"]
+            b_scale = self.model_config["b"]["scale"]
+            obs_error = self.model_config["obs_error"]
 
             # priors
-            a = pm.Normal("a", a_loc, sigma=a_scale, dims=model_config["a"]["dims"])
+            a = pm.Normal(
+                "a",
+                a_loc,
+                sigma=a_scale,
+                dims=self.model_config["a"]["dims"],
+            )
             b = pm.Normal("b", b_loc, sigma=b_scale)
             obs_error = pm.HalfNormal("σ_model_fmc", obs_error)
 
@@ -140,7 +138,7 @@ class ModelBuilderTest(ModelBuilder):
     def output_var(self):
         return "output"
 
-    def _data_setter(self, X: pd.DataFrame, y: pd.Series = None):
+    def _data_setter(self, X: pd.DataFrame, y: pd.Series | None = None):
         with self.model:
             pm.set_data({"x": X["input"].values})
             if y is not None:
@@ -150,10 +148,6 @@ class ModelBuilderTest(ModelBuilder):
     @property
     def _serializable_model_config(self):
         return self.model_config
-
-    def _generate_and_preprocess_model_data(self, X: pd.DataFrame, y: pd.Series):
-        self.X = X
-        self.y = y
 
     @property
     def default_model_config(self) -> dict:
@@ -191,6 +185,10 @@ def test_save_input_params(fitted_model_instance):
     assert fitted_model_instance.idata.attrs["test_parameter"] == '"test_parameter"'
 
 
+def test_has_pymc_marketing_version(fitted_model_instance):
+    assert "pymc_marketing_version" in fitted_model_instance.posterior.attrs
+
+
 def test_save_load(fitted_model_instance):
     rng = np.random.default_rng(42)
     temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
@@ -223,7 +221,7 @@ def test_save_without_fit_raises_runtime_error():
         model_builder.save("saved_model")
 
 
-def test_empty_sampler_config_fit(toy_X, toy_y):
+def test_empty_sampler_config_fit(toy_X, toy_y, mock_pymc_sample):
     sampler_config = {}
     model_builder = ModelBuilderTest(sampler_config=sampler_config)
     model_builder.idata = model_builder.fit(
@@ -250,7 +248,7 @@ def test_fit(fitted_model_instance):
     )
 
 
-def test_fit_no_t(toy_X):
+def test_fit_no_t(toy_X, mock_pymc_sample):
     model_builder = ModelBuilderTest()
     model_builder.idata = model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
     assert model_builder.model is not None
@@ -279,9 +277,7 @@ def test_set_fit_result(toy_X, toy_y):
     model = ModelBuilderTest()
     model.build_model(X=toy_X, y=toy_y)
     model.idata = None
-    fake_fit = pm.sample_prior_predictive(
-        samples=50, model=model.model, random_seed=1234
-    )
+    fake_fit = pm.sample_prior_predictive(draws=50, model=model.model, random_seed=1234)
     fake_fit.add_groups(dict(posterior=fake_fit.prior))
     model.fit_result = fake_fit
     with pytest.warns(UserWarning, match="Overriding pre-existing fit_result"):
@@ -313,8 +309,8 @@ def test_sample_posterior_predictive(fitted_model_instance, combined):
     pred = fitted_model_instance.sample_posterior_predictive(
         prediction_data, combined=combined, extend_idata=True
     )
-    chains = fitted_model_instance.idata.sample_stats.sizes["chain"]
-    draws = fitted_model_instance.idata.sample_stats.sizes["draw"]
+    chains = fitted_model_instance.idata.posterior.sizes["chain"]
+    draws = fitted_model_instance.idata.posterior.sizes["draw"]
     expected_shape = (n_pred, chains * draws) if combined else (chains, draws, n_pred)
     assert pred[fitted_model_instance.output_var].shape == expected_shape
     assert np.issubdtype(pred[fitted_model_instance.output_var].dtype, np.floating)
@@ -358,7 +354,7 @@ def test_sample_xxx_predictive_keeps_second(
     X_pred = toy_X
 
     kwargs = {
-        "X_pred": X_pred,
+        "X": X_pred,
         "combined": False,
         "extend_idata": True,
         "random_seed": rng,
@@ -385,18 +381,39 @@ def test_prediction_kwarg(fitted_model_instance, toy_X):
     assert isinstance(result, xr.Dataset)
 
 
-def test_fit_after_prior_keeps_prior(toy_X, toy_y):
+@pytest.fixture(scope="module")
+def model_with_prior_predictive(toy_X) -> ModelBuilderTest:
     model = ModelBuilderTest()
     model.sample_prior_predictive(toy_X)
-    assert "prior" in model.idata
-    assert "prior_predictive" in model.idata
-
-    model.fit(X=toy_X, y=toy_y, chains=1, draws=100, tune=100)
-    assert "prior" in model.idata
-    assert "prior_predictive" in model.idata
+    return model
 
 
-def test_second_fit(toy_X, toy_y):
+def test_sample_prior_predictive_groups(model_with_prior_predictive):
+    assert "prior" in model_with_prior_predictive.idata
+    assert "prior_predictive" in model_with_prior_predictive.idata
+
+
+def test_sample_prior_predictive_has_pymc_marketing_version(
+    model_with_prior_predictive,
+):
+    assert "pymc_marketing_version" in model_with_prior_predictive.prior.attrs
+    assert (
+        "pymc_marketing_version" in model_with_prior_predictive.prior_predictive.attrs
+    )
+
+
+def test_fit_after_prior_keeps_prior(
+    model_with_prior_predictive,
+    toy_X,
+    toy_y,
+    mock_pymc_sample,
+):
+    model_with_prior_predictive.fit(X=toy_X, y=toy_y, chains=1, draws=100, tune=100)
+    assert "prior" in model_with_prior_predictive.idata
+    assert "prior_predictive" in model_with_prior_predictive.idata
+
+
+def test_second_fit(toy_X, toy_y, mock_pymc_sample):
     model = ModelBuilderTest()
 
     model.fit(X=toy_X, y=toy_y, chains=1, draws=100, tune=100)
@@ -416,9 +433,6 @@ class InsufficientModel(ModelBuilder):
     ) -> None:
         super().__init__(model_config=model_config, sampler_config=sampler_config)
         self.new_parameter = new_parameter
-
-    def _data_setter(self, X: pd.DataFrame, y: pd.Series = None) -> None:
-        pass
 
     def build_model(self, X: pd.DataFrame, y: pd.Series, model_config=None) -> None:
         with pm.Model() as self.model:
@@ -457,7 +471,7 @@ def test_insufficient_attrs() -> None:
 
     match = "__init__ has parameters that are not in the attrs"
     with pytest.raises(ValueError, match=match):
-        model.sample_prior_predictive(X_pred=X_pred)
+        model.sample_prior_predictive(X=X_pred)
 
 
 def test_incorrect_set_idata_attrs_override() -> None:
@@ -471,7 +485,7 @@ def test_incorrect_set_idata_attrs_override() -> None:
 
     match = "Missing required keys in attrs"
     with pytest.raises(ValueError, match=match):
-        model.sample_prior_predictive(X_pred=X_pred)
+        model.sample_prior_predictive(X=X_pred)
 
 
 @pytest.mark.parametrize(
@@ -579,12 +593,7 @@ def test_fit_sampler_config_seed_reproducibility(toy_X, toy_y) -> None:
     assert idata.posterior.equals(idata2.posterior)
 
 
-def test_fit_sampler_config_with_rng_fails(mocker, toy_X, toy_y) -> None:
-    def mock_sample(*args, **kwargs):
-        idata = pm.sample_prior_predictive(10)
-        return az.InferenceData(posterior=idata.prior)
-
-    mocker.patch("pymc.sample", mock_sample)
+def test_fit_sampler_config_with_rng_fails(toy_X, toy_y, mock_pymc_sample) -> None:
     sampler_config = {
         "chains": 1,
         "draws": 10,
@@ -618,3 +627,181 @@ def test_graphviz(toy_X, toy_y):
 
     model.build_model(X=toy_X, y=toy_y)
     assert isinstance(model.graphviz(), graphviz.graphs.Digraph)
+
+
+@pytest.mark.parametrize(
+    "method_name",
+    [
+        "sample_posterior_predictive",
+        "predict",
+    ],
+)
+def test_X_pred_posterior_deprecation(
+    method_name,
+    fitted_model_instance,
+    toy_X,
+) -> None:
+    if "posterior_predictive" in fitted_model_instance.idata:
+        del fitted_model_instance.idata.posterior_predictive
+
+    with pytest.warns(DeprecationWarning, match="X_pred is deprecated"):
+        method = getattr(fitted_model_instance, method_name)
+        method(X_pred=toy_X)
+
+    assert isinstance(fitted_model_instance.posterior_predictive, xr.Dataset)
+
+
+def test_X_pred_prior_deprecation(fitted_model_instance, toy_X, toy_y) -> None:
+    if "prior" in fitted_model_instance.idata:
+        del fitted_model_instance.idata.prior
+    if "prior_predictive" in fitted_model_instance.idata:
+        del fitted_model_instance.idata.prior_predictive
+
+    with pytest.warns(DeprecationWarning, match="X_pred is deprecated"):
+        fitted_model_instance.sample_prior_predictive(X_pred=toy_X)
+
+    with pytest.warns(DeprecationWarning, match="y_pred is deprecated"):
+        fitted_model_instance.sample_prior_predictive(toy_X, y_pred=toy_y)
+
+    assert isinstance(fitted_model_instance.prior, xr.Dataset)
+    assert isinstance(fitted_model_instance.prior_predictive, xr.Dataset)
+
+
+class XarrayModel(ModelBuilder):
+    """Multivariate Regression model."""
+
+    def build_model(self, X, y, **kwargs):
+        if isinstance(X, xr.Dataset):
+            X = X["x"]
+
+        coords = {
+            "country": ["A", "B"],
+            "date": [0, 1],
+        }
+        with pm.Model(coords=coords) as self.model:
+            x = pm.Data("X", X.values, dims=("country", "date"))
+            y = pm.Data("y", y.values, dims=("country", "date"))
+
+            alpha = pm.Normal("alpha", 0, 1, dims=("country",))
+            beta = pm.Normal("beta", 0, 1, dims=("country",))
+
+            mu = alpha + beta * x
+
+            sigma = pm.HalfNormal("sigma")
+
+            pm.Normal("output", mu=mu, sigma=sigma, observed=y)
+
+    def _data_setter(self, X, y=None):
+        pass
+
+    @property
+    def _serializable_model_config(self):
+        return {}
+
+    @property
+    def output_var(self):
+        return "output"
+
+    @property
+    def default_model_config(self):
+        return {}
+
+    @property
+    def default_sampler_config(self):
+        return {}
+
+
+@pytest.fixture
+def xarray_X() -> xr.Dataset:
+    return (
+        pd.DataFrame(
+            {
+                "x": [1, 2, 3, 4],
+                "date": [0, 1, 0, 1],
+                "country": ["A", "A", "B", "B"],
+            }
+        )
+        .set_index(["country", "date"])
+        .to_xarray()
+    )
+
+
+@pytest.fixture
+def xarray_y(xarray_X) -> xr.DataArray:
+    alpha = xr.DataArray(
+        [1, 2],
+        dims=["country"],
+        coords={"country": ["A", "B"]},
+    )
+    beta = xr.DataArray([1, 2], dims=["country"], coords={"country": ["A", "B"]})
+
+    return (alpha + beta * xarray_X["x"]).rename("name other than output")
+
+
+@pytest.mark.parametrize("X_is_array", [False, True], ids=["DataArray", "Dataset"])
+def test_xarray_model_builder(X_is_array, xarray_X, xarray_y, mock_pymc_sample) -> None:
+    model = XarrayModel()
+
+    X = xarray_X if X_is_array else xarray_X["x"]
+
+    model.fit(X, xarray_y)
+
+    xr.testing.assert_equal(
+        model.idata.fit_data,  # type: ignore
+        pd.DataFrame(
+            {
+                "x": [1, 2, 3, 4],
+                "output": [2, 3, 8, 10],
+            },
+            index=pd.MultiIndex.from_tuples(
+                [("A", 0), ("A", 1), ("B", 0), ("B", 1)], names=["country", "date"]
+            ),
+        ).to_xarray(),
+    )
+
+
+@pytest.fixture(scope="module")
+def stale_idata(fitted_model_instance) -> az.InferenceData:
+    idata = fitted_model_instance.idata.copy()
+    idata.attrs["version"] = "0.0.1"
+
+    return idata
+
+
+@pytest.fixture(scope="module")
+def different_configuration_idata(fitted_model_instance) -> az.InferenceData:
+    idata = fitted_model_instance.idata.copy()
+    model_config = json.loads(idata.attrs["model_config"])
+    model_config["a"] = {"loc": 1, "scale": 15, "dims": ("numbers",)}
+    idata.attrs["model_config"] = json.dumps(model_config)
+
+    return idata
+
+
+@pytest.mark.parametrize(
+    "fixture_name, match",
+    [
+        pytest.param(
+            "stale_idata",
+            re.escape("The model version (0.0.1)"),
+            id="different version",
+        ),
+        pytest.param(
+            "different_configuration_idata", "The model id", id="different id"
+        ),
+    ],
+)
+def test_load_from_idata_errors(request, fixture_name, match) -> None:
+    idata = request.getfixturevalue(fixture_name)
+    with pytest.raises(DifferentModelError, match=match):
+        ModelBuilderTest.load_from_idata(idata)
+
+
+def test_table() -> None:
+    model = ModelBuilderTest()
+    match = "The model hasn't been built yet"
+    with pytest.raises(RuntimeError, match=match):
+        model.table()
+
+    model.build_model(pd.DataFrame({"input": [1, 2, 3]}), pd.Series([1, 2, 3]))
+    assert isinstance(model.table(), Table)

@@ -1,4 +1,4 @@
-#   Copyright 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2025 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import InstanceOf
 from pymc.distributions.shape_utils import Dims
+from pymc_extras.prior import Prior, VariableFactory, create_dim_handler
 from pytensor import tensor as pt
 from pytensor.tensor.variable import TensorVariable
 
@@ -44,7 +45,6 @@ from pymc_marketing.plot import (
     plot_hdi,
     plot_samples,
 )
-from pymc_marketing.prior import Prior, VariableFactory, create_dim_handler
 
 # "x" for saturation, "time since exposure" for adstock
 NON_GRID_NAMES: frozenset[str] = frozenset({"x", "time since exposure"})
@@ -220,13 +220,15 @@ class Transformation:
         .. code-block:: python
 
             from pymc_marketing.mmm.components.base import Transformation
-            from pymc_marketing.prior import Prior
+            from pymc_extras.prior import Prior
+
 
             class MyTransformation(Transformation):
                 lookup_name: str = "my_transformation"
                 prefix: str = "transformation"
                 function = lambda x, lam: x * lam
                 default_priors = {"lam": Prior("Gamma", alpha=3, beta=1)}
+
 
             transformation = MyTransformation()
             transformation.update_priors(
@@ -318,6 +320,11 @@ class Transformation:
             for parameter in self.default_priors.keys()
         }
 
+    @property
+    def combined_dims(self) -> tuple[str, ...]:
+        """Get the combined dims for all the parameters."""
+        return tuple(self._infer_output_core_dims())
+
     def _infer_output_core_dims(self) -> tuple[str, ...]:
         parameter_dims = sorted(
             [
@@ -375,6 +382,9 @@ class Transformation:
     def plot_curve(
         self,
         curve: xr.DataArray,
+        n_samples: int = 10,
+        hdi_probs: float | list[float] | None = None,
+        random_seed: np.random.Generator | None = None,
         subplot_kwargs: dict | None = None,
         sample_kwargs: dict | None = None,
         hdi_kwargs: dict | None = None,
@@ -390,6 +400,13 @@ class Transformation:
         ----------
         curve : xr.DataArray
             The curve to plot.
+        n_samples : int, optional
+            Number of samples
+        hdi_probs : float | list[float], optional
+            HDI probabilities. Defaults to None which uses arviz default for
+            stats.ci_prob which is 94%
+        random_seed : int | random number generator, optional
+            Random number generator. Defaults to None
         subplot_kwargs : dict, optional
             Keyword arguments for plt.subplots
         sample_kwargs : dict, optional
@@ -415,6 +432,9 @@ class Transformation:
         return plot_curve(
             curve,
             non_grid_names=set(NON_GRID_NAMES),
+            n_samples=n_samples,
+            hdi_probs=hdi_probs,
+            random_seed=random_seed,
             subplot_kwargs=subplot_kwargs,
             sample_kwargs=sample_kwargs,
             hdi_kwargs=hdi_kwargs,

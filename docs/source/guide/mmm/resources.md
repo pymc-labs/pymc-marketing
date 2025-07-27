@@ -45,14 +45,14 @@ To add more substance to our session and ensure it's not just informative but al
 
 ## Blogposts
 
-* PyMC Labs: [Improving the Speed and Accuracy of Bayesian Media Mix Models](https://www.pymc-labs.io/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)
+* PyMC Labs: [Improving the Speed and Accuracy of Bayesian Media Mix Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)
 * 1749: [Measuring Marketing Effectiveness Over the Long-Term](https://1749.io/resource-center/f/measuring-marketing-effectiveness-over-the-long-term)
 * 1749: [Marketing Mix Modeling in a Modern Era: Time-Varying Parameters](https://1749.io/resource-center/f/marketing-mix-modeling-in-a-modern-era-time-varying-parameters)
 * 1749: [A Comprehensive Guide to Marketing-Mix Modeling](https://1749.io/resource-center/f/a-comprehensive-guide-to-bayesian-marketing-mix-modeling)
 * Juan Orduz: [Media Effect Estimation with Orbit's KTR Model](https://juanitorduz.github.io/orbit_mmm/)
 * Juan Orduz: [Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns](https://juanitorduz.github.io/pymc_mmm/)
 * Juan Orduz: [Media Mix Model and Experimental Calibration: A Simulation Study](https://juanitorduz.github.io/mmm_roas/)
-* Dr. Robert Kübler: [Convenient Bayesian Marketing Mix Modeling with PyMC Marketing](https://towardsdatascience.com/convenient-bayesian-marketing-mix-modeling-with-pymc-marketing-8b02a9a9c4aa)
+* Dr. Robert Kübler: [Convenient Bayesian Marketing Mix Modeling with PyMC-Marketing](https://towardsdatascience.com/convenient-bayesian-marketing-mix-modeling-with-pymc-marketing-8b02a9a9c4aa)
 * Ryan O'Sullivan, [Is Multi-Collinearity Destroying Your Causal Inferences In Marketing Mix Modelling?](https://towardsdatascience.com/is-multi-collinearity-destroying-your-causal-inferences-in-marketing-mix-modelling-78cb56017c73)
 
 ## Tutorials
