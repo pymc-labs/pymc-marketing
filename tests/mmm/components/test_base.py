@@ -26,7 +26,7 @@ from pymc_marketing.mmm.components.base import (
     ParameterPriorException,
     Transformation,
     create_registration_meta,
-    is_leading_dim,
+    index_variable,
 )
 from pymc_marketing.mmm.components.saturation import TanhSaturation
 
@@ -481,15 +481,68 @@ def test_transform_sample_curve_with_variable_factory():
 
 
 @pytest.mark.parametrize(
-    "idx_dims, dims, expected",
+    "var, dims, idx, expected",
     [
-        (("geo",), ("geo", "channel"), True),
-        (("channel",), ("geo", "channel"), False),
-        (("geo", "channel"), ("geo", "channel"), True),
+        (
+            np.array([[1, 2, 3], [4, 5, 6]]),
+            ("geo", "channel"),
+            {"geo": [0, 0, 1, 1]},
+            np.array(
+                [
+                    [1, 2, 3],
+                    [1, 2, 3],
+                    [4, 5, 6],
+                    [4, 5, 6],
+                ]
+            ),
+        ),
     ],
 )
-def test_is_leading_dim(idx_dims, dims, expected) -> None:
-    if expected:
-        assert is_leading_dim(idx_dims, dims)
-    else:
-        assert not is_leading_dim(idx_dims, dims)
+def test_index_variable(var, dims, idx, expected) -> None:
+    result = index_variable(var, dims=dims, idx=idx)
+    if isinstance(result, TensorVariable):
+        result = result.eval()
+
+    np.testing.assert_allclose(result, expected)
+
+
+def test_apply_idx(new_transformation_class) -> None:
+    instance = new_transformation_class(
+        priors={
+            "a": Prior(
+                "HalfNormal",
+                dims="geo",
+            ),
+            "b": Prior(
+                "HalfNormal",
+                dims="channel",
+            ),
+        }
+    )
+
+    X = np.array(
+        [
+            [0, 0, 0],
+            [1, 1, 1],
+            [2, 2, 2],
+            [0, 0, 0],
+            [1, 1, 1],
+            [2, 2, 2],
+        ]
+    )
+
+    coords = {"geo": ["A", "B"], "channel": ["TV", "Radio", "Online"]}
+    with pm.Model(coords=coords) as model:
+        idx = [0, 0, 0, 1, 1, 1]
+        Y = instance.apply(X, idx={"geo": idx}, dims="channel")
+
+        expected = instance.function(
+            X,
+            a=model["new_a"][idx, None],
+            b=model["new_b"],
+        )
+
+    np.testing.assert_allclose(
+        Y.eval(),
+        expected.eval(),
+    )
