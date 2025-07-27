@@ -484,6 +484,22 @@ def test_transform_sample_curve_with_variable_factory():
     "var, dims, idx, expected",
     [
         (
+            np.arange(2 * 3 * 4).reshape(2, 3, 4),
+            ("geo", "product", "channel"),
+            {
+                "geo": [0, 0, 1, 1],
+                "product": [0, 2, 1, 0],
+            },
+            np.array(
+                [
+                    [0, 1, 2, 3],
+                    [8, 9, 10, 11],
+                    [16, 17, 18, 19],
+                    [12, 13, 14, 15],
+                ]
+            ),
+        ),
+        (
             np.array([[1, 2, 3], [4, 5, 6]]),
             ("geo", "channel"),
             {"geo": [0, 0, 1, 1]},
@@ -548,7 +564,7 @@ def test_apply_idx(new_transformation_class) -> None:
     )
 
 
-def test_apply_index_too_many(new_transformation_class) -> None:
+def test_apply_idx_more_dims(new_transformation_class) -> None:
     instance = new_transformation_class(
         priors={
             "a": Prior(
@@ -557,9 +573,20 @@ def test_apply_index_too_many(new_transformation_class) -> None:
             ),
             "b": Prior(
                 "HalfNormal",
-                dims="channel",
+                dims=("product", "channel"),
             ),
         }
+    )
+
+    X = np.array(
+        [
+            [0, 0, 0],
+            [1, 1, 1],
+            [2, 2, 2],
+            [0, 0, 0],
+            [1, 1, 1],
+            [2, 2, 2],
+        ]
     )
 
     coords = {
@@ -567,10 +594,25 @@ def test_apply_index_too_many(new_transformation_class) -> None:
         "product": ["X", "Y", "Z"],
         "channel": ["TV", "Radio", "Online"],
     }
-    with pm.Model(coords=coords):
-        idx = {
-            "geo": [0, 0, 0, 1, 1, 1],
-            "product": [0, 1, 2, 0, 1, 2],
-        }
-        with pytest.raises(NotImplementedError, match="The indexing"):
-            instance.apply(None, idx=idx, dims="channel")
+    with pm.Model(coords=coords) as model:
+        geo_idx = [0, 0, 0, 1, 1, 1]
+        product_idx = [0, 2, 1, 0, 1, 0]
+        Y = instance.apply(
+            X,
+            idx={
+                "geo": geo_idx,
+                "product": product_idx,
+            },
+            dims="channel",
+        )
+
+        expected = instance.function(
+            X,
+            a=model["new_a"][geo_idx, product_idx, None],
+            b=model["new_b"][product_idx],
+        )
+
+    np.testing.assert_allclose(
+        Y.eval(),
+        expected.eval(),
+    )
