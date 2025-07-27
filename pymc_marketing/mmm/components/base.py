@@ -88,11 +88,25 @@ class MissingDataParameter(Exception):
         super().__init__(msg)
 
 
-def is_leading_dim(idx_dims, dims) -> bool:
-    """Check if the idx_dims are a leading dimension of the dims."""
-    if len(idx_dims) > len(dims):
-        return False
-    return dims[: len(idx_dims)] == idx_dims
+def index_variable(var, dims, idx) -> TensorVariable:
+    """Index a variable based on the provided dimensions and index.
+
+    Parameters
+    ----------
+    var : TensorVariable
+        The variable to index.
+    dims : tuple[str, ...]
+        The dims of the variable.
+    idx : dict[str, pt.TensorLike]
+        The index to use for the variable.
+
+    Returns
+    -------
+    TensorVariable
+        The indexed variable.
+
+    """
+    return var[tuple(idx[dim] if dim in idx else slice(None) for dim in dims)]
 
 
 class Transformation:
@@ -349,15 +363,18 @@ class Transformation:
         dims: Dims | None = None,
         idx: dict[str, pt.TensorLike] | None = None,
     ) -> dict[str, TensorVariable]:
-        if idx is not None and not is_leading_dim(idx.keys(), dims):
-            raise ValueError(
-                "The idx dimensions must be a leading dimension of the dims only."
-            )
+        if isinstance(dims, str):
+            dims = (dims,)
 
         dims = dims or self.combined_dims
         if idx is not None:
             n_idx_dims = len(idx)
             dummy_dims = tuple(f"DUMMY_{i}" for i in range(n_idx_dims))
+            if len(dummy_dims) > 1:
+                raise NotImplementedError(
+                    "The indexing with multiple dimensions is not supported yet."
+                )
+
             dims = (*dummy_dims, *dims)
 
         dim_handler = create_dim_handler(dims)
@@ -368,7 +385,16 @@ class Transformation:
                 return dist
 
             var = dist.create_variable(variable_name)
-            return dim_handler(var, dist.dims)
+
+            dist_dims = dist.dims
+            if idx is not None:
+                var = index_variable(var, dist.dims, idx)
+
+                dist_dims = tuple(
+                    [(dim if dim not in idx else "DUMMY_0") for dim in dist.dims]
+                )
+
+            return dim_handler(var, dist_dims)
 
         return {
             parameter_name: create_variable(parameter_name, variable_name)
