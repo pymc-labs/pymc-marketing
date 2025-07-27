@@ -26,6 +26,7 @@ from pymc_marketing.mmm.components.base import (
     ParameterPriorException,
     Transformation,
     create_registration_meta,
+    index_variable,
 )
 from pymc_marketing.mmm.components.saturation import TanhSaturation
 
@@ -477,3 +478,99 @@ def test_transform_sample_curve_with_variable_factory():
 
     curve = saturation.sample_curve(prior, 10)
     assert curve.dims == ("chain", "draw", "x", "dim_a")
+
+
+@pytest.mark.parametrize(
+    "var, dims, idx, expected",
+    [
+        (
+            np.array([[1, 2, 3], [4, 5, 6]]),
+            ("geo", "channel"),
+            {"geo": [0, 0, 1, 1]},
+            np.array(
+                [
+                    [1, 2, 3],
+                    [1, 2, 3],
+                    [4, 5, 6],
+                    [4, 5, 6],
+                ]
+            ),
+        ),
+    ],
+)
+def test_index_variable(var, dims, idx, expected) -> None:
+    result = index_variable(var, dims=dims, idx=idx)
+    if isinstance(result, TensorVariable):
+        result = result.eval()
+
+    np.testing.assert_allclose(result, expected)
+
+
+def test_apply_idx(new_transformation_class) -> None:
+    instance = new_transformation_class(
+        priors={
+            "a": Prior(
+                "HalfNormal",
+                dims="geo",
+            ),
+            "b": Prior(
+                "HalfNormal",
+                dims="channel",
+            ),
+        }
+    )
+
+    X = np.array(
+        [
+            [0, 0, 0],
+            [1, 1, 1],
+            [2, 2, 2],
+            [0, 0, 0],
+            [1, 1, 1],
+            [2, 2, 2],
+        ]
+    )
+
+    coords = {"geo": ["A", "B"], "channel": ["TV", "Radio", "Online"]}
+    with pm.Model(coords=coords) as model:
+        idx = [0, 0, 0, 1, 1, 1]
+        Y = instance.apply(X, idx={"geo": idx}, dims="channel")
+
+        expected = instance.function(
+            X,
+            a=model["new_a"][idx, None],
+            b=model["new_b"],
+        )
+
+    np.testing.assert_allclose(
+        Y.eval(),
+        expected.eval(),
+    )
+
+
+def test_apply_index_too_many(new_transformation_class) -> None:
+    instance = new_transformation_class(
+        priors={
+            "a": Prior(
+                "HalfNormal",
+                dims=("geo", "product"),
+            ),
+            "b": Prior(
+                "HalfNormal",
+                dims="channel",
+            ),
+        }
+    )
+
+    coords = {
+        "geo": ["A", "B"],
+        "product": ["X", "Y", "Z"],
+        "channel": ["TV", "Radio", "Online"],
+    }
+    with pm.Model(coords=coords):
+        idx = {
+            "geo": [0, 0, 0, 1, 1, 1],
+            "product": [0, 1, 2, 0, 1, 2],
+        }
+        with pytest.raises(NotImplementedError, match="The indexing"):
+            instance.apply(None, idx=idx, dims="channel")
