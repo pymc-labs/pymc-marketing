@@ -12,7 +12,6 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import os
-import warnings
 
 import arviz as az
 import numpy as np
@@ -21,8 +20,8 @@ import pymc as pm
 import pytest
 import xarray as xr
 from matplotlib import pyplot as plt
+from pymc_extras.prior import Prior
 
-from pymc_marketing.mmm.budget_optimizer import optimizer_xarray_builder
 from pymc_marketing.mmm.components.adstock import DelayedAdstock, GeometricAdstock
 from pymc_marketing.mmm.components.saturation import (
     LogisticSaturation,
@@ -31,39 +30,9 @@ from pymc_marketing.mmm.components.saturation import (
 )
 from pymc_marketing.mmm.mmm import MMM, BaseMMM
 from pymc_marketing.model_builder import DifferentModelError
-from pymc_marketing.prior import Prior
 
 seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
-
-
-def mock_fit(model, X: pd.DataFrame, y: np.ndarray, **kwargs):
-    model.build_model(X=X, y=y)
-
-    with model.model:
-        idata = pm.sample_prior_predictive(random_seed=rng, **kwargs)
-
-    model.preprocess("X", X)
-    model.preprocess("y", y)
-
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            category=UserWarning,
-            message="The group fit_data is not defined in the InferenceData scheme",
-        )
-        idata.add_groups(
-            {
-                "posterior": idata.prior,
-                "fit_data": pd.concat(
-                    [X, pd.Series(y, index=X.index, name="y")], axis=1
-                ).to_xarray(),
-            }
-        )
-    model.idata = idata
-    model.set_idata_attrs(idata=idata)
-
-    return model
 
 
 @pytest.fixture(scope="module")
@@ -147,6 +116,16 @@ def mmm() -> MMM:
 
 
 @pytest.fixture(scope="module")
+def mmm_no_controls() -> MMM:
+    return MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+    )
+
+
+@pytest.fixture(scope="module")
 def mmm_with_fourier_features() -> MMM:
     return MMM(
         date_column="date",
@@ -159,8 +138,25 @@ def mmm_with_fourier_features() -> MMM:
 
 
 @pytest.fixture(scope="module")
-def mmm_fitted(mmm: MMM, toy_X: pd.DataFrame, toy_y: pd.Series) -> MMM:
-    return mock_fit(mmm, toy_X, toy_y)
+def mmm_fitted(
+    mmm: MMM,
+    toy_X: pd.DataFrame,
+    toy_y: pd.Series,
+    mock_pymc_sample,
+) -> MMM:
+    mmm.fit(X=toy_X, y=toy_y)
+    return mmm
+
+
+@pytest.fixture(scope="module")
+def mmm_fitted_no_controls(
+    mmm_no_controls: MMM,
+    toy_X: pd.DataFrame,
+    toy_y: pd.Series,
+    mock_pymc_sample,
+) -> MMM:
+    mmm_no_controls.fit(X=toy_X, y=toy_y)
+    return mmm_no_controls
 
 
 @pytest.fixture(scope="module")
@@ -173,12 +169,23 @@ def mmm_fitted_with_posterior_predictive(
 
 
 @pytest.fixture(scope="module")
+def mmm_fitted_with_prior_and_posterior_predictive(
+    mmm_fitted_with_posterior_predictive,
+    toy_X,
+):
+    _ = mmm_fitted_with_posterior_predictive.sample_prior_predictive(toy_X)
+    return mmm_fitted_with_posterior_predictive
+
+
+@pytest.fixture(scope="module")
 def mmm_fitted_with_fourier_features(
     mmm_with_fourier_features: MMM,
     toy_X: pd.DataFrame,
     toy_y: pd.Series,
+    mock_pymc_sample,
 ) -> MMM:
-    return mock_fit(mmm_with_fourier_features, toy_X, toy_y)
+    mmm_with_fourier_features.fit(X=toy_X, y=toy_y)
+    return mmm_with_fourier_features
 
 
 @pytest.mark.parametrize("media_transform", ["adstock", "saturation"])
@@ -195,7 +202,11 @@ def test_plotting_media_transform_workflow(mmm_fitted, media_transform) -> None:
 
 class TestMMM:
     def test_save_load_with_not_serializable_model_config(
-        self, model_config_requiring_serialization, toy_X, toy_y
+        self,
+        model_config_requiring_serialization,
+        toy_X,
+        toy_y,
+        mock_pymc_sample,
     ):
         def deep_equal(dict1, dict2):
             for key, value in dict1.items():
@@ -222,7 +233,7 @@ class TestMMM:
             adstock=adstock,
             saturation=saturation,
         )
-        model = mock_fit(model, toy_X, toy_y)
+        model.fit(toy_X, toy_y)
         model.save("test_save_load")
         model2 = MMM.load("test_save_load")
         assert model.date_column == model2.date_column
@@ -313,7 +324,7 @@ class TestMMM:
         samples: int = 3
         with mmm.model:
             prior_predictive: az.InferenceData = pm.sample_prior_predictive(
-                samples=samples, random_seed=rng
+                draws=samples, random_seed=rng
             )
 
         assert az.extract(
@@ -371,10 +382,7 @@ class TestMMM:
                 samples,
             )
 
-    def test_fit(self, toy_X: pd.DataFrame, toy_y: pd.Series) -> None:
-        draws: int = 500
-        chains: int = 1
-
+    def test_fit(self, toy_X: pd.DataFrame, toy_y: pd.Series, mock_pymc_sample) -> None:
         mmm = BaseMMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
@@ -389,25 +397,27 @@ class TestMMM:
         assert mmm.model_config is not None
         n_channel: int = len(mmm.channel_columns)
         n_control: int = len(mmm.control_columns)
-        mmm = mock_fit(mmm, toy_X, toy_y)
-        idata: az.InferenceData = mmm.fit_result
+        mmm.fit(X=toy_X, y=toy_y)
+        posterior: az.InferenceData = mmm.fit_result
+        chains = posterior.sizes["chain"]
+        draws = posterior.sizes["draw"]
         assert (
-            az.extract(data=idata, var_names=["intercept"], combined=True)
+            az.extract(data=posterior, var_names=["intercept"], combined=True)
             .to_numpy()
             .size
             == draws * chains
         )
         assert az.extract(
-            data=idata, var_names=["saturation_beta"], combined=True
+            data=posterior, var_names=["saturation_beta"], combined=True
         ).to_numpy().shape == (n_channel, draws * chains)
         assert az.extract(
-            data=idata, var_names=["adstock_alpha"], combined=True
+            data=posterior, var_names=["adstock_alpha"], combined=True
         ).to_numpy().shape == (n_channel, draws * chains)
         assert az.extract(
-            data=idata, var_names=["saturation_lam"], combined=True
+            data=posterior, var_names=["saturation_lam"], combined=True
         ).to_numpy().shape == (n_channel, draws * chains)
         assert az.extract(
-            data=idata, var_names=["gamma_control"], combined=True
+            data=posterior, var_names=["gamma_control"], combined=True
         ).to_numpy().shape == (
             n_channel,
             draws * chains,
@@ -439,7 +449,10 @@ class TestMMM:
         ]
 
     def test_mmm_serializes_and_deserializes_dag_and_nodes(
-        self, toy_X: pd.DataFrame, toy_y: pd.Series
+        self,
+        toy_X: pd.DataFrame,
+        toy_y: pd.Series,
+        mock_pymc_sample,
     ) -> None:
         dag = """
         digraph {
@@ -462,7 +475,7 @@ class TestMMM:
             outcome_node=outcome_node,
         )
 
-        mmm = mock_fit(mmm, toy_X, toy_y)
+        mmm.fit(X=toy_X, y=toy_y)
 
         # Save and reload the model
         mmm.save("test_model")
@@ -480,99 +493,33 @@ class TestMMM:
         # Clean up
         os.remove("test_model")
 
-    def test_channel_contributions_forward_pass_recovers_contribution(
+    def test_channel_contribution_forward_pass_recovers_contribution(
         self,
         mmm_fitted: MMM,
     ) -> None:
         channel_data = mmm_fitted.preprocessed_data["X"][
             mmm_fitted.channel_columns
         ].to_numpy()
-        channel_contributions_forward_pass = (
-            mmm_fitted.channel_contributions_forward_pass(channel_data=channel_data)
+        channel_contribution_forward_pass = (
+            mmm_fitted.channel_contribution_forward_pass(channel_data=channel_data)
         )
-        channel_contributions_forward_pass_mean = (
-            channel_contributions_forward_pass.mean(axis=(0, 1))
+        channel_contribution_forward_pass_mean = channel_contribution_forward_pass.mean(
+            axis=(0, 1)
         )
-        channel_contributions_mean = mmm_fitted.fit_result[
-            "channel_contributions"
-        ].mean(dim=["draw", "chain"])
+        channel_contribution_mean = mmm_fitted.fit_result["channel_contribution"].mean(
+            dim=["draw", "chain"]
+        )
         assert (
-            channel_contributions_forward_pass_mean.shape
-            == channel_contributions_mean.shape
+            channel_contribution_forward_pass_mean.shape
+            == channel_contribution_mean.shape
         )
         # The forward pass results should be in the original scale of the target variable.
         # The trace fits the model with scaled data, so when scaling back, they should match.
         # Since we are using a `MaxAbsScaler`, the scaling factor is the maximum absolute, i.e y.max()
         np.testing.assert_array_almost_equal(
-            x=channel_contributions_forward_pass_mean / channel_contributions_mean,
+            x=channel_contribution_forward_pass_mean / channel_contribution_mean,
             y=mmm_fitted.y.max(),
         )
-
-    def test_allocate_budget_to_maximize_response(self, mmm_fitted: MMM) -> None:
-        budget = 2.0
-        num_periods = 8
-        time_granularity = "weekly"
-        budget_bounds = optimizer_xarray_builder(
-            value=[[0.5, 1.2], [0.5, 1.5]],
-            channel=["channel_1", "channel_2"],
-            bound=["lower", "upper"],
-        )
-        noise_level = 0.1
-
-        # Call the method
-        inference_data = mmm_fitted.allocate_budget_to_maximize_response(
-            budget=budget,
-            time_granularity=time_granularity,
-            num_periods=num_periods,
-            budget_bounds=budget_bounds,
-            noise_level=noise_level,
-            custom_constraints=(),
-        )
-
-        inference_periods = len(inference_data.coords["date"])
-
-        # a) Total budget consistency check
-        allocated_budget = mmm_fitted.optimal_allocation.sum()
-        assert np.isclose(allocated_budget, budget, rtol=1e-5), (
-            f"Total allocated budget {allocated_budget} does not match expected budget {budget}"
-        )
-
-        # b) Budget boundaries check
-        allocation = mmm_fitted.optimal_allocation
-        lower_bounds = budget_bounds.sel(bound="lower")
-        upper_bounds = budget_bounds.sel(bound="upper")
-        assert (allocation >= lower_bounds).all() and (
-            allocation <= upper_bounds
-        ).all(), (
-            f"Allocations {allocation.values} are out of bounds ({lower_bounds.values}, {upper_bounds.values})"
-        )
-
-        # c) num_periods consistency check
-        assert inference_periods == num_periods, (
-            f"Number of periods in the data {inference_periods} does not match the expected {num_periods}"
-        )
-
-    def test_allocate_budget_to_maximize_response_bad_noise_level(
-        self, mmm_fitted: MMM
-    ) -> None:
-        budget = 2.0
-        num_periods = 8
-        time_granularity = "weekly"
-        budget_bounds = optimizer_xarray_builder(
-            value=[[0.5, 1.2], [0.5, 1.5]],
-            channel=["channel_1", "channel_2"],
-            bound=["lower", "upper"],
-        )
-        noise_level = "bad_noise_level"
-
-        with pytest.raises(ValueError, match="noise_level must be a float"):
-            mmm_fitted.allocate_budget_to_maximize_response(
-                budget=budget,
-                time_granularity=time_granularity,
-                num_periods=num_periods,
-                budget_bounds=budget_bounds,
-                noise_level=noise_level,
-            )
 
     @pytest.mark.parametrize(
         argnames="original_scale",
@@ -581,7 +528,7 @@ class TestMMM:
     )
     @pytest.mark.parametrize(
         argnames="var_contribution",
-        argvalues=["channel_contributions", "control_contributions"],
+        argvalues=["channel_contribution", "control_contribution"],
         ids=["channel_contribution", "control_contribution"],
     )
     def test_get_ts_contribution_posterior(
@@ -595,9 +542,11 @@ class TestMMM:
                 var_contribution=var_contribution, original_scale=original_scale
             )
         )
+        chains = ts_posterior.sizes["chain"]
+        draws = ts_posterior.sizes["draw"]
         assert ts_posterior.dims == ("chain", "draw", "date")
-        assert ts_posterior.chain.size == 1
-        assert ts_posterior.draw.size == 500
+        assert ts_posterior.chain.size == chains
+        assert ts_posterior.draw.size == draws
 
     @pytest.mark.parametrize(
         argnames="original_scale",
@@ -612,8 +561,8 @@ class TestMMM:
         errors = mmm_fitted_with_posterior_predictive.get_errors(
             original_scale=original_scale
         )
-        n_chains = 1
-        n_draws = 500
+        n_chains = errors.sizes["chain"]
+        n_draws = errors.sizes["draw"]
         assert isinstance(errors, xr.DataArray)
         assert errors.name == "errors"
         assert errors.shape == (
@@ -666,45 +615,45 @@ class TestMMM:
         with pytest.raises(ValueError):
             mmm_fitted_with_posterior_predictive.plot_posterior_predictive()
 
-    def test_channel_contributions_forward_pass_is_consistent(
+    def test_channel_contribution_forward_pass_is_consistent(
         self, mmm_fitted: MMM
     ) -> None:
         channel_data = mmm_fitted.preprocessed_data["X"][
             mmm_fitted.channel_columns
         ].to_numpy()
-        channel_contributions_forward_pass = (
-            mmm_fitted.channel_contributions_forward_pass(channel_data=channel_data)
+        channel_contribution_forward_pass = (
+            mmm_fitted.channel_contribution_forward_pass(channel_data=channel_data)
         )
         # use a grid [0, 1, 2] which corresponds to
         # - no-spend -> forward pass should be zero
         # - spend input for the model -> should match the forward pass
         # - doubling the spend -> should be higher than the forward pass with the original spend
-        channel_contributions_forward_pass_grid = (
-            mmm_fitted.get_channel_contributions_forward_pass_grid(
+        channel_contribution_forward_pass_grid = (
+            mmm_fitted.get_channel_contribution_forward_pass_grid(
                 start=0, stop=2, num=3
             )
         )
-        assert channel_contributions_forward_pass_grid[0].sum().item() == 0
+        assert channel_contribution_forward_pass_grid[0].sum().item() == 0
         np.testing.assert_equal(
-            actual=channel_contributions_forward_pass,
-            desired=channel_contributions_forward_pass_grid[1].to_numpy(),
+            actual=channel_contribution_forward_pass,
+            desired=channel_contribution_forward_pass_grid[1].to_numpy(),
         )
         assert (
-            channel_contributions_forward_pass_grid[2].to_numpy()
-            >= channel_contributions_forward_pass
+            channel_contribution_forward_pass_grid[2].to_numpy()
+            >= channel_contribution_forward_pass
         ).all()
 
-    def test_get_channel_contributions_forward_pass_grid_shapes(
+    def test_get_channel_contribution_forward_pass_grid_shapes(
         self, mmm_fitted: MMM
     ) -> None:
         n_channels = len(mmm_fitted.channel_columns)
         data_range = mmm_fitted.X.shape[0]
-        draws = 500
-        chains = 1
         grid_size = 2
-        contributions = mmm_fitted.get_channel_contributions_forward_pass_grid(
+        contributions = mmm_fitted.get_channel_contribution_forward_pass_grid(
             start=0, stop=1.5, num=grid_size
         )
+        draws = contributions.sizes["draw"]
+        chains = contributions.sizes["chain"]
         assert contributions.shape == (
             grid_size,
             chains,
@@ -713,7 +662,7 @@ class TestMMM:
             n_channels,
         )
 
-    def test_bad_start_get_channel_contributions_forward_pass_grid(
+    def test_bad_start_get_channel_contribution_forward_pass_grid(
         self,
         mmm_fitted: MMM,
     ) -> None:
@@ -721,7 +670,7 @@ class TestMMM:
             expected_exception=ValueError,
             match="start must be greater than or equal to 0.",
         ):
-            mmm_fitted.get_channel_contributions_forward_pass_grid(
+            mmm_fitted.get_channel_contribution_forward_pass_grid(
                 start=-0.5, stop=1.5, num=2
             )
 
@@ -730,10 +679,10 @@ class TestMMM:
         argvalues=[False, True],
         ids=["relative_xrange", "absolute_xrange"],
     )
-    def test_plot_channel_contributions_grid(
+    def test_plot_channel_contribution_grid(
         self, mmm_fitted: MMM, absolute_xrange: bool
     ) -> None:
-        fig = mmm_fitted.plot_channel_contributions_grid(
+        fig = mmm_fitted.plot_channel_contribution_grid(
             start=0, stop=1.5, num=2, absolute_xrange=absolute_xrange
         )
         assert isinstance(fig, plt.Figure)
@@ -750,27 +699,28 @@ class TestMMM:
     )
     def test_get_group_predictive_data(
         self,
-        mmm_fitted_with_posterior_predictive: MMM,
+        mmm_fitted_with_prior_and_posterior_predictive: MMM,
         group: str,
         original_scale: bool,
     ):
-        dataset = mmm_fitted_with_posterior_predictive._get_group_predictive_data(
-            group=group, original_scale=original_scale
+        dataset = (
+            mmm_fitted_with_prior_and_posterior_predictive._get_group_predictive_data(
+                group=group,
+                original_scale=original_scale,
+            )
         )
         assert isinstance(dataset, xr.Dataset)
-        assert dataset.dims["chain"] == 1
-        assert dataset.dims["draw"] == 500
         assert dataset.dims["date"] == 135
         assert dataset["y"].dims == ("chain", "draw", "date")
 
-    def test_data_setter(self, toy_X, toy_y):
+    def test_data_setter(self, toy_X, toy_y, mock_pymc_sample):
         base_delayed_saturated_mmm = BaseMMM(
             date_column="date",
             channel_columns=["channel_1", "channel_2"],
             adstock=GeometricAdstock(l_max=4),
             saturation=LogisticSaturation(),
         )
-        base_delayed_saturated_mmm = mock_fit(base_delayed_saturated_mmm, toy_X, toy_y)
+        base_delayed_saturated_mmm.fit(X=toy_X, y=toy_y)
 
         X_correct_ndarray = np.random.randint(low=0, high=100, size=(135, 2))
         y_correct_ndarray = np.random.randint(low=0, high=100, size=135)
@@ -829,7 +779,7 @@ class TestMMM:
         )
 
         # Check that the property returns the new value
-        DSMMM = mock_fit(DSMMM, toy_X, toy_y)
+        DSMMM.fit(toy_X, toy_y)
         DSMMM.save("test_model")
         # Apply the monkeypatch for the property
         monkeypatch.setattr(MMM, "id", property(mock_property))
@@ -1362,7 +1312,11 @@ def test_initialize_defaults_channel_media_dims() -> None:
     ],
 )
 def test_save_load_with_tvp(
-    time_varying_intercept, time_varying_media, toy_X, toy_y
+    time_varying_intercept,
+    time_varying_media,
+    toy_X,
+    toy_y,
+    mock_pymc_sample,
 ) -> None:
     adstock = GeometricAdstock(l_max=5)
     saturation = LogisticSaturation()
@@ -1374,7 +1328,7 @@ def test_save_load_with_tvp(
         time_varying_intercept=time_varying_intercept,
         time_varying_media=time_varying_media,
     )
-    mmm = mock_fit(mmm, toy_X, toy_y)
+    mmm.fit(toy_X, toy_y)
 
     file = "tmp-model"
     mmm.save(file)
@@ -1386,6 +1340,19 @@ def test_save_load_with_tvp(
 
     # clean up
     os.remove(file)
+
+    expected_flats = []
+    if time_varying_intercept:
+        expected_flats.append("intercept_temporal_latent_multiplier_f_mean")
+    if time_varying_media:
+        expected_flats.append("media_temporal_latent_multiplier_f_mean")
+
+    def get_random_variable_name(var):
+        return var.owner.op.__class__.__name__
+
+    for free_RV in loaded_mmm.model.free_RVs:
+        if free_RV.name in expected_flats:
+            assert get_random_variable_name(free_RV) == "FlatRV"
 
 
 class CustomSaturation(SaturationTransformation):
@@ -1416,7 +1383,8 @@ def mmm_with_media_config_fitted(
     toy_X: pd.DataFrame,
     toy_y: pd.Series,
 ) -> MMM:
-    return mock_fit(mmm_with_media_config, toy_X, toy_y)
+    mmm_with_media_config.fit(toy_X, toy_y)
+    return mmm_with_media_config
 
 
 def test_save_load_with_media_transformation(mmm_with_media_config_fitted) -> None:
@@ -1443,7 +1411,7 @@ def test_save_load_with_media_transformation(mmm_with_media_config_fitted) -> No
     os.remove(file)
 
 
-def test_missing_attrs_to_defaults(toy_X, toy_y) -> None:
+def test_missing_attrs_to_defaults(toy_X, toy_y, mock_pymc_sample) -> None:
     mmm = MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
@@ -1454,7 +1422,7 @@ def test_missing_attrs_to_defaults(toy_X, toy_y) -> None:
         time_varying_intercept=False,
         time_varying_media=False,
     )
-    mmm = mock_fit(mmm, toy_X, toy_y)
+    mmm.fit(toy_X, toy_y)
     mmm.idata.attrs.pop("adstock_first")
     mmm.idata.attrs.pop("time_varying_intercept")
     mmm.idata.attrs.pop("time_varying_media")
@@ -1481,7 +1449,11 @@ def test_missing_attrs_to_defaults(toy_X, toy_y) -> None:
     os.remove(file)
 
 
-def test_channel_contributions_forward_pass_time_varying_media(toy_X, toy_y) -> None:
+def test_channel_contribution_forward_pass_time_varying_media(
+    toy_X,
+    toy_y,
+    mock_pymc_sample,
+) -> None:
     mmm = MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
@@ -1490,15 +1462,15 @@ def test_channel_contributions_forward_pass_time_varying_media(toy_X, toy_y) -> 
         saturation=LogisticSaturation(),
         time_varying_media=True,
     )
-    mmm = mock_fit(mmm, toy_X, toy_y)
+    mmm.fit(toy_X, toy_y)
 
     posterior = mmm.fit_result
 
-    baseline_contributions = posterior["baseline_channel_contributions"]
+    baseline_contributions = posterior["baseline_channel_contribution"]
     multiplier = posterior["media_temporal_latent_multiplier"]
     target_scale = mmm.y.max()
     recovered_contributions = baseline_contributions * multiplier * target_scale
-    media_contributions = mmm.channel_contributions_forward_pass(
+    media_contributions = mmm.channel_contribution_forward_pass(
         mmm.preprocessed_data["X"][mmm.channel_columns].to_numpy()
     )
     np.testing.assert_allclose(
@@ -1595,6 +1567,83 @@ def test_create_synth_dataset(
 
     # Check channel values are non-negative (since they represent spend)
     for channel in mmm_fitted.channel_columns:
+        assert (synth_df[channel] >= 0).all()
+
+    # Check target variable exists and has reasonable values
+    assert "y" in synth_df.columns
+    assert not synth_df["y"].isna().any()
+
+
+@pytest.mark.parametrize(
+    argnames="noise_level", argvalues=[0.01, 0.05], ids=["low_noise", "high_noise"]
+)
+@pytest.mark.parametrize(
+    argnames="granularity",
+    argvalues=["weekly", "monthly", "quarterly", "yearly"],
+    ids=["weekly", "monthly", "quarterly", "yearly"],
+)
+@pytest.mark.parametrize(
+    argnames="time_length",
+    argvalues=[8, 12, 16, 20],
+    ids=["time_length_8", "time_length_12", "time_length_16", "time_length_20"],
+)
+@pytest.mark.parametrize(
+    argnames="lag", argvalues=[2, 4, 6, 8], ids=["lag_2", "lag_4", "lag_6", "lag_8"]
+)
+def test_create_synth_dataset_no_controls(
+    mmm_fitted_no_controls: MMM,
+    toy_X: pd.DataFrame,
+    noise_level: float,
+    granularity: str,
+    time_length: int,
+    lag: int,
+) -> None:
+    """Test the _create_synth_dataset method of MMM class."""
+
+    # Create a simple allocation strategy
+    channels = mmm_fitted_no_controls.channel_columns
+    allocation_strategy = xr.DataArray(
+        data=np.ones(len(channels)),
+        dims=["channel"],
+        coords={"channel": channels},
+    )
+
+    # Generate synthetic dataset
+    synth_df = mmm_fitted_no_controls._create_synth_dataset(
+        df=toy_X,
+        date_column=mmm_fitted_no_controls.date_column,
+        channels=mmm_fitted_no_controls.channel_columns,
+        controls=mmm_fitted_no_controls.control_columns,
+        target_col="y",
+        allocation_strategy=allocation_strategy,
+        time_granularity=granularity,
+        time_length=time_length,
+        lag=lag,
+        noise_level=noise_level,
+    )
+
+    # Test output properties
+    assert isinstance(synth_df, pd.DataFrame)
+    assert len(synth_df) == time_length
+
+    # Check required columns exist
+    required_columns = {
+        mmm_fitted_no_controls.date_column,
+        *mmm_fitted_no_controls.channel_columns,
+        "y",
+    }
+    if mmm_fitted_no_controls.control_columns:
+        required_columns.update(mmm_fitted_no_controls.control_columns)
+    assert all(col in synth_df.columns for col in required_columns)
+
+    # Check date properties
+    assert pd.api.types.is_datetime64_any_dtype(
+        synth_df[mmm_fitted_no_controls.date_column]
+    )
+    assert len(synth_df[mmm_fitted_no_controls.date_column].unique()) == time_length
+
+    # Check channel values are non-negative (since they represent spend)
+    for channel in mmm_fitted_no_controls.channel_columns:
         assert (synth_df[channel] >= 0).all()
 
     # Check target variable exists and has reasonable values

@@ -264,11 +264,6 @@ def _find_first_transactions(
     return period_transactions[select_columns]
 
 
-def clv_summary(*args, **kwargs):
-    warnings.warn("clv_summary was renamed to rfm_summary", UserWarning, stacklevel=1)
-    return rfm_summary(*args, **kwargs)
-
-
 def rfm_summary(
     transactions: pandas.DataFrame,
     customer_id_col: str,

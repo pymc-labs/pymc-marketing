@@ -783,7 +783,9 @@ class ModifiedBetaGeoNBDRV(RandomVariable):
             t = 0  # recency
             n = 0  # frequency
 
-            churn = p  # MBG/NBD customer active with probability p at time 0
+            churn = (
+                rng.random() < p
+            )  # MBG/NBD customer active with probability p at time 0
             wait = rng.exponential(scale=1 / lam)
 
             while t + wait < T and not churn:

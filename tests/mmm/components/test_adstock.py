@@ -19,22 +19,23 @@ import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-
-from pymc_marketing.deserialize import (
+from pymc_extras.deserialize import (
     DESERIALIZERS,
     deserialize,
     register_deserialization,
 )
+from pymc_extras.prior import Prior
+
 from pymc_marketing.mmm import (
     AdstockTransformation,
     DelayedAdstock,
     GeometricAdstock,
+    NoAdstock,
     WeibullCDFAdstock,
     WeibullPDFAdstock,
     adstock_from_dict,
 )
 from pymc_marketing.mmm.transformers import ConvMode
-from pymc_marketing.prior import Prior
 
 
 def adstocks() -> list:
@@ -45,6 +46,7 @@ def adstocks() -> list:
             GeometricAdstock(l_max=10),
             WeibullPDFAdstock(l_max=10),
             WeibullCDFAdstock(l_max=10),
+            NoAdstock(l_max=1),
         ]
 
     return [
@@ -101,6 +103,9 @@ def test_adstock_no_negative_lmax():
     adstocks(),
 )
 def test_adstock_sample_curve(adstock) -> None:
+    if adstock.lookup_name == "no_adstock":
+        raise pytest.skip(reason="NoAdstock has no parameters to sample.")
+
     prior = adstock.sample_prior()
     assert isinstance(prior, xr.Dataset)
     curve = adstock.sample_curve(prior)

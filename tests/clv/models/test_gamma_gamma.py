@@ -18,12 +18,12 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models.gamma_gamma import (
     GammaGammaModel,
     GammaGammaModelIndividual,
 )
-from pymc_marketing.prior import Prior
 from tests.conftest import mock_fit_MAP, set_model_fit
 
 
@@ -82,17 +82,26 @@ class BaseTestGammaGammaModel:
 class TestGammaGammaModel(BaseTestGammaGammaModel):
     def test_missing_columns(self):
         data_invalid = self.data.drop(columns="customer_id")
-        with pytest.raises(ValueError, match="Required column customer_id missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+        ):
             GammaGammaModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="frequency")
 
-        with pytest.raises(ValueError, match="Required column frequency missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['frequency'\]",
+        ):
             GammaGammaModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="monetary_value")
 
-        with pytest.raises(ValueError, match="Required column monetary_value missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['monetary_value'\]",
+        ):
             GammaGammaModel(data=data_invalid)
 
     @pytest.mark.parametrize(
@@ -100,8 +109,8 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         [
             None,
             {
-                "p_prior": Prior("HalfNormal"),
-                "q_prior": Prior("HalfStudentT", nu=4),
+                "p": Prior("HalfNormal"),
+                "q": Prior("HalfStudentT", nu=4),
             },
         ],
     )
@@ -140,9 +149,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
     def test_model_convergence(self):
         rng = np.random.default_rng(13)
         model_config = {
-            "p_prior": Prior("HalfNormal", sigma=10),
-            "q_prior": Prior("HalfNormal", sigma=10),
-            "v_prior": Prior("HalfNormal", sigma=10),
+            "p": Prior("HalfNormal", sigma=10),
+            "q": Prior("HalfNormal", sigma=10),
+            "v": Prior("HalfNormal", sigma=10),
         }
         model = GammaGammaModel(data=self.data, model_config=model_config)
         model.fit(chains=2, progressbar=False, random_seed=rng)
@@ -160,9 +169,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         v_mean = self.v_true
         custom_model_config = {
             # Narrow values
-            "p_prior": Prior("Normal", mu=p_mean, sigma=0.01),
-            "q_prior": Prior("Normal", mu=q_mean, sigma=0.01),
-            "v_prior": Prior("Normal", mu=v_mean, sigma=0.01),
+            "p": Prior("Normal", mu=p_mean, sigma=0.01),
+            "q": Prior("Normal", mu=q_mean, sigma=0.01),
+            "v": Prior("Normal", mu=v_mean, sigma=0.01),
         }
         model = GammaGammaModel(
             data=self.data,
@@ -232,9 +241,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         test_seed = np.random.default_rng(1234)
         custom_model_config = {
             # Narrow values
-            "p_prior": Prior("Normal", mu=p_mean, sigma=0.01),
-            "q_prior": Prior("Normal", mu=q_mean, sigma=0.01),
-            "v_prior": Prior("Normal", mu=v_mean, sigma=0.01),
+            "p": Prior("Normal", mu=p_mean, sigma=0.01),
+            "q": Prior("Normal", mu=q_mean, sigma=0.01),
+            "v": Prior("Normal", mu=v_mean, sigma=0.01),
         }
         model = GammaGammaModel(
             data=self.data,
@@ -242,7 +251,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         )
         model.build_model()
         fake_fit = pm.sample_prior_predictive(
-            samples=1000, model=model.model, random_seed=self.rng
+            draws=1000, model=model.model, random_seed=self.rng
         )
         set_model_fit(model, fake_fit.prior)
         # Closed formula solution for the mean and var of the population spend (eqs 3, 4 from [1])
@@ -269,7 +278,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
 
     def test_model_repr(self):
         custom_model_config = {
-            "p_prior": Prior("HalfNormal", sigma=10),
+            "p": Prior("HalfNormal", sigma=10),
         }
         model = GammaGammaModel(data=self.data, model_config=custom_model_config)
         model.build_model()
@@ -311,13 +320,17 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
     def test_missing_columns(self):
         # Create a version of the data that's missing the 'customer_id' column
         data_invalid = self.individual_data.drop(columns="customer_id")
-        with pytest.raises(ValueError, match="Required column customer_id missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+        ):
             GammaGammaModelIndividual(data=data_invalid)
 
         data_invalid = self.individual_data.drop(columns="individual_transaction_value")
 
         with pytest.raises(
-            ValueError, match="Required column individual_transaction_value missing"
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['individual_transaction_value'\]",
         ):
             GammaGammaModelIndividual(data=data_invalid)
 
@@ -326,8 +339,8 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         [
             None,
             {
-                "p_prior": Prior("HalfNormal"),
-                "q_prior": Prior("HalfStudentT", nu=4),
+                "p": Prior("HalfNormal"),
+                "q": Prior("HalfStudentT", nu=4),
             },
         ],
     )
@@ -420,7 +433,7 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
 
     def test_model_repr(self):
         custom_model_config = {
-            "q_prior": Prior("HalfNormal", sigma=10),
+            "q": Prior("HalfNormal", sigma=10),
         }
         model = GammaGammaModelIndividual(
             data=self.individual_data,

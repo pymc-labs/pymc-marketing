@@ -24,6 +24,7 @@ import pytensor.tensor as pt
 import xarray
 from numpy import exp
 from pymc.util import RandomState
+from pymc_extras.prior import Prior
 from pytensor.graph import vectorize_graph
 from scipy.special import betaln, gammaln
 
@@ -31,7 +32,6 @@ from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
-from pymc_marketing.prior import Prior
 
 
 class BetaGeoBetaBinomModel(CLVModel):
@@ -59,14 +59,14 @@ class BetaGeoBetaBinomModel(CLVModel):
     model_config : dict, optional
         Dictionary containing model parameters:
 
-        * `alpha_prior`: Shape parameter of purchase process; defaults to `phi_purchase_prior` * `kappa_purchase_prior`
-        * `beta_prior`: Shape parameter of purchase process; defaults to `1-phi_purchase_prior` * `kappa_purchase_prior`
-        * `gamma_prior`: Shape parameter of dropout process; defaults to `phi_purchase_prior` * `kappa_purchase_prior`
-        * `delta_prior`: Shape parameter of dropout process; defaults to `1-phi_dropout_prior` * `kappa_dropout_prior`
-        * `phi_purchase_prior`: Nested prior for alpha and beta priors; defaults to `Prior("Uniform", lower=0, upper=1)`
-        * `kappa_purchase_prior`: Nested prior for alpha and beta priors; defaults to `Prior("Pareto", alpha=1, m=1)`
-        * `phi_dropout_prior`: Nested prior for gamma and delta priors; defaults to `Prior("Uniform", lower=0, upper=1)`
-        * `kappa_dropout_prior`: Nested prior for gamma and delta priors; defaults to `Prior("Pareto", alpha=1, m=1)`
+        * `alpha`: Shape parameter of purchase process; defaults to `phi_purchase` * `kappa_purchase`
+        * `beta`: Shape parameter of purchase process; defaults to `1-phi_purchase` * `kappa_purchase`
+        * `gamma`: Shape parameter of dropout process; defaults to `phi_purchase` * `kappa_purchase`
+        * `delta`: Shape parameter of dropout process; defaults to `1-phi_dropout` * `kappa_dropout`
+        * `phi_purchase`: Nested prior for alpha and beta priors; defaults to `Prior("Uniform", lower=0, upper=1)`
+        * `kappa_purchase`: Nested prior for alpha and beta priors; defaults to `Prior("Pareto", alpha=1, m=1)`
+        * `phi_dropout`: Nested prior for gamma and delta priors; defaults to `Prior("Uniform", lower=0, upper=1)`
+        * `kappa_dropout`: Nested prior for gamma and delta priors; defaults to `Prior("Pareto", alpha=1, m=1)`
 
         If not provided, the model will use default priors specified in the `default_model_config` class attribute.
     sampler_config : dict, optional
@@ -79,28 +79,28 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         import pymc as pm
 
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
         from pymc_marketing.clv import BetaGeoBetaBinomModel
 
-        rfm_df = rfm_summary(raw_data,'id_col_name','date_col_name')
+        rfm_df = rfm_summary(raw_data, "id_col_name", "date_col_name")
 
         # Initialize model with customer data; `model_config` parameter is optional
         model = BetaGeoBetaBinomModel(
             data=rfm_df,
             model_config={
-                "alpha_prior": Prior("HalfFlat"),
-                "beta_prior": Prior("HalfFlat"),
-                "gamma_prior": Prior("HalfFlat"),
-                "delta_prior": Prior("HalfFlat"),
+                "alpha": Prior("HalfFlat"),
+                "beta": Prior("HalfFlat"),
+                "gamma": Prior("HalfFlat"),
+                "delta": Prior("HalfFlat"),
             },
         )
 
         # Fit model quickly to large datasets via Maximum a Posteriori
-        model.fit(fit_method='map')
+        model.fit(fit_method="map")
         print(model.fit_summary())
 
         # Fit with the default 'mcmc' for more informative predictions and reliable performance on smaller datasets
-        model.fit(fit_method='mcmc')
+        model.fit(fit_method="mcmc")
         print(model.fit_summary())
 
         # Predict number of purchases for customers over the next 10 time periods
@@ -113,15 +113,15 @@ class BetaGeoBetaBinomModel(CLVModel):
         # Data parameter is omitted here because predictions are ran on original dataset
         expected_num_purchases = model.expected_purchase_probability(
             n=[0, 1, 2, 3],
-            future_t=[10,20,30,40],
+            future_t=[10, 20, 30, 40],
         )
 
         new_data = pd.DataFrame(
-            data = {
-            "customer_id": [0, 1, 2, 3],
-            "frequency": [5, 2, 1, 8],
-            "recency": [7, 4, 2.5, 11],
-            "T": [10, 8, 10, 22]
+            data={
+                "customer_id": [0, 1, 2, 3],
+                "frequency": [5, 2, 1, 8],
+                "recency": [7, 4, 2.5, 11],
+                "T": [10, 8, 10, 22],
             }
         )
 
@@ -175,10 +175,10 @@ class BetaGeoBetaBinomModel(CLVModel):
     def default_model_config(self) -> ModelConfig:
         """Default model configuration."""
         return {
-            "phi_purchase_prior": Prior("Uniform", lower=0, upper=1),
-            "kappa_purchase_prior": Prior("Pareto", alpha=1, m=1),
-            "phi_dropout_prior": Prior("Uniform", lower=0, upper=1),
-            "kappa_dropout_prior": Prior("Pareto", alpha=1, m=1),
+            "phi_purchase": Prior("Uniform", lower=0, upper=1),
+            "kappa_purchase": Prior("Pareto", alpha=1, m=1),
+            "phi_dropout": Prior("Uniform", lower=0, upper=1),
+            "kappa_dropout": Prior("Pareto", alpha=1, m=1),
         }
 
     def build_model(self) -> None:  # type: ignore[override]
@@ -189,36 +189,33 @@ class BetaGeoBetaBinomModel(CLVModel):
         }
         with pm.Model(coords=coords) as self.model:
             # purchase rate priors
-            if "alpha_prior" in self.model_config and "beta_prior" in self.model_config:
-                alpha = self.model_config["alpha_prior"].create_variable("alpha")
-                beta = self.model_config["beta_prior"].create_variable("beta")
+            if "alpha" in self.model_config and "beta" in self.model_config:
+                alpha = self.model_config["alpha"].create_variable("alpha")
+                beta = self.model_config["beta"].create_variable("beta")
             else:
                 # hierarchical pooling of purchase rate priors
-                phi_purchase = self.model_config["phi_purchase_prior"].create_variable(
+                phi_purchase = self.model_config["phi_purchase"].create_variable(
                     "phi_purchase"
                 )
-                kappa_purchase = self.model_config[
-                    "kappa_purchase_prior"
-                ].create_variable("kappa_purchase")
+                kappa_purchase = self.model_config["kappa_purchase"].create_variable(
+                    "kappa_purchase"
+                )
 
                 alpha = pm.Deterministic("alpha", phi_purchase * kappa_purchase)
                 beta = pm.Deterministic("beta", (1.0 - phi_purchase) * kappa_purchase)
 
             # dropout priors
-            if (
-                "gamma_prior" in self.model_config
-                and "delta_prior" in self.model_config
-            ):
-                gamma = self.model_config["gamma_prior"].create_variable("gamma")
-                delta = self.model_config["delta_prior"].create_variable("delta")
+            if "gamma" in self.model_config and "delta" in self.model_config:
+                gamma = self.model_config["gamma"].create_variable("gamma")
+                delta = self.model_config["delta"].create_variable("delta")
             else:
                 # hierarchical pooling of dropout rate priors
-                phi_dropout = self.model_config["phi_dropout_prior"].create_variable(
+                phi_dropout = self.model_config["phi_dropout"].create_variable(
                     "phi_dropout"
                 )
-                kappa_dropout = self.model_config[
-                    "kappa_dropout_prior"
-                ].create_variable("kappa_dropout")
+                kappa_dropout = self.model_config["kappa_dropout"].create_variable(
+                    "kappa_dropout"
+                )
 
                 gamma = pm.Deterministic("gamma", phi_dropout * kappa_dropout)
                 delta = pm.Deterministic("delta", (1.0 - phi_dropout) * kappa_dropout)

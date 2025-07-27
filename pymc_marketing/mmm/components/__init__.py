@@ -19,12 +19,13 @@ Use custom transformations for media in the MMM model:
 
 .. code-block:: python
 
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
     from pymc_marketing.mmm import (
         SaturationTransformation,
         MMM,
         WeibullPDFAdstock,
     )
+
 
     class InfiniteReturns(SaturationTransformation):
         def function(self, x, b):

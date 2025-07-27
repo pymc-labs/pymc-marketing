@@ -33,8 +33,7 @@ jobs:
         python-version: "3.12"
     - name: Install dependencies
       run: |
-        sudo apt-get install graphviz
-        pip install -e .[docs]
-        pip install -e .[test,dag]
+        sudo apt-get install graphviz graphviz-dev
+        pip install -e .[docs,test,dag]
     - name: Run notebooks
       run: make run_notebooks

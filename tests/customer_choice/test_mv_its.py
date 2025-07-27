@@ -13,13 +13,13 @@
 #   limitations under the License.
 
 import re
-import warnings
 
 import numpy as np
 import pandas as pd
 import pytest
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
+from pymc_extras.prior import Prior
 from xarray import DataArray
 
 from pymc_marketing.customer_choice import (
@@ -27,7 +27,6 @@ from pymc_marketing.customer_choice import (
     generate_saturated_data,
     generate_unsaturated_data,
 )
-from pymc_marketing.prior import Prior
 
 seed = sum(map(ord, "CustomerChoice"))
 rng = np.random.default_rng(seed)
@@ -84,37 +83,9 @@ def test_plot_data(saturated_data):
     plt.close()
 
 
-def mock_fit(self, X, y, **kwargs):
-    self.idata.add_groups(
-        {
-            "posterior": self.idata.prior,
-        }
-    )
-
-    combined_data = pd.concat([X, y.rename(self.output_var)], axis=1)
-
-    if "fit_data" in self.idata:
-        del self.idata.fit_data
-
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            category=UserWarning,
-            message="The group fit_data is not defined in the InferenceData scheme",
-        )
-        self.idata.add_groups(fit_data=combined_data.to_xarray())  # type: ignore
-
-    return self
-
-
 @pytest.fixture(scope="module")
-def fit_model(module_mocker, saturated_data):
+def fit_model(saturated_data, mock_pymc_sample):
     model = MVITS(existing_sales=["competitor", "own"], saturated_market=True)
-
-    module_mocker.patch(
-        "pymc_marketing.customer_choice.mv_its.MVITS.fit",
-        mock_fit,
-    )
 
     model.sample(
         saturated_data.loc[:, ["competitor", "own"]],
@@ -151,13 +122,8 @@ def unsaturated_data_good():
 
 
 @pytest.fixture(scope="module")
-def unsaturated_model_bad(module_mocker, unsaturated_data_bad):
+def unsaturated_model_bad(unsaturated_data_bad, mock_pymc_sample):
     model = MVITS(existing_sales=["competitor", "own"], saturated_market=False)
-
-    module_mocker.patch(
-        "pymc_marketing.customer_choice.mv_its.MVITS.fit",
-        mock_fit,
-    )
 
     model.sample(
         unsaturated_data_bad.loc[:, ["competitor", "own"]],
@@ -169,13 +135,8 @@ def unsaturated_model_bad(module_mocker, unsaturated_data_bad):
 
 
 @pytest.fixture(scope="module")
-def unsaturated_model_good(module_mocker, unsaturated_data_good):
+def unsaturated_model_good(unsaturated_data_good, mock_pymc_sample):
     model = MVITS(existing_sales=["competitor", "own"], saturated_market=False)
-
-    module_mocker.patch(
-        "pymc_marketing.customer_choice.mv_its.MVITS.fit",
-        mock_fit,
-    )
 
     model.sample(
         unsaturated_data_good.loc[:, ["competitor", "own"]],
@@ -220,8 +181,11 @@ def test_save_load(fit_model, saturated_data) -> None:
     assert loaded.saturated_market == fit_model.saturated_market
     assert loaded.X.columns.name is None
     pd.testing.assert_frame_equal(loaded.X, fit_model.X, check_names=False)
-    assert loaded.y.name == fit_model.output_var
-    pd.testing.assert_series_equal(loaded.y.rename("new"), saturated_data["new"])
+    assert loaded.y.name == fit_model.y.name
+    pd.testing.assert_series_equal(
+        loaded.y,
+        saturated_data["new"].rename(fit_model.output_var),
+    )
 
 
 @pytest.mark.parametrize("variable", ["y", "mu"])

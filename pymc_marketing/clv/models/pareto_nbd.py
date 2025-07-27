@@ -26,6 +26,7 @@ import pytensor.tensor as pt
 import xarray
 from numpy import exp, log
 from pymc.util import RandomState
+from pymc_extras.prior import Prior
 from pytensor.compile import Mode, get_default_mode
 from pytensor.graph import Constant, node_rewriter
 from pytensor.scalar import Grad2F1Loop
@@ -37,7 +38,6 @@ from pymc_marketing.clv.distributions import ParetoNBD
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
-from pymc_marketing.prior import Prior
 
 
 @node_rewriter([Elemwise])
@@ -97,12 +97,12 @@ class ParetoNBDModel(CLVModel):
     model_config : dict, optional
         Dictionary containing model parameters and covariate column names:
 
-        * `r_prior`: Shape parameter of time between purchases; defaults to `Weibull(alpha=2, beta=1)`
-        * `alpha_prior`: Scale parameter of time between purchases; defaults to `Weibull(alpha=2, beta=10)`
-        * `s_prior`: Shape parameter of time until dropout; defaults to `Weibull(alpha=2, beta=1)`
-        * `beta_prior`: Scale parameter of time until dropout; defaults to `Weibull(alpha=2, beta=10)`
-        * `purchase_covariates_prior`: Coefficients for purchase rate covariates; defaults to `Normal(0, 3)`
-        * `dropout_covariates_prior`: Coefficients for dropout covariates; defaults to `Normal.dist(0, 3)`
+        * `r`: Shape parameter of time between purchases; defaults to `Weibull(alpha=2, beta=1)`
+        * `alpha`: Scale parameter of time between purchases; defaults to `Weibull(alpha=2, beta=10)`
+        * `s`: Shape parameter of time until dropout; defaults to `Weibull(alpha=2, beta=1)`
+        * `beta`: Scale parameter of time until dropout; defaults to `Weibull(alpha=2, beta=10)`
+        * `purchase_covariates`: Coefficients for purchase rate covariates; defaults to `Normal(0, 3)`
+        * `dropout_covariates`: Coefficients for dropout covariates; defaults to `Normal.dist(0, 3)`
         * `purchase_covariate_cols`: List containing column names of covariates for customer purchase rates.
         * `dropout_covariate_cols`: List containing column names of covariates for customer dropouts.
 
@@ -117,7 +117,7 @@ class ParetoNBDModel(CLVModel):
 
         import pymc as pm
 
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
         from pymc_marketing.clv import ParetoNBDModel, rfm_summary
 
         rfm_df = rfm_summary(raw_data,'id_col_name','date_col_name')
@@ -126,19 +126,19 @@ class ParetoNBDModel(CLVModel):
         model = ParetoNBDModel(
             data=rfm_df,
             model_config={
-                "r_prior": Prior("Weibull", alpha=2, beta=1),
-                "alpha_prior: Prior("Weibull", alpha=2, beta=10),
-                "s_prior": Prior("Weibull", alpha=2, beta=1),
-                "beta_prior": Prior("Weibull", alpha=2, beta=10),
+                "r": Prior("Weibull", alpha=2, beta=1),
+                "alpha: Prior("Weibull", alpha=2, beta=10),
+                "s": Prior("Weibull", alpha=2, beta=1),
+                "beta": Prior("Weibull", alpha=2, beta=10),
             },
         )
 
         # Fit model quickly to large datasets via the default Maximum a Posteriori method
-        model.fit(fit_method='map')
+        model.fit(method='map')
         print(model.fit_summary())
 
         # Use 'demz' for more informative predictions and reliable performance on smaller datasets
-        model.fit(fit_method='demz')
+        model.fit(method='demz')
         print(model.fit_summary())
 
         # Predict number of purchases for customers over the next 10 time periods
@@ -230,12 +230,12 @@ class ParetoNBDModel(CLVModel):
     def default_model_config(self) -> ModelConfig:
         """Default model configuration."""
         return {
-            "r_prior": Prior("Weibull", alpha=2, beta=1),
-            "alpha_prior": Prior("Weibull", alpha=2, beta=10),
-            "s_prior": Prior("Weibull", alpha=2, beta=1),
-            "beta_prior": Prior("Weibull", alpha=2, beta=10),
-            "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=1),
-            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=1),
+            "r": Prior("Weibull", alpha=2, beta=1),
+            "alpha": Prior("Weibull", alpha=2, beta=10),
+            "s": Prior("Weibull", alpha=2, beta=1),
+            "beta": Prior("Weibull", alpha=2, beta=10),
+            "purchase_coefficient": Prior("Normal", mu=0, sigma=1),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=1),
             "purchase_covariate_cols": [],
             "dropout_covariate_cols": [],
         }
@@ -256,16 +256,12 @@ class ParetoNBDModel(CLVModel):
                     dims=["customer_id", "purchase_covariate"],
                 )
 
-                self.model_config[
-                    "purchase_coefficient_prior"
-                ].dims = "purchase_covariate"
+                self.model_config["purchase_coefficient"].dims = "purchase_covariate"
                 purchase_coefficient = self.model_config[
-                    "purchase_coefficient_prior"
+                    "purchase_coefficient"
                 ].create_variable("purchase_coefficient")
 
-                alpha_scale = self.model_config["alpha_prior"].create_variable(
-                    "alpha_scale"
-                )
+                alpha_scale = self.model_config["alpha"].create_variable("alpha_scale")
                 alpha = pm.Deterministic(
                     "alpha",
                     (
@@ -275,7 +271,7 @@ class ParetoNBDModel(CLVModel):
                     dims="customer_id",
                 )
             else:
-                alpha = self.model_config["alpha_prior"].create_variable("alpha")
+                alpha = self.model_config["alpha"].create_variable("alpha")
 
             # churn priors
             if self.dropout_covariate_cols:
@@ -285,18 +281,14 @@ class ParetoNBDModel(CLVModel):
                     dims=["customer_id", "dropout_covariate"],
                 )
 
-                self.model_config[
-                    "dropout_coefficient_prior"
-                ].dims = "dropout_covariate"
+                self.model_config["dropout_coefficient"].dims = "dropout_covariate"
                 dropout_coefficient = self.model_config[
-                    "dropout_coefficient_prior"
+                    "dropout_coefficient"
                 ].create_variable(
                     "dropout_coefficient",
                 )
 
-                beta_scale = self.model_config["beta_prior"].create_variable(
-                    "beta_scale"
-                )
+                beta_scale = self.model_config["beta"].create_variable("beta_scale")
                 beta = pm.Deterministic(
                     "beta",
                     (
@@ -306,10 +298,10 @@ class ParetoNBDModel(CLVModel):
                     dims="customer_id",
                 )
             else:
-                beta = self.model_config["beta_prior"].create_variable("beta")
+                beta = self.model_config["beta"].create_variable("beta")
 
-            r = self.model_config["r_prior"].create_variable("r")
-            s = self.model_config["s_prior"].create_variable("s")
+            r = self.model_config["r"].create_variable("r")
+            s = self.model_config["s"].create_variable("s")
 
             ParetoNBD(
                 name="recency_frequency",
@@ -324,12 +316,12 @@ class ParetoNBDModel(CLVModel):
                 dims=["customer_id", "obs_var"],
             )
 
-    def fit(self, fit_method: str = "map", **kwargs):  # type: ignore
+    def fit(self, method: str = "map", fit_method: str | None = None, **kwargs):  # type: ignore
         """Infer posteriors of model parameters to run predictions.
 
         Parameters
         ----------
-        fit_method : str
+        method : str
             Method used to fit the model. Options are:
 
             * "map": Posterior point estimates via Maximum a Posteriori (default).
@@ -341,7 +333,17 @@ class ParetoNBDModel(CLVModel):
 
         """
         mode = get_default_mode()
-        if fit_method == "mcmc":
+
+        if fit_method:
+            warnings.warn(
+                "'fit_method' is deprecated and will be removed in a future release. "
+                "Use 'method' instead.",
+                DeprecationWarning,
+                stacklevel=1,
+            )
+            method = fit_method
+
+        if method == "mcmc":
             # Include rewrite in mode
             opt_qry = mode.provided_optimizer.including(
                 "local_reduce_max_num_iters_hyp2f1_grad"
@@ -355,7 +357,7 @@ class ParetoNBDModel(CLVModel):
                     action="ignore",
                     category=UserWarning,
                 )
-                return super().fit(fit_method, **kwargs)
+                return super().fit(method, **kwargs)
 
     @staticmethod
     def _logp(

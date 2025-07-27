@@ -27,29 +27,33 @@ Create a basic PyMC model using the time-varying GP multiplier:
     import numpy as np
     import pymc as pm
     import pandas as pd
-    from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
+
+    from pymc_marketing.hsgp_kwargs import HSGPKwargs
+    from pymc_marketing.mmm.tvp import (
+        create_time_varying_gp_multiplier,
+        infer_time_index,
+    )
 
     # Generate example data
     np.random.seed(0)
-    dates = pd.date_range(start="2020-01-01", periods=365)
+    dates = pd.Series(pd.date_range(start="2020-01-01", periods=365))
     sales = np.random.normal(100, 10, size=len(dates))
 
     # Infer time index
     time_index = infer_time_index(dates, dates, time_resolution=5)
 
     # Define model configuration
-    model_config = {
-        "sales_tvp_config": {
-            "m": 200,
-            "L": None,
-            "eta_lam": 1,
-            "ls_mu": None,
-            "ls_sigma": 5,
-            "cov_func": None,
-        }
-    }
+    hsgp_kwargs = HSGPKwargs(
+        m=200,
+        L=None,
+        eta_lam=1,
+        ls_mu=10,
+        ls_sigma=5,
+        cov_func=None,
+    )
 
-    with pm.Model() as model:
+    coords = {"time": dates}
+    with pm.Model(coords=coords) as model:
         # Shared time index variable
         time_index_shared = pm.Data("time_index", time_index)
 
@@ -63,7 +67,7 @@ Create a basic PyMC model using the time-varying GP multiplier:
             time_index=time_index_shared,
             time_index_mid=int(len(dates) / 2),
             time_resolution=5,
-            model_config=model_config,
+            hsgp_kwargs=hsgp_kwargs,
         )
 
         # Final sales parameter
@@ -87,17 +91,21 @@ Create a basic PyMC model using the time-varying GP multiplier:
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import pymc as pm
 import pytensor.tensor as pt
 from pymc.distributions.shape_utils import Dims
+from pymc_extras.prior import Prior
 
 from pymc_marketing.constants import DAYS_IN_YEAR
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
-from pymc_marketing.mmm.hsgp import HSGP, CovFunc
-from pymc_marketing.prior import Prior
+from pymc_marketing.mmm.hsgp import CovFunc, SoftPlusHSGP
 
 
-def _create_hsgp_instance(X, X_mid, dims: Dims, hsgp_kwargs: HSGPKwargs) -> HSGP:
+def _create_hsgp_instance(
+    X,
+    X_mid,
+    dims: Dims,
+    hsgp_kwargs: HSGPKwargs,
+) -> SoftPlusHSGP:
     X = pt.as_tensor_variable(X)
     eta = Prior("Exponential", lam=hsgp_kwargs.eta_lam)
     ls = Prior("InverseGamma", mu=hsgp_kwargs.ls_mu, sigma=hsgp_kwargs.ls_sigma)
@@ -115,7 +123,7 @@ def _create_hsgp_instance(X, X_mid, dims: Dims, hsgp_kwargs: HSGPKwargs) -> HSGP
     else:
         L = hsgp_kwargs.L
 
-    return HSGP(
+    return SoftPlusHSGP(
         eta=eta,
         ls=ls,
         m=hsgp_kwargs.m,
@@ -180,10 +188,7 @@ def time_varying_prior(
         dims=dims,
         hsgp_kwargs=hsgp_kwargs,
     )
-    f = hsgp.create_variable(f"{name}_raw")
-    f = pt.softplus(f)
-    centered_f = f - f.mean(axis=0) + 1
-    return pm.Deterministic(name, centered_f, dims=dims)
+    return hsgp.create_variable(name)
 
 
 def create_time_varying_gp_multiplier(

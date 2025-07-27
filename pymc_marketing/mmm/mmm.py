@@ -28,6 +28,7 @@ import pymc as pm
 import pytensor.tensor as pt
 import seaborn as sns
 from pydantic import Field, InstanceOf, validate_call
+from pymc_extras.prior import Prior
 from scipy.optimize import OptimizeResult
 from xarray import DataArray, Dataset
 
@@ -43,6 +44,7 @@ from pymc_marketing.mmm.components.saturation import (
     saturation_from_dict,
 )
 from pymc_marketing.mmm.fourier import YearlyFourier
+from pymc_marketing.mmm.hsgp import SoftPlusHSGP
 from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
@@ -57,7 +59,7 @@ from pymc_marketing.mmm.utils import (
 from pymc_marketing.mmm.validating import ValidateControlColumns
 from pymc_marketing.model_builder import _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
-from pymc_marketing.prior import Prior
+from pymc_marketing.model_graph import deterministics_to_flat
 
 __all__ = ["MMM", "BaseMMM"]
 
@@ -67,7 +69,7 @@ class BaseMMM(BaseValidateMMM):
 
     References
     ----------
-    .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
+    .. [1] Jin, Yuxue, et al. "Bayesian methods for media mix modeling with carryover and shape effects." (2017).
 
     """
 
@@ -144,7 +146,7 @@ class BaseMMM(BaseValidateMMM):
         time_varying_intercept : bool, optional
             Whether to consider time-varying intercept, by default False.
             Because the `time-varying` variable is centered around 1 and acts as a multiplier,
-            the variable `baseline_intercept` now represents the mean of the time-varying intercept.
+            the variable `intercept_baseline` now represents the mean of the time-varying intercept.
         time_varying_media : bool, optional
             Whether to consider time-varying media contributions, by default False.
             The `time-varying-media` creates a time media variable centered around 1,
@@ -237,6 +239,26 @@ class BaseMMM(BaseValidateMMM):
                 prior=self.model_config["gamma_fourier"],
                 variable_name="gamma_fourier",
             )
+
+    def post_sample_model_transformation(self) -> None:
+        """Post-sample model transformation in order to store the HSGP state from fit."""
+        names = []
+        if self.time_varying_intercept:
+            names.extend(
+                SoftPlusHSGP.deterministics_to_replace(
+                    "intercept_temporal_latent_multiplier"
+                )
+            )
+        if self.time_varying_media:
+            names.extend(
+                SoftPlusHSGP.deterministics_to_replace(
+                    "media_temporal_latent_multiplier"
+                )
+            )
+        if not names:
+            return
+
+        self.model = deterministics_to_flat(self.model, names=names)
 
     @property
     def default_sampler_config(self) -> dict:
@@ -429,7 +451,7 @@ class BaseMMM(BaseValidateMMM):
                 LogisticSaturation
                 MMM,
             )
-            from pymc_marketing.prior import Prior
+            from pymc_extras.prior import Prior
 
             custom_config = {
                 "intercept": Prior("Normal", mu=0, sigma=2),
@@ -479,8 +501,8 @@ class BaseMMM(BaseValidateMMM):
                 )
 
             if self.time_varying_intercept:
-                baseline_intercept = self.model_config["intercept"].create_variable(
-                    "baseline_intercept"
+                intercept_baseline = self.model_config["intercept"].create_variable(
+                    "intercept_baseline"
                 )
 
                 intercept_latent_process = create_time_varying_gp_multiplier(
@@ -493,7 +515,7 @@ class BaseMMM(BaseValidateMMM):
                 )
                 intercept = pm.Deterministic(
                     name="intercept",
-                    var=baseline_intercept * intercept_latent_process,
+                    var=intercept_baseline * intercept_latent_process,
                     dims="date",
                 )
             else:
@@ -502,8 +524,8 @@ class BaseMMM(BaseValidateMMM):
                 )
 
             if self.time_varying_media:
-                baseline_channel_contributions = pm.Deterministic(
-                    name="baseline_channel_contributions",
+                baseline_channel_contribution = pm.Deterministic(
+                    name="baseline_channel_contribution",
                     var=self.forward_pass(x=channel_data_),
                     dims=("date", "channel"),
                 )
@@ -516,27 +538,27 @@ class BaseMMM(BaseValidateMMM):
                     time_resolution=self._time_resolution,
                     hsgp_kwargs=self.model_config["media_tvp_config"],
                 )
-                channel_contributions = pm.Deterministic(
-                    name="channel_contributions",
-                    var=baseline_channel_contributions * media_latent_process[:, None],
+                channel_contribution = pm.Deterministic(
+                    name="channel_contribution",
+                    var=baseline_channel_contribution * media_latent_process[:, None],
                     dims=("date", "channel"),
                 )
 
             else:
-                channel_contributions = pm.Deterministic(
-                    name="channel_contributions",
+                channel_contribution = pm.Deterministic(
+                    name="channel_contribution",
                     var=self.forward_pass(x=channel_data_),
                     dims=("date", "channel"),
                 )
 
             # We define the deterministic variable to define the optimization by default
             pm.Deterministic(
-                name="total_contributions",
-                var=channel_contributions.sum(axis=(-2, -1)),
+                name="total_contribution",
+                var=channel_contribution.sum(axis=(-2, -1)),
                 dims=(),
             )
 
-            mu_var = intercept + channel_contributions.sum(axis=-1)
+            mu_var = intercept + channel_contribution.sum(axis=-1)
 
             if (
                 self.control_columns is not None
@@ -559,13 +581,13 @@ class BaseMMM(BaseValidateMMM):
                     dims=("date", "control"),
                 )
 
-                control_contributions = pm.Deterministic(
-                    name="control_contributions",
+                control_contribution = pm.Deterministic(
+                    name="control_contribution",
                     var=control_data_ * gamma_control,
                     dims=("date", "control"),
                 )
 
-                mu_var += control_contributions.sum(axis=-1)
+                mu_var += control_contribution.sum(axis=-1)
 
             if self.yearly_seasonality is not None:
                 dayofyear = pm.Data(
@@ -578,7 +600,7 @@ class BaseMMM(BaseValidateMMM):
 
                 def create_deterministic(x: pt.TensorVariable) -> None:
                     pm.Deterministic(
-                        "fourier_contributions",
+                        "fourier_contribution",
                         x,
                         dims=("date", *self.yearly_fourier.prior.dims),
                     )
@@ -642,7 +664,7 @@ class BaseMMM(BaseValidateMMM):
             **self.saturation.model_config,
         }
 
-    def channel_contributions_forward_pass(
+    def channel_contribution_forward_pass(
         self,
         channel_data: npt.NDArray,
         disable_logger_stdout: bool | None = False,
@@ -671,26 +693,26 @@ class BaseMMM(BaseValidateMMM):
         }
         with pm.Model(coords=coords):
             pm.Deterministic(
-                "channel_contributions",
+                "channel_contribution",
                 self.forward_pass(x=channel_data),
                 dims=("date", "channel"),
             )
 
             idata = pm.sample_posterior_predictive(
                 self.fit_result,
-                var_names=["channel_contributions"],
+                var_names=["channel_contribution"],
                 progressbar=False,
             )
 
-        channel_contributions = idata.posterior_predictive.channel_contributions
+        channel_contribution = idata.posterior_predictive.channel_contribution
         if self.time_varying_media:
             # This is coupled with the name of the
             # latent process Deterministic
             name = "media_temporal_latent_multiplier"
             mutliplier = self.fit_result[name]
-            channel_contributions = channel_contributions * mutliplier
+            channel_contribution = channel_contribution * mutliplier
 
-        return channel_contributions.to_numpy()
+        return channel_contribution.to_numpy()
 
     @property
     def _serializable_model_config(self) -> dict[str, Any]:
@@ -918,9 +940,10 @@ class MMM(
             LogisticSaturation
             MMM,
         )
+        from pymc_marketing.paths import data_dir
 
-        data_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/mmm_example.csv"
-        data = pd.read_csv(data_url, parse_dates=["date_week"])
+        file_path = data_dir / "mmm_example.csv"
+        data = pd.read_csv(file_path, parse_dates=["date_week"])
 
         mmm = MMM(
             date_column="date_week",
@@ -957,7 +980,7 @@ class MMM(
             LogisticSaturation
             MMM,
         )
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         my_model_config = {
             "saturation_beta": Prior("LogNormal", mu=np.array([2, 1]), sigma=1),
@@ -1002,9 +1025,9 @@ class MMM(
     """  # noqa: E501
 
     _model_type: str = "MMM"
-    version: str = "0.0.2"
+    version: str = "0.0.3"
 
-    def channel_contributions_forward_pass(
+    def channel_contribution_forward_pass(
         self,
         channel_data: npt.NDArray,
         disable_logger_stdout: bool | None = False,
@@ -1026,7 +1049,7 @@ class MMM(
             Transformed channel data.
 
         """
-        channel_contribution_forward_pass = super().channel_contributions_forward_pass(
+        channel_contribution_forward_pass = super().channel_contribution_forward_pass(
             channel_data=channel_data, disable_logger_stdout=disable_logger_stdout
         )
         target_transformed_vectorized = np.vectorize(
@@ -1036,7 +1059,7 @@ class MMM(
         )
         return target_transformed_vectorized(channel_contribution_forward_pass)
 
-    def get_channel_contributions_forward_pass_grid(
+    def get_channel_contribution_forward_pass_grid(
         self, start: float, stop: float, num: int
     ) -> DataArray:
         """Generate a grid of scaled channel contributions for a given grid of shared values.
@@ -1061,18 +1084,18 @@ class MMM(
 
         share_grid = np.linspace(start=start, stop=stop, num=num)
 
-        channel_contributions = []
+        channel_contribution = []
         for delta in share_grid:
             channel_data = (
                 delta * self.preprocessed_data["X"][self.channel_columns].to_numpy()
             )
-            channel_contribution_forward_pass = self.channel_contributions_forward_pass(
+            channel_contribution_forward_pass = self.channel_contribution_forward_pass(
                 channel_data=channel_data,
                 disable_logger_stdout=True,
             )
-            channel_contributions.append(channel_contribution_forward_pass)
+            channel_contribution.append(channel_contribution_forward_pass)
         return DataArray(
-            data=np.array(channel_contributions),
+            data=np.array(channel_contribution),
             dims=("delta", "chain", "draw", "date", "channel"),
             coords={
                 "delta": share_grid,
@@ -1181,18 +1204,18 @@ class MMM(
         plt.Figure
 
         """
-        channel_contributions = self.get_ts_contribution_posterior(
-            var_contribution="channel_contributions", original_scale=original_scale
+        channel_contribution = self.get_ts_contribution_posterior(
+            var_contribution="channel_contribution", original_scale=original_scale
         )
 
-        means = [channel_contributions.mean(["chain", "draw"])]
+        means = [channel_contribution.mean(["chain", "draw"])]
         contribution_vars = [
-            az.hdi(channel_contributions, hdi_prob=0.94).channel_contributions
+            az.hdi(channel_contribution, hdi_prob=0.94).channel_contribution
         ]
 
         for arg, var_contribution in zip(
             ["control_columns", "yearly_seasonality"],
-            ["control_contributions", "fourier_contributions"],
+            ["control_contribution", "fourier_contribution"],
             strict=True,
         ):
             if getattr(self, arg, None):
@@ -1258,7 +1281,10 @@ class MMM(
 
             ax.plot(
                 np.asarray(self.X[self.date_column]),
-                np.full(len(self.X[self.date_column]), intercept.mean().data),
+                np.full(
+                    len(self.X[self.date_column]),
+                    intercept.mean(["chain", "draw"]).data,
+                ),
                 color=f"C{i + 1}",
             )
             ax.fill_between(
@@ -1294,7 +1320,7 @@ class MMM(
             )
         return fig
 
-    def plot_channel_contributions_grid(
+    def plot_channel_contribution_grid(
         self,
         start: float,
         stop: float,
@@ -1325,7 +1351,7 @@ class MMM(
 
         """
         share_grid = np.linspace(start=start, stop=stop, num=num)
-        contributions = self.get_channel_contributions_forward_pass_grid(
+        contributions = self.get_channel_contribution_forward_pass_grid(
             start=start, stop=stop, num=num
         )
 
@@ -1432,7 +1458,9 @@ class MMM(
 
             n_channels = len(model.channel_columns)
             spend = np.ones(n_channels)
-            new_spend_contributions = model.new_spend_contributions(spend=spend, one_time=False)
+            new_spend_contributions = model.new_spend_contributions(
+                spend=spend, one_time=False
+            )
 
         Channel contributions from 1 unit on each channel only once but with 1 unit leading up to the spend.
 
@@ -1441,7 +1469,9 @@ class MMM(
             n_channels = len(model.channel_columns)
             spend = np.ones(n_channels)
             spend_leading_up = np.ones(n_channels)
-            new_spend_contributions = model.new_spend_contributions(spend=spend, spend_leading_up=spend_leading_up)
+            new_spend_contributions = model.new_spend_contributions(
+                spend=spend, spend_leading_up=spend_leading_up
+            )
 
         """
         if spend is None:
@@ -1470,27 +1500,27 @@ class MMM(
         }
         with pm.Model(coords=coords):
             pm.Deterministic(
-                "channel_contributions",
+                "channel_contribution",
                 self.forward_pass(x=new_data),
                 dims=("time_since_spend", "channel"),
             )
 
             samples = pm.sample_posterior_predictive(
                 idata,
-                var_names=["channel_contributions"],
+                var_names=["channel_contribution"],
                 **sample_posterior_predictive_kwargs,
             )
 
-        channel_contributions = samples.posterior_predictive["channel_contributions"]
+        channel_contribution = samples.posterior_predictive["channel_contribution"]
 
         if original_scale:
-            channel_contributions = apply_sklearn_transformer_across_dim(
-                data=channel_contributions,
+            channel_contribution = apply_sklearn_transformer_across_dim(
+                data=channel_contribution,
                 func=self.get_target_transformer().inverse_transform,
                 dim_name="time_since_spend",
             )
 
-        return channel_contributions
+        return channel_contribution
 
     def plot_new_spend_contributions(
         self,
@@ -1624,7 +1654,7 @@ class MMM(
 
         Example
         -------
-        >>> self.format_recovered_transformation_parameters(quantile=.5)
+        >>> self.format_recovered_transformation_parameters(quantile=0.5)
         >>> Output:
         {
             'x1': {
@@ -1784,7 +1814,6 @@ class MMM(
         channels: list[str] | None = None,
         quantile_lower: float = 0.05,
         quantile_upper: float = 0.95,
-        method: str | None = None,
     ) -> plt.Figure:
         """Plot the direct contribution curves for each marketing channel.
 
@@ -1794,15 +1823,13 @@ class MMM(
         Parameters
         ----------
         show_fit : bool, optional
-            If True, the function will also plot the curve fit based on the specified method. Defaults to False.
+            If True, the function will also plot the curve fit. Defaults to False.
         xlim_max : int, optional
             The maximum value to be plot on the X-axis. If not provided, the maximum value in the data will be used.
         channels : List[str], optional
             A list of channels to plot. If not provided, all channels will be plotted.
         same_axes : bool, optional
             If True, all channels will be plotted on the same axes. Defaults to False.
-        method : str | None, optional
-            Deprecated.
 
         Returns
         -------
@@ -1811,13 +1838,6 @@ class MMM(
 
         """
         channels_to_plot = self.channel_columns if channels is None else channels
-
-        if method is not None:
-            warnings.warn(
-                "The 'method' keyword is deprecated and will be removed in a future version.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
 
         if not all(channel in self.channel_columns for channel in channels_to_plot):
             unknown_channels = set(channels_to_plot) - set(self.channel_columns)
@@ -1828,7 +1848,7 @@ class MMM(
         if len(channels_to_plot) != len(set(channels_to_plot)):
             raise ValueError("The provided channels must be unique.")
 
-        channel_contributions = self.compute_channel_contribution_original_scale().mean(
+        channel_contribution = self.compute_channel_contribution_original_scale().mean(
             ["chain", "draw"]
         )
 
@@ -1871,7 +1891,7 @@ class MMM(
         for i, (ax, channel) in enumerate(axes_channels):
             if self.X is not None:
                 x = self.X[channel].to_numpy()
-                y = channel_contributions.sel(channel=channel).to_numpy()
+                y = channel_contribution.sel(channel=channel).to_numpy()
 
                 label = label_func(channel)
                 ax.scatter(x, y, label=label, color=f"C{i}")
@@ -1989,10 +2009,7 @@ class MMM(
 
         .. code-block:: python
 
-            model_estimated_lift = (
-                saturation_curve(x + delta_x)
-                - saturation_curve(x)
-            )
+            model_estimated_lift = saturation_curve(x + delta_x) - saturation_curve(x)
             empirical_lift = delta_y
             dist(abs(model_estimated_lift), sigma=sigma, observed=abs(empirical_lift))
 
@@ -2054,13 +2071,15 @@ class MMM(
 
             model.build_model(X, y)
 
-            df_lift_test = pd.DataFrame({
-                "channel": ["x1", "x1"],
-                "x": [1, 1],
-                "delta_x": [0.1, 0.2],
-                "delta_y": [0.1, 0.1],
-                "sigma": [0.1, 0.1],
-            })
+            df_lift_test = pd.DataFrame(
+                {
+                    "channel": ["x1", "x1"],
+                    "x": [1, 1],
+                    "delta_x": [0.1, 0.2],
+                    "delta_y": [0.1, 0.1],
+                    "sigma": [0.1, 0.1],
+                }
+            )
 
             model.add_lift_test_measurements(df_lift_test)
 
@@ -2162,10 +2181,24 @@ class MMM(
                 "Unsupported time granularity. Choose from 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'."
             )
 
-        if controls is not None:
+        mmm_has_controls = (
+            self.control_columns is not None
+            and len(self.control_columns) > 0
+            and all(
+                column in self.preprocessed_data["X"].columns
+                for column in self.control_columns
+            )
+        )
+
+        if controls is not None and mmm_has_controls:
             _controls: list[str] = controls
+        elif controls is not None and not mmm_has_controls:
+            raise ValueError(
+                """The model was built without controls and cannot translate the provided controls to contributions.
+                Remove the controls from the function call and try again."""
+            )
         else:
-            controls = []
+            _controls = []
 
         last_date = pd.to_datetime(df[date_column]).max()
         new_dates = []
@@ -2257,7 +2290,7 @@ class MMM(
             extend_idata=False,
             include_last_observations=True,
             original_scale=False,
-            var_names=["y", "channel_contributions"],
+            var_names=["y", "channel_contribution"],
             progressbar=False,
         ).merge(constant_data)
 
@@ -2293,12 +2326,16 @@ class MMM(
         budget: float | int,
         num_periods: int,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
-        response_variable: str = "total_contributions",
+        response_variable: str = "total_contribution",
         utility_function: UtilityFunctionType = average_response,
         constraints: Sequence[dict[str, Any]] = (),
         default_constraints: bool = True,
+        callback: bool = False,
         **minimize_kwargs,
-    ) -> tuple[DataArray, OptimizeResult]:
+    ) -> (
+        tuple[DataArray, OptimizeResult]
+        | tuple[DataArray, OptimizeResult, list[dict[str, Any]]]
+    ):
         """Optimize the given budget based on the specified utility function over a specified time period.
 
         This function optimizes the allocation of a given budget across different channels
@@ -2325,7 +2362,7 @@ class MMM(
             An xarray DataArary or dictionary specifying the lower and upper bounds for the budget allocation
             for each channel. If None, no bounds are applied.
         response_variable : str, optional
-            The response variable to optimize. Default is "total_contributions".
+            The response variable to optimize. Default is "total_contribution".
         utility_function : UtilityFunctionType, optional
             The utility function to maximize. Default is the mean of the response distribution.
         custom_constraints : list[dict[str, Any]], optional
@@ -2333,6 +2370,10 @@ class MMM(
             [{"key":...,"constraint_fun":...,"constraint_type":...}]
         default_constraints : bool, optional
             Whether to add the default sum constraint to the optimizer. Default is True.
+        callback : bool, optional
+            Whether to return callback information tracking optimization progress. When True, returns a third
+            element containing a list of dictionaries with optimization information at each iteration.
+            Default is False for backward compatibility.
         **minimize_kwargs
             Additional arguments to pass to the `BudgetOptimizer`.
 
@@ -2363,103 +2404,8 @@ class MMM(
         return allocator.allocate_budget(
             total_budget=budget,
             budget_bounds=budget_bounds,
+            callback=callback,
             **minimize_kwargs,
-        )
-
-    def allocate_budget_to_maximize_response(
-        self,
-        budget: float | int,
-        time_granularity: Literal["daily", "weekly", "monthly", "quarterly", "yearly"],
-        num_periods: int,
-        budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
-        custom_constraints: Sequence[dict[str, Any]] | None = None,
-        noise_level: float = 0.01,
-        utility_function: UtilityFunctionType = average_response,
-        **minimize_kwargs,
-    ) -> az.InferenceData:
-        """Allocate the given budget to maximize the response over a specified time period.
-
-        .. deprecated:: 0.1.0
-            This method is deprecated and will be removed in a future version.
-            Use :meth:`optimize_budget` instead.
-
-        This function optimizes the allocation of a given budget across different channels
-        to maximize the response, considering adstock and saturation effects. It scales the
-        budget and budget bounds, performs the optimization, and generates a synthetic dataset
-        for posterior predictive sampling.
-
-        The function first scales the budget and budget bounds using the maximum scale
-        of the channel transformer. It then uses the `BudgetOptimizer` to allocate the
-        budget, and creates a synthetic dataset based on the optimal allocation. Finally,
-        it performs posterior predictive sampling on the synthetic dataset.
-
-        **Important**: When generating the posterior predicive distribution for the target with the optimized budget,
-        we are setting the control variables to zero! This is done because in many situations we do not have all the
-        control variables in the future (e.g. outlier control, special events).
-
-        Parameters
-        ----------
-        budget : float or int
-            The total budget to be allocated.
-        time_granularity : str
-            The granularity of the time units (num_periods) (e.g., 'daily', 'weekly', 'monthly').
-        num_periods : float
-            The number of time units over which the budget is to be allocated.
-        budget_bounds : DatArray or dict[str, list[Any]], optional
-            An xarray DataArray or a dictionary specifying the lower and upper bounds for the budget allocation
-            for each channel. If None, no bounds are applied.
-        custom_constraints : Sequence[dict[str, Any]], optional
-            Custom constraints for the optimization. If None, no custom constraints are applied.
-        noise_level : float, optional
-            The level of noise added to the allocation strategy (by default 1%).
-        utility_function : UtilityFunctionType, optional
-            The utility function to maximize. Default is the mean of the response distribution.
-        **minimize_kwargs
-            Additional arguments to pass to the `BudgetOptimizer`.
-
-        Returns
-        -------
-        az.InferenceData
-            The posterior predictive samples generated from the synthetic dataset.
-
-        Raises
-        ------
-        ValueError
-            If the time granularity is not supported.
-
-        ValueError
-            If the noise level is not a float.
-        """
-        from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
-
-        warnings.warn(
-            "This method is deprecated and will be removed in a future version. "
-            "Use optimize_budget() instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        if not isinstance(noise_level, float):
-            raise ValueError("noise_level must be a float")
-
-        allocator = BudgetOptimizer(
-            model=self,
-            num_periods=num_periods,
-            utility_function=utility_function,
-            custom_constraints=custom_constraints,
-            default_constraints=True,
-        )
-        self.optimal_allocation, _ = allocator.allocate_budget(
-            total_budget=budget,
-            budget_bounds=budget_bounds,
-            **minimize_kwargs,
-        )
-
-        return self.sample_response_distribution(
-            allocation_strategy=self.optimal_allocation,
-            time_granularity=time_granularity,
-            num_periods=num_periods,
-            noise_level=noise_level,
         )
 
     def plot_budget_allocation(
@@ -2489,12 +2435,12 @@ class MMM(
             The matplotlib figure object and axis containing the plot.
 
         """
-        channel_contributions = (
-            samples["channel_contributions"].mean(dim=["date", "sample"]).to_numpy()
+        channel_contribution = (
+            samples["channel_contribution"].mean(dim=["date", "sample"]).to_numpy()
         )
 
         if original_scale:
-            channel_contributions *= self.get_target_transformer()["scaler"].scale_
+            channel_contribution *= self.get_target_transformer()["scaler"].scale_
 
         allocated_spend = samples.allocation.to_numpy()
 
@@ -2521,11 +2467,11 @@ class MMM(
 
         bars2 = ax2.bar(
             index + bar_width,
-            channel_contributions,
+            channel_contribution,
             bar_width,
             color="C1",
             alpha=opacity,
-            label="Channel Contributions",
+            label="Channel Contribution",
         )
 
         ax.set_xlabel("Channels")
@@ -2577,23 +2523,23 @@ class MMM(
 
         """
         if original_scale:
-            channel_contributions = (
-                samples["channel_contributions"]
+            channel_contribution = (
+                samples["channel_contribution"]
                 * self.get_target_transformer()["scaler"].scale_
             )
         else:
-            channel_contributions = samples["channel_contributions"]
+            channel_contribution = samples["channel_contribution"]
 
         fig, ax = plt.subplots()
-        channel_contributions.mean(dim="sample").plot(hue="channel", ax=ax)
+        channel_contribution.mean(dim="sample").plot(hue="channel", ax=ax)
 
         for channel in self.model_coords["channel"]:
             ax.fill_between(
-                x=channel_contributions.date.values,
-                y1=channel_contributions.sel(channel=channel).quantile(
+                x=channel_contribution.date.values,
+                y1=channel_contribution.sel(channel=channel).quantile(
                     lower_quantile, dim="sample"
                 ),
-                y2=channel_contributions.sel(channel=channel).quantile(
+                y2=channel_contribution.sel(channel=channel).quantile(
                     upper_quantile, dim="sample"
                 ),
                 alpha=0.1,

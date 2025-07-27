@@ -21,10 +21,10 @@ import pytensor as pt
 import pytest
 import xarray as xr
 from lifetimes.fitters.beta_geo_beta_binom_fitter import BetaGeoBetaBinomFitter
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models import BetaGeoBetaBinomModel
-from pymc_marketing.prior import Prior
 from tests.conftest import create_mock_fit, mock_sample
 
 
@@ -107,10 +107,10 @@ class TestBetaGeoBetaBinomModel:
     @pytest.fixture(scope="class")
     def model_config(self):
         return {
-            "alpha_prior": Prior("HalfNormal"),
-            "beta_prior": Prior("HalfStudentT", nu=4),
-            "delta_prior": Prior("HalfCauchy", beta=2),
-            "gamma_prior": Prior("Gamma", alpha=1, beta=1),
+            "alpha": Prior("HalfNormal"),
+            "beta": Prior("HalfStudentT", nu=4),
+            "delta": Prior("HalfCauchy", beta=2),
+            "gamma": Prior("Gamma", alpha=1, beta=1),
         }
 
     def test_model(self, model_config):
@@ -129,26 +129,26 @@ class TestBetaGeoBetaBinomModel:
             assert isinstance(
                 model.model["alpha"].owner.op,
                 pt.tensor.elemwise.Elemwise
-                if "alpha_prior" not in model.model_config
-                else model.model_config["alpha_prior"].pymc_distribution,
+                if "alpha" not in model.model_config
+                else model.model_config["alpha"].pymc_distribution,
             )
             assert isinstance(
                 model.model["beta"].owner.op,
                 pt.tensor.elemwise.Elemwise
-                if "beta_prior" not in model.model_config
-                else model.model_config["beta_prior"].pymc_distribution,
+                if "beta" not in model.model_config
+                else model.model_config["beta"].pymc_distribution,
             )
             assert isinstance(
                 model.model["delta"].owner.op,
                 pt.tensor.elemwise.Elemwise
-                if "delta_prior" not in model.model_config
-                else model.model_config["delta_prior"].pymc_distribution,
+                if "delta" not in model.model_config
+                else model.model_config["delta"].pymc_distribution,
             )
             assert isinstance(
                 model.model["gamma"].owner.op,
                 pt.tensor.elemwise.Elemwise
-                if "gamma_prior" not in model.model_config
-                else model.model_config["gamma_prior"].pymc_distribution,
+                if "gamma" not in model.model_config
+                else model.model_config["gamma"].pymc_distribution,
             )
 
         assert default_model.model.eval_rv_shapes() == {
@@ -176,22 +176,34 @@ class TestBetaGeoBetaBinomModel:
     def test_missing_cols(self):
         data_invalid = self.data.drop(columns="customer_id")
 
-        with pytest.raises(ValueError, match="Required column customer_id missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+        ):
             BetaGeoBetaBinomModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="frequency")
 
-        with pytest.raises(ValueError, match="Required column frequency missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['frequency'\]",
+        ):
             BetaGeoBetaBinomModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="recency")
 
-        with pytest.raises(ValueError, match="Required column recency missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['recency'\]",
+        ):
             BetaGeoBetaBinomModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="T")
 
-        with pytest.raises(ValueError, match="Required column T missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['T'\]",
+        ):
             BetaGeoBetaBinomModel(data=data_invalid)
 
     def test_customer_id_duplicate(self):
@@ -212,7 +224,7 @@ class TestBetaGeoBetaBinomModel:
             )
 
     def test_T_homogeneity(self):
-        with pytest.raises(ValueError, match="Column T has  non-homogeneous entries"):
+        with pytest.raises(ValueError, match="Column T has non-homogeneous entries"):
             data = pd.DataFrame(
                 {
                     "customer_id": np.asarray([1, 2]),
@@ -230,10 +242,10 @@ class TestBetaGeoBetaBinomModel:
     def test_model_repr(self, custom_config):
         if custom_config:
             model_config = {
-                "alpha_prior": Prior("HalfFlat"),
-                "beta_prior": Prior("HalfFlat"),
-                "delta_prior": Prior("HalfFlat"),
-                "gamma_prior": Prior("HalfNormal", sigma=10),
+                "alpha": Prior("HalfFlat"),
+                "beta": Prior("HalfFlat"),
+                "delta": Prior("HalfFlat"),
+                "gamma": Prior("HalfNormal", sigma=10),
             }
             repr = (
                 "BG/BB"
@@ -267,7 +279,7 @@ class TestBetaGeoBetaBinomModel:
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
-        "fit_method, rtol",
+        "method, rtol",
         [
             (
                 "mcmc",
@@ -276,17 +288,15 @@ class TestBetaGeoBetaBinomModel:
             ("map", 0.2),
         ],
     )
-    def test_model_convergence(self, fit_method, rtol, model_config):
+    def test_model_convergence(self, method, rtol, model_config):
         model = BetaGeoBetaBinomModel(
             data=self.sample_data,
             model_config=model_config,
         )
         model.build_model()
 
-        sample_kwargs = (
-            dict(random_seed=self.rng, chains=2) if fit_method == "mcmc" else {}
-        )
-        model.fit(fit_method=fit_method, progressbar=False, **sample_kwargs)
+        sample_kwargs = dict(random_seed=self.rng, chains=2) if method == "mcmc" else {}
+        model.fit(method=method, progressbar=False, **sample_kwargs)
 
         fit = model.idata.posterior
         np.testing.assert_allclose(

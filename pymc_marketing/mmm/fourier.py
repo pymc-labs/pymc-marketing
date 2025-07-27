@@ -30,7 +30,7 @@ There are two types of Fourier seasonality transformations available:
     import numpy as np
     import arviz as az
     from pymc_marketing.mmm import YearlyFourier
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
 
     plt.style.use('arviz-darkgrid')
 
@@ -84,7 +84,7 @@ Change the prior distribution of the fourier seasonality.
 .. code-block:: python
 
     from pymc_marketing.mmm import YearlyFourier
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
 
     prior = Prior("Normal", mu=0, sigma=0.10)
     yearly = YearlyFourier(n_order=6, prior=prior)
@@ -94,7 +94,7 @@ Even make it hierarchical...
 .. code-block:: python
 
     from pymc_marketing.mmm import YearlyFourier
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
 
     # "fourier" is the default prefix!
     prior = Prior(
@@ -130,8 +130,8 @@ used in the model.
     periods = 52 * 3
     dates = pd.date_range("2022-01-01", periods=periods, freq="W-MON")
 
-    training_dates = dates[:52 * 2]
-    testing_dates = dates[52 * 2:]
+    training_dates = dates[: 52 * 2]
+    testing_dates = dates[52 * 2 :]
 
     yearly = YearlyFourier(n_order=3)
 
@@ -209,7 +209,7 @@ conflicts.
 import datetime
 from abc import abstractmethod
 from collections.abc import Callable, Iterable
-from typing import Any
+from typing import Any, Self
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -219,13 +219,19 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
-from pydantic import BaseModel, Field, InstanceOf, field_serializer, model_validator
-from typing_extensions import Self
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    InstanceOf,
+    field_serializer,
+    model_validator,
+)
+from pymc_extras.deserialize import deserialize, register_deserialization
+from pymc_extras.prior import Prior, VariableFactory, create_dim_handler
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK, DAYS_IN_YEAR
-from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.plot import SelToString, plot_curve, plot_hdi, plot_samples
-from pymc_marketing.prior import Prior, VariableFactory, create_dim_handler
 
 X_NAME: str = "day"
 NON_GRID_NAMES: frozenset[str] = frozenset({X_NAME})
@@ -292,6 +298,7 @@ class FourierBase(BaseModel):
         Prior("Laplace", mu=0, b=1)
     )
     variable_name: str | None = Field(None)
+    model_config = ConfigDict(extra="forbid")
 
     def model_post_init(self, __context: Any) -> None:
         """Model post initialization for a Pydantic model."""
@@ -430,8 +437,10 @@ class FourierBase(BaseModel):
 
             fourier = YearlyFourier(n_order=3)
 
+
             def callback(result):
                 pm.Deterministic("fourier_trend", result, dims=("date", "fourier"))
+
 
             dates = pd.date_range("2023-01-01", periods=52, freq="W-MON")
 
@@ -518,7 +527,7 @@ class FourierBase(BaseModel):
             start_date = self.get_default_start_date(start_date=start_date)
             date_range = pd.date_range(
                 start=start_date,
-                periods=np.ceil(self.days_in_period) + 1,
+                periods=int(np.ceil(self.days_in_period) + 1),
                 freq="D",
             )
             coords["date"] = date_range.to_numpy()
@@ -549,6 +558,9 @@ class FourierBase(BaseModel):
     def plot_curve(
         self,
         curve: xr.DataArray,
+        n_samples: int = 10,
+        hdi_probs: float | list[float] | None = None,
+        random_seed: np.random.Generator | None = None,
         subplot_kwargs: dict | None = None,
         sample_kwargs: dict | None = None,
         hdi_kwargs: dict | None = None,
@@ -564,6 +576,13 @@ class FourierBase(BaseModel):
         ----------
         curve : xr.DataArray
             Sampled full period of the fourier seasonality.
+        n_samples : int, optional
+            Number of samples
+        hdi_probs : float | list[float], optional
+            HDI probabilities. Defaults to None which uses arviz default for
+            stats.ci_prob which is 94%
+        random_seed : int | random number generator, optional
+            Random number generator. Defaults to None
         subplot_kwargs : dict, optional
             Keyword arguments for the subplot, by default None
         sample_kwargs : dict, optional
@@ -597,6 +616,9 @@ class FourierBase(BaseModel):
         return plot_curve(
             curve,
             non_grid_names={x_coord_name},
+            n_samples=n_samples,
+            hdi_probs=hdi_probs,
+            random_seed=random_seed,
             subplot_kwargs=subplot_kwargs,
             sample_kwargs=sample_kwargs,
             hdi_kwargs=hdi_kwargs,
@@ -745,7 +767,7 @@ class YearlyFourier(FourierBase):
         import numpy as np
 
         from pymc_marketing.mmm import YearlyFourier
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         az.style.use("arviz-white")
 
@@ -811,7 +833,7 @@ class MonthlyFourier(FourierBase):
         import numpy as np
 
         from pymc_marketing.mmm import MonthlyFourier
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         az.style.use("arviz-white")
 
@@ -876,7 +898,7 @@ class WeeklyFourier(FourierBase):
         import numpy as np
 
         from pymc_marketing.mmm import WeeklyFourier
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         az.style.use("arviz-white")
 

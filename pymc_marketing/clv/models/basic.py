@@ -16,7 +16,8 @@
 import json
 import warnings
 from collections.abc import Sequence
-from typing import cast
+from pathlib import Path
+from typing import Literal, cast
 
 import arviz as az
 import pandas as pd
@@ -45,6 +46,19 @@ class CLVModel(ModelBuilder):
         non_distributions: list[str] | None = None,
     ):
         model_config = model_config or {}
+
+        deprecated_keys = [key for key in model_config if key.endswith("_prior")]
+        for key in deprecated_keys:
+            new_key = key.replace("_prior", "")
+            warnings.warn(
+                f"The key '{key}' in model_config is deprecated and will be removed in future versions."
+                f"Use '{new_key}' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+            model_config[new_key] = model_config.pop(key)
+
         model_config = parse_model_config(
             model_config,
             non_distributions=non_distributions,
@@ -60,20 +74,22 @@ class CLVModel(ModelBuilder):
         must_be_unique: Sequence[str] = (),
         must_be_homogenous: Sequence[str] = (),
     ):
-        existing_columns = set(data.columns)
+        missing = set(required_cols).difference(data.columns)
+        if missing:
+            raise ValueError(
+                "The following required columns are missing from the "
+                f"input data: {sorted(list(missing))}"
+            )
+
         n = data.shape[0]
 
-        for required_col in required_cols:
-            if required_col not in existing_columns:
-                raise ValueError(f"Required column {required_col} missing")
-            if required_col in must_be_unique:
-                if data[required_col].nunique() != n:
-                    raise ValueError(f"Column {required_col} has duplicate entries")
-            if required_col in must_be_homogenous:
-                if data[required_col].nunique() != 1:
-                    raise ValueError(
-                        f"Column {required_col} has  non-homogeneous entries"
-                    )
+        for col in required_cols:
+            if col in must_be_unique:
+                if data[col].nunique() != n:
+                    raise ValueError(f"Column {col} has duplicate entries")
+            if col in must_be_homogenous:
+                if data[col].nunique() != 1:
+                    raise ValueError(f"Column {col} has non-homogeneous entries")
 
     def __repr__(self) -> str:
         """Representation of the model."""
@@ -94,36 +110,56 @@ class CLVModel(ModelBuilder):
 
     def fit(  # type: ignore
         self,
-        fit_method: str = "mcmc",
+        method: str = "mcmc",
+        fit_method: str | None = None,
         **kwargs,
     ) -> az.InferenceData:
         """Infer model posterior.
 
         Parameters
         ----------
-        fit_method: str
+        method: str
             Method used to fit the model. Options are:
             - "mcmc": Samples from the posterior via `pymc.sample` (default)
             - "map": Finds maximum a posteriori via `pymc.find_MAP`
+            - "demz": Samples from the posterior via `pymc.sample` using DEMetropolisZ
+            - "advi": Samples from the posterior via `pymc.fit(method="advi")` and `pymc.sample`
+            - "fullrank_advi": Samples from the posterior via `pymc.fit(method="fullrank_advi")` and `pymc.sample`
         kwargs:
             Other keyword arguments passed to the underlying PyMC routines
 
         """
         self.build_model()  # type: ignore
 
-        match fit_method:
+        if fit_method:
+            warnings.warn(
+                "'fit_method' is deprecated and will be removed in a future release. "
+                "Use 'method' instead.",
+                DeprecationWarning,
+                stacklevel=1,
+            )
+            method = fit_method
+
+        approx = None
+        match method:
             case "mcmc":
                 idata = self._fit_mcmc(**kwargs)
             case "map":
                 idata = self._fit_MAP(**kwargs)
             case "demz":
                 idata = self._fit_DEMZ(**kwargs)
+            case "advi":
+                approx, idata = self._fit_approx(method="advi", **kwargs)
+            case "fullrank_advi":
+                approx, idata = self._fit_approx(method="fullrank_advi", **kwargs)
             case _:
                 raise ValueError(
-                    f"Fit method options are ['mcmc', 'map', 'demz'], got: {fit_method}"
+                    f"Fit method options are ['mcmc', 'map', 'demz', 'advi', 'fullrank_advi'], got: {method}"
                 )
 
         self.idata = idata
+        if approx:
+            self.approx = approx
         self.set_idata_attrs(self.idata)
         if self.data is not None:
             self._add_fit_data_group(self.data)
@@ -162,6 +198,66 @@ class CLVModel(ModelBuilder):
         with self.model:
             return pm.sample(step=pm.DEMetropolisZ(), **sampler_config)
 
+    def _fit_approx(
+        self, method: Literal["advi", "fullrank_advi"] = "advi", **kwargs
+    ) -> az.InferenceData:
+        """Fit a model with ADVI."""
+        sampler_config = {}
+        if self.sampler_config is not None:
+            sampler_config = self.sampler_config.copy()
+
+        sampler_config = {**sampler_config, **kwargs}
+        if sampler_config.get("method") is not None:
+            raise ValueError(
+                "The 'method' parameter is set in sampler_config. Cannot be called with 'advi'."
+            )
+
+        if sampler_config.get("chains", 1) > 1:
+            warnings.warn(
+                "The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        with self.model:
+            approx = pm.fit(
+                method=method,
+                callbacks=[pm.callbacks.CheckParametersConvergence(diff="absolute")],
+                **{
+                    k: v
+                    for k, v in sampler_config.items()
+                    if k
+                    in [
+                        "n",
+                        "random_seed",
+                        "inf_kwargs",
+                        "start",
+                        "start_sigma",
+                        "score",
+                        "callbacks",
+                        "progressbar",
+                        "progressbar_theme",
+                        "obj_n_mc",
+                        "tf_n_mc",
+                        "obj_optimizer",
+                        "test_optimizer",
+                        "more_obj_params",
+                        "more_tf_params",
+                        "more_updates",
+                        "total_grad_norm_constraint",
+                        "fn_kwargs",
+                        "more_replacements",
+                    ]
+                },
+            )
+            return approx, approx.sample(
+                **{
+                    k: v
+                    for k, v in sampler_config.items()
+                    if k in ["draws", "random_seed", "return_inferencedata"]
+                }
+            )
+
     @classmethod
     def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict:
         """Create the initialization kwargs from an InferenceData object."""
@@ -170,6 +266,19 @@ class CLVModel(ModelBuilder):
             "model_config": json.loads(idata.attrs["model_config"]),
             "sampler_config": json.loads(idata.attrs["sampler_config"]),
         }
+
+    def _rename_posterior_variables(self):
+        """Rename variables in the posterior group to remove the _prior suffix.
+
+        This is used to support the old model configuration format, which used
+        to include a _prior suffix for each parameter.
+        """
+        prior_vars = [
+            var for var in self.idata.posterior.data_vars if var.endswith("_prior")
+        ]
+        rename_dict = {var: var.replace("_prior", "") for var in prior_vars}
+        self.idata.posterior = self.idata.posterior.rename(rename_dict)
+        return self.idata.posterior
 
     def thin_fit_result(self, keep_every: int):
         """Return a copy of the model with a thinned fit result.

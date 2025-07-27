@@ -17,6 +17,7 @@ import hashlib
 import json
 import warnings
 from abc import ABC, abstractmethod
+from functools import wraps
 from inspect import signature
 from pathlib import Path
 from typing import Any
@@ -27,9 +28,12 @@ import pandas as pd
 import pymc as pm
 import xarray as xr
 from pymc.util import RandomState
+from pymc_extras.printing import model_table
+from rich.table import Table
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.utils import from_netcdf
+from pymc_marketing.version import __version__
 
 # If scikit-learn is available, use its data validator
 try:
@@ -100,6 +104,20 @@ def create_idata_accessor(value: str, message: str):
         return self.idata[value]
 
     return property(accessor)
+
+
+def requires_model(func):
+    """Ensure that the model is built before calling a method."""
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if not hasattr(self, "model"):
+            raise RuntimeError(
+                "The model hasn't been built yet. Please call `build_model` first."
+            )
+        return func(self, *args, **kwargs)
+
+    return wrapper
 
 
 def create_sample_kwargs(
@@ -316,8 +334,10 @@ class ModelIO:
         >>>     def __init__(self):
         >>>         super().__init__()
         >>> model = MyModel()
-        >>> model.fit(X,y)
-        >>> model.save('model_results.nc')  # This will call the overridden method in MyModel
+        >>> model.fit(X, y)
+        >>> model.save(
+        ...     "model_results.nc"
+        ... )  # This will call the overridden method in MyModel
 
         """
         if self.idata is not None and "posterior" in self.idata:
@@ -888,8 +908,7 @@ class RegressionModelBuilder(BaseModelBuilder):
         if isinstance(y, np.ndarray):
             y = pd.Series(y, index=X.index, name=self.output_var)
 
-        if y.name is None:
-            y.name = self.output_var
+        y.name = self.output_var
 
         if isinstance(X, pd.DataFrame):
             X = X.to_xarray()
@@ -898,6 +917,10 @@ class RegressionModelBuilder(BaseModelBuilder):
             y = y.to_xarray()
 
         return xr.merge([X, y])
+
+    def post_sample_model_transformation(self) -> None:
+        """Perform transformation on the model after sampling."""
+        return
 
     def fit(
         self,
@@ -932,7 +955,7 @@ class RegressionModelBuilder(BaseModelBuilder):
         Examples
         --------
         >>> model = MyModel()
-        >>> idata = model.fit(X,y)
+        >>> idata = model.fit(X, y)
         Auto-assigning NUTS sampler...
         Initializing NUTS using jitter+adapt_diag...
 
@@ -961,14 +984,27 @@ class RegressionModelBuilder(BaseModelBuilder):
             random_seed,
             **kwargs,
         )
+
+        # Sample without deterministics first
+        var_names = [var.name for var in self.model.free_RVs]
         with self.model:
-            idata = pm.sample(**sampler_kwargs)
+            idata = pm.sample(var_names=var_names, **sampler_kwargs)
+
+        # Compute deterministics after sampling
+        with self.model:
+            idata.posterior = pm.compute_deterministics(
+                idata.posterior, merge_dataset=True
+            )
+
+        self.post_sample_model_transformation()
 
         if self.idata:
             self.idata = self.idata.copy()
             self.idata.extend(idata, join="right")
         else:
             self.idata = idata
+
+        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
 
         if "fit_data" in self.idata:
             del self.idata.fit_data
@@ -1012,9 +1048,9 @@ class RegressionModelBuilder(BaseModelBuilder):
         Examples
         --------
         >>> model = MyModel()
-        >>> idata = model.fit(X,y)
+        >>> idata = model.fit(X, y)
         >>> x_pred = []
-        >>> prediction_data = pd.DataFrame({'input':x_pred})
+        >>> prediction_data = pd.DataFrame({"input": x_pred})
         >>> pred_mean = model.predict(prediction_data)
 
         """
@@ -1083,6 +1119,8 @@ class RegressionModelBuilder(BaseModelBuilder):
 
         with self.model:  # sample with new input data
             prior_pred: az.InferenceData = pm.sample_prior_predictive(samples, **kwargs)
+            prior_pred["prior"].attrs["pymc_marketing_version"] = __version__
+            prior_pred["prior_predictive"].attrs["pymc_marketing_version"] = __version__
             self.set_idata_attrs(prior_pred)
 
         if extend_idata:
