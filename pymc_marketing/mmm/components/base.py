@@ -368,14 +368,7 @@ class Transformation:
 
         dims = dims or self.combined_dims
         if idx is not None:
-            n_idx_dims = len(idx)
-            dummy_dims = tuple(f"DUMMY_{i}" for i in range(n_idx_dims))
-            if len(dummy_dims) > 1:
-                raise NotImplementedError(
-                    "The indexing with multiple dimensions is not supported yet."
-                )
-
-            dims = (*dummy_dims, *dims)
+            dims = ("N", *dims)
 
         dim_handler = create_dim_handler(dims)
 
@@ -387,12 +380,11 @@ class Transformation:
             var = dist.create_variable(variable_name)
 
             dist_dims = dist.dims
-            if idx is not None:
+            if idx is not None and any(dim in idx for dim in dist_dims):
                 var = index_variable(var, dist.dims, idx)
 
-                dist_dims = tuple(
-                    [(dim if dim not in idx else "DUMMY_0") for dim in dist.dims]
-                )
+                dist_dims = [dim for dim in dist_dims if dim not in idx]
+                dist_dims = ("N", *dist_dims)
 
             return dim_handler(var, dist_dims)
 
