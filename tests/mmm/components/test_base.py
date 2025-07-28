@@ -26,6 +26,7 @@ from pymc_marketing.mmm.components.base import (
     ParameterPriorException,
     Transformation,
     create_registration_meta,
+    index_variable,
 )
 from pymc_marketing.mmm.components.saturation import TanhSaturation
 
@@ -477,3 +478,141 @@ def test_transform_sample_curve_with_variable_factory():
 
     curve = saturation.sample_curve(prior, 10)
     assert curve.dims == ("chain", "draw", "x", "dim_a")
+
+
+@pytest.mark.parametrize(
+    "var, dims, idx, expected",
+    [
+        (
+            np.arange(2 * 3 * 4).reshape(2, 3, 4),
+            ("geo", "product", "channel"),
+            {
+                "geo": [0, 0, 1, 1],
+                "product": [0, 2, 1, 0],
+            },
+            np.array(
+                [
+                    [0, 1, 2, 3],
+                    [8, 9, 10, 11],
+                    [16, 17, 18, 19],
+                    [12, 13, 14, 15],
+                ]
+            ),
+        ),
+        (
+            np.array([[1, 2, 3], [4, 5, 6]]),
+            ("geo", "channel"),
+            {"geo": [0, 0, 1, 1]},
+            np.array(
+                [
+                    [1, 2, 3],
+                    [1, 2, 3],
+                    [4, 5, 6],
+                    [4, 5, 6],
+                ]
+            ),
+        ),
+    ],
+)
+def test_index_variable(var, dims, idx, expected) -> None:
+    result = index_variable(var, dims=dims, idx=idx)
+    if isinstance(result, TensorVariable):
+        result = result.eval()
+
+    np.testing.assert_allclose(result, expected)
+
+
+def test_apply_idx(new_transformation_class) -> None:
+    instance = new_transformation_class(
+        priors={
+            "a": Prior(
+                "HalfNormal",
+                dims="geo",
+            ),
+            "b": Prior(
+                "HalfNormal",
+                dims="channel",
+            ),
+        }
+    )
+
+    X = np.array(
+        [
+            [0, 0, 0],
+            [1, 1, 1],
+            [2, 2, 2],
+            [0, 0, 0],
+            [1, 1, 1],
+            [2, 2, 2],
+        ]
+    )
+
+    coords = {"geo": ["A", "B"], "channel": ["TV", "Radio", "Online"]}
+    with pm.Model(coords=coords) as model:
+        idx = [0, 0, 0, 1, 1, 1]
+        Y = instance.apply(X, idx={"geo": idx}, dims="channel")
+
+        expected = instance.function(
+            X,
+            a=model["new_a"][idx, None],
+            b=model["new_b"],
+        )
+
+    np.testing.assert_allclose(
+        Y.eval(),
+        expected.eval(),
+    )
+
+
+def test_apply_idx_more_dims(new_transformation_class) -> None:
+    instance = new_transformation_class(
+        priors={
+            "a": Prior(
+                "HalfNormal",
+                dims=("geo", "product"),
+            ),
+            "b": Prior(
+                "HalfNormal",
+                dims=("product", "channel"),
+            ),
+        }
+    )
+
+    X = np.array(
+        [
+            [0, 0, 0],
+            [1, 1, 1],
+            [2, 2, 2],
+            [0, 0, 0],
+            [1, 1, 1],
+            [2, 2, 2],
+        ]
+    )
+
+    coords = {
+        "geo": ["A", "B"],
+        "product": ["X", "Y", "Z"],
+        "channel": ["TV", "Radio", "Online"],
+    }
+    with pm.Model(coords=coords) as model:
+        geo_idx = [0, 0, 0, 1, 1, 1]
+        product_idx = [0, 2, 1, 0, 1, 0]
+        Y = instance.apply(
+            X,
+            idx={
+                "geo": geo_idx,
+                "product": product_idx,
+            },
+            dims="channel",
+        )
+
+        expected = instance.function(
+            X,
+            a=model["new_a"][geo_idx, product_idx, None],
+            b=model["new_b"][product_idx],
+        )
+
+    np.testing.assert_allclose(
+        Y.eval(),
+        expected.eval(),
+    )
