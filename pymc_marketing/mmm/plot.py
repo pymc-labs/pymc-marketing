@@ -14,6 +14,7 @@
 """MMM related plotting class."""
 
 import itertools
+from collections.abc import Iterable
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -352,7 +353,7 @@ class MMMPlotSuite:
 
         return fig, axes
 
-    def saturation_curves_scatter(
+    def saturation_scatterplot(
         self, original_scale: bool = False, **kwargs
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot the saturation curves for each channel.
@@ -444,6 +445,293 @@ class MMMPlotSuite:
                 ax.set_ylabel("Channel Contributions (Y)")
 
         return fig, axes
+
+    def saturation_curves(
+        self,
+        curve: xr.DataArray,
+        original_scale: bool = False,
+        n_samples: int = 10,
+        hdi_probs: float | list[float] | None = None,
+        random_seed: np.random.Generator | None = None,
+        colors: Iterable[str] | None = None,
+        subplot_kwargs: dict | None = None,
+        rc_params: dict | None = None,
+        **plot_kwargs,
+    ) -> tuple[plt.Figure, np.ndarray]:
+        """
+        Overlay saturation‑curve scatter‑plots with posterior‑predictive sample curves and HDI bands.
+
+        **allowing** you to customize figsize and font sizes.
+
+        Parameters
+        ----------
+        curve : xr.DataArray
+            Posterior‑predictive curves (e.g. dims `("chain","draw","x","channel","geo")`).
+        original_scale : bool, default=False
+            Plot `channel_contribution_original_scale` if True, else `channel_contribution`.
+        n_samples : int, default=10
+            Number of sample‑curves per subplot.
+        hdi_probs : float or list of float, optional
+            Credible interval probabilities (e.g. 0.94 or [0.5, 0.94]).
+            If None, uses ArviZ's default (0.94).
+        random_seed : np.random.Generator, optional
+            RNG for reproducible sampling. If None, uses `np.random.default_rng()`.
+        colors : iterable of str, optional
+            Colors for the sample & HDI plots.
+        subplot_kwargs : dict, optional
+            Passed to `plt.subplots` (e.g. `{"figsize": (10,8)}`).
+            Merged with the function's own default sizing.
+        rc_params : dict, optional
+            Temporary `matplotlib.rcParams` for this plot.
+            Example keys: `"xtick.labelsize"`, `"ytick.labelsize"`,
+            `"axes.labelsize"`, `"axes.titlesize"`.
+        **plot_kwargs
+            Any other kwargs forwarded to `plot_curve`
+            (for instance `same_axes=True`, `legend=True`, etc.).
+
+        Returns
+        -------
+        fig : plt.Figure
+            Matplotlib figure with your grid.
+        axes : np.ndarray of plt.Axes
+            Array of shape `(n_channels, n_geo)`.
+
+        """
+        from pymc_marketing.plot import plot_hdi, plot_samples
+
+        if not hasattr(self.idata, "constant_data"):
+            raise ValueError(
+                "No 'constant_data' found in 'self.idata'. "
+                "Please ensure 'self.idata' contains the constant_data group."
+            )
+
+        contrib_var = (
+            "channel_contribution_original_scale"
+            if original_scale
+            else "channel_contribution"
+        )
+
+        if original_scale and not hasattr(self.idata.posterior, contrib_var):
+            raise ValueError(
+                f"""No posterior.{contrib_var} data found in 'self.idata'.
+                Add a original scale deterministic:
+                    mmm.add_original_scale_contribution_variable(
+                        var=[
+                            "channel_contribution",
+                            ...
+                        ]
+                    )
+                """
+            )
+        curve_data = (
+            curve * self.idata.constant_data.target_scale if original_scale else curve
+        )
+        curve_data = curve_data.rename("saturation_curve")
+
+        # — 1. figure out grid shape based on scatter data dimensions —
+        cdims = self.idata.constant_data.channel_data.dims
+        additional_dims = [d for d in cdims if d not in ("date", "channel")]
+        additional_coords = (
+            [self.idata.constant_data.coords[d].values for d in additional_dims]
+            if additional_dims
+            else [()]
+        )
+        combos = list(itertools.product(*additional_coords))
+        channels = self.idata.constant_data.coords["channel"].values
+        n_rows, n_cols = len(channels), len(combos)
+
+        # — 2. merge subplot_kwargs —
+        user_subplot = subplot_kwargs or {}
+
+        # Handle user-specified ncols/nrows
+        if "ncols" in user_subplot:
+            # User specified ncols, calculate nrows
+            ncols = user_subplot["ncols"]
+            nrows = int(np.ceil((n_rows * n_cols) / ncols))
+            user_subplot.pop("ncols")  # Remove to avoid conflict
+        elif "nrows" in user_subplot:
+            # User specified nrows, calculate ncols
+            nrows = user_subplot["nrows"]
+            ncols = int(np.ceil((n_rows * n_cols) / nrows))
+            user_subplot.pop("nrows")  # Remove to avoid conflict
+        else:
+            # Use our calculated grid
+            nrows, ncols = n_rows, n_cols
+
+        # Set default figsize based on final grid dimensions
+        default_subplot = {"figsize": (ncols * 4, nrows * 3)}
+        subkw = {**default_subplot, **user_subplot}
+
+        # — 3. create subplots ourselves —
+        rc_params = rc_params or {}
+        with plt.rc_context(rc_params):
+            fig, axes = plt.subplots(nrows=nrows, ncols=ncols, **subkw)
+
+        # ensure a 2D array
+        if nrows == 1 and ncols == 1:
+            axes = np.array([[axes]])
+        elif nrows == 1:
+            axes = axes.reshape(1, -1)
+        elif ncols == 1:
+            axes = axes.reshape(-1, 1)
+
+        # Flatten axes for easier iteration
+        axes_flat = axes.flatten()
+
+        # — 4. prepare random number generator —
+        if random_seed is None:
+            random_seed = np.random.default_rng()
+
+        # — 5. prepare hdi_probs as list —
+        if hdi_probs is not None and not isinstance(hdi_probs, list):
+            hdi_probs = [hdi_probs]
+
+        # — 6. plot curves and scatter for each subplot —
+        _x_data = (
+            self.idata.constant_data.channel_data
+            if original_scale
+            else (
+                self.idata.constant_data.channel_data
+                / self.idata.constant_data.channel_scale
+            )
+        )
+
+        # Generate colors for all channels if not provided
+        if colors is None:
+            colors = [f"C{i}" for i in range(n_rows)]
+
+        # Create a mapping of subplot index for iteration
+        subplot_idx = 0
+        for _i, (ch, color) in enumerate(zip(channels, colors, strict=False)):
+            for _j, combo in enumerate(combos):
+                if subplot_idx >= len(axes_flat):
+                    break  # No more axes available
+                ax = axes_flat[subplot_idx]
+                subplot_idx += 1
+
+                # Build indexers for this subplot
+                idx = dict(zip(additional_dims, combo, strict=False))
+                idx["channel"] = ch
+
+                # Select and broadcast curve data for this channel
+                # The curve might not have all dimensions, so we only select what exists
+                curve_idx = {}
+                for dim, val in idx.items():
+                    if dim in curve_data.dims:
+                        curve_idx[dim] = val
+
+                subplot_curve = curve_data.sel(**curve_idx)
+
+                # Scale X coordinate if in original scale
+                if original_scale:
+                    # Get the channel scale for this specific subplot
+                    channel_scale = self.idata.constant_data.channel_scale.sel(**idx)
+
+                    # The X coordinate is in scaled space (0 to 1 typically)
+                    # We need to multiply by channel_scale to get original scale
+                    x_original = subplot_curve.coords["x"] * channel_scale
+
+                    # Create a new DataArray with scaled X coordinate
+                    subplot_curve = subplot_curve.assign_coords(x=x_original)
+
+                # Plot sample curves
+                if n_samples > 0:
+                    plot_samples(
+                        subplot_curve,
+                        non_grid_names="x",
+                        n=n_samples,
+                        rng=random_seed,
+                        axes=np.array([[ax]]),
+                        colors=[color],
+                        same_axes=False,
+                        legend=False,
+                        **plot_kwargs,
+                    )
+
+                # Plot HDI bands if requested
+                if hdi_probs is not None:
+                    for hdi_prob in hdi_probs:
+                        plot_hdi(
+                            subplot_curve,
+                            non_grid_names="x",
+                            hdi_prob=hdi_prob,
+                            axes=np.array([[ax]]),
+                            colors=[color],
+                            same_axes=False,
+                            legend=False,
+                            **plot_kwargs,
+                        )
+
+                # Get scatter data
+                x_data = _x_data.sel(**idx)
+                y = (
+                    self.idata.posterior[contrib_var]
+                    .sel(**idx)
+                    .mean(dim=["chain", "draw"])
+                )
+                x_data, y = x_data.broadcast_like(y), y.broadcast_like(x_data)
+
+                # Add scatter plot
+                ax.scatter(
+                    x_data.values.flatten(),
+                    y.values.flatten(),
+                    alpha=0.8,
+                    color=color,
+                )
+
+                title = self._build_subplot_title(
+                    dims=["channel", *additional_dims],
+                    combo=(ch, *combo),
+                    fallback_title="Channel Saturation Curves",
+                )
+                ax.set_title(title)
+                ax.set_xlabel("Channel Data (X)")
+                ax.set_ylabel("Channel Contribution (Y)")
+
+        # Hide any unused axes
+        for ax_idx in range(subplot_idx, len(axes_flat)):
+            axes_flat[ax_idx].set_visible(False)
+
+        return fig, axes
+
+    def saturation_curves_scatter(
+        self, original_scale: bool = False, **kwargs
+    ) -> tuple[Figure, NDArray[Axes]]:
+        """
+        Plot scatter plots of channel contributions vs. channel data.
+
+        .. deprecated:: 0.1.0
+           Will be removed in version 0.2.0. Use :meth:`saturation_scatterplot` instead.
+
+        Parameters
+        ----------
+        channel_contribution : str, optional
+            Name of the channel contribution variable in the InferenceData.
+        additional_dims : list[str], optional
+            Additional dimensions to consider beyond 'channel'.
+        additional_combinations : list[tuple], optional
+            Specific combinations of additional dimensions to plot.
+        **kwargs
+            Additional keyword arguments passed to _init_subplots.
+
+        Returns
+        -------
+        fig : plt.Figure
+            The matplotlib figure.
+        axes : np.ndarray
+            Array of matplotlib axes.
+        """
+        import warnings
+
+        warnings.warn(
+            "saturation_curves_scatter is deprecated and will be removed in version 0.2.0. "
+            "Use saturation_scatterplot instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Note: channel_contribution, additional_dims, and additional_combinations
+        # are not used by saturation_scatterplot, so we don't pass them
+        return self.saturation_scatterplot(original_scale=original_scale, **kwargs)
 
     def budget_allocation(
         self,

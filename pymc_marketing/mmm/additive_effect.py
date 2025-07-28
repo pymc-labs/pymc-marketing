@@ -19,13 +19,13 @@ import pandas as pd
 import pymc as pm
 import xarray as xr
 from pydantic import BaseModel, InstanceOf
+from pymc_extras.prior import create_dim_handler
 from pytensor import tensor as pt
 
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.utils import create_index
-from pymc_marketing.prior import create_dim_handler
 
 
 class MMM(Protocol):

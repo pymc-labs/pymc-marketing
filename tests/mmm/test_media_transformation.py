@@ -15,8 +15,8 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+from pymc_extras.deserialize import deserialize
 
-from pymc_marketing.deserialize import deserialize
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.media_transformation import (
     MediaConfig,

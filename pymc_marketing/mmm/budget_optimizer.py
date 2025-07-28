@@ -18,7 +18,6 @@ import warnings
 from collections.abc import Sequence
 from typing import Any, ClassVar, Protocol, runtime_checkable
 
-import arviz as az
 import numpy as np
 import pytensor.tensor as pt
 import xarray as xr
@@ -27,17 +26,10 @@ from pydantic import BaseModel, ConfigDict, Field, InstanceOf
 from pymc import Model, do
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.pytensorf import rewrite_pregrad
-from pytensor import clone_replace, function
+from pytensor import function
 from pytensor.compile.sharedvalue import SharedVariable, shared
-from pytensor.graph import rewrite_graph, vectorize_graph
-from pytensor.graph.basic import ancestors
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray
-
-try:
-    from pymc.pytensorf import rvs_in_graph
-except ImportError:
-    from pymc.logprob.utils import rvs_in_graph
 
 from pymc_marketing.mmm.constraints import (
     Constraint,
@@ -45,6 +37,7 @@ from pymc_marketing.mmm.constraints import (
     compile_constraints_for_scipy,
 )
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
+from pymc_marketing.pytensor_utils import extract_response_distribution
 
 
 def optimizer_xarray_builder(value, **kwargs):
@@ -127,6 +120,10 @@ class BudgetOptimizer(BaseModel):
         Custom constraints for the optimizer.
     default_constraints : bool, optional
         Whether to add a default sum constraint on the total budget. Default is True.
+    budget_distribution_over_period : xarray.DataArray, optional
+        Distribution factors for budget allocation over time. Should have dims ("date", *budget_dims)
+        where date dimension has length num_periods. Values along date dimension should sum to 1 for
+        each combination of other dimensions. If None, budget is distributed evenly across periods.
     """
 
     num_periods: int = Field(
@@ -167,6 +164,15 @@ class BudgetOptimizer(BaseModel):
     default_constraints: bool = Field(
         default=True,
         description="Whether to add a default sum constraint on the total budget.",
+    )
+
+    budget_distribution_over_period: DataArray | None = Field(
+        default=None,
+        description=(
+            "Distribution factors for budget allocation over time. Should have dims ('date', *budget_dims) "
+            "where date dimension has length num_periods. Values along date dimension should sum to 1 for "
+            "each combination of other dimensions. If None, budget is distributed evenly across periods."
+        ),
     )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -230,16 +236,26 @@ class BudgetOptimizer(BaseModel):
         bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
         self._budgets = budgets_zeros[bool_mask].set(self._budgets_flat)
 
-        # 5. Replace channel_data with budgets in the PyMC model
+        # 5. Validate and process budget_distribution_over_period
+        self._budget_distribution_over_period_tensor = (
+            self._validate_and_process_budget_distribution(
+                budget_distribution_over_period=self.budget_distribution_over_period,
+                num_periods=self.num_periods,
+                budget_dims=self._budget_dims,
+                budgets_to_optimize=self.budgets_to_optimize,
+            )
+        )
+
+        # 6. Replace channel_data with budgets in the PyMC model
         self._pymc_model = self._replace_channel_data_by_optimization_variable(
             pymc_model
         )
 
-        # 6. Compile objective & gradient
+        # 7. Compile objective & gradient
         self._compiled_functions = {}
         self._compile_objective_and_grad()
 
-        # 7. Build constraints
+        # 8. Build constraints
         self._constraints = {}
         self.set_constraints(
             default=self.default_constraints, constraints=self.custom_constraints
@@ -272,6 +288,126 @@ class BudgetOptimizer(BaseModel):
             constraints=self._constraints, optimizer=self
         )
 
+    def _validate_and_process_budget_distribution(
+        self,
+        budget_distribution_over_period: DataArray | None,
+        num_periods: int,
+        budget_dims: list[str],
+        budgets_to_optimize: DataArray,
+    ) -> pt.TensorVariable | None:
+        """Validate and process budget distribution over periods.
+
+        Parameters
+        ----------
+        budget_distribution_over_period : DataArray | None
+            Distribution factors for budget allocation over time.
+        num_periods : int
+            Number of time periods to allocate budget for.
+        budget_dims : list[str]
+            List of budget dimensions (excluding 'date').
+        budgets_to_optimize : DataArray
+            Mask defining which budgets to optimize.
+
+        Returns
+        -------
+        pt.TensorVariable | None
+            Processed tensor containing masked time factors, or None if no distribution provided.
+        """
+        if budget_distribution_over_period is None:
+            return None
+
+        # Validate dimensions - date should be first
+        expected_dims = ("date", *budget_dims)
+        if set(budget_distribution_over_period.dims) != set(expected_dims):
+            raise ValueError(
+                f"budget_distribution_over_period must have dims {expected_dims}, "
+                f"but got {budget_distribution_over_period.dims}"
+            )
+
+        # Validate date dimension length
+        if len(budget_distribution_over_period.coords["date"]) != num_periods:
+            raise ValueError(
+                f"budget_distribution_over_period date dimension must have length {num_periods}, "
+                f"but got {len(budget_distribution_over_period.coords['date'])}"
+            )
+
+        # Validate that factors sum to 1 along date dimension
+        sums = budget_distribution_over_period.sum(dim="date")
+        if not np.allclose(sums.values, 1.0, rtol=1e-5):
+            raise ValueError(
+                "budget_distribution_over_period must sum to 1 along the date dimension "
+                "for each combination of other dimensions"
+            )
+
+        # Pre-process: Apply the mask to get only factors for optimized budgets
+        # This avoids shape mismatches during gradient computation
+        time_factors_full = budget_distribution_over_period.transpose(
+            *expected_dims
+        ).values
+
+        # Reshape to (num_periods, flat_budget_dims) and apply mask
+        time_factors_flat = time_factors_full.reshape((num_periods, -1))
+        bool_mask = budgets_to_optimize.values.flatten()
+        time_factors_masked = time_factors_flat[:, bool_mask]
+
+        # Store only the masked tensor
+        return pt.constant(time_factors_masked, name="budget_distribution_over_period")
+
+    def _apply_budget_distribution_over_period(
+        self,
+        budgets: pt.TensorVariable,
+        num_periods: int,
+        date_dim_idx: int,
+    ) -> pt.TensorVariable:
+        """Apply budget distribution over periods to budgets across time periods.
+
+        Parameters
+        ----------
+        budgets : pt.TensorVariable
+            The scaled budget tensor with shape matching budget dimensions.
+        num_periods : int
+            Number of time periods to distribute budget across.
+        date_dim_idx : int
+            Index position where the date dimension should be inserted.
+
+        Returns
+        -------
+        pt.TensorVariable
+            Budget tensor repeated across time periods with distribution factors applied.
+            Shape will be (*budget_dims[:date_dim_idx], num_periods, *budget_dims[date_dim_idx:])
+        """
+        # Apply time distribution factors
+        # The time factors are already masked and have shape (num_periods, num_optimized_budgets)
+        # budgets has full shape (e.g., (2, 2) for geo x channel)
+        # We need to extract only the optimized budgets
+
+        # Get the optimized budget values
+        bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
+        budgets_optimized = budgets[bool_mask]  # Shape: (num_optimized_budgets,)
+
+        # Now multiply budgets by time factors
+        budgets_expanded = pt.expand_dims(
+            budgets_optimized, 0
+        )  # Shape: (1, num_optimized_budgets)
+        repeated_budgets_flat = (
+            budgets_expanded * self._budget_distribution_over_period_tensor
+        )  # Shape: (num_periods, num_optimized_budgets)
+
+        # Reconstruct the full shape for each time period
+        repeated_budgets_list = []
+        for t in range(num_periods):
+            # Create a zero tensor with the full budget shape
+            budgets_t = pt.zeros_like(budgets)
+            # Set the optimized values
+            budgets_t = budgets_t[bool_mask].set(repeated_budgets_flat[t])
+            repeated_budgets_list.append(budgets_t)
+
+        # Stack the time periods
+        repeated_budgets = pt.stack(repeated_budgets_list, axis=date_dim_idx)
+        repeated_budgets *= num_periods
+
+        return repeated_budgets
+
     def _replace_channel_data_by_optimization_variable(self, model: Model) -> Model:
         """Replace `channel_data` in the model graph with our newly created `_budgets` variable."""
         num_periods = self.num_periods
@@ -287,10 +423,19 @@ class BudgetOptimizer(BaseModel):
         # Repeat budgets over num_periods
         repeated_budgets_shape = list(tuple(budgets.shape))
         repeated_budgets_shape.insert(date_dim_idx, num_periods)
-        repeated_budgets = pt.broadcast_to(
-            pt.expand_dims(budgets, date_dim_idx),
-            shape=repeated_budgets_shape,
-        )
+
+        if self._budget_distribution_over_period_tensor is not None:
+            # Apply time distribution factors
+            repeated_budgets = self._apply_budget_distribution_over_period(
+                budgets, num_periods, date_dim_idx
+            )
+        else:
+            # Default behavior: distribute evenly across periods
+            repeated_budgets = pt.broadcast_to(
+                pt.expand_dims(budgets, date_dim_idx),
+                shape=repeated_budgets_shape,
+            )
+
         repeated_budgets.name = "repeated_budgets"
 
         # Pad the repeated budgets with zeros to account for carry-over effects
@@ -332,56 +477,11 @@ class BudgetOptimizer(BaseModel):
         returns a graph that computes `"channel_contribution"` as a function of both
         the newly introduced budgets and the posterior of model parameters.
         """
-        model = self._pymc_model
-        # Convert InferenceData to a sample-major xarray
-        posterior = az.extract(self.mmm_model.idata).transpose("sample", ...)  # type: ignore
-
-        # The PyMC variable to extract
-        response_var = model[response_variable]
-
-        # Identify which free RVs are needed to compute `response_var`
-        free_rvs = set(model.free_RVs)
-        needed_rvs = [
-            rv for rv in ancestors([response_var], blockers=free_rvs) if rv in free_rvs
-        ]
-        placeholder_replace_dict = {
-            model[rv.name]: pt.tensor(name=rv.name, shape=rv.type.shape, dtype=rv.dtype)
-            for rv in needed_rvs
-        }
-
-        [response_var] = clone_replace(
-            [response_var],
-            replace=placeholder_replace_dict,
+        return extract_response_distribution(
+            pymc_model=self._pymc_model,
+            idata=self.mmm_model.idata,
+            response_variable=response_variable,
         )
-
-        if rvs_in_graph([response_var]):
-            raise RuntimeError("RVs found in the extracted graph, this is likely a bug")
-
-        # Cleanup graph
-        response_var = rewrite_graph(response_var, include=("canonicalize", "ShapeOpt"))
-
-        # Replace placeholders with actual posterior samples
-        replace_dict = {}
-        for placeholder in placeholder_replace_dict.values():
-            replace_dict[placeholder] = pt.constant(
-                posterior[placeholder.name].astype(placeholder.dtype),
-                name=placeholder.name,
-            )
-
-        # Vectorize across samples
-        response_distribution = vectorize_graph(response_var, replace=replace_dict)
-
-        # Final cleanup
-        response_distribution = rewrite_graph(
-            response_distribution,
-            include=(
-                "useless",
-                "local_eager_useless_unbatched_blockwise",
-                "local_useless_unbatched_blockwise",
-            ),
-        )
-
-        return response_distribution
 
     def _compile_objective_and_grad(self):
         """Compile the objective function and its gradient, both referencing `self._budgets_flat`."""
